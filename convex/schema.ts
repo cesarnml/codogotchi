@@ -25,22 +25,39 @@ const lootSources = [
 	"wakatime",
 ] as const satisfies readonly LootSource[];
 
+// Key set is locked to LootSource via the satisfies assertion. If a new signal
+// source is added to the engine enum, this type-time check fails until the
+// schema is widened in lockstep — same drift gate used for tier/source above.
+const sourceKeys = [
+	"claude_code",
+	"codex",
+	"github",
+	"wakatime",
+] as const satisfies readonly LootSource[];
+type SourceKey = (typeof sourceKeys)[number];
+
 const xpBySource = v.object({
 	claude_code: v.number(),
 	codex: v.number(),
 	github: v.number(),
 	wakatime: v.number(),
-});
+} satisfies Record<SourceKey, ReturnType<typeof v.number>>);
 
 // Signal timestamps are ISO-8601 strings — engine writes `now.toISOString()`
 // (see `packages/engine/src/health.ts`). Storing them as strings preserves
-// timezone semantics and avoids a server-side parse on every write.
+// timezone semantics and avoids a server-side parse on every write. The
+// satisfies assertion locks the key set to LootSource.
 const lastSignalAtBySource = v.object({
 	claude_code: v.union(v.string(), v.null()),
 	codex: v.union(v.string(), v.null()),
 	github: v.union(v.string(), v.null()),
 	wakatime: v.union(v.string(), v.null()),
-});
+} satisfies Record<
+	SourceKey,
+	ReturnType<
+		typeof v.union<[ReturnType<typeof v.string>, ReturnType<typeof v.null>]>
+	>
+>);
 
 // Full snapshot of `HealthConfig` from `packages/engine/src/health.ts`. Stored
 // per-profile so server-side health ticks are deterministic from the row alone
@@ -78,6 +95,11 @@ export default defineSchema({
 		death_count: v.number(),
 		last_signal_at_by_source: lastSignalAtBySource,
 		config_snapshot: configSnapshot,
+		// Timestamp convention: engine-authored timestamps (`last_signal_at_*`,
+		// `died_at`) stay as ISO strings because the engine writes them with
+		// `toISOString()` and the contract preserves timezone. Server-controlled
+		// timestamps (`updated_at`, `created_at`, `loot_events.ts`) are Unix-ms
+		// numbers so range queries and Convex `_creationTime` stay homogeneous.
 		updated_at: v.number(),
 	})
 		.index("by_profile_id", ["profile_id"])
