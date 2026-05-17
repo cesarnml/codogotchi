@@ -45,7 +45,7 @@ Scope: engine
 
 - Scope contract widened by one line: `cspell.json` now ignores
   `docs/product/delivery/**/reviews/**`. The P1.04 review artifact landed in
-  the stack with vendor-name tokens (e.g. `Opengrep`) that broke `ci:quiet`,
+  the stack with vendor-name tokens that broke `ci:quiet`,
   and future review artifacts will keep introducing similar unknown words.
   Spell-checking vendor JSON output is not load-bearing; gating the chain on
   it is. Fix applied here instead of a separate ticket because it was the
@@ -53,7 +53,7 @@ Scope: engine
 - Loot module design choices not pinned by the ticket spec:
   - Tier weights chosen as `60/25/10/4/1` (out of 100) so test fixtures can
     target each tier band with a single seeded `rng()` value and so the
-    legendary slice is meaningfully rare without being unhittable in a
+    legendary slice is meaningfully rare without being out of reach in a
     20k-sample seeded sweep.
   - `BASE_DROP_PROBABILITY = 0.05`, `PR_QUALITY_DROP_BONUS_MAX = 0.45` — top
     quality PRs drop ~50% of the time, junk PRs stay near the 5% floor. These

@@ -122,6 +122,18 @@ describe("scorePR", () => {
 		expect(awful.score).toBeGreaterThanOrEqual(0);
 		expect(awful.score).toBeLessThanOrEqual(1);
 	});
+
+	it("sanitizes NaN, Infinity, and negative numeric inputs", () => {
+		const scored = scorePR(
+			pr({
+				reviewCommentCount: Number.NaN,
+				additions: Number.POSITIVE_INFINITY,
+				deletions: -10,
+			}),
+		);
+		expect(scored.score).toBe(1);
+		expect(scored.explanation).toBe("0 review comments, +0/-0 LOC");
+	});
 });
 
 describe("rollPRLootDropWithQuality", () => {

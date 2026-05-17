@@ -47,6 +47,10 @@ export type ScoredPR = PRMerge & {
 	explanation: string;
 };
 
+function nonNegativeFiniteOrZero(n: number): number {
+	return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
 function clamp(n: number, lo: number, hi: number): number {
 	if (n < lo) return lo;
 	if (n > hi) return hi;
@@ -93,9 +97,9 @@ function isRevert(pr: PRMerge): boolean {
 }
 
 export function scorePR(pr: PRMerge): ScoredPR {
-	const reviewComments = Math.max(0, pr.reviewCommentCount);
-	const additions = Math.max(0, pr.additions);
-	const deletions = Math.max(0, pr.deletions);
+	const reviewComments = nonNegativeFiniteOrZero(pr.reviewCommentCount);
+	const additions = nonNegativeFiniteOrZero(pr.additions);
+	const deletions = nonNegativeFiniteOrZero(pr.deletions);
 	const churn = additions + deletions;
 	const reverted = isRevert(pr);
 
