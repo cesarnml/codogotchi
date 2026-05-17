@@ -3,6 +3,9 @@
 	"module": "index.ts",
 	"type": "module",
 	"private": true,
+	"workspaces": [
+		"packages/*"
+	],
 	"scripts": {
 		"sync": "bash .son-of-anton/scripts/soa-sync.sh",
 		"deliver": "bun run .son-of-anton/scripts/deliver.ts",
@@ -21,6 +24,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.15",
 		"@types/bun": "latest",
+		"convex": "^1.16.0",
 		"cspell": "^10.0.0"
 	},
 	"peerDependencies": {

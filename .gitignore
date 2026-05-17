@@ -175,3 +175,8 @@ dist
 # Custom
 notes/private
 .vscode/settings.json
+
+# Codogotchi / Son-of-Anton
+.soa/
+.convex/
+.codogotchi-test-home/
