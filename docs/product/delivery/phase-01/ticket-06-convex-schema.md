@@ -41,3 +41,21 @@ Scope: convex
 ## Rationale
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+- **`mood` enum sourced from `HP_OVERLAY_STATES`.** Contracts does not export a
+  separate `mood` enum, but the four HP overlay buckets (`thriving`,
+  `getting_sick`, `near_death`, `ghost`) are the only mood-shaped value the
+  engine currently produces and the only one the macOS app contract needs.
+  Treating `mood = hpOverlay` avoids inventing a second parallel enum.
+- **Loot tier/source literals locked via `satisfies readonly LootTier[]` /
+  `readonly LootSource[]`.** Hardcoding the literals lets `defineSchema` keep
+  Convex's `v.literal(...)` shape, while the `satisfies` assertion fails to
+  compile if the engine enums drift. This is type-time drift protection
+  without runtime indirection.
+- **`convex dev --typecheck` deferred to P1.07/P1.08.** That CLI requires a
+  Cloud project bootstrap (`convex login` + deployment) which lands in P1.08.
+  Until then, repo `bun run ci:quiet` (biome + cspell) is the gate for this
+  ticket. Convex-side validation comes online when `syncProfile` mutation
+  tests run in P1.07 via `convex-test`.
+- **`convex/_generated/` added to `.gitignore`.** Per ticket Green step; this
+  directory only exists after `convex dev` has run locally.
