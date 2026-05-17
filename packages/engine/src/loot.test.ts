@@ -123,6 +123,15 @@ describe("scorePR", () => {
 		expect(awful.score).toBeLessThanOrEqual(1);
 	});
 
+	it("non-revert PR with max review + size penalties clamps to 0, not negative", () => {
+		// reviewPenalty = min(0.8, 50×0.02=1.0) = 0.8; sizePenalty = 0.3 (churn > 1000)
+		// raw score = 1 - 0.8 - 0.3 = -0.1 → must clamp to 0
+		const scored = scorePR(
+			pr({ reviewCommentCount: 50, additions: 800, deletions: 400 }),
+		);
+		expect(scored.score).toBe(0);
+	});
+
 	it("sanitizes NaN, Infinity, and negative numeric inputs", () => {
 		const scored = scorePR(
 			pr({

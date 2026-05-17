@@ -57,14 +57,15 @@ function clamp(n: number, lo: number, hi: number): number {
 	return n;
 }
 
+const TOTAL_TIER_WEIGHT = LOOT_TIER_ORDER.reduce(
+	(sum, tier) => sum + LOOT_TIER_WEIGHTS[tier],
+	0,
+);
+
 function pickTier(roll: number): LootTier {
-	const totalWeight = LOOT_TIER_ORDER.reduce(
-		(sum, tier) => sum + LOOT_TIER_WEIGHTS[tier],
-		0,
-	);
 	let cumulative = 0;
 	for (const tier of LOOT_TIER_ORDER) {
-		cumulative += LOOT_TIER_WEIGHTS[tier] / totalWeight;
+		cumulative += LOOT_TIER_WEIGHTS[tier] / TOTAL_TIER_WEIGHT;
 		if (roll < cumulative) return tier;
 	}
 	// Floating-point straggler when roll ≈ 1; fall through to the rarest tier
@@ -87,9 +88,9 @@ export function rollLootDrop(
 }
 
 // Revert detection: GitHub's auto-generated revert PRs use the title prefix
-// `Revert "<original title>"`. Matching the prefix is intentionally narrow —
-// we only want to penalize confirmed reverts, not titles that happen to
-// mention the word "revert".
+// `Revert "<original title>"`. The `i` flag also catches user-authored reverts
+// with lowercase "revert". Narrowness comes from requiring the opening `"` —
+// this excludes titles that merely mention the word without the quote.
 const REVERT_TITLE_PATTERN = /^Revert\s+"/i;
 
 function isRevert(pr: PRMerge): boolean {
