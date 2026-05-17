@@ -77,12 +77,22 @@ describe("weekend rule", () => {
 	it("respects timezone: Saturday in Pacific/Auckland triggers weekend skip even when UTC says Friday", () => {
 		// 2026-05-15 18:00Z is Friday in UTC but Saturday 06:00 in Auckland
 		const t = new Date("2026-05-15T18:00:00Z");
-		const next = tickHealth(t, stale, noSignals, config({ timezone: "Pacific/Auckland" }));
+		const next = tickHealth(
+			t,
+			stale,
+			noSignals,
+			config({ timezone: "Pacific/Auckland" }),
+		);
 		expect(next.hp).toBe(80);
 	});
 
 	it("applies decay on weekend when weekend_decay=true is set explicitly", () => {
-		const next = tickHealth(sat, stale, noSignals, config({ weekend_decay: true }));
+		const next = tickHealth(
+			sat,
+			stale,
+			noSignals,
+			config({ weekend_decay: true }),
+		);
 		expect(next.hp).toBeLessThan(80);
 	});
 });
@@ -103,7 +113,9 @@ describe("grace period", () => {
 	it("applies decay when days-since-last-signal equals grace_days (boundary is exclusive on grace side)", () => {
 		const old = profile({
 			hp: 80,
-			last_signal_at: new Date(mon.getTime() - 2 * 24 * 3600 * 1000).toISOString(),
+			last_signal_at: new Date(
+				mon.getTime() - 2 * 24 * 3600 * 1000,
+			).toISOString(),
 		});
 		const next = tickHealth(mon, old, noSignals, config({ grace_days: 2 }));
 		expect(next.hp).toBeLessThan(80);
@@ -115,17 +127,32 @@ describe("vacation rule", () => {
 	const stale = profile({ hp: 80, last_signal_at: "2026-05-01T00:00:00Z" });
 
 	it("suspends decay while vacation_until is in the future", () => {
-		const next = tickHealth(mon, stale, noSignals, config({ vacation_until: "2026-05-20T00:00:00Z" }));
+		const next = tickHealth(
+			mon,
+			stale,
+			noSignals,
+			config({ vacation_until: "2026-05-20T00:00:00Z" }),
+		);
 		expect(next.hp).toBe(80);
 	});
 
 	it("resumes decay once vacation_until is in the past", () => {
-		const next = tickHealth(mon, stale, noSignals, config({ vacation_until: "2026-05-10T00:00:00Z" }));
+		const next = tickHealth(
+			mon,
+			stale,
+			noSignals,
+			config({ vacation_until: "2026-05-10T00:00:00Z" }),
+		);
 		expect(next.hp).toBeLessThan(80);
 	});
 
 	it("ignores vacation_until=null", () => {
-		const next = tickHealth(mon, stale, noSignals, config({ vacation_until: null }));
+		const next = tickHealth(
+			mon,
+			stale,
+			noSignals,
+			config({ vacation_until: null }),
+		);
 		expect(next.hp).toBeLessThan(80);
 	});
 });
@@ -138,7 +165,12 @@ describe("decay accumulation + death + revival", () => {
 			hp: 100,
 			last_signal_at: "2026-04-01T00:00:00Z", // very old
 		});
-		const next = tickHealth(mon, stale, noSignals, config({ decay_per_day: 5 }));
+		const next = tickHealth(
+			mon,
+			stale,
+			noSignals,
+			config({ decay_per_day: 5 }),
+		);
 		expect(next.hp).toBeLessThan(100);
 		expect(next.hp).toBeGreaterThanOrEqual(0);
 	});
@@ -148,7 +180,12 @@ describe("decay accumulation + death + revival", () => {
 			hp: 3,
 			last_signal_at: "2026-04-01T00:00:00Z",
 		});
-		const next = tickHealth(mon, dying, noSignals, config({ decay_per_day: 5 }));
+		const next = tickHealth(
+			mon,
+			dying,
+			noSignals,
+			config({ decay_per_day: 5 }),
+		);
 		expect(next.hp).toBe(0);
 		expect(next.died_at).not.toBeNull();
 		expect(next.cause).toBe("decay");
@@ -227,7 +264,10 @@ describe("integration: 10 days of synthetic time", () => {
 	it("Mon active → Tue idle → Wed idle (grace expires) → ... weekend skip → resumes", () => {
 		// Start Mon active, hp 100; idle Tue–Sun; resume next Mon.
 		// grace_days=2, weekend_decay=false, decay_per_day=10
-		const start = profile({ hp: 100, last_signal_at: "2026-05-18T15:00:00-04:00" });
+		const start = profile({
+			hp: 100,
+			last_signal_at: "2026-05-18T15:00:00-04:00",
+		});
 		const cfg = config({ grace_days: 2, decay_per_day: 10 });
 		const days = [
 			"2026-05-19T15:00:00-04:00", // Tue (idle, within grace)
