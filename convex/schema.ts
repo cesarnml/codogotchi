@@ -26,7 +26,7 @@ const lootSources = [
 ] as const satisfies readonly LootSource[];
 
 const xpBySource = v.object({
-	claude: v.number(),
+	claude_code: v.number(),
 	codex: v.number(),
 	github: v.number(),
 	wakatime: v.number(),
@@ -36,7 +36,7 @@ const xpBySource = v.object({
 // (see `packages/engine/src/health.ts`). Storing them as strings preserves
 // timezone semantics and avoids a server-side parse on every write.
 const lastSignalAtBySource = v.object({
-	claude: v.union(v.string(), v.null()),
+	claude_code: v.union(v.string(), v.null()),
 	codex: v.union(v.string(), v.null()),
 	github: v.union(v.string(), v.null()),
 	wakatime: v.union(v.string(), v.null()),
@@ -79,7 +79,9 @@ export default defineSchema({
 		last_signal_at_by_source: lastSignalAtBySource,
 		config_snapshot: configSnapshot,
 		updated_at: v.number(),
-	}).index("by_profile_id", ["profile_id"]),
+	})
+		.index("by_profile_id", ["profile_id"])
+		.index("by_handle", ["handle"]),
 
 	loot_events: defineTable({
 		profile_id: v.string(),
@@ -90,5 +92,6 @@ export default defineSchema({
 		ts: v.number(),
 	})
 		.index("by_profile_id", ["profile_id"])
+		.index("by_profile_id_ts", ["profile_id", "ts"])
 		.index("by_ts", ["ts"]),
 });
