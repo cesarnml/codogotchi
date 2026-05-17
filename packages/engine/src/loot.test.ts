@@ -129,8 +129,12 @@ describe("rollPRLootDropWithQuality", () => {
 		const clean = scorePR(pr());
 		const trash = scorePR(pr({ title: 'Revert "x"', reviewCommentCount: 50 }));
 		// rng draws 0.3 — within clean's effective probability but above trash's.
-		expect(rollPRLootDropWithQuality(sequenceRng([0.3, 0.0]), clean)).not.toBeNull();
-		expect(rollPRLootDropWithQuality(sequenceRng([0.3, 0.0]), trash)).toBeNull();
+		expect(
+			rollPRLootDropWithQuality(sequenceRng([0.3, 0.0]), clean),
+		).not.toBeNull();
+		expect(
+			rollPRLootDropWithQuality(sequenceRng([0.3, 0.0]), trash),
+		).toBeNull();
 	});
 
 	it("rng draw above the effective probability still yields no drop", () => {
