@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import {
+	computeXp,
 	STAGE_THRESHOLDS,
+	stageForXp,
 	XP_PER_CLAUDE_TOKEN,
 	XP_PER_CODEX_TOKEN,
 	XP_PER_GITHUB_PR,
 	XP_PER_WAKATIME_HOUR,
-	computeXp,
-	stageForXp,
 	xpFromClaudeTokens,
 	xpFromCodexTokens,
 	xpFromGithubPRs,
