@@ -32,18 +32,27 @@ const xpBySource = v.object({
 	wakatime: v.number(),
 });
 
+// Signal timestamps are ISO-8601 strings — engine writes `now.toISOString()`
+// (see `packages/engine/src/health.ts`). Storing them as strings preserves
+// timezone semantics and avoids a server-side parse on every write.
 const lastSignalAtBySource = v.object({
-	claude: v.union(v.number(), v.null()),
-	codex: v.union(v.number(), v.null()),
-	github: v.union(v.number(), v.null()),
-	wakatime: v.union(v.number(), v.null()),
+	claude: v.union(v.string(), v.null()),
+	codex: v.union(v.string(), v.null()),
+	github: v.union(v.string(), v.null()),
+	wakatime: v.union(v.string(), v.null()),
 });
 
+// Full snapshot of `HealthConfig` from `packages/engine/src/health.ts`. Stored
+// per-profile so server-side health ticks are deterministic from the row alone
+// — the user's runtime knobs and the tuning constants ride together.
 const configSnapshot = v.object({
 	weekend_decay: v.boolean(),
 	grace_days: v.number(),
 	vacation_until: v.union(v.string(), v.null()),
 	timezone: v.string(),
+	decay_per_day: v.number(),
+	revive_threshold: v.number(),
+	revive_hp: v.number(),
 });
 
 export default defineSchema({
@@ -61,8 +70,11 @@ export default defineSchema({
 		stage: v.number(),
 		hp: v.number(),
 		mood: v.union(...moodLiterals),
-		died_at: v.union(v.number(), v.null()),
-		cause: v.union(v.string(), v.null()),
+		died_at: v.union(v.string(), v.null()),
+		// `cause` mirrors engine `ProfileHealth.cause` (`"decay" | undefined`).
+		// Persisted as `"decay" | null` so the column is queryable and matches
+		// the only failure mode the engine currently emits.
+		cause: v.union(v.literal("decay"), v.null()),
 		death_count: v.number(),
 		last_signal_at_by_source: lastSignalAtBySource,
 		config_snapshot: configSnapshot,
