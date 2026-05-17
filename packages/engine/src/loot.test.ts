@@ -56,6 +56,15 @@ describe("rollLootDrop", () => {
 		expect(event?.tier).toBe("common");
 	});
 
+	it("NaN dropProbability is treated as 0 (never drops)", () => {
+		// clamp(NaN, 0, 1) must not pass NaN through; if it did, rng()>=NaN is
+		// always false and every call would drop regardless of intent.
+		const rng = sequenceRng([0.5]);
+		expect(
+			rollLootDrop(rng, { source: "claude_code", dropProbability: Number.NaN }),
+		).toBeNull();
+	});
+
 	it("honors a per-context dropProbability override", () => {
 		// override probability 1.0 means any rng < 1.0 drops.
 		const rng = sequenceRng([0.9, 0.0]);

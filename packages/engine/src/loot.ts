@@ -52,6 +52,7 @@ function nonNegativeFiniteOrZero(n: number): number {
 }
 
 function clamp(n: number, lo: number, hi: number): number {
+	if (!Number.isFinite(n)) return lo;
 	if (n < lo) return lo;
 	if (n > hi) return hi;
 	return n;
