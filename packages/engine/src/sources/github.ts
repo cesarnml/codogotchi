@@ -77,10 +77,15 @@ function defaultFetch(): HttpFetch {
 }
 
 function isRateLimited(res: HttpResponse): boolean {
-	if (res.status !== 403 && res.status !== 429) return false;
+	// 429 is always rate-limited. For 403, require a positive rate-limit signal:
+	// `x-ratelimit-remaining: 0` (primary) or a `retry-after` header (secondary).
+	// Plain 403s (token scope errors, repository permission failures) must NOT
+	// be reported as rate-limit hits — they have a different remediation path.
+	if (res.status === 429) return true;
+	if (res.status !== 403) return false;
 	if (res.headers["x-ratelimit-remaining"] === "0") return true;
-	// Secondary rate limit responses use 403 without a 0 remaining counter.
-	return true;
+	if (res.headers["retry-after"] !== undefined) return true;
+	return false;
 }
 
 function formatDate(d: Date): string {
@@ -238,7 +243,14 @@ export async function readGithubSignals(
 		fetchedAt,
 	};
 
-	const searchRes = await http(searchUrl, { headers });
+	let searchRes: HttpResponse;
+	try {
+		searchRes = await http(searchUrl, { headers });
+	} catch {
+		// Network/fetch failure during search — return empty rather than throw so
+		// per-source isolation in the CLI sync wrapper sees a clean signal-set.
+		return empty;
+	}
 	if (isRateLimited(searchRes)) {
 		debugLog({ kind: "rate_limit_hit", phase: "search", url: searchUrl });
 		return { ...empty, rateLimitHit: true };
@@ -247,7 +259,12 @@ export async function readGithubSignals(
 		return empty;
 	}
 
-	const items = parseSearchItems(await searchRes.json());
+	let items: SearchItem[];
+	try {
+		items = parseSearchItems(await searchRes.json());
+	} catch {
+		return empty;
+	}
 
 	let capApplied: FirstSyncCap | null = null;
 	if (isFirstSync) {
@@ -270,13 +287,24 @@ export async function readGithubSignals(
 		detailUrls,
 		concurrency,
 		async ({ url }) => {
-			const res = await http(url, { headers });
+			let res: HttpResponse;
+			try {
+				res = await http(url, { headers });
+			} catch {
+				// Transient network error on one enrichment: skip this PR rather
+				// than aborting the whole sync.
+				return null;
+			}
 			if (isRateLimited(res)) {
 				debugLog({ kind: "rate_limit_hit", phase: "enrichment", url });
 				return "rate_limited" as const;
 			}
 			if (!res.ok) return null;
-			return parsePRDetail(await res.json());
+			try {
+				return parsePRDetail(await res.json());
+			} catch {
+				return null;
+			}
 		},
 	);
 

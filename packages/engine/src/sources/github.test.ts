@@ -320,4 +320,121 @@ describe("readGithubSignals — rate limit", () => {
 		expect(result.prs.length).toBe(0);
 		expect(result.capApplied).toBeNull();
 	});
+
+	it("does NOT flag a plain 403 (no rate-limit headers) as a rate-limit hit", async () => {
+		// E.g. token scope error: the remediation is "fix your token", not "wait".
+		const fetch: HttpFetch = async () => ({
+			ok: false,
+			status: 403,
+			headers: {},
+			json: async () => ({ message: "Resource not accessible by integration" }),
+		});
+		const result = await readGithubSignals({
+			token: "t",
+			username: "alice",
+			since: null,
+			now: new Date("2026-05-18T00:00:00.000Z"),
+			http: fetch,
+		});
+		expect(result.rateLimitHit).toBe(false);
+		expect(result.prs.length).toBe(0);
+	});
+
+	it("treats 403 with retry-after as a (secondary) rate-limit hit", async () => {
+		const fetch: HttpFetch = async () => ({
+			ok: false,
+			status: 403,
+			headers: { "retry-after": "60" },
+			json: async () => ({
+				message: "You have exceeded a secondary rate limit",
+			}),
+		});
+		const result = await readGithubSignals({
+			token: "t",
+			username: "alice",
+			since: null,
+			now: new Date("2026-05-18T00:00:00.000Z"),
+			http: fetch,
+		});
+		expect(result.rateLimitHit).toBe(true);
+	});
+});
+
+describe("readGithubSignals — transient errors", () => {
+	it("returns an empty signal set when the search fetch throws", async () => {
+		const fetch: HttpFetch = async () => {
+			throw new Error("network down");
+		};
+		const result = await readGithubSignals({
+			token: "t",
+			username: "alice",
+			since: null,
+			now: new Date("2026-05-18T00:00:00.000Z"),
+			http: fetch,
+		});
+		expect(result.rateLimitHit).toBe(false);
+		expect(result.prs.length).toBe(0);
+		expect(result.capApplied).toBeNull();
+	});
+
+	it("skips a single PR whose enrichment fetch throws, keeps the rest", async () => {
+		let calls = 0;
+		const fetch: HttpFetch = async (url) => {
+			if (url.includes("/search/issues")) {
+				return {
+					ok: true,
+					status: 200,
+					headers: {},
+					json: async () => ({
+						total_count: 2,
+						items: [
+							{
+								number: 1,
+								title: "feat: ok",
+								pull_request: {
+									url: "https://api.github.com/repos/o/r/pulls/1",
+								},
+							},
+							{
+								number: 2,
+								title: "feat: broken",
+								pull_request: {
+									url: "https://api.github.com/repos/o/r/pulls/2",
+								},
+							},
+						],
+					}),
+				};
+			}
+			calls++;
+			if (url.endsWith("/pulls/2")) throw new Error("network blip");
+			return {
+				ok: true,
+				status: 200,
+				headers: {},
+				json: async () => ({
+					number: 1,
+					title: "feat: ok",
+					additions: 10,
+					deletions: 0,
+					review_comments: 0,
+					merged_at: "2026-05-15T00:00:00.000Z",
+					html_url: "https://github.com/o/r/pull/1",
+					base: { repo: { full_name: "o/r" } },
+				}),
+			};
+		};
+		const result = await readGithubSignals({
+			token: "t",
+			username: "alice",
+			since: null,
+			now: new Date("2026-05-18T00:00:00.000Z"),
+			http: fetch,
+			concurrency: 1,
+		});
+		expect(result.rateLimitHit).toBe(false);
+		expect(result.prs.length).toBe(1);
+		expect(result.prs[0]?.number).toBe(1);
+		expect(calls).toBe(2);
+	});
 });
