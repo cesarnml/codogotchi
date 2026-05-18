@@ -4,10 +4,10 @@ import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-	parseStateJson,
 	type ProfileResponse,
-	type StateJsonV1,
+	parseStateJson,
 	STATE_JSON_SCHEMA_VERSION,
+	type StateJsonV1,
 } from "@codogotchi/contracts";
 import { classifyEvent, type HookInput, runHook } from "./hook-binary";
 
@@ -259,11 +259,7 @@ describe("runHook", () => {
 			},
 			updated_at: 0,
 		};
-		writeFileSync(
-			join(home, "profile.json"),
-			JSON.stringify(profile),
-			"utf8",
-		);
+		writeFileSync(join(home, "profile.json"), JSON.stringify(profile), "utf8");
 
 		await runHook(
 			{ origin: "claude_code", kind: "tool_use", name: "Edit" },

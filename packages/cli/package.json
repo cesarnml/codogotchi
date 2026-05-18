@@ -8,7 +8,8 @@
 		".": "./src/index.ts"
 	},
 	"bin": {
-		"codogotchi": "./bin/codogotchi.ts"
+		"codogotchi": "./bin/codogotchi.ts",
+		"codogotchi-hook": "./bin/codogotchi-hook.ts"
 	},
 	"dependencies": {
 		"@codogotchi/contracts": "workspace:*",
