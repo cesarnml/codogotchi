@@ -159,12 +159,6 @@ export async function readJsonlSignals(
 					result.parseErrors += 1;
 					continue;
 				}
-				const obj = asObject(parsed);
-				const ts =
-					obj && typeof obj.timestamp === "string" ? obj.timestamp : null;
-				// Apply `since` cutoff early on the raw timestamp to bound first-sync
-				// cost on long-running projects. ISO-8601 sorts lexically.
-				if (ts !== null && ts < sinceIso) continue;
 				const event = config.extract(parsed, state);
 				if (!event) continue;
 				if (event.timestamp < sinceIso) continue;

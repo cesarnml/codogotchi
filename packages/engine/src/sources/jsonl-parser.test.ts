@@ -82,6 +82,21 @@ describe("readJsonlSignals — codex", () => {
 		expect(result.lastEventAt?.toISOString()).toBe("2026-05-15T09:02:00.000Z");
 	});
 
+	it("buckets an in-window event under its session_meta cwd even when meta predates since", async () => {
+		// Regression: the parser must not drop session_meta lines based on the
+		// raw line timestamp, because that drops the per-file project state and
+		// later in-window events fall back to <unknown>.
+		const root = join(FIXTURE_ROOT, "codex-old-meta");
+		const result = await readJsonlSignals({
+			source: "codex",
+			rootDir: root,
+			since: new Date("2026-05-01T00:00:00.000Z"),
+		});
+		expect(result.perProject["/repo/codex-old-meta"]?.tokens).toBe(150);
+		expect(result.perProject["<unknown>"]).toBeUndefined();
+		expect(result.events).toBe(1);
+	});
+
 	it("since cutoff filters out the entire file when nothing qualifies", async () => {
 		const result = await readJsonlSignals({
 			source: "codex",

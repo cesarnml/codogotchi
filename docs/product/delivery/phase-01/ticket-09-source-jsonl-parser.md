@@ -44,3 +44,6 @@ Scope: engine
 ## Rationale
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+- **Codex per-file project state vs. early `since` cutoff (subagent-review).** The first implementation skipped any line whose raw timestamp predated `since` before letting the source-config extractor see it. For Claude that is fine — every line carries its own `cwd`. For Codex it is not: `session_meta` lines often have an older timestamp than the in-window `token_count` events that follow them in the same session file, so dropping the meta early left `currentProject` unset and the in-window events bucketed into `<unknown>`. The early cutoff was removed; the post-extract `event.timestamp < sinceIso` check still excludes pre-cutoff events from aggregation. Cost-bounding is preserved in practice because the bulk of work (token math, per-project bucketing, `lastEventAt` update) only runs once an event survives that post-extract check.
+- **Tokens computation differs by source.** Claude sums `input_tokens + output_tokens + cache_creation_input_tokens + cache_read_input_tokens` from `message.usage`. Codex uses `payload.info.last_token_usage.total_tokens` per `event_msg` of type `token_count`. The source-config table is the single place either field name appears.
