@@ -1,0 +1,11 @@
+{
+	"session_id": "0000-codex-fixture-session",
+	"rollout_path": "/redacted/codex/rollout.jsonl",
+	"cwd": "/redacted/workspace",
+	"hook_event_name": "pre_tool_use",
+	"tool_name": "Edit",
+	"tool_input": {
+		"path": "/redacted/workspace/src/example.ts",
+		"patch": "@@ -1 +1 @@\n-const x = 1\n+const x = 2\n"
+	}
+}

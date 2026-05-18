@@ -1,0 +1,12 @@
+{
+	"session_id": "0000-claude-fixture-session",
+	"transcript_path": "/redacted/transcript.jsonl",
+	"cwd": "/redacted/workspace",
+	"hook_event_name": "PreToolUse",
+	"tool_name": "Edit",
+	"tool_input": {
+		"file_path": "/redacted/workspace/src/example.ts",
+		"old_string": "const x = 1",
+		"new_string": "const x = 2"
+	}
+}

@@ -1,0 +1,7 @@
+{
+	"session_id": "0000-codex-fixture-session",
+	"rollout_path": "/redacted/codex/rollout.jsonl",
+	"cwd": "/redacted/workspace",
+	"hook_event_name": "session_end",
+	"reason": "completed"
+}

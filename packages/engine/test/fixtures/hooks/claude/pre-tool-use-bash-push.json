@@ -1,0 +1,11 @@
+{
+	"session_id": "0000-claude-fixture-session",
+	"transcript_path": "/redacted/transcript.jsonl",
+	"cwd": "/redacted/workspace",
+	"hook_event_name": "PreToolUse",
+	"tool_name": "Bash",
+	"tool_input": {
+		"command": "git push origin agents/example-branch",
+		"description": "Push branch to origin"
+	}
+}

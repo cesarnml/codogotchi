@@ -39,3 +39,13 @@ Scope: ops
 ## Rationale
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+### Implementation notes (P1.20)
+
+- **`scorePR` log writing lives in the CLI reader, not the engine source.** The engine's `github.ts` already returns `score` and `scoreExplanation` for every PR. Moving the log write into the CLI's `default-readers.github` closure keeps engine source files free of filesystem I/O and reuses `getCodogotchiHome()`. The contract that this is "written by the GitHub source" still holds from the user's perspective: every GitHub sync run produces the log entry, regardless of the precise module that owns the `appendFile` call.
+- **Log writes are best-effort.** A failure to append to `scorePR.log` is swallowed inside `default-readers`. Sync correctness must not regress when the disk is full or the home directory is read-only — the engine still returns the scored signals and the heartbeat sync completes.
+- **Rotation mirrors `sync-log.ts`.** Same 10 MiB threshold, same `*.log.1` filename, same single-file rotation (no multi-generation history). Keeps operator mental model uniform.
+- **launchd installer is idempotent.** Re-running unloads any prior agent before generating a fresh plist; the script is also the upgrade path when its content changes (e.g. interval override). `--uninstall` cleans up both the plist file and the launchctl registration.
+- **Cron installer is idempotent via managed marker.** Each appended crontab line ends with `# managed-by:codogotchi-sync`. Re-runs strip prior managed lines before appending. Override schedule with `CODOGOTCHI_CRON_SCHEDULE` if the default `*/15 * * * *` is wrong for the host.
+- **Fixtures are committed but redacted.** Paths and session ids are stubbed (`/redacted/...`, `0000-...`) so the fixtures stay portable across reviewer machines. The `capture-hook-fixtures.sh` recipe documents the steps for re-capturing if upstream schemas drift; it does not auto-run because hook lifecycles are driven by the agent runtimes, not by this repo.
+- **`scorePR.log` is JSON-per-line.** Each line is a self-contained `JSON.stringify(entry)` so the file is `jq -c .`-compatible. Sync-log uses a space-separated text format; the divergence is deliberate — `scorePR.log` carries structured score breakdowns that need real fields, not flat strings.

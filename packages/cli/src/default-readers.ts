@@ -5,7 +5,8 @@ import {
 	readJsonlSignals,
 	readWakatimeSignals,
 } from "@codogotchi/engine";
-import type { CodogotchiConfig } from "./config";
+import { type CodogotchiConfig, getCodogotchiHome } from "./config";
+import { appendScorePRLog } from "./score-pr-log";
 import type { SourceReaders } from "./sync";
 
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
@@ -67,6 +68,26 @@ export function defaultReaders(config: CodogotchiConfig): SourceReaders {
 			// GitHub API soft-failed. Surface that as a source error so it shows
 			// up in the sync `errors[]` rather than masquerading as zero activity.
 			if (set.rateLimitHit) throw new Error("GitHub rate limit hit");
+			const scoredAt = now.toISOString();
+			const scorePRHome = getCodogotchiHome();
+			for (const pr of set.prs) {
+				// Best-effort: never block sync on a log write failure.
+				try {
+					await appendScorePRLog(scorePRHome, {
+						at: scoredAt,
+						pr_number: pr.number,
+						pr_url: pr.htmlUrl ?? null,
+						title: pr.title,
+						additions: pr.additions,
+						deletions: pr.deletions,
+						review_comment_count: pr.reviewCommentCount,
+						score: pr.score,
+						explanation: pr.scoreExplanation,
+					});
+				} catch {
+					// Swallow: sync correctness must not depend on log I/O.
+				}
+			}
 			return {
 				prs: set.prs.map((pr) => ({
 					number: pr.number,
