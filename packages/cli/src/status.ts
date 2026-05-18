@@ -117,7 +117,22 @@ function formatProfile(
 }
 
 export async function runStatus(deps: StatusDeps): Promise<StatusResult> {
-	throw new Error("not implemented");
+	const profile = await readProfileCache(deps.home);
+	if (profile === null) {
+		return {
+			missingProfile: true,
+			output:
+				"codogotchi: no profile cache yet. Run `codogotchi setup` and then `codogotchi sync` to populate it.\n",
+		};
+	}
+	const [state, loot] = await Promise.all([
+		readStateJson(deps.home),
+		readRecentLoot(deps.home),
+	]);
+	return {
+		missingProfile: false,
+		output: formatProfile(profile, state, loot, deps.now()),
+	};
 }
 
 export {

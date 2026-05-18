@@ -5,5 +5,6 @@ export * from "./profile-cache";
 export * from "./prompts";
 export * from "./router";
 export * from "./setup";
+export * from "./status";
 export * from "./sync";
 export * from "./sync-log";

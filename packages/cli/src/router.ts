@@ -4,6 +4,7 @@ import { defaultReaders } from "./default-readers";
 import { installHooks } from "./hooks";
 import { terminalPrompter } from "./prompts";
 import { ConfigExistsError, runSetup } from "./setup";
+import { runStatus } from "./status";
 import { runSync } from "./sync";
 
 export type DispatchResult = {
@@ -20,6 +21,8 @@ Commands:
                    and installs Claude Code + Codex hook entries.
   sync             Run one sync cycle: poll each source, POST to Convex, update
                    the local profile cache and append a sync.log entry.
+  status           Print the cached profile, HP, current activity, recent loot,
+                   and last-sync staleness. Pure cache read; no network calls.
   help, --help     Show this message.
 
 Flags (setup):
@@ -108,6 +111,19 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
 		].join(" ");
 		process.stdout.write(`${summary}\n`);
 		return { exitCode: result.exitCode };
+	}
+
+	if (command === "status") {
+		const result = await runStatus({
+			home: getCodogotchiHome(),
+			now: () => new Date(),
+		});
+		if (result.missingProfile) {
+			process.stderr.write(result.output);
+			return { exitCode: 2 };
+		}
+		process.stdout.write(result.output);
+		return { exitCode: 0 };
 	}
 
 	process.stderr.write(`Unknown command: ${command}\n${USAGE}`);

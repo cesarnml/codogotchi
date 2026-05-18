@@ -44,3 +44,11 @@ Scope: cli
 ## Rationale
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+- **Pure cache read.** `runStatus` reads `~/.codogotchi/profile.json`, `state.json`, and the tail of `loot.log`. No HTTP, no Convex. Tested via tempdir.
+- **Loot source.** Recent loot is the last 5 lines of `loot.log` (JSONL), reversed so the newest event prints first. Malformed lines are silently skipped — the loot log is best-effort cache and a corrupt line should not crash `status`.
+- **Stale threshold.** 24h, expressed as `STALE_SYNC_THRESHOLD_MS` constant. `last sync` shows the cached `profile.updated_at` (Convex server time in ms); when the delta exceeds the threshold the line appends `(stale, >24h)`. `updated_at <= 0` renders `Last sync: never`.
+- **Number formatting.** Uses `Math.round(n).toLocaleString("en-US")` — readable thousands separators, no fractional noise. Per-source XP labels are `claude/codex/github/wakatime` (display short form) but map directly to Convex schema `xp_by_source.{claude_code, codex, github, wakatime}`.
+- **state.json optional.** Pre-P1.18 the hook binary doesn't write `state.json`. Missing or unparseable is treated as "no current activity" and that section is omitted. No stack traces.
+- **No color libraries.** Plain text output, per the no-heavy-deps directive.
+- **Subagent review.** Doc-only ticket would auto-skip; this ticket contains code, so subagent review runs.
