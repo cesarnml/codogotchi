@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -10,6 +11,8 @@ import {
 	type SourceEventOrigin,
 	STATE_JSON_SCHEMA_VERSION,
 	type StateJsonV1,
+	sourceEventSchema,
+	stateJsonV1Schema,
 } from "@codogotchi/contracts";
 
 export type HookInput = {
@@ -61,19 +64,29 @@ const TEST_RUNNER_PREFIXES = [
 
 const READ_RUN_THRESHOLD = 3;
 
-function normalize(input: HookInput): {
+type NormalizedEvent = {
 	origin: SourceEventOrigin;
 	kind: SourceEventKind;
 	name: string;
 	command: string | undefined;
-} {
+};
+
+function normalize(input: HookInput): NormalizedEvent | null {
 	// Prefer explicit shape; fall back to Claude Code raw stdin shape.
-	const origin: SourceEventOrigin = input.origin ?? "claude_code";
-	const name = input.name ?? input.tool_name ?? "unknown";
-	const kind: SourceEventKind =
+	const rawOrigin = input.origin ?? "claude_code";
+	const rawName = input.name ?? input.tool_name ?? "unknown";
+	const rawKind =
 		input.kind ?? (input.tool_name ? "tool_use" : "session_start");
-	const command = input.command ?? input.tool_input?.command;
-	return { origin, kind, name, command };
+	const candidate: SourceEvent = {
+		origin: rawOrigin as SourceEventOrigin,
+		kind: rawKind as SourceEventKind,
+		name: rawName,
+	};
+	const parsed = sourceEventSchema.safeParse(candidate);
+	if (!parsed.success) return null;
+	const rawCommand = input.command ?? input.tool_input?.command;
+	const command = typeof rawCommand === "string" ? rawCommand : undefined;
+	return { ...parsed.data, command };
 }
 
 function matchesTestRunner(command: string): boolean {
@@ -89,7 +102,13 @@ export function classifyEvent(
 	input: HookInput,
 	prior: ClassifyState,
 ): ClassifyResult {
-	const { origin, kind, name, command } = normalize(input);
+	const normalized = normalize(input) ?? {
+		origin: "claude_code" as const,
+		kind: "session_start" as const,
+		name: "unknown",
+		command: undefined,
+	};
+	const { origin, kind, name, command } = normalized;
 	const sourceEvent: SourceEvent = { origin, kind, name };
 
 	// SoA gate events win over heuristics.
@@ -147,14 +166,27 @@ async function readCounters(home: string): Promise<Counters> {
 	}
 }
 
+function tempName(target: string): string {
+	return `${target}.tmp-${process.pid}-${Date.now()}-${randomUUID()}`;
+}
+
 async function writeCounters(home: string, counters: Counters): Promise<void> {
 	const target = countersPath(home);
-	const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
+	const tmp = tempName(target);
 	await writeFile(tmp, JSON.stringify(counters), "utf8");
 	await rename(tmp, target);
 }
 
 export type HpSnapshot = { hp: number; hpOverlay: HpOverlay };
+
+function isValidHp(value: unknown): value is number {
+	return (
+		typeof value === "number" &&
+		Number.isInteger(value) &&
+		value >= -100 &&
+		value <= 100
+	);
+}
 
 export async function readProfileOverlay(
 	home: string,
@@ -162,7 +194,7 @@ export async function readProfileOverlay(
 	try {
 		const raw = await readFile(join(home, "profile.json"), "utf8");
 		const parsed = JSON.parse(raw) as Partial<ProfileResponse>;
-		if (typeof parsed.hp !== "number") return null;
+		if (!isValidHp(parsed.hp)) return null;
 		return { hp: parsed.hp, hpOverlay: hpToOverlay(parsed.hp) };
 	} catch (err) {
 		if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
@@ -178,10 +210,13 @@ export async function writeStateAtomic(
 	home: string,
 	state: StateJsonV1,
 ): Promise<void> {
+	// Validate before writing — never let a malformed payload land at the
+	// target path even if upstream callers pass an invalid shape.
+	const verified = stateJsonV1Schema.parse(state);
 	await mkdir(home, { recursive: true });
 	const target = statePath(home);
-	const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
-	await writeFile(tmp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+	const tmp = tempName(target);
+	await writeFile(tmp, `${JSON.stringify(verified, null, 2)}\n`, "utf8");
 	await rename(tmp, target);
 }
 
@@ -222,7 +257,7 @@ export async function runHookFromStdin(
 	let parsed: HookInput;
 	try {
 		const value = JSON.parse(raw);
-		if (value === null || typeof value !== "object") {
+		if (value === null || typeof value !== "object" || Array.isArray(value)) {
 			// Silently skip — see ticket rationale: a crashed hook can spam logs.
 			return;
 		}
