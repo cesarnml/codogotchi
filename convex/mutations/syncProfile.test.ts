@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import type { SyncProfileRequest } from "@codogotchi/contracts";
 import { convexTest } from "convex-test";
-import { api } from "../api";
+import { convexTestModules } from "../../test/convex-modules";
+import { api } from "../_generated/api";
 import schema from "../schema";
-import { convexTestModules } from "../test/modules";
 
 const NOW = "2026-05-18T12:00:00.000Z";
 
@@ -37,7 +37,7 @@ describe("syncProfile mutation", () => {
 
 	test("creates a new profile on first sync when none exists", async () => {
 		const t = convexTest(schema, convexTestModules);
-		const out = await t.mutation(api.mutations.syncProfile, req());
+		const out = await t.mutation(api.mutations.syncProfile.syncProfile, req());
 		expect(out.profile.profile_id).toBe("profile-a");
 		expect(out.profile.handle).toBe("alice");
 		expect(out.profile.total_xp).toBe(0);
@@ -51,7 +51,7 @@ describe("syncProfile mutation", () => {
 		const t = convexTest(schema, convexTestModules);
 
 		await t.mutation(
-			api.mutations.syncProfile,
+			api.mutations.syncProfile.syncProfile,
 			req({
 				signals: {
 					claude: { tokens: 1234 },
@@ -63,7 +63,7 @@ describe("syncProfile mutation", () => {
 		);
 
 		const after = await t.mutation(
-			api.mutations.syncProfile,
+			api.mutations.syncProfile.syncProfile,
 			req({ now: NOW }),
 		);
 		expect(after.profile.xp_by_source.claude_code).toBe(1234);
@@ -75,7 +75,7 @@ describe("syncProfile mutation", () => {
 		const t = convexTest(schema, convexTestModules);
 
 		await t.mutation(
-			api.mutations.syncProfile,
+			api.mutations.syncProfile.syncProfile,
 			req({
 				profile_id: "uuid-a",
 				handle: "alice",
@@ -88,7 +88,7 @@ describe("syncProfile mutation", () => {
 			}),
 		);
 		await t.mutation(
-			api.mutations.syncProfile,
+			api.mutations.syncProfile.syncProfile,
 			req({
 				profile_id: "uuid-b",
 				handle: "bob",
@@ -102,11 +102,11 @@ describe("syncProfile mutation", () => {
 		);
 
 		const a = await t.mutation(
-			api.mutations.syncProfile,
+			api.mutations.syncProfile.syncProfile,
 			req({ profile_id: "uuid-a" }),
 		);
 		const b = await t.mutation(
-			api.mutations.syncProfile,
+			api.mutations.syncProfile.syncProfile,
 			req({ profile_id: "uuid-b" }),
 		);
 
@@ -122,7 +122,7 @@ describe("syncProfile mutation", () => {
 		const t = convexTest(schema, convexTestModules);
 
 		const out = await t.mutation(
-			api.mutations.syncProfile,
+			api.mutations.syncProfile.syncProfile,
 			req({
 				signals: {
 					claude: { tokens: 100 },
@@ -151,7 +151,7 @@ describe("syncProfile mutation", () => {
 		const t = convexTest(schema, convexTestModules);
 
 		const seed = await t.mutation(
-			api.mutations.syncProfile,
+			api.mutations.syncProfile.syncProfile,
 			req({
 				signals: {
 					claude: { tokens: 1 },
@@ -166,7 +166,7 @@ describe("syncProfile mutation", () => {
 
 		// 10 days later, weekend_decay false but May 11 2026 is a Monday, so decay fires.
 		const later = await t.mutation(
-			api.mutations.syncProfile,
+			api.mutations.syncProfile.syncProfile,
 			req({
 				signals: { claude: null, codex: null, github: null, wakatime: null },
 				now: "2026-05-11T12:00:00.000Z",

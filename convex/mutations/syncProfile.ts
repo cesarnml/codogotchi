@@ -12,7 +12,7 @@ import {
 	tickHealth,
 } from "@codogotchi/engine";
 import { v } from "convex/values";
-import { mutation } from "../lib/factories";
+import { mutation } from "../_generated/server";
 
 // Phase 01 keeps loot naming generic — display polish is deferred to later
 // phases. The tier itself is the durable artifact; the display name is sugar.

@@ -134,7 +134,8 @@
 		"upstreams",
 		"untracked",
 		"squash",
-		"codegen"
+		"codegen",
+		"cmejia"
 	],
 	"dictionaries": ["typescript", "node", "software-terms"]
 }

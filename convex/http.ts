@@ -1,7 +1,7 @@
 import { syncProfileRequestSchema } from "@codogotchi/contracts";
 import { httpRouter } from "convex/server";
-import { api } from "./api";
-import { httpAction } from "./lib/factories";
+import { api } from "./_generated/api";
+import { httpAction } from "./_generated/server";
 
 const http = httpRouter();
 
@@ -35,7 +35,7 @@ http.route({
 		}
 
 		const result = await ctx.runMutation(
-			api.mutations.syncProfile,
+			api.mutations.syncProfile.syncProfile,
 			parsed.data,
 		);
 		return jsonOk(result);

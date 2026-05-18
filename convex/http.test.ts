@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { convexTest } from "convex-test";
+import { convexTestModules } from "../test/convex-modules";
 import schema from "./schema";
-import { convexTestModules } from "./test/modules";
 
 let rngSpy: ReturnType<typeof spyOn<typeof Math, "random">> | undefined;
 

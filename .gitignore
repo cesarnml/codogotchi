@@ -180,3 +180,4 @@ notes/private
 .soa/
 .convex/
 .codogotchi-test-home/
+.env.local
