@@ -39,3 +39,8 @@ Scope: engine
 ## Rationale
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+- **`error` is a string, not an exception.** A failed batch (`!res.ok`, thrown fetch, invalid JSON) stops the loop and sets `error` to a short descriptor (`"HTTP 502"`, `"network error: …"`, `"invalid JSON in Wakatime response"`). Successfully-fetched batches before the failure stay in `days`. Callers — and `syncProfile` — get `{ days, error }` and decide whether the partial set is usable. This matches the per-source isolation failure model: never throw, always return a record.
+- **Batch size defaults to 30 days.** Wakatime free-plan accounts only return ~2 weeks of data regardless, so a 30-day batch is a safe upper bound that also keeps single-call latency bounded if a heavier plan unlocks longer windows. `batchDays` is injectable for tests.
+- **No hour-rounding at the source.** `WakatimeDay.hours` is `total_seconds / 3600` raw float; callers/engine choose precision. This keeps the source generic over downstream display vs. summation needs.
+- **Source filters out days strictly before `since`** even though the Wakatime API already accepts a `start` parameter. Defensive — Wakatime's day buckets are end-of-day inclusive and timezone-shifted; a single redundant string compare prevents an off-by-one from leaking pre-cutoff data into the engine.

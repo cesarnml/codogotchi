@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import {
 	chunkDateRange,
+	readWakatimeSignals,
 	type WakatimeHttpFetch,
 	type WakatimeHttpResponse,
-	readWakatimeSignals,
 } from "./wakatime";
 
 function summariesBody(days: { date: string; seconds: number }[]) {
@@ -114,9 +114,7 @@ describe("readWakatimeSignals", () => {
 		const calls: string[] = [];
 		const http: WakatimeHttpFetch = async (url) => {
 			calls.push(url);
-			return ok(
-				summariesBody([{ date: "2026-04-01", seconds: 3600 }]),
-			);
+			return ok(summariesBody([{ date: "2026-04-01", seconds: 3600 }]));
 		};
 		await readWakatimeSignals({
 			apiKey: "k",
@@ -133,9 +131,7 @@ describe("readWakatimeSignals", () => {
 		const http: WakatimeHttpFetch = async () => {
 			batch++;
 			if (batch === 2) return err(502);
-			return ok(
-				summariesBody([{ date: "2026-01-15", seconds: 3600 }]),
-			);
+			return ok(summariesBody([{ date: "2026-01-15", seconds: 3600 }]));
 		};
 		const result = await readWakatimeSignals({
 			apiKey: "k",
