@@ -350,3 +350,116 @@ describe("runHook", () => {
 		expect(() => JSON.parse(raw)).not.toThrow();
 	});
 });
+
+describe("runHook + SoA gate precedence", () => {
+	let home: string;
+	let projectRoot: string;
+
+	beforeEach(async () => {
+		home = mkdtempSync(join(tmpdir(), "codogotchi-hook-"));
+		projectRoot = mkdtempSync(join(tmpdir(), "codogotchi-soa-root-"));
+		await mkdir(home, { recursive: true });
+		await mkdir(join(projectRoot, ".soa"), { recursive: true });
+	});
+
+	afterEach(() => {
+		rmSync(home, { recursive: true, force: true });
+		rmSync(projectRoot, { recursive: true, force: true });
+	});
+
+	it("falls back to tool-call state when .soa/events.ndjson is absent", async () => {
+		// projectRoot has .soa/ but no events.ndjson — silent fall-through.
+		await runHook(
+			{ origin: "claude_code", kind: "tool_use", name: "Edit" },
+			{
+				home,
+				now: FIXED_NOW,
+				env: { CLAUDE_PROJECT_DIR: projectRoot },
+				cwd: projectRoot,
+			},
+		);
+		const state = readState(home);
+		expect(state.activity_state).toBe("implementing");
+		expect(state.source_event.origin).toBe("claude_code");
+	});
+
+	it("uses the latest fresh SoA event activity state over tool-call state", async () => {
+		writeFileSync(
+			join(projectRoot, ".soa", "events.ndjson"),
+			`${JSON.stringify({
+				name: "ticket_started",
+				ts: "2026-05-18T16:00:00Z",
+			})}\n${JSON.stringify({
+				name: "verification_failed",
+				ts: "2026-05-18T16:00:01Z",
+			})}\n`,
+		);
+		await runHook(
+			{ origin: "claude_code", kind: "tool_use", name: "Edit" },
+			{
+				home,
+				now: FIXED_NOW,
+				env: { CLAUDE_PROJECT_DIR: projectRoot },
+				cwd: projectRoot,
+			},
+		);
+		const state = readState(home);
+		// Latest mapped SoA event wins: verification_failed → panicking.
+		expect(state.activity_state).toBe("panicking");
+		expect(state.source_event.origin).toBe("soa");
+		expect(state.source_event.kind).toBe("gate");
+		expect(state.source_event.name).toBe("verification_failed");
+	});
+
+	it("does not re-consume SoA events on the next invocation (tail offset)", async () => {
+		writeFileSync(
+			join(projectRoot, ".soa", "events.ndjson"),
+			`${JSON.stringify({ name: "ticket_started", ts: "2026-05-18T16:00:00Z" })}\n`,
+		);
+		await runHook(
+			{ origin: "claude_code", kind: "tool_use", name: "Edit" },
+			{
+				home,
+				now: FIXED_NOW,
+				env: { CLAUDE_PROJECT_DIR: projectRoot },
+				cwd: projectRoot,
+			},
+		);
+		// Same file, same content. Second invocation has no fresh SoA events
+		// because the tail offset is past the existing line.
+		await runHook(
+			{ origin: "claude_code", kind: "tool_use", name: "Write" },
+			{
+				home,
+				now: FIXED_NOW,
+				env: { CLAUDE_PROJECT_DIR: projectRoot },
+				cwd: projectRoot,
+			},
+		);
+		const state = readState(home);
+		expect(state.activity_state).toBe("implementing");
+		expect(state.source_event.origin).toBe("claude_code");
+	});
+
+	it("ignores SoA events with unknown event names", async () => {
+		writeFileSync(
+			join(projectRoot, ".soa", "events.ndjson"),
+			`${JSON.stringify({
+				name: "some_unrecognized_event",
+				ts: "2026-05-18T16:00:00Z",
+			})}\n`,
+		);
+		await runHook(
+			{ origin: "claude_code", kind: "tool_use", name: "Edit" },
+			{
+				home,
+				now: FIXED_NOW,
+				env: { CLAUDE_PROJECT_DIR: projectRoot },
+				cwd: projectRoot,
+			},
+		);
+		const state = readState(home);
+		expect(state.activity_state).toBe("implementing");
+		expect(state.source_event.origin).toBe("claude_code");
+	});
+});

@@ -3,11 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-	readSoaEventsSince,
-	resolveSoaRoot,
-	type SoaTailState,
-} from "./soa";
+import { readSoaEventsSince, resolveSoaRoot, type SoaTailState } from "./soa";
 
 function makeTempRoot(): string {
 	const root = mkdtempSync(join(tmpdir(), "codogotchi-soa-"));

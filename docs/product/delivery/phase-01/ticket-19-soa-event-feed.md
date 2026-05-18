@@ -39,3 +39,15 @@ Scope: cli
 ## Rationale
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+### Implementation notes (P1.19)
+
+- **Reader is pure I/O.** `readSoaEventsSince` in `packages/engine/src/sources/soa.ts` tail-reads `${root}/.soa/events.ndjson` since the previous `(inode, offset)` and silently returns no events when the file is absent. Malformed lines are skipped without log noise. The hook never throws on SoA input — the file is untrusted external state.
+- **`watchSoaEvents` is for future renderers, not the hook.** The hook is short-lived (<50ms target), so it does a one-shot tail-read per invocation. `watchSoaEvents` exists as a 250ms poll wrapper for any future long-running renderer that subscribes to the stream.
+- **Tail offset stops at the last newline.** Trailing partial lines (no `\n`) are not consumed so the next invocation re-reads them once SoA finishes flushing. This avoids dropping or duplicating events on partial writes.
+- **Inode-aware rotation handling.** If the prior sidecar inode does not match the current file inode, the reader resets to offset 0 and re-reads in full. It also resets when the prior offset is past the current size (truncation).
+- **Sidecar shape extended.** `.hook-counters.json` now carries `{read_run, soa_tail}`. Validation coerces unrecognized fields back to safe defaults (counter 0, tail `null`) so a corrupt sidecar never blocks classification.
+- **Precedence resolved at the hook layer, not in `classifyEvent`.** `classifyEvent` still maps raw stdin events as before. `runHook` then reads fresh SoA events and overrides `activity_state` + `source_event` to the latest mapped SoA event when any exist. SoA events with unrecognized names do not override tool-stream classification (per contract).
+- **Path resolution priority.** `$CLAUDE_PROJECT_DIR` > `$CODEX_PROJECT_DIR` > `cwd`. Mirrored in `docs/contracts/soa-event-feed.md`. `resolveSoaRoot` is a pure function for testability — the hook injects `env` and `cwd` for tests but defaults to `process.env` and `process.cwd()` at runtime.
+- **No writes to `.soa/`.** The engine source and the hook only read. The contract doc states the boundary and includes a grep recipe to verify in CI later.
+- **Schema `passthrough()`.** The line schema is intentionally permissive on unknown fields so the SoA producer can add metadata without breaking codogotchi. Only `name` and `ts` are required for parsing; mapping requires `name` to be in `SOA_EVENT_NAMES`.

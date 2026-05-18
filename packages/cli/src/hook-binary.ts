@@ -6,7 +6,9 @@ import {
 	type ActivityState,
 	type HpOverlay,
 	hpToOverlay,
+	mapSoaEventToActivityState,
 	type ProfileResponse,
+	type SoaEventLine,
 	type SourceEvent,
 	type SourceEventKind,
 	type SourceEventOrigin,
@@ -15,6 +17,8 @@ import {
 	sourceEventSchema,
 	stateJsonV1Schema,
 } from "@codogotchi/contracts";
+import type { SoaTailState } from "@codogotchi/engine";
+import { readSoaEventsSince, resolveSoaRoot } from "@codogotchi/engine";
 
 export type HookInput = {
 	origin?: SourceEventOrigin;
@@ -148,10 +152,28 @@ export function classifyEvent(
 	return { state: "idle", sourceEvent, readRun: 0 };
 }
 
-type Counters = { read_run: number };
+type Counters = {
+	read_run: number;
+	soa_tail: SoaTailState | null;
+};
 
 function countersPath(home: string): string {
 	return join(home, ".hook-counters.json");
+}
+
+function parseSoaTail(value: unknown): SoaTailState | null {
+	if (value === null || typeof value !== "object") return null;
+	const candidate = value as Partial<SoaTailState>;
+	const offset =
+		typeof candidate.offset === "number" && Number.isFinite(candidate.offset)
+			? Math.max(0, Math.trunc(candidate.offset))
+			: null;
+	if (offset === null) return null;
+	const inode =
+		typeof candidate.inode === "number" && Number.isFinite(candidate.inode)
+			? candidate.inode
+			: null;
+	return { inode, offset };
 }
 
 async function readCounters(home: string): Promise<Counters> {
@@ -162,12 +184,13 @@ async function readCounters(home: string): Promise<Counters> {
 			typeof parsed.read_run === "number" && Number.isFinite(parsed.read_run)
 				? Math.max(0, Math.trunc(parsed.read_run))
 				: 0;
-		return { read_run: readRun };
+		const soaTail = parseSoaTail(parsed.soa_tail);
+		return { read_run: readRun, soa_tail: soaTail };
 	} catch (err) {
 		if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-			return { read_run: 0 };
+			return { read_run: 0, soa_tail: null };
 		}
-		return { read_run: 0 };
+		return { read_run: 0, soa_tail: null };
 	}
 }
 
@@ -252,7 +275,23 @@ export async function writeStateAtomic(
 export type RunHookOptions = {
 	home: string;
 	now: Date;
+	/** Override env for SoA root resolution. Defaults to `process.env`. */
+	env?: NodeJS.ProcessEnv;
+	/** Override cwd for SoA root resolution. Defaults to `process.cwd()`. */
+	cwd?: string;
 };
+
+function pickLatestMappedSoaEvent(
+	events: readonly SoaEventLine[],
+): { event: SoaEventLine; state: ActivityState } | null {
+	for (let i = events.length - 1; i >= 0; i -= 1) {
+		const event = events[i];
+		if (event === undefined) continue;
+		const mapped = mapSoaEventToActivityState(event.name);
+		if (mapped !== undefined) return { event, state: mapped };
+	}
+	return null;
+}
 
 export async function runHook(
 	input: HookInput,
@@ -263,21 +302,44 @@ export async function runHook(
 		const counters = await readCounters(opts.home);
 		const classified = classifyEvent(input, { readRun: counters.read_run });
 
+		const env = opts.env ?? process.env;
+		const cwd = opts.cwd ?? process.cwd();
+		const soaRoot = resolveSoaRoot({
+			CLAUDE_PROJECT_DIR: env.CLAUDE_PROJECT_DIR,
+			CODEX_PROJECT_DIR: env.CODEX_PROJECT_DIR,
+			CWD: cwd,
+		});
+		let soaTail = counters.soa_tail;
+		let activityState = classified.state;
+		let sourceEvent: SourceEvent = classified.sourceEvent;
+		if (soaRoot !== null) {
+			const soaResult = await readSoaEventsSince(soaRoot, soaTail);
+			soaTail = soaResult.tail;
+			const fresh = pickLatestMappedSoaEvent(soaResult.events);
+			if (fresh !== null) {
+				activityState = fresh.state;
+				sourceEvent = { origin: "soa", kind: "gate", name: fresh.event.name };
+			}
+		}
+
 		const overlay = await readProfileOverlay(opts.home);
 		const hp = overlay?.hp ?? 100;
 		const hp_overlay = overlay?.hpOverlay ?? "thriving";
 
 		const state: StateJsonV1 = {
 			schema_version: STATE_JSON_SCHEMA_VERSION,
-			activity_state: classified.state,
+			activity_state: activityState,
 			hp_overlay,
 			hp,
 			updated_at: opts.now.toISOString(),
-			source_event: classified.sourceEvent,
+			source_event: sourceEvent,
 		};
 
 		await writeStateAtomic(opts.home, state);
-		await writeCounters(opts.home, { read_run: classified.readRun });
+		await writeCounters(opts.home, {
+			read_run: classified.readRun,
+			soa_tail: soaTail,
+		});
 	});
 }
 
