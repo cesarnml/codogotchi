@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
+	applyFirstSyncCap,
 	type HttpFetch,
 	type HttpResponse,
-	applyFirstSyncCap,
 	readGithubSignals,
 } from "./github";
 
@@ -137,10 +137,11 @@ describe("readGithubSignals — first sync", () => {
 		expect(result.capApplied).toBe("last-20");
 		expect(result.rateLimitHit).toBe(false);
 		// Search URL must include the 90-day floor and per_page=20.
+		const decoded = decodeURIComponent(calls[0] ?? "");
 		expect(calls[0]).toContain("per_page=20");
-		expect(calls[0]).toContain("author%3Aalice");
-		expect(calls[0]).toContain("is%3Amerged");
-		expect(calls[0]).toMatch(/merged%3A%3E%3D2026-02-17/);
+		expect(decoded).toContain("author:alice");
+		expect(decoded).toContain("is:merged");
+		expect(decoded).toContain("merged:>=2026-02-17");
 	});
 
 	it("falls into the 'ninety-day' arm when fewer than 20 PRs exist in the window", async () => {
@@ -194,7 +195,7 @@ describe("readGithubSignals — subsequent sync", () => {
 		});
 		expect(result.capApplied).toBeNull();
 		expect(result.prs.length).toBe(1);
-		expect(calls[0]).toMatch(/merged%3A%3E%3D2026-05-17/);
+		expect(decodeURIComponent(calls[0] ?? "")).toContain("merged:>=2026-05-17");
 	});
 });
 
