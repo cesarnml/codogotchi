@@ -49,7 +49,7 @@ export const healthConfigSchema = z.object({
 	timezone: z.string().min(1),
 	decay_per_day: z.number().nonnegative(),
 	revive_threshold: z.number().nonnegative(),
-	revive_hp: z.number(),
+	revive_hp: z.number().nonnegative(),
 });
 export type HealthConfigPayload = z.infer<typeof healthConfigSchema>;
 
