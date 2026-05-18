@@ -121,8 +121,9 @@ export async function runSetup(
 		health,
 	};
 
-	await writeConfig(home, config);
-
+	// Run registration and hook install BEFORE persisting config so a failure
+	// in either step does not leave a `config.json` on disk that would block a
+	// retry with `ConfigExistsError`. Config write is the last side effect.
 	const syncBody = {
 		profile_id,
 		handle,
@@ -148,6 +149,8 @@ export async function runSetup(
 	}
 
 	await installHooks({ home, convex_http_url });
+
+	await writeConfig(home, config);
 
 	prompter.notice(
 		`Setup complete for ${handle}. Config written to ${filePath}. Secrets are stored in plain JSON on this machine only.`,

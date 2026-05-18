@@ -255,4 +255,54 @@ describe("runSetup", () => {
 		const parsed = JSON.parse(raw);
 		expect(parsed.handle).toBe("user-b");
 	});
+
+	it("does not write config when Convex /sync fails", async () => {
+		const { prompter } = scriptedPrompter([
+			"user-x",
+			"",
+			"",
+			"https://example.convex.site",
+		]);
+		const failingFetch: typeof fetch = async () =>
+			new Response("nope", { status: 500, statusText: "Internal Error" });
+		const hooks: { calls: { home: string; convex_http_url: string }[] } = {
+			calls: [],
+		};
+		const deps: SetupDeps = {
+			prompter,
+			fetch: failingFetch,
+			home,
+			randomUUID: () => "ffffffff-ffff-ffff-ffff-ffffffffffff",
+			installHooks: async (ctx) => {
+				hooks.calls.push(ctx);
+			},
+		};
+
+		await expect(runSetup(deps)).rejects.toThrow(/Convex \/sync/);
+		expect(existsSync(configPath(home))).toBe(false);
+		expect(hooks.calls).toHaveLength(0);
+	});
+
+	it("does not write config when installHooks fails", async () => {
+		const { prompter } = scriptedPrompter([
+			"user-y",
+			"",
+			"",
+			"https://example.convex.site",
+		]);
+		const okFetch: typeof fetch = async () =>
+			new Response("{}", { status: 200 });
+		const deps: SetupDeps = {
+			prompter,
+			fetch: okFetch,
+			home,
+			randomUUID: () => "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+			installHooks: async () => {
+				throw new Error("boom");
+			},
+		};
+
+		await expect(runSetup(deps)).rejects.toThrow(/boom/);
+		expect(existsSync(configPath(home))).toBe(false);
+	});
 });

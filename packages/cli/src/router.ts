@@ -27,17 +27,18 @@ Environment:
                        (defaults to the OS home dir).
 `;
 
-function parseSetupFlags(args: string[]): { force: boolean } {
+function parseSetupFlags(args: string[]): {
+	force: boolean;
+	help: boolean;
+} {
 	let force = false;
+	let help = false;
 	for (const arg of args) {
 		if (arg === "--force") force = true;
-		else if (arg === "--help" || arg === "-h") {
-			// fall through; help is handled at top level
-		} else {
-			throw new Error(`Unknown flag for setup: ${arg}`);
-		}
+		else if (arg === "--help" || arg === "-h") help = true;
+		else throw new Error(`Unknown flag for setup: ${arg}`);
 	}
-	return { force };
+	return { force, help };
 }
 
 export async function dispatch(argv: string[]): Promise<DispatchResult> {
@@ -54,7 +55,11 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
 	}
 
 	if (command === "setup") {
-		const { force } = parseSetupFlags(rest);
+		const { force, help } = parseSetupFlags(rest);
+		if (help) {
+			process.stdout.write(USAGE);
+			return { exitCode: 0 };
+		}
 		try {
 			await runSetup(
 				{
