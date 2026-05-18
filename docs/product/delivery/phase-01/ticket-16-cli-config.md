@@ -39,6 +39,13 @@ Scope: cli
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
+- **Schema lives in `packages/contracts/src/config.ts`** as `codogotchiConfigSchema` (zod) plus `SETTABLE_TOP_LEVEL`/`SETTABLE_HEALTH_KEYS` allow-lists. `resolveConfigPath` is the authoritative dotted-path resolver — anything it returns `null` for is unknown or intentionally read-only.
+- **`profile_id` is read-only.** `config get profile_id` works; `config set profile_id …` is refused. Rotating it would orphan the server-side profile.
+- **Atomic writes.** Reuses `writeConfig` (tmp + rename). Kill mid-write leaves either previous or new content; never partial.
+- **Type validation:** bool (exactly `true`/`false`), non-negative finite number, ISO date or `"null"`, non-empty string, https URL with trailing slash strip, nullable secrets via the `"null"` literal.
+- **`list` redaction** renders `github_token` and `wakatime_key` as `"<set>"` when populated, `null` when not. No secret bytes appear in output.
+- **`config get` output:** strings bare, non-strings as JSON.
+
 - **Schema lives in `packages/contracts/src/config.ts`** as `codogotchiConfigSchema` (zod) plus an allow-list of `SETTABLE_TOP_LEVEL` and `SETTABLE_HEALTH_KEYS` keys. `resolveConfigPath` is the authoritative dotted-path resolver — anything it returns `null` for is unknown or intentionally read-only (e.g. `profile_id`).
 - **`profile_id` is read-only.** `config get profile_id` works (so users can copy it for support); `config set profile_id …` is refused with `Unknown or read-only config key`. Rotating `profile_id` would orphan the server-side profile, so this is deliberate.
 - **Atomic writes.** `configSet` uses the existing `writeConfig` from P1.12, which writes to `${target}.tmp-<pid>-<ts>` and `rename`s. A kill mid-write leaves either the previous good content or the new good content — never a partial JSON document.
