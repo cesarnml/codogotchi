@@ -189,7 +189,10 @@ async function runConcurrent<T, R>(
 	const results: R[] = [];
 	let rateLimited = false;
 	let cursor = 0;
-	const lanes = Math.max(1, Math.min(concurrency, items.length));
+	const requestedConcurrency = Number.isFinite(concurrency)
+		? Math.floor(concurrency)
+		: DEFAULT_CONCURRENCY;
+	const lanes = Math.max(1, Math.min(requestedConcurrency, items.length));
 	const drive = async () => {
 		while (cursor < items.length && !rateLimited) {
 			const idx = cursor++;
@@ -200,6 +203,7 @@ async function runConcurrent<T, R>(
 				rateLimited = true;
 				return;
 			}
+			if (rateLimited) return;
 			results.push(r);
 		}
 	};
