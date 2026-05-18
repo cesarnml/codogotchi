@@ -117,7 +117,12 @@ function formatProfile(
 }
 
 export async function runStatus(deps: StatusDeps): Promise<StatusResult> {
-	const profile = await readProfileCache(deps.home);
+	let profile: ProfileResponse | null;
+	try {
+		profile = await readProfileCache(deps.home);
+	} catch {
+		profile = null;
+	}
 	if (profile === null) {
 		return {
 			missingProfile: true,

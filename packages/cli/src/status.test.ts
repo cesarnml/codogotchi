@@ -80,6 +80,13 @@ describe("runStatus", () => {
 		expect(result.output).toContain("codogotchi setup");
 	});
 
+	it("corrupt profile.json is treated as missing", async () => {
+		await writeFile(profileCachePath(home), "{bad json", "utf8");
+		const result = await runStatus({ home, now: () => NOW });
+		expect(result.missingProfile).toBe(true);
+		expect(result.output).toContain("codogotchi setup");
+	});
+
 	it("renders full populated cache with state and loot", async () => {
 		const profile = profileFixture();
 		await writeFile(profileCachePath(home), JSON.stringify(profile), "utf8");
@@ -143,6 +150,16 @@ describe("runStatus", () => {
 		await writeFile(profileCachePath(home), JSON.stringify(profile), "utf8");
 		const result = await runStatus({ home, now: () => NOW });
 		expect(result.output).toContain("stale");
+	});
+
+	it("does not flag stale last-sync at the exact 24h boundary", async () => {
+		const profile = profileFixture({
+			updated_at: NOW.getTime() - ONE_DAY_MS,
+		});
+		await writeFile(profileCachePath(home), JSON.stringify(profile), "utf8");
+		const result = await runStatus({ home, now: () => NOW });
+		expect(result.output).toContain("Last sync:");
+		expect(result.output).not.toContain("stale");
 	});
 
 	it("renders died_at and death count when set", async () => {
