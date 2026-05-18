@@ -1,0 +1,6 @@
+{"timestamp":"2026-05-15T09:00:00.000Z","type":"session_meta","payload":{"id":"s1","cwd":"/repo/codex-x"}}
+{"timestamp":"2026-05-15T09:01:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":1000,"output_tokens":200,"cached_input_tokens":300,"reasoning_output_tokens":50,"total_tokens":1550}}}}
+{"timestamp":"2026-05-15T09:02:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":500,"output_tokens":100,"total_tokens":600}}}}
+{"timestamp":"2026-05-14T09:02:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":999,"output_tokens":999,"total_tokens":9999}}}}
+oops bad line
+{"timestamp":"2026-05-15T09:03:00.000Z","type":"event_msg","payload":{"type":"other"}}
