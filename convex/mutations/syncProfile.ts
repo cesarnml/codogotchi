@@ -74,6 +74,10 @@ export const syncProfile = mutation({
 	handler: async (ctx, args): Promise<SyncProfileResponse> => {
 		const nowDate = new Date(args.now);
 		const nowMs = nowDate.getTime();
+		// v.string() doesn't enforce datetime format; guard before we store NaN.
+		if (Number.isNaN(nowMs)) {
+			throw new Error(`Invalid "now" timestamp: ${args.now}`);
+		}
 
 		const existing = await ctx.db
 			.query("profiles")
@@ -121,7 +125,9 @@ export const syncProfile = mutation({
 			xpBySource.codex = codexXp.byCodex;
 			lastSignalBySource.codex = args.now;
 		}
-		if (args.signals.github !== null) {
+		// Empty prs array means no PRs this window — treat as null for XP/signal
+		// purposes so a quiet GitHub period doesn't zero prior cumulative XP.
+		if (args.signals.github !== null && args.signals.github.prs.length > 0) {
 			const githubXp = computeXp({
 				claudeTokens: 0,
 				codexTokens: 0,
@@ -225,7 +231,9 @@ export const syncProfile = mutation({
 			insertedLoot.push(docInsert);
 		}
 
-		const updatedFields = {
+		// config_snapshot is stored in the DB but not exposed in the response
+		// contract — ProfileResponse has no config_snapshot field.
+		const dbFields = {
 			profile_id: args.profile_id,
 			handle: args.handle,
 			xp_by_source: xpBySource,
@@ -242,13 +250,15 @@ export const syncProfile = mutation({
 		};
 
 		if (existing) {
-			await ctx.db.patch(existing._id, updatedFields);
+			await ctx.db.patch(existing._id, dbFields);
 		} else {
-			await ctx.db.insert("profiles", updatedFields);
+			await ctx.db.insert("profiles", dbFields);
 		}
 
+		const { config_snapshot: _, ...profileResponse } = dbFields;
+
 		return {
-			profile: updatedFields,
+			profile: profileResponse,
 			new_loot_events: insertedLoot,
 		};
 	},
