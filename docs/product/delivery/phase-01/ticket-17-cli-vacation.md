@@ -36,3 +36,10 @@ Scope: cli
 ## Rationale
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+- **Thin wrapper.** `vacationOn`/`vacationOff` both call `configSet({ path: "health.vacation_until", value })` — no parallel persistence layer. `vacationStatus` reads via `readConfig`. The "writes go through the same code path P1.16 uses" review focus is satisfied by construction.
+- **Date input is YYYY-MM-DD only.** Stricter than `config set health.vacation_until <isoDateTime>` on purpose: the user-facing CLI takes a date, normalizes to midnight UTC (`2026-06-15T00:00:00.000Z`). `2026-13-45` and `tomorrow` are both rejected with a clear `ConfigCommandError`. The calendar-roundtrip check (`new Date().getUTCMonth() + 1` reconstruction) also rejects `2026-02-30`-style invalid-but-parseable dates.
+- **`--until` default is 30 days.** Matches the review focus motivation — date-based design exists to mitigate the "forgot to turn it off" failure mode. Stored value is `now() + 30 * 86_400_000`, ISO-stringified.
+- **`status` days-remaining math.** `Math.ceil((untilMs - nowMs) / DAY_MS)` rounds up, so a `vacation_until` of midnight tomorrow shows `1 day remaining` rather than `0`. Past-due dates clamp to `0`.
+- **No new schema.** `health.vacation_until` already exists in the contracts schema (zod-nullable string) — this ticket adds no new fields.
+- **Subagent review.** Code ticket; subagent runs.

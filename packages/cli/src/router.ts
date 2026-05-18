@@ -13,6 +13,7 @@ import { terminalPrompter } from "./prompts";
 import { ConfigExistsError, runSetup } from "./setup";
 import { runStatus } from "./status";
 import { runSync } from "./sync";
+import { vacationOff, vacationOn, vacationStatus } from "./vacation";
 
 export type DispatchResult = {
 	exitCode: number;
@@ -36,6 +37,10 @@ Commands:
   config set <key> <value>
                    Write a typed value at the dotted key. Refuses unknown keys.
   config list      Print the full config as JSON (credentials redacted).
+  vacation on [--until YYYY-MM-DD]
+                   Pause HP decay until the given date (defaults to 30 days).
+  vacation off     Clear vacation_until.
+  vacation status  Show current vacation state.
   help, --help     Show this message.
 
 Flags (setup):
@@ -241,6 +246,57 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
 		);
 		process.stdout.write(result.output);
 		return { exitCode: 0 };
+	}
+
+	if (command === "vacation") {
+		const [sub, ...subArgs] = rest;
+		try {
+			const deps = {
+				home: getCodogotchiHome(),
+				now: () => new Date(),
+			};
+			if (sub === "on") {
+				let until: string | undefined;
+				for (let i = 0; i < subArgs.length; i++) {
+					if (subArgs[i] === "--until") {
+						until = subArgs[i + 1];
+						i += 1;
+						if (!until) {
+							throw new ConfigCommandError("Missing value for --until");
+						}
+					} else {
+						throw new ConfigCommandError(
+							`Unknown arg for vacation on: ${subArgs[i]}`,
+						);
+					}
+				}
+				process.stdout.write(await vacationOn(deps, { until }));
+				return { exitCode: 0 };
+			}
+			if (sub === "off") {
+				if (subArgs.length !== 0) {
+					throw new ConfigCommandError("Usage: codogotchi vacation off");
+				}
+				process.stdout.write(await vacationOff(deps));
+				return { exitCode: 0 };
+			}
+			if (sub === "status") {
+				if (subArgs.length !== 0) {
+					throw new ConfigCommandError("Usage: codogotchi vacation status");
+				}
+				process.stdout.write(await vacationStatus(deps));
+				return { exitCode: 0 };
+			}
+			throw new ConfigCommandError(
+				"Usage: codogotchi vacation <on [--until YYYY-MM-DD]|off|status>",
+			);
+		} catch (err) {
+			if (err instanceof ConfigCommandError) {
+				process.stderr.write(`${err.message}\n`);
+				return { exitCode: err.exitCode };
+			}
+			throw err;
+		}
 	}
 
 	process.stderr.write(`Unknown command: ${command}\n${USAGE}`);

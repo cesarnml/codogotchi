@@ -10,3 +10,4 @@ export * from "./setup";
 export * from "./status";
 export * from "./sync";
 export * from "./sync-log";
+export * from "./vacation";
