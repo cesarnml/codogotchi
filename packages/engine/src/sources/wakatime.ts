@@ -91,7 +91,7 @@ function asObject(v: unknown): Record<string, unknown> | null {
 }
 
 function asNumber(v: unknown): number {
-	return typeof v === "number" && Number.isFinite(v) ? v : 0;
+	return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0;
 }
 
 function asString(v: unknown): string {

@@ -183,6 +183,27 @@ describe("readWakatimeSignals", () => {
 		expect(decoded).toBe("secret_abc");
 	});
 
+	it("coerces a non-positive total_seconds to 0 hours rather than negative", async () => {
+		// Regression: asNumber must reject negative finite values (and non-finite),
+		// otherwise a corrupt Wakatime row would subtract from totalHours.
+		const http: WakatimeHttpFetch = async () =>
+			ok(
+				summariesBody([
+					{ date: "2026-05-15", seconds: -3600 },
+					{ date: "2026-05-16", seconds: 3600 },
+				]),
+			);
+		const result = await readWakatimeSignals({
+			apiKey: "k",
+			since,
+			now,
+			http,
+		});
+		const may15 = result.days.find((d) => d.date === "2026-05-15");
+		expect(may15?.hours).toBe(0);
+		expect(result.totalHours).toBe(1);
+	});
+
 	it("filters out days that fall before `since`", async () => {
 		const http: WakatimeHttpFetch = async () =>
 			ok(
