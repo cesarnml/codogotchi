@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { getCodogotchiHome, readConfig } from "./config";
+import {
+	ConfigCommandError,
+	configGet,
+	configList,
+	configSet,
+} from "./config-command";
 import { defaultReaders } from "./default-readers";
 import { installHooks } from "./hooks";
 import { type LootTier, runLoot, TIERS } from "./loot";
@@ -26,6 +32,10 @@ Commands:
                    and last-sync staleness. Pure cache read; no network calls.
   loot             Print the full loot history from ~/.codogotchi/loot.log.
                    Supports --limit N and --tier <common|uncommon|rare|epic|legendary>.
+  config get <key> Print the value at the dotted key (e.g. health.weekend_decay).
+  config set <key> <value>
+                   Write a typed value at the dotted key. Refuses unknown keys.
+  config list      Print the full config as JSON (credentials redacted).
   help, --help     Show this message.
 
 Flags (setup):
@@ -169,6 +179,51 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
 		}
 		process.stdout.write(result.output);
 		return { exitCode: 0 };
+	}
+
+	if (command === "config") {
+		const [sub, ...subArgs] = rest;
+		try {
+			if (sub === "get") {
+				if (subArgs.length !== 1) {
+					throw new ConfigCommandError("Usage: codogotchi config get <key>");
+				}
+				const out = await configGet({
+					home: getCodogotchiHome(),
+					path: subArgs[0],
+				});
+				process.stdout.write(out);
+				return { exitCode: 0 };
+			}
+			if (sub === "set") {
+				if (subArgs.length !== 2) {
+					throw new ConfigCommandError(
+						"Usage: codogotchi config set <key> <value>",
+					);
+				}
+				const out = await configSet({
+					home: getCodogotchiHome(),
+					path: subArgs[0],
+					value: subArgs[1],
+				});
+				process.stdout.write(out);
+				return { exitCode: 0 };
+			}
+			if (sub === "list") {
+				const out = await configList({ home: getCodogotchiHome() });
+				process.stdout.write(out);
+				return { exitCode: 0 };
+			}
+			throw new ConfigCommandError(
+				"Usage: codogotchi config <get|set|list> [args]",
+			);
+		} catch (err) {
+			if (err instanceof ConfigCommandError) {
+				process.stderr.write(`${err.message}\n`);
+				return { exitCode: err.exitCode };
+			}
+			throw err;
+		}
 	}
 
 	if (command === "loot") {

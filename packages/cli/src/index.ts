@@ -1,4 +1,5 @@
 export * from "./config";
+export * from "./config-command";
 export * from "./default-readers";
 export * from "./hooks";
 export * from "./loot";

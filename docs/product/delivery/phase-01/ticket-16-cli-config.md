@@ -38,3 +38,17 @@ Scope: cli
 ## Rationale
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+- **Schema lives in `packages/contracts/src/config.ts`** as `codogotchiConfigSchema` (zod) plus an allow-list of `SETTABLE_TOP_LEVEL` and `SETTABLE_HEALTH_KEYS` keys. `resolveConfigPath` is the authoritative dotted-path resolver — anything it returns `null` for is unknown or intentionally read-only (e.g. `profile_id`).
+- **`profile_id` is read-only.** `config get profile_id` works (so users can copy it for support); `config set profile_id …` is refused with `Unknown or read-only config key`. Rotating `profile_id` would orphan the server-side profile, so this is deliberate.
+- **Atomic writes.** `configSet` uses the existing `writeConfig` from P1.12, which writes to `${target}.tmp-<pid>-<ts>` and `rename`s. A kill mid-write leaves either the previous good content or the new good content — never a partial JSON document.
+- **Type validation per field.**
+  - Booleans (`health.weekend_decay`): accepts exactly `"true"` / `"false"`; anything else rejected.
+  - Numbers (`health.grace_days`, `health.decay_per_day`, `health.revive_threshold`, `health.revive_hp`): finite non-negative; rejects `nope` and `-5`.
+  - Nullable date (`health.vacation_until`): accepts ISO date string or the literal `"null"`/`""` to clear; normalizes to `Date.toISOString()`.
+  - Required string (`health.timezone`, `handle`): non-empty.
+  - URL (`convex_http_url`): must be `https://`; trailing slashes stripped.
+  - Nullable secrets (`github_token`, `github_username`, `wakatime_key`): the literal `"null"` clears the field; otherwise stored verbatim.
+- **Credential redaction in `list`.** PAT and Wakatime key render as `"<set>"` when present and `null` when unset. No PAT/Wakatime bytes appear in output. Other config fields are passed through as-is.
+- **`config get` output.** Strings print bare; non-string values print as JSON (so `health.grace_days` → `2`, `health.weekend_decay` → `false`, `health` (whole object) → JSON).
+- **Subagent review.** Code ticket; subagent runs.
