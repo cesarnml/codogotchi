@@ -5,8 +5,10 @@ agent activity feeds XP, HP, stage advancement, and loot. The data lives in
 Convex; the macOS pet that will render this data is a later phase.
 
 **Status:** Phase 01 — private validation. Two-user run on Convex Cloud.
-No public surface yet. See [`docs/product/plans/phase-01.md`](docs/product/plans/phase-01.md)
-for what shipped this phase and what is deliberately deferred.
+No public surface yet. See [`docs/product/plans/phase-01-as-shipped.md`](docs/product/plans/phase-01-as-shipped.md)
+for what shipped vs what the plan intended, and
+[`docs/product/plans/phase-01.md`](docs/product/plans/phase-01.md) for the original
+plan and explicit deferrals.
 
 ## What ships in Phase 01
 
