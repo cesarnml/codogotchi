@@ -71,8 +71,8 @@ function parseLootFlags(args: string[]): {
 			const v = args[i + 1];
 			i += 1;
 			if (!v) throw new Error("Missing value for --limit");
-			const n = Number.parseInt(v, 10);
-			if (!Number.isFinite(n) || n < 0) {
+			const n = Number(v);
+			if (!Number.isInteger(n) || n < 0) {
 				throw new Error(`Invalid --limit value: ${v}`);
 			}
 			limit = n;

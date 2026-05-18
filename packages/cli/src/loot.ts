@@ -12,6 +12,8 @@ export const TIERS: readonly LootTier[] = [
 	"legendary",
 ];
 
+const SOURCES = ["claude_code", "codex", "github", "wakatime"] as const;
+
 export function lootLogPath(home: string): string {
 	return join(home, "loot.log");
 }
@@ -30,6 +32,10 @@ export type LootResult = {
 	missingCache: boolean;
 };
 
+function isValidTimestamp(ts: number): boolean {
+	return Number.isFinite(ts) && Number.isFinite(new Date(ts).getTime());
+}
+
 function isValidLootEvent(parsed: unknown): parsed is LootEventResponse {
 	if (typeof parsed !== "object" || parsed === null) return false;
 	const r = parsed as Record<string, unknown>;
@@ -38,8 +44,9 @@ function isValidLootEvent(parsed: unknown): parsed is LootEventResponse {
 		(TIERS as readonly string[]).includes(r.tier) &&
 		typeof r.name === "string" &&
 		typeof r.source === "string" &&
+		(SOURCES as readonly string[]).includes(r.source) &&
 		typeof r.ts === "number" &&
-		Number.isFinite(r.ts)
+		isValidTimestamp(r.ts)
 	);
 }
 
@@ -97,11 +104,17 @@ export async function runLoot(
 	deps: LootDeps,
 	opts: LootOptions = {},
 ): Promise<LootResult> {
+	if (
+		opts.limit !== undefined &&
+		(!Number.isInteger(opts.limit) || opts.limit < 0)
+	) {
+		throw new Error(`Invalid loot limit: ${opts.limit}`);
+	}
 	const exists = await lootLogExists(deps.home);
 	const all = await readAllLoot(deps.home);
 	let filtered = opts.tier ? all.filter((e) => e.tier === opts.tier) : all;
-	if (opts.limit !== undefined && opts.limit >= 0) {
-		filtered = filtered.slice(-opts.limit);
+	if (opts.limit !== undefined) {
+		filtered = opts.limit === 0 ? [] : filtered.slice(-opts.limit);
 	}
 	return {
 		missingCache: !exists,

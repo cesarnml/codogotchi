@@ -44,3 +44,9 @@ Scope: cli
 - **Per-line validation.** Reuses the same `isValidLootEvent` shape as `status` (typeof checks plus `Number.isFinite(ts)`) so a malformed JSONL line or an invalid `ts` is silently skipped rather than crashing `toISOString()`.
 - **Module split.** `lootLogPath` and `lootLogExists` now live in `loot.ts` (canonical owner). The previous private `lootLogPath` in `status.ts` was kept (used by `readRecentLoot`) but is no longer re-exported, so `index.ts` `export *` from both files does not collide. Tests import `lootLogPath` from `./loot`.
 - **No sprite art.** Explicit deferral honored — text + bracket-tagged tier only.
+- **Subagent-review patches.** Cross-model adversarial review confirmed all three invariants hold and patched four real correctness gaps:
+  1. `limit: 0` rendered all events because `Array.slice(-0)` returns the full array. Now short-circuits to `[]`.
+  2. `runLoot` had no direct-call validation for `limit`. Negative or non-integer limits now throw a clear error (so library callers don't silently corrupt output).
+  3. `isValidLootEvent` rejects events whose `source` is outside the canonical `claude_code|codex|github|wakatime` enum and whose `ts` produces an out-of-range `Date` (e.g. `1e16`). This stops malformed JSONL from crashing `formatLoot` with `RangeError`.
+  4. Router `--limit` was parsed with `parseInt`, silently truncating `3.7` to `3`. Now rejects fractional and non-integer values with a clear error message.
+  Regression coverage added for each.

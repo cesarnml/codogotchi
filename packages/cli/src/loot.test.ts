@@ -4,7 +4,8 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LootEventResponse } from "@codogotchi/contracts";
-import { type LootTier, lootLogPath, runLoot } from "./loot";
+import { type LootTier, lootLogPath, readAllLoot, runLoot } from "./loot";
+import { dispatch } from "./router";
 
 const NOW = new Date("2026-05-18T10:00:00.000Z").getTime();
 
@@ -32,12 +33,19 @@ async function writeLoot(home: string, events: LootEventResponse[]) {
 
 describe("runLoot", () => {
 	let home: string;
+	let oldHome: string | undefined;
 
 	beforeEach(() => {
 		home = mkdtempSync(join(tmpdir(), "codogotchi-loot-"));
+		oldHome = process.env.CODOGOTCHI_HOME;
 	});
 
 	afterEach(() => {
+		if (oldHome === undefined) {
+			delete process.env.CODOGOTCHI_HOME;
+		} else {
+			process.env.CODOGOTCHI_HOME = oldHome;
+		}
 		rmSync(home, { recursive: true, force: true });
 	});
 
@@ -119,10 +127,87 @@ describe("runLoot", () => {
 		expect(result.output).not.toContain("c1");
 	});
 
+	it("--limit 0 returns no events after filtering", async () => {
+		await writeLoot(home, [
+			event({ name: "r1", ts: NOW - 3000, tier: "rare" }),
+			event({ name: "r2", ts: NOW - 2000, tier: "rare" }),
+		]);
+		const result = await runLoot(
+			{ home },
+			{ tier: "rare" as LootTier, limit: 0 },
+		);
+		expect(result.output).toContain("No loot yet");
+		expect(result.output).not.toContain("r1");
+		expect(result.output).not.toContain("r2");
+	});
+
+	it("rejects invalid direct limit values", async () => {
+		await expect(runLoot({ home }, { limit: -1 })).rejects.toThrow(
+			"Invalid loot limit",
+		);
+		await expect(runLoot({ home }, { limit: 3.7 })).rejects.toThrow(
+			"Invalid loot limit",
+		);
+	});
+
+	it("skips malformed lines and invalid event fields", async () => {
+		const lines = [
+			"not-json",
+			JSON.stringify({
+				profile_id: "p",
+				tier: "COMMON",
+				name: "upper-tier",
+				source: "github",
+				score_explanation: null,
+				ts: NOW,
+			}),
+			JSON.stringify({
+				profile_id: "p",
+				tier: "rare",
+				name: "bad-source",
+				source: "jira",
+				score_explanation: null,
+				ts: NOW,
+			}),
+			JSON.stringify({
+				profile_id: "p",
+				tier: "rare",
+				name: "bad-ts",
+				source: "github",
+				score_explanation: null,
+				ts: 1e16,
+			}),
+			JSON.stringify(event({ name: "ok", ts: NOW, tier: "rare" })),
+		].join("\n");
+		await writeFile(lootLogPath(home), lines, "utf8");
+
+		const events = await readAllLoot(home);
+		const result = await runLoot({ home });
+
+		expect(events.map((e) => e.name)).toEqual(["ok"]);
+		expect(result.output).toContain("ok");
+		expect(result.output).not.toContain("upper-tier");
+		expect(result.output).not.toContain("bad-source");
+		expect(result.output).not.toContain("bad-ts");
+	});
+
 	it("empty loot.log file shows empty-state message (not missingCache)", async () => {
 		await writeFile(lootLogPath(home), "", "utf8");
 		const result = await runLoot({ home });
 		expect(result.missingCache).toBe(false);
 		expect(result.output).toContain("No loot yet");
+	});
+
+	it("router rejects fractional loot limits", async () => {
+		await expect(dispatch(["loot", "--limit", "3.7"])).rejects.toThrow(
+			"Invalid --limit value: 3.7",
+		);
+	});
+
+	it("router exits zero for missing and empty loot history", async () => {
+		process.env.CODOGOTCHI_HOME = home;
+		expect(await dispatch(["loot"])).toEqual({ exitCode: 0 });
+		await writeFile(lootLogPath(home), "", "utf8");
+		expect(await dispatch(["loot"])).toEqual({ exitCode: 0 });
 	});
 });
