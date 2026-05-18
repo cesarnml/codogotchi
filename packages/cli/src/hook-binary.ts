@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rmdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import {
 	type ActivityState,
 	type HpOverlay,
@@ -63,6 +64,8 @@ const TEST_RUNNER_PREFIXES = [
 ];
 
 const READ_RUN_THRESHOLD = 3;
+const LOCK_RETRY_DELAY_MS = 10;
+const LOCK_TIMEOUT_MS = 2000;
 
 type NormalizedEvent = {
 	origin: SourceEventOrigin;
@@ -117,6 +120,8 @@ export function classifyEvent(
 		if (mapped !== undefined) {
 			return { state: mapped, sourceEvent, readRun: 0 };
 		}
+		// Unknown gate name: don't reset readRun — SoA gates are not tool-use events.
+		return { state: "idle", sourceEvent, readRun: prior.readRun };
 	}
 
 	if (kind === "tool_use") {
@@ -177,6 +182,30 @@ async function writeCounters(home: string, counters: Counters): Promise<void> {
 	await rename(tmp, target);
 }
 
+async function withHomeLock<T>(home: string, fn: () => Promise<T>): Promise<T> {
+	const lockPath = join(home, ".hook.lock");
+	const startedAt = Date.now();
+
+	while (true) {
+		try {
+			await mkdir(lockPath);
+			break;
+		} catch (err) {
+			if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+			if (Date.now() - startedAt >= LOCK_TIMEOUT_MS) {
+				throw new Error(`Timed out waiting for hook lock at ${lockPath}`);
+			}
+			await sleep(LOCK_RETRY_DELAY_MS);
+		}
+	}
+
+	try {
+		return await fn();
+	} finally {
+		await rmdir(lockPath);
+	}
+}
+
 export type HpSnapshot = { hp: number; hpOverlay: HpOverlay };
 
 function isValidHp(value: unknown): value is number {
@@ -230,24 +259,26 @@ export async function runHook(
 	opts: RunHookOptions,
 ): Promise<void> {
 	await mkdir(opts.home, { recursive: true });
-	const counters = await readCounters(opts.home);
-	const classified = classifyEvent(input, { readRun: counters.read_run });
+	await withHomeLock(opts.home, async () => {
+		const counters = await readCounters(opts.home);
+		const classified = classifyEvent(input, { readRun: counters.read_run });
 
-	const overlay = await readProfileOverlay(opts.home);
-	const hp = overlay?.hp ?? 100;
-	const hp_overlay = overlay?.hpOverlay ?? "thriving";
+		const overlay = await readProfileOverlay(opts.home);
+		const hp = overlay?.hp ?? 100;
+		const hp_overlay = overlay?.hpOverlay ?? "thriving";
 
-	const state: StateJsonV1 = {
-		schema_version: STATE_JSON_SCHEMA_VERSION,
-		activity_state: classified.state,
-		hp_overlay,
-		hp,
-		updated_at: opts.now.toISOString(),
-		source_event: classified.sourceEvent,
-	};
+		const state: StateJsonV1 = {
+			schema_version: STATE_JSON_SCHEMA_VERSION,
+			activity_state: classified.state,
+			hp_overlay,
+			hp,
+			updated_at: opts.now.toISOString(),
+			source_event: classified.sourceEvent,
+		};
 
-	await writeStateAtomic(opts.home, state);
-	await writeCounters(opts.home, { read_run: classified.readRun });
+		await writeStateAtomic(opts.home, state);
+		await writeCounters(opts.home, { read_run: classified.readRun });
+	});
 }
 
 export async function runHookFromStdin(

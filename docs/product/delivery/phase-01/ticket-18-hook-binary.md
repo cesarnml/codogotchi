@@ -54,7 +54,7 @@ Scope: cli
 
 - **Contract preserved, no `schema_version` bump.** The closed enums, the v1 `state.json` shape, the mapping table, and the 3+ consecutive Read threshold are honored as written. The one-shot revision allowance is unused.
 - **Read-run counter is a sidecar.** Consecutive Read tracking lives in `~/.codogotchi/.hook-counters.json` (`{ read_run: number }`) rather than `state.json`, so the public schema stays clean. The counter is reset by any non-Read tool-use event.
-- **Atomic write.** `state.json` and the counter file both use write-to-temp + rename, scoped with `pid` and timestamp in the temp name to avoid collisions between concurrent hook invocations.
+- **Atomic write.** `state.json` and the counter file both use write-to-temp + rename, with temp names made unique by appending `randomUUID` to avoid collisions between concurrent hook invocations.
 - **Default overlay when no `profile.json`.** First-run / missing-profile defaults to `hp=100`, `hp_overlay="thriving"`. Once `codogotchi sync` lands a profile cache, subsequent hook writes carry the cached HP forward — single-writer, no server round-trip on the hot path.
 - **Silent skip on bad input.** JSON parse failure, non-object input, and IO errors are swallowed without writing or throwing. A noisy hook would spam Claude Code logs and degrade the user experience for a producer-only signal.
 - **Hot-path budget.** Implementation does two small reads (counter + optional profile) and two small writes (counter + state). No network, no large file IO. Wall-time budget of <50ms is not yet benchmarked against a real Claude Code event — left for the validation runbook in P1.21.

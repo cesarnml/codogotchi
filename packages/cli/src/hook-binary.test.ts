@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -292,6 +298,22 @@ describe("runHook", () => {
 		expect(readState(home).activity_state).toBe("reviewing");
 	});
 
+	it("serializes concurrent Read runs before updating counters", async () => {
+		const input: HookInput = {
+			origin: "claude_code",
+			kind: "tool_use",
+			name: "Read",
+		};
+
+		await Promise.all([
+			runHook(input, { home, now: FIXED_NOW }),
+			runHook(input, { home, now: FIXED_NOW }),
+			runHook(input, { home, now: FIXED_NOW }),
+		]);
+
+		expect(readState(home).activity_state).toBe("reviewing");
+	});
+
 	it("resets Read run when an Edit interrupts across invocations", async () => {
 		const read: HookInput = {
 			origin: "claude_code",
@@ -315,7 +337,7 @@ describe("runHook", () => {
 		const { runHookFromStdin } = await import("./hook-binary");
 		await runHookFromStdin("{not valid json", { home, now: FIXED_NOW });
 		// No state.json should have been written.
-		expect(() => readState(home)).toThrow();
+		expect(existsSync(join(home, "state.json"))).toBe(false);
 	});
 
 	it("writes atomically (no half-written file visible at target)", async () => {
