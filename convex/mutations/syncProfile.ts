@@ -255,10 +255,20 @@ export const syncProfile = mutation({
 });
 
 function maxIsoOrNull(values: (string | null)[]): string | null {
-	let best: string | null = null;
+	// Compare by parsed milliseconds, not raw string. The contract accepts any
+	// valid offset (`Z`, `+10:00`, etc.); lexicographic compare picks the wrong
+	// max when offsets differ and would otherwise feed a fresher-looking
+	// `last_signal_at` to the health engine, suppressing legitimate decay.
+	let bestStr: string | null = null;
+	let bestMs = Number.NEGATIVE_INFINITY;
 	for (const v of values) {
 		if (v === null) continue;
-		if (best === null || v > best) best = v;
+		const ms = Date.parse(v);
+		if (Number.isNaN(ms)) continue;
+		if (ms > bestMs) {
+			bestMs = ms;
+			bestStr = v;
+		}
 	}
-	return best;
+	return bestStr;
 }
