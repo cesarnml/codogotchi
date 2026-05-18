@@ -1,10 +1,9 @@
-import { describe, expect, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { convexTestModules } from "./test/modules";
 
-// Force loot rng so http happy-path is deterministic across CI runs.
-spyOn(Math, "random").mockReturnValue(0.99);
+let rngSpy: ReturnType<typeof spyOn<typeof Math, "random">> | undefined;
 
 const goodBody = {
 	profile_id: "profile-http",
@@ -23,6 +22,16 @@ const goodBody = {
 };
 
 describe("POST /sync", () => {
+	beforeEach(() => {
+		// Force loot rng so http happy-path is deterministic across CI runs.
+		// Scoped per-test (not at module load) so the stub does not bleed into
+		// any other test file picked up in the same bun test process.
+		rngSpy = spyOn(Math, "random").mockReturnValue(0.99);
+	});
+	afterEach(() => {
+		rngSpy?.mockRestore?.();
+	});
+
 	test("accepts a valid payload and returns the profile envelope", async () => {
 		const t = convexTest(schema, convexTestModules);
 		const res = await t.fetch("/sync", {

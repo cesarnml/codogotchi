@@ -1,12 +1,12 @@
 {
-  "schemaVersion": 1,
-  "recordedAt": "2026-05-18T05:25:06.734Z",
-  "reviewedHeadSha": "04a5ed596fcc02000826b56a649d2812f592949a",
-  "outcome": "needs_patch",
-  "note": "Actionable AI review findings were detected and still need follow-up.",
-  "actionSummary": "Flagged 3 finding comment(s) for follow-up.",
-  "prBodyRefresh": {
-    "attemptedAt": "2026-05-18T05:25:09.514Z",
-    "status": "updated"
-  }
+	"schemaVersion": 1,
+	"recordedAt": "2026-05-18T05:25:06.734Z",
+	"reviewedHeadSha": "04a5ed596fcc02000826b56a649d2812f592949a",
+	"outcome": "needs_patch",
+	"note": "Actionable AI review findings were detected and still need follow-up.",
+	"actionSummary": "Flagged 3 finding comment(s) for follow-up.",
+	"prBodyRefresh": {
+		"attemptedAt": "2026-05-18T05:25:09.514Z",
+		"status": "updated"
+	}
 }
