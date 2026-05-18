@@ -176,7 +176,11 @@ function applyHealthValue(
 
 export async function configGet(opts: ConfigGetOptions): Promise<string> {
 	const config = await loadOrFail(opts.home);
-	const value = getDottedValue(config, opts.path);
+	const raw = getDottedValue(config, opts.path);
+	// Normalize `undefined` to `null` so optional fields absent from older
+	// configs (e.g. `github_username`) never render as the literal string
+	// "undefined" — that would be both confusing and lossy.
+	const value = raw === undefined ? null : raw;
 	return typeof value === "string"
 		? `${value}\n`
 		: `${JSON.stringify(value)}\n`;

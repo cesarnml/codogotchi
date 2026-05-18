@@ -9,6 +9,7 @@ import {
 	configList,
 	configSet,
 } from "./config-command";
+import { dispatch } from "./router";
 
 function fixture(): CodogotchiConfig {
 	return {
@@ -148,6 +149,26 @@ describe("config command", () => {
 			out = await configList({ home });
 			expect(out).toContain('"github_token": null');
 		});
+	});
+
+	it("router rejects extra args for config list", async () => {
+		const prev = process.env.CODOGOTCHI_HOME;
+		process.env.CODOGOTCHI_HOME = home;
+		try {
+			const result = await dispatch(["config", "list", "extra"]);
+			expect(result.exitCode).not.toBe(0);
+		} finally {
+			if (prev === undefined) delete process.env.CODOGOTCHI_HOME;
+			else process.env.CODOGOTCHI_HOME = prev;
+		}
+	});
+
+	it("configGet normalizes undefined optional fields to null", async () => {
+		const cfg = fixture();
+		delete (cfg as { github_username?: unknown }).github_username;
+		await writeConfig(home, cfg);
+		const out = await configGet({ home, path: "github_username" });
+		expect(out).toBe("null\n");
 	});
 
 	describe("missing config", () => {

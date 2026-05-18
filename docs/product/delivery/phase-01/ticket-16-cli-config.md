@@ -8,7 +8,7 @@ Scope: cli
 
 - `codogotchi config get <key>` prints the value at the dotted key path (e.g. `health.weekend_decay`).
 - `codogotchi config set <key> <value>` writes the value at the dotted key path, validating type (bool / number / ISO date string) against the config schema. Refuses unknown keys.
-- `codogotchi config list` prints the full config as formatted JSON (with credentials redacted: PAT and Wakatime key shown as `<set>` or `<unset>`).
+- `codogotchi config list` prints the full config as formatted JSON (with credentials redacted: PAT and Wakatime key shown as `"<set>"` when populated and `null` when unset).
 - Writes are atomic (write-to-temp + rename).
 - Config schema lives in `packages/contracts/src/config.ts` as a zod schema; `config set` validates against it.
 - Tests cover: get/set/list happy paths, unknown key refusal, type validation refusal, credential redaction in `list`, atomic write under simulated interruption.
@@ -39,13 +39,6 @@ Scope: cli
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-- **Schema lives in `packages/contracts/src/config.ts`** as `codogotchiConfigSchema` (zod) plus `SETTABLE_TOP_LEVEL`/`SETTABLE_HEALTH_KEYS` allow-lists. `resolveConfigPath` is the authoritative dotted-path resolver — anything it returns `null` for is unknown or intentionally read-only.
-- **`profile_id` is read-only.** `config get profile_id` works; `config set profile_id …` is refused. Rotating it would orphan the server-side profile.
-- **Atomic writes.** Reuses `writeConfig` (tmp + rename). Kill mid-write leaves either previous or new content; never partial.
-- **Type validation:** bool (exactly `true`/`false`), non-negative finite number, ISO date or `"null"`, non-empty string, https URL with trailing slash strip, nullable secrets via the `"null"` literal.
-- **`list` redaction** renders `github_token` and `wakatime_key` as `"<set>"` when populated, `null` when not. No secret bytes appear in output.
-- **`config get` output:** strings bare, non-strings as JSON.
-
 - **Schema lives in `packages/contracts/src/config.ts`** as `codogotchiConfigSchema` (zod) plus an allow-list of `SETTABLE_TOP_LEVEL` and `SETTABLE_HEALTH_KEYS` keys. `resolveConfigPath` is the authoritative dotted-path resolver — anything it returns `null` for is unknown or intentionally read-only (e.g. `profile_id`).
 - **`profile_id` is read-only.** `config get profile_id` works (so users can copy it for support); `config set profile_id …` is refused with `Unknown or read-only config key`. Rotating `profile_id` would orphan the server-side profile, so this is deliberate.
 - **Atomic writes.** `configSet` uses the existing `writeConfig` from P1.12, which writes to `${target}.tmp-<pid>-<ts>` and `rename`s. A kill mid-write leaves either the previous good content or the new good content — never a partial JSON document.
@@ -59,3 +52,8 @@ Scope: cli
 - **Credential redaction in `list`.** PAT and Wakatime key render as `"<set>"` when present and `null` when unset. No PAT/Wakatime bytes appear in output. Other config fields are passed through as-is.
 - **`config get` output.** Strings print bare; non-string values print as JSON (so `health.grace_days` → `2`, `health.weekend_decay` → `false`, `health` (whole object) → JSON).
 - **Subagent review.** Code ticket; subagent runs.
+- **External AI review (CodeRabbit) patches:**
+  1. Outcome line aligned to the canonical wording: `<set>` when set, `null` when unset (matches what `JSON.stringify` produces). The Rationale was the source of truth; the Outcome line now agrees.
+  2. Duplicate Rationale block removed — leftover from a split red/green commit cycle. Consolidated to a single bullet list.
+  3. `configGet` normalizes `undefined` (e.g. `github_username` absent in older configs) to `null` before formatting, so the CLI never prints the literal string `"undefined"`. Regression test added.
+  4. Router now rejects extra positional args to `config list` (`config list extra` returns a non-zero exit with a usage error), matching the symmetry with `get`/`set`. Regression test added.

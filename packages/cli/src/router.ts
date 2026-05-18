@@ -210,6 +210,9 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
 				return { exitCode: 0 };
 			}
 			if (sub === "list") {
+				if (subArgs.length !== 0) {
+					throw new ConfigCommandError("Usage: codogotchi config list");
+				}
 				const out = await configList({ home: getCodogotchiHome() });
 				process.stdout.write(out);
 				return { exitCode: 0 };
