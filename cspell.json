@@ -135,7 +135,9 @@
 		"untracked",
 		"squash",
 		"codegen",
-		"cmejia"
+		"cmejia",
+		"waka",
+		"idempotently"
 	],
 	"dictionaries": ["typescript", "node", "software-terms"]
 }

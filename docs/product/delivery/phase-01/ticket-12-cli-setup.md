@@ -47,3 +47,11 @@ Scope: cli
 ## Rationale
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+- **Hook installation split.** Followed the recommended path: `installHooks()` writes only the Claude Code + Codex hook *config entries* invoking `codogotchi-hook`. The hook binary itself lands in P1.18. This keeps P1.12 reviewable without conflating two responsibilities.
+- **Convex URL: no baked-in default.** Phase 01 has a deployed Convex deployment, but no production URL is hard-coded into the CLI yet. `setup` always prompts; tests pass an explicit URL. A baked-in default can be added when the production URL stabilizes; the prompt loop already handles validation.
+- **`CODOGOTCHI_USER_ROOT` test seam for hooks.** Hook installation reads the OS home dir via `homedir()` with a `CODOGOTCHI_USER_ROOT` env override so future hook tests can redirect Claude/Codex config writes to a tempdir without touching real user state. The setup tests inject a mock `installHooks` and do not exercise this seam directly.
+- **Light router, no `commander`/`yargs`.** The router is a small switch in `src/router.ts`. `setup` accepts `--force`; `help`/`--help`/`-h` print usage. No external CLI library was added.
+- **Atomic config write.** `writeConfig` writes to a temp file in the same directory and `rename`s into place to avoid leaving a half-written `config.json` if the process is interrupted.
+- **Idempotent hook config writes.** `installHooks()` merges into existing `~/.claude/settings.json` rather than replacing it, and overwrites `~/.codex/hooks/codogotchi.toml` with the same content shape on every run. Re-running `setup --force` produces an identical hook surface, so a Claude Code reinstall plus a re-run does not double-register.
+

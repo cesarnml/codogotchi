@@ -1,3 +1,4 @@
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { HealthConfigPayload } from "@codogotchi/contracts";
@@ -24,18 +25,33 @@ export function configPath(home: string): string {
 }
 
 export async function configExists(home: string): Promise<boolean> {
-	throw new Error("not implemented");
+	try {
+		await stat(configPath(home));
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 export async function readConfig(
 	home: string,
 ): Promise<CodogotchiConfig | null> {
-	throw new Error("not implemented");
+	try {
+		const raw = await readFile(configPath(home), "utf8");
+		return JSON.parse(raw) as CodogotchiConfig;
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+		throw err;
+	}
 }
 
 export async function writeConfig(
 	home: string,
 	config: CodogotchiConfig,
 ): Promise<void> {
-	throw new Error("not implemented");
+	await mkdir(home, { recursive: true });
+	const target = configPath(home);
+	const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
+	await writeFile(tmp, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+	await rename(tmp, target);
 }

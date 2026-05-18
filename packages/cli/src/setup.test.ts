@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SyncProfileRequest } from "@codogotchi/contracts";
 import { configPath, readConfig } from "./config";
-import { ConfigExistsError, type SetupDeps, runSetup } from "./setup";
+import { ConfigExistsError, runSetup, type SetupDeps } from "./setup";
 
 function scriptedPrompter(answers: string[]) {
 	const queue = [...answers];

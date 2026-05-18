@@ -7,6 +7,9 @@
 	"exports": {
 		".": "./src/index.ts"
 	},
+	"bin": {
+		"codogotchi": "./bin/codogotchi.ts"
+	},
 	"dependencies": {
 		"@codogotchi/contracts": "workspace:*",
 		"@codogotchi/engine": "workspace:*"
