@@ -32,9 +32,7 @@ describe("readJsonlSignals — claude", () => {
 		expect(result.totalTokens).toBe(915);
 		expect(result.events).toBe(4);
 		expect(result.parseErrors).toBe(1);
-		expect(result.lastEventAt?.toISOString()).toBe(
-			"2026-05-16T08:00:00.000Z",
-		);
+		expect(result.lastEventAt?.toISOString()).toBe("2026-05-16T08:00:00.000Z");
 	});
 
 	it("returns zeros for an empty directory", async () => {
@@ -81,9 +79,7 @@ describe("readJsonlSignals — codex", () => {
 		expect(result.totalTokens).toBe(2150);
 		expect(result.events).toBe(2);
 		expect(result.parseErrors).toBe(1);
-		expect(result.lastEventAt?.toISOString()).toBe(
-			"2026-05-15T09:02:00.000Z",
-		);
+		expect(result.lastEventAt?.toISOString()).toBe("2026-05-15T09:02:00.000Z");
 	});
 
 	it("since cutoff filters out the entire file when nothing qualifies", async () => {
