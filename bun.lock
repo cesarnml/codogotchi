@@ -4,6 +4,10 @@
   "workspaces": {
     "": {
       "name": "codogotchi",
+      "dependencies": {
+        "@codogotchi/contracts": "workspace:*",
+        "@codogotchi/engine": "workspace:*",
+      },
       "devDependencies": {
         "@biomejs/biome": "^2.4.15",
         "@types/bun": "latest",

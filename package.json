@@ -21,6 +21,10 @@
 		"ci": "bun run verify && bun run spellcheck",
 		"ci:quiet": "bun run verify:quiet && bun run spellcheck"
 	},
+	"dependencies": {
+		"@codogotchi/contracts": "workspace:*",
+		"@codogotchi/engine": "workspace:*"
+	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.15",
 		"@types/bun": "latest",

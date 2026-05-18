@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import type { SyncProfileRequest } from "@codogotchi/contracts";
 import { convexTest } from "convex-test";
+import { api } from "../api";
 import schema from "../schema";
-import { syncProfile } from "./syncProfile";
+import { convexTestModules } from "../test/modules";
 
 const NOW = "2026-05-18T12:00:00.000Z";
 
@@ -35,8 +36,8 @@ describe("syncProfile mutation", () => {
 	});
 
 	test("creates a new profile on first sync when none exists", async () => {
-		const t = convexTest(schema);
-		const out = await t.mutation(syncProfile, req());
+		const t = convexTest(schema, convexTestModules);
+		const out = await t.mutation(api.mutations.syncProfile, req());
 		expect(out.profile.profile_id).toBe("profile-a");
 		expect(out.profile.handle).toBe("alice");
 		expect(out.profile.total_xp).toBe(0);
@@ -47,10 +48,10 @@ describe("syncProfile mutation", () => {
 	test("null source preserves prior per-source totals across syncs", async () => {
 		// Force loot rng never-drops so the second sync stays deterministic.
 		spyOn(Math, "random").mockReturnValue(0.99);
-		const t = convexTest(schema);
+		const t = convexTest(schema, convexTestModules);
 
 		await t.mutation(
-			syncProfile,
+			api.mutations.syncProfile,
 			req({
 				signals: {
 					claude: { tokens: 1234 },
@@ -61,17 +62,20 @@ describe("syncProfile mutation", () => {
 			}),
 		);
 
-		const after = await t.mutation(syncProfile, req({ now: NOW }));
+		const after = await t.mutation(
+			api.mutations.syncProfile,
+			req({ now: NOW }),
+		);
 		expect(after.profile.xp_by_source.claude_code).toBe(1234);
 		expect(after.profile.last_signal_at_by_source.claude_code).not.toBeNull();
 	});
 
 	test("two profiles do not bleed (distinct UUIDs route correctly)", async () => {
 		spyOn(Math, "random").mockReturnValue(0.99);
-		const t = convexTest(schema);
+		const t = convexTest(schema, convexTestModules);
 
 		await t.mutation(
-			syncProfile,
+			api.mutations.syncProfile,
 			req({
 				profile_id: "uuid-a",
 				handle: "alice",
@@ -84,7 +88,7 @@ describe("syncProfile mutation", () => {
 			}),
 		);
 		await t.mutation(
-			syncProfile,
+			api.mutations.syncProfile,
 			req({
 				profile_id: "uuid-b",
 				handle: "bob",
@@ -97,8 +101,14 @@ describe("syncProfile mutation", () => {
 			}),
 		);
 
-		const a = await t.mutation(syncProfile, req({ profile_id: "uuid-a" }));
-		const b = await t.mutation(syncProfile, req({ profile_id: "uuid-b" }));
+		const a = await t.mutation(
+			api.mutations.syncProfile,
+			req({ profile_id: "uuid-a" }),
+		);
+		const b = await t.mutation(
+			api.mutations.syncProfile,
+			req({ profile_id: "uuid-b" }),
+		);
 
 		expect(a.profile.xp_by_source.claude_code).toBe(5000);
 		expect(a.profile.xp_by_source.codex).toBe(0);
@@ -109,10 +119,10 @@ describe("syncProfile mutation", () => {
 	test("rolls and inserts loot events when probability fires", async () => {
 		// Force rng to always-drop so a single sync produces deterministic loot.
 		spyOn(Math, "random").mockReturnValue(0.0001);
-		const t = convexTest(schema);
+		const t = convexTest(schema, convexTestModules);
 
 		const out = await t.mutation(
-			syncProfile,
+			api.mutations.syncProfile,
 			req({
 				signals: {
 					claude: { tokens: 100 },
@@ -138,10 +148,10 @@ describe("syncProfile mutation", () => {
 
 	test("HP changes when idle period exceeds grace through synthetic time", async () => {
 		spyOn(Math, "random").mockReturnValue(0.99);
-		const t = convexTest(schema);
+		const t = convexTest(schema, convexTestModules);
 
 		const seed = await t.mutation(
-			syncProfile,
+			api.mutations.syncProfile,
 			req({
 				signals: {
 					claude: { tokens: 1 },
@@ -156,7 +166,7 @@ describe("syncProfile mutation", () => {
 
 		// 10 days later, weekend_decay false but May 11 2026 is a Monday, so decay fires.
 		const later = await t.mutation(
-			syncProfile,
+			api.mutations.syncProfile,
 			req({
 				signals: { claude: null, codex: null, github: null, wakatime: null },
 				now: "2026-05-11T12:00:00.000Z",

@@ -1,0 +1,264 @@
+import { hpToOverlay, type SyncProfileResponse } from "@codogotchi/contracts";
+import {
+	computeXp,
+	type LootEvent,
+	type LootTier,
+	type ProfileHealth,
+	type RawSignals,
+	rollLootDrop,
+	rollPRLootDropWithQuality,
+	scorePR,
+	stageForXp,
+	tickHealth,
+} from "@codogotchi/engine";
+import { v } from "convex/values";
+import { mutation } from "../lib/factories";
+
+// Phase 01 keeps loot naming generic — display polish is deferred to later
+// phases. The tier itself is the durable artifact; the display name is sugar.
+const LOOT_NAMES: Record<LootTier, string> = {
+	common: "common_drop",
+	uncommon: "uncommon_drop",
+	rare: "rare_drop",
+	epic: "epic_drop",
+	legendary: "legendary_drop",
+};
+
+const SOURCE_KEYS = ["claude_code", "codex", "github", "wakatime"] as const;
+type SourceKey = (typeof SOURCE_KEYS)[number];
+
+const ZERO_XP_BY_SOURCE = {
+	claude_code: 0,
+	codex: 0,
+	github: 0,
+	wakatime: 0,
+};
+
+const NULL_TIMESTAMPS_BY_SOURCE = {
+	claude_code: null,
+	codex: null,
+	github: null,
+	wakatime: null,
+} as { [K in SourceKey]: string | null };
+
+const prMergeValidator = v.object({
+	number: v.number(),
+	title: v.string(),
+	additions: v.number(),
+	deletions: v.number(),
+	reviewCommentCount: v.number(),
+	body: v.optional(v.union(v.string(), v.null())),
+});
+
+export const syncProfile = mutation({
+	args: {
+		profile_id: v.string(),
+		handle: v.string(),
+		signals: v.object({
+			claude: v.union(v.object({ tokens: v.number() }), v.null()),
+			codex: v.union(v.object({ tokens: v.number() }), v.null()),
+			github: v.union(v.object({ prs: v.array(prMergeValidator) }), v.null()),
+			wakatime: v.union(v.object({ hours: v.number() }), v.null()),
+		}),
+		config: v.object({
+			weekend_decay: v.boolean(),
+			grace_days: v.number(),
+			vacation_until: v.union(v.string(), v.null()),
+			timezone: v.string(),
+			decay_per_day: v.number(),
+			revive_threshold: v.number(),
+			revive_hp: v.number(),
+		}),
+		now: v.string(),
+	},
+	handler: async (ctx, args): Promise<SyncProfileResponse> => {
+		const nowDate = new Date(args.now);
+		const nowMs = nowDate.getTime();
+
+		const existing = await ctx.db
+			.query("profiles")
+			.withIndex("by_profile_id", (q) => q.eq("profile_id", args.profile_id))
+			.unique();
+
+		const baseProfile = existing ?? {
+			profile_id: args.profile_id,
+			handle: args.handle,
+			xp_by_source: { ...ZERO_XP_BY_SOURCE },
+			total_xp: 0,
+			stage: 1,
+			hp: 100,
+			mood: "thriving" as const,
+			died_at: null as string | null,
+			cause: null as "decay" | null,
+			death_count: 0,
+			last_signal_at_by_source: { ...NULL_TIMESTAMPS_BY_SOURCE },
+			config_snapshot: { ...args.config },
+			updated_at: nowMs,
+		};
+
+		const xpBySource = { ...baseProfile.xp_by_source };
+		const lastSignalBySource = { ...baseProfile.last_signal_at_by_source };
+
+		// Per-source null = skip semantics: a source going dark for a run must
+		// not zero its prior total (see P1.07 ticket scope + plan invariants).
+		if (args.signals.claude !== null) {
+			const claudeXp = computeXp({
+				claudeTokens: args.signals.claude.tokens,
+				codexTokens: 0,
+				githubPRs: 0,
+				wakatimeHours: 0,
+			});
+			xpBySource.claude_code = claudeXp.byClaude;
+			lastSignalBySource.claude_code = args.now;
+		}
+		if (args.signals.codex !== null) {
+			const codexXp = computeXp({
+				claudeTokens: 0,
+				codexTokens: args.signals.codex.tokens,
+				githubPRs: 0,
+				wakatimeHours: 0,
+			});
+			xpBySource.codex = codexXp.byCodex;
+			lastSignalBySource.codex = args.now;
+		}
+		if (args.signals.github !== null) {
+			const githubXp = computeXp({
+				claudeTokens: 0,
+				codexTokens: 0,
+				githubPRs: args.signals.github.prs.length,
+				wakatimeHours: 0,
+			});
+			xpBySource.github = githubXp.byGithub;
+			lastSignalBySource.github = args.now;
+		}
+		if (args.signals.wakatime !== null) {
+			const wakatimeXp = computeXp({
+				claudeTokens: 0,
+				codexTokens: 0,
+				githubPRs: 0,
+				wakatimeHours: args.signals.wakatime.hours,
+			});
+			xpBySource.wakatime = wakatimeXp.byWakatime;
+			lastSignalBySource.wakatime = args.now;
+		}
+
+		const totalXp =
+			xpBySource.claude_code +
+			xpBySource.codex +
+			xpBySource.github +
+			xpBySource.wakatime;
+		const stage = stageForXp(totalXp);
+
+		// tickHealth uses a single aggregate last_signal_at; collapse the
+		// per-source map by max-ISO so the engine sees the freshest activity.
+		const priorAggregateLastSignal = maxIsoOrNull(
+			Object.values(baseProfile.last_signal_at_by_source),
+		);
+		const rawSignals: RawSignals = {
+			claudeTokens: args.signals.claude?.tokens ?? 0,
+			codexTokens: args.signals.codex?.tokens ?? 0,
+			githubPRs: args.signals.github?.prs.length ?? 0,
+			wakatimeHours: args.signals.wakatime?.hours ?? 0,
+		};
+		const healthIn: ProfileHealth = {
+			hp: baseProfile.hp,
+			last_signal_at: priorAggregateLastSignal,
+			died_at: baseProfile.died_at,
+			death_count: baseProfile.death_count,
+			cause: baseProfile.cause ?? undefined,
+		};
+		const healthOut = tickHealth(nowDate, healthIn, rawSignals, args.config);
+		const mood = hpToOverlay(healthOut.hp);
+		const cause: "decay" | null = healthOut.cause ?? null;
+
+		// Loot rolls. Each non-null source rolls once via base probability;
+		// github rolls per-PR using rollPRLootDropWithQuality so high-quality
+		// merges actually shift the drop curve.
+		const rolledLoot: LootEvent[] = [];
+		const lootExplanations: (string | null)[] = [];
+		if (args.signals.claude !== null) {
+			const drop = rollLootDrop(Math.random, { source: "claude_code" });
+			if (drop) {
+				rolledLoot.push(drop);
+				lootExplanations.push(null);
+			}
+		}
+		if (args.signals.codex !== null) {
+			const drop = rollLootDrop(Math.random, { source: "codex" });
+			if (drop) {
+				rolledLoot.push(drop);
+				lootExplanations.push(null);
+			}
+		}
+		if (args.signals.github !== null) {
+			for (const pr of args.signals.github.prs) {
+				const scored = scorePR(pr);
+				const drop = rollPRLootDropWithQuality(Math.random, scored);
+				if (drop) {
+					rolledLoot.push(drop);
+					lootExplanations.push(scored.explanation);
+				}
+			}
+		}
+		if (args.signals.wakatime !== null) {
+			const drop = rollLootDrop(Math.random, { source: "wakatime" });
+			if (drop) {
+				rolledLoot.push(drop);
+				lootExplanations.push(null);
+			}
+		}
+
+		const insertedLoot = [] as SyncProfileResponse["new_loot_events"];
+		for (let i = 0; i < rolledLoot.length; i++) {
+			const drop = rolledLoot[i];
+			const explanation = lootExplanations[i] ?? null;
+			if (!drop) continue;
+			const docInsert = {
+				profile_id: args.profile_id,
+				tier: drop.tier,
+				name: LOOT_NAMES[drop.tier],
+				source: drop.source,
+				score_explanation: explanation,
+				ts: nowMs,
+			};
+			await ctx.db.insert("loot_events", docInsert);
+			insertedLoot.push(docInsert);
+		}
+
+		const updatedFields = {
+			profile_id: args.profile_id,
+			handle: args.handle,
+			xp_by_source: xpBySource,
+			total_xp: totalXp,
+			stage,
+			hp: healthOut.hp,
+			mood,
+			died_at: healthOut.died_at,
+			cause,
+			death_count: healthOut.death_count,
+			last_signal_at_by_source: lastSignalBySource,
+			config_snapshot: { ...args.config },
+			updated_at: nowMs,
+		};
+
+		if (existing) {
+			await ctx.db.patch(existing._id, updatedFields);
+		} else {
+			await ctx.db.insert("profiles", updatedFields);
+		}
+
+		return {
+			profile: updatedFields,
+			new_loot_events: insertedLoot,
+		};
+	},
+});
+
+function maxIsoOrNull(values: (string | null)[]): string | null {
+	let best: string | null = null;
+	for (const v of values) {
+		if (v === null) continue;
+		if (best === null || v > best) best = v;
+	}
+	return best;
+}

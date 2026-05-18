@@ -1,6 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { convexTest } from "convex-test";
 import schema from "./schema";
+import { convexTestModules } from "./test/modules";
 
 // Force loot rng so http happy-path is deterministic across CI runs.
 spyOn(Math, "random").mockReturnValue(0.99);
@@ -23,7 +24,7 @@ const goodBody = {
 
 describe("POST /sync", () => {
 	test("accepts a valid payload and returns the profile envelope", async () => {
-		const t = convexTest(schema);
+		const t = convexTest(schema, convexTestModules);
 		const res = await t.fetch("/sync", {
 			method: "POST",
 			body: JSON.stringify(goodBody),
@@ -36,7 +37,7 @@ describe("POST /sync", () => {
 	});
 
 	test("rejects a malformed payload with 400 and a zod error path", async () => {
-		const t = convexTest(schema);
+		const t = convexTest(schema, convexTestModules);
 		const res = await t.fetch("/sync", {
 			method: "POST",
 			body: JSON.stringify({ profile_id: "" }),

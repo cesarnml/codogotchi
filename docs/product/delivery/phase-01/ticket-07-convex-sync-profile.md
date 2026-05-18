@@ -47,3 +47,8 @@ Scope: convex
 ## Rationale
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+- **`convex/_generated/` hand-rolled until P1.08.** `npx convex codegen` requires a registered deployment, which is the explicit scope of P1.08 (Convex production deploy + two-profile smoke). A minimal `_generated/server.ts` re-export plus a hand-rolled `convex/api.ts` function-reference registry stand in so this ticket can ship its mutation + HTTP action + convex-test suite end-to-end without inverting the ticket order. Both stubs carry an inline comment naming P1.08 as the swap point.
+- **bun test ↔ convex-test bridge.** convex-test resolves function modules via Vite's `import.meta.glob`, which bun's test runner does not implement. `convex/test/modules.ts` declares the modules registry explicitly and is passed as the second argument to `convexTest(schema, modules)`. New convex function modules must be added there until codegen lands.
+- **Per-source loot RNG.** The mutation uses `Math.random` directly inside the handler. Tests pin determinism via `spyOn(Math, "random").mockReturnValue(…)` per case. A pure helper accepting an injected `RngFn` was considered but rejected for Phase 01 — the convex-test stub fully exercises the integrated rolling path and a helper split would obscure where rolling actually happens.
+- **Generic loot names.** `LOOT_NAMES[tier]` returns `"<tier>_drop"` strings. Display polish (tier-specific items, sprites) is explicitly deferred to later phases; the durable artifact is the tier + source on `loot_events`.

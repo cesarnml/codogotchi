@@ -133,7 +133,8 @@
 		"namespaced",
 		"upstreams",
 		"untracked",
-		"squash"
+		"squash",
+		"codegen"
 	],
 	"dictionaries": ["typescript", "node", "software-terms"]
 }
