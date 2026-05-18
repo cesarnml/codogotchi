@@ -63,6 +63,10 @@ export function defaultReaders(config: CodogotchiConfig): SourceReaders {
 				since,
 				now,
 			});
+			// The engine returns `rateLimitHit: true` (and empty PRs) when the
+			// GitHub API soft-failed. Surface that as a source error so it shows
+			// up in the sync `errors[]` rather than masquerading as zero activity.
+			if (set.rateLimitHit) throw new Error("GitHub rate limit hit");
 			return {
 				prs: set.prs.map((pr) => ({
 					number: pr.number,
@@ -81,6 +85,11 @@ export function defaultReaders(config: CodogotchiConfig): SourceReaders {
 				since: sinceDate,
 				now,
 			});
+			// The engine surfaces HTTP/parse failures via `error` rather than
+			// throwing. Convert that to a real throw so per-source isolation in
+			// runSync records it in `errors[]` instead of treating a possibly
+			// partial `totalHours` as a clean signal.
+			if (set.error !== null) throw new Error(`Wakatime: ${set.error}`);
 			return { hours: set.totalHours };
 		},
 	};
