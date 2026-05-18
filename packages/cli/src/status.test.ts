@@ -162,6 +162,37 @@ describe("runStatus", () => {
 		expect(result.output).not.toContain("stale");
 	});
 
+	it("skips malformed loot.log lines and invalid timestamps", async () => {
+		await writeFile(
+			profileCachePath(home),
+			JSON.stringify(profileFixture()),
+			"utf8",
+		);
+		const bogus = [
+			"not-json",
+			JSON.stringify({ tier: "common", name: "no-ts", source: "claude_code" }),
+			JSON.stringify({
+				profile_id: "p",
+				tier: "rare",
+				name: "ok",
+				source: "github",
+				score_explanation: null,
+				ts: NOW.getTime() - 1000,
+			}),
+			JSON.stringify({
+				tier: "epic",
+				name: "bad-ts",
+				source: "codex",
+				ts: "x",
+			}),
+		].join("\n");
+		await writeFile(lootLogPath(home), bogus, "utf8");
+		const result = await runStatus({ home, now: () => NOW });
+		expect(result.output).toContain("ok");
+		expect(result.output).not.toContain("no-ts");
+		expect(result.output).not.toContain("bad-ts");
+	});
+
 	it("renders died_at and death count when set", async () => {
 		const profile = profileFixture({
 			died_at: "2026-05-17T00:00:00.000Z",

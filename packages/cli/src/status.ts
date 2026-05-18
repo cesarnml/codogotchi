@@ -32,36 +32,56 @@ function lootLogPath(home: string): string {
 }
 
 async function readStateJson(home: string): Promise<StateJsonV1 | null> {
+	let raw: string;
 	try {
-		const raw = await readFile(stateJsonPath(home), "utf8");
-		return JSON.parse(raw) as StateJsonV1;
+		raw = await readFile(stateJsonPath(home), "utf8");
 	} catch (err) {
 		if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+		throw err;
+	}
+	try {
+		return JSON.parse(raw) as StateJsonV1;
+	} catch {
+		// Malformed JSON is treated as "no current activity".
 		return null;
 	}
+}
+
+function isValidLootEvent(parsed: unknown): parsed is LootEventResponse {
+	if (typeof parsed !== "object" || parsed === null) return false;
+	const r = parsed as Record<string, unknown>;
+	return (
+		typeof r.tier === "string" &&
+		typeof r.name === "string" &&
+		typeof r.source === "string" &&
+		typeof r.ts === "number" &&
+		Number.isFinite(r.ts)
+	);
 }
 
 async function readRecentLoot(
 	home: string,
 	limit = 5,
 ): Promise<LootEventResponse[]> {
+	let raw: string;
 	try {
-		const raw = await readFile(lootLogPath(home), "utf8");
-		const lines = raw.split("\n").filter((l) => l.length > 0);
-		const recent = lines.slice(-limit);
-		const events: LootEventResponse[] = [];
-		for (const line of recent) {
-			try {
-				events.push(JSON.parse(line) as LootEventResponse);
-			} catch {
-				// skip malformed lines
-			}
-		}
-		return events.reverse();
+		raw = await readFile(lootLogPath(home), "utf8");
 	} catch (err) {
 		if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
-		return [];
+		throw err;
 	}
+	const lines = raw.split("\n").filter((l) => l.length > 0);
+	const recent = lines.slice(-limit);
+	const events: LootEventResponse[] = [];
+	for (const line of recent) {
+		try {
+			const parsed: unknown = JSON.parse(line);
+			if (isValidLootEvent(parsed)) events.push(parsed);
+		} catch {
+			// skip malformed lines
+		}
+	}
+	return events.reverse();
 }
 
 function formatProfile(
@@ -120,8 +140,13 @@ export async function runStatus(deps: StatusDeps): Promise<StatusResult> {
 	let profile: ProfileResponse | null;
 	try {
 		profile = await readProfileCache(deps.home);
-	} catch {
-		profile = null;
+	} catch (err) {
+		const code = (err as NodeJS.ErrnoException).code;
+		if (code === "ENOENT" || err instanceof SyntaxError) {
+			profile = null;
+		} else {
+			throw err;
+		}
 	}
 	if (profile === null) {
 		return {

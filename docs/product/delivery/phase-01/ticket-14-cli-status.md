@@ -52,3 +52,7 @@ Scope: cli
 - **state.json optional.** Pre-P1.18 the hook binary doesn't write `state.json`. Missing or invalid JSON is treated as "no current activity" and that section is omitted. No stack traces.
 - **No color libraries.** Plain text output, per the no-heavy-deps directive.
 - **Subagent review.** Doc-only ticket would auto-skip; this ticket contains code, so subagent review runs.
+- **External AI review patches (CodeRabbit).** Three actionable findings applied:
+  1. **`readStateJson` / `readRecentLoot` only swallow `ENOENT`.** Other I/O errors (`EACCES`, `ENOTDIR`, etc.) now rethrow rather than silently returning empty data. JSON parse errors in `state.json` still degrade to "no current activity" (that's the documented behavior); JSON parse errors per-line in `loot.log` still skip the line.
+  2. **Loot event validation.** Each parsed JSONL line now passes `isValidLootEvent` (typeof checks for `tier`/`name`/`source`/`ts` + `Number.isFinite(ts)`) before being rendered. An invalid `ts` would otherwise have crashed `new Date(ts).toISOString()` with `RangeError`. Added regression test.
+  3. **`runStatus` catch-all narrowed.** The profile-cache catch now only converts `ENOENT` and `SyntaxError` (corrupt JSON) to the missing-profile path; other errors rethrow so permission/I/O failures aren't misreported as "no profile". The existing corrupt-JSON regression test still passes via the `SyntaxError` branch.
