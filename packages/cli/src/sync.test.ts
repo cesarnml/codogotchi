@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
 	ProfileResponse,
-	SignalsPayload,
 	SyncProfileRequest,
 	SyncProfileResponse,
 } from "@codogotchi/contracts";
@@ -17,7 +16,7 @@ import { syncLogPath, syncLogRotationPath } from "./sync-log";
 
 const FIXED_NOW = new Date("2026-05-18T09:30:00.000Z");
 
-function defaultConfig(home: string): CodogotchiConfig {
+function defaultConfig(_home: string): CodogotchiConfig {
 	return {
 		profile_id: "11111111-2222-3333-4444-555555555555",
 		handle: "user-1",
@@ -99,7 +98,6 @@ function recordingFetch(
 function makeReaders(opts: {
 	claude?: { tokens: number } | "fail";
 	codex?: { tokens: number } | "fail";
-	github?: { prs: SignalsPayload["github"] extends infer T ? unknown : never };
 	githubFail?: boolean;
 	wakatime?: { hours: number } | "fail";
 }): SourceReaders {

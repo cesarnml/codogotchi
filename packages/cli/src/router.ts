@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { getCodogotchiHome } from "./config";
+import { getCodogotchiHome, readConfig } from "./config";
+import { defaultReaders } from "./default-readers";
 import { installHooks } from "./hooks";
 import { terminalPrompter } from "./prompts";
 import { ConfigExistsError, runSetup } from "./setup";
+import { runSync } from "./sync";
 
 export type DispatchResult = {
 	exitCode: number;
@@ -16,6 +18,8 @@ Usage:
 Commands:
   setup            Interactive first-time setup. Writes ~/.codogotchi/config.json
                    and installs Claude Code + Codex hook entries.
+  sync             Run one sync cycle: poll each source, POST to Convex, update
+                   the local profile cache and append a sync.log entry.
   help, --help     Show this message.
 
 Flags (setup):
@@ -79,6 +83,31 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
 			}
 			throw err;
 		}
+	}
+
+	if (command === "sync") {
+		const home = getCodogotchiHome();
+		const config = await readConfig(home);
+		if (!config) {
+			process.stderr.write(
+				"codogotchi: no config found. Run `codogotchi setup` first.\n",
+			);
+			return { exitCode: 2 };
+		}
+		const result = await runSync({
+			home,
+			config,
+			readers: defaultReaders(config),
+			fetch,
+			now: () => new Date(),
+		});
+		const summary = [
+			`sync ${result.exitCode === 0 ? "ok" : "failed"}`,
+			`errors=${result.errors.length}`,
+			`new_loot=${result.newLootCount}`,
+		].join(" ");
+		process.stdout.write(`${summary}\n`);
+		return { exitCode: result.exitCode };
 	}
 
 	process.stderr.write(`Unknown command: ${command}\n${USAGE}`);

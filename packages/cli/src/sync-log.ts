@@ -1,3 +1,4 @@
+import { appendFile, mkdir, rename, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 export const DEFAULT_SYNC_LOG_LIMIT_BYTES = 10 * 1024 * 1024;
@@ -25,9 +26,19 @@ export function formatSyncLogEntry(entry: SyncLogEntry): string {
 }
 
 export async function appendSyncLog(
-	_home: string,
-	_entry: SyncLogEntry,
-	_limitBytes: number = DEFAULT_SYNC_LOG_LIMIT_BYTES,
+	home: string,
+	entry: SyncLogEntry,
+	limitBytes: number = DEFAULT_SYNC_LOG_LIMIT_BYTES,
 ): Promise<void> {
-	throw new Error("not implemented");
+	await mkdir(home, { recursive: true });
+	const target = syncLogPath(home);
+	try {
+		const info = await stat(target);
+		if (info.size >= limitBytes) {
+			await rename(target, syncLogRotationPath(home));
+		}
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+	}
+	await appendFile(target, formatSyncLogEntry(entry), "utf8");
 }

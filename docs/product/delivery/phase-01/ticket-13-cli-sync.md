@@ -43,3 +43,13 @@ Scope: cli
 ## Rationale
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+- **`runSync` injection seams.** Source clients are passed in as a `SourceReaders` quartet (`claude`, `codex`, `github`, `wakatime`) keyed by source name. `Promise.all` runs all four; each is wrapped in a try/catch inside `runOne`, so a thrown error becomes a null signal plus an entry in `errors[]`. Tests inject mock readers; the router builds production readers from config via `defaultReaders(config)`.
+- **`since` derivation.** Read from `~/.codogotchi/profile.json` (`last_signal_at_by_source`) and parsed per source. Missing or invalid timestamps fall back to `null` so each engine source picks its own first-sync default (e.g. 90-day window for github + jsonl).
+- **Exit code.** Exactly the locked spec: `0` if at least one source succeeded **or** the POST succeeded; `1` only when **all four sources failed AND** the POST failed. POST errors are caught (`postSucceeded = false`) and never thrown out of `runSync`.
+- **Atomic cache writes.** `profile.json` uses the same `writeFile`+`rename` pattern as `config.json` so a kill mid-write can't corrupt the cache.
+- **Loot log.** New loot events are appended as JSONL to `~/.codogotchi/loot.log` after a successful POST. No rotation in this ticket — loot volume is low; revisit if it ever matters.
+- **Sync log rotation.** `~/.codogotchi/sync.log` rotates to `sync.log.1` when current size exceeds `DEFAULT_SYNC_LOG_LIMIT_BYTES` (10 MB). Only the most recent rotation is kept, per spec. Threshold is overridable via `SyncDeps.logSizeLimit` for tests.
+- **`github_username` deferred.** The engine GitHub client requires a `username`. `CodogotchiConfig` gained an optional `github_username` field; when absent (which it is for users set up before P1.13), the default github reader returns null and the sync is a heartbeat for that source. A future ticket can derive it from `/user` lazily or extend `setup` to prompt for it. Not part of this slice.
+- **JSONL paths.** Default Claude root is `${HOME}/.claude/projects`, Codex `${HOME}/.codex/sessions`. Both are overridable via `CODOGOTCHI_CLAUDE_ROOT` and `CODOGOTCHI_CODEX_ROOT` for tests and unconventional installs. `ENOENT` is treated as "no events yet" (null signal), not a failure.
+- **No `record-review` follow-up.** Phase 01 PR-review-policy is `disabled` for this resume; `poll-review` auto-records `skipped`.

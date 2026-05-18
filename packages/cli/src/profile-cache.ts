@@ -22,5 +22,9 @@ export async function writeProfileCache(
 	home: string,
 	profile: ProfileResponse,
 ): Promise<void> {
-	throw new Error("not implemented");
+	await mkdir(home, { recursive: true });
+	const target = profileCachePath(home);
+	const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
+	await writeFile(tmp, `${JSON.stringify(profile, null, 2)}\n`, "utf8");
+	await rename(tmp, target);
 }

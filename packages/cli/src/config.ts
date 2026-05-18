@@ -7,6 +7,7 @@ export type CodogotchiConfig = {
 	profile_id: string;
 	handle: string;
 	github_token: string | null;
+	github_username?: string | null;
 	wakatime_key: string | null;
 	convex_http_url: string;
 	health: HealthConfigPayload;
