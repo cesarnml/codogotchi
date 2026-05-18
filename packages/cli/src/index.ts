@@ -1,6 +1,7 @@
 export * from "./config";
 export * from "./default-readers";
 export * from "./hooks";
+export * from "./loot";
 export * from "./profile-cache";
 export * from "./prompts";
 export * from "./router";

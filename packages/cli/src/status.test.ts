@@ -8,12 +8,8 @@ import type {
 	ProfileResponse,
 	StateJsonV1,
 } from "@codogotchi/contracts";
-import {
-	lootLogPath,
-	profileCachePath,
-	runStatus,
-	stateJsonPath,
-} from "./status";
+import { lootLogPath } from "./loot";
+import { profileCachePath, runStatus, stateJsonPath } from "./status";
 
 const NOW = new Date("2026-05-18T10:00:00.000Z");
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;

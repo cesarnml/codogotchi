@@ -83,9 +83,28 @@ export function formatLoot(events: LootEventResponse[]): string {
 	return `${lines.join("\n")}\n`;
 }
 
+export async function lootLogExists(home: string): Promise<boolean> {
+	try {
+		await readFile(lootLogPath(home), "utf8");
+		return true;
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
+		throw err;
+	}
+}
+
 export async function runLoot(
-	_deps: LootDeps,
-	_opts: LootOptions = {},
+	deps: LootDeps,
+	opts: LootOptions = {},
 ): Promise<LootResult> {
-	throw new Error("not implemented");
+	const exists = await lootLogExists(deps.home);
+	const all = await readAllLoot(deps.home);
+	let filtered = opts.tier ? all.filter((e) => e.tier === opts.tier) : all;
+	if (opts.limit !== undefined && opts.limit >= 0) {
+		filtered = filtered.slice(-opts.limit);
+	}
+	return {
+		missingCache: !exists,
+		output: formatLoot(filtered),
+	};
 }

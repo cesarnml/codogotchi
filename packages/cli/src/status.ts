@@ -168,7 +168,6 @@ export async function runStatus(deps: StatusDeps): Promise<StatusResult> {
 export {
 	formatNumber,
 	formatProfile,
-	lootLogPath,
 	profileCachePath,
 	readProfileCache,
 	readRecentLoot,

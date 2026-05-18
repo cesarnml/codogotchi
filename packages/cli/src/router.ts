@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getCodogotchiHome, readConfig } from "./config";
 import { defaultReaders } from "./default-readers";
 import { installHooks } from "./hooks";
+import { type LootTier, runLoot, TIERS } from "./loot";
 import { terminalPrompter } from "./prompts";
 import { ConfigExistsError, runSetup } from "./setup";
 import { runStatus } from "./status";
@@ -23,10 +24,16 @@ Commands:
                    the local profile cache and append a sync.log entry.
   status           Print the cached profile, HP, current activity, recent loot,
                    and last-sync staleness. Pure cache read; no network calls.
+  loot             Print the full loot history from ~/.codogotchi/loot.log.
+                   Supports --limit N and --tier <common|uncommon|rare|epic|legendary>.
   help, --help     Show this message.
 
 Flags (setup):
   --force          Overwrite an existing ~/.codogotchi/config.json.
+
+Flags (loot):
+  --limit N        Keep only the last N events after filtering.
+  --tier <tier>    Filter to a single tier.
 
 Environment:
   CODOGOTCHI_HOME      Override the config root (defaults to ~/.codogotchi).
@@ -46,6 +53,44 @@ function parseSetupFlags(args: string[]): {
 		else throw new Error(`Unknown flag for setup: ${arg}`);
 	}
 	return { force, help };
+}
+
+function parseLootFlags(args: string[]): {
+	limit?: number;
+	tier?: LootTier;
+	help: boolean;
+} {
+	let limit: number | undefined;
+	let tier: LootTier | undefined;
+	let help = false;
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		if (arg === "--help" || arg === "-h") {
+			help = true;
+		} else if (arg === "--limit") {
+			const v = args[i + 1];
+			i += 1;
+			if (!v) throw new Error("Missing value for --limit");
+			const n = Number.parseInt(v, 10);
+			if (!Number.isFinite(n) || n < 0) {
+				throw new Error(`Invalid --limit value: ${v}`);
+			}
+			limit = n;
+		} else if (arg === "--tier") {
+			const v = args[i + 1];
+			i += 1;
+			if (!v) throw new Error("Missing value for --tier");
+			if (!(TIERS as readonly string[]).includes(v)) {
+				throw new Error(
+					`Invalid --tier ${v}; expected one of ${TIERS.join(", ")}`,
+				);
+			}
+			tier = v as LootTier;
+		} else {
+			throw new Error(`Unknown flag for loot: ${arg}`);
+		}
+	}
+	return { limit, tier, help };
 }
 
 export async function dispatch(argv: string[]): Promise<DispatchResult> {
@@ -122,6 +167,20 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
 			process.stderr.write(result.output);
 			return { exitCode: 2 };
 		}
+		process.stdout.write(result.output);
+		return { exitCode: 0 };
+	}
+
+	if (command === "loot") {
+		const parsed = parseLootFlags(rest);
+		if (parsed.help) {
+			process.stdout.write(USAGE);
+			return { exitCode: 0 };
+		}
+		const result = await runLoot(
+			{ home: getCodogotchiHome() },
+			{ limit: parsed.limit, tier: parsed.tier },
+		);
 		process.stdout.write(result.output);
 		return { exitCode: 0 };
 	}
