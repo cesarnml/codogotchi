@@ -35,12 +35,14 @@ final class MaliPetTests: XCTestCase {
 				XCTFail("expected MaliPetLoadError, got \(error)")
 				return
 			}
-			switch loadError {
-			case .petJsonNotFound, .spritesheetNotFound:
-				break
-			default:
-				XCTFail("expected petJsonNotFound or spritesheetNotFound, got \(loadError)")
-			}
+			// Missing-directory must collapse to petJsonNotFound, not the
+			// later spritesheetNotFound case — keep the assertion tight so
+			// a future throw-site shift is caught here.
+			XCTAssertEqual(
+				loadError,
+				.petJsonNotFound,
+				"missing directory must throw petJsonNotFound, got \(loadError)"
+			)
 		}
 	}
 

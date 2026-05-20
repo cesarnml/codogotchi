@@ -126,10 +126,17 @@ final class MaliPet {
 
 		// 8 columns × 9 rows is a load-time invariant. The runtime row map
 		// only references rows 0..8; an incompatible grid would silently
-		// slice gibberish at runtime, so refuse early.
+		// slice gibberish at runtime, so refuse early. We require the
+		// pixel dimensions to be evenly divisible by the grid shape so
+		// frame rects computed from integer division of width/8 and
+		// height/9 cover the full sheet without trailing slack — a
+		// 12×9 spritesheet would otherwise pass a width-only minimum
+		// check and silently slice misaligned frames.
 		guard
 			cg.width >= MaliPet.gridColumns,
-			cg.height >= MaliPet.gridRows
+			cg.height >= MaliPet.gridRows,
+			cg.width % MaliPet.gridColumns == 0,
+			cg.height % MaliPet.gridRows == 0
 		else {
 			throw MaliPetLoadError.spritesheetIncompatibleGrid
 		}
@@ -168,7 +175,21 @@ final class MaliPet {
 				width: frameWidth,
 				height: frameHeight,
 			)
-			guard let slice = cgSheet.cropping(to: rect) else { continue }
+			// `cropping(to:)` returning nil would mean `rect` slipped
+			// outside `cgSheet` — but the load-time grid-shape gate
+			// asserts `cgSheet` is exactly `gridColumns * frameWidth`
+			// wide and `gridRows * frameHeight` tall, and `rowMap`
+			// only references valid grid cells. A nil here is a real
+			// bug (corrupt sheet backing, mutated rowMap, or a future
+			// gridColumns/gridRows mismatch). Trip assertionFailure in
+			// debug builds; degrade gracefully in release rather than
+			// crash the menubar.
+			guard let slice = cgSheet.cropping(to: rect) else {
+				assertionFailure(
+					"MaliPet.frames(for: \(state)) — cropping returned nil for rect \(rect); rowMap or grid invariant broken"
+				)
+				continue
+			}
 			let image = NSImage(cgImage: slice, size: pixelSize)
 			out.append(image)
 		}
