@@ -1,0 +1,18 @@
+{
+  "ticket": "P2.03",
+  "invocations": [
+    {
+      "runnerKind": "codex-exec",
+      "reviewedHeadSha": "f2bceab6207092c031cfc688c824ed74dd661ee2",
+      "outcome": "skipped",
+      "completedAt": "2026-05-20T20:49:35.754Z",
+      "terminatedReason": "sandbox_denied",
+      "rawOutput": "docs/product/delivery/phase-02/reviews/P2.03-subagent-review-outcome.md",
+      "filledPrompt": "docs/product/delivery/phase-02/reviews/P2.03-subagent-adversarial-prompt.md",
+      "fallbackLevel": "preferred",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}
