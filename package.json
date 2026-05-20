@@ -18,8 +18,8 @@
 		"verify": "biome check .",
 		"verify:quiet": "biome check . --log-level=error",
 		"spellcheck": "cspell lint --no-progress \"**/*.{ts,md,json,txt}\"",
-		"ci": "bun run verify && bun run spellcheck",
-		"ci:quiet": "bun run verify:quiet && bun run spellcheck",
+		"ci": "bun run verify && bun run spellcheck && bun run mac:test",
+		"ci:quiet": "bun run verify:quiet && bun run spellcheck && bun run mac:test",
 		"mac:build": "xcodebuild -project apps/menubar/Menubar.xcodeproj -scheme Menubar build",
 		"mac:test": "xcodebuild -project apps/menubar/Menubar.xcodeproj -scheme Menubar test"
 	},
