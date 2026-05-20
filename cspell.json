@@ -151,6 +151,8 @@
 		"xcodeproj",
 		"xcodegen",
 		"webp",
+		"pbxproj",
+		"INFOPLIST",
 		"LSUI",
 		"pawprint",
 		"pasteable",
