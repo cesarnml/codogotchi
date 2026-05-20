@@ -87,6 +87,49 @@ final class StateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(expected, 1)
 	}
 
+	func testBooleanSchemaVersionReturnsSchemaMissingOrInvalid() throws {
+		// JSONSerialization bridges JSON booleans to NSNumber, which would
+		// otherwise satisfy `as? Int` and coerce to `1`. The reader must reject
+		// `true`/`false` as non-integer schema versions per the contract clause.
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("bool-schema-\(UUID().uuidString).json")
+		try #"{"schema_version": true, "activity_state": "idle", "updated_at": "x"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .failure(let error) = result else {
+			XCTFail("expected failure, got \(result)")
+			return
+		}
+		guard case .schemaMissingOrInvalid = error else {
+			XCTFail("expected schemaMissingOrInvalid, got \(error)")
+			return
+		}
+	}
+
+	func testFloatSchemaVersionReturnsSchemaMissingOrInvalid() throws {
+		// `1.0` parses as a floating-point NSNumber from JSONSerialization.
+		// The contract describes `schema_version` as an integer; floats are
+		// rejected rather than rounded so a future fractional version cannot
+		// silently coerce to the current expected value.
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("float-schema-\(UUID().uuidString).json")
+		try #"{"schema_version": 1.0, "activity_state": "idle", "updated_at": "x"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .failure(let error) = result else {
+			XCTFail("expected failure, got \(result)")
+			return
+		}
+		guard case .schemaMissingOrInvalid = error else {
+			XCTFail("expected schemaMissingOrInvalid, got \(error)")
+			return
+		}
+	}
+
 	func testMissingFileReturnsFileNotFound() {
 		let result = StateJsonReader.read(
 			at: fixtureURL("does-not-exist.json").path

@@ -49,9 +49,17 @@ enum StateJsonReader {
 		guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
 			return .failure(.malformed)
 		}
-		guard let schemaVersion = root["schema_version"] as? Int else {
+		// JSONSerialization bridges JSON booleans to NSNumber, and NSNumber
+		// satisfies `as? Int`. Reject Bool explicitly so `"schema_version": true`
+		// is correctly classified as `.schemaMissingOrInvalid` rather than
+		// silently coerced to `1`. Only true integer NSNumbers are accepted.
+		guard let rawNumber = root["schema_version"] as? NSNumber,
+			CFGetTypeID(rawNumber) != CFBooleanGetTypeID(),
+			CFNumberIsFloatType(rawNumber) == false
+		else {
 			return .failure(.schemaMissingOrInvalid)
 		}
+		let schemaVersion = rawNumber.intValue
 		if schemaVersion > EXPECTED_STATE_SCHEMA_VERSION {
 			return .failure(
 				.schemaNewer(got: schemaVersion, expected: EXPECTED_STATE_SCHEMA_VERSION)
