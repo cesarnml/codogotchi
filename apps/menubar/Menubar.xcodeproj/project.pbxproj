@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		02E711B348F0A6134E12B9CB /* MenubarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3B6E6E790FC05428728089 /* MenubarTests.swift */; };
 		10C477E52698AA8D23BB295D /* MaliPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */; };
+		7C244C59EC0FAF582E7284AC /* MenubarRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0271F5AA5F21B8EDF5C82E84 /* MenubarRenderer.swift */; };
 		845772E367D28B7F9CD18235 /* MaliPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A2E1C50EB793ED6FA92CAA /* MaliPetTests.swift */; };
 		8EF2C66FBB926E5B0DF59CA8 /* MenubarRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5763985E7CF09EB2581201 /* MenubarRendererTests.swift */; };
 		C7BB44F43FB60F26B6FA683B /* MenubarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59F4B215B1B9640B87D3F60 /* MenubarApp.swift */; };
@@ -28,6 +29,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0271F5AA5F21B8EDF5C82E84 /* MenubarRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRenderer.swift; sourceTree = "<group>"; };
 		05E9D6BCC385819217B4AA37 /* MenubarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MenubarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		08A2E1C50EB793ED6FA92CAA /* MaliPetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaliPetTests.swift; sourceTree = "<group>"; };
 		2CC00304AC7943871172F0CF /* ActivityState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityState.swift; sourceTree = "<group>"; };
@@ -73,6 +75,7 @@
 				2CC00304AC7943871172F0CF /* ActivityState.swift */,
 				F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */,
 				A59F4B215B1B9640B87D3F60 /* MenubarApp.swift */,
+				0271F5AA5F21B8EDF5C82E84 /* MenubarRenderer.swift */,
 				735029A7E0CB4D8E9388D392 /* StateJsonReader.swift */,
 			);
 			path = Sources;
@@ -185,6 +188,7 @@
 				FD70D93A6151530FFDF449AF /* ActivityState.swift in Sources */,
 				10C477E52698AA8D23BB295D /* MaliPet.swift in Sources */,
 				C7BB44F43FB60F26B6FA683B /* MenubarApp.swift in Sources */,
+				7C244C59EC0FAF582E7284AC /* MenubarRenderer.swift in Sources */,
 				E307399E36C6F7332B6F737C /* StateJsonReader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

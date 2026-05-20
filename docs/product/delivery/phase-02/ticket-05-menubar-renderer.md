@@ -54,3 +54,10 @@ Why this path: continuous-loop while-active animation policy was chosen over Cod
 Alternative considered: Codex-mirror 3-cycle burst with idle settle. Rejected for unnecessary state-machine complexity and a felt mismatch with continuous polling.
 Deferred: cross-fade transitions between states, frame interpolation, per-state custom durations beyond the 1-second total. All Phase 03 polish.
 Contract note: none expected.
+
+Implementation choices (P2.05 delivery):
+
+- Timer pattern: re-create the `Timer` on every state transition rather than keeping one perpetual timer and indexing into the active row. Both patterns are allowed by the ticket; re-creation was chosen because frame interval is `1 / frameCount` seconds and different rows have different frame counts, so the cleanest way to express "this row's interval" is to recompute it on transition. Restarting the timer also pairs naturally with the `frameIndex = 0` reset on state change.
+- Desaturation: apply `CIFilter.colorControls()` with `saturation = 0` on-demand per frame, reusing a single `CIContext` created at renderer init. Both per-frame filter and pre-computed cache are allowed by the ticket; the per-frame path was chosen because only one state animates at a time (so per-frame cost is small) and the code is simpler. If profiling ever shows it matters, swap to a cache and append a note here.
+- Test seam: the renderer accepts an injected `ImageSink` closure (`(NSImage) -> Void`) and exposes a small `*ForTesting` surface (`currentStateForTesting`, `currentFrameIndexForTesting`, `currentFramesForTesting`, `advanceFrameForTesting()`). Tests run under plain `XCTestCase` without a real `NSStatusItem` or full `NSApplication` event loop.
+- `MenubarApp` wiring: on `applicationDidFinishLaunching(_:)` the delegate tries `MaliPet()` (loads `~/.codex/pets/mali/`); if assets are missing, it logs and keeps the placeholder `pawprint` icon rather than failing to launch. Renderer is held strongly on the delegate so its `Timer` survives past the lifecycle callback.

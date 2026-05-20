@@ -159,7 +159,10 @@
 		"pasteable",
 		"forwardable",
 		"xibs",
-		"prefs"
+		"prefs",
+		"deinit",
+		"grayscale",
+		"luma"
 	],
 	"dictionaries": ["typescript", "node", "software-terms"]
 }
