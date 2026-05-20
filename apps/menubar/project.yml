@@ -1,0 +1,58 @@
+name: Menubar
+options:
+  bundleIdPrefix: com.codogotchi
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+targets:
+  Menubar:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    resources:
+      - path: Resources
+        optional: true
+    info:
+      path: Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleName: Menubar
+        CFBundleIdentifier: com.codogotchi.menubar
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+    settings:
+      base:
+        PRODUCT_NAME: Menubar
+        PRODUCT_BUNDLE_IDENTIFIER: com.codogotchi.menubar
+        GENERATE_INFOPLIST_FILE: NO
+  MenubarTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/MenubarTests
+    dependencies:
+      - target: Menubar
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.codogotchi.menubar.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Menubar:
+    build:
+      targets:
+        Menubar: all
+        MenubarTests: [test]
+    test:
+      targets:
+        - MenubarTests
+    run:
+      config: Debug

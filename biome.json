@@ -7,7 +7,7 @@
 	},
 	"files": {
 		"ignoreUnknown": true,
-		"includes": ["**", "!.son-of-anton", "!convex/_generated"]
+		"includes": ["**", "!.son-of-anton", "!convex/_generated", "!apps"]
 	},
 	"formatter": {
 		"enabled": true,

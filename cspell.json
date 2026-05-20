@@ -7,7 +7,12 @@
 		"docs/product/delivery/**/reviews/**",
 		"node_modules/**",
 		"bun.lock",
-		"*.lock"
+		"*.lock",
+		"apps/**/*.swift",
+		"apps/**/*.plist",
+		"apps/**/*.webp",
+		"apps/**/*.png",
+		"apps/**/Menubar.xcodeproj/**"
 	],
 	"words": [
 		"biomejs",
@@ -144,6 +149,8 @@
 		"inspectable",
 		"lookback",
 		"xcodeproj",
+		"xcodegen",
+		"webp",
 		"LSUI",
 		"pawprint",
 		"pasteable",
