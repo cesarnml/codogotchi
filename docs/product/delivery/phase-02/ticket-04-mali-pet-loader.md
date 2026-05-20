@@ -55,3 +55,22 @@ Why this path: hardcoded `[State: RowSpec]` in Swift was chosen over `pet.json` 
 Alternative considered: sibling `codogotchi-rows.json` in the pet directory. Rejected because it creates a "missing rows file" failure mode and a soft format extension outside any contract doc.
 Deferred: multi-pet support, malformed-pet handling, runtime pet picker. All Phase 06 (catalog).
 Contract note: if WebP loading workarounds were needed, record the chosen approach (fallback library, PNG conversion, etc.) here.
+
+Row map (owner-confirmed 2026-05-21 against `spritesheet-grid-8x9.png`):
+`.idle` = row 0, `.implementing` = row 7, `.runningTests` = row 8,
+`.celebrating` = row 4. Frame counts (8 / 6 / 4 / 5 respectively) are
+visual estimates of leading non-magenta cells per row — wrong counts
+will be visually obvious in P2.05's renderer and easy to fix in
+`MaliPet.rowMap`.
+
+ci gate extension: `bun run ci` (and `ci:quiet`) now chain `bun run
+mac:test` so the orchestrator's `post-red` step sees a failing Swift
+test as a failing ci run. Without that, post-red refused this ticket's
+`[red]` commit (biome+cspell are TS-only and could not observe the
+Swift compile failure). Future Swift tickets inherit the same gate.
+
+WebP loading: `NSImage(contentsOfFile:)` decoded `spritesheet.webp` on
+macOS 13+ without a third-party library — no workaround needed for this
+ticket. Documented fallback paths (`CGImageSourceCreateWithURL`, PNG
+conversion) remain in the Swift notes if a future macOS target loses
+WebP support.

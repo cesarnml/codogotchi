@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		02E711B348F0A6134E12B9CB /* MenubarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3B6E6E790FC05428728089 /* MenubarTests.swift */; };
+		10C477E52698AA8D23BB295D /* MaliPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */; };
 		845772E367D28B7F9CD18235 /* MaliPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A2E1C50EB793ED6FA92CAA /* MaliPetTests.swift */; };
 		C7BB44F43FB60F26B6FA683B /* MenubarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59F4B215B1B9640B87D3F60 /* MenubarApp.swift */; };
 		E307399E36C6F7332B6F737C /* StateJsonReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735029A7E0CB4D8E9388D392 /* StateJsonReader.swift */; };
@@ -34,6 +35,7 @@
 		AE3B6E6E790FC05428728089 /* MenubarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarTests.swift; sourceTree = "<group>"; };
 		B2D243946307FE7911C7D589 /* StateJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonReaderTests.swift; sourceTree = "<group>"; };
 		E5BC4EC4E8A51958B2490271 /* Menubar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Menubar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaliPet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -67,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				2CC00304AC7943871172F0CF /* ActivityState.swift */,
+				F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */,
 				A59F4B215B1B9640B87D3F60 /* MenubarApp.swift */,
 				735029A7E0CB4D8E9388D392 /* StateJsonReader.swift */,
 			);
@@ -176,6 +179,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FD70D93A6151530FFDF449AF /* ActivityState.swift in Sources */,
+				10C477E52698AA8D23BB295D /* MaliPet.swift in Sources */,
 				C7BB44F43FB60F26B6FA683B /* MenubarApp.swift in Sources */,
 				E307399E36C6F7332B6F737C /* StateJsonReader.swift in Sources */,
 			);
