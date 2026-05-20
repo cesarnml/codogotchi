@@ -1,0 +1,18 @@
+{
+  "ticket": "P2.05",
+  "invocations": [
+    {
+      "runnerKind": "claude-cli",
+      "reviewedHeadSha": "dd65d65fcd366b8388716e357faee16876a24ce8",
+      "outcome": "clean",
+      "completedAt": "2026-05-20T22:40:09.582Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-02/reviews/P2.05-subagent-review-outcome.md",
+      "filledPrompt": "docs/product/delivery/phase-02/reviews/P2.05-subagent-adversarial-prompt.md",
+      "fallbackLevel": "preferred",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}
