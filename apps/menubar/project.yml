@@ -21,6 +21,8 @@ targets:
     resources:
       - path: Resources
         optional: true
+      - path: Fixtures/state-json
+        type: folder
     info:
       path: Info.plist
       properties:

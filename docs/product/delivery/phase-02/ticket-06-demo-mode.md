@@ -54,3 +54,12 @@ Why this path: re-pointed polling target (not direct injection into the renderer
 Alternative considered: write demo fixtures to `~/.codogotchi/state.json` with a backup/restore step. Rejected because it races with a real hook if the owner runs demo while the hook is also writing.
 Deferred: a runtime toggle (menu item or hotkey) for entering/exiting demo mode without restart. Out of scope; env var at launch is enough.
 Contract note: none.
+
+## Rationale (implementation)
+
+- `DemoConfig.from(environment:arguments:)` is a pure helper that decides demo-on/off and resolves `pollingTarget`. `DemoConfig.forLaunch()` is the production seam that reads `ProcessInfo`. Tests drive the helper directly without touching real env vars.
+- Activation surface is intentionally narrow: `CODOGOTCHI_DEMO == "1"` or `--demo` argument. Any other value of `CODOGOTCHI_DEMO` (including `"0"`, `""`, absent) is off. No `true`/`yes`/`on` aliases — keeps the contract grep-able and avoids accidental activation from shell defaults.
+- Sandboxed path chosen: `$TMPDIR/codogotchi-demo/state.json`. macOS prunes `$TMPDIR` periodically, which is the honest "sandbox" semantic. A fixed `~/.codogotchi/demo-state.json` was rejected because it sits next to the real state file and invites future fat-finger collisions.
+- `DemoCycleDriver` accepts an injectable `tickInterval` (default `3.0` seconds) and exposes `tickForTesting() throws` rather than driving real timers in tests. Calling it out per the ticket Review Focus: real timer with short interval would work but adds wall-clock time and flake risk to `xcodebuild ... test`. Injectable wins.
+- Fixtures are bundled into the `.app` via xcodegen `type: folder` so the runtime directory structure (`Resources/state-json/<name>.json`) is preserved. Tests still resolve fixtures via `#file` traversal; the test bundle does not embed fixtures redundantly.
+- `applicationWillTerminate(_:)` calls `demoDriver?.stop()` so the `Timer` does not fire one extra closure block during teardown.

@@ -1,0 +1,103 @@
+import Foundation
+
+/// Drives the four-floor-state demo cycle when the app launches under
+/// `CODOGOTCHI_DEMO=1` (or `--demo`).
+///
+/// On each tick, the driver copies the next fixture from
+/// `apps/menubar/Fixtures/state-json/` (bundled as a Resources subdirectory) to
+/// the sandboxed `pollingTarget` using an atomic write (write-to-sibling then
+/// rename), then calls `apply(state)` so the renderer can swap rows. The
+/// atomic write mirrors the Phase 01 hook's pattern so demo mode exercises the
+/// same race-free read semantics live polling (P2.07) will depend on.
+///
+/// The cycle is hardcoded:
+/// `.idle` → `.implementing` → `.runningTests` → `.celebrating` → loop.
+///
+/// Tests drive the cycle deterministically via `tickForTesting()` instead of
+/// the production 3-second `Timer` so they do not stall `xcodebuild ... test`.
+@MainActor
+final class DemoCycleDriver {
+	typealias StateApply = (ActivityState) -> Void
+
+	/// Canonical demo cycle order. Hardcoded — order is part of the contract
+	/// because the demo doubles as a manual visual check that all four floor
+	/// rows render correctly.
+	static let cycle: [(state: ActivityState, fixtureFilename: String)] = [
+		(.idle, "idle.json"),
+		(.implementing, "implementing.json"),
+		(.runningTests, "running-tests.json"),
+		(.celebrating, "celebrating.json"),
+	]
+
+	private let sandboxedPath: URL
+	private let fixturesDirectory: URL
+	private let apply: StateApply
+	private let tickInterval: TimeInterval
+	private var index: Int = 0
+	private var timer: Timer?
+
+	init(
+		sandboxedPath: URL,
+		fixturesDirectory: URL,
+		apply: @escaping StateApply,
+		tickInterval: TimeInterval = 3.0
+	) {
+		self.sandboxedPath = sandboxedPath
+		self.fixturesDirectory = fixturesDirectory
+		self.apply = apply
+		self.tickInterval = tickInterval
+	}
+
+	deinit {
+		timer?.invalidate()
+	}
+
+	/// Begin the cycle. Emits the first state immediately so the menubar shows
+	/// motion without waiting `tickInterval` seconds for the first paint.
+	func start() {
+		stop()
+		runTick()
+		timer = Timer.scheduledTimer(withTimeInterval: tickInterval, repeats: true) {
+			[weak self] _ in
+			Task { @MainActor in self?.runTick() }
+		}
+	}
+
+	/// Cancel the timer. Safe to call multiple times.
+	func stop() {
+		timer?.invalidate()
+		timer = nil
+	}
+
+	/// Advance one cycle step synchronously. Throws on fixture read or atomic
+	/// write failures so tests can assert error cases directly.
+	func tickForTesting() throws {
+		try advance()
+	}
+
+	private func runTick() {
+		do {
+			try advance()
+		} catch {
+			NSLog("DemoCycleDriver: tick failed (\(error))")
+		}
+	}
+
+	private func advance() throws {
+		let entry = Self.cycle[index]
+		index = (index + 1) % Self.cycle.count
+
+		let fixtureURL = fixturesDirectory.appendingPathComponent(entry.fixtureFilename)
+		let data = try Data(contentsOf: fixtureURL)
+
+		let parent = sandboxedPath.deletingLastPathComponent()
+		try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+		// `.atomic` writes to a sibling temp file in the same directory and
+		// renames into place. This matches the Phase 01 hook's atomic write
+		// pattern so demo mode exercises the same race-free read semantics
+		// live polling (P2.07) depends on.
+		try data.write(to: sandboxedPath, options: .atomic)
+
+		apply(entry.state)
+	}
+}

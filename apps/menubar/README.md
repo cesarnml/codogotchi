@@ -35,6 +35,26 @@ bun run mac:test
 
 `bun run ci` stays TS-only — Swift verification is a manual local step you run and paste into ticket PR bodies. See `docs/product/delivery/phase-02/implementation-plan.md` (Review Rules).
 
+## Demo mode
+
+Demo mode (P2.06) re-points the polling target to a sandboxed file under `$TMPDIR/codogotchi-demo/state.json` and runs a fixture cycle driver that copies the four floor-state fixtures (`idle` → `implementing` → `running-tests` → `celebrating` → loop) on a 3-second timer. The real `~/.codogotchi/state.json` is never touched.
+
+Two equivalent activations:
+
+```bash
+# 1. Environment variable
+CODOGOTCHI_DEMO=1 open apps/menubar/Menubar.xcodeproj   # then ⌘R from Xcode
+# or after a build, launch the .app with the env var pre-set:
+CODOGOTCHI_DEMO=1 open path/to/Menubar.app
+
+# 2. Launch argument (useful for Xcode scheme "Arguments Passed On Launch")
+path/to/Menubar.app/Contents/MacOS/Menubar --demo
+```
+
+Inside Xcode: edit the Menubar scheme → **Run** → **Arguments** → add `CODOGOTCHI_DEMO=1` under **Environment Variables**, or `--demo` under **Arguments Passed On Launch**.
+
+Quit demo mode the same way as any menubar agent: the **Quit Menubar** menu item (or `⌘Q` once that wiring lands in P2.09).
+
 ## Regenerating the Xcode project
 
 The `.xcodeproj` is generated from `project.yml` via [xcodegen](https://github.com/yonaskolb/XcodeGen). Both the YAML source and the generated `.xcodeproj` are committed; the YAML is the source of truth.

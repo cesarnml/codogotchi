@@ -19,6 +19,15 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// callback. Nil until pet assets are successfully loaded.
 	var renderer: MenubarRenderer?
 
+	/// Held strongly so the demo cycle's `Timer` is not deallocated. Nil
+	/// outside demo mode or when the renderer failed to load.
+	var demoDriver: DemoCycleDriver?
+
+	/// Resolved at launch: tells the app whether to run the demo cycle and
+	/// which polling target to read. Exposed for diagnostics; live polling
+	/// (P2.07) will also consume `pollingTarget`.
+	var demoConfig: DemoConfig?
+
 	static func main() {
 		let app = NSApplication.shared
 		let delegate = MenubarApp()
@@ -60,5 +69,47 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		} catch {
 			NSLog("MenubarApp: MaliPet load failed — keeping placeholder icon (\(error))")
 		}
+
+		// Demo mode: re-point the polling target to a sandboxed file and run
+		// the fixture cycle driver. P2.07 will own live polling against the
+		// non-demo `pollingTarget`.
+		let config = DemoConfig.forLaunch()
+		self.demoConfig = config
+		if config.isDemoMode, let renderer = self.renderer {
+			if let fixturesDirectory = Self.bundledDemoFixturesDirectory() {
+				let driver = DemoCycleDriver(
+					sandboxedPath: config.pollingTarget,
+					fixturesDirectory: fixturesDirectory,
+					apply: { [weak renderer] state in
+						renderer?.update(state: state, visualMode: .normal)
+					}
+				)
+				driver.start()
+				self.demoDriver = driver
+			} else {
+				NSLog(
+					"MenubarApp: demo mode requested but bundled state-json fixtures not found; keeping idle"
+				)
+			}
+		}
+	}
+
+	func applicationWillTerminate(_ notification: Notification) {
+		demoDriver?.stop()
+	}
+
+	/// Locate the demo fixture directory bundled into `Resources/state-json/`.
+	/// Returns nil when the app is run from a context without the resource
+	/// directory (e.g. a partial build), so the caller can degrade cleanly.
+	private static func bundledDemoFixturesDirectory() -> URL? {
+		guard let resources = Bundle.main.resourceURL else { return nil }
+		let candidate = resources.appendingPathComponent("state-json", isDirectory: true)
+		var isDir: ObjCBool = false
+		guard FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDir),
+			isDir.boolValue
+		else {
+			return nil
+		}
+		return candidate
 	}
 }
