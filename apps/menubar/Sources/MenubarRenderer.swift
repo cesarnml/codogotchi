@@ -115,15 +115,23 @@ final class MenubarRenderer {
 		case .normal:
 			return raw
 		case .desaturated:
+			// Skip the sink emission rather than silently emitting a colored
+			// frame when Core Image fails. The previous painted frame (which
+			// is already desaturated whenever the renderer entered
+			// `.desaturated` mode in steady state) stays on the status item.
+			// Emitting a colored frame here would silently violate the
+			// desaturated-mode contract and defeat the early-failure-visual
+			// intent of this mode.
 			return desaturate(raw)
 		}
 	}
 
-	private func desaturate(_ image: NSImage) -> NSImage {
+	private func desaturate(_ image: NSImage) -> NSImage? {
 		guard
 			let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
 		else {
-			return image
+			NSLog("MenubarRenderer: desaturate skipped — NSImage has no backing CGImage")
+			return nil
 		}
 		let ci = CIImage(cgImage: cg)
 		let filter = CIFilter.colorControls()
@@ -132,7 +140,8 @@ final class MenubarRenderer {
 		guard let output = filter.outputImage,
 			let outCG = ciContext.createCGImage(output, from: output.extent)
 		else {
-			return image
+			NSLog("MenubarRenderer: desaturate skipped — CIColorControls produced no output")
+			return nil
 		}
 		return NSImage(cgImage: outCG, size: image.size)
 	}

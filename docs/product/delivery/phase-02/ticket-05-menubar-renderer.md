@@ -7,7 +7,7 @@ Red: required
 
 ## Outcome
 
-- `apps/menubar/Sources/MenubarRenderer.swift` exposes a `MenubarRenderer` type that owns the `NSStatusItem` and is driven by an external state stream (typed input: `ActivityState` plus a `VisualMode` enum with cases `.normal` and `.desaturated`).
+- `apps/menubar/Sources/MenubarRenderer.swift` exposes a `MenubarRenderer` type that paints into the menu-bar `NSStatusItem` (via an injected image-sink seam in tests, via `MenubarApp`'s `statusItem.button.image` write in production) and is driven by an external state stream (typed input: `ActivityState` plus a `VisualMode` enum with cases `.normal` and `.desaturated`).
 - Renderer behavior:
   - When state is `.idle`/`.implementing`/`.runningTests`/`.celebrating` with `.normal` visual mode, animates that state's frames (from `MaliPet.frames(for:)`) on a 1-second-per-cycle continuous loop. Loop is infinite while the state is held.
   - On state transition, the new state's loop begins from frame 0 on the next animation tick.

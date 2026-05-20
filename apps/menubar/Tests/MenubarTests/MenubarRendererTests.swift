@@ -76,6 +76,23 @@ final class MenubarRendererTests: XCTestCase {
 			pet.frames(for: .runningTests).count,
 			"renderer must swap to the running-tests row frame source"
 		)
+
+		// Second transition: catches regressions where the reset only fires on
+		// the first state change but not subsequent ones.
+		renderer.advanceFrameForTesting()
+		renderer.advanceFrameForTesting()
+		renderer.update(state: .celebrating, visualMode: .normal)
+		XCTAssertEqual(renderer.currentStateForTesting, .celebrating)
+		XCTAssertEqual(
+			renderer.currentFrameIndexForTesting,
+			0,
+			"every state transition must reset frame index to 0, not just the first"
+		)
+		XCTAssertEqual(
+			renderer.currentFramesForTesting.count,
+			pet.frames(for: .celebrating).count,
+			"renderer must swap to the celebrating row on the second transition"
+		)
 	}
 
 	// MARK: - Desaturation
