@@ -53,6 +53,15 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
+Contract appendix update: P2.02's tooltip appendix initially listed only the two
+schema-related tooltips. P2.07 surfaced a third failure visual (file absent at
+the polling target — i.e., the hook binary is not installed). Adding the
+canonical `codogotchi-hook not detected` copy to the contract appendix in this
+PR keeps contract and code aligned per the existing drift rule. The two
+schema-related strings were kept with their existing canonical spellings
+(trailing period included for the schema-missing case); the test suite asserts
+the exact tooltip values, so any future deviation is caught at PR review time.
+
 Red first: each failure visual is asserted against a renderer stub before driver code exists.
 Why this path: pure 1Hz polling chosen over `DispatchSource` / `FSEvents` for simplicity; no upper-bound staleness handling chosen to honor "quiet agent = idle pet is the truth."
 Alternative considered: `DispatchSource + 5s poll fallback`. Rejected for code-path complexity.

@@ -23,6 +23,12 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// outside demo mode or when the renderer failed to load.
 	var demoDriver: DemoCycleDriver?
 
+	/// Held strongly so the live polling driver's `Timer` is not deallocated.
+	/// Nil in demo mode or when the renderer failed to load. Live polling and
+	/// the demo cycle are mutually exclusive at launch — only one drives the
+	/// renderer at a time.
+	var livePollingDriver: LivePollingDriver?
+
 	/// Resolved at launch: tells the app whether to run the demo cycle and
 	/// which polling target to read. Exposed for diagnostics; live polling
 	/// (P2.07) will also consume `pollingTarget`.
@@ -91,11 +97,27 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					"MenubarApp: demo mode requested but bundled state-json fixtures not found; keeping idle"
 				)
 			}
+		} else if let renderer = self.renderer {
+			// Live polling — read the hook's `~/.codogotchi/state.json` at 1Hz
+			// and route success/failure into renderer + status-item tooltip.
+			// Mutually exclusive with demo mode by construction (the `else` arm).
+			let driver = LivePollingDriver(
+				pollingTargetPath: config.pollingTarget.path,
+				apply: { [weak renderer] state, mode in
+					renderer?.update(state: state, visualMode: mode)
+				},
+				setTooltip: { [weak item] tooltip in
+					item?.button?.toolTip = tooltip
+				}
+			)
+			driver.start()
+			self.livePollingDriver = driver
 		}
 	}
 
 	func applicationWillTerminate(_ notification: Notification) {
 		demoDriver?.stop()
+		livePollingDriver?.stop()
 	}
 
 	/// Locate the demo fixture directory bundled into `Resources/state-json/`.

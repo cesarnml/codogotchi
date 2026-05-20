@@ -67,7 +67,13 @@ will display when the forward-compat policy refuses a payload. The contract
 doc is the source of truth for the wording; renderers must reproduce these
 strings character-for-character (substituting the placeholders).
 
-- Missing or non-integer `schema_version`:
+- Polling target file absent (the `~/.codogotchi/state.json` path does not
+  exist on disk — almost certainly because the hook binary is not installed
+  or has never run):
+  - `codogotchi-hook not detected`
+- Missing or non-integer `schema_version`, **or** malformed JSON that cannot
+  be parsed as an object (both fold to the same user-facing copy — the
+  distinction is not actionable for non-developer users):
   - `state.json schema_version is missing — codogotchi-hook may be too old.`
 - Newer-than-expected `schema_version` (with `{got}` = observed value,
   `{expected}` = renderer's `EXPECTED_VERSION`):
