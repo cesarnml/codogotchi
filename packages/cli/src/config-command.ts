@@ -37,6 +37,9 @@ const HEALTH_NUMBER_KEYS = new Set([
 	"decay_per_day",
 	"revive_threshold",
 	"revive_hp",
+	"regen_per_day",
+	"regen_per_day_bonus",
+	"hp_cap",
 ]);
 const HEALTH_NULLABLE_DATE_KEYS = new Set(["vacation_until"]);
 const HEALTH_STRING_KEYS = new Set(["timezone"]);

@@ -50,6 +50,12 @@ export const healthConfigSchema = z.object({
 	decay_per_day: z.number().nonnegative(),
 	revive_threshold: z.number().nonnegative(),
 	revive_hp: z.number(),
+	// Decoupled regen tick fields. Defaulted so existing on-disk configs
+	// from before the decoupled-tick rollout keep validating; the engine
+	// expects all three to be present at runtime.
+	regen_per_day: z.number().nonnegative().default(1),
+	regen_per_day_bonus: z.number().nonnegative().default(2),
+	hp_cap: z.number().positive().default(100),
 });
 export type HealthConfigPayload = z.infer<typeof healthConfigSchema>;
 
@@ -94,6 +100,8 @@ export const profileResponseSchema = z.object({
 		github: z.string().nullable(),
 		wakatime: z.string().nullable(),
 	}),
+	last_decay_day: z.string().nullable().optional(),
+	last_regen_day: z.string().nullable().optional(),
 	updated_at: z.number(),
 });
 export type ProfileResponse = z.infer<typeof profileResponseSchema>;

@@ -270,11 +270,125 @@ describe("activity records last_signal_at", () => {
 		expect(next.last_signal_at).toBe(mon.toISOString());
 	});
 
-	it("activity within grace period keeps HP and refreshes signal", () => {
+	it("activity within grace period keeps HP and refreshes signal (with regen disabled)", () => {
 		const p = profile({ hp: 80, last_signal_at: "2026-05-17T15:00:00-04:00" });
-		const next = tickHealth(mon, p, someActivity, config());
+		const next = tickHealth(
+			mon,
+			p,
+			someActivity,
+			config({ regen_per_day: 0, regen_per_day_bonus: 0 }),
+		);
 		expect(next.hp).toBe(80);
 		expect(next.last_signal_at).toBe(mon.toISOString());
+	});
+});
+
+describe("regen tick", () => {
+	const monNy = new Date("2026-05-18T15:00:00-04:00"); // Monday in NY (weekday in NY tz)
+	const satNy = new Date("2026-05-16T15:00:00-04:00"); // Saturday in NY
+	const recent = "2026-05-17T15:00:00-04:00"; // 1 day before monNy
+
+	it("grants +regen_per_day on weekday active sync", () => {
+		const p = profile({ hp: 80, last_signal_at: recent });
+		const next = tickHealth(monNy, p, someActivity, config());
+		expect(next.hp).toBe(81);
+	});
+
+	it("grants +regen_per_day_bonus on weekend active sync", () => {
+		const p = profile({ hp: 80, last_signal_at: recent });
+		const next = tickHealth(satNy, p, someActivity, config());
+		expect(next.hp).toBe(82);
+	});
+
+	it("grants +regen_per_day_bonus on active sync while on vacation", () => {
+		const p = profile({ hp: 80, last_signal_at: recent });
+		const next = tickHealth(
+			monNy,
+			p,
+			someActivity,
+			config({ vacation_until: "2026-12-31T00:00:00Z" }),
+		);
+		expect(next.hp).toBe(82);
+	});
+
+	it("does not grant regen on inactive sync", () => {
+		const p = profile({ hp: 80, last_signal_at: recent });
+		const next = tickHealth(monNy, p, noSignals, config());
+		expect(next.hp).toBe(80);
+	});
+
+	it("caps regen at hp_cap", () => {
+		const p = profile({ hp: 100, last_signal_at: recent });
+		const next = tickHealth(monNy, p, someActivity, config());
+		expect(next.hp).toBe(100);
+	});
+
+	it("respects custom hp_cap below current HP — does not lower existing HP", () => {
+		// Regen should never lower HP. A custom cap below current HP simply
+		// prevents further regen from going higher.
+		const p = profile({ hp: 100, last_signal_at: recent });
+		const next = tickHealth(monNy, p, someActivity, config({ hp_cap: 90 }));
+		expect(next.hp).toBe(100);
+	});
+
+	it("does not fire when died_at is set this tick (decay killed the pet)", () => {
+		const p = profile({
+			hp: 3,
+			last_signal_at: "2026-04-01T00:00:00Z", // stale
+		});
+		const next = tickHealth(
+			monNy,
+			p,
+			someActivity,
+			config({ decay_per_day: 5 }),
+		);
+		// Decay kills before regen runs; pet ends at 0, not 1.
+		expect(next.hp).toBe(0);
+		expect(next.died_at).not.toBeNull();
+	});
+});
+
+describe("once-per-UTC-day rate limit", () => {
+	const mon = new Date("2026-05-18T15:00:00-04:00"); // 2026-05-18 19:00 UTC
+	const sameDayLater = new Date("2026-05-18T20:00:00-04:00"); // 2026-05-19 00:00 UTC — different UTC day!
+	const sameDayEarlier = new Date("2026-05-18T13:00:00-04:00"); // 2026-05-18 17:00 UTC — same UTC day
+
+	it("repeats on same UTC day are no-op for decay", () => {
+		const p = profile({ hp: 80, last_signal_at: "2026-04-01T00:00:00Z" });
+		const after1 = tickHealth(mon, p, noSignals, config({ decay_per_day: 5 }));
+		expect(after1.hp).toBe(75);
+		const after2 = tickHealth(
+			sameDayEarlier,
+			after1,
+			noSignals,
+			config({ decay_per_day: 5 }),
+		);
+		expect(after2.hp).toBe(75);
+	});
+
+	it("repeats on same UTC day are no-op for regen", () => {
+		const p = profile({ hp: 80, last_signal_at: "2026-05-17T15:00:00-04:00" });
+		const after1 = tickHealth(mon, p, someActivity, config());
+		expect(after1.hp).toBe(81);
+		const after2 = tickHealth(sameDayEarlier, after1, someActivity, config());
+		expect(after2.hp).toBe(81);
+	});
+
+	it("crossing UTC midnight re-arms both ticks", () => {
+		const p = profile({ hp: 80, last_signal_at: "2026-05-17T15:00:00-04:00" });
+		const after1 = tickHealth(mon, p, someActivity, config());
+		expect(after1.hp).toBe(81);
+		// sameDayLater crosses to a new UTC day → regen re-arms (+1 = 82).
+		const after2 = tickHealth(sameDayLater, after1, someActivity, config());
+		expect(after2.hp).toBe(82);
+	});
+
+	it("fresh profile (no day-keys) evaluates on first tick", () => {
+		const p = profile({ hp: 80, last_signal_at: "2026-04-01T00:00:00Z" });
+		expect(p.last_decay_day).toBeUndefined();
+		const next = tickHealth(mon, p, noSignals, config({ decay_per_day: 5 }));
+		expect(next.last_decay_day).toBe("2026-05-18"); // mon's UTC day
+		expect(next.hp).toBe(75);
 	});
 });
 

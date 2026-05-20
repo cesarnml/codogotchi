@@ -33,6 +33,9 @@ export const SETTABLE_HEALTH_KEYS = [
 	"decay_per_day",
 	"revive_threshold",
 	"revive_hp",
+	"regen_per_day",
+	"regen_per_day_bonus",
+	"hp_cap",
 ] as const;
 export type SettableHealthKey = (typeof SETTABLE_HEALTH_KEYS)[number];
 

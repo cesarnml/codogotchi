@@ -68,6 +68,9 @@ export const syncProfile = mutation({
 			decay_per_day: v.number(),
 			revive_threshold: v.number(),
 			revive_hp: v.number(),
+			regen_per_day: v.number(),
+			regen_per_day_bonus: v.number(),
+			hp_cap: v.number(),
 		}),
 		now: v.string(),
 	},
@@ -96,6 +99,8 @@ export const syncProfile = mutation({
 			cause: null as "decay" | null,
 			death_count: 0,
 			last_signal_at_by_source: { ...NULL_TIMESTAMPS_BY_SOURCE },
+			last_decay_day: null as string | null,
+			last_regen_day: null as string | null,
 			config_snapshot: { ...args.config },
 			updated_at: nowMs,
 		};
@@ -183,6 +188,8 @@ export const syncProfile = mutation({
 			died_at: baseProfile.died_at,
 			death_count: baseProfile.death_count,
 			cause: baseProfile.cause ?? undefined,
+			last_decay_day: baseProfile.last_decay_day ?? null,
+			last_regen_day: baseProfile.last_regen_day ?? null,
 		};
 		const healthOut = tickHealth(nowDate, healthIn, rawSignals, args.config);
 		const mood = hpToOverlay(healthOut.hp);
@@ -267,6 +274,8 @@ export const syncProfile = mutation({
 			cause,
 			death_count: healthOut.death_count,
 			last_signal_at_by_source: lastSignalBySource,
+			last_decay_day: healthOut.last_decay_day ?? null,
+			last_regen_day: healthOut.last_regen_day ?? null,
 			config_snapshot: { ...args.config },
 			updated_at: nowMs,
 		};

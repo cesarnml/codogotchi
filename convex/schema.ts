@@ -53,6 +53,11 @@ const configSnapshot = v.object({
 	decay_per_day: v.number(),
 	revive_threshold: v.number(),
 	revive_hp: v.number(),
+	// Decoupled regen tick fields. Optional so pre-migration rows still load;
+	// new writes always populate them from the request config.
+	regen_per_day: v.optional(v.number()),
+	regen_per_day_bonus: v.optional(v.number()),
+	hp_cap: v.optional(v.number()),
 });
 
 export default defineSchema({
@@ -77,6 +82,11 @@ export default defineSchema({
 		cause: v.union(v.literal("decay"), v.null()),
 		death_count: v.number(),
 		last_signal_at_by_source: lastSignalAtBySource,
+		// UTC day key (YYYY-MM-DD) of the last decay/regen tick. Optional so
+		// pre-migration rows load; the engine treats missing as "never
+		// evaluated" and writes today's key on first eval after deploy.
+		last_decay_day: v.optional(v.union(v.string(), v.null())),
+		last_regen_day: v.optional(v.union(v.string(), v.null())),
 		config_snapshot: configSnapshot,
 		updated_at: v.number(),
 	})

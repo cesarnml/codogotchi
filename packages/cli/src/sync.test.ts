@@ -31,6 +31,9 @@ function defaultConfig(_home: string): CodogotchiConfig {
 			decay_per_day: 5,
 			revive_threshold: 100,
 			revive_hp: 50,
+			regen_per_day: 1,
+			regen_per_day_bonus: 2,
+			hp_cap: 100,
 		},
 	};
 }

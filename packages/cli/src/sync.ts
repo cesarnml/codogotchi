@@ -1,13 +1,14 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type {
-	HealthConfigPayload,
-	SignalClaude,
-	SignalCodex,
-	SignalGithub,
-	SignalsPayload,
-	SignalWakatime,
-	SyncProfileResponse,
+import {
+	type HealthConfigPayload,
+	healthConfigSchema,
+	type SignalClaude,
+	type SignalCodex,
+	type SignalGithub,
+	type SignalsPayload,
+	type SignalWakatime,
+	type SyncProfileResponse,
 } from "@codogotchi/contracts";
 import type { CodogotchiConfig } from "./config";
 import { readProfileCache, writeProfileCache } from "./profile-cache";
@@ -139,11 +140,16 @@ export async function runSync(deps: SyncDeps): Promise<SyncResult> {
 		}
 	}
 
+	// Parse through the contract schema so on-disk configs that predate the
+	// decoupled-regen rollout get default regen_per_day / regen_per_day_bonus
+	// / hp_cap values populated before they hit the server validator.
+	const normalizedHealth = healthConfigSchema.parse(config.health);
+
 	const payload: SyncPayload = {
 		profile_id: config.profile_id,
 		handle: config.handle,
 		signals,
-		config: config.health,
+		config: normalizedHealth,
 		now: nowDate.toISOString(),
 		errors,
 	};
