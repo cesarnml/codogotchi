@@ -243,6 +243,24 @@ describe("decay accumulation + death + revival", () => {
 	});
 });
 
+describe("fresh profile (null last_signal_at)", () => {
+	const mon = new Date("2026-05-18T15:00:00-04:00"); // Monday in NY
+
+	it("does not decay when last_signal_at is null and signals are empty", () => {
+		const fresh = profile({ hp: 100, last_signal_at: null });
+		const next = tickHealth(mon, fresh, noSignals, config());
+		expect(next.hp).toBe(100);
+		expect(next.last_signal_at).toBeNull();
+	});
+
+	it("does not decay when last_signal_at is null even with activity (records signal, leaves HP)", () => {
+		const fresh = profile({ hp: 100, last_signal_at: null });
+		const next = tickHealth(mon, fresh, someActivity, config());
+		expect(next.hp).toBe(100);
+		expect(next.last_signal_at).toBe(mon.toISOString());
+	});
+});
+
 describe("activity records last_signal_at", () => {
 	const mon = new Date("2026-05-18T15:00:00-04:00");
 

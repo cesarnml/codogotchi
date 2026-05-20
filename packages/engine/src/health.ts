@@ -94,6 +94,13 @@ export function tickHealth(
 		}
 	}
 
+	// Fresh profile (never recorded activity) should not decay. Treat `null`
+	// `last_signal_at` as "not yet idle" — decay only starts ticking once the
+	// pet has been alive long enough to have a first activity timestamp.
+	if (profile.last_signal_at === null) {
+		return next;
+	}
+
 	const idleDays = daysSince(nowMs, profile.last_signal_at);
 	if (idleDays < config.grace_days) {
 		return next;
