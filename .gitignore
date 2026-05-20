@@ -173,7 +173,8 @@ dist
 .tern-port
 
 # Custom
-notes/private
+notes/private/*
+!notes/private/phase-02-swift-notes/
 .vscode/settings.json
 
 # Codogotchi / Son-of-Anton

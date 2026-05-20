@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		02E711B348F0A6134E12B9CB /* MenubarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3B6E6E790FC05428728089 /* MenubarTests.swift */; };
 		C7BB44F43FB60F26B6FA683B /* MenubarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59F4B215B1B9640B87D3F60 /* MenubarApp.swift */; };
+		E307399E36C6F7332B6F737C /* StateJsonReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735029A7E0CB4D8E9388D392 /* StateJsonReader.swift */; };
+		FD70D93A6151530FFDF449AF /* ActivityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC00304AC7943871172F0CF /* ActivityState.swift */; };
 		FDD54F7135091AEC8D875EFE /* StateJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D243946307FE7911C7D589 /* StateJsonReaderTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -24,6 +26,8 @@
 
 /* Begin PBXFileReference section */
 		05E9D6BCC385819217B4AA37 /* MenubarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MenubarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2CC00304AC7943871172F0CF /* ActivityState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityState.swift; sourceTree = "<group>"; };
+		735029A7E0CB4D8E9388D392 /* StateJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonReader.swift; sourceTree = "<group>"; };
 		A59F4B215B1B9640B87D3F60 /* MenubarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarApp.swift; sourceTree = "<group>"; };
 		AE3B6E6E790FC05428728089 /* MenubarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarTests.swift; sourceTree = "<group>"; };
 		B2D243946307FE7911C7D589 /* StateJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonReaderTests.swift; sourceTree = "<group>"; };
@@ -60,7 +64,9 @@
 		40A3E7D889D8B1374DEBA41A /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				2CC00304AC7943871172F0CF /* ActivityState.swift */,
 				A59F4B215B1B9640B87D3F60 /* MenubarApp.swift */,
+				735029A7E0CB4D8E9388D392 /* StateJsonReader.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -165,7 +171,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FD70D93A6151530FFDF449AF /* ActivityState.swift in Sources */,
 				C7BB44F43FB60F26B6FA683B /* MenubarApp.swift in Sources */,
+				E307399E36C6F7332B6F737C /* StateJsonReader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

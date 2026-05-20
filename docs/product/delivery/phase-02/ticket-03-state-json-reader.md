@@ -61,3 +61,12 @@ Why this path: closed-enum decoding with an `.idle` fallback for unknown strings
 Alternative considered: throwing on unknown state names and recovering at the renderer layer. Rejected because the renderer would then need to know about parsing internals.
 Deferred: HP overlay decoding (Phase 05), source_event payload decoding (Phase 03 if needed for richer animation).
 Contract note: this ticket consumes the forward-compat clause landed in P2.02; if any wording in the contract doc is ambiguous when implementing, record the ambiguity here and reopen P2.02 with a clarification.
+
+Implementation notes (added during P2.03 delivery):
+
+- `ActivityState` is a `String`-raw closed enum with an overridden `init(from:)` that maps any unknown raw string to `.idle`. Phase 02 only paints the four floor states; contract states beyond those (`reviewing`, `hyped`, `ascended`, etc.) decode as `.idle` rather than carry through, which is the contract-conformant "decode any unrecognized string as `.idle`" shape called out in Refactor.
+- Schema-version policy is enforced *before* full `Decodable` decoding: a pre-pass via `JSONSerialization` reads `schema_version`, so `schemaMissingOrInvalid` and `schemaNewer(got:expected:)` are distinct from the generic `malformed` bucket — the renderer in P2.07 can pick the right tooltip without re-parsing.
+- `EXPECTED_STATE_SCHEMA_VERSION = 1` lives as a single file-scope `let` in `StateJsonReader.swift` for a one-line bump surface in Phase 03.
+- Public API uses `Result<StateSnapshot, StateReadError>` (not `throws`) so the renderer can pattern-match each failure case at the call site without `do/catch` ceremony, matching the ticket's stated preference for closed-enum-style switching.
+- `notes/private/phase-02-swift-notes/` was un-ignored selectively in `.gitignore` (the rest of `notes/private/` stays ignored) so the swift-notes deliverable for P2.03–P2.10 can land in PRs as the phase plan requires without making the whole `notes/private/` tree tracked.
+- Test fixtures live in `apps/menubar/Fixtures/state-json/` and are loaded via `#file`-relative paths rather than embedded in the test bundle's `Resources`. Adding `Fixtures` as a test-bundle resource is a future option if the test target moves out-of-tree, but for now the worktree layout is stable and the simpler `#file` traversal keeps the Xcode project config tighter.
