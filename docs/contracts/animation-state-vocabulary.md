@@ -30,6 +30,49 @@ between the planned vocabulary and observable lifecycle events. Any revision:
 After P1.18 lands, further changes require a new ticket and a separate
 schema-version bump.
 
+### Forward-compatibility policy
+
+Renderers are the lagging consumers of this contract. The hook binary is
+allowed to ship a newer `schema_version` than the renderer expects (e.g., a
+user updates `codogotchi-hook` but has not yet updated the macOS menu-bar
+app), but the renderer is **not** allowed to silently misinterpret a payload
+it does not understand. The policy:
+
+- Renderers **MUST accept** any payload whose `schema_version` is less than or
+  equal to the renderer's `EXPECTED_VERSION`. Parse best-effort: read the
+  fields defined for that older version and ignore any extra fields the
+  payload may carry.
+- Renderers **MUST refuse** any payload whose `schema_version` is greater than
+  the renderer's `EXPECTED_VERSION`. Treat this as a hard failure and surface
+  it as a desaturated visual or equivalent error mode — never guess at the
+  newer shape.
+- Adding a new **optional** field to a future schema version does not require
+  a `schema_version` bump. Changing the meaning of an existing field, removing
+  a field, or narrowing a field's domain (including the closed enums) **does**
+  require a bump.
+- A payload with a missing or non-integer `schema_version` is treated the same
+  as an unsupported version: refuse and surface the failure visual.
+
+Rationale: an older hook on a newer renderer should keep working, because the
+renderer already knows every field the older hook can produce. A newer hook on
+an older renderer must force a renderer update rather than silently degrade —
+the renderer cannot distinguish a benign added field from a changed-meaning
+field without explicit version discipline. The asymmetry runs in one
+direction: renderers tolerate older payloads; renderers refuse newer payloads.
+
+### Renderer tooltip copy
+
+These are the canonical user-facing tooltip strings Phase 02's menu-bar app
+will display when the forward-compat policy refuses a payload. The contract
+doc is the source of truth for the wording; renderers must reproduce these
+strings character-for-character (substituting the placeholders).
+
+- Missing or non-integer `schema_version`:
+  - `state.json schema_version is missing — codogotchi-hook may be too old.`
+- Newer-than-expected `schema_version` (with `{got}` = observed value,
+  `{expected}` = renderer's `EXPECTED_VERSION`):
+  - `state.json schema_version is v{got}; this app supports v{expected}. Update the menu bar app.`
+
 ## Activity States (closed enum)
 
 | State                 | Meaning                                                                                  | Source signal class                                                | Reliability |
