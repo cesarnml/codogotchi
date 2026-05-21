@@ -52,7 +52,13 @@ Red: required
 - NDJSON line format matches the product plan's stated shape; field names match the contract doc's `source_event` field names (`origin`, `kind`, `name`).
 - Rotation threshold (10MB) matches `sync.log`'s convention. If `sync.log`'s actual rotation differs (e.g., 10MiB vs. 10MB), match it.
 - Heartbeat cadence is honestly tested with an injectable clock — no `Thread.sleep(60 * 60)` in tests.
-- File handle lifecycle: opened once on first write, kept open for the process lifetime, closed on shutdown.
+- File handle lifecycle: a fresh `FileHandle(forWritingTo:)` is opened per
+  write, `seekToEnd()` ensures append semantics, and `defer { try? close() }`
+  closes it on every code path. This trades one open syscall per line for
+  straightforward crash semantics and trivial rotation (the writer owns the
+  file only at the moment it is closing it). The Swift notes
+  (`notes/private/phase-02-swift-notes/P2.08-transition-log.md`) record this
+  decision and why an `O_APPEND` long-lived handle was not chosen.
 
 ## Rationale
 
@@ -66,8 +72,8 @@ Red: required
   by transitions (which is the realistic high-volume path).
 - Heartbeat timer cadence: the `Timer` polls every 60 seconds and consults
   the injected clock; it only emits when the heartbeat interval has
-  actually elapsed. A single 60-minute `Timer` would drift unrecoverably
-  across sleep/wake. The product spec ("every 60 minutes") still holds
+  actually elapsed. A single 60-minute `Timer` would drift too far
+  across sleep/wake to recover. The product spec ("every 60 minutes") still holds
   within ~1 minute of slack.
 - `SourceEvent` was added to `StateSnapshot` and `StateJsonReader` so the
   transition log can record `source_origin`/`source_kind`/`source_name`

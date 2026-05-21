@@ -106,14 +106,22 @@ final class DemoCycleDriver {
 		// payload through StateJsonReader so the transition log captures
 		// the fixture's `source_event` triplet without the demo driver
 		// owning a second copy of the parsing rules.
-		if let log = transitionLog,
-			case .success(let snapshot) = StateJsonReader.read(at: sandboxedPath.path),
-			lastEmittedState != entry.state
-		{
-			log.recordTransition(
-				snapshot: snapshot,
-				previousState: lastEmittedState ?? entry.state
-			)
+		if let log = transitionLog, lastEmittedState != entry.state {
+			switch StateJsonReader.read(at: sandboxedPath.path) {
+			case .success(let snapshot):
+				log.recordTransition(
+					snapshot: snapshot,
+					previousState: lastEmittedState ?? entry.state
+				)
+			case .failure(let err):
+				// Surface fixture parse failures explicitly so a silent
+				// log gap (renderer advances but no NDJSON line lands) is
+				// diagnosable from Console.app instead of requiring
+				// after-the-fact log auditing.
+				NSLog(
+					"DemoCycleDriver: transition log skipped — fixture parse failed (\(err))"
+				)
+			}
 		}
 		lastEmittedState = entry.state
 
