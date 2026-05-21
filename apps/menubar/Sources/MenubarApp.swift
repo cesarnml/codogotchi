@@ -40,6 +40,11 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// icon — there is no driver to feed the log in that state.
 	var transitionLog: TransitionLog?
 
+	/// Held strongly because `NSMenuItem.target` is a weak reference; without
+	/// this, the menu items would still appear but their actions would no-op
+	/// once `applicationDidFinishLaunching` returned.
+	var menuBuilder: MenubarMenu?
+
 	static func main() {
 		let app = NSApplication.shared
 		let delegate = MenubarApp()
@@ -56,15 +61,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				accessibilityDescription: "Codogotchi"
 			)
 		}
-		let menu = NSMenu()
-		menu.addItem(
-			NSMenuItem(
-				title: "Quit Menubar",
-				action: #selector(NSApplication.terminate(_:)),
-				keyEquivalent: "q"
-			)
-		)
-		item.menu = menu
+		let menuBuilder = MenubarMenu()
+		item.menu = menuBuilder.build()
+		self.menuBuilder = menuBuilder
 		self.statusItem = item
 
 		// Attempt to load Mali and wire the renderer. If pet assets are

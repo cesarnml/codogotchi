@@ -162,7 +162,10 @@
 		"prefs",
 		"deinit",
 		"grayscale",
-		"luma"
+		"luma",
+		"objc",
+		"discardable",
+		"subclassing"
 	],
 	"dictionaries": ["typescript", "node", "software-terms"]
 }

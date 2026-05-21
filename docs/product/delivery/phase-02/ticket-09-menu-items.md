@@ -51,3 +51,29 @@ Why this path: code-built menu (no storyboards/xibs) is the smallest, most testa
 Alternative considered: storyboard-driven menu. Rejected because it adds a binary-ish artifact to the project for no reviewable diff benefit.
 Deferred: prefs UI, About panel, custom URL schemes, anything else menu-related.
 Contract note: none.
+
+Implementation rationale (added during P2.09 build):
+
+- Extracted menu construction into a dedicated `MenubarMenu` class (subclass
+  of `NSObject`) that owns both action selectors. The class is held strongly
+  by `MenubarApp.menuBuilder` because `NSMenuItem.target` is a weak
+  reference — without a strong-held target the items still draw but their
+  actions silently no-op after `applicationDidFinishLaunching` returns.
+- Introduced a narrow `MenuWorkspaceOpening` protocol (`NSWorkspace`
+  conforms via an empty extension) so the "Open log folder" action can be
+  asserted against a spy without launching Finder. Termination uses an
+  injectable `() -> Void` closure for the same reason — calling
+  `NSApplication.shared.terminate(nil)` from XCTest would tear down the
+  test process.
+- Refactor decision for "Open log folder" when `~/.codogotchi/` is absent:
+  pre-create the directory via `FileManager.createDirectory(at:
+  withIntermediateDirectories: true)` before calling
+  `NSWorkspace.open(_:)`. `createDirectory` with
+  `withIntermediateDirectories: true` is idempotent (no error when the
+  folder already exists), and pre-creating prevents the menu action from
+  silently no-op'ing on first launch before the transition log or live
+  polling driver has had a chance to write anything. Documented in
+  `notes/private/phase-02-swift-notes/P2.09-menu-items.md`.
+- Tooltip wiring from P2.07 is unchanged; this ticket only confirms its
+  presence and documents that hover-visibility verification is manual
+  (XCTest cannot exercise window-server hover).

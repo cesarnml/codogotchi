@@ -17,6 +17,7 @@
 		A03A23FB09ED671533A20EFA /* LivePollingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 457FC0B4AD3EFF117739B3CE /* LivePollingTests.swift */; };
 		AC9121969925747491D2102D /* DemoModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 912682799F951D41A1CC6E5F /* DemoModeTests.swift */; };
 		C54078F86228C337F4208AA5 /* DemoConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CE280854484C0B88CA21C06 /* DemoConfig.swift */; };
+		C62A4CAD224C0A2833CD9439 /* MenubarMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDAD45AEF16502197B71A42A /* MenubarMenu.swift */; };
 		C7BB44F43FB60F26B6FA683B /* MenubarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59F4B215B1B9640B87D3F60 /* MenubarApp.swift */; };
 		DCA785FC4D7B0B5EEBD8C6E7 /* LivePollingDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CCEB747D45D3F725F8076F9 /* LivePollingDriver.swift */; };
 		E307399E36C6F7332B6F737C /* StateJsonReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735029A7E0CB4D8E9388D392 /* StateJsonReader.swift */; };
@@ -56,6 +57,7 @@
 		E9B4E0E6767EDE5B7BA5E046 /* TransitionLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLogTests.swift; sourceTree = "<group>"; };
 		F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaliPet.swift; sourceTree = "<group>"; };
 		FD94064A39B7E8C7C327644C /* TransitionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLog.swift; sourceTree = "<group>"; };
+		FDAD45AEF16502197B71A42A /* MenubarMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarMenu.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -94,6 +96,7 @@
 				8CCEB747D45D3F725F8076F9 /* LivePollingDriver.swift */,
 				F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */,
 				A59F4B215B1B9640B87D3F60 /* MenubarApp.swift */,
+				FDAD45AEF16502197B71A42A /* MenubarMenu.swift */,
 				0271F5AA5F21B8EDF5C82E84 /* MenubarRenderer.swift */,
 				735029A7E0CB4D8E9388D392 /* StateJsonReader.swift */,
 				FD94064A39B7E8C7C327644C /* TransitionLog.swift */,
@@ -219,6 +222,7 @@
 				DCA785FC4D7B0B5EEBD8C6E7 /* LivePollingDriver.swift in Sources */,
 				10C477E52698AA8D23BB295D /* MaliPet.swift in Sources */,
 				C7BB44F43FB60F26B6FA683B /* MenubarApp.swift in Sources */,
+				C62A4CAD224C0A2833CD9439 /* MenubarMenu.swift in Sources */,
 				7C244C59EC0FAF582E7284AC /* MenubarRenderer.swift in Sources */,
 				E307399E36C6F7332B6F737C /* StateJsonReader.swift in Sources */,
 				7E751B9BF8DA263107084E30 /* TransitionLog.swift in Sources */,
