@@ -2,13 +2,16 @@
 
 Codogotchi is the RPG layer on top of Codex- and Claude-format pets. Your
 agent activity feeds XP, HP, stage advancement, and loot. The data lives in
-Convex; the macOS pet that will render this data is a later phase.
+Convex; a macOS menu bar pet renders the agent's animation state locally
+from `~/.codogotchi/state.json`.
 
-**Status:** Phase 01 — private validation. Two-user run on Convex Cloud.
-No public surface yet. See [`docs/product/plans/phase-01-as-shipped.md`](docs/product/plans/phase-01-as-shipped.md)
-for what shipped vs what the plan intended, and
-[`docs/product/plans/phase-01.md`](docs/product/plans/phase-01.md) for the original
-plan and explicit deferrals.
+**Status:** Phase 02 — macOS menu bar pet (private). Phase 01 CLI + Convex
+pipeline is shipped (see [`docs/product/plans/phase-01-as-shipped.md`](docs/product/plans/phase-01-as-shipped.md));
+Phase 02 adds the first native Swift surface — an `NSStatusItem`-only
+menu bar app rendering the four floor animation states. No public surface
+yet. See [`docs/product/plans/phase-02.md`](docs/product/plans/phase-02.md)
+for the Phase 02 scope and explicit deferrals (floating window /
+SpriteKit, HP visuals, distribution polish all stay future-phase).
 
 ## What ships in Phase 01
 
@@ -42,6 +45,8 @@ packages/
   engine/     # XP / Health / Loot pure logic + Bun-only sources/
   contracts/  # zod + types: IPC, signals, SoA event feed
 convex/       # Convex schema, mutations, HTTP action
+apps/
+  menubar/    # Phase 02 macOS NSStatusItem app (Xcode-native, Swift)
 docs/
   contracts/  # animation-state-vocabulary, soa-event-feed, convex-deployment
   product/    # plans, delivery, retrospectives
@@ -112,7 +117,8 @@ Three knobs in `~/.codogotchi/config.json`:
 ## Contracts to read before extending
 
 - [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md) —
-  closed-enum state vocabulary the hook writes and the macOS app will read.
+  closed-enum state vocabulary the hook writes and the Phase 02 menu bar
+  app reads (Swift `StateJsonReader` in `apps/menubar/`).
 - [`docs/contracts/soa-event-feed.md`](docs/contracts/soa-event-feed.md) —
   NDJSON event feed Son-of-Anton emits that the hook consumes for explicit
   delivery-gate signals.
@@ -126,8 +132,21 @@ bun install
 bun test                       # engine tests (fast)
 bun run verify:quiet           # biome check (lint + format)
 bun run spellcheck             # cspell
-bun run ci:quiet               # publication gate (verify + spellcheck)
+bun run ci:quiet               # publication gate (verify + spellcheck + mac:test)
+bun run mac:build              # Phase 02 menu bar app — xcodebuild
+bun run mac:test               # Phase 02 menu bar app — xcodebuild test
 ```
+
+`mac:build` and `mac:test` shell out to `xcodebuild` against
+`apps/menubar/Menubar.xcodeproj`. `bun run ci` and `bun run ci:quiet`
+chain `mac:test` after biome + cspell so Swift compile / test
+failures gate the orchestrator's `post-red` and `open-pr` steps in
+the same place TS regressions are caught. `apps/**` is still
+excluded from biome and from cspell's non-md scan per the toolchain
+seam decision; only `mac:test` crosses the boundary. See
+[`docs/product/plans/phase-02-as-shipped.md`](docs/product/plans/phase-02-as-shipped.md)
+for the divergence from the original "ci stays TS-only" Phase 02
+plan.
 
 Multi-ticket phase delivery is driven via the Son-of-Anton orchestrator
 checked in under `.son-of-anton/`. See `AGENTS.md` for skill triggers and
