@@ -50,3 +50,19 @@ Why this path: only the wake notification is honestly needed; sleep handling is 
 Alternative considered: `NSWorkspace.willSleepNotification` to pause polling. Rejected — timers pause naturally; explicit pause is needless code.
 Deferred: launch-at-login automation, login-item registration via `SMAppService`, recovery on macOS user-switch, dock-icon suppression edge cases (already handled by `LSUIElement` in P2.01).
 Contract note: none.
+
+Post-implementation note (P2.10): the ticket Outcome bullet says
+`applicationWillTerminate(_:)` "closes the `TransitionLog` file handle,
+invalidates active timers." `TransitionLog` does not actually keep a
+long-lived file handle — every `recordTransition` opens a `FileHandle`,
+appends one NDJSON line, and closes it under `defer`. `TransitionLog.stop()`
+only invalidates the heartbeat timer, which is the correct cleanup. The
+Outcome wording was imprecise; the implementation does exactly the right
+thing for the actual log shape.
+
+Post-implementation note (P2.10): the ticket Refactor bullet referenced
+`NotificationCenter.default.removeObserver(...)` as the cleanup-pattern
+example. The implementation correctly removes the wake observer from
+`NSWorkspace.shared.notificationCenter` — wake notifications are workspace
+events delivered on the workspace center, not the default center, so the
+example in the ticket pointed at the wrong notification center.
