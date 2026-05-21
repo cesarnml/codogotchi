@@ -21,6 +21,7 @@
 		E6BCBF842471662C38B63C2A /* DemoCycleDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4224DA093A1F8EDBF805F5 /* DemoCycleDriver.swift */; };
 		FD70D93A6151530FFDF449AF /* ActivityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC00304AC7943871172F0CF /* ActivityState.swift */; };
 		FDD54F7135091AEC8D875EFE /* StateJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D243946307FE7911C7D589 /* StateJsonReaderTests.swift */; };
+		FF0870FA7D2F255AD5907981 /* TransitionLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B4E0E6767EDE5B7BA5E046 /* TransitionLogTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,6 +50,7 @@
 		AE3B6E6E790FC05428728089 /* MenubarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarTests.swift; sourceTree = "<group>"; };
 		B2D243946307FE7911C7D589 /* StateJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonReaderTests.swift; sourceTree = "<group>"; };
 		E5BC4EC4E8A51958B2490271 /* Menubar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Menubar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E9B4E0E6767EDE5B7BA5E046 /* TransitionLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLogTests.swift; sourceTree = "<group>"; };
 		F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaliPet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -103,6 +105,7 @@
 				4F5763985E7CF09EB2581201 /* MenubarRendererTests.swift */,
 				AE3B6E6E790FC05428728089 /* MenubarTests.swift */,
 				B2D243946307FE7911C7D589 /* StateJsonReaderTests.swift */,
+				E9B4E0E6767EDE5B7BA5E046 /* TransitionLogTests.swift */,
 			);
 			path = MenubarTests;
 			sourceTree = "<group>";
@@ -195,6 +198,7 @@
 				8EF2C66FBB926E5B0DF59CA8 /* MenubarRendererTests.swift in Sources */,
 				02E711B348F0A6134E12B9CB /* MenubarTests.swift in Sources */,
 				FDD54F7135091AEC8D875EFE /* StateJsonReaderTests.swift in Sources */,
+				FF0870FA7D2F255AD5907981 /* TransitionLogTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
