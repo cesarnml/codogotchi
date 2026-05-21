@@ -119,6 +119,15 @@ final class LivePollingDriver {
 		runTick()
 	}
 
+	/// Out-of-band poll trigger. Used by the wake-from-sleep observer
+	/// (`NSWorkspace.didWakeNotification`) so the menu bar pet reflects the
+	/// current `state.json` without waiting up to `tickInterval` seconds for
+	/// the next scheduled tick. Safe to call when polling is not running —
+	/// it simply runs one read; the recurring `Timer` is independent.
+	func pollNow() {
+		runTick()
+	}
+
 	private func runTick() {
 		let result = reader(pollingTargetPath)
 		if case .success(let snapshot) = result {

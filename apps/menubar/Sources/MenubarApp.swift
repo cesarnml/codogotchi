@@ -45,6 +45,12 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// once `applicationDidFinishLaunching` returned.
 	var menuBuilder: MenubarMenu?
 
+	/// Opaque observer token for `NSWorkspace.didWakeNotification`. Held
+	/// strongly so the block-based observer is not deallocated while the app
+	/// runs, and removed in `applicationWillTerminate` so the workspace
+	/// notification center does not retain a dangling block past shutdown.
+	var workspaceWakeObserver: NSObjectProtocol?
+
 	static func main() {
 		let app = NSApplication.shared
 		let delegate = MenubarApp()
@@ -136,9 +142,26 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			driver.start()
 			self.livePollingDriver = driver
 		}
+
+		// Wake-from-sleep: trigger an immediate out-of-band poll so the
+		// menu bar pet reflects current state without waiting up to one
+		// second after wake for the next scheduled tick. Sleep itself
+		// needs no handler — `Timer` pauses naturally while the system is
+		// asleep, so polling resumes on wake regardless.
+		self.workspaceWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+			forName: NSWorkspace.didWakeNotification,
+			object: nil,
+			queue: .main
+		) { [weak self] _ in
+			self?.livePollingDriver?.pollNow()
+		}
 	}
 
 	func applicationWillTerminate(_ notification: Notification) {
+		if let observer = workspaceWakeObserver {
+			NSWorkspace.shared.notificationCenter.removeObserver(observer)
+			workspaceWakeObserver = nil
+		}
 		demoDriver?.stop()
 		livePollingDriver?.stop()
 		transitionLog?.stop()
