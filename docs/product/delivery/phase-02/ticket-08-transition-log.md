@@ -58,6 +58,32 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
+### Implementation notes (P2.08 delivery)
+
+- Heartbeat-vs-rotation accounting decision: heartbeat lines **do** count
+  toward the rotation byte threshold. Excluding them would track a number
+  the filesystem disagrees with; the test asserts only rotation triggered
+  by transitions (which is the realistic high-volume path).
+- Heartbeat timer cadence: the `Timer` polls every 60 seconds and consults
+  the injected clock; it only emits when the heartbeat interval has
+  actually elapsed. A single 60-minute `Timer` would drift unrecoverably
+  across sleep/wake. The product spec ("every 60 minutes") still holds
+  within ~1 minute of slack.
+- `SourceEvent` was added to `StateSnapshot` and `StateJsonReader` so the
+  transition log can record `source_origin`/`source_kind`/`source_name`
+  from the hook payload without parsing JSON twice. Field names match the
+  contract doc (`origin`, `kind`, `name`).
+- Transition log path defaults to `~/.codogotchi/state-transitions.log`.
+  Demo mode writes a sibling `state-transitions.log` under its sandboxed
+  polling target so a live run is never trampled by a demo session.
+- `LivePollingDriver` only records transitions on `.success` reads —
+  failure visuals collapse to `.idle` regardless of agent state and would
+  otherwise flood the log with phantom `prev=idle` entries every time the
+  hook hiccups.
+- Test relaxation: the NDJSON shape assertion checks ISO-8601 regex shape
+  (`^\d{4}-\d{2}-\d{2}T...Z$`) rather than a hardcoded year. The fixture
+  `timeIntervalSince1970` value is a stable seed, not a behavior contract.
+
 Red first: log line shape, rotation, and heartbeat each have failing tests before code lands.
 Why this path: per-state-change + hourly heartbeat balances "activity-proportional file size" with "liveness signal in the log itself." Chosen over per-poll-tick (too noisy) and per-change-only (no liveness).
 Alternative considered: shared rotation logic with the TS-side `sync.log` rotation. Rejected — ~20 lines of Swift is not worth a polyglot dependency boundary; matching the *convention* (10MB cap, single `.log.1` backup) in documentation is enough.

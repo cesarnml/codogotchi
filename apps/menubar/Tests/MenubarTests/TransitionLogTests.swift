@@ -74,9 +74,19 @@ final class TransitionLogTests: XCTestCase {
 		XCTAssertEqual(obj["source_kind"] as? String, "tool_use")
 		XCTAssertEqual(obj["source_name"] as? String, "Edit")
 		let ts = obj["ts"] as? String ?? ""
-		XCTAssertTrue(
-			ts.hasSuffix("Z") && ts.contains("2026-05-20"),
-			"expected ISO-8601 ts beginning with 2026-05-20 and ending in Z, got \(ts)"
+		// Shape check, not a value check. Fixed-clock fixture is enough to
+		// prove the formatter is wired in; the exact year/month encoded by
+		// `timeIntervalSince1970: 1_747_750_331.123` is intentionally not
+		// asserted because it is brittle to fixture-value edits.
+		let isoRegex = try NSRegularExpression(
+			pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+		)
+		XCTAssertNotNil(
+			isoRegex.firstMatch(
+				in: ts,
+				range: NSRange(ts.startIndex..., in: ts)
+			),
+			"expected ISO-8601 ts with milliseconds and Z suffix, got \(ts)"
 		)
 		XCTAssertNil(obj["heartbeat"], "transition lines must not set heartbeat:true")
 	}

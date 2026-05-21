@@ -63,24 +63,33 @@ final class LivePollingDriver {
 	private let setTooltip: SetTooltip
 	private let reader: Reader
 	private let tickInterval: TimeInterval
+	private let transitionLog: TransitionLog?
 
 	private var timer: Timer?
 	private var lastRendered: (state: ActivityState, mode: VisualMode)?
 	private var lastTooltip: String?
 	private var hasEmittedTooltip: Bool = false
+	/// Agent-reported state from the last successful read. The transition log
+	/// records changes against this value, not against the rendered visual
+	/// state, because failure visuals collapse to `.idle` regardless of what
+	/// the hook last reported and would otherwise pollute the log with phantom
+	/// `prev=idle` entries every time the hook briefly hiccups.
+	private var lastAgentState: ActivityState?
 
 	init(
 		pollingTargetPath: String,
 		apply: @escaping Apply,
 		setTooltip: @escaping SetTooltip,
 		reader: @escaping Reader = StateJsonReader.read(at:),
-		tickInterval: TimeInterval = 1.0
+		tickInterval: TimeInterval = 1.0,
+		transitionLog: TransitionLog? = nil
 	) {
 		self.pollingTargetPath = pollingTargetPath
 		self.apply = apply
 		self.setTooltip = setTooltip
 		self.reader = reader
 		self.tickInterval = tickInterval
+		self.transitionLog = transitionLog
 	}
 
 	deinit {
@@ -111,7 +120,18 @@ final class LivePollingDriver {
 	}
 
 	private func runTick() {
-		let outcome = decide(from: reader(pollingTargetPath))
+		let result = reader(pollingTargetPath)
+		if case .success(let snapshot) = result {
+			let prev = lastAgentState
+			if prev != snapshot.activityState {
+				transitionLog?.recordTransition(
+					snapshot: snapshot,
+					previousState: prev ?? snapshot.activityState
+				)
+			}
+			lastAgentState = snapshot.activityState
+		}
+		let outcome = decide(from: result)
 		emit(outcome)
 	}
 

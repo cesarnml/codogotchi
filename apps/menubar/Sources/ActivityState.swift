@@ -24,14 +24,28 @@ enum ActivityState: String, Equatable, Codable {
 	}
 }
 
+/// Subset of the hook's `source_event` payload that the transition log
+/// records alongside each observed state change. Field names match the
+/// contract doc (`docs/contracts/animation-state-vocabulary.md`) verbatim:
+/// `origin`, `kind`, `name`. Optional in `StateSnapshot` because earlier
+/// hook versions and demo fixtures may omit the field entirely.
+struct SourceEvent: Equatable, Decodable {
+	let origin: String?
+	let kind: String?
+	let name: String?
+}
+
 /// Decoded form of `~/.codogotchi/state.json` v1.
 ///
 /// Only the fields Phase 02 reads are declared. The schema permits richer
-/// payloads (`hp`, `hp_overlay`, `source_event`); those are tolerated as
-/// unknown JSON keys and ignored by `JSONDecoder` so the renderer cannot
-/// crash on shapes it does not yet paint.
+/// payloads (`hp`, `hp_overlay`); those are tolerated as unknown JSON keys
+/// and ignored by `JSONDecoder` so the renderer cannot crash on shapes it
+/// does not yet paint. `sourceEvent` is the one nested object the renderer
+/// does consume — the transition log (P2.08) writes its `origin`/`kind`/
+/// `name` triplet on every observed state change.
 struct StateSnapshot: Equatable {
 	let schemaVersion: Int
 	let activityState: ActivityState
 	let updatedAt: String
+	let sourceEvent: SourceEvent?
 }

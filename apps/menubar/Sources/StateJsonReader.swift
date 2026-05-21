@@ -74,7 +74,8 @@ enum StateJsonReader {
 				StateSnapshot(
 					schemaVersion: payload.schemaVersion,
 					activityState: payload.activityState,
-					updatedAt: payload.updatedAt
+					updatedAt: payload.updatedAt,
+					sourceEvent: payload.sourceEvent
 				)
 			)
 		} catch {
@@ -84,10 +85,13 @@ enum StateJsonReader {
 }
 
 /// Private wire shape: matches v1 schema keys after snake-case conversion.
-/// Extra payload fields (`hp`, `hpOverlay`, `sourceEvent`, etc.) are tolerated
-/// because `Decodable` ignores unknown keys by default.
+/// Extra payload fields (`hp`, `hpOverlay`, etc.) are tolerated because
+/// `Decodable` ignores unknown keys by default. `sourceEvent` is decoded
+/// when present so the transition log (P2.08) can record its
+/// `origin`/`kind`/`name` triplet; absence is normal and surfaces as nil.
 private struct StatePayload: Decodable {
 	let schemaVersion: Int
 	let activityState: ActivityState
 	let updatedAt: String
+	let sourceEvent: SourceEvent?
 }

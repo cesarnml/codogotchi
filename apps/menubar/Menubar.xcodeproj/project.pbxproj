@@ -10,6 +10,7 @@
 		02E711B348F0A6134E12B9CB /* MenubarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3B6E6E790FC05428728089 /* MenubarTests.swift */; };
 		10C477E52698AA8D23BB295D /* MaliPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */; };
 		7C244C59EC0FAF582E7284AC /* MenubarRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0271F5AA5F21B8EDF5C82E84 /* MenubarRenderer.swift */; };
+		7E751B9BF8DA263107084E30 /* TransitionLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD94064A39B7E8C7C327644C /* TransitionLog.swift */; };
 		845772E367D28B7F9CD18235 /* MaliPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A2E1C50EB793ED6FA92CAA /* MaliPetTests.swift */; };
 		8EF2C66FBB926E5B0DF59CA8 /* MenubarRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5763985E7CF09EB2581201 /* MenubarRendererTests.swift */; };
 		A03A23FB09ED671533A20EFA /* LivePollingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 457FC0B4AD3EFF117739B3CE /* LivePollingTests.swift */; };
@@ -52,6 +53,7 @@
 		E5BC4EC4E8A51958B2490271 /* Menubar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Menubar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9B4E0E6767EDE5B7BA5E046 /* TransitionLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLogTests.swift; sourceTree = "<group>"; };
 		F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaliPet.swift; sourceTree = "<group>"; };
+		FD94064A39B7E8C7C327644C /* TransitionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLog.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -92,6 +94,7 @@
 				A59F4B215B1B9640B87D3F60 /* MenubarApp.swift */,
 				0271F5AA5F21B8EDF5C82E84 /* MenubarRenderer.swift */,
 				735029A7E0CB4D8E9388D392 /* StateJsonReader.swift */,
+				FD94064A39B7E8C7C327644C /* TransitionLog.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -214,6 +217,7 @@
 				C7BB44F43FB60F26B6FA683B /* MenubarApp.swift in Sources */,
 				7C244C59EC0FAF582E7284AC /* MenubarRenderer.swift in Sources */,
 				E307399E36C6F7332B6F737C /* StateJsonReader.swift in Sources */,
+				7E751B9BF8DA263107084E30 /* TransitionLog.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

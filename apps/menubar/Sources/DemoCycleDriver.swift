@@ -33,19 +33,23 @@ final class DemoCycleDriver {
 	private let fixturesDirectory: URL
 	private let apply: StateApply
 	private let tickInterval: TimeInterval
+	private let transitionLog: TransitionLog?
 	private var index: Int = 0
 	private var timer: Timer?
+	private var lastEmittedState: ActivityState?
 
 	init(
 		sandboxedPath: URL,
 		fixturesDirectory: URL,
 		apply: @escaping StateApply,
-		tickInterval: TimeInterval = 3.0
+		tickInterval: TimeInterval = 3.0,
+		transitionLog: TransitionLog? = nil
 	) {
 		self.sandboxedPath = sandboxedPath
 		self.fixturesDirectory = fixturesDirectory
 		self.apply = apply
 		self.tickInterval = tickInterval
+		self.transitionLog = transitionLog
 	}
 
 	deinit {
@@ -97,6 +101,21 @@ final class DemoCycleDriver {
 		// pattern so demo mode exercises the same race-free read semantics
 		// live polling (P2.07) depends on.
 		try data.write(to: sandboxedPath, options: .atomic)
+
+		// Mirror what live polling would record: feed the same fixture
+		// payload through StateJsonReader so the transition log captures
+		// the fixture's `source_event` triplet without the demo driver
+		// owning a second copy of the parsing rules.
+		if let log = transitionLog,
+			case .success(let snapshot) = StateJsonReader.read(at: sandboxedPath.path),
+			lastEmittedState != entry.state
+		{
+			log.recordTransition(
+				snapshot: snapshot,
+				previousState: lastEmittedState ?? entry.state
+			)
+		}
+		lastEmittedState = entry.state
 
 		apply(entry.state)
 	}

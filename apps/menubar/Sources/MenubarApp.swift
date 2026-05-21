@@ -34,6 +34,12 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// (P2.07) will also consume `pollingTarget`.
 	var demoConfig: DemoConfig?
 
+	/// Holds the NDJSON transition log writer so its heartbeat `Timer` and
+	/// lazily-opened file handle survive past `applicationDidFinishLaunching`.
+	/// `nil` while a `MaliPet` failure keeps the app on the placeholder
+	/// icon — there is no driver to feed the log in that state.
+	var transitionLog: TransitionLog?
+
 	static func main() {
 		let app = NSApplication.shared
 		let delegate = MenubarApp()
@@ -81,6 +87,22 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		// non-demo `pollingTarget`.
 		let config = DemoConfig.forLaunch()
 		self.demoConfig = config
+		if self.renderer != nil {
+			// Demo mode writes its log under a sandboxed sibling of its
+			// `pollingTarget` so a live run is never trampled by a demo
+			// session.
+			let logPath: URL = {
+				if config.isDemoMode {
+					return config.pollingTarget
+						.deletingLastPathComponent()
+						.appendingPathComponent("state-transitions.log")
+				}
+				return TransitionLog.defaultPath()
+			}()
+			let log = TransitionLog(path: logPath)
+			log.start()
+			self.transitionLog = log
+		}
 		if config.isDemoMode, let renderer = self.renderer {
 			if let fixturesDirectory = Self.bundledDemoFixturesDirectory() {
 				let driver = DemoCycleDriver(
@@ -88,7 +110,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					fixturesDirectory: fixturesDirectory,
 					apply: { [weak renderer] state in
 						renderer?.update(state: state, visualMode: .normal)
-					}
+					},
+					transitionLog: self.transitionLog
 				)
 				driver.start()
 				self.demoDriver = driver
@@ -108,7 +131,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				},
 				setTooltip: { [weak item] tooltip in
 					item?.button?.toolTip = tooltip
-				}
+				},
+				transitionLog: self.transitionLog
 			)
 			driver.start()
 			self.livePollingDriver = driver
@@ -118,6 +142,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	func applicationWillTerminate(_ notification: Notification) {
 		demoDriver?.stop()
 		livePollingDriver?.stop()
+		transitionLog?.stop()
 	}
 
 	/// Locate the demo fixture directory bundled into `Resources/state-json/`.
