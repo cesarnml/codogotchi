@@ -1,7 +1,16 @@
 import { z } from "zod";
 import { activityStateSchema, hpOverlaySchema } from "./animation-state";
 
-export const STATE_JSON_SCHEMA_VERSION = 1;
+export const STATE_JSON_SCHEMA_VERSION = 2;
+
+// Forward-compat policy from docs/contracts/animation-state-vocabulary.md:
+// renderers accept any `schema_version` ≤ EXPECTED_VERSION (this constant),
+// and refuse anything greater.
+const schemaVersionField = z
+  .number()
+  .int()
+  .min(1)
+  .max(STATE_JSON_SCHEMA_VERSION);
 
 export const sourceEventOriginSchema = z.enum([
   "claude_code",
@@ -30,7 +39,7 @@ export const sourceEventSchema = z.object({
 export type SourceEvent = z.infer<typeof sourceEventSchema>;
 
 export const stateJsonV1Schema = z.object({
-  schema_version: z.literal(STATE_JSON_SCHEMA_VERSION),
+  schema_version: schemaVersionField,
   activity_state: activityStateSchema,
   hp_overlay: hpOverlaySchema,
   hp: z.number().int().min(-100).max(100),

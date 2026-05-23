@@ -52,8 +52,14 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `STATE_JSON_SCHEMA_VERSION === 2` and the two parses-with-new-state cases — the v1-still-parses and v3-rejected cases passed pre-implementation, but were kept as regression guards for the forward-compat policy (`got ≤ expected`).
+Why this path: smallest change — append `"requesting_input"` and `"errored"` to `ACTIVITY_STATES`, raise `STATE_JSON_SCHEMA_VERSION` to `2`, and swap `z.literal(STATE_JSON_SCHEMA_VERSION)` for `z.number().int().min(1).max(STATE_JSON_SCHEMA_VERSION)` so prior v1 payloads keep parsing while v3 is refused. No reorder, no new types.
+Alternative considered: leaving `z.literal(STATE_JSON_SCHEMA_VERSION)` would have refused v1 payloads under the new constant, violating the forward-compat policy's "`got ≤ expected` accepted" clause. Rejected.
+Deferred: hook-side detection of `requesting_input` and `errored` (P3.02); Swift renderer enum expansion + sheet remap (P3.03/P3.04); `EXPECTED_VERSION` bump on the Swift side (P3.04). The contracts package change here is contract-only.
+Contract note: ticket metadata is compliant — `Type: feat`, `Scope: contracts`, `Red: required`.
+
+### Cross-ticket pre-flight folded into this branch
+
+Two structural fixes were needed before the orchestrator's pre-PR gates worked for a TS-only ticket. Both are bottom-of-stack tooling rather than P3.01 scope, but they are required for every downstream Phase 03 ticket too, so they sit on this branch as separate commits ahead of the `[red]` commit:
+
+- `chore(p3): include bun tests in the ci gate` — root `ci`/`ci:quiet` chained only `biome check` + `xcodebuild test`, so `bun run deliver post-red` (which runs `bun run ci`) could not see failing TypeScript tests. Added `bun test packages convex` between verify and mac:test; scope is explicit so the upstream Son-of-Anton subtree's self-tests do not run in the consumer repo.

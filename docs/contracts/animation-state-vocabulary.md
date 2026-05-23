@@ -1,4 +1,4 @@
-# Animation State Vocabulary (v1)
+# Animation State Vocabulary (v2)
 
 The contract for the data the codogotchi hook binary writes to
 `~/.codogotchi/state.json` on every relevant Claude Code / Codex lifecycle event,
@@ -29,6 +29,10 @@ between the planned vocabulary and observable lifecycle events. Any revision:
 
 After P1.18 lands, further changes require a new ticket and a separate
 schema-version bump.
+
+Phase 03 (P3.01) is the formal v2 bump per the clause above: it appends
+`requesting_input` and `errored` to the activity-state enum and raises
+`STATE_JSON_SCHEMA_VERSION` from 1 to 2.
 
 ### Forward-compatibility policy
 
@@ -131,25 +135,29 @@ boundaries are confirmed by the engine implementation in **P1.04** — if P1.04
 discovers a more honest curve (e.g. half-life decay around 50), it updates this
 table and bumps `schema_version`.
 
-## `state.json` v1 schema
+## `state.json` v2 schema
 
 The hook binary writes the entire object atomically (write-to-tmp + rename) on
 every relevant lifecycle event. Schema:
 
 ```json
 {
-  "schema_version": 1,
-  "activity_state": "implementing",
+  "schema_version": 2,
+  "activity_state": "requesting_input",
   "hp_overlay": "thriving",
   "hp": 87,
-  "updated_at": "2026-05-17T21:55:00.000Z",
+  "updated_at": "2026-05-24T21:55:00.000Z",
   "source_event": {
     "origin": "claude_code",
-    "kind": "tool_use",
-    "name": "Edit"
+    "kind": "session_end",
+    "name": "Stop"
   }
 }
 ```
+
+The shape is identical to v1; v2 only widens the `activity_state` enum to
+include `requesting_input` and `errored`. Per the forward-compat policy, v1
+payloads continue to parse against the v2 schema (`got=1 ≤ expected=2`).
 
 ### Field meanings
 
