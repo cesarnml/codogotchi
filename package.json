@@ -17,8 +17,9 @@
     "check": "biome check --write .",
     "verify": "biome check .",
     "verify:quiet": "biome check . --log-level=error",
-    "ci": "bun run verify && bun run mac:test",
-    "ci:quiet": "bun run verify:quiet && bun run mac:test",
+    "test": "bun test packages convex",
+    "ci": "bun run verify && bun run test && bun run mac:test",
+    "ci:quiet": "bun run verify:quiet && bun run test && bun run mac:test",
     "mac:build": "xcodebuild -project apps/menubar/Menubar.xcodeproj -scheme Menubar build",
     "mac:test": "xcodebuild -project apps/menubar/Menubar.xcodeproj -scheme Menubar test"
   },
