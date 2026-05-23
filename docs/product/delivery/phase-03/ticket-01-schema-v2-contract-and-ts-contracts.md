@@ -58,8 +58,15 @@ Alternative considered: leaving `z.literal(STATE_JSON_SCHEMA_VERSION)` would hav
 Deferred: hook-side detection of `requesting_input` and `errored` (P3.02); Swift renderer enum expansion + sheet remap (P3.03/P3.04); `EXPECTED_VERSION` bump on the Swift side (P3.04). The contracts package change here is contract-only.
 Contract note: ticket metadata is compliant — `Type: feat`, `Scope: contracts`, `Red: required`.
 
-### Cross-ticket pre-flight folded into this branch
+### Cross-ticket pre-flight
 
-Two structural fixes were needed before the orchestrator's pre-PR gates worked for a TS-only ticket. Both are bottom-of-stack tooling rather than P3.01 scope, but they are required for every downstream Phase 03 ticket too, so they sit on this branch as separate commits ahead of the `[red]` commit:
+Two structural fixes were needed before the orchestrator's pre-PR gates worked for a TS-only ticket. Both are bottom-of-stack tooling rather than P3.01 contract scope, but they are required for every downstream Phase 03 ticket too. Their locations:
 
-- `chore(p3): include bun tests in the ci gate` — root `ci`/`ci:quiet` chained only `biome check` + `xcodebuild test`, so `bun run deliver post-red` (which runs `bun run ci`) could not see failing TypeScript tests. Added `bun test packages convex` between verify and mac:test; scope is explicit so the upstream Son-of-Anton subtree's self-tests do not run in the consumer repo.
+- On `main` (commit `ffe9caa chore(p3): pre-flight fixes for phase-03 ci baseline`): `biome.json` rewrite for Biome 2.x, `MaliPetTests` stale-scale assertion repair, and `## Stage Gates` reorder so the plan parses for `bun run deliver`.
+- On this branch ahead of the `[red]` commit (`2c8b90f chore(p3): include bun tests in the ci gate`): root `ci`/`ci:quiet` chained only `biome check` + `xcodebuild test`, so `bun run deliver post-red` (which runs `bun run ci`) could not see failing TypeScript tests. Added `bun test packages convex` between verify and mac:test; scope is explicit so the upstream Son-of-Anton subtree's self-tests do not run in the consumer repo.
+
+### Subagent review patch (post-review)
+
+Codex-cli (advisory subagent) flagged one actionable correctness gap: `RELIABLE_ACTIVITY_STATES` in `packages/contracts/src/animation-state.ts` did not include `requesting_input` or `errored`, even though the contract doc classifies both as `reliable`. Patched in `[subagent-review]` commit: appended both to the tuple. Same commit also fixed two human-review doc-drift items the subagent surfaced: (1) the contract doc's intro line still said "the v1 `state.json` schema" — corrected to v2; (2) this Rationale's pre-flight section claimed both structural fixes were on this branch — corrected to note one is already on `main` and one is on this branch.
+
+While running the post-patch `bun run ci:quiet`, two `hook-binary.test.ts > runHook` cases (`writes state.json on first event…` and `classifies SoA gate event as celebrating`) failed because `runHook` resolves its SoA root via `process.cwd()` when `CLAUDE_PROJECT_DIR` / `CODEX_PROJECT_DIR` are absent. Inside a delivery-orchestrator worktree, the real `.soa/events.ndjson` contains `subagent_invoked` events, which the hook then surfaces as `calling_for_backup` and overrides the test's injected state. Folded a one-place fix into the same `[subagent-review]` commit: the `runHook` describe block now redirects `CLAUDE_PROJECT_DIR` to the fresh per-test tmpdir in `beforeEach` and restores the prior value in `afterEach`. Test isolation is the right shape; without it, this test suite is environment-flaky and would have shown up later when more SoA gate events accumulated.

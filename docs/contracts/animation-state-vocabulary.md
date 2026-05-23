@@ -5,7 +5,7 @@ The contract for the data the codogotchi hook binary writes to
 and which any future renderer (macOS app, web preview, CLI ascii) consumes.
 
 This doc defines the **closed enums** of activity states and HP overlay states,
-the v1 `state.json` schema (with `schema_version`), and the mapping table from
+the v2 `state.json` schema (with `schema_version`), and the mapping table from
 raw signal classes to activity states. Closed enums mean a renderer can switch
 exhaustively without a `default:` catch-all; adding a state is a deliberate
 schema bump, not a runtime surprise.

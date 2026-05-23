@@ -234,14 +234,36 @@ describe("classifyEvent", () => {
 
 describe("runHook", () => {
   let home: string;
+  let originalClaudeProjectDir: string | undefined;
+  let originalCodexProjectDir: string | undefined;
 
   beforeEach(async () => {
     home = mkdtempSync(join(tmpdir(), "codogotchi-hook-"));
     await mkdir(home, { recursive: true });
+    // Isolate runHook's SoA-root resolution from the invoking process's real
+    // working directory. resolveSoaRoot() consults CLAUDE_PROJECT_DIR /
+    // CODEX_PROJECT_DIR / CWD; without redirection, a worktree that contains
+    // a real `.soa/events.ndjson` (e.g. when these tests run inside a
+    // delivery orchestrator worktree) reclassifies the activity state from
+    // whatever the test injected to whatever the last real SoA gate event
+    // was. Point CLAUDE_PROJECT_DIR at the fresh tmpdir so SoA root resolves
+    // to an empty location for the duration of the test.
+    originalClaudeProjectDir = process.env.CLAUDE_PROJECT_DIR;
+    originalCodexProjectDir = process.env.CODEX_PROJECT_DIR;
+    process.env.CLAUDE_PROJECT_DIR = home;
+    delete process.env.CODEX_PROJECT_DIR;
   });
 
   afterEach(() => {
     rmSync(home, { recursive: true, force: true });
+    if (originalClaudeProjectDir === undefined) {
+      delete process.env.CLAUDE_PROJECT_DIR;
+    } else {
+      process.env.CLAUDE_PROJECT_DIR = originalClaudeProjectDir;
+    }
+    if (originalCodexProjectDir !== undefined) {
+      process.env.CODEX_PROJECT_DIR = originalCodexProjectDir;
+    }
   });
 
   it("writes state.json on first event with default thriving overlay when no profile", async () => {
