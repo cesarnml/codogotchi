@@ -67,7 +67,10 @@ final class MenubarRenderer {
 		currentMode = visualMode
 
 		if stateChanged {
-			currentFrames = pet.frames(for: state)
+			let frames = pet.frames(for: state)
+			// States not yet in the rowMap (codogotchi-sheet states pending P3.04)
+			// fall back to idle frames so the menubar always shows something.
+			currentFrames = frames.isEmpty ? pet.frames(for: .idle) : frames
 			frameIndex = 0
 		}
 

@@ -78,7 +78,9 @@ final class MenubarRendererTests: XCTestCase {
 		)
 
 		// Second transition: catches regressions where the reset only fires on
-		// the first state change but not subsequent ones.
+		// the first state change but not subsequent ones. .celebrating has no
+		// rowMap entry after P3.03 (codogotchi sheet pending P3.04), so the
+		// renderer falls back to idle frames — the count should equal idle count.
 		renderer.advanceFrameForTesting()
 		renderer.advanceFrameForTesting()
 		renderer.update(state: .celebrating, visualMode: .normal)
@@ -90,8 +92,8 @@ final class MenubarRendererTests: XCTestCase {
 		)
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
-			pet.frames(for: .celebrating).count,
-			"renderer must swap to the celebrating row on the second transition"
+			pet.frames(for: .idle).count,
+			"unmapped codogotchi states must fall back to idle frame count until P3.04"
 		)
 	}
 
