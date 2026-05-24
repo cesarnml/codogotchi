@@ -48,10 +48,10 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Stop-event shape captured: [exact fields the `requesting_input` classifier matches on]
-Failure-event shape captured: [exact failure modes the `errored` classifier matches on; modes deliberately deferred]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `classifies Stop event as requesting_input` — exposed the missing `hook_event_name === "Stop"` branch in `classifyEvent`.
+Why this path: A `Set`-based `FAILURE_STOP_REASONS` helper + two `if` blocks after the SoA gate is the smallest change that makes all six new tests pass without touching any other function.
+Alternative considered: Detecting `requesting_input` broadly via `kind === "session_end"` (covering both `"stop"` and `"session_end"` raw names). Rejected — it would reclassify Codex `session_end` events that currently map to `idle` and break existing tests.
+Deferred: `stop_reason: "stop_sequence"` / `"tool_use"` not classified as errored (ambiguous intent). User Ctrl-C produces no hook event — undetectable at this tier. Tool-call timeouts the model would have recovered from are also deferred.
+Stop-event shape captured: `{ hook_event_name: "Stop" }` (uppercase as Claude Code sends; Codex lowercase `"stop"` also matches via `.toLowerCase()`). `rawHookOrigin` → `claude_code`; `rawHookKind` → `session_end`. Absence of `stop_reason` or `is_error` → `requesting_input`.
+Failure-event shape captured: (1) `{ hook_event_name: "Stop", stop_reason: "max_tokens" }` — response truncated by token limit. (2) Any event with `{ is_error: true }` — explicit failure flag for rate-limit or network-error notifications from either agent runtime.
+Contract note: No deviations. `Type: feat`, `Scope: cli`, `Red: required` all match as specified.

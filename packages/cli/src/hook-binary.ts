@@ -115,6 +115,13 @@ function normalize(input: HookInput): NormalizedEvent | null {
   return { ...parsed.data, command };
 }
 
+// Stop reasons that indicate the agent did not complete its response cycle.
+const FAILURE_STOP_REASONS = new Set(["max_tokens"]);
+
+function isFailureStopReason(reason: string | undefined): boolean {
+  return reason !== undefined && FAILURE_STOP_REASONS.has(reason);
+}
+
 function matchesTestRunner(command: string): boolean {
   const trimmed = command.trimStart();
   return TEST_RUNNER_PREFIXES.some((prefix) => {
@@ -145,6 +152,20 @@ export function classifyEvent(
     }
     // Unknown gate name: don't reset readRun — SoA gates are not tool-use events.
     return { state: "idle", sourceEvent, readRun: prior.readRun };
+  }
+
+  // Heuristic: Stop event — agent finished turn and is awaiting user input,
+  // unless the stop reason or an explicit flag indicates a response failure.
+  const rawEventName = input.hook_event_name?.toLowerCase();
+  if (rawEventName === "stop") {
+    if (input.is_error || isFailureStopReason(input.stop_reason)) {
+      return { state: "errored", sourceEvent, readRun: 0 };
+    }
+    return { state: "requesting_input", sourceEvent, readRun: prior.readRun };
+  }
+  // Heuristic: explicit failure signal for non-Stop events (rate limit, network error).
+  if (input.is_error) {
+    return { state: "errored", sourceEvent, readRun: 0 };
   }
 
   if (kind === "tool_use") {
