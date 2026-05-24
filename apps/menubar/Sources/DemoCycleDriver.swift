@@ -19,9 +19,9 @@ import Foundation
 final class DemoCycleDriver {
 	typealias StateApply = (ActivityState) -> Void
 
-	/// Canonical demo cycle order. Hardcoded — order matches the contract's
-	/// Activity States table top-to-bottom so the demo doubles as a manual
-	/// visual check that all 15 states render correctly.
+	/// Canonical demo cycle order — all 15 `ActivityState` cases in the
+	/// contract's Activity States table top-to-bottom. The demo doubles as a
+	/// manual visual check that every state renders correctly.
 	static let cycle: [(state: ActivityState, fixtureFilename: String)] = [
 		(.idle, "idle.json"),
 		(.implementing, "implementing.json"),

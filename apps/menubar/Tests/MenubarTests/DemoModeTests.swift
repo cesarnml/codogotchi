@@ -232,8 +232,11 @@ final class DemoModeTests: XCTestCase {
 			switch result {
 			case .failure(let err):
 				XCTFail("\(filename) failed to parse as v2 state.json: \(err)")
-			case .success:
-				break
+			case .success(let snapshot):
+				XCTAssertEqual(
+					snapshot.schemaVersion, 2,
+					"\(filename) must have schema_version 2, got \(snapshot.schemaVersion)"
+				)
 			}
 		}
 	}
