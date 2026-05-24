@@ -33,7 +33,6 @@ final class PetConfigTests: XCTestCase {
 		withTempHome { _ in
 			// CODOGOTCHI_HOME set to a dir without config.json — must return default.
 			XCTAssertEqual(PetConfig.resolvedPetName(), DEFAULT_PET_NAME)
-			XCTAssertEqual(PetConfig.resolvedPetName(), "maew")
 		}
 	}
 
@@ -58,6 +57,13 @@ final class PetConfigTests: XCTestCase {
 	func testMissingPetKeyFallsBackToMaew() throws {
 		try withTempHome { dir in
 			try writeConfig("{}", in: dir)
+			XCTAssertEqual(PetConfig.resolvedPetName(), DEFAULT_PET_NAME)
+		}
+	}
+
+	func testEmptyPetKeyFallsBackToMaew() throws {
+		try withTempHome { dir in
+			try writeConfig(#"{"pet": ""}"#, in: dir)
 			XCTAssertEqual(PetConfig.resolvedPetName(), DEFAULT_PET_NAME)
 		}
 	}
