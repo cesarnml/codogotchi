@@ -17,6 +17,21 @@
       "findings": [],
       "probedSurfaces": [],
       "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "fd3e7501ca62d92bd6409c4c9f8130ade7c23850",
+      "outcome": "deferred",
+      "completedAt": "2026-05-24T04:09:44.120Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "reason": "F-3: Codex timer formula in restartTimer duplicates MaliPet.frameInterval — not a current bug, belongs in P3.04 Refactor pass or P3.05 per ticket spec",
+      "schemaVersion": 1,
+      "primaryAgent": "unknown",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
     }
   ]
 }
