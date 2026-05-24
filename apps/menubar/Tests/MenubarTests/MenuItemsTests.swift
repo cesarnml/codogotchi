@@ -5,9 +5,10 @@ import XCTest
 
 /// Behavior tests for the menu-bar `NSStatusItem` menu.
 ///
-/// The status item exposes exactly two items:
+/// The status item exposes exactly three items:
 ///   1. "Open log folder" — opens `~/.codogotchi/` via `NSWorkspace.open(_:)`
-///   2. "Quit Menubar" — terminates the app
+///   2. "Reveal pet folder" — opens `~/.codex/pets/` via `NSWorkspace.open(_:)`
+///   3. "Quit Menubar" — terminates the app
 ///
 /// Tests inject a workspace stub and a termination spy so menu actions can be
 /// invoked synchronously without touching Finder or actually quitting the
@@ -23,17 +24,19 @@ final class MenuItemsTests: XCTestCase {
 		}
 	}
 
-	func testMenuHasExactlyTwoItemsInExpectedOrder() {
+	func testMenuHasExactlyThreeItemsInExpectedOrder() {
 		let builder = MenubarMenu(
 			workspace: WorkspaceOpenSpy(),
 			terminate: {},
-			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests")
+			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
 		)
 		let menu = builder.build()
 
-		XCTAssertEqual(menu.items.count, 2)
-		XCTAssertEqual(menu.items[0].title, "Open log folder")
-		XCTAssertEqual(menu.items[1].title, "Quit Menubar")
+		XCTAssertEqual(menu.items.count, 3)
+		XCTAssertEqual(menu.items[0].title, MenubarMenu.openLogFolderTitle)
+		XCTAssertEqual(menu.items[1].title, MenubarMenu.revealPetFolderTitle)
+		XCTAssertEqual(menu.items[2].title, MenubarMenu.quitTitle)
 	}
 
 	func testOpenLogFolderActionInvokesWorkspaceOpenWithExpectedURL() {
@@ -42,7 +45,8 @@ final class MenuItemsTests: XCTestCase {
 		let builder = MenubarMenu(
 			workspace: workspace,
 			terminate: {},
-			logFolderURL: expectedURL
+			logFolderURL: expectedURL,
+			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
 		)
 		let menu = builder.build()
 		let openItem = menu.items[0]
@@ -55,15 +59,36 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(workspace.openedURLs, [expectedURL])
 	}
 
+	func testRevealPetFolderActionInvokesWorkspaceOpenWithExpectedURL() {
+		let workspace = WorkspaceOpenSpy()
+		let expectedURL = URL(fileURLWithPath: "/tmp/codex-pets")
+		let builder = MenubarMenu(
+			workspace: workspace,
+			terminate: {},
+			logFolderURL: URL(fileURLWithPath: "/tmp/logs"),
+			petFolderURL: expectedURL
+		)
+		let menu = builder.build()
+		let revealItem = menu.items[1]
+
+		guard let action = revealItem.action, let target = revealItem.target else {
+			return XCTFail("Reveal pet folder menu item must have an action and target")
+		}
+		_ = target.perform(action, with: revealItem)
+
+		XCTAssertEqual(workspace.openedURLs, [expectedURL])
+	}
+
 	func testQuitMenubarActionInvokesTerminationSpy() {
 		var terminationCount = 0
 		let builder = MenubarMenu(
 			workspace: WorkspaceOpenSpy(),
 			terminate: { terminationCount += 1 },
-			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests")
+			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
 		)
 		let menu = builder.build()
-		let quitItem = menu.items[1]
+		let quitItem = menu.items[2]
 
 		guard let action = quitItem.action, let target = quitItem.target else {
 			return XCTFail("Quit Menubar menu item must have an action and target")

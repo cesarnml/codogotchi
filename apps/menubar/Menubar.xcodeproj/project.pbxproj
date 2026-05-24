@@ -11,6 +11,8 @@
 		10C477E52698AA8D23BB295D /* MaliPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */; };
 		AA11BB22CC33DD44EE55FF01 /* CodogotchiPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF02 /* CodogotchiPet.swift */; };
 		AA11BB22CC33DD44EE55FF03 /* CodogotchiPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF04 /* CodogotchiPetTests.swift */; };
+		BB22CC33DD44EE55FF66AA01 /* PetConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF66AA02 /* PetConfig.swift */; };
+		BB22CC33DD44EE55FF66AA03 /* PetConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF66AA04 /* PetConfigTests.swift */; };
 		68F6834998A691C645CC84E7 /* state-json in Resources */ = {isa = PBXBuildFile; fileRef = 987A78AD0F583F16994A505C /* state-json */; };
 		752D2A65FA6D3BD28A4CCC2A /* MenuItemsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFA6A07F8992B60FA1858E6 /* MenuItemsTests.swift */; };
 		7C244C59EC0FAF582E7284AC /* MenubarRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0271F5AA5F21B8EDF5C82E84 /* MenubarRenderer.swift */; };
@@ -45,6 +47,8 @@
 		0271F5AA5F21B8EDF5C82E84 /* MenubarRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRenderer.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF02 /* CodogotchiPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiPet.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF04 /* CodogotchiPetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiPetTests.swift; sourceTree = "<group>"; };
+		BB22CC33DD44EE55FF66AA02 /* PetConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfig.swift; sourceTree = "<group>"; };
+		BB22CC33DD44EE55FF66AA04 /* PetConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfigTests.swift; sourceTree = "<group>"; };
 		05E9D6BCC385819217B4AA37 /* MenubarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MenubarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		08A2E1C50EB793ED6FA92CAA /* MaliPetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaliPetTests.swift; sourceTree = "<group>"; };
 		1EFA6A07F8992B60FA1858E6 /* MenuItemsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuItemsTests.swift; sourceTree = "<group>"; };
@@ -114,6 +118,7 @@
 				8CCEB747D45D3F725F8076F9 /* LivePollingDriver.swift */,
 				AA11BB22CC33DD44EE55FF02 /* CodogotchiPet.swift */,
 				F8BEEEE1C82135A15D3A50F5 /* MaliPet.swift */,
+				BB22CC33DD44EE55FF66AA02 /* PetConfig.swift */,
 				A59F4B215B1B9640B87D3F60 /* MenubarApp.swift */,
 				FDAD45AEF16502197B71A42A /* MenubarMenu.swift */,
 				0271F5AA5F21B8EDF5C82E84 /* MenubarRenderer.swift */,
@@ -130,6 +135,7 @@
 				457FC0B4AD3EFF117739B3CE /* LivePollingTests.swift */,
 				AA11BB22CC33DD44EE55FF04 /* CodogotchiPetTests.swift */,
 				08A2E1C50EB793ED6FA92CAA /* MaliPetTests.swift */,
+				BB22CC33DD44EE55FF66AA04 /* PetConfigTests.swift */,
 				4F5763985E7CF09EB2581201 /* MenubarRendererTests.swift */,
 				AE3B6E6E790FC05428728089 /* MenubarTests.swift */,
 				1EFA6A07F8992B60FA1858E6 /* MenuItemsTests.swift */,
@@ -237,6 +243,7 @@
 				A03A23FB09ED671533A20EFA /* LivePollingTests.swift in Sources */,
 				AA11BB22CC33DD44EE55FF03 /* CodogotchiPetTests.swift in Sources */,
 				845772E367D28B7F9CD18235 /* MaliPetTests.swift in Sources */,
+				BB22CC33DD44EE55FF66AA03 /* PetConfigTests.swift in Sources */,
 				752D2A65FA6D3BD28A4CCC2A /* MenuItemsTests.swift in Sources */,
 				8EF2C66FBB926E5B0DF59CA8 /* MenubarRendererTests.swift in Sources */,
 				02E711B348F0A6134E12B9CB /* MenubarTests.swift in Sources */,
@@ -256,6 +263,7 @@
 				DCA785FC4D7B0B5EEBD8C6E7 /* LivePollingDriver.swift in Sources */,
 				AA11BB22CC33DD44EE55FF01 /* CodogotchiPet.swift in Sources */,
 				10C477E52698AA8D23BB295D /* MaliPet.swift in Sources */,
+				BB22CC33DD44EE55FF66AA01 /* PetConfig.swift in Sources */,
 				C7BB44F43FB60F26B6FA683B /* MenubarApp.swift in Sources */,
 				C62A4CAD224C0A2833CD9439 /* MenubarMenu.swift in Sources */,
 				7C244C59EC0FAF582E7284AC /* MenubarRenderer.swift in Sources */,
