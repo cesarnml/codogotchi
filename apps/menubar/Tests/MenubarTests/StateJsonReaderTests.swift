@@ -84,7 +84,32 @@ final class StateJsonReaderTests: XCTestCase {
 			return
 		}
 		XCTAssertEqual(got, 99)
-		XCTAssertEqual(expected, 1)
+		XCTAssertEqual(expected, 2)
+	}
+
+	func testExpectedSchemaVersionIs2() {
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 2)
+	}
+
+	func testSchemaVersion3FailsWithSchemaNewer() throws {
+		// After the P3.04 bump, a v3 payload must fail with schemaNewer(got: 3, expected: 2).
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("schema-v3-\(UUID().uuidString).json")
+		try #"{"schema_version": 3, "activity_state": "idle", "updated_at": "x"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .failure(let error) = result else {
+			XCTFail("expected failure, got \(result)")
+			return
+		}
+		guard case .schemaNewer(let got, let expected) = error else {
+			XCTFail("expected schemaNewer, got \(error)")
+			return
+		}
+		XCTAssertEqual(got, 3)
+		XCTAssertEqual(expected, 2)
 	}
 
 	func testBooleanSchemaVersionReturnsSchemaMissingOrInvalid() throws {

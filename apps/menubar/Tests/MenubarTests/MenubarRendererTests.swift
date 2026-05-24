@@ -5,8 +5,8 @@ import XCTest
 @testable import Menubar
 
 /// Behavior contract for `MenubarRenderer` — the `NSStatusItem`-driving
-/// renderer for Phase 02's four floor states plus the desaturated visual
-/// mode used during early failure visuals.
+/// renderer that composites Codex-sheet and codogotchi-sheet frames, plus the
+/// desaturated visual mode used during early failure visuals.
 ///
 /// Tests inject an image-sink closure so they do not require a real
 /// `NSStatusItem` or a running `NSApplication` event loop.
@@ -14,7 +14,7 @@ import XCTest
 final class MenubarRendererTests: XCTestCase {
 	// MARK: - Fixture helpers
 
-	private func fixtureDirectory() -> String {
+	private func maliFixtureDirectory() -> String {
 		let thisFile = URL(fileURLWithPath: #file)
 		return thisFile
 			.deletingLastPathComponent()  // MenubarTests/
@@ -24,16 +24,34 @@ final class MenubarRendererTests: XCTestCase {
 			.path
 	}
 
-	private func makePet() throws -> MaliPet {
-		try MaliPet(petDirectory: fixtureDirectory())
+	private func maewFixtureDirectory() -> String {
+		let thisFile = URL(fileURLWithPath: #file)
+		return thisFile
+			.deletingLastPathComponent()  // MenubarTests/
+			.deletingLastPathComponent()  // Tests/
+			.deletingLastPathComponent()  // apps/menubar/
+			.appendingPathComponent("Fixtures/maew")
+			.path
+	}
+
+	private func makeCodexPet() throws -> MaliPet {
+		try MaliPet(petDirectory: maliFixtureDirectory())
+	}
+
+	private func makeCodogotchiPet() throws -> CodogotchiPet {
+		try CodogotchiPet(petDirectory: maewFixtureDirectory())
+	}
+
+	private func makeRenderer(sink: @escaping MenubarRenderer.ImageSink = { _ in }) throws -> MenubarRenderer {
+		try MenubarRenderer(codexPet: makeCodexPet(), codogotchiPet: makeCodogotchiPet(), sink: sink)
 	}
 
 	// MARK: - State transitions
 
 	func testNormalModeImplementingSelectsImplementingFrameSource() throws {
-		let pet = try makePet()
+		let codexPet = try makeCodexPet()
 		var lastImage: NSImage?
-		let renderer = MenubarRenderer(pet: pet) { image in
+		let renderer = try MenubarRenderer(codexPet: codexPet, codogotchiPet: makeCodogotchiPet()) { image in
 			lastImage = image
 		}
 
@@ -43,15 +61,16 @@ final class MenubarRendererTests: XCTestCase {
 		XCTAssertEqual(renderer.currentVisualModeForTesting, .normal)
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
-			pet.frames(for: .implementing).count,
+			codexPet.frames(for: .implementing).count,
 			"renderer must hold the implementing row's frame source"
 		)
 		XCTAssertNotNil(lastImage, "renderer must push at least one frame to the sink on state change")
 	}
 
 	func testStateTransitionResetsFrameIndexToZero() throws {
-		let pet = try makePet()
-		let renderer = MenubarRenderer(pet: pet) { _ in }
+		let codexPet = try makeCodexPet()
+		let codogotchiPet = try makeCodogotchiPet()
+		let renderer = try MenubarRenderer(codexPet: codexPet, codogotchiPet: codogotchiPet, sink: { _ in })
 
 		renderer.update(state: .implementing, visualMode: .normal)
 		// Simulate the timer firing twice so frameIndex advances away from 0.
@@ -73,14 +92,12 @@ final class MenubarRendererTests: XCTestCase {
 		)
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
-			pet.frames(for: .runningTests).count,
+			codexPet.frames(for: .runningTests).count,
 			"renderer must swap to the running-tests row frame source"
 		)
 
-		// Second transition: catches regressions where the reset only fires on
-		// the first state change but not subsequent ones. .celebrating has no
-		// rowMap entry after P3.03 (codogotchi sheet pending P3.04), so the
-		// renderer falls back to idle frames — the count should equal idle count.
+		// Second transition: .celebrating is in CodogotchiPet.rowMap (row 0, 24 frames)
+		// after P3.04 wires the codogotchi sheet. Frame count must equal codogotchi count.
 		renderer.advanceFrameForTesting()
 		renderer.advanceFrameForTesting()
 		renderer.update(state: .celebrating, visualMode: .normal)
@@ -92,17 +109,51 @@ final class MenubarRendererTests: XCTestCase {
 		)
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
-			pet.frames(for: .idle).count,
-			"unmapped codogotchi states must fall back to idle frame count until P3.04"
+			codogotchiPet.frames(for: .celebrating).count,
+			"celebrating must resolve from the codogotchi sheet after P3.04"
+		)
+	}
+
+	// MARK: - Composite resolution
+
+	func testCompositeResolutionWaitingUsesCodexSheet() throws {
+		let codexPet = try makeCodexPet()
+		let codogotchiPet = try makeCodogotchiPet()
+		let renderer = try MenubarRenderer(codexPet: codexPet, codogotchiPet: codogotchiPet, sink: { _ in })
+
+		renderer.update(state: .waiting, visualMode: .normal)
+
+		XCTAssertEqual(
+			renderer.currentFramesForTesting.count,
+			codexPet.frames(for: .waiting).count,
+			".waiting is in MaliPet.rowMap — must resolve from Codex sheet first"
+		)
+	}
+
+	func testCompositeResolutionPanickingUsesCodogotchiSheet() throws {
+		let codexPet = try makeCodexPet()
+		let codogotchiPet = try makeCodogotchiPet()
+		let renderer = try MenubarRenderer(codexPet: codexPet, codogotchiPet: codogotchiPet, sink: { _ in })
+
+		renderer.update(state: .panicking, visualMode: .normal)
+
+		XCTAssertEqual(
+			renderer.currentFramesForTesting.count,
+			codogotchiPet.frames(for: .panicking).count,
+			".panicking is not in MaliPet.rowMap — must fall through to codogotchi sheet"
+		)
+		XCTAssertEqual(
+			renderer.currentFramesForTesting.count,
+			24,
+			"codogotchi sheet frames for .panicking must be 24"
 		)
 	}
 
 	// MARK: - Desaturation
 
 	func testDesaturatedModeProducesGrayscalePixels() throws {
-		let pet = try makePet()
 		var lastImage: NSImage?
-		let renderer = MenubarRenderer(pet: pet) { image in
+		let renderer = try makeRenderer { image in
 			lastImage = image
 		}
 
