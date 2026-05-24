@@ -183,12 +183,12 @@ final class CodogotchiPet {
 
 	// MARK: - Helpers
 
-	private static func defaultPetDirectoryPath() -> String {
+	static func defaultPetDirectoryPath() -> String {
 		let home = FileManager.default.homeDirectoryForCurrentUser
 		return home
 			.appendingPathComponent(".codogotchi")
 			.appendingPathComponent("pets")
-			.appendingPathComponent("maew")
+			.appendingPathComponent(PetConfig.resolvedPetName())
 			.path
 	}
 }

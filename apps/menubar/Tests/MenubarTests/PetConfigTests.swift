@@ -22,11 +22,8 @@ final class PetConfigTests: XCTestCase {
 	}
 
 	private func writeConfig(_ json: String, in dir: URL) throws {
-		let codogotchiDir = dir.appendingPathComponent(".codogotchi")
-		try FileManager.default.createDirectory(
-			at: codogotchiDir, withIntermediateDirectories: true)
 		try json.write(
-			to: codogotchiDir.appendingPathComponent("config.json"),
+			to: dir.appendingPathComponent("config.json"),
 			atomically: true, encoding: .utf8)
 	}
 
