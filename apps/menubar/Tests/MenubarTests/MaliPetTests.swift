@@ -76,3 +76,58 @@ final class MaliPetTests: XCTestCase {
 		}
 	}
 }
+
+// MARK: - P3.03 Red tests: ActivityState 4→15 + Codex rowMap expansion
+
+final class ActivityStateEnumTests: XCTestCase {
+	func testRequestingInputRawValue() {
+		XCTAssertEqual(ActivityState(rawValue: "requesting_input"), .requestingInput)
+	}
+
+	func testErroredRawValue() {
+		XCTAssertEqual(ActivityState(rawValue: "errored"), .errored)
+	}
+
+	func testAllCasesCountIs15() {
+		XCTAssertEqual(ActivityState.allCases.count, 15)
+	}
+}
+
+final class MaliPetRowMapExpansionTests: XCTestCase {
+	private func fixtureDirectory() -> String {
+		let thisFile = URL(fileURLWithPath: #file)
+		return thisFile
+			.deletingLastPathComponent()
+			.deletingLastPathComponent()
+			.deletingLastPathComponent()
+			.appendingPathComponent("Fixtures/mali")
+			.path
+	}
+
+	func testRowMapWaitingRowIndex() {
+		XCTAssertEqual(MaliPet.rowMap[.waiting]?.rowIndex, 6)
+	}
+
+	func testRowMapRequestingInputRowIndex() {
+		XCTAssertEqual(MaliPet.rowMap[.requestingInput]?.rowIndex, 3)
+	}
+
+	func testRowMapErroredRowIndex() {
+		XCTAssertEqual(MaliPet.rowMap[.errored]?.rowIndex, 5)
+	}
+
+	func testCelebratingRemovedFromRowMap() {
+		XCTAssertNil(MaliPet.rowMap[.celebrating])
+	}
+
+	func testWaitingFramesCountAndRow() throws {
+		let pet = try MaliPet(petDirectory: fixtureDirectory())
+		let frames = pet.frames(for: .waiting)
+		XCTAssertEqual(frames.count, 8, ".waiting must yield 8 frames from row 6")
+	}
+
+	func testIdleFramesRegressionIs8() throws {
+		let pet = try MaliPet(petDirectory: fixtureDirectory())
+		XCTAssertEqual(pet.frames(for: .idle).count, 8, ".idle regression: must still yield 8 frames from row 0")
+	}
+}

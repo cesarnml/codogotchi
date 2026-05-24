@@ -12,7 +12,7 @@ import Foundation
 /// Closed-enum decoding (no `unknown(String)` case) is deliberate: the
 /// renderer must `switch` exhaustively without a `default:` and the contract
 /// doc forbids string escape hatches.
-enum ActivityState: String, Equatable, Codable {
+enum ActivityState: String, Equatable, Codable, CaseIterable {
 	case idle = "idle"
 	case implementing = "implementing"
 	case runningTests = "running-tests"
