@@ -69,9 +69,10 @@ final class MaliPetTests: XCTestCase {
 		XCTAssertEqual(frameAspect, expectedAspect, accuracy: 0.05, "frame aspect must match source cell aspect")
 	}
 
-	func testEveryFloorStateHasNonEmptyFrames() throws {
+	func testEveryCodexSheetStateHasNonEmptyFrames() throws {
 		let pet = try MaliPet(petDirectory: fixtureDirectory())
-		for state in [ActivityState.idle, .implementing, .runningTests, .celebrating] {
+		// Phase 03 Codex-sheet states — celebrating is intentionally absent (wired in P3.04).
+		for state in [ActivityState.idle, .implementing, .runningTests, .waiting, .requestingInput, .errored] {
 			XCTAssertFalse(pet.frames(for: state).isEmpty, "\(state) must yield frames")
 		}
 	}

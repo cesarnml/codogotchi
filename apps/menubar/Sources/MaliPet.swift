@@ -35,40 +35,47 @@ struct RowSpec: Equatable {
 	let frameCount: Int
 }
 
-/// Phase 02's pet asset loader.
+/// Pet asset loader for the Codex-spritesheet states.
 ///
 /// Reads `pet.json` + the WebP spritesheet from `petDirectory` (default
 /// `~/.codex/pets/mali/`) and exposes a hardcoded `ActivityState → RowSpec`
-/// table. The four floor states the renderer paints are mapped to their
-/// visually-inspected rows in `spritesheet-grid-8x9.png` (8 cols × 9 rows).
+/// table. Six Codex-sheet states are mapped to their visually-inspected rows
+/// in `spritesheet-grid-8x9.png` (8 cols × 9 rows); the remaining nine
+/// codogotchi-owned states are wired in P3.04.
 ///
 /// Hardcoded map is deliberate over `pet.json` extension or a sibling
-/// rows file because Phase 02 ships exactly one pet and the format
-/// extension belongs to Phase 06's multi-pet catalog work — see the ticket
-/// Rationale section.
+/// rows file because the format extension belongs to Phase 06's multi-pet
+/// catalog work — see the ticket Rationale section.
 final class MaliPet {
 	let id: String
 	let displayName: String
 	let spritesheet: NSImage
 
-	/// Hardcoded row map for the four floor states.
+	/// Codex-sheet row map. Only Codex-spritesheet-served states are listed
+	/// here; codogotchi-owned states (celebrating, hyped, focused, nervous,
+	/// ascended, callingForBackup, panicking, reviewing, pushing) are wired in
+	/// P3.04. States absent from this map fall back to `.idle` rendering via
+	/// `frames(for:)` returning an empty array and the renderer's idle fallback.
 	///
 	/// Row indices owner-confirmed against `spritesheet-grid-8x9.png` cells:
 	///
-	/// - `.idle`         → row 0 (top row of standing/idle chibi poses)
-	/// - `.implementing` → row 7 (seated chibi with laptop + glasses)
-	/// - `.runningTests` → row 8 (bottom row of pose variants)
-	/// - `.celebrating`  → row 4 (raised-arm / celebratory poses)
+	/// - `.idle`           → row 0 (standing/idle chibi poses)
+	/// - `.implementing`   → row 7 (seated chibi with laptop + glasses)
+	/// - `.runningTests`   → row 8 (bottom-row pose variants)
+	/// - `.waiting`        → row 6 (Codex-sheet waiting poses — P3.03)
+	/// - `.requestingInput`→ row 3 (Codex-sheet requesting-input poses — P3.03)
+	/// - `.errored`        → row 5 (Codex-sheet errored poses — P3.03)
 	///
-	/// Frame counts are visually estimated leading-frame counts before each
-	/// row terminates in unused magenta-background cells. If a count is
-	/// wrong, the renderer will animate fewer or more frames than intended;
-	/// correct here and rebuild.
+	/// `.celebrating` was row 4 in Phase 02 (Codex `jumping` row). It is
+	/// removed here — the codogotchi sheet owns it from P3.04 onward. Between
+	/// P3.03 and P3.04, `.celebrating` renders as `.idle` (honest intermediate).
 	static let rowMap: [ActivityState: RowSpec] = [
 		.idle: RowSpec(rowIndex: 0, frameCount: 8),
 		.implementing: RowSpec(rowIndex: 7, frameCount: 6),
 		.runningTests: RowSpec(rowIndex: 8, frameCount: 4),
-		.celebrating: RowSpec(rowIndex: 4, frameCount: 5),
+		.waiting: RowSpec(rowIndex: 6, frameCount: 8),
+		.requestingInput: RowSpec(rowIndex: 3, frameCount: 8),
+		.errored: RowSpec(rowIndex: 5, frameCount: 8),
 	]
 
 	/// Spritesheet grid dimensions. The grid PNG asserts 8 columns × 9 rows.

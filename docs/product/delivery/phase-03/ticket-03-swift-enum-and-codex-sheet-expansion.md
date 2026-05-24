@@ -55,8 +55,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: Build error: `type 'ActivityState' has no member 'waiting'` — the first missing case that prevented the Red test class from compiling.
+Why this path: Adding 11 enum cases and updating the rowMap is the minimal change. No switches over ActivityState exist in the codebase, so no fallthrough handling was needed.
+Alternative considered: Keeping a `default:` in the renderer if any switch existed, rather than explicit case handling. Rejected per ticket spec — closed-enum discipline requires explicit cases even when the body is a no-op. (No switches were present in practice.)
+Deferred: `EXPECTED_STATE_SCHEMA_VERSION` bump in `StateJsonReader.swift` — P3.04 ticket owns that. `CodogotchiPet` type rename from `MaliPet` — also deferred to P3.04. Demo cycle extension beyond 4 states — P3.06.
+Contract note: `unknown-state.json` fixture updated from `"ascended"` (now a valid enum case) to `"future_unknown_state"` to keep the unknown-state fallback test honest.

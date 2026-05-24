@@ -1,22 +1,36 @@
 import Foundation
 
-/// Floor-state subset of the v1 animation-state-vocabulary closed enum that
-/// Phase 02 renders.
+/// All 15 states of the v2 animation-state-vocabulary closed enum.
 ///
-/// The contract (`docs/contracts/animation-state-vocabulary.md`) defines more
-/// states than Phase 02 paints. Any contract-listed state outside the four
-/// floor cases — and any string the hook might emit that isn't in the
-/// contract — decodes as `.idle` via `init(from:)`. This is the
-/// "unknown-state → idle" fallback called out in P2.03's ticket spec.
+/// Raw values match the hook's emitted strings exactly (snake_case; hyphenated
+/// for `running-tests` and `calling_for_backup`). Any string not in this enum
+/// — including future states the renderer has not yet painted — decodes as
+/// `.idle` via `init(from:)`. This is the "unknown-state → idle" fallback
+/// called out in P2.03's ticket spec and preserved through Phase 03.
 ///
 /// Closed-enum decoding (no `unknown(String)` case) is deliberate: the
 /// renderer must `switch` exhaustively without a `default:` and the contract
 /// doc forbids string escape hatches.
 enum ActivityState: String, Equatable, Codable, CaseIterable {
+	// Floor states (Codex sheet — rendered since Phase 02)
 	case idle = "idle"
 	case implementing = "implementing"
 	case runningTests = "running-tests"
+	// New Codex-sheet states (wired in P3.03)
+	case waiting = "waiting"
+	case requestingInput = "requesting_input"
+	case errored = "errored"
+	// SoA-gate states (reliable tier — rendered via codogotchi sheet in P3.04)
+	case hyped = "hyped"
+	case focused = "focused"
+	case nervous = "nervous"
 	case celebrating = "celebrating"
+	case ascended = "ascended"
+	case callingForBackup = "calling_for_backup"
+	case panicking = "panicking"
+	// Heuristic-tier states (rendered via codogotchi sheet in P3.04)
+	case reviewing = "reviewing"
+	case pushing = "pushing"
 
 	init(from decoder: Decoder) throws {
 		let raw = try decoder.singleValueContainer().decode(String.self)
