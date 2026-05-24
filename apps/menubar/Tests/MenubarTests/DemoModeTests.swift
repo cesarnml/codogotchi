@@ -171,4 +171,66 @@ final class DemoModeTests: XCTestCase {
 			"CODOGOTCHI_DEMO=0 must be treated as off; only \"1\" activates demo mode"
 		)
 	}
+
+	// MARK: - P3.06: 15-state cycle
+
+	func testCycleDriverExposes15StatesInRotation() {
+		XCTAssertEqual(
+			DemoCycleDriver.cycle.count, 15,
+			"demo cycle must cover all 15 activity states"
+		)
+	}
+
+	func testCycleDriverCycleContainsAllActivityStates() {
+		let cycleStates = Set(DemoCycleDriver.cycle.map { $0.state })
+		for state in ActivityState.allCases {
+			XCTAssertTrue(cycleStates.contains(state), "cycle must include .\(state.rawValue)")
+		}
+	}
+
+	// MARK: - P3.06: CODOGOTCHI_DEMO_FRAME_MS
+
+	func testDefaultDemoFrameMsIs500() {
+		XCTAssertEqual(DemoConfig.demoFrameMs(from: [:]), 500)
+	}
+
+	func testDemoFrameMsEnvVarIsHonored() {
+		XCTAssertEqual(
+			DemoConfig.demoFrameMs(from: ["CODOGOTCHI_DEMO_FRAME_MS": "83"]), 83)
+	}
+
+	func testDemoFrameMsInvalidValueFallsBackTo500() {
+		XCTAssertEqual(
+			DemoConfig.demoFrameMs(from: ["CODOGOTCHI_DEMO_FRAME_MS": "invalid"]), 500)
+	}
+
+	func testDemoFrameMsNegativeValueFallsBackTo500() {
+		XCTAssertEqual(
+			DemoConfig.demoFrameMs(from: ["CODOGOTCHI_DEMO_FRAME_MS": "-10"]), 500)
+	}
+
+	// MARK: - P3.06: New fixture files
+
+	func testNewFixtureFilesExistAndParseAsV2() {
+		let newFilenames = [
+			"reviewing.json", "pushing.json", "hyped.json", "focused.json",
+			"nervous.json", "waiting.json", "ascended.json", "calling-for-backup.json",
+			"panicking.json", "requesting-input.json", "errored.json",
+		]
+		let dir = fixturesDirectory()
+		for filename in newFilenames {
+			let url = dir.appendingPathComponent(filename)
+			XCTAssertTrue(
+				FileManager.default.fileExists(atPath: url.path),
+				"\(filename) must exist in Fixtures/state-json/"
+			)
+			let result = StateJsonReader.read(at: url.path)
+			switch result {
+			case .failure(let err):
+				XCTFail("\(filename) failed to parse as v2 state.json: \(err)")
+			case .success:
+				break
+			}
+		}
+	}
 }
