@@ -5,13 +5,15 @@ agent activity feeds XP, HP, stage advancement, and loot. The data lives in
 Convex; a macOS menu bar pet renders the agent's animation state locally
 from `~/.codogotchi/state.json`.
 
-**Status:** Phase 02 — macOS menu bar pet (private). Phase 01 CLI + Convex
-pipeline is shipped (see [`docs/product/plans/phase-01-as-shipped.md`](docs/product/plans/phase-01-as-shipped.md));
-Phase 02 adds the first native Swift surface — an `NSStatusItem`-only
-menu bar app rendering the four floor animation states. No public surface
-yet. See [`docs/product/plans/phase-02.md`](docs/product/plans/phase-02.md)
-for the Phase 02 scope and explicit deferrals (floating window /
-SpriteKit, HP visuals, distribution polish all stay future-phase).
+**Status:** Phase 03 — SoA-aware pet (private). Phase 01 CLI + Convex
+pipeline is shipped; Phase 02 added the first native Swift surface (menu
+bar `NSStatusItem` with four floor states); Phase 03 extended to all 15
+activity states with a second spritesheet (`codogotchi-spritesheet.webp`)
+serving the nine SoA-gate states, `schema_version` bumped to 2, and
+per-pet configuration via `~/.codogotchi/config.json`. No public surface
+yet. See [`docs/product/plans/phase-03.md`](docs/product/plans/phase-03.md)
+for the Phase 03 scope and explicit deferrals (floating window / SpriteKit,
+HP visuals, distribution polish all stay future-phase).
 
 ## What ships in Phase 01
 
@@ -96,12 +98,15 @@ Environment overrides:
 
 | Path | Owner | Purpose |
 | --- | --- | --- |
-| `~/.codogotchi/config.json` | `setup`, `config` | Credentials and health knobs |
+| `~/.codogotchi/config.json` | `setup`, `config` | Credentials, health knobs, and pet name |
 | `~/.codogotchi/profile.json` | `sync` | Local cache of Convex profile |
-| `~/.codogotchi/state.json` | `codogotchi-hook` | Animation state for renderers |
+| `~/.codogotchi/state.json` | `codogotchi-hook` | Animation state for renderers (`schema_version: 2`) |
+| `~/.codogotchi/state-transitions.log` | menubar app | NDJSON log of state changes and heartbeats |
 | `~/.codogotchi/sync.log` | `sync` | Per-source success / failure (rotated) |
 | `~/.codogotchi/loot.log` | `sync` (via Convex) | Loot history (for `loot`) |
 | `~/.codogotchi/scorePR.log` | `sync` | `scorePR` heuristic decisions |
+| `~/.codex/pets/<name>/` | user | Codex-sheet pet assets (`pet.json` + spritesheet) |
+| `~/.codogotchi/pets/<name>/` | user | Codogotchi-sheet pet assets (`pet.json` + `codogotchi-spritesheet.webp`) |
 | Convex `profiles`, `loot_events`, `users` | server | Canonical state |
 
 ## Health semantics
@@ -113,6 +118,23 @@ Three knobs in `~/.codogotchi/config.json`:
 - `health.grace_days` — days of inactivity before HP starts decaying.
 - `health.vacation_until` — ISO date through which HP decay is suspended; set
   via `codogotchi vacation on`.
+
+## Pet configuration (Phase 03+)
+
+The menubar app resolves the active pet from `~/.codogotchi/config.json`:
+
+```json
+{ "pet": "maew" }
+```
+
+The `pet` key selects asset directories under `~/.codex/pets/<name>/` (Codex
+sheet) and `~/.codogotchi/pets/<name>/` (codogotchi sheet). The compiled-in
+default is `"maew"`. A missing, malformed, or `pet`-key-absent config falls
+back to `"maew"` silently. The menu bar's **Reveal pet folder** item opens
+`~/.codex/pets/` in Finder so you can inspect or swap the active pet.
+
+The env var `CODOGOTCHI_HOME` overrides the config file path for the menubar
+app and is the test-isolation mechanism used in `PetConfigTests`.
 
 ## Contracts to read before extending
 
