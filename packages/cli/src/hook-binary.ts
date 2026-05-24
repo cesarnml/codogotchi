@@ -158,13 +158,13 @@ export function classifyEvent(
   // unless the stop reason or an explicit flag indicates a response failure.
   const rawEventName = input.hook_event_name?.toLowerCase();
   if (rawEventName === "stop") {
-    if (input.is_error || isFailureStopReason(input.stop_reason)) {
+    if (input.is_error === true || isFailureStopReason(input.stop_reason)) {
       return { state: "errored", sourceEvent, readRun: 0 };
     }
     return { state: "requesting_input", sourceEvent, readRun: prior.readRun };
   }
   // Heuristic: explicit failure signal for non-Stop events (rate limit, network error).
-  if (input.is_error) {
+  if (input.is_error === true) {
     return { state: "errored", sourceEvent, readRun: 0 };
   }
 
