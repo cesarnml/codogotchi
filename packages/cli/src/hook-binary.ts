@@ -29,6 +29,10 @@ export type HookInput = {
   tool_name?: string;
   tool_input?: { command?: string } & Record<string, unknown>;
   hook_event_name?: string;
+  // Stop-hook stop reason (e.g. "end_turn", "max_tokens").
+  stop_reason?: string;
+  // Explicit failure signal for rate-limit / network-error events.
+  is_error?: boolean;
 };
 
 export type ClassifyState = { readRun: number };

@@ -230,6 +230,39 @@ describe("classifyEvent", () => {
     expect(out.sourceEvent.origin).toBe("codex");
     expect(out.sourceEvent.kind).toBe("session_end");
   });
+
+  it("classifies Stop event as requesting_input", () => {
+    const out = classifyEvent({ hook_event_name: "Stop" } as HookInput, {
+      readRun: 0,
+    });
+    expect(out.state).toBe("requesting_input");
+    expect(out.sourceEvent.origin).toBe("claude_code");
+    expect(out.sourceEvent.kind).toBe("session_end");
+  });
+
+  it("classifies Stop event with stop_reason max_tokens as errored", () => {
+    const out = classifyEvent(
+      { hook_event_name: "Stop", stop_reason: "max_tokens" } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("errored");
+  });
+
+  it("classifies explicit is_error payload as errored", () => {
+    const out = classifyEvent(
+      { hook_event_name: "Stop", is_error: true } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("errored");
+  });
+
+  it("regression: Edit tool-use still classifies as implementing (v2 path)", () => {
+    const out = classifyEvent(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("implementing");
+  });
 });
 
 describe("runHook", () => {
@@ -373,6 +406,33 @@ describe("runHook", () => {
     expect(readState(home).activity_state).toBe("idle");
   });
 
+  it("writes schema_version 2 for a Stop event", async () => {
+    await runHook({ hook_event_name: "Stop" } as HookInput, {
+      home,
+      now: FIXED_NOW,
+    });
+    const state = readState(home);
+    expect(state.schema_version).toBe(STATE_JSON_SCHEMA_VERSION);
+    expect(state.schema_version).toBe(2);
+    expect(state.activity_state).toBe("requesting_input");
+  });
+
+  it("classifies Stop event as requesting_input in runHook", async () => {
+    await runHook({ hook_event_name: "Stop" } as HookInput, {
+      home,
+      now: FIXED_NOW,
+    });
+    expect(readState(home).activity_state).toBe("requesting_input");
+  });
+
+  it("classifies Stop+max_tokens as errored in runHook", async () => {
+    await runHook(
+      { hook_event_name: "Stop", stop_reason: "max_tokens" } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+    expect(readState(home).activity_state).toBe("errored");
+  });
+
   it("silently skips on malformed JSON without throwing", async () => {
     // Simulate a parser error path by passing invalid input through the
     // raw stdin entrypoint helper.
@@ -481,6 +541,23 @@ describe("runHook + SoA gate precedence", () => {
     const state = readState(home);
     expect(state.activity_state).toBe("implementing");
     expect(state.source_event.origin).toBe("claude_code");
+  });
+
+  it("fresh SoA ticket_started overrides Stop requesting_input classification", async () => {
+    writeFileSync(
+      join(projectRoot, ".soa", "events.ndjson"),
+      `${JSON.stringify({ name: "ticket_started", ts: "2026-05-18T16:00:00Z" })}\n`,
+    );
+    await runHook({ hook_event_name: "Stop" } as HookInput, {
+      home,
+      now: FIXED_NOW,
+      env: { CLAUDE_PROJECT_DIR: projectRoot },
+      cwd: projectRoot,
+    });
+    const state = readState(home);
+    expect(state.activity_state).toBe("hyped");
+    expect(state.source_event.origin).toBe("soa");
+    expect(state.source_event.name).toBe("ticket_started");
   });
 
   it("ignores SoA events with unknown event names", async () => {
