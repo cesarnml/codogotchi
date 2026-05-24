@@ -91,7 +91,7 @@ final class LivePollingTests: XCTestCase {
 		XCTAssertEqual(recorder.renders.map { $0.1 }, [.desaturated])
 		XCTAssertEqual(
 			recorder.tooltips,
-			[LivePollingTooltips.schemaNewer(got: 99, expected: 1)],
+			[LivePollingTooltips.schemaNewer(got: 99, expected: 2)],
 			"schema-newer tooltip must format both version integers via the canonical template"
 		)
 		// Spot-check the literal substring so an accidental template-string drift
@@ -99,7 +99,7 @@ final class LivePollingTests: XCTestCase {
 		// without needing to re-implement the template assembly here.
 		XCTAssertEqual(
 			recorder.tooltips.first ?? nil,
-			"state.json schema_version is v99; this app supports v1. Update the menu bar app."
+			"state.json schema_version is v99; this app supports v2. Update the menu bar app."
 		)
 	}
 

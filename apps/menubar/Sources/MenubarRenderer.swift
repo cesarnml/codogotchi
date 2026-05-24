@@ -16,13 +16,32 @@ enum VisualMode: Equatable {
 	case desaturated
 }
 
-/// Paints Mali into the menu-bar `NSStatusItem` for the four floor states.
+/// Which spritesheet produced the frames the renderer is currently animating.
+/// The renderer uses this to select the correct per-frame interval without
+/// having to inspect the frame count or call into either loader.
+enum SpriteSource {
+	/// Frame came from `MaliPet` (Codex sheet, ~125 ms/frame).
+	case codex
+	/// Frame came from `CodogotchiPet` (codogotchi sheet, ~167 ms/frame).
+	case codogotchi
+	/// Neither loader had frames for the state; renderer is showing `.idle`
+	/// frames from the Codex sheet.
+	case idleFallback
+}
+
+/// Composites Codex-sheet and codogotchi-sheet frames into the menu-bar
+/// `NSStatusItem`, animating whichever spritesheet serves the current state.
+///
+/// Resolution order for any `ActivityState`:
+/// 1. `MaliPet` (Codex sheet) — checked first via `MaliPet.rowMap`.
+/// 2. `CodogotchiPet` (codogotchi sheet) — checked second.
+/// 3. Idle fallback — `.idle` frames from the Codex sheet when both return empty.
 ///
 /// The renderer is driven by external `update(state:visualMode:)` calls — it
 /// does **not** read `state.json` directly (that's P2.07's job) and it does
 /// not pick its own state. While a state is held the renderer animates its
-/// frames on a 1-second-per-cycle continuous loop; on state transition the
-/// new loop begins from frame 0 on the next tick.
+/// frames on a continuous loop; on state transition the new loop begins from
+/// frame 0 on the next tick.
 ///
 /// All writes to `NSStatusItem.button.image` happen on the main actor. The
 /// renderer accepts an injected `ImageSink` closure so tests can drive it
@@ -34,21 +53,27 @@ final class MenubarRenderer {
 	/// emitted `NSImage` for assertion.
 	typealias ImageSink = (NSImage) -> Void
 
-	private let pet: MaliPet
+	private let codexPet: MaliPet
+	/// Nil when the codogotchi sheet was not installed at launch (soft degrade).
+	/// The nine SoA-owned states fall back to idle rendering while nil.
+	private let codogotchiPet: CodogotchiPet?
 	private let sink: ImageSink
 	private let ciContext: CIContext
 
 	private var currentState: ActivityState = .idle
 	private var currentMode: VisualMode = .normal
 	private var currentFrames: [MaliPet.Frame] = []
+	private var currentSource: SpriteSource = .codex
 	private var frameIndex: Int = 0
 	private var timer: Timer?
 
-	init(pet: MaliPet, sink: @escaping ImageSink) {
-		self.pet = pet
+	init(codexPet: MaliPet, codogotchiPet: CodogotchiPet?, sink: @escaping ImageSink) {
+		self.codexPet = codexPet
+		self.codogotchiPet = codogotchiPet
 		self.sink = sink
 		self.ciContext = CIContext(options: nil)
-		self.currentFrames = pet.frames(for: .idle)
+		self.currentFrames = codexPet.frames(for: .idle)
+		self.currentSource = .codex
 	}
 
 	deinit {
@@ -56,10 +81,9 @@ final class MenubarRenderer {
 	}
 
 	/// Switch to `state` in `visualMode`. On state change the frame index
-	/// resets to 0 so the new loop starts at the beginning of the row; on a
-	/// visual-mode-only change the current frame is repainted under the new
-	/// mode without restarting the loop. The 1-second animation timer is
-	/// (re)scheduled with an interval of `1 / frameCount` seconds.
+	/// resets to 0 so the new loop begins at frame 0; on a visual-mode-only
+	/// change the current frame is repainted under the new mode without
+	/// restarting the loop.
 	func update(state: ActivityState, visualMode: VisualMode) {
 		let stateChanged = state != currentState || currentFrames.isEmpty
 		let modeChanged = visualMode != currentMode
@@ -67,10 +91,7 @@ final class MenubarRenderer {
 		currentMode = visualMode
 
 		if stateChanged {
-			let frames = pet.frames(for: state)
-			// States not yet in the rowMap (codogotchi-sheet states pending P3.04)
-			// fall back to idle frames so the menubar always shows something.
-			currentFrames = frames.isEmpty ? pet.frames(for: .idle) : frames
+			resolveFrames(for: state)
 			frameIndex = 0
 		}
 
@@ -106,6 +127,25 @@ final class MenubarRenderer {
 	}
 
 	// MARK: - Internals
+
+	/// Populate `currentFrames` and `currentSource` via composite resolution.
+	private func resolveFrames(for state: ActivityState) {
+		let codexFrames = codexPet.frames(for: state)
+		if !codexFrames.isEmpty {
+			currentFrames = codexFrames
+			currentSource = .codex
+			return
+		}
+		let codogotchiFrames = codogotchiPet?.frames(for: state) ?? []
+		if !codogotchiFrames.isEmpty {
+			currentFrames = codogotchiFrames
+			currentSource = .codogotchi
+			return
+		}
+		// Neither sheet maps this state — fall back to Codex idle.
+		currentFrames = codexPet.frames(for: .idle)
+		currentSource = .idleFallback
+	}
 
 	private func renderedCurrentFrame() -> NSImage? {
 		guard !currentFrames.isEmpty else { return nil }
@@ -146,9 +186,17 @@ final class MenubarRenderer {
 
 	private func restartTimer() {
 		timer?.invalidate()
-		let frameCount = max(currentFrames.count, 1)
-		let interval = 1.0 / Double(frameCount)
-		dbgLog("DBG restartTimer: frameCount=\(frameCount) interval=\(interval)")
+		let interval: TimeInterval
+		switch currentSource {
+		case .codogotchi:
+			interval = CodogotchiPet.frameInterval
+		case .codex, .idleFallback:
+			// Codex sheet cycles all rows in ~1 s by dividing by the actual
+			// frame count. Variable frame counts per row (8, 6, 4) each produce
+			// a ~1 s animation cycle.
+			interval = 1.0 / Double(max(currentFrames.count, 1))
+		}
+		dbgLog("DBG restartTimer: source=\(currentSource) interval=\(interval)")
 		let newTimer = Timer(timeInterval: interval, repeats: true) {
 			[weak self] _ in
 			let t = CACurrentMediaTime()

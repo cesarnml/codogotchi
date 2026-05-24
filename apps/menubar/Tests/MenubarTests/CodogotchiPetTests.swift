@@ -98,7 +98,8 @@ final class CodogotchiPetTests: XCTestCase {
 		let first = try XCTUnwrap(frames.first)
 		XCTAssertEqual(first.image.size.height, 22, accuracy: 0.001)
 		// Codogotchi sheet is 24 columns wide; confirm pixel aspect matches.
-		let sheetCG = try XCTUnwrap(pet.spritesheet.cgImage(forProposedRect: nil, context: nil, hints: nil))
+		let sheet = try XCTUnwrap(pet.spritesheet, "fixture spritesheet must be loaded")
+		let sheetCG = try XCTUnwrap(sheet.cgImage(forProposedRect: nil, context: nil, hints: nil))
 		let sourceCellWidth = sheetCG.width / 24
 		let sourceCellHeight = sheetCG.height / 9
 		let expectedAspect = Double(sourceCellWidth) / Double(sourceCellHeight)

@@ -93,8 +93,18 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		// populated), keep the placeholder `pawprint` icon — the renderer
 		// is optional Phase 02 scaffolding, not a hard launch requirement.
 		do {
-			let pet = try MaliPet()
-			let renderer = MenubarRenderer(pet: pet) { [weak item] image in
+			let codexPet = try MaliPet()
+			// Soft degrade: if the codogotchi pet directory is absent or its
+			// spritesheet is missing, pass nil — the nine SoA-owned states fall
+			// back to idle until the sheet is installed at the default path.
+			let codogotchiPet = try? CodogotchiPet()
+			if codogotchiPet == nil {
+				NSLog(
+					"MenubarApp: CodogotchiPet not available — codogotchi-owned states render as idle"
+				)
+			}
+			let renderer = MenubarRenderer(codexPet: codexPet, codogotchiPet: codogotchiPet) {
+				[weak item] image in
 				let t = CACurrentMediaTime()
 				let hasButton = item?.button != nil
 				dbgLog(

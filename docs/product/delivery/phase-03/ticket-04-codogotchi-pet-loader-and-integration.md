@@ -64,8 +64,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `Cannot find type 'CodogotchiPet' in scope` — test compilation failed as expected; the Red commit updated `MenubarRendererTests` to the new init signature and added `CodogotchiPetTests.swift` and `StateJsonReaderTests` version-2 assertions before any implementation.
+Why this path: `CodogotchiPet` mirrors `MaliPet`'s exact shape (no shared base type in Green, per ticket spec). `MenubarRenderer` takes `CodogotchiPet?` so `MenubarApp` can pass `try? CodogotchiPet()` and soft-degrade when the pet directory is absent, without needing a special "null object" pattern.
+Alternative considered: Making `CodogotchiPet.init` non-throwing with an internal soft-degrade path for missing `pet.json` (not just missing spritesheet). Rejected — the ticket's "not a hard load failure" clause only covers a missing spritesheet; `pet.json` absence maps cleanly to `petJsonNotFound` matching `MaliPet`'s existing error policy. Using `CodogotchiPet?` in the renderer init handles the production missing-directory case without widening the soft-degrade contract.
+Deferred: `MaliPet`/`CodogotchiPet` shared extraction (PetLoader protocol or base type) — left for P3.04 Refactor or Phase 06 multi-pet catalog work per ticket spec.
+Contract note: `LivePollingTests.testSchemaNewerRendersIdleDesaturatedWithInterpolatedSchemaNewerTooltip` hardcoded `v1`; updated to `v2` alongside the `EXPECTED_STATE_SCHEMA_VERSION` bump. `MaliPet.frameInterval` static added to make the Codex frame rate self-documenting alongside `CodogotchiPet.frameInterval`.
