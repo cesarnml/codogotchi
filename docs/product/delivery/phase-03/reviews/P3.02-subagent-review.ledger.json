@@ -1,0 +1,22 @@
+{
+  "ticket": "P3.02",
+  "invocations": [
+    {
+      "runnerKind": "codex-cli",
+      "reviewedHeadSha": "824efc70bbe6268623b8997bc9532819ebbc79fb",
+      "outcome": "clean",
+      "completedAt": "2026-05-24T03:29:02.060Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-03/reviews/P3.02-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-03/reviews/P3.02-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "unknown",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}
