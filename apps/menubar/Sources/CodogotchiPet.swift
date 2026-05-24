@@ -90,6 +90,11 @@ final class CodogotchiPet {
 		let sheetURL = dirURL.appendingPathComponent(manifest.spritesheetPath)
 		guard FileManager.default.fileExists(atPath: sheetURL.path) else {
 			// Soft degrade: spritesheet absent, frames will return empty arrays.
+			// Log once so operators can diagnose silent idle rendering.
+			NSLog(
+				"CodogotchiPet: spritesheet absent at %@ — codogotchi-owned states will render as idle",
+				sheetURL.path
+			)
 			self.spritesheet = nil
 			self.cgSheet = nil
 			self.frameWidth = 0

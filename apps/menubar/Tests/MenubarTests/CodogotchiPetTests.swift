@@ -107,6 +107,43 @@ final class CodogotchiPetTests: XCTestCase {
 		XCTAssertEqual(
 			frameAspect, expectedAspect, accuracy: 0.05,
 			"frame aspect must match source cell aspect (24-col grid)")
+
+		// Verify panicking frames (row 6) differ in pixel content from celebrating
+		// frames (row 0). A bug that always slices from row 0 would still pass the
+		// aspect-ratio check above; this catches that class of bug.
+		let celebratingFrames = pet.frames(for: .celebrating)
+		XCTAssertEqual(celebratingFrames.count, 24)
+		let panickingFirst = first.cgImage
+		let celebratingFirst = try XCTUnwrap(celebratingFrames.first).cgImage
+		XCTAssertFalse(
+			cgImagesPixelEqual(panickingFirst, celebratingFirst),
+			"panicking (row 6) and celebrating (row 0) frames must differ in pixel content"
+		)
+	}
+
+	/// Pixel-equality check: render both images into equal-sized RGBA buffers and
+	/// compare. Returns `true` only when every sampled pixel matches exactly.
+	private func cgImagesPixelEqual(_ a: CGImage, _ b: CGImage) -> Bool {
+		guard a.width == b.width, a.height == b.height else { return false }
+		let w = a.width, h = a.height
+		let n = w * h * 4
+		var bufA = [UInt8](repeating: 0, count: n)
+		var bufB = [UInt8](repeating: 0, count: n)
+		let cs = CGColorSpaceCreateDeviceRGB()
+		let bi = CGImageAlphaInfo.premultipliedLast.rawValue
+		func draw(_ img: CGImage, into buf: inout [UInt8]) -> Bool {
+			buf.withUnsafeMutableBytes { raw in
+				guard let base = raw.baseAddress,
+					let ctx = CGContext(
+						data: base, width: w, height: h, bitsPerComponent: 8,
+						bytesPerRow: w * 4, space: cs, bitmapInfo: bi)
+				else { return }
+				ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+			}
+			return true
+		}
+		guard draw(a, into: &bufA), draw(b, into: &bufB) else { return false }
+		return bufA == bufB
 	}
 
 	// MARK: - Soft degrade: missing sheet
@@ -183,5 +220,17 @@ final class CodogotchiPetTests: XCTestCase {
 			bitsPerPixel: 0
 		)!
 		return bitmapRep.representation(using: .png, properties: [:])!
+	}
+}
+
+// MARK: - Cross-loader disjointness
+
+final class CrossLoaderRowMapTests: XCTestCase {
+	func testMaliPetAndCodogotchiRowMapsAreDisjoint() {
+		let overlap = Set(MaliPet.rowMap.keys).intersection(Set(CodogotchiPet.rowMap.keys))
+		XCTAssertTrue(
+			overlap.isEmpty,
+			"MaliPet and CodogotchiPet row maps must not share states — resolution order would silently shadow codogotchi: \(overlap)"
+		)
 	}
 }
