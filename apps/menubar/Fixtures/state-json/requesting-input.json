@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "activity_state": "requesting_input",
+  "hp_overlay": "stable",
+  "hp": 70,
+  "updated_at": "2026-05-24T00:09:00.000Z",
+  "source_event": {
+    "origin": "manual",
+    "kind": "demo",
+    "name": "requesting_input"
+  }
+}

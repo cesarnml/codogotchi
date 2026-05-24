@@ -92,6 +92,12 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		// missing (e.g. on a dev machine without `~/.codex/pets/mali/`
 		// populated), keep the placeholder `pawprint` icon — the renderer
 		// is optional Phase 02 scaffolding, not a hard launch requirement.
+		// Resolve demo config before creating the renderer so we can pass the
+		// demo frame interval at construction time — the renderer's timer logic
+		// uses it from the first tick.
+		let config = DemoConfig.forLaunch()
+		self.demoConfig = config
+
 		do {
 			let codexPet = try MaliPet()
 			// Soft degrade: if the codogotchi pet directory is absent or its
@@ -103,20 +109,26 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					"MenubarApp: CodogotchiPet not available — codogotchi-owned states render as idle"
 				)
 			}
-			let renderer = MenubarRenderer(codexPet: codexPet, codogotchiPet: codogotchiPet) {
-				[weak item] image in
-				let t = CACurrentMediaTime()
-				let hasButton = item?.button != nil
-				dbgLog(
-					"DBG t=\(t) sink: hasItem=\(item != nil) hasButton=\(hasButton) in=\(image.size.width)x\(image.size.height)"
-				)
-				item?.button?.image = image
-				let actual = item?.button?.image?.size
-				let win = item?.button?.window
-				dbgLog(
-					"DBG t=\(t) sink: after-set actual=\(actual?.width ?? -1)x\(actual?.height ?? -1) windowVisible=\(win?.isVisible ?? false) buttonHidden=\(item?.button?.isHidden ?? true)"
-				)
-			}
+			let demoInterval: TimeInterval? = config.isDemoMode
+				? Double(DemoConfig.demoFrameMs(from: ProcessInfo.processInfo.environment)) / 1000.0
+				: nil
+			let renderer = MenubarRenderer(
+				codexPet: codexPet, codogotchiPet: codogotchiPet,
+				sink: { [weak item] image in
+					let t = CACurrentMediaTime()
+					let hasButton = item?.button != nil
+					dbgLog(
+						"DBG t=\(t) sink: hasItem=\(item != nil) hasButton=\(hasButton) in=\(image.size.width)x\(image.size.height)"
+					)
+					item?.button?.image = image
+					let actual = item?.button?.image?.size
+					let win = item?.button?.window
+					dbgLog(
+						"DBG t=\(t) sink: after-set actual=\(actual?.width ?? -1)x\(actual?.height ?? -1) windowVisible=\(win?.isVisible ?? false) buttonHidden=\(item?.button?.isHidden ?? true)"
+					)
+				},
+				demoFrameInterval: demoInterval
+			)
 			renderer.update(state: .idle, visualMode: .normal)
 			self.renderer = renderer
 		} catch {
@@ -126,8 +138,6 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		// Demo mode: re-point the polling target to a sandboxed file and run
 		// the fixture cycle driver. P2.07 will own live polling against the
 		// non-demo `pollingTarget`.
-		let config = DemoConfig.forLaunch()
-		self.demoConfig = config
 		if self.renderer != nil {
 			// Demo mode writes its log under a sandboxed sibling of its
 			// `pollingTarget` so a live run is never trampled by a demo

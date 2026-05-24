@@ -43,6 +43,22 @@ struct DemoConfig: Equatable {
 		)
 	}
 
+	/// Default frame interval for demo mode (ms). Named constant so it is not
+	/// scattered as a magic number across the renderer and the test suite.
+	static let defaultDemoFrameMs: Int = 500
+
+	/// Resolve the demo frame interval in milliseconds from the environment.
+	///
+	/// `CODOGOTCHI_DEMO_FRAME_MS`, when present and parseable as a positive
+	/// integer, overrides the 500 ms default. Out-of-range or unparseable
+	/// values silently fall back to `defaultDemoFrameMs`.
+	static func demoFrameMs(from environment: [String: String]) -> Int {
+		guard let raw = environment["CODOGOTCHI_DEMO_FRAME_MS"],
+			let value = Int(raw), value > 0
+		else { return defaultDemoFrameMs }
+		return value
+	}
+
 	/// Production seam: reads `ProcessInfo` at launch time.
 	static func forLaunch() -> DemoConfig {
 		let env = ProcessInfo.processInfo.environment

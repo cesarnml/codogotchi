@@ -31,7 +31,7 @@ final class DemoModeTests: XCTestCase {
 
 	// MARK: - DemoCycleDriver cycle order
 
-	func testCycleDriverEmitsFloorStatesInCycleOrder() throws {
+	func testCycleDriverEmitsFirstFiveStatesInCycleOrder() throws {
 		var observed: [ActivityState] = []
 		let driver = DemoCycleDriver(
 			sandboxedPath: makeSandboxPath(),
@@ -39,18 +39,18 @@ final class DemoModeTests: XCTestCase {
 			apply: { state in observed.append(state) }
 		)
 
-		for _ in 0..<4 {
+		for _ in 0..<5 {
 			try driver.tickForTesting()
 		}
 
 		XCTAssertEqual(
 			observed,
-			[.idle, .implementing, .runningTests, .celebrating],
-			"demo cycle must emit the four floor states in canonical order: idle → implementing → running-tests → celebrating"
+			[.idle, .implementing, .runningTests, .reviewing, .pushing],
+			"demo cycle first five states: idle → implementing → running-tests → reviewing → pushing"
 		)
 	}
 
-	func testCycleDriverLoopsBackToIdleAfterCelebrating() throws {
+	func testCycleDriverLoopsBackToIdleAfterAllStates() throws {
 		var observed: [ActivityState] = []
 		let driver = DemoCycleDriver(
 			sandboxedPath: makeSandboxPath(),
@@ -58,14 +58,18 @@ final class DemoModeTests: XCTestCase {
 			apply: { state in observed.append(state) }
 		)
 
-		for _ in 0..<6 {
+		for _ in 0..<17 {
 			try driver.tickForTesting()
 		}
 
 		XCTAssertEqual(
-			observed,
-			[.idle, .implementing, .runningTests, .celebrating, .idle, .implementing],
-			"cycle must loop back to .idle after .celebrating without stalling"
+			observed.first, .idle, "cycle must start at .idle"
+		)
+		XCTAssertEqual(
+			observed[15], .idle, "cycle must loop back to .idle after all 15 states"
+		)
+		XCTAssertEqual(
+			observed[16], .implementing, "second wrap must resume at .implementing"
 		)
 	}
 

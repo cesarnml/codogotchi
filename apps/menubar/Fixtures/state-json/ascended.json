@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "activity_state": "ascended",
+  "hp_overlay": "thriving",
+  "hp": 100,
+  "updated_at": "2026-05-24T00:06:00.000Z",
+  "source_event": {
+    "origin": "manual",
+    "kind": "demo",
+    "name": "ascended"
+  }
+}

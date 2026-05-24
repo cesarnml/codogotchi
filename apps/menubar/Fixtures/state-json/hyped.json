@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "activity_state": "hyped",
+  "hp_overlay": "thriving",
+  "hp": 95,
+  "updated_at": "2026-05-24T00:02:00.000Z",
+  "source_event": {
+    "origin": "manual",
+    "kind": "demo",
+    "name": "hyped"
+  }
+}

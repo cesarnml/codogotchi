@@ -66,12 +66,22 @@ final class MenubarRenderer {
 	private var currentSource: SpriteSource = .codex
 	private var frameIndex: Int = 0
 	private var timer: Timer?
+	/// When set, overrides the sheet-specific frame interval for every state.
+	/// Demo mode passes `CODOGOTCHI_DEMO_FRAME_MS / 1000.0` here so each frame
+	/// is individually inspectable regardless of which spritesheet serves it.
+	private let demoFrameInterval: TimeInterval?
 
-	init(codexPet: MaliPet, codogotchiPet: CodogotchiPet?, sink: @escaping ImageSink) {
+	init(
+		codexPet: MaliPet,
+		codogotchiPet: CodogotchiPet?,
+		sink: @escaping ImageSink,
+		demoFrameInterval: TimeInterval? = nil
+	) {
 		self.codexPet = codexPet
 		self.codogotchiPet = codogotchiPet
 		self.sink = sink
 		self.ciContext = CIContext(options: nil)
+		self.demoFrameInterval = demoFrameInterval
 		self.currentFrames = codexPet.frames(for: .idle)
 		self.currentSource = .codex
 	}
@@ -187,14 +197,20 @@ final class MenubarRenderer {
 	private func restartTimer() {
 		timer?.invalidate()
 		let interval: TimeInterval
-		switch currentSource {
-		case .codogotchi:
-			interval = CodogotchiPet.frameInterval
-		case .codex, .idleFallback:
-			// Codex sheet cycles all rows in ~1 s by dividing by the actual
-			// frame count. Variable frame counts per row (8, 6, 4) each produce
-			// a ~1 s animation cycle.
-			interval = 1.0 / Double(max(currentFrames.count, 1))
+		if let demo = demoFrameInterval {
+			// Demo mode: uniform interval across all sheets so each frame is
+			// individually inspectable. Shortcuts the sheet-specific defaults.
+			interval = demo
+		} else {
+			switch currentSource {
+			case .codogotchi:
+				interval = CodogotchiPet.frameInterval
+			case .codex, .idleFallback:
+				// Codex sheet cycles all rows in ~1 s by dividing by the actual
+				// frame count. Variable frame counts per row (8, 6, 4) each produce
+				// a ~1 s animation cycle.
+				interval = 1.0 / Double(max(currentFrames.count, 1))
+			}
 		}
 		dbgLog("DBG restartTimer: source=\(currentSource) interval=\(interval)")
 		let newTimer = Timer(timeInterval: interval, repeats: true) {

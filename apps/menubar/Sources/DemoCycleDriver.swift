@@ -19,14 +19,25 @@ import Foundation
 final class DemoCycleDriver {
 	typealias StateApply = (ActivityState) -> Void
 
-	/// Canonical demo cycle order. Hardcoded — order is part of the contract
-	/// because the demo doubles as a manual visual check that all four floor
-	/// rows render correctly.
+	/// Canonical demo cycle order. Hardcoded — order matches the contract's
+	/// Activity States table top-to-bottom so the demo doubles as a manual
+	/// visual check that all 15 states render correctly.
 	static let cycle: [(state: ActivityState, fixtureFilename: String)] = [
 		(.idle, "idle.json"),
 		(.implementing, "implementing.json"),
 		(.runningTests, "running-tests.json"),
+		(.reviewing, "reviewing.json"),
+		(.pushing, "pushing.json"),
+		(.hyped, "hyped.json"),
+		(.focused, "focused.json"),
+		(.nervous, "nervous.json"),
+		(.waiting, "waiting.json"),
 		(.celebrating, "celebrating.json"),
+		(.ascended, "ascended.json"),
+		(.callingForBackup, "calling-for-backup.json"),
+		(.panicking, "panicking.json"),
+		(.requestingInput, "requesting-input.json"),
+		(.errored, "errored.json"),
 	]
 
 	private let sandboxedPath: URL
