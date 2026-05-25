@@ -9,6 +9,7 @@ final class FloatingPetScene: SKScene {
 	private let codexPet: MaliPet
 	private let codogotchiPet: CodogotchiPet?
 	private let ciContext: CIContext
+	private let desaturateFrame: (MaliPet.Frame) -> CGImage?
 
 	private let petLayer = SKNode()
 	private let overlayLayer = SKNode()
@@ -22,11 +23,16 @@ final class FloatingPetScene: SKScene {
 	init(
 		size: CGSize,
 		codexPet: MaliPet,
-		codogotchiPet: CodogotchiPet?
+		codogotchiPet: CodogotchiPet?,
+		desaturateFrame: ((MaliPet.Frame) -> CGImage?)? = nil
 	) {
 		self.codexPet = codexPet
 		self.codogotchiPet = codogotchiPet
-		self.ciContext = CIContext(options: nil)
+		let context = CIContext(options: nil)
+		self.ciContext = context
+		self.desaturateFrame = desaturateFrame ?? { frame in
+			Self.desaturate(frame, ciContext: context)
+		}
 		super.init(size: size)
 
 		backgroundColor = .clear
@@ -74,6 +80,7 @@ final class FloatingPetScene: SKScene {
 	var currentFramesForTesting: [NSImage] { currentFrames.map(\.image) }
 	var petLayerForTesting: SKNode { petLayer }
 	var overlayLayerForTesting: SKNode { overlayLayer }
+	var currentTextureForTesting: SKTexture? { spriteNode.texture }
 
 	func advanceFrameForTesting() {
 		advanceFrame()
@@ -109,7 +116,11 @@ final class FloatingPetScene: SKScene {
 		case .normal:
 			textureImage = frame.cgImage
 		case .desaturated:
-			textureImage = desaturate(frame) ?? frame.cgImage
+			guard let desaturated = desaturateFrame(frame) else {
+				NSLog("FloatingPetScene: desaturate skipped - keeping previous texture")
+				return
+			}
+			textureImage = desaturated
 		}
 
 		spriteNode.texture = SKTexture(cgImage: textureImage)
@@ -131,7 +142,7 @@ final class FloatingPetScene: SKScene {
 		spriteNode.position = .zero
 	}
 
-	private func desaturate(_ frame: MaliPet.Frame) -> CGImage? {
+	private static func desaturate(_ frame: MaliPet.Frame, ciContext: CIContext) -> CGImage? {
 		let ci = CIImage(cgImage: frame.cgImage)
 		let filter = CIFilter.colorControls()
 		filter.inputImage = ci

@@ -42,12 +42,14 @@ final class FloatingPetSceneTests: XCTestCase {
 
 	private func makeScene(
 		size: CGSize = CGSize(width: 180, height: 140),
-		codogotchiPet: CodogotchiPet? = nil
+		codogotchiPet: CodogotchiPet? = nil,
+		desaturateFrame: ((MaliPet.Frame) -> CGImage?)? = nil
 	) throws -> FloatingPetScene {
 		try FloatingPetScene(
 			size: size,
 			codexPet: MaliPet(petDirectory: maliFixtureDirectory()),
-			codogotchiPet: codogotchiPet ?? CodogotchiPet(petDirectory: maewFixtureDirectory())
+			codogotchiPet: codogotchiPet ?? CodogotchiPet(petDirectory: maewFixtureDirectory()),
+			desaturateFrame: desaturateFrame
 		)
 	}
 
@@ -102,5 +104,18 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertEqual(scene.size.height, 180)
 		XCTAssertEqual(scene.petLayerForTesting.position, CGPoint(x: 130, y: 90))
 		XCTAssertEqual(scene.overlayLayerForTesting.position, CGPoint(x: 130, y: 90))
+	}
+
+	func testDesaturationFailureKeepsPreviousTexture() throws {
+		let scene = try makeScene(desaturateFrame: { _ in nil })
+		scene.update(state: .idle, visualMode: .normal)
+		let normalTexture = try XCTUnwrap(scene.currentTextureForTesting)
+
+		scene.update(state: .idle, visualMode: .desaturated)
+
+		XCTAssertTrue(
+			scene.currentTextureForTesting === normalTexture,
+			"desaturation failure must not replace the current texture with a colored fallback frame"
+		)
 	}
 }
