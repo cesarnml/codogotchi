@@ -17,6 +17,7 @@
 		5D332CB1205CD66508BB99BD /* ActivityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB013AD16C8FDB083F522012 /* ActivityState.swift */; };
 		6A78A39CED185B02C213FE62 /* MenuItemsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */; };
 		7DC659F8DECEC6D8932E49DE /* DemoModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489C5364D39974B530891975 /* DemoModeTests.swift */; };
+		83BF56E6794A2BBFBCEE42E3 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60153C0C8806DC3EB2137C9 /* AppState.swift */; };
 		9F0FACE6276AF3CD3E885F02 /* MaliPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55B2D129F3A84D917CEE5A36 /* MaliPetTests.swift */; };
 		A28BAB9D5F23FFBE6C429720 /* CodogotchiPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */; };
 		A691496525517AB5789BB108 /* MenubarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21EFB1B7FE8C49C6377A2B2 /* MenubarApp.swift */; };
@@ -71,6 +72,7 @@
 		E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiPetTests.swift; sourceTree = "<group>"; };
 		F255E40C87142E33AE9D9935 /* MaliPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaliPet.swift; sourceTree = "<group>"; };
 		F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRendererTests.swift; sourceTree = "<group>"; };
+		F60153C0C8806DC3EB2137C9 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		FB013AD16C8FDB083F522012 /* ActivityState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityState.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -106,6 +108,7 @@
 			isa = PBXGroup;
 			children = (
 				FB013AD16C8FDB083F522012 /* ActivityState.swift */,
+				F60153C0C8806DC3EB2137C9 /* AppState.swift */,
 				31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */,
 				883A13B953EAD18008D03F98 /* DebugLog.swift */,
 				09112F189EA04FABD5D4833E /* DemoConfig.swift */,
@@ -243,6 +246,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5D332CB1205CD66508BB99BD /* ActivityState.swift in Sources */,
+				83BF56E6794A2BBFBCEE42E3 /* AppState.swift in Sources */,
 				A28BAB9D5F23FFBE6C429720 /* CodogotchiPet.swift in Sources */,
 				BB53DA9188A9F0A4F7A6FB48 /* DebugLog.swift in Sources */,
 				D82CE832ED27D2C047026D62 /* DemoConfig.swift in Sources */,
