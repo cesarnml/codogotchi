@@ -55,3 +55,9 @@ Why this path:
 Alternative considered:
 Deferred:
 Contract note:
+
+Implemented:
+Why this path: Added `FloatingPetScene` as a SpriteKit-only scene boundary with injected pet loaders, so frame resolution and state transitions are testable without creating an `NSPanel`.
+Alternative considered: Reusing `MenubarRenderer` directly would have coupled SpriteKit scene concerns to `NSStatusItem` image sinks and timer behavior.
+Deferred: Production panel/window ownership, menu wiring, and live state fanout stay in P4.04/P4.05.
+Contract note: The scene exposes named pet and overlay layers now, but overlay UI remains intentionally empty for this ticket.
