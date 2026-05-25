@@ -21,6 +21,7 @@
 		A28BAB9D5F23FFBE6C429720 /* CodogotchiPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */; };
 		A691496525517AB5789BB108 /* MenubarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21EFB1B7FE8C49C6377A2B2 /* MenubarApp.swift */; };
 		A92DC2BEE3B5EFA1E191BA32 /* state-json in Resources */ = {isa = PBXBuildFile; fileRef = 4412C28CB80A89E0E021EC03 /* state-json */; };
+		BA3F2EF6D3F5E093C9DFFBE9 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F15B1B99434EA9F9005052 /* AppStateTests.swift */; };
 		BB53DA9188A9F0A4F7A6FB48 /* DebugLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883A13B953EAD18008D03F98 /* DebugLog.swift */; };
 		BBAE72D92861A7901C3EBB73 /* PetConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9646F68B64C22ABAE0FE52EA /* PetConfig.swift */; };
 		C4F4151A25F6ED0D587172FD /* StateJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */; };
@@ -60,6 +61,7 @@
 		9646F68B64C22ABAE0FE52EA /* PetConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfig.swift; sourceTree = "<group>"; };
 		9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonReaderTests.swift; sourceTree = "<group>"; };
 		B49E0C3473A936DCB90AFE2A /* DemoCycleDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoCycleDriver.swift; sourceTree = "<group>"; };
+		B8F15B1B99434EA9F9005052 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		C21EFB1B7FE8C49C6377A2B2 /* MenubarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarApp.swift; sourceTree = "<group>"; };
 		D03267BF299C29EE9DC11590 /* LivePollingDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePollingDriver.swift; sourceTree = "<group>"; };
 		D1679B814BC300DCA60C6A97 /* Codogotchi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Codogotchi.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -76,6 +78,7 @@
 		54B43C94653838124A5E18F5 /* MenubarTests */ = {
 			isa = PBXGroup;
 			children = (
+				B8F15B1B99434EA9F9005052 /* AppStateTests.swift */,
 				E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */,
 				489C5364D39974B530891975 /* DemoModeTests.swift */,
 				DA2D403DBB111D997748F847 /* LivePollingTests.swift */,
@@ -259,6 +262,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BA3F2EF6D3F5E093C9DFFBE9 /* AppStateTests.swift in Sources */,
 				38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */,
 				7DC659F8DECEC6D8932E49DE /* DemoModeTests.swift in Sources */,
 				D6CCD2A3A92C90A80C5FA82D /* LivePollingTests.swift in Sources */,
