@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Menubar
+@testable import Codogotchi
 
 /// Smoke tests for the menu-bar scaffold.
 ///

@@ -1,7 +1,7 @@
 import AppKit
 import XCTest
 
-@testable import Menubar
+@testable import Codogotchi
 
 /// Behavior contract for `CodogotchiPet` — the codogotchi-sheet loader for
 /// the nine SoA-owned states (celebrating, hyped, focused, nervous, ascended,

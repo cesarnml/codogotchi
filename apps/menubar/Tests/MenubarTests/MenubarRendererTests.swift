@@ -2,7 +2,7 @@ import AppKit
 import CoreImage
 import XCTest
 
-@testable import Menubar
+@testable import Codogotchi
 
 /// Behavior contract for `MenubarRenderer` — the `NSStatusItem`-driving
 /// renderer that composites Codex-sheet and codogotchi-sheet frames, plus the

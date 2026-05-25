@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Menubar
+@testable import Codogotchi
 
 /// Behavior contract for `PetConfig.resolvedPetName()` — reads `~/.codogotchi/config.json`
 /// (or `$CODOGOTCHI_HOME/config.json`) and returns the `pet` key value, falling back

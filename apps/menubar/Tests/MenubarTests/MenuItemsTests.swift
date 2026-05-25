@@ -1,14 +1,14 @@
 import AppKit
 import XCTest
 
-@testable import Menubar
+@testable import Codogotchi
 
 /// Behavior tests for the menu-bar `NSStatusItem` menu.
 ///
 /// The status item exposes exactly three items:
 ///   1. "Open log folder" — opens `~/.codogotchi/` via `NSWorkspace.open(_:)`
 ///   2. "Reveal pet folder" — opens `~/.codex/pets/` via `NSWorkspace.open(_:)`
-///   3. "Quit Menubar" — terminates the app
+///   3. "Quit Codogotchi" — terminates the app
 ///
 /// Tests inject a workspace stub and a termination spy so menu actions can be
 /// invoked synchronously without touching Finder or actually quitting the
@@ -36,7 +36,7 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(menu.items.count, 3)
 		XCTAssertEqual(menu.items[0].title, MenubarMenu.openLogFolderTitle)
 		XCTAssertEqual(menu.items[1].title, MenubarMenu.revealPetFolderTitle)
-		XCTAssertEqual(menu.items[2].title, MenubarMenu.quitTitle)
+		XCTAssertEqual(menu.items[2].title, "Quit Codogotchi")
 	}
 
 	func testOpenLogFolderActionInvokesWorkspaceOpenWithExpectedURL() {
@@ -83,7 +83,7 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertTrue(MenubarMenu.defaultPetFolderURL().path.hasSuffix("/.codex/pets"))
 	}
 
-	func testQuitMenubarActionInvokesTerminationSpy() {
+	func testQuitCodogotchiActionInvokesTerminationSpy() {
 		var terminationCount = 0
 		let builder = MenubarMenu(
 			workspace: WorkspaceOpenSpy(),
@@ -95,7 +95,7 @@ final class MenuItemsTests: XCTestCase {
 		let quitItem = menu.items[2]
 
 		guard let action = quitItem.action, let target = quitItem.target else {
-			return XCTFail("Quit Menubar menu item must have an action and target")
+			return XCTFail("Quit Codogotchi menu item must have an action and target")
 		}
 		_ = target.perform(action, with: quitItem)
 

@@ -1,7 +1,7 @@
 import AppKit
 import XCTest
 
-@testable import Menubar
+@testable import Codogotchi
 
 /// Behavior contract for `MaliPet` — the pet asset loader and per-state
 /// frame extractor for Phase 02. Fixtures live at

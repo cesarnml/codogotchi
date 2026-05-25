@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Menubar
+@testable import Codogotchi
 
 /// Behavior contract for P2.06 demo mode: the `DemoCycleDriver` that copies
 /// fixture `state.json` payloads through a sandboxed polling target on a fixed

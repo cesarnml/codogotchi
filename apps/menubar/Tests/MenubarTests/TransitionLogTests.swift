@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Menubar
+@testable import Codogotchi
 
 /// Behavior contract for P2.08 `TransitionLog`: append-only NDJSON writer that
 /// records observed state transitions, emits a heartbeat line once per hour

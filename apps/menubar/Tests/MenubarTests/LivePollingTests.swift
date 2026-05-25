@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Menubar
+@testable import Codogotchi
 
 /// Behavior contract for P2.07 live polling: a 1Hz `LivePollingDriver` reads
 /// `state.json` from the configured `pollingTarget`, calls the renderer for
