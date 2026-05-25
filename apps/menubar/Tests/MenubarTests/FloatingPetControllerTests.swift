@@ -18,6 +18,8 @@ final class FloatingPetControllerTests: XCTestCase {
 		}
 	}
 
+	struct SaveFailure: Error {}
+
 	private let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
 
 	private func withTempHome(_ body: (URL) throws -> Void) rethrows {
@@ -85,6 +87,29 @@ final class FloatingPetControllerTests: XCTestCase {
 			controller.setFloatingPetVisible(false)
 			XCTAssertFalse(controller.isFloatingPetVisible)
 			XCTAssertEqual(panel.hideCount, 1)
+			XCTAssertFalse(AppStateStore.load(visibleFrame: visibleFrame).isFloatingPetVisible)
+		}
+	}
+
+	func testSetFloatingPetVisibleDoesNotAdvancePanelOrMemoryWhenSaveFails() throws {
+		try withTempHome { _ in
+			let initial = FloatingAppState(
+				isFloatingPetVisible: false,
+				frame: CGRect(x: 120, y: 160, width: 220, height: 180)
+			)
+			try AppStateStore.save(initial)
+			let panel = FloatingPetPanelSpy()
+			let controller = FloatingPetController(
+				panel: panel,
+				visibleFrameProvider: { self.visibleFrame },
+				saveState: { _ in throw SaveFailure() }
+			)
+
+			controller.setFloatingPetVisible(true)
+
+			XCTAssertFalse(controller.isFloatingPetVisible)
+			XCTAssertEqual(panel.shownFrames, [])
+			XCTAssertEqual(panel.hideCount, 0)
 			XCTAssertFalse(AppStateStore.load(visibleFrame: visibleFrame).isFloatingPetVisible)
 		}
 	}

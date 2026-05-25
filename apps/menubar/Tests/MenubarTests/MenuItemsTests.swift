@@ -98,6 +98,21 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(toggleItem.title, MenubarMenu.hideFloatingPetTitle)
 	}
 
+	func testFloatingPetToggleIsPresentButDisabledWhenControllerIsMissing() {
+		let builder = MenubarMenu(
+			workspace: WorkspaceOpenSpy(),
+			terminate: {},
+			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
+		)
+		let menu = builder.build()
+		let toggleItem = menu.items[2]
+
+		XCTAssertEqual(toggleItem.title, MenubarMenu.showFloatingPetTitle)
+		XCTAssertFalse(toggleItem.isEnabled)
+		XCTAssertEqual(menu.items[3].title, MenubarMenu.quitTitle)
+	}
+
 	func testOpenLogFolderActionInvokesWorkspaceOpenWithExpectedURL() {
 		let workspace = WorkspaceOpenSpy()
 		let expectedURL = URL(fileURLWithPath: "/tmp/codogotchi-tests/logs")
