@@ -1,0 +1,22 @@
+{
+  "ticket": "P4.02",
+  "invocations": [
+    {
+      "runnerKind": "claude-cli",
+      "reviewedHeadSha": "8a08c6689824ad8e16e56bd3e1b7370ccd7be07e",
+      "outcome": "clean",
+      "completedAt": "2026-05-25T07:37:15.933Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.prompt.md",
+      "fallbackLevel": "fallback",
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": "codex-cli",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}
