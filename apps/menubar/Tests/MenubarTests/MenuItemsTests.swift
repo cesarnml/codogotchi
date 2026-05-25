@@ -5,14 +5,16 @@ import XCTest
 
 /// Behavior tests for the menu-bar `NSStatusItem` menu.
 ///
-/// The status item exposes exactly three items:
+/// The status item exposes four items:
 ///   1. "Open log folder" — opens `~/.codogotchi/` via `NSWorkspace.open(_:)`
 ///   2. "Reveal pet folder" — opens `~/.codex/pets/` via `NSWorkspace.open(_:)`
-///   3. "Quit Codogotchi" — terminates the app
+///   3. "Show/Hide Floating Pet" — toggles the desktop pet surface
+///   4. "Quit Codogotchi" — terminates the app
 ///
 /// Tests inject a workspace stub and a termination spy so menu actions can be
 /// invoked synchronously without touching Finder or actually quitting the
 /// XCTest process.
+@MainActor
 final class MenuItemsTests: XCTestCase {
 	final class WorkspaceOpenSpy: MenuWorkspaceOpening {
 		var openedURLs: [URL] = []

@@ -15,10 +15,11 @@ extension NSWorkspace: MenuWorkspaceOpening {}
 
 /// Constructs the menu attached to the menu-bar `NSStatusItem`.
 ///
-/// The menu has exactly three items, in this order:
+/// The menu has four items, in this order:
 ///   1. **Open log folder** — opens `~/.codogotchi/` via `NSWorkspace.open(_:)`.
 ///   2. **Reveal pet folder** — opens `~/.codex/pets/` via `NSWorkspace.open(_:)`.
-///   3. **Quit Codogotchi** — terminates the app.
+///   3. **Show/Hide Floating Pet** — toggles the desktop pet surface.
+///   4. **Quit Codogotchi** — terminates the app.
 ///
 /// `MenubarMenu` is itself the action target for all items, so the caller
 /// must retain it for the lifetime of the menu. `NSMenuItem.target` is a
@@ -27,6 +28,8 @@ extension NSWorkspace: MenuWorkspaceOpening {}
 final class MenubarMenu: NSObject {
 	static let openLogFolderTitle = "Open log folder"
 	static let revealPetFolderTitle = "Reveal pet folder"
+	static let showFloatingPetTitle = "Show Floating Pet"
+	static let hideFloatingPetTitle = "Hide Floating Pet"
 	static let quitTitle = "Quit Codogotchi"
 
 	private let workspace: MenuWorkspaceOpening
@@ -34,19 +37,22 @@ final class MenubarMenu: NSObject {
 	private let logFolderURL: URL
 	private let petFolderURL: URL
 	private let fileManager: FileManager
+	private let floatingPetController: FloatingPetVisibilityControlling?
 
 	init(
 		workspace: MenuWorkspaceOpening = NSWorkspace.shared,
 		terminate: @escaping () -> Void = { NSApplication.shared.terminate(nil) },
 		logFolderURL: URL = MenubarMenu.defaultLogFolderURL(),
 		petFolderURL: URL = MenubarMenu.defaultPetFolderURL(),
-		fileManager: FileManager = .default
+		fileManager: FileManager = .default,
+		floatingPetController: FloatingPetVisibilityControlling? = nil
 	) {
 		self.workspace = workspace
 		self.terminate = terminate
 		self.logFolderURL = logFolderURL
 		self.petFolderURL = petFolderURL
 		self.fileManager = fileManager
+		self.floatingPetController = floatingPetController
 		super.init()
 	}
 
@@ -68,6 +74,7 @@ final class MenubarMenu: NSObject {
 			.appendingPathComponent("pets", isDirectory: true)
 	}
 
+	@MainActor
 	func build() -> NSMenu {
 		let menu = NSMenu()
 
@@ -86,6 +93,15 @@ final class MenubarMenu: NSObject {
 		)
 		revealItem.target = self
 		menu.addItem(revealItem)
+
+		let floatingItem = NSMenuItem(
+			title: floatingPetToggleTitle(),
+			action: #selector(toggleFloatingPet(_:)),
+			keyEquivalent: ""
+		)
+		floatingItem.target = self
+		floatingItem.isEnabled = floatingPetController != nil
+		menu.addItem(floatingItem)
 
 		let quitItem = NSMenuItem(
 			title: Self.quitTitle,
@@ -114,7 +130,22 @@ final class MenubarMenu: NSObject {
 		workspace.open(petFolderURL)
 	}
 
+	@MainActor
+	@objc func toggleFloatingPet(_ sender: Any?) {
+		guard let floatingPetController else { return }
+		floatingPetController.setFloatingPetVisible(!floatingPetController.isFloatingPetVisible)
+		(sender as? NSMenuItem)?.title = floatingPetToggleTitle()
+	}
+
 	@objc func quitMenubar(_ sender: Any?) {
 		terminate()
+	}
+
+	@MainActor
+	private func floatingPetToggleTitle() -> String {
+		guard let floatingPetController else { return Self.showFloatingPetTitle }
+		return floatingPetController.isFloatingPetVisible
+			? Self.hideFloatingPetTitle
+			: Self.showFloatingPetTitle
 	}
 }

@@ -3,6 +3,7 @@ import XCTest
 
 @testable import Codogotchi
 
+@MainActor
 final class FloatingPetControllerTests: XCTestCase {
 	final class FloatingPetPanelSpy: FloatingPetPanelManaging {
 		var shownFrames: [CGRect] = []

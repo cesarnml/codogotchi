@@ -46,6 +46,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// once `applicationDidFinishLaunching` returned.
 	var menuBuilder: MenubarMenu?
 
+	/// Held strongly so the floating panel and its persisted visibility state
+	/// stay alive for the lifetime of the menu item target.
+	var floatingPetController: FloatingPetController?
+
 	/// Opaque observer token for `NSWorkspace.didWakeNotification`. Held
 	/// strongly so the block-based observer is not deallocated while the app
 	/// runs, and removed in `applicationWillTerminate` so the workspace
@@ -83,9 +87,6 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				accessibilityDescription: "Codogotchi"
 			)
 		}
-		let menuBuilder = MenubarMenu()
-		item.menu = menuBuilder.build()
-		self.menuBuilder = menuBuilder
 		self.statusItem = item
 
 		// Attempt to load Mali and wire the renderer. If pet assets are
@@ -131,9 +132,22 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			)
 			renderer.update(state: .idle, visualMode: .normal)
 			self.renderer = renderer
+
+			let floatingPanel = FloatingPetPanelController(
+				codexPet: codexPet,
+				codogotchiPet: codogotchiPet
+			)
+			self.floatingPetController = FloatingPetController(
+				panel: floatingPanel,
+				visibleFrameProvider: Self.visibleFloatingFrame
+			)
 		} catch {
 			NSLog("MenubarApp: MaliPet load failed — keeping placeholder icon (\(error))")
 		}
+
+		let menuBuilder = MenubarMenu(floatingPetController: self.floatingPetController)
+		item.menu = menuBuilder.build()
+		self.menuBuilder = menuBuilder
 
 		// Demo mode: re-point the polling target to a sandboxed file and run
 		// the fixture cycle driver. P2.07 will own live polling against the
@@ -243,5 +257,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			return nil
 		}
 		return candidate
+	}
+
+	private static func visibleFloatingFrame() -> CGRect {
+		NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
 	}
 }
