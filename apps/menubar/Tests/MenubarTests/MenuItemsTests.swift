@@ -24,19 +24,76 @@ final class MenuItemsTests: XCTestCase {
 		}
 	}
 
-	func testMenuHasExactlyThreeItemsInExpectedOrder() {
+	final class FloatingPetVisibilitySpy: FloatingPetVisibilityControlling {
+		var isFloatingPetVisible: Bool
+		var visibilityRequests: [Bool] = []
+
+		init(isFloatingPetVisible: Bool) {
+			self.isFloatingPetVisible = isFloatingPetVisible
+		}
+
+		func setFloatingPetVisible(_ visible: Bool) {
+			isFloatingPetVisible = visible
+			visibilityRequests.append(visible)
+		}
+	}
+
+	func testMenuHasFloatingPetToggleBeforeQuit() {
 		let builder = MenubarMenu(
 			workspace: WorkspaceOpenSpy(),
 			terminate: {},
 			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
-			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
+			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets"),
+			floatingPetController: FloatingPetVisibilitySpy(isFloatingPetVisible: false)
 		)
 		let menu = builder.build()
 
-		XCTAssertEqual(menu.items.count, 3)
+		XCTAssertEqual(menu.items.count, 4)
 		XCTAssertEqual(menu.items[0].title, MenubarMenu.openLogFolderTitle)
 		XCTAssertEqual(menu.items[1].title, MenubarMenu.revealPetFolderTitle)
-		XCTAssertEqual(menu.items[2].title, "Quit Codogotchi")
+		XCTAssertEqual(menu.items[2].title, MenubarMenu.showFloatingPetTitle)
+		XCTAssertEqual(menu.items[3].title, "Quit Codogotchi")
+	}
+
+	func testFloatingPetToggleTitleReflectsVisibleState() {
+		let visibleBuilder = MenubarMenu(
+			workspace: WorkspaceOpenSpy(),
+			terminate: {},
+			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets"),
+			floatingPetController: FloatingPetVisibilitySpy(isFloatingPetVisible: true)
+		)
+		let hiddenBuilder = MenubarMenu(
+			workspace: WorkspaceOpenSpy(),
+			terminate: {},
+			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets"),
+			floatingPetController: FloatingPetVisibilitySpy(isFloatingPetVisible: false)
+		)
+
+		XCTAssertEqual(visibleBuilder.build().items[2].title, MenubarMenu.hideFloatingPetTitle)
+		XCTAssertEqual(hiddenBuilder.build().items[2].title, MenubarMenu.showFloatingPetTitle)
+	}
+
+	func testFloatingPetToggleCallsControllerAndRefreshesTitle() {
+		let controller = FloatingPetVisibilitySpy(isFloatingPetVisible: false)
+		let builder = MenubarMenu(
+			workspace: WorkspaceOpenSpy(),
+			terminate: {},
+			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets"),
+			floatingPetController: controller
+		)
+		let menu = builder.build()
+		let toggleItem = menu.items[2]
+
+		guard let action = toggleItem.action, let target = toggleItem.target else {
+			return XCTFail("Floating pet menu item must have an action and target")
+		}
+		_ = target.perform(action, with: toggleItem)
+
+		XCTAssertEqual(controller.visibilityRequests, [true])
+		XCTAssertEqual(toggleItem.title, MenubarMenu.hideFloatingPetTitle)
 	}
 
 	func testOpenLogFolderActionInvokesWorkspaceOpenWithExpectedURL() {
@@ -92,7 +149,7 @@ final class MenuItemsTests: XCTestCase {
 			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
 		)
 		let menu = builder.build()
-		let quitItem = menu.items[2]
+		let quitItem = menu.items[3]
 
 		guard let action = quitItem.action, let target = quitItem.target else {
 			return XCTFail("Quit Codogotchi menu item must have an action and target")
