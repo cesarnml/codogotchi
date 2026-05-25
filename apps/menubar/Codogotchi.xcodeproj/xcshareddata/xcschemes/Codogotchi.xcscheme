@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8113A01B766A0D591B4E9467"
-               BuildableName = "Menubar.app"
-               BlueprintName = "Menubar"
-               ReferencedContainer = "container:Menubar.xcodeproj">
+               BlueprintIdentifier = "E937368A8F888B26DB77E8AA"
+               BuildableName = "Codogotchi.app"
+               BlueprintName = "Codogotchi"
+               ReferencedContainer = "container:Codogotchi.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
          <BuildActionEntry
@@ -29,10 +29,10 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A51328E4770E96341C69068D"
-               BuildableName = "MenubarTests.xctest"
-               BlueprintName = "MenubarTests"
-               ReferencedContainer = "container:Menubar.xcodeproj">
+               BlueprintIdentifier = "0780859A0EB3D878D243D7CE"
+               BuildableName = "CodogotchiTests.xctest"
+               BlueprintName = "CodogotchiTests"
+               ReferencedContainer = "container:Codogotchi.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -46,10 +46,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "8113A01B766A0D591B4E9467"
-            BuildableName = "Menubar.app"
-            BlueprintName = "Menubar"
-            ReferencedContainer = "container:Menubar.xcodeproj">
+            BlueprintIdentifier = "E937368A8F888B26DB77E8AA"
+            BuildableName = "Codogotchi.app"
+            BlueprintName = "Codogotchi"
+            ReferencedContainer = "container:Codogotchi.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -58,10 +58,10 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A51328E4770E96341C69068D"
-               BuildableName = "MenubarTests.xctest"
-               BlueprintName = "MenubarTests"
-               ReferencedContainer = "container:Menubar.xcodeproj">
+               BlueprintIdentifier = "0780859A0EB3D878D243D7CE"
+               BuildableName = "CodogotchiTests.xctest"
+               BlueprintName = "CodogotchiTests"
+               ReferencedContainer = "container:Codogotchi.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -82,10 +82,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "8113A01B766A0D591B4E9467"
-            BuildableName = "Menubar.app"
-            BlueprintName = "Menubar"
-            ReferencedContainer = "container:Menubar.xcodeproj">
+            BlueprintIdentifier = "E937368A8F888B26DB77E8AA"
+            BuildableName = "Codogotchi.app"
+            BlueprintName = "Codogotchi"
+            ReferencedContainer = "container:Codogotchi.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -101,10 +101,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "8113A01B766A0D591B4E9467"
-            BuildableName = "Menubar.app"
-            BlueprintName = "Menubar"
-            ReferencedContainer = "container:Menubar.xcodeproj">
+            BlueprintIdentifier = "E937368A8F888B26DB77E8AA"
+            BuildableName = "Codogotchi.app"
+            BlueprintName = "Codogotchi"
+            ReferencedContainer = "container:Codogotchi.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

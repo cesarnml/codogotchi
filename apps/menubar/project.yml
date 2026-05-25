@@ -1,4 +1,4 @@
-name: Menubar
+name: Codogotchi
 options:
   bundleIdPrefix: com.codogotchi
   deploymentTarget:
@@ -13,7 +13,7 @@ settings:
     CODE_SIGN_IDENTITY: "-"
     DEVELOPMENT_TEAM: ""
 targets:
-  Menubar:
+  Codogotchi:
     type: application
     platform: macOS
     sources:
@@ -25,34 +25,35 @@ targets:
       path: Info.plist
       properties:
         LSUIElement: true
-        CFBundleName: Menubar
-        CFBundleIdentifier: com.codogotchi.menubar
+        CFBundleName: Codogotchi
+        CFBundleDisplayName: Codogotchi
+        CFBundleIdentifier: com.codogotchi.app
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
     settings:
       base:
-        PRODUCT_NAME: Menubar
-        PRODUCT_BUNDLE_IDENTIFIER: com.codogotchi.menubar
+        PRODUCT_NAME: Codogotchi
+        PRODUCT_BUNDLE_IDENTIFIER: com.codogotchi.app
         GENERATE_INFOPLIST_FILE: NO
-  MenubarTests:
+  CodogotchiTests:
     type: bundle.unit-test
     platform: macOS
     sources:
       - path: Tests/MenubarTests
     dependencies:
-      - target: Menubar
+      - target: Codogotchi
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.codogotchi.menubar.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.codogotchi.app.tests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
-  Menubar:
+  Codogotchi:
     build:
       targets:
-        Menubar: all
-        MenubarTests: [test]
+        Codogotchi: all
+        CodogotchiTests: [test]
     test:
       targets:
-        - MenubarTests
+        - CodogotchiTests
     run:
       config: Debug

@@ -119,7 +119,7 @@ final class DemoModeTests: XCTestCase {
 	// MARK: - DemoConfig environment + argument wiring
 
 	func testDemoConfigDefaultsToLiveStatePath() {
-		let config = DemoConfig.from(environment: [:], arguments: ["Menubar"])
+		let config = DemoConfig.from(environment: [:], arguments: ["Codogotchi"])
 
 		XCTAssertFalse(
 			config.isDemoMode,
@@ -134,7 +134,7 @@ final class DemoModeTests: XCTestCase {
 	func testDemoConfigEnvironmentVariableEnablesDemoMode() {
 		let config = DemoConfig.from(
 			environment: ["CODOGOTCHI_DEMO": "1"],
-			arguments: ["Menubar"]
+			arguments: ["Codogotchi"]
 		)
 
 		XCTAssertTrue(config.isDemoMode, "CODOGOTCHI_DEMO=1 must activate demo mode")
@@ -151,7 +151,7 @@ final class DemoModeTests: XCTestCase {
 	func testDemoConfigDemoLaunchArgumentEnablesDemoMode() {
 		let config = DemoConfig.from(
 			environment: [:],
-			arguments: ["Menubar", "--demo"]
+			arguments: ["Codogotchi", "--demo"]
 		)
 
 		XCTAssertTrue(
@@ -167,7 +167,7 @@ final class DemoModeTests: XCTestCase {
 	func testDemoConfigEnvironmentZeroDoesNotEnableDemoMode() {
 		let config = DemoConfig.from(
 			environment: ["CODOGOTCHI_DEMO": "0"],
-			arguments: ["Menubar"]
+			arguments: ["Codogotchi"]
 		)
 
 		XCTAssertFalse(

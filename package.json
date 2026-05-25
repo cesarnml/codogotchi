@@ -20,8 +20,8 @@
     "test": "bun test packages convex",
     "ci": "bun run verify && bun run test && bun run mac:test",
     "ci:quiet": "bun run verify:quiet && bun run test && bun run mac:test",
-    "mac:build": "xcodebuild -project apps/menubar/Menubar.xcodeproj -scheme Menubar build",
-    "mac:test": "xcodebuild -project apps/menubar/Menubar.xcodeproj -scheme Menubar test"
+    "mac:build": "xcodebuild -project apps/menubar/Codogotchi.xcodeproj -scheme Codogotchi build",
+    "mac:test": "xcodebuild -project apps/menubar/Codogotchi.xcodeproj -scheme Codogotchi test"
   },
   "dependencies": {
     "@codogotchi/contracts": "workspace:*",

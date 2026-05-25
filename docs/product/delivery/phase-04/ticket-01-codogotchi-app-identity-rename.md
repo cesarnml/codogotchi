@@ -52,3 +52,9 @@ Why this path:
 Alternative considered:
 Deferred:
 Contract note:
+
+Green implementation:
+Why this path: Renamed the Xcode project, scheme, target, product, bundle display name, root macOS scripts, and menu copy to `Codogotchi` while keeping the source directory and Swift type names stable.
+Alternative considered: Moving `apps/menubar/` and renaming internal `Menubar*` source types in the same ticket, but that would widen the diff beyond product identity and make generated project churn harder to review.
+Deferred: Internal class/file names that describe menu-bar renderer mechanics remain as-is until a later cleanup needs them.
+Contract note: The bundle identifier moved from `com.codogotchi.menubar` to `com.codogotchi.app` so the built app identity no longer carries the old product name.

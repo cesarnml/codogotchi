@@ -18,7 +18,7 @@ extension NSWorkspace: MenuWorkspaceOpening {}
 /// The menu has exactly three items, in this order:
 ///   1. **Open log folder** — opens `~/.codogotchi/` via `NSWorkspace.open(_:)`.
 ///   2. **Reveal pet folder** — opens `~/.codex/pets/` via `NSWorkspace.open(_:)`.
-///   3. **Quit Menubar** — terminates the app.
+///   3. **Quit Codogotchi** — terminates the app.
 ///
 /// `MenubarMenu` is itself the action target for all items, so the caller
 /// must retain it for the lifetime of the menu. `NSMenuItem.target` is a
@@ -27,7 +27,7 @@ extension NSWorkspace: MenuWorkspaceOpening {}
 final class MenubarMenu: NSObject {
 	static let openLogFolderTitle = "Open log folder"
 	static let revealPetFolderTitle = "Reveal pet folder"
-	static let quitTitle = "Quit Menubar"
+	static let quitTitle = "Quit Codogotchi"
 
 	private let workspace: MenuWorkspaceOpening
 	private let terminate: () -> Void
