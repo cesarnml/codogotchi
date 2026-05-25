@@ -54,3 +54,9 @@ Why this path:
 Alternative considered:
 Deferred:
 Contract note:
+
+Implementation note:
+Why this path: `MenubarMenu` now takes a narrow `FloatingPetVisibilityControlling` seam, while `FloatingPetController` owns renderer-local app-state persistence and delegates actual AppKit panel operations to `FloatingPetPanelManaging`.
+Alternative considered: building panel behavior directly into `MenubarApp`; rejected because the ticket requires a controller seam that tests can observe without showing a real window.
+Deferred: drag/resize gestures and frame persistence after direct manipulation remain in P4.06.
+Contract note: if Mali assets fail to load, the menu still includes the floating-pet item but disables it, preserving the existing placeholder-icon launch behavior instead of making panel creation a hard app-start dependency.
