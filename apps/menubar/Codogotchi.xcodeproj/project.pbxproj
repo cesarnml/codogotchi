@@ -15,6 +15,7 @@
 		2B7D5B5ED94F4C7E8F2B8001 /* FloatingPetSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B7D5B5DD94F4C7E8F2B8001 /* FloatingPetSceneTests.swift */; };
 		36F25B978082DFFA568C39DC /* MenubarMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 379B33D9319DAC49A3CCC39C /* MenubarMenu.swift */; };
 		38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */; };
+		3E9AC4301859472197D3D301 /* FloatingPetScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9AC42F1859472197D3D301 /* FloatingPetScene.swift */; };
 		5D332CB1205CD66508BB99BD /* ActivityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB013AD16C8FDB083F522012 /* ActivityState.swift */; };
 		6A78A39CED185B02C213FE62 /* MenuItemsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */; };
 		7DC659F8DECEC6D8932E49DE /* DemoModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489C5364D39974B530891975 /* DemoModeTests.swift */; };
@@ -54,6 +55,7 @@
 		31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiPet.swift; sourceTree = "<group>"; };
 		3280C616774866918681AF0C /* MenubarRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRenderer.swift; sourceTree = "<group>"; };
 		379B33D9319DAC49A3CCC39C /* MenubarMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarMenu.swift; sourceTree = "<group>"; };
+		3E9AC42F1859472197D3D301 /* FloatingPetScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetScene.swift; sourceTree = "<group>"; };
 		4412C28CB80A89E0E021EC03 /* state-json */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "state-json"; path = "Fixtures/state-json"; sourceTree = SOURCE_ROOT; };
 		489C5364D39974B530891975 /* DemoModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeTests.swift; sourceTree = "<group>"; };
 		55B2D129F3A84D917CEE5A36 /* MaliPetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaliPetTests.swift; sourceTree = "<group>"; };
@@ -116,6 +118,7 @@
 				883A13B953EAD18008D03F98 /* DebugLog.swift */,
 				09112F189EA04FABD5D4833E /* DemoConfig.swift */,
 				B49E0C3473A936DCB90AFE2A /* DemoCycleDriver.swift */,
+				3E9AC42F1859472197D3D301 /* FloatingPetScene.swift */,
 				D03267BF299C29EE9DC11590 /* LivePollingDriver.swift */,
 				F255E40C87142E33AE9D9935 /* MaliPet.swift */,
 				C21EFB1B7FE8C49C6377A2B2 /* MenubarApp.swift */,
@@ -254,6 +257,7 @@
 				BB53DA9188A9F0A4F7A6FB48 /* DebugLog.swift in Sources */,
 				D82CE832ED27D2C047026D62 /* DemoConfig.swift in Sources */,
 				EA37D54D592388A3D881C2B2 /* DemoCycleDriver.swift in Sources */,
+				3E9AC4301859472197D3D301 /* FloatingPetScene.swift in Sources */,
 				D0D4F8896EC0F30182472D1C /* LivePollingDriver.swift in Sources */,
 				103FB9078AB019A709601BFA /* MaliPet.swift in Sources */,
 				A691496525517AB5789BB108 /* MenubarApp.swift in Sources */,
