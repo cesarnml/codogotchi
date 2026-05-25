@@ -51,7 +51,14 @@ enum AppStateStore {
 
 	static func load(visibleFrame: CGRect) -> FloatingAppState {
 		let fallback = defaultState(visibleFrame: visibleFrame)
-		guard let data = try? Data(contentsOf: appStateURL()) else {
+		let url = appStateURL()
+		let data: Data
+		do {
+			data = try Data(contentsOf: url)
+		} catch {
+			if FileManager.default.fileExists(atPath: url.path) {
+				dbgLog("AppStateStore.load: falling back after unreadable app-state.json: \(error.localizedDescription)")
+			}
 			return fallback
 		}
 

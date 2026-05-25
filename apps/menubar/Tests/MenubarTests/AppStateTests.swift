@@ -51,6 +51,28 @@ final class AppStateTests: XCTestCase {
 		}
 	}
 
+	func testFutureSchemaVersionFallsBackToVisibleDefault() throws {
+		try withTempHome { dir in
+			try writeAppState(
+				#"""
+				{
+				  "schema_version": 2,
+				  "floating_pet": {
+				    "visible": false,
+				    "frame": { "x": 120, "y": 160, "width": 220, "height": 180 }
+				  }
+				}
+				"""#,
+				in: dir
+			)
+
+			let state = AppStateStore.load(visibleFrame: visibleFrame)
+
+			XCTAssertTrue(state.isFloatingPetVisible)
+			XCTAssertEqual(state.frame, FloatingFramePolicy.defaultFrame(in: visibleFrame))
+		}
+	}
+
 	func testValidAppStateRoundTripsVisibilityAndFrame() throws {
 		try withTempHome { _ in
 			let original = FloatingAppState(
