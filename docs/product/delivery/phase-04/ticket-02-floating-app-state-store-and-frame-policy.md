@@ -57,3 +57,9 @@ Why this path:
 Alternative considered:
 Deferred:
 Contract note:
+
+Implementation:
+Why this path: added a UI-free `AppStateStore` plus `FloatingFramePolicy` so later panel/display-change work can reuse the same persistence and clamping behavior without depending on AppKit window lifecycle.
+Alternative considered: storing floating placement in `config.json`, rejected to keep renderer placement separate from user/product config and secrets.
+Deferred: display-change event wiring remains for the floating panel ticket; this ticket only supplies the pure frame math and startup load clamp.
+Contract note: `~/.codogotchi/app-state.json` and `$CODOGOTCHI_HOME/app-state.json` are the only app-state locations touched by this ticket.
