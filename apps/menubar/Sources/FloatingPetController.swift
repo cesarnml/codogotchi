@@ -13,6 +13,7 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func show(frame: CGRect)
 	func hide()
 	func apply(state: ActivityState, visualMode: VisualMode)
+	func setInteraction(_ interaction: FloatingInteraction?)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 }
 

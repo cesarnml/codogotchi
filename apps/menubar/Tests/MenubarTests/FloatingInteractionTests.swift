@@ -111,17 +111,19 @@ final class FloatingInteractionTests: XCTestCase {
 	// MARK: - FloatingPetScene interaction overlay
 
 	func testSettingInteractionRunningRightSwapsFrames() throws {
-		let scene = try makeScene()
+		let pet = try MaliPet(petDirectory: maliFixtureDirectory())
+		let scene = try makeScene(codexPet: pet)
 		scene.update(state: .idle, visualMode: .normal)
-		let idleCount = scene.currentFramesForTesting.count
+		let idleFirstFrame = try XCTUnwrap(pet.frames(for: .idle).first?.image.tiffRepresentation)
 
 		scene.setInteraction(.runningRight)
 
 		XCTAssertEqual(scene.currentInteractionForTesting, .runningRight)
 		XCTAssertFalse(scene.currentFramesForTesting.isEmpty)
+		let interactionFirstFrame = try XCTUnwrap(scene.currentFramesForTesting.first?.tiffRepresentation)
 		XCTAssertNotEqual(
-			scene.currentFramesForTesting.count, idleCount,
-			"running-right interaction frames should differ from .idle frames in this fixture"
+			interactionFirstFrame, idleFirstFrame,
+			"running-right interaction frames must come from a different Codex row than .idle"
 		)
 		XCTAssertEqual(scene.currentFrameIndexForTesting, 0)
 	}

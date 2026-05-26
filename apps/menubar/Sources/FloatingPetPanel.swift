@@ -56,6 +56,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		scene?.update(state: state, visualMode: visualMode)
 	}
 
+	func setInteraction(_ interaction: FloatingInteraction?) {
+		scene?.setInteraction(interaction)
+	}
+
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
 		frameChangeHandler = handler
 		(panel?.contentView as? FloatingPetInteractionView)?.frameChangeHandler = handler
@@ -85,6 +89,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			frame: CGRect(origin: .zero, size: frame.size),
 			visibleFrameProvider: { [weak panel, visibleFrameProvider] in
 				panel?.screen?.visibleFrame ?? visibleFrameProvider()
+			},
+			interactionHandler: { [weak self] interaction in
+				self?.scene?.setInteraction(interaction)
 			}
 		)
 		view.frameChangeHandler = frameChangeHandler
@@ -147,6 +154,27 @@ enum FloatingInteractionPolicy {
 			to: visibleFrame
 		)
 	}
+
+	/// Pure-function mapping from an in-flight pointer drag delta and the
+	/// hit-tested target to the reserved-row interaction the floating scene
+	/// should display. The resize affordance always picks `.jumping`; drags on
+	/// the drag region pick `.runningRight` or `.runningLeft` when horizontal
+	/// motion dominates vertical motion, and return `nil` otherwise so the
+	/// ordinary activity-state animation remains visible during near-vertical
+	/// drags.
+	static func interaction(
+		forDragDelta delta: CGSize,
+		hitTarget: FloatingInteractionHitTarget
+	) -> FloatingInteraction? {
+		switch hitTarget {
+		case .resizeAffordance:
+			return .jumping
+		case .dragRegion:
+			let horizontalDominant = abs(delta.width) > abs(delta.height)
+			guard horizontalDominant, delta.width != 0 else { return nil }
+			return delta.width > 0 ? .runningRight : .runningLeft
+		}
+	}
 }
 
 private final class FloatingPetInteractionView: NSView {
@@ -158,11 +186,18 @@ private final class FloatingPetInteractionView: NSView {
 	private let skView = SKView(frame: .zero)
 	private let resizeAffordanceView = FloatingResizeAffordanceView(frame: .zero)
 	private let visibleFrameProvider: () -> CGRect
+	private let interactionHandler: (FloatingInteraction?) -> Void
 	private var activeInteraction: ActiveInteraction?
+	private var lastEmittedInteraction: FloatingInteraction?
 	var frameChangeHandler: ((CGRect) -> Void)?
 
-	init(frame: CGRect, visibleFrameProvider: @escaping () -> CGRect) {
+	init(
+		frame: CGRect,
+		visibleFrameProvider: @escaping () -> CGRect,
+		interactionHandler: @escaping (FloatingInteraction?) -> Void
+	) {
 		self.visibleFrameProvider = visibleFrameProvider
+		self.interactionHandler = interactionHandler
 		super.init(frame: frame)
 
 		wantsLayer = true
@@ -212,33 +247,52 @@ private final class FloatingPetInteractionView: NSView {
 		guard let window, let activeInteraction else { return }
 		let currentPoint = NSEvent.mouseLocation
 		let nextFrame: CGRect
+		let dragDelta: CGSize
+		let hitTarget: FloatingInteractionHitTarget
 
 		switch activeInteraction {
 		case let .drag(startFrame, startScreenPoint):
+			dragDelta = CGSize(
+				width: currentPoint.x - startScreenPoint.x,
+				height: currentPoint.y - startScreenPoint.y
+			)
+			hitTarget = .dragRegion
 			nextFrame = FloatingInteractionPolicy.draggedFrame(
 				from: startFrame,
-				dragDelta: CGSize(
-					width: currentPoint.x - startScreenPoint.x,
-					height: currentPoint.y - startScreenPoint.y
-				),
+				dragDelta: dragDelta,
 				visibleFrame: visibleFrameProvider()
 			)
 		case let .resize(startFrame, startScreenPoint):
+			dragDelta = CGSize(
+				width: currentPoint.x - startScreenPoint.x,
+				height: currentPoint.y - startScreenPoint.y
+			)
+			hitTarget = .resizeAffordance
 			nextFrame = FloatingInteractionPolicy.resizedFrame(
 				from: startFrame,
-				dragDelta: CGSize(
-					width: currentPoint.x - startScreenPoint.x,
-					height: currentPoint.y - startScreenPoint.y
-				),
+				dragDelta: dragDelta,
 				visibleFrame: visibleFrameProvider()
 			)
 		}
 
 		window.setFrame(nextFrame, display: true)
+
+		let interaction = FloatingInteractionPolicy.interaction(
+			forDragDelta: dragDelta,
+			hitTarget: hitTarget
+		)
+		if interaction != lastEmittedInteraction {
+			lastEmittedInteraction = interaction
+			interactionHandler(interaction)
+		}
 	}
 
 	override func mouseUp(with event: NSEvent) {
 		activeInteraction = nil
+		if lastEmittedInteraction != nil {
+			lastEmittedInteraction = nil
+			interactionHandler(nil)
+		}
 		if let frame = window?.frame {
 			frameChangeHandler?(frame)
 		}

@@ -78,6 +78,25 @@ final class MaliPet {
 		.errored: RowSpec(rowIndex: 5, frameCount: 8),
 	]
 
+	/// Reserved-row map for mouse-reactive floating interactions (P4.07).
+	///
+	/// These rows are deliberately kept off `rowMap` so the menu-bar renderer —
+	/// which resolves frames keyed by `ActivityState` — never consumes them.
+	/// Only the floating scene reads this map via `frames(forInteraction:)`.
+	///
+	/// Row indices per `docs/contracts/animation-state-vocabulary.md`:
+	/// - `.runningRight` → row 1
+	/// - `.runningLeft`  → row 2
+	/// - `.jumping`      → row 4
+	///
+	/// Frame counts: running rows use the full 8-column cycle; jumping uses 5
+	/// frames per the Phase 02 `celebrating` precedent for the same row.
+	static let interactionRowMap: [FloatingInteraction: RowSpec] = [
+		.runningRight: RowSpec(rowIndex: 1, frameCount: 8),
+		.runningLeft: RowSpec(rowIndex: 2, frameCount: 8),
+		.jumping: RowSpec(rowIndex: 4, frameCount: 5),
+	]
+
 	/// Spritesheet grid dimensions. The grid PNG asserts 8 columns × 9 rows.
 	static let gridColumns = 8
 	static let gridRows = 9
@@ -174,7 +193,23 @@ final class MaliPet {
 	/// drawing, not to `CGImage.cropping(to:)` — see the Swift notes file.)
 	func frames(for state: ActivityState) -> [Frame] {
 		guard let spec = MaliPet.rowMap[state] else { return [] }
+		return frames(forRow: spec)
+	}
 
+	/// Slice frames for a reserved interaction row (running-right, running-left,
+	/// jumping). Returns empty when the interaction has no row mapping or the
+	/// row falls outside the loaded sheet's grid — the caller (floating scene)
+	/// must treat empty as "missing reserved row" and fall back to the current
+	/// activity-state animation.
+	func frames(forInteraction interaction: FloatingInteraction) -> [Frame] {
+		guard let spec = MaliPet.interactionRowMap[interaction] else { return [] }
+		guard spec.rowIndex < MaliPet.gridRows, spec.frameCount <= MaliPet.gridColumns else {
+			return []
+		}
+		return frames(forRow: spec)
+	}
+
+	private func frames(forRow spec: RowSpec) -> [Frame] {
 		var out: [Frame] = []
 		out.reserveCapacity(spec.frameCount)
 		// Scale frames to the standard macOS menubar height (22 pt) so the
@@ -201,7 +236,7 @@ final class MaliPet {
 			// crash the menubar.
 			guard let slice = cgSheet.cropping(to: rect) else {
 				assertionFailure(
-					"MaliPet.frames(for: \(state)) — cropping returned nil for rect \(rect); rowMap or grid invariant broken"
+					"MaliPet.frames(forRow: \(spec)) — cropping returned nil for rect \(rect); rowMap or grid invariant broken"
 				)
 				continue
 			}

@@ -10,6 +10,7 @@ final class FloatingPetScene: SKScene {
 	private let codogotchiPet: CodogotchiPet?
 	private let ciContext: CIContext
 	private let desaturateFrame: (MaliPet.Frame) -> CGImage?
+	private let interactionFrames: (FloatingInteraction) -> [MaliPet.Frame]
 
 	private let petLayer = SKNode()
 	private let overlayLayer = SKNode()
@@ -17,6 +18,7 @@ final class FloatingPetScene: SKScene {
 
 	private var currentState: ActivityState = .idle
 	private var currentMode: VisualMode = .normal
+	private var currentInteraction: FloatingInteraction?
 	private var currentFrames: [MaliPet.Frame] = []
 	private var frameIndex: Int = 0
 
@@ -24,7 +26,8 @@ final class FloatingPetScene: SKScene {
 		size: CGSize,
 		codexPet: MaliPet,
 		codogotchiPet: CodogotchiPet?,
-		desaturateFrame: ((MaliPet.Frame) -> CGImage?)? = nil
+		desaturateFrame: ((MaliPet.Frame) -> CGImage?)? = nil,
+		interactionFramesProvider: ((FloatingInteraction) -> [MaliPet.Frame])? = nil
 	) {
 		self.codexPet = codexPet
 		self.codogotchiPet = codogotchiPet
@@ -32,6 +35,9 @@ final class FloatingPetScene: SKScene {
 		self.ciContext = context
 		self.desaturateFrame = desaturateFrame ?? { frame in
 			Self.desaturate(frame, ciContext: context)
+		}
+		self.interactionFrames = interactionFramesProvider ?? { interaction in
+			codexPet.frames(forInteraction: interaction)
 		}
 		super.init(size: size)
 
@@ -65,6 +71,15 @@ final class FloatingPetScene: SKScene {
 		currentState = state
 		currentMode = visualMode
 
+		// During an active mouse-reactive interaction the interaction animation
+		// owns the sprite — defer the activity-state frame swap until the
+		// interaction is cleared. The latest state is still stored so
+		// `setInteraction(nil)` resumes from the most recent live/demo state.
+		if currentInteraction != nil {
+			paintCurrentFrame()
+			return
+		}
+
 		if stateChanged {
 			currentFrames = resolveFrames(for: state)
 			frameIndex = 0
@@ -73,9 +88,47 @@ final class FloatingPetScene: SKScene {
 		paintCurrentFrame()
 	}
 
+	/// Apply or clear a transient mouse-reactive interaction overlay
+	/// (running-right / running-left / jumping). When `interaction` is non-nil
+	/// and the reserved Codex row provides non-empty frames, the scene swaps
+	/// to those frames for the duration of the interaction. When the row is
+	/// missing (empty frames) the interaction is dropped and the current
+	/// activity-state animation remains in place. Passing `nil` restores the
+	/// ordinary activity-state animation.
+	func setInteraction(_ interaction: FloatingInteraction?) {
+		guard let interaction else {
+			guard currentInteraction != nil else { return }
+			currentInteraction = nil
+			currentFrames = resolveFrames(for: currentState)
+			frameIndex = 0
+			paintCurrentFrame()
+			return
+		}
+
+		let frames = interactionFrames(interaction)
+		guard !frames.isEmpty else {
+			// Missing reserved row: keep current activity frames running so the
+			// floating pet does not blank out on a pet whose sheet lacks the
+			// reserved row.
+			if currentInteraction != nil {
+				currentInteraction = nil
+				currentFrames = resolveFrames(for: currentState)
+				frameIndex = 0
+				paintCurrentFrame()
+			}
+			return
+		}
+
+		currentInteraction = interaction
+		currentFrames = frames
+		frameIndex = 0
+		paintCurrentFrame()
+	}
+
 	// MARK: - Test access
 
 	var currentStateForTesting: ActivityState { currentState }
+	var currentInteractionForTesting: FloatingInteraction? { currentInteraction }
 	var currentFrameIndexForTesting: Int { frameIndex }
 	var currentFramesForTesting: [NSImage] { currentFrames.map(\.image) }
 	var petLayerForTesting: SKNode { petLayer }

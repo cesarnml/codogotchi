@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		025D10BD2A8B47BD0991A05D /* MenubarRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */; };
+		04E4BF3ECD02EFD4B252E27C /* FloatingInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97D90D6AFBAC5EB23BBC4A8 /* FloatingInteraction.swift */; };
 		103FB9078AB019A709601BFA /* MaliPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F255E40C87142E33AE9D9935 /* MaliPet.swift */; };
 		121F58B33BBB5B89020FD3A7 /* FloatingPetSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57120C267C3617C32AC0430F /* FloatingPetSceneTests.swift */; };
 		146969BDD756A5353704E961 /* MenubarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E496AEDA38E70CA0C7D4E4F /* MenubarTests.swift */; };
@@ -85,6 +86,7 @@
 		DABEF68EEC70787763CE3E3D /* TransitionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLog.swift; sourceTree = "<group>"; };
 		E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuItemsTests.swift; sourceTree = "<group>"; };
 		E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiPetTests.swift; sourceTree = "<group>"; };
+		E97D90D6AFBAC5EB23BBC4A8 /* FloatingInteraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingInteraction.swift; sourceTree = "<group>"; };
 		EA899400094213B8A814D114 /* FloatingPetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetController.swift; sourceTree = "<group>"; };
 		F255E40C87142E33AE9D9935 /* MaliPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaliPet.swift; sourceTree = "<group>"; };
 		F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRendererTests.swift; sourceTree = "<group>"; };
@@ -133,6 +135,7 @@
 				883A13B953EAD18008D03F98 /* DebugLog.swift */,
 				09112F189EA04FABD5D4833E /* DemoConfig.swift */,
 				B49E0C3473A936DCB90AFE2A /* DemoCycleDriver.swift */,
+				E97D90D6AFBAC5EB23BBC4A8 /* FloatingInteraction.swift */,
 				EA899400094213B8A814D114 /* FloatingPetController.swift */,
 				C473FDED57B163FBBB6F3CF1 /* FloatingPetPanel.swift */,
 				50592CBB8ED4543FDCF95E79 /* FloatingPetScene.swift */,
@@ -275,6 +278,7 @@
 				BB53DA9188A9F0A4F7A6FB48 /* DebugLog.swift in Sources */,
 				D82CE832ED27D2C047026D62 /* DemoConfig.swift in Sources */,
 				EA37D54D592388A3D881C2B2 /* DemoCycleDriver.swift in Sources */,
+				04E4BF3ECD02EFD4B252E27C /* FloatingInteraction.swift in Sources */,
 				38FAEA0F65A0C396AC8AD302 /* FloatingPetController.swift in Sources */,
 				A867342EFD852FB363D4DD7C /* FloatingPetPanel.swift in Sources */,
 				F0D2A72E1931F49257F1C2A4 /* FloatingPetScene.swift in Sources */,

@@ -23,9 +23,15 @@ final class FloatingPetControllerTests: XCTestCase {
 			appliedStates.append((state, visualMode))
 		}
 
+		func setInteraction(_ interaction: FloatingInteraction?) {
+			appliedInteractions.append(interaction)
+		}
+
 		func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
 			frameChangeHandler = handler
 		}
+
+		var appliedInteractions: [FloatingInteraction?] = []
 	}
 
 	struct SaveFailure: Error {}
