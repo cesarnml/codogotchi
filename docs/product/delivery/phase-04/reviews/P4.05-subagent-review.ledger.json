@@ -25,12 +25,30 @@
       "terminatedReason": "completed",
       "findings": [],
       "probedSurfaces": [],
-      "patches": ["e2b8496"],
+      "patches": [
+        "e2b8496"
+      ],
       "schemaVersion": 1,
       "primaryAgent": "cursor(gpt-5.5)",
       "runnerSelfReport": null,
       "fallbackFrom": null,
       "outcome": "patched"
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "7cebfef09165bcf5be391b7619076030a417df3e",
+      "outcome": "patched",
+      "completedAt": "2026-05-26T01:42:55.242Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [
+        "99e8a9c625eaa095bed6614d13f96ebd207e2cd6"
+      ],
+      "schemaVersion": 1,
+      "primaryAgent": "unknown",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
     }
   ]
 }
