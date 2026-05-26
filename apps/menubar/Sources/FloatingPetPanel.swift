@@ -7,6 +7,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private let codogotchiPet: CodogotchiPet?
 	private var panel: NSPanel?
 	private var scene: FloatingPetScene?
+	private var currentState: ActivityState = .idle
+	private var currentMode: VisualMode = .normal
 
 	init(codexPet: MaliPet, codogotchiPet: CodogotchiPet?) {
 		self.codexPet = codexPet
@@ -23,10 +25,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 				codexPet: codexPet,
 				codogotchiPet: codogotchiPet
 			)
+			scene.update(state: currentState, visualMode: currentMode)
 			self.scene = scene
 			(panel.contentView as? SKView)?.presentScene(scene)
 		} else {
 			scene?.size = frame.size
+			scene?.update(state: currentState, visualMode: currentMode)
 		}
 
 		panel.orderFrontRegardless()
@@ -35,6 +39,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	func hide() {
 		panel?.orderOut(nil)
+	}
+
+	func apply(state: ActivityState, visualMode: VisualMode) {
+		currentState = state
+		currentMode = visualMode
+		scene?.update(state: state, visualMode: visualMode)
 	}
 
 	private func makePanel(frame: CGRect) -> NSPanel {

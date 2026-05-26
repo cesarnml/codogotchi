@@ -11,6 +11,7 @@ protocol FloatingPetVisibilityControlling: AnyObject {
 protocol FloatingPetPanelManaging: AnyObject {
 	func show(frame: CGRect)
 	func hide()
+	func apply(state: ActivityState, visualMode: VisualMode)
 }
 
 @MainActor
@@ -57,5 +58,9 @@ final class FloatingPetController: FloatingPetVisibilityControlling {
 		} else {
 			panel.hide()
 		}
+	}
+
+	func apply(state: ActivityState, visualMode: VisualMode) {
+		panel.apply(state: state, visualMode: visualMode)
 	}
 }

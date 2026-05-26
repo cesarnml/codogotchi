@@ -50,6 +50,10 @@ Red: required
 
 Red first:
 Why this path:
+Added a narrow `PetStateFanout` seam in the app wiring so live polling and demo mode both call the same two-target apply path. The floating panel now accepts state updates even before its scene exists, caching the latest state/mode until the panel is shown.
 Alternative considered:
+Let `LivePollingDriver` and `DemoCycleDriver` know about both renderers directly. Rejected because it would duplicate fanout rules in two drivers and couple polling/demo mechanics to concrete UI surfaces.
 Deferred:
+No scene-level assertions yet for "hidden panel later shows most recent state"; this ticket keeps the contract at the controller/panel seam and shared app fanout path.
 Contract note:
+`apps/menubar/project.yml` remains the Xcode source of truth; adding the new Swift source required regenerating `apps/menubar/Codogotchi.xcodeproj` with `xcodegen generate` so `mac:test` sees the file.

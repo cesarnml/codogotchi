@@ -149,6 +149,15 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		item.menu = menuBuilder.build()
 		self.menuBuilder = menuBuilder
 
+		let stateFanout = PetStateFanout(
+			applyToMenubar: { [weak renderer = self.renderer] state, mode in
+				renderer?.update(state: state, visualMode: mode)
+			},
+			applyToFloatingPet: { [weak floatingPetController = self.floatingPetController] state, mode in
+				floatingPetController?.apply(state: state, visualMode: mode)
+			}
+		)
+
 		// Demo mode: re-point the polling target to a sandboxed file and run
 		// the fixture cycle driver. P2.07 will own live polling against the
 		// non-demo `pollingTarget`.
@@ -171,7 +180,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		dbgLog(
 			"DBG MenubarApp: branching — isDemoMode=\(config.isDemoMode) rendererLoaded=\(self.renderer != nil)"
 		)
-		if config.isDemoMode, let renderer = self.renderer {
+		if config.isDemoMode, self.renderer != nil {
 			let fixtures = Self.bundledDemoFixturesDirectory()
 			dbgLog(
 				"DBG MenubarApp.demo: bundleResourceURL=\(Bundle.main.resourceURL?.path ?? "<nil>") fixturesDir=\(fixtures?.path ?? "<nil>")"
@@ -184,9 +193,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				let driver = DemoCycleDriver(
 					sandboxedPath: config.pollingTarget,
 					fixturesDirectory: fixturesDirectory,
-					apply: { [weak renderer] state in
+					apply: { state in
 						dbgLog("DBG demoDriver.apply: state=\(state.rawValue)")
-						renderer?.update(state: state, visualMode: .normal)
+						stateFanout.applyDemo(state: state)
 					},
 					transitionLog: self.transitionLog
 				)
@@ -198,14 +207,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					"DBG MenubarApp.demo: fixtures NOT FOUND — driver not started, renderer stays in initial idle"
 				)
 			}
-		} else if let renderer = self.renderer {
+		} else if self.renderer != nil {
 			// Live polling — read the hook's `~/.codogotchi/state.json` at 1Hz
 			// and route success/failure into renderer + status-item tooltip.
 			// Mutually exclusive with demo mode by construction (the `else` arm).
 			let driver = LivePollingDriver(
 				pollingTargetPath: config.pollingTarget.path,
-				apply: { [weak renderer] state, mode in
-					renderer?.update(state: state, visualMode: mode)
+				apply: { state, mode in
+					stateFanout.apply(state: state, visualMode: mode)
 				},
 				setTooltip: { [weak item] tooltip in
 					item?.button?.toolTip = tooltip
