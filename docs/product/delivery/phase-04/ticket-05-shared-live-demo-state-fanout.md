@@ -57,3 +57,6 @@ Deferred:
 No scene-level assertions yet for "hidden panel later shows most recent state"; this ticket keeps the contract at the controller/panel seam and shared app fanout path.
 Contract note:
 `apps/menubar/project.yml` remains the Xcode source of truth; adding the new Swift source required regenerating `apps/menubar/Codogotchi.xcodeproj` with `xcodegen generate` so `mac:test` sees the file.
+
+Subagent review patch:
+Codex found that `.desaturated` live-failure fanout could still leave the floating pet visually healthy when Core Image desaturation fails. The floating scene now falls back to a deterministic gray SpriteKit tint in that path and clears the tint when normal rendering resumes.

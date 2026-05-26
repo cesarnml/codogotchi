@@ -25,9 +25,7 @@
       "terminatedReason": "completed",
       "findings": [],
       "probedSurfaces": [],
-      "patches": [
-        "e2b8496"
-      ],
+      "patches": ["e2b8496"],
       "schemaVersion": 1,
       "primaryAgent": "cursor(gpt-5.5)",
       "runnerSelfReport": null,
