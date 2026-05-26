@@ -185,6 +185,11 @@ private final class FloatingPetInteractionView: NSView {
 
 	override var isFlipped: Bool { false }
 
+	override func hitTest(_ point: NSPoint) -> NSView? {
+		guard bounds.contains(point) else { return nil }
+		return self
+	}
+
 	override func layout() {
 		super.layout()
 		skView.frame = bounds
