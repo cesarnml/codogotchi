@@ -56,3 +56,9 @@ Why this path:
 Alternative considered:
 Deferred:
 Contract note:
+
+Green implementation:
+Why this path: Added a small pure `FloatingInteractionPolicy` for hit-testing, drag movement, and resize clamping, then kept AppKit event handling in the floating panel view so the controller only owns persistence and display-change reclamping.
+Alternative considered: Putting gesture math directly inside the panel event handlers was simpler initially, but it would have made the resize/drag conflict harder to test without a window server.
+Deferred: Advanced docking, snapping, per-display placement memory, and autonomous motion remain out of scope for Phase 04.
+Contract note: Drag/resize writes app-state only at interaction completion; display changes reclamp the saved frame through the same renderer-local app-state path.

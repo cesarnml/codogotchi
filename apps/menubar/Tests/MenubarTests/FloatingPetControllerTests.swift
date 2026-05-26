@@ -9,6 +9,7 @@ final class FloatingPetControllerTests: XCTestCase {
 		var shownFrames: [CGRect] = []
 		var hideCount = 0
 		var appliedStates: [(ActivityState, VisualMode)] = []
+		var frameChangeHandler: ((CGRect) -> Void)?
 
 		func show(frame: CGRect) {
 			shownFrames.append(frame)
@@ -20,6 +21,10 @@ final class FloatingPetControllerTests: XCTestCase {
 
 		func apply(state: ActivityState, visualMode: VisualMode) {
 			appliedStates.append((state, visualMode))
+		}
+
+		func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
+			frameChangeHandler = handler
 		}
 	}
 
