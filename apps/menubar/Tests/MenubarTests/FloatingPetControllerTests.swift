@@ -8,6 +8,7 @@ final class FloatingPetControllerTests: XCTestCase {
 	final class FloatingPetPanelSpy: FloatingPetPanelManaging {
 		var shownFrames: [CGRect] = []
 		var hideCount = 0
+		var appliedStates: [(ActivityState, VisualMode)] = []
 
 		func show(frame: CGRect) {
 			shownFrames.append(frame)
@@ -15,6 +16,10 @@ final class FloatingPetControllerTests: XCTestCase {
 
 		func hide() {
 			hideCount += 1
+		}
+
+		func apply(state: ActivityState, visualMode: VisualMode) {
+			appliedStates.append((state, visualMode))
 		}
 	}
 
@@ -111,6 +116,25 @@ final class FloatingPetControllerTests: XCTestCase {
 			XCTAssertEqual(panel.shownFrames, [])
 			XCTAssertEqual(panel.hideCount, 0)
 			XCTAssertFalse(AppStateStore.load(visibleFrame: visibleFrame).isFloatingPetVisible)
+		}
+	}
+
+	func testApplyStateWhileHiddenDoesNotCrashAndReachesPanelRenderer() throws {
+		try withTempHome { _ in
+			let initial = FloatingAppState(
+				isFloatingPetVisible: false,
+				frame: CGRect(x: 120, y: 160, width: 220, height: 180)
+			)
+			try AppStateStore.save(initial)
+			let panel = FloatingPetPanelSpy()
+			let controller = FloatingPetController(panel: panel, visibleFrameProvider: { self.visibleFrame })
+
+			controller.apply(state: .errored, visualMode: .desaturated)
+
+			XCTAssertEqual(panel.appliedStates.count, 1)
+			XCTAssertEqual(panel.appliedStates[0].0, .errored)
+			XCTAssertEqual(panel.appliedStates[0].1, .desaturated)
+			XCTAssertEqual(panel.shownFrames, [])
 		}
 	}
 }
