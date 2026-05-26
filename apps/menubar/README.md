@@ -4,11 +4,20 @@ macOS menu-bar app for Codogotchi. First native Swift surface in the repo (Phase
 
 > **Dev build only.** No code signing, no notarization, no distribution pipeline. The committed `.xcodeproj` is for local development. A signing/notarization story is deliberately deferred to a later distribution-focused phase.
 
-## What this app is right now (P2.01)
+## What this app is (Phase 04)
 
-A minimal `NSStatusItem` with a placeholder `pawprint` system-symbol icon and a single **Quit Codogotchi** menu item. `LSUIElement = true` in `Info.plist` makes it a true menu-bar agent: no Dock icon, no main window.
+An `LSUIElement` menu bar agent named **Codogotchi** with two render surfaces:
 
-Later Phase 02 tickets replace the placeholder icon with the Mali sprite, wire `~/.codogotchi/state.json` polling, and add state-driven animation on top of this scaffold.
+1. **Menu bar micro-pet** — `NSStatusItem` + `MenubarRenderer`, polling
+   `~/.codogotchi/state.json` (or demo fixtures).
+2. **Floating desktop pet** — transparent float-on-top `NSPanel` with a
+   SpriteKit scene (`FloatingPetScene`), toggled from **Show/Hide Floating Pet**.
+
+Direct manipulation: click-hold the frame to drag; click-hold the bottom-right
+resize affordance to scale between 96×96 and 512×512 pt. Placement persists in
+`~/.codogotchi/app-state.json` and reclamps after display changes.
+
+Validate locally with [`docs/runbooks/phase-04-validation.md`](../../runbooks/phase-04-validation.md).
 
 ## Open in Xcode
 
@@ -59,8 +68,10 @@ There is intentionally no `SMAppService` / login-item registration in this build
 
 ### Confirming the app is alive
 
-- The menu bar shows the pet (or the pawprint placeholder when Mali assets are missing).
-- The **Codogotchi** menu opens on click; **Quit Codogotchi** terminates the agent.
+- The menu bar shows the pet (or idle fallback when assets are missing).
+- The **Codogotchi** menu opens on click; **Show/Hide Floating Pet** toggles the
+  desktop surface; **Quit Codogotchi** terminates the agent.
+- When visible, the floating pet appears transparent around the sprite art.
 
 ### Confirming state is updating
 
@@ -76,7 +87,10 @@ Closing the lid (or otherwise sleeping the machine) is safe — the 1-second pol
 
 ## Demo mode
 
-Demo mode (P2.06) re-points the polling target to a sandboxed file under `$TMPDIR/codogotchi-demo/state.json` and runs a fixture cycle driver that copies the four floor-state fixtures (`idle` → `implementing` → `running-tests` → `celebrating` → loop) on a 3-second timer. The real `~/.codogotchi/state.json` is never touched.
+Demo mode re-points the polling target to a sandboxed file under
+`$TMPDIR/codogotchi-demo/state.json` and cycles activity fixtures on a timer.
+Both the menu bar renderer and floating scene consume the same fanout, so demo
+mode validates state sync without touching live `~/.codogotchi/state.json`.
 
 Two equivalent activations:
 

@@ -18,7 +18,7 @@
 
 **Defers:**
 
-- Floating window / NSPanel / SpriteKit + mouse-interaction rows (codex 1, 2, 4) — Phase 04.
+- Floating window / NSPanel / SpriteKit + mouse-interaction rows — **shipped in Phase 04** (see [`phase-04.md`](phase-04.md)); was deferred at Phase 03 planning time.
 - HP overlays, death/ghost visuals, mood tints — Phase 05.
 - Pet picker UI, catalog enumeration, multi-pet validation, displayName resolution — Phase 06.
 - Schema versioning for `config.json` — deferred until the config has more than one key.
@@ -82,7 +82,7 @@ The committed scope is grouped into five areas. Implementation sequencing is for
 
 Each deferral below is named with the reason it is *not* in Phase 03, not just the future phase it might land in.
 
-- **Floating window / NSPanel / SpriteKit and the mouse-interaction rows** (codex rows 1 `running-right`, 2 `running-left`, 4 `jumping`). Phase 04 owns the float-on-top sprite. Those rows are deliberately reserved in the contract and remain unmapped in the renderer until the float surface exists to consume them.
+- **Floating window / NSPanel / SpriteKit and the mouse-interaction rows** (codex rows 1 `running-right`, 2 `running-left`, 4 `jumping`). **Shipped in Phase 04** — see [`phase-04.md`](phase-04.md). At Phase 03 planning time these rows were reserved in the contract and unmapped in the menu bar renderer until the float surface existed.
 - **HP overlays, mood tints, death/ghost visuals.** Phase 05 (Social Drama). HP continues ticking silently. Phase 03 is animation-state vocabulary completion only; the HP overlay vocabulary is its own deliberate reveal.
 - **Pet picker UI, catalog enumeration, multi-pet validation, displayName resolution.** Phase 06 (Catalog). The `config.json` pet knob is intentionally minimal — single string, owner-edited — so it doesn't anticipate or constrain the catalog design.
 - **Schema versioning for `config.json`.** One key isn't worth the ceremony. When the config grows a second key (HP preferences, selected effects, etc.), add `schema_version` with a default-to-v1 migration.

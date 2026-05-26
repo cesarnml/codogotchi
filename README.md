@@ -2,18 +2,20 @@
 
 Codogotchi is the RPG layer on top of Codex- and Claude-format pets. Your
 agent activity feeds XP, HP, stage advancement, and loot. The data lives in
-Convex; a macOS menu bar pet renders the agent's animation state locally
-from `~/.codogotchi/state.json`.
+Convex; a macOS **Codogotchi** app renders agent animation state locally from
+`~/.codogotchi/state.json` on both the menu bar micro-pet and an optional
+transparent floating desktop pet.
 
-**Status:** Phase 03 — SoA-aware pet (private). Phase 01 CLI + Convex
-pipeline is shipped; Phase 02 added the first native Swift surface (menu
-bar `NSStatusItem` with four floor states); Phase 03 extended to all 15
-activity states with a second spritesheet (`codogotchi-spritesheet.webp`)
-serving the nine SoA-gate states, `schema_version` bumped to 2, and
-per-pet configuration via `~/.codogotchi/config.json`. No public surface
-yet. See [`docs/product/plans/phase-03.md`](docs/product/plans/phase-03.md)
-for the Phase 03 scope and explicit deferrals (floating window / SpriteKit,
-HP visuals, distribution polish all stay future-phase).
+**Status:** Phase 04 — Floating pet (private). Phase 01 CLI + Convex pipeline
+is shipped; Phase 02 added the menu bar `NSStatusItem`; Phase 03 extended to
+all 15 activity states with a second spritesheet (`codogotchi-spritesheet.webp`)
+and per-pet config; Phase 04 renamed the app to **Codogotchi**, added a
+float-on-top SpriteKit surface (show/hide, drag, resize, persistence in
+`~/.codogotchi/app-state.json`), shared live/demo state fanout, and mouse-
+reactive reserved Codex rows. HP overlays, focus-aware visibility, catalog UI,
+and distribution polish remain deferred. See
+[`docs/product/plans/phase-04.md`](docs/product/plans/phase-04.md) and the
+[`phase-04 validation runbook`](docs/runbooks/phase-04-validation.md).
 
 ## What ships in Phase 01
 
@@ -48,11 +50,11 @@ packages/
   contracts/  # zod + types: IPC, signals, SoA event feed
 convex/       # Convex schema, mutations, HTTP action
 apps/
-  menubar/    # Phase 02 macOS NSStatusItem app (Xcode-native, Swift)
+  menubar/    # Codogotchi macOS app — menu bar + floating pet (Swift / SpriteKit)
 docs/
   contracts/  # animation-state-vocabulary, soa-event-feed, convex-deployment
   product/    # plans, delivery, retrospectives
-  runbooks/   # phase-01 validation runbook + log, scheduled-sync install
+  runbooks/   # phase validation runbooks, scheduled-sync install
 ```
 
 ## Install (private, source build)
@@ -101,7 +103,8 @@ Environment overrides:
 | `~/.codogotchi/config.json` | `setup`, `config` | Credentials, health knobs, and pet name |
 | `~/.codogotchi/profile.json` | `sync` | Local cache of Convex profile |
 | `~/.codogotchi/state.json` | `codogotchi-hook` | Animation state for renderers (`schema_version: 2`) |
-| `~/.codogotchi/state-transitions.log` | menubar app | NDJSON log of state changes and heartbeats |
+| `~/.codogotchi/app-state.json` | Codogotchi app | Floating pet visibility, position, size (`schema_version: 1`) |
+| `~/.codogotchi/state-transitions.log` | Codogotchi app | NDJSON log of state changes and heartbeats |
 | `~/.codogotchi/sync.log` | `sync` | Per-source success / failure (rotated) |
 | `~/.codogotchi/loot.log` | `sync` (via Convex) | Loot history (for `loot`) |
 | `~/.codogotchi/scorePR.log` | `sync` | `scorePR` heuristic decisions |
@@ -119,9 +122,18 @@ Three knobs in `~/.codogotchi/config.json`:
 - `health.vacation_until` — ISO date through which HP decay is suspended; set
   via `codogotchi vacation on`.
 
+## macOS app (Phase 04+)
+
+The **Codogotchi** app (`apps/menubar/`) is an `LSUIElement` menu bar agent with
+an optional float-on-top desktop pet. Build with `bun run mac:build`; validate
+with [`docs/runbooks/phase-04-validation.md`](docs/runbooks/phase-04-validation.md).
+Menu items include **Show/Hide Floating Pet**, **Open log folder**, **Reveal pet
+folder**, and **Quit Codogotchi**. Demo mode (`CODOGOTCHI_DEMO=1`) drives both
+surfaces from fixtures without touching live `state.json`.
+
 ## Pet configuration (Phase 03+)
 
-The menubar app resolves the active pet from `~/.codogotchi/config.json`:
+The Codogotchi app resolves the active pet from `~/.codogotchi/config.json`:
 
 ```json
 { "pet": "maew" }
@@ -139,8 +151,8 @@ app and is the test-isolation mechanism used in `PetConfigTests`.
 ## Contracts to read before extending
 
 - [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md) —
-  closed-enum state vocabulary the hook writes and the Phase 02 menu bar
-  app reads (Swift `StateJsonReader` in `apps/menubar/`).
+  closed-enum state vocabulary the hook writes and the Codogotchi app reads
+  (Swift `StateJsonReader` in `apps/menubar/`).
 - [`docs/contracts/soa-event-feed.md`](docs/contracts/soa-event-feed.md) —
   NDJSON event feed Son-of-Anton emits that the hook consumes for explicit
   delivery-gate signals.
@@ -155,12 +167,12 @@ bun test                       # engine tests (fast)
 bun run verify:quiet           # biome check (lint + format)
 bun run spellcheck             # cspell
 bun run ci:quiet               # publication gate (verify + spellcheck + mac:test)
-bun run mac:build              # Phase 02 menu bar app — xcodebuild
-bun run mac:test               # Phase 02 menu bar app — xcodebuild test
+bun run mac:build              # Codogotchi macOS app — xcodebuild
+bun run mac:test               # Codogotchi macOS app — xcodebuild test
 ```
 
 `mac:build` and `mac:test` shell out to `xcodebuild` against
-`apps/menubar/Menubar.xcodeproj`. `bun run ci` and `bun run ci:quiet`
+`apps/menubar/Codogotchi.xcodeproj`. `bun run ci` and `bun run ci:quiet`
 chain `mac:test` after biome + cspell so Swift compile / test
 failures gate the orchestrator's `post-red` and `open-pr` steps in
 the same place TS regressions are caught. `apps/**` is still

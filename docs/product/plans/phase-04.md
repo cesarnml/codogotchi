@@ -1,6 +1,6 @@
 # Phase 04: Floating Pet
 
-**Delivery status:** Product plan approved 2026-05-25. Decomposition complete; tickets at [`docs/product/delivery/phase-04/`](../delivery/phase-04/).
+**Delivery status:** Delivered 2026-05-26 (9/9 tickets, stacked PRs [#45](https://github.com/cesarnml/codogotchi/pull/45)–[#53](https://github.com/cesarnml/codogotchi/pull/53)). Retrospective: [`docs/product/retrospectives/phase-04-floating-pet-retrospective.md`](../retrospectives/phase-04-floating-pet-retrospective.md). Validation: [`docs/runbooks/phase-04-validation.md`](../../runbooks/phase-04-validation.md).
 
 ## TL;DR
 
