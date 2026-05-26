@@ -81,6 +81,8 @@ final class FloatingPetScene: SKScene {
 	var petLayerForTesting: SKNode { petLayer }
 	var overlayLayerForTesting: SKNode { overlayLayer }
 	var currentTextureForTesting: SKTexture? { spriteNode.texture }
+	var currentColorForTesting: NSColor { spriteNode.color }
+	var currentColorBlendFactorForTesting: CGFloat { spriteNode.colorBlendFactor }
 
 	func advanceFrameForTesting() {
 		advanceFrame()
@@ -112,18 +114,25 @@ final class FloatingPetScene: SKScene {
 
 		let frame = currentFrames[frameIndex % currentFrames.count]
 		let textureImage: CGImage
+		let colorBlendFactor: CGFloat
 		switch currentMode {
 		case .normal:
 			textureImage = frame.cgImage
+			colorBlendFactor = 0
 		case .desaturated:
-			guard let desaturated = desaturateFrame(frame) else {
-				NSLog("FloatingPetScene: desaturate skipped - keeping previous texture")
-				return
+			if let desaturated = desaturateFrame(frame) {
+				textureImage = desaturated
+				colorBlendFactor = 0
+			} else {
+				NSLog("FloatingPetScene: desaturate skipped - using gray failure fallback")
+				textureImage = frame.cgImage
+				colorBlendFactor = 1
 			}
-			textureImage = desaturated
 		}
 
 		spriteNode.texture = SKTexture(cgImage: textureImage)
+		spriteNode.color = .gray
+		spriteNode.colorBlendFactor = colorBlendFactor
 		spriteNode.size = fittedSpriteSize(for: frame.image.size)
 	}
 

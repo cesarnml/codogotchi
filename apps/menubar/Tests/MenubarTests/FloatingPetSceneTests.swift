@@ -106,16 +106,29 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertEqual(scene.overlayLayerForTesting.position, CGPoint(x: 130, y: 90))
 	}
 
-	func testDesaturationFailureKeepsPreviousTexture() throws {
+	func testDesaturationFailureUsesGrayFallback() throws {
 		let scene = try makeScene(desaturateFrame: { _ in nil })
 		scene.update(state: .idle, visualMode: .normal)
-		let normalTexture = try XCTUnwrap(scene.currentTextureForTesting)
+		XCTAssertNotNil(scene.currentTextureForTesting)
+		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 0)
 
 		scene.update(state: .idle, visualMode: .desaturated)
 
-		XCTAssertTrue(
-			scene.currentTextureForTesting === normalTexture,
-			"desaturation failure must not replace the current texture with a colored fallback frame"
-		)
+		XCTAssertNotNil(scene.currentTextureForTesting)
+		let fallbackColor = try XCTUnwrap(scene.currentColorForTesting.usingColorSpace(.deviceRGB))
+		XCTAssertEqual(fallbackColor.redComponent, 0.5, accuracy: 0.001)
+		XCTAssertEqual(fallbackColor.greenComponent, 0.5, accuracy: 0.001)
+		XCTAssertEqual(fallbackColor.blueComponent, 0.5, accuracy: 0.001)
+		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 1)
+	}
+
+	func testNormalModeClearsGrayFallback() throws {
+		let scene = try makeScene(desaturateFrame: { _ in nil })
+		scene.update(state: .idle, visualMode: .desaturated)
+		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 1)
+
+		scene.update(state: .idle, visualMode: .normal)
+
+		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 0)
 	}
 }
