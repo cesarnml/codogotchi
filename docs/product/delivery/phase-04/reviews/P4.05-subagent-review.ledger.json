@@ -25,9 +25,7 @@
       "terminatedReason": "completed",
       "findings": [],
       "probedSurfaces": [],
-      "patches": [
-        "e2b8496"
-      ],
+      "patches": ["e2b8496"],
       "schemaVersion": 1,
       "primaryAgent": "cursor(gpt-5.5)",
       "runnerSelfReport": null,
@@ -42,9 +40,7 @@
       "terminatedReason": "completed",
       "findings": [],
       "probedSurfaces": [],
-      "patches": [
-        "99e8a9c625eaa095bed6614d13f96ebd207e2cd6"
-      ],
+      "patches": ["99e8a9c625eaa095bed6614d13f96ebd207e2cd6"],
       "schemaVersion": 1,
       "primaryAgent": "unknown",
       "runnerSelfReport": null,
