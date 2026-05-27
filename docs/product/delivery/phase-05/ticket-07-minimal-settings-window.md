@@ -37,8 +37,12 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+Red first: Wrote failing tests for `SettingsController` (install/uninstall subprocess invocation, RPG-independence) and `PetImportHelper` (copy creates canonical files, empty-source returns empty list) before adding any source files. Required an explicit `xcodegen generate` pass to include new test files in the xcodeproj since XcodeGen produces a static file list at generation time, not at build time.
+
+Why this path: `SettingsController` mirrors `OnboardingController`'s runner-injection pattern so the same `HookStatusClient.defaultRunner` works in production and tests can inject a spy. `PetImportHelper` wraps `FileManager.copyItem` with injected roots and `FileManager` for testability.
+
+Alternative considered: Using SwiftUI `Settings {}` scene — deferred because the app is a pure AppKit LSUIElement agent with no scene infrastructure; adding a SwiftUI scene would require `@NSApplicationMain` restructuring. Programmatic `NSPanel` used instead, matching the onboarding pattern already in place.
+
+Deferred: Pet selection UI that actually switches the active pet at runtime (Phase 10). General/Health/Loot/Developer tabs (Phase 10). Cursor native install (Phase 06).
+
+Contract note: Import is copy-only — no runtime read from `~/.codex/pets/` after Phase 05. Settings Install/Uninstall call `codogotchi hooks install|uninstall` subprocess, same as onboarding. Hook status is shared via `updateHookStatus(_:)` push from `MenubarApp.refreshHookStatusCache()`.
