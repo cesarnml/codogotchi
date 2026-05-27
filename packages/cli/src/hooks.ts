@@ -1,4 +1,11 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { InstallHooksContext } from "./setup";
@@ -7,6 +14,7 @@ const CLAUDE_SETTINGS_REL = join(".claude", "settings.json");
 const CODEX_CONFIG_REL = join(".codex", "config.toml");
 const CODEX_HOOKS_REL = join(".codex", "hooks", "codogotchi.toml");
 const CODEX_HOOKS_JSON_REL = join(".codex", "hooks.json");
+const CODOGOTCHI_CONFIG_REL = join(".codogotchi", "config.json");
 
 function getUserRoot(): string {
   const override = process.env.CODOGOTCHI_USER_ROOT;
@@ -31,6 +39,21 @@ type CodexHooks = Record<string, CodexHookSlot | unknown>;
 type CodexHooksJson = {
   hooks?: CodexHooks;
 } & Record<string, unknown>;
+export type HookPlatformStatus = {
+  present_on_disk: boolean;
+  installable_in_phase: boolean;
+  installed: boolean;
+  firing_recently: boolean;
+  last_event_at: string | null;
+  source_origin?: string;
+};
+export type HooksStatus = {
+  codex: HookPlatformStatus;
+  claude_code: HookPlatformStatus;
+  cursor: HookPlatformStatus;
+  vscode: HookPlatformStatus;
+  antigravity: HookPlatformStatus;
+};
 
 /// The command Claude Code spawns. Re-used to detect (and dedupe) prior
 /// codogotchi entries so re-running setup is idempotent.
@@ -99,11 +122,9 @@ function shellQuote(value: string): string {
 }
 
 function codexHookCommand(ctx: InstallHooksContext): string {
-  return [
-    `CODOGOTCHI_HOME=${shellQuote(ctx.home)}`,
-    `CODOGOTCHI_CONVEX_URL=${shellQuote(ctx.convex_http_url)}`,
-    CODOGOTCHI_COMMAND,
-  ].join(" ");
+  return [`CODOGOTCHI_HOME=${shellQuote(ctx.home)}`, CODOGOTCHI_COMMAND].join(
+    " ",
+  );
 }
 
 /// Replace any existing codogotchi-hook matcher in `slot` with a canonical
@@ -208,6 +229,50 @@ function withoutCodexHookState(raw: string, hooksJsonPath: string): string {
   return `${out.join("\n").replace(/\n*$/, "")}\n`;
 }
 
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw err;
+  }
+}
+
+function backupPath(path: string): string {
+  const isoStamp = new Date().toISOString().replaceAll(":", "-");
+  return `${path}.codogotchi-backup-${isoStamp}`;
+}
+
+async function backupIfExists(path: string): Promise<void> {
+  if (!(await fileExists(path))) return;
+  await copyFile(path, backupPath(path));
+}
+
+function codexInstalled(hooks: CodexHooks): boolean {
+  return CODEX_CODOGOTCHI_EVENTS.every((event) => {
+    const slot = hooks[event];
+    if (!Array.isArray(slot)) return false;
+    return slot.some(
+      (matcher) =>
+        isCodexHookMatcher(matcher) &&
+        matcher.hooks.some((h) => isCodogotchiCommand(h.command)),
+    );
+  });
+}
+
+function claudeInstalled(hooks: ClaudeHooks): boolean {
+  return CODOGOTCHI_EVENTS.every((event) => {
+    const slot = hooks[event];
+    if (!Array.isArray(slot)) return false;
+    return slot.some(
+      (matcher) =>
+        isHookMatcher(matcher) &&
+        matcher.hooks.some((h) => isCodogotchiCommand(h.command)),
+    );
+  });
+}
+
 // installHooks writes the hook config entries that invoke the
 // `codogotchi-hook` binary into Claude Code's `settings.json` and Codex's
 // active `~/.codex/hooks.json` hook surface. The legacy Codex TOML file is
@@ -215,8 +280,15 @@ function withoutCodexHookState(raw: string, hooksJsonPath: string): string {
 // Re-running setup is idempotent: identical config produces identical files.
 export async function installHooks(ctx: InstallHooksContext): Promise<void> {
   const root = getUserRoot();
+  const configPath = join(root, CODOGOTCHI_CONFIG_REL);
+  if (!(await fileExists(configPath))) {
+    throw new Error(
+      "codogotchi: missing ~/.codogotchi/config.json. Launch the app or run `codogotchi setup` first.",
+    );
+  }
 
   const claudePath = join(root, CLAUDE_SETTINGS_REL);
+  await backupIfExists(claudePath);
   const claudeSettings = await readJsonOrEmpty<ClaudeSettings>(claudePath);
 
   // Strip the legacy `hooks.codogotchi` orphan written by P1.12-era
@@ -244,6 +316,8 @@ export async function installHooks(ctx: InstallHooksContext): Promise<void> {
 
   const codexJsonPath = join(root, CODEX_HOOKS_JSON_REL);
   const codexConfigPath = join(root, CODEX_CONFIG_REL);
+  await backupIfExists(codexConfigPath);
+  await backupIfExists(codexJsonPath);
   const codexConfig = await readTextOrEmpty(codexConfigPath);
   await writeText(
     codexConfigPath,
@@ -265,7 +339,6 @@ export async function installHooks(ctx: InstallHooksContext): Promise<void> {
     "",
     "[env]",
     `CODOGOTCHI_HOME = ${JSON.stringify(ctx.home)}`,
-    `CODOGOTCHI_CONVEX_URL = ${JSON.stringify(ctx.convex_http_url)}`,
     "",
   ].join("\n");
   await writeText(codexPath, codexToml);
@@ -296,4 +369,114 @@ export async function installHooks(ctx: InstallHooksContext): Promise<void> {
     codexJsonPath,
     `${JSON.stringify(codexHooksJson, null, 2)}\n`,
   );
+}
+
+export async function uninstallHooks(): Promise<void> {
+  const root = getUserRoot();
+  const claudePath = join(root, CLAUDE_SETTINGS_REL);
+  const codexJsonPath = join(root, CODEX_HOOKS_JSON_REL);
+  const codexConfigPath = join(root, CODEX_CONFIG_REL);
+  const codexTomlPath = join(root, CODEX_HOOKS_REL);
+
+  await backupIfExists(claudePath);
+  await backupIfExists(codexConfigPath);
+  await backupIfExists(codexJsonPath);
+
+  const claudeSettings = await readJsonOrEmpty<ClaudeSettings>(claudePath);
+  const claudeHooks = { ...((claudeSettings.hooks ?? {}) as ClaudeHooks) };
+  for (const [event, raw] of Object.entries(claudeHooks)) {
+    if (!Array.isArray(raw)) continue;
+    const cleaned = raw
+      .filter(isHookMatcher)
+      .map((matcher) => ({
+        ...matcher,
+        hooks: matcher.hooks.filter((h) => !isCodogotchiCommand(h.command)),
+      }))
+      .filter((matcher) => matcher.hooks.length > 0);
+    if (cleaned.length > 0) claudeHooks[event] = cleaned;
+    else delete claudeHooks[event];
+  }
+  claudeSettings.hooks = claudeHooks;
+  await writeText(claudePath, `${JSON.stringify(claudeSettings, null, 2)}\n`);
+
+  const codexHooksJson = await readJsonOrEmpty<CodexHooksJson>(codexJsonPath);
+  const codexHooks = { ...((codexHooksJson.hooks ?? {}) as CodexHooks) };
+  for (const [event, raw] of Object.entries(codexHooks)) {
+    if (!Array.isArray(raw)) continue;
+    const cleaned = raw
+      .filter(isCodexHookMatcher)
+      .map((matcher) => ({
+        ...matcher,
+        hooks: matcher.hooks.filter((h) => !isCodogotchiCommand(h.command)),
+      }))
+      .filter((matcher) => matcher.hooks.length > 0);
+    if (cleaned.length > 0) codexHooks[event] = cleaned;
+    else delete codexHooks[event];
+  }
+  codexHooksJson.hooks = codexHooks;
+  await writeText(
+    codexJsonPath,
+    `${JSON.stringify(codexHooksJson, null, 2)}\n`,
+  );
+
+  const codexConfig = await readTextOrEmpty(codexConfigPath);
+  await writeText(codexConfigPath, withoutCodexHookState(codexConfig, codexJsonPath));
+  await rm(codexTomlPath, { force: true });
+}
+
+export async function hooksStatus(): Promise<HooksStatus> {
+  const root = getUserRoot();
+  const claudePath = join(root, CLAUDE_SETTINGS_REL);
+  const codexJsonPath = join(root, CODEX_HOOKS_JSON_REL);
+
+  const claudePresent = await fileExists(claudePath);
+  const codexPresent = await fileExists(codexJsonPath);
+
+  const claude = claudePresent
+    ? await readJsonOrEmpty<ClaudeSettings>(claudePath)
+    : ({} as ClaudeSettings);
+  const codex = codexPresent
+    ? await readJsonOrEmpty<CodexHooksJson>(codexJsonPath)
+    : ({} as CodexHooksJson);
+
+  return {
+    codex: {
+      present_on_disk: codexPresent,
+      installable_in_phase: true,
+      installed: codexInstalled((codex.hooks ?? {}) as CodexHooks),
+      firing_recently: false,
+      last_event_at: null,
+    },
+    claude_code: {
+      present_on_disk: claudePresent,
+      installable_in_phase: true,
+      installed: claudeInstalled((claude.hooks ?? {}) as ClaudeHooks),
+      firing_recently: false,
+      last_event_at: null,
+    },
+    cursor: {
+      present_on_disk: false,
+      installable_in_phase: false,
+      installed: false,
+      firing_recently: false,
+      last_event_at: null,
+      source_origin: "phase-06-deferred",
+    },
+    vscode: {
+      present_on_disk: false,
+      installable_in_phase: false,
+      installed: false,
+      firing_recently: false,
+      last_event_at: null,
+      source_origin: "phase-06-deferred",
+    },
+    antigravity: {
+      present_on_disk: false,
+      installable_in_phase: false,
+      installed: false,
+      firing_recently: false,
+      last_event_at: null,
+      source_origin: "phase-06-deferred",
+    },
+  };
 }
