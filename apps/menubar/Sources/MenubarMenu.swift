@@ -77,7 +77,10 @@ final class MenubarMenu: NSObject {
 	/// `~/.codogotchi/pets/` — the canonical pet store directory, surfaced via
 	/// the "Reveal pet folder" menu item. Respects `CODOGOTCHI_HOME` when set.
 	static func defaultPetFolderURL() -> URL {
-		if let cStr = getenv("CODOGOTCHI_HOME"), let home = String(validatingUTF8: cStr) {
+		if let cStr = getenv("CODOGOTCHI_HOME"),
+			let home = String(validatingUTF8: cStr),
+			!home.isEmpty
+		{
 			return URL(fileURLWithPath: home, isDirectory: true)
 				.appendingPathComponent("pets", isDirectory: true)
 		}
