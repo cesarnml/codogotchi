@@ -34,8 +34,10 @@ Red: skip
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+**Operator machine upgrade verified (2026-05-28)**
+
+- Backup path: `~/.codogotchi/config.json.bak-p5.09-upgrade`
+- Ran `bun scripts/operator/upgrade-phase-05-config.ts` from the P5.09 worktree against the real `~/.codogotchi/config.json`
+- Config successfully upgraded: `features.rpg_enabled: true` added; all prior fields (handle, profile_id, github_username, health, convex_http_url) preserved
+- `bun /path/to/packages/cli/bin/codogotchi.ts sync` → `sync ok errors=0 new_loot=0`
+- No secrets or full config contents committed
