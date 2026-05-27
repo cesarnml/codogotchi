@@ -32,12 +32,26 @@ tickets use `Red: required`; tickets with no testable behavior may declare
 Phase 14 makes the subagent-review ledger semantically honest. Operator-facing docs and skills should describe the same contract:
 
 - **Artifact triplet:** `reviews/<ticket>-subagent-review.{prompt.md, report.md, ledger.json}` — prompt, report, ledger. No dual-name fallback for pre-Phase-14 filenames.
-- **Runner selection:** `--subagent <claude-cli|codex-cli>` at invocation time; optional project default `subagentRunner` in `orchestrator.config.json`. Precedence: flag > config field > hard error (SoA ships no silent default).
+- **Runner selection:** `--subagent <claude-cli|codex-cli|cursor-cli>` at invocation time; optional project default `subagentRunner` in `orchestrator.config.json`. Precedence: flag > config field > hard error (SoA ships no silent default).
 - **Outcome vocabulary:** ledger rows use `clean | patched | deferred | skipped` reflecting what the primary agent actually did after the advisory pass.
 - **Reconciliation:** `reconcile-subagent-review` runs after `subagent-review` and before `open-pr`. It detects silent lies (unlabeled post-review edits, actionable findings with no patch or deferral) and exits non-zero with named resolution paths. `open-pr` invokes the same gate and accepts `--ack-reconciliation <patched|deferred|clean>` as an operator escape valve.
 - **Deferral:** `subagent-review record-deferred --reason "<rationale>"` appends a `deferred` row when findings are consciously not patched.
 - **Advisory observations:** non-blocking off-scope-but-real notes belong under the `Advisory Observations` report section, not the blocking `Actionable findings` section. The old `Findings for human review` wording is legacy terminology for this same non-blocking lane.
 - **Adversarial prompt prologue:** broadening clauses (extra surfaces, advisory-observation bucket) appear before the narrowing "not a general code review" anchor in `adversarial-review-template.md`.
+
+### Programmatic subagent runners
+
+`subagent-review` can invoke a headless runner when `--subagent` (or `subagentRunner` in config) names one of:
+
+| `runnerKind` | Binary   | Verified invocation (prompt = filled `*-subagent-review.prompt.md` bytes)    |
+| ------------ | -------- | ---------------------------------------------------------------------------- |
+| `claude-cli` | `claude` | `claude -p <prompt>`                                                         |
+| `codex-cli`  | `codex`  | `codex exec [--output-last-message <path>] --color never <prompt>`           |
+| `cursor-cli` | `agent`  | `agent --print --trust --output-format text --workspace <worktree> <prompt>` |
+
+Prerequisites: install the binary on PATH. For `cursor-cli`, run `agent login` or set `CURSOR_API_KEY` before delivery. The orchestrator runs the command in the ticket worktree, persists stdout to `*-subagent-review.report.md`, stderr to `*-subagent-review.trace.log`, and records honest `skipped` rows when a runner is unavailable, rate-limited, or violates the advisory-only contract (any file write in the worktree).
+
+Fallback order: try the operator-selected runner first, then each other programmatic runner in stable order (`claude-cli` → `codex-cli` → `cursor-cli`, with the requested runner moved to the front). Ledger rows record `runnerKind` (what ran) and `fallbackFrom` (what was requested when fallback fired).
 
 ## Stance
 
@@ -133,7 +147,7 @@ behavior, and review policy are not hardcoded:
 }
 ```
 
-Subagent selection precedence is **`--subagent` flag > `subagentRunner` config field > hard error**. SoA ships no built-in silent default: a fresh repo with neither flag nor config field set is required to make the choice explicit before any subagent review runs. `primaryAgent` is free-form (e.g. `claude`, `codex`, `cursor`, `composer`, `copilot`, `aider`) and is recorded on every ledger row as `primaryAgent`; absent flag/config defaults to `"unknown"`. Cross-family review (e.g. claude primary + codex-cli subagent) is the documented best practice but not enforced — the operator chooses, the ledger records both fields so cross-family achievement is computable post-hoc.
+Subagent selection precedence is **`--subagent` flag > `subagentRunner` config field > hard error**. Valid `subagentRunner` / `--subagent` values: `claude-cli`, `codex-cli`, `cursor-cli`. SoA ships no built-in silent default: a fresh repo with neither flag nor config field set is required to make the choice explicit before any subagent review runs. `primaryAgent` is free-form (e.g. `claude`, `codex`, `cursor`, `composer`, `copilot`, `aider`) and is recorded on every ledger row as `primaryAgent`; absent flag/config defaults to `"unknown"`. Cross-family review (e.g. claude primary + codex-cli or cursor-cli subagent) is the documented best practice but not enforced — the operator chooses, the ledger records both fields so cross-family achievement is computable post-hoc.
 
 All fields are optional. When the file is absent, the orchestrator infers sensible defaults:
 
@@ -153,7 +167,7 @@ Valid `reviewPolicy` stage values are:
 
 Invalid values and unknown keys are rejected at config load with a clear error.
 
-`reviewPolicy.subagentReview` governs the pre-PR internal agent review step (`subagent-review` command). `reviewPolicy.prReview` governs the external AI PR review polling window. `prReviewAgents` is a list of `{ login, name }` entries used by the fetcher script to identify external review bots by GitHub login. Runner selection for `subagent-review` is done at invocation time via `--subagent <claude-cli|codex-cli>` — not in config.
+`reviewPolicy.subagentReview` governs the pre-PR internal agent review step (`subagent-review` command). `reviewPolicy.prReview` governs the external AI PR review polling window. `prReviewAgents` is a list of `{ login, name }` entries used by the fetcher script to identify external review bots by GitHub login. Runner selection for `subagent-review` is done at invocation time via `--subagent <claude-cli|codex-cli|cursor-cli>` — not in config.
 
 Supported `ticketBoundaryMode` values are:
 
@@ -330,13 +344,13 @@ Pass explicit flags to override delivery policy for a single run without editing
 
 **Available flags:**
 
-| Flag                       | Values                              | Effect                                                                                    |
-| -------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
-| `--boundary-mode`          | `cook\|gated`                       | Override ticket-boundary mode                                                             |
-| `--subagent-review-policy` | `required\|skip_doc_only\|disabled` | Override subagent review gate                                                             |
-| `--pr-review-policy`       | `required\|skip_doc_only\|disabled` | Override PR review gate                                                                   |
-| `--subagent`               | `claude-cli\|codex-cli`             | Declare execution agent identity; tries preferred first, then the other, then honest skip |
-| `--baseline`               | `orchestrator\|run-policy`          | Resolve divergence on resume (see below)                                                  |
+| Flag                       | Values                              | Effect                                                                                                     |
+| -------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `--boundary-mode`          | `cook\|gated`                       | Override ticket-boundary mode                                                                              |
+| `--subagent-review-policy` | `required\|skip_doc_only\|disabled` | Override subagent review gate                                                                              |
+| `--pr-review-policy`       | `required\|skip_doc_only\|disabled` | Override PR review gate                                                                                    |
+| `--subagent`               | `claude-cli\|codex-cli\|cursor-cli` | Declare execution agent identity; tries preferred first, then other programmatic runners, then honest skip |
+| `--baseline`               | `orchestrator\|run-policy`          | Resolve divergence on resume (see below)                                                                   |
 
 **Divergence recovery:** If `orchestrator.config.json` changes between runs, resume detects drift on the four bounded policy fields and refuses to continue until the operator resolves it:
 
@@ -449,9 +463,9 @@ The command persists the prompt under `reviews/<ticket>-subagent-review.prompt.m
 
 **Step 2 — Run advisory review (`subagent-review`):**
 
-**Runner selection:** The execution agent declares its own identity via `--subagent <claude-cli|codex-cli>`. The CLI tries the preferred runner first, falls back to the other, and records an honest `skipped` artifact if neither is available. No config change is needed when switching agent platforms (Claude Code, Codex, Cursor, etc.).
+**Runner selection:** The execution agent declares its own identity via `--subagent <claude-cli|codex-cli|cursor-cli>`. The CLI tries the preferred runner first, falls back to the other programmatic runners in order, and records an honest `skipped` artifact if none are available. No config change is needed when switching agent platforms (Claude Code, Codex, Cursor Agent CLI, etc.). The verified headless form for `cursor-cli` is `agent --print --trust --output-format text --workspace <worktree> <prompt>`.
 
-The runner receives the exact bytes from `reviews/<ticket>-subagent-review.prompt.md`, invokes verified headless forms (`claude -p` / `codex exec`), persists runner prose to `reviews/<ticket>-subagent-review.report.md`, and writes a `SubagentRunnerArtifact` to `reviews/<ticket>-subagent-review.ledger.json` whose `filledPrompt` and `rawOutput` fields are repo-relative paths to those sidecars (not embedded text). The orchestrator stages, commits, and pushes the JSON plus sidecar files from the ticket worktree. `open-pr` fails closed when `subagentReview` is not `"disabled"` and a non-skipped outcome is recorded but the artifact file is missing.
+The runner receives the exact bytes from `reviews/<ticket>-subagent-review.prompt.md`, invokes verified headless forms (`claude -p` / `codex exec` / `agent --print --trust --output-format text --workspace <worktree>`), persists runner prose to `reviews/<ticket>-subagent-review.report.md`, and writes a `SubagentRunnerArtifact` to `reviews/<ticket>-subagent-review.ledger.json` whose `filledPrompt` and `rawOutput` fields are repo-relative paths to those sidecars (not embedded text). The orchestrator stages, commits, and pushes the JSON plus sidecar files from the ticket worktree. `open-pr` fails closed when `subagentReview` is not `"disabled"` and a non-skipped outcome is recorded but the artifact file is missing.
 
 **Advisory-only contract:** The runner must not write files. If the worktree has new modifications after the runner exits, the CLI records `outcome: skipped` with `terminatedReason: advisory_violation` — not a completed clean review. Non-zero exit codes, empty output, and rate-limit signatures are also recorded as non-`completed` termination; the CLI refuses `outcome: clean` unless `terminatedReason` is `completed`.
 
@@ -583,7 +597,7 @@ Available commands:
 - `post-red [ticket-id]`
 - `post-verify [ticket-id] [clean|patched] [patch-commit-sha ...]`
 - `write-subagent-adversarial-review [ticket-id] [--prompt-file <path>]`
-- `subagent-review [ticket-id] [clean|patched <sha>] [--force] [--subagent <claude-cli|codex-cli>]`
+- `subagent-review [ticket-id] [clean|patched <sha>] [--force] [--subagent <claude-cli|codex-cli|cursor-cli>]`
 - `subagent-review record-deferred --reason "<rationale>" [ticket-id]`
 - `reconcile-subagent-review [ticket-id]`
 - `open-pr [ticket-id] [--ack-reconciliation <patched|deferred|clean>] [--commit <sha>] [--reason "<text>"]`
@@ -648,7 +662,7 @@ bun run deliver --plan docs/product/delivery/phase-NN/implementation-plan.md pos
 bun run deliver --plan docs/product/delivery/phase-NN/implementation-plan.md post-verify [clean|patched] [patch-commit-sha ...]
 # for code tickets when subagentReview is enabled:
 bun run deliver --plan docs/product/delivery/phase-NN/implementation-plan.md write-subagent-adversarial-review
-# pass --subagent <claude-cli|codex-cli> to run the advisory subagent programmatically, then record:
+# pass --subagent <claude-cli|codex-cli|cursor-cli> to run the advisory subagent programmatically, then record:
 bun run deliver --plan docs/product/delivery/phase-NN/implementation-plan.md subagent-review [clean|patched] [patch-commit-sha ...]
 bun run deliver --plan docs/product/delivery/phase-NN/implementation-plan.md reconcile-subagent-review
 # for doc-only tickets under skip_doc_only, subagent-review auto-records skipped (no prompt step)

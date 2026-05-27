@@ -31,7 +31,11 @@ export type PrReviewAgent = {
   resolveThreads: boolean;
 };
 
-export const VALID_SUBAGENT_RUNNERS = ['claude-cli', 'codex-cli'] as const;
+export const VALID_SUBAGENT_RUNNERS = [
+  'claude-cli',
+  'codex-cli',
+  'cursor-cli',
+] as const;
 export type SubagentRunnerSelection = (typeof VALID_SUBAGENT_RUNNERS)[number];
 
 export type CodogotchiConfig = {

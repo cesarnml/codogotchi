@@ -116,9 +116,11 @@ gate.
   patches with a `[subagent-review]` subject suffix or records `deferred` via
   `subagent-review record-deferred`. `reconcile-subagent-review` hard-blocks
   `open-pr` when the ledger would silently disagree with git history. Operator
-  selection is explicit via `--subagent <claude-cli|codex-cli>` (optional
-  `subagentRunner` config default). The CLI refuses to record `clean` when the
-  runner did not actually complete.
+  selection is explicit via `--subagent <claude-cli|codex-cli|cursor-cli>` (optional
+  `subagentRunner` config default). Programmatic runners: Claude (`claude -p`),
+  Codex (`codex exec`), and Cursor Agent CLI (`agent --print --trust` in the
+  ticket worktree). The CLI tries the preferred runner first, then the other
+  programmatic runners, and refuses to record `clean` when none actually complete.
 - **Stacked PR model** — each ticket gets its own branch and PR, stacked in
   dependency order. Closeout squash-merges the whole phase onto main cleanly.
 - **Migration runner** — when Son of Anton ships structural changes, `bun run sync`
@@ -265,12 +267,12 @@ or committing config changes.
 
 ### Supported flags
 
-| Flag                                 | Values                                  | What it overrides                                                                                                 |
-| ------------------------------------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `--boundary-mode`                    | `cook`, `gated`                         | `ticketBoundaryMode`                                                                                              |
-| `--subagent-review-policy`           | `required`, `skip_doc_only`, `disabled` | `reviewPolicy.subagentReview`                                                                                     |
-| `--pr-review-policy`                 | `required`, `skip_doc_only`, `disabled` | `reviewPolicy.prReview`                                                                                           |
-| `--subagent <claude-cli\|codex-cli>` | `claude-cli`, `codex-cli`               | declare execution agent identity for programmatic review; tries preferred first, then the other, then honest skip |
+| Flag                                             | Values                                  | What it overrides                                                                                                                  |
+| ------------------------------------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `--boundary-mode`                                | `cook`, `gated`                         | `ticketBoundaryMode`                                                                                                               |
+| `--subagent-review-policy`                       | `required`, `skip_doc_only`, `disabled` | `reviewPolicy.subagentReview`                                                                                                      |
+| `--pr-review-policy`                             | `required`, `skip_doc_only`, `disabled` | `reviewPolicy.prReview`                                                                                                            |
+| `--subagent <claude-cli\|codex-cli\|cursor-cli>` | `claude-cli`, `codex-cli`, `cursor-cli` | declare execution agent identity for programmatic review; tries preferred first, then other programmatic runners, then honest skip |
 
 The resolved policy is written to `state.json` at the start of every run.
 `orchestrator.config.json` is never modified.

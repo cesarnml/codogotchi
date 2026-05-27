@@ -183,6 +183,26 @@ const coerceClaudeCliClassification = (
     };
   }
 ).coerceClaudeCliClassification;
+const coerceCursorCliClassification = (
+  sr as {
+    coerceCursorCliClassification?: (input: {
+      exitCode: number | null;
+      stdout: string;
+      stderr: string;
+    }) => {
+      outcome: 'clean' | 'skipped';
+      terminatedReason: 'completed' | 'rate_limit' | 'runner_failed';
+      runnerSelfReport: string | null;
+    };
+  }
+).coerceCursorCliClassification;
+const buildSubagentFallbackOrder = (
+  sr as {
+    buildSubagentFallbackOrder?: (
+      requested: 'claude-cli' | 'codex-cli' | 'cursor-cli',
+    ) => ('claude-cli' | 'codex-cli' | 'cursor-cli')[];
+  }
+).buildSubagentFallbackOrder;
 const resolveSubagentSelection = (
   sr as {
     resolveSubagentSelection?: (input: {
@@ -312,12 +332,71 @@ describe('P14.02 — coerceClaudeCliClassification (symmetric to codex-cli)', ()
   });
 });
 
+describe('cursor-cli — coerceCursorCliClassification', () => {
+  it('trusts runnerStatus: completed when stdout is a full review', () => {
+    expect(coerceCursorCliClassification).toBeDefined();
+    const result = coerceCursorCliClassification!({
+      exitCode: 0,
+      stdout: 'Actionable findings\nNone.\n\nrunnerStatus: completed\n',
+      stderr: '',
+    });
+    expect(result.outcome).toBe('clean');
+    expect(result.terminatedReason).toBe('completed');
+    expect(result.runnerSelfReport).toBe('completed');
+  });
+
+  it('classifies Cursor billing "out of usage" stdout as rate_limit', () => {
+    expect(coerceCursorCliClassification).toBeDefined();
+    const result = coerceCursorCliClassification!({
+      exitCode: 1,
+      stdout:
+        "You're out of usage. Switch to Auto, or ask your admin to increase your limit to continue.",
+      stderr: '',
+    });
+    expect(result.outcome).toBe('skipped');
+    expect(result.terminatedReason).toBe('rate_limit');
+  });
+
+  it('does not treat review prose mentioning rate limits as rate_limit', () => {
+    expect(coerceCursorCliClassification).toBeDefined();
+    const result = coerceCursorCliClassification!({
+      exitCode: 0,
+      stdout:
+        'Finding: preserves existing rate limit retry behavior.\n\nrunnerStatus: completed',
+      stderr: '',
+    });
+    expect(result.outcome).toBe('clean');
+    expect(result.terminatedReason).toBe('completed');
+  });
+});
+
+describe('cursor-cli — buildSubagentFallbackOrder', () => {
+  it('tries the requested runner first, then the other programmatic runners', () => {
+    expect(buildSubagentFallbackOrder).toBeDefined();
+    expect(buildSubagentFallbackOrder!('cursor-cli')).toEqual([
+      'cursor-cli',
+      'claude-cli',
+      'codex-cli',
+    ]);
+  });
+});
+
 describe('P14.02 — resolveSubagentSelection', () => {
   it('returns the flag value (source=flag) when provided', () => {
     expect(resolveSubagentSelection).toBeDefined();
     expect(
       resolveSubagentSelection!({ flag: 'codex-cli', configField: undefined }),
     ).toEqual({ kind: 'codex-cli', source: 'flag' });
+  });
+
+  it('accepts cursor-cli as a strict enum value', () => {
+    expect(resolveSubagentSelection).toBeDefined();
+    expect(
+      resolveSubagentSelection!({
+        flag: 'cursor-cli',
+        configField: undefined,
+      }),
+    ).toEqual({ kind: 'cursor-cli', source: 'flag' });
   });
 
   it('falls back to the config field (source=config) when flag missing', () => {
@@ -415,12 +494,29 @@ describe('P14.02 — runSubagentWithFallback', () => {
     expect(calls).toEqual(['codex-cli', 'claude-cli']);
   });
 
-  it('records failed_all and preserves the originally-requested kind when both unavailable', () => {
+  it('records failed_all and preserves the originally-requested kind when all unavailable', () => {
     expect(runSubagentWithFallback).toBeDefined();
-    const result = runSubagentWithFallback!('codex-cli', () => unavailable);
+    const calls: string[] = [];
+    const result = runSubagentWithFallback!('codex-cli', (kind) => {
+      calls.push(kind);
+      return unavailable;
+    });
     expect(result.fallbackLevel).toBe('failed_all');
     expect(result.fallbackFrom).toBe('codex-cli');
     expect(result.result.status).toBe('unavailable');
+    expect(calls).toEqual(['codex-cli', 'claude-cli', 'cursor-cli']);
+  });
+
+  it('falls back through claude-cli to cursor-cli when codex-cli is unavailable', () => {
+    expect(runSubagentWithFallback).toBeDefined();
+    const calls: string[] = [];
+    const result = runSubagentWithFallback!('codex-cli', (kind) => {
+      calls.push(kind);
+      return kind === 'cursor-cli' ? ran() : unavailable;
+    });
+    expect(result.ranKind).toBe('cursor-cli');
+    expect(result.fallbackFrom).toBe('codex-cli');
+    expect(calls).toEqual(['codex-cli', 'claude-cli', 'cursor-cli']);
   });
 });
 

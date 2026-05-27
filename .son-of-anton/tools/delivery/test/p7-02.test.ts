@@ -62,6 +62,14 @@ describe('P7.02 runtime policy override parsing and resolution', () => {
       expect(result.subagent).toBe('codex-cli');
     });
 
+    it('parses --subagent cursor-cli', () => {
+      const result = parseCliArgs(
+        ['--plan', 'x.md', 'subagent-review', '--subagent', 'cursor-cli'],
+        DUMMY_USAGE,
+      );
+      expect(result.subagent).toBe('cursor-cli');
+    });
+
     it('throws on invalid --subagent value', () => {
       expect(() =>
         parseCliArgs(

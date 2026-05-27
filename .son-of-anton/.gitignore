@@ -9,3 +9,7 @@ notes/private
 media/**/*
 *-subagent-review.trace.log
 .soa/
+
+# agy-cli
+**/*/.antigravitycli
+.antigravitycli

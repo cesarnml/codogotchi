@@ -12,8 +12,19 @@ export const SUBAGENT_LEDGER_SCHEMA_VERSION = 1;
 export type SubagentRunnerKind =
   | 'claude-cli'
   | 'codex-cli'
+  | 'cursor-cli'
   | 'skipped'
   | 'operator-recorder';
+
+/** Headless runners invoked by `subagent-review` (excludes recorder-only kinds). */
+export const PROGRAMMATIC_SUBAGENT_RUNNERS = [
+  'claude-cli',
+  'codex-cli',
+  'cursor-cli',
+] as const;
+
+export type ProgrammaticSubagentRunner =
+  (typeof PROGRAMMATIC_SUBAGENT_RUNNERS)[number];
 
 export type SubagentRunnerTerminatedReason =
   | 'completed'
@@ -104,24 +115,53 @@ export type RunnerAttemptResult =
   | { status: 'timeout' };
 
 export function buildRunnerSpawnCommand(
-  runner: Extract<SubagentRunnerKind, 'claude-cli' | 'codex-cli'>,
+  runner: ProgrammaticSubagentRunner,
   reviewPrompt: string,
-  options: { outputLastMessagePath?: string } = {},
+  options: {
+    outputLastMessagePath?: string;
+    /** Ticket worktree path; required for cursor-cli headless runs. */
+    workspacePath?: string;
+  } = {},
 ): { bin: string; args: string[] } {
-  return runner === 'claude-cli'
-    ? { bin: 'claude', args: ['-p', reviewPrompt] }
-    : {
-        bin: 'codex',
-        args: [
-          'exec',
-          ...(options.outputLastMessagePath
-            ? ['--output-last-message', options.outputLastMessagePath]
-            : []),
-          '--color',
-          'never',
-          reviewPrompt,
-        ],
-      };
+  if (runner === 'claude-cli') {
+    return { bin: 'claude', args: ['-p', reviewPrompt] };
+  }
+  if (runner === 'cursor-cli') {
+    return {
+      bin: 'agent',
+      args: [
+        '--print',
+        '--trust',
+        '--output-format',
+        'text',
+        ...(options.workspacePath
+          ? ['--workspace', options.workspacePath]
+          : []),
+        reviewPrompt,
+      ],
+    };
+  }
+  return {
+    bin: 'codex',
+    args: [
+      'exec',
+      ...(options.outputLastMessagePath
+        ? ['--output-last-message', options.outputLastMessagePath]
+        : []),
+      '--color',
+      'never',
+      reviewPrompt,
+    ],
+  };
+}
+
+export function buildSubagentFallbackOrder(
+  requested: ProgrammaticSubagentRunner,
+): ProgrammaticSubagentRunner[] {
+  return [
+    requested,
+    ...PROGRAMMATIC_SUBAGENT_RUNNERS.filter((kind) => kind !== requested),
+  ];
 }
 
 /**
@@ -130,9 +170,9 @@ export function buildRunnerSpawnCommand(
  * up-front rather than letting a runner be picked silently.
  */
 export function resolveSubagentSelection(input: {
-  flag: 'claude-cli' | 'codex-cli' | undefined;
-  configField: 'claude-cli' | 'codex-cli' | undefined;
-}): { kind: 'claude-cli' | 'codex-cli'; source: 'flag' | 'config' } {
+  flag: ProgrammaticSubagentRunner | undefined;
+  configField: ProgrammaticSubagentRunner | undefined;
+}): { kind: ProgrammaticSubagentRunner; source: 'flag' | 'config' } {
   if (input.flag) {
     return { kind: input.flag, source: 'flag' };
   }
@@ -140,7 +180,7 @@ export function resolveSubagentSelection(input: {
     return { kind: input.configField, source: 'config' };
   }
   throw new Error(
-    'No subagent selected. Pass --subagent <claude-cli|codex-cli> or set `subagentRunner` in orchestrator.config.json. See docs/template/delivery/delivery-orchestrator.md for cross-family best-practice guidance.',
+    `No subagent selected. Pass --subagent <${PROGRAMMATIC_SUBAGENT_RUNNERS.join('|')}> or set \`subagentRunner\` in orchestrator.config.json. See docs/template/delivery/delivery-orchestrator.md for cross-family best-practice guidance.`,
   );
 }
 
@@ -306,6 +346,80 @@ function jsonContainsRateLimitToken(
   return false;
 }
 
+// Authentic usage/rate-limit signal for cursor-cli `agent --print` — billing
+// failures surface as short stdout prose (e.g. "out of usage"), not JSON trailers.
+function isCursorCliAuthenticRateLimit(input: {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+}): boolean {
+  if (
+    hasStructuredRateLimitToken(`${input.stdout}\n${input.stderr}`, ['type'])
+  ) {
+    return true;
+  }
+  if (input.exitCode === 0) {
+    return false;
+  }
+  const blob = `${input.stdout}\n${input.stderr}`;
+  return (
+    /\byou(?:'re| are) out of usage\b/i.test(blob) ||
+    /\bout of usage\b/i.test(blob) ||
+    /\brun out of usage credits\b/i.test(blob)
+  );
+}
+
+/**
+ * cursor-cli classification fidelity, symmetric to claude/codex-cli.
+ */
+export function coerceCursorCliClassification(input: {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+}): {
+  outcome: 'clean' | 'skipped';
+  terminatedReason: SubagentRunnerTerminatedReason;
+  runnerSelfReport: string | null;
+} {
+  const runnerSelfReport = parseRunnerStatusTrailer(input.stdout);
+
+  if (isCursorCliAuthenticRateLimit(input)) {
+    return {
+      outcome: 'skipped',
+      terminatedReason: 'rate_limit',
+      runnerSelfReport,
+    };
+  }
+
+  if (runnerSelfReport === 'completed') {
+    return {
+      outcome: 'clean',
+      terminatedReason: 'completed',
+      runnerSelfReport,
+    };
+  }
+
+  if (input.exitCode !== 0) {
+    return {
+      outcome: 'skipped',
+      terminatedReason: 'runner_failed',
+      runnerSelfReport,
+    };
+  }
+  if (`${input.stdout}${input.stderr}`.trim() === '') {
+    return {
+      outcome: 'skipped',
+      terminatedReason: 'runner_failed',
+      runnerSelfReport,
+    };
+  }
+  return {
+    outcome: 'clean',
+    terminatedReason: 'completed',
+    runnerSelfReport,
+  };
+}
+
 /**
  * P14.02 — claude-cli classification fidelity, symmetric to codex-cli.
  *
@@ -374,19 +488,17 @@ export function coerceClaudeCliClassification(input: {
  * requested kind so the skipped row remains auditable.
  */
 export function runSubagentWithFallback(
-  requested: 'claude-cli' | 'codex-cli',
-  attempt: (kind: 'claude-cli' | 'codex-cli') => RunnerAttemptResult,
+  requested: ProgrammaticSubagentRunner,
+  attempt: (kind: ProgrammaticSubagentRunner) => RunnerAttemptResult,
 ): {
-  ranKind: 'claude-cli' | 'codex-cli' | 'skipped';
-  fallbackFrom: 'claude-cli' | 'codex-cli' | null;
+  ranKind: ProgrammaticSubagentRunner | 'skipped';
+  fallbackFrom: ProgrammaticSubagentRunner | null;
   fallbackLevel: 'preferred' | 'fallback' | 'failed_all';
   result: RunnerAttemptResult;
-  attemptedKinds: ('claude-cli' | 'codex-cli')[];
+  attemptedKinds: ProgrammaticSubagentRunner[];
 } {
-  const other: 'claude-cli' | 'codex-cli' =
-    requested === 'codex-cli' ? 'claude-cli' : 'codex-cli';
-  const order: ('claude-cli' | 'codex-cli')[] = [requested, other];
-  const attemptedKinds: ('claude-cli' | 'codex-cli')[] = [];
+  const order = buildSubagentFallbackOrder(requested);
+  const attemptedKinds: ProgrammaticSubagentRunner[] = [];
   let lastResult: RunnerAttemptResult = { status: 'unavailable' };
 
   for (const [index, kind] of order.entries()) {
@@ -623,6 +735,7 @@ export function decideAdvisoryRunnerOutcome(
 const VALID_RUNNER_KINDS: SubagentRunnerKind[] = [
   'claude-cli',
   'codex-cli',
+  'cursor-cli',
   'skipped',
   'operator-recorder',
 ];

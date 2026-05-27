@@ -117,3 +117,9 @@ consuming repos (`coding-stats`, `pirate_claw`).
 | -------------- | --------------- | ------------------ | ---------------------------------------------------------- |
 | `coding-stats` | current (main)  | none               | Updated to beta; injection and config verified             |
 | `pirate_claw`  | current (main)  | phase in flight    | Stale `reviewSubagentOverride` rule removed; sync deferred |
+
+---
+
+## Updates since beta
+
+- **Programmatic runners (2026-05):** `subagent-review` supports `claude-cli`, `codex-cli`, and `cursor-cli` via `--subagent` / `orchestrator.config.json:subagentRunner`. The Phase 10-era `--preferred-runner` name is gone; fallback tries all three programmatic runners before an honest `skipped`. See `docs/template/delivery/delivery-orchestrator.md` (Programmatic subagent runners).

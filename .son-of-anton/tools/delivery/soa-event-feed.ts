@@ -54,7 +54,7 @@ export async function emitSubagentInvoked(
   worktreePath: string,
   planKey: string,
   ticketId: string,
-  runnerKind: 'claude-cli' | 'codex-cli',
+  runnerKind: 'claude-cli' | 'codex-cli' | 'cursor-cli',
 ): Promise<void> {
   await appendSoaEvent(
     config,

@@ -44,6 +44,25 @@ describe('P13.01 — runner spawn command shapes', () => {
       args: ['-p', 'review prompt'],
     });
   });
+
+  it('uses agent --print for cursor-cli runner invocations', () => {
+    expect(
+      buildRunnerSpawnCommand('cursor-cli', 'review prompt', {
+        workspacePath: '/tmp/ticket-worktree',
+      }),
+    ).toEqual({
+      bin: 'agent',
+      args: [
+        '--print',
+        '--trust',
+        '--output-format',
+        'text',
+        '--workspace',
+        '/tmp/ticket-worktree',
+        'review prompt',
+      ],
+    });
+  });
 });
 
 describe('P13.01 — raw runner response artifact evidence', () => {

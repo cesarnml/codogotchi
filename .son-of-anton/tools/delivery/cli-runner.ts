@@ -132,6 +132,7 @@ import {
   buildRunnerInvocation,
   coerceClaudeCliClassification,
   coerceCodexCliClassification,
+  coerceCursorCliClassification,
   decideAdvisoryRunnerOutcome,
   decideSubagentReviewMode,
   findDeliveryDocPaths,
@@ -287,7 +288,7 @@ export async function runDeliveryOrchestrator(
         boundaryMode?: TicketBoundaryMode;
         subagentReviewPolicy?: ReviewPolicyStageValue;
         prReviewPolicy?: ReviewPolicyStageValue;
-        subagent?: 'claude-cli' | 'codex-cli';
+        subagent?: 'claude-cli' | 'codex-cli' | 'cursor-cli';
         primary?: string;
         baseline?: 'orchestrator' | 'run-policy';
         dispositionsPath?: string;
@@ -945,7 +946,11 @@ export async function runDeliveryOrchestrator(
                 const { bin, args } = buildRunnerSpawnCommand(
                   runner,
                   reviewPrompt,
-                  { outputLastMessagePath },
+                  {
+                    outputLastMessagePath,
+                    workspacePath:
+                      runner === 'cursor-cli' ? worktreePath : undefined,
+                  },
                 );
                 try {
                   void emitSubagentInvoked(
@@ -991,11 +996,17 @@ export async function runDeliveryOrchestrator(
                           stdout,
                           stderr,
                         })
-                      : coerceClaudeCliClassification({
-                          exitCode: spawned.status,
-                          stdout,
-                          stderr,
-                        });
+                      : runner === 'cursor-cli'
+                        ? coerceCursorCliClassification({
+                            exitCode: spawned.status,
+                            stdout,
+                            stderr,
+                          })
+                        : coerceClaudeCliClassification({
+                            exitCode: spawned.status,
+                            stdout,
+                            stderr,
+                          });
                   runnerSelfReport = classified.runnerSelfReport;
                   return {
                     exitCode: spawned.status,

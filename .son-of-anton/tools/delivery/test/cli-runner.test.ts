@@ -21,6 +21,14 @@ describe('P14.02 — --subagent flag (strict enum)', () => {
     expect(parsed.subagent).toBe('codex-cli');
   });
 
+  it('parses --subagent cursor-cli', () => {
+    const parsed = parseCliArgs(
+      ['--plan', 'plan.md', 'subagent-review', '--subagent', 'cursor-cli'],
+      USAGE,
+    );
+    expect(parsed.subagent).toBe('cursor-cli');
+  });
+
   it('rejects invalid --subagent value', () => {
     expect(() =>
       parseCliArgs(

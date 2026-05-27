@@ -271,6 +271,7 @@ EOF_CONFIG
   echo "    gh     (global) — required for PR creation and review polling: https://cli.github.com"
   echo "    claude (global) — optional, enables programmatic subagent review via --subagent claude-cli"
   echo "    codex  (global) — optional, enables programmatic subagent review via --subagent codex-cli"
+  echo "    agent  (global) — optional, Cursor Agent CLI; enables programmatic subagent review via --subagent cursor-cli"
   echo ""
   echo "  Add .son-of-anton/ to your lint/format ignore config (e.g. .prettierignore, .eslintignore)"
   echo "  Review orchestrator.config.json, then run: bun run deliver --plan <plan-path> start"
