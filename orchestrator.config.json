@@ -13,6 +13,5 @@
     { "login": "Copilot", "name": "copilot", "resolveThreads": true }
   ],
   "subagentRunner": "codex-cli",
-  "primaryAgent": "claude",
-  "codogotchi": { "enabled": true }
+  "primaryAgent": "claude"
 }

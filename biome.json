@@ -9,12 +9,10 @@
     "ignoreUnknown": true,
     "includes": [
       "**",
-      "!.son-of-anton",
-      "!convex/_generated",
-      "!apps",
+      "!node_modules",
       "!.agents/delivery",
-      "!docs/product/delivery/**/reviews/*-subagent-review.report.md",
-      "!docs/product/delivery/**/reviews/*-subagent-review.prompt.md"
+      "!docs/product/delivery/*/reviews/*-subagent-review.report.md",
+      "!docs/product/delivery/*/reviews/*-subagent-review.prompt.md"
     ]
   },
   "formatter": {
@@ -30,7 +28,7 @@
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "double"
+      "quoteStyle": "single"
     }
   },
   "assist": {
