@@ -51,12 +51,16 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		self.panel = panel
 		if let interactionView = panel.contentView as? FloatingPetInteractionView {
 			interactionView.frame = NSRect(origin: .zero, size: frame.size)
+			interactionView.setSpriteKitPaused(false)
 			interactionView.prepareForDisplay()
 		}
+		scene?.resumeAnimation()
 	}
 
 	func hide() {
 		(panel?.contentView as? FloatingPetInteractionView)?.dismissHidePromptIfPresent()
+		scene?.pauseAnimation()
+		(panel?.contentView as? FloatingPetInteractionView)?.setSpriteKitPaused(true)
 		panel?.orderOut(nil)
 	}
 
@@ -393,6 +397,10 @@ private final class FloatingPetInteractionView: NSView {
 	func presentScene(_ scene: SKScene) {
 		skView.presentScene(scene)
 		elevateOverlayAboveSpriteKit()
+	}
+
+	func setSpriteKitPaused(_ paused: Bool) {
+		skView.isPaused = paused
 	}
 
 	/// Re-arm mouse-move tracking and sync affordance visibility after the panel

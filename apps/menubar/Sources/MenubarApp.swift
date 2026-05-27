@@ -59,13 +59,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// notification center does not retain a dangling block past shutdown.
 	var workspaceWakeObserver: NSObjectProtocol?
 
-	/// Held strongly to keep `ProcessInfo.beginActivity(...)` alive. Originally
-	/// added to keep the menubar renderer's animation timer steady; the menubar
-	/// is now static, so today this primarily protects the floating pet's
-	/// SpriteKit timer from App Nap throttling. Narrowing or gating this on
-	/// floating-pet visibility is the planned follow-up (see
-	/// `notes/public/codogotchi-process-cost-and-menubar-static-rendering.md`
-	/// §4.3).
+	/// Held while the floating pet is visible so App Nap does not throttle the
+	/// SpriteKit frame timer. Nil when the float is hidden (menubar-only).
 	var activity: NSObjectProtocol?
 
 	static func main() {
@@ -77,17 +72,6 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	}
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
-		// Disable App Nap. As an LSUIElement agent with no visible window we
-		// are a prime App Nap target; without this opt-out the floating pet's
-		// SpriteKit timer can be throttled (manifesting as the pet animating
-		// for one cycle, vanishing for a second or so, then animating again).
-		// The menubar renderer is static and does not depend on this opt-out;
-		// narrowing the activity to floating-pet visibility is a follow-up.
-		self.activity = ProcessInfo.processInfo.beginActivity(
-			options: [.userInitiated, .latencyCritical],
-			reason: "codogotchi menubar pet animation"
-		)
-
 		let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 		if let button = item.button {
 			button.image = NSImage(
@@ -136,10 +120,15 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				demoFrameInterval: demoInterval
 			)
 			self.floatingPetPanelController = floatingPanel
-			self.floatingPetController = FloatingPetController(
+			let floatingPetController = FloatingPetController(
 				panel: floatingPanel,
 				visibleFrameProvider: Self.visibleFloatingFrame
 			)
+			floatingPetController.onVisibilityChanged = { [weak self] visible in
+				self?.setFloatingPetAppNapOptOut(active: visible)
+			}
+			self.floatingPetController = floatingPetController
+			setFloatingPetAppNapOptOut(active: floatingPetController.isFloatingPetVisible)
 		} catch {
 			NSLog("MenubarApp: CodexPet load failed — keeping placeholder icon (\(error))")
 		}
@@ -227,6 +216,20 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			queue: .main
 		) { [weak self] _ in
 			self?.livePollingDriver?.pollNow()
+		}
+	}
+
+	/// Opt out of App Nap only while the floating pet is on screen.
+	private func setFloatingPetAppNapOptOut(active: Bool) {
+		if active {
+			guard activity == nil else { return }
+			activity = ProcessInfo.processInfo.beginActivity(
+				options: [.userInitiated, .latencyCritical],
+				reason: "codogotchi floating pet animation"
+			)
+		} else if let activity {
+			ProcessInfo.processInfo.endActivity(activity)
+			self.activity = nil
 		}
 	}
 

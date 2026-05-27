@@ -27,6 +27,9 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 
 	var isFloatingPetVisible: Bool { state.isFloatingPetVisible }
 
+	/// Called after visibility is persisted and the panel is shown or hidden.
+	var onVisibilityChanged: ((Bool) -> Void)?
+
 	init(
 		panel: FloatingPetPanelManaging,
 		visibleFrameProvider: @escaping () -> CGRect,
@@ -53,6 +56,7 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 		if state.isFloatingPetVisible {
 			panel.show(frame: state.frame)
 		}
+		onVisibilityChanged?(state.isFloatingPetVisible)
 	}
 
 	deinit {
@@ -79,6 +83,7 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 		} else {
 			panel.hide()
 		}
+		onVisibilityChanged?(visible)
 	}
 
 	func apply(state: ActivityState, visualMode: VisualMode) {

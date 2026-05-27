@@ -23,6 +23,9 @@ final class FloatingPetScene: SKScene {
 	private var currentSource: FloatingFrameSource = .codex
 	private var frameIndex: Int = 0
 	private var timer: Timer?
+	/// When true, frame timer is off (floating panel hidden). State updates still
+	/// repaint once so show/hide restores the correct pose without animating.
+	private var isAnimationPaused = false
 	/// When set, overrides sheet-specific frame intervals (demo mode).
 	private let demoFrameInterval: TimeInterval?
 
@@ -199,9 +202,25 @@ final class FloatingPetScene: SKScene {
 		tick()
 	}
 
+	/// Stop the frame loop while the floating panel is hidden.
+	func pauseAnimation() {
+		isAnimationPaused = true
+		timer?.invalidate()
+		timer = nil
+	}
+
+	/// Resume the frame loop after `show`. No-op when already running.
+	func resumeAnimation() {
+		isAnimationPaused = false
+		restartTimer()
+	}
+
+	var isAnimationPausedForTesting: Bool { isAnimationPaused }
+
 	// MARK: - Internals
 
 	private func restartTimer() {
+		guard !isAnimationPaused else { return }
 		timer?.invalidate()
 		guard !currentFrames.isEmpty else {
 			timer = nil

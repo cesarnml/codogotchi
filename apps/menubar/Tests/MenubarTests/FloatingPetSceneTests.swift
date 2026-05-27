@@ -133,6 +133,34 @@ final class FloatingPetSceneTests: XCTestCase {
 		)
 	}
 
+	func testPauseAnimationStopsFrameTimer() throws {
+		let scene = try makeScene()
+		scene.update(state: .idle, visualMode: .normal)
+		let indexBeforePause = scene.currentFrameIndexForTesting
+
+		scene.pauseAnimation()
+		XCTAssertTrue(scene.isAnimationPausedForTesting)
+
+		let wait = expectation(description: "paused scene does not advance")
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+			wait.fulfill()
+		}
+		self.wait(for: [wait], timeout: 1.0)
+
+		XCTAssertEqual(scene.currentFrameIndexForTesting, indexBeforePause)
+
+		scene.resumeAnimation()
+		XCTAssertFalse(scene.isAnimationPausedForTesting)
+
+		let advanced = expectation(description: "timer resumes after show")
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+			advanced.fulfill()
+		}
+		self.wait(for: [advanced], timeout: 1.0)
+
+		XCTAssertGreaterThan(scene.currentFrameIndexForTesting, indexBeforePause)
+	}
+
 	func testMissingCodogotchiFramesFallBackToIdle() throws {
 		let missingPet = try CodogotchiPet(petDirectory: missingCodogotchiPetDirectory())
 		let scene = try makeScene(codogotchiPet: missingPet)
