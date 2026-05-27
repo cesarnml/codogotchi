@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
-  mkdtempSync,
   mkdirSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -88,8 +88,7 @@ describe("installHooks", () => {
       expect(slot[0]?.matcher).toBe("*");
       expect(slot[0]?.hooks[0]).toEqual({
         type: "command",
-        command:
-          "CODOGOTCHI_HOME='/home/user/.codogotchi' codogotchi-hook",
+        command: "CODOGOTCHI_HOME='/home/user/.codogotchi' codogotchi-hook",
       });
     }
 
@@ -342,7 +341,11 @@ describe("installHooks", () => {
       JSON.stringify({ hooks: {} }),
       "utf8",
     );
-    writeFileSync(join(userRoot, ".codex", "config.toml"), "[features]\n", "utf8");
+    writeFileSync(
+      join(userRoot, ".codex", "config.toml"),
+      "[features]\n",
+      "utf8",
+    );
     writeFileSync(
       join(userRoot, ".codex", "hooks.json"),
       JSON.stringify({ hooks: {} }),

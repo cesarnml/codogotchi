@@ -420,7 +420,10 @@ export async function uninstallHooks(): Promise<void> {
   );
 
   const codexConfig = await readTextOrEmpty(codexConfigPath);
-  await writeText(codexConfigPath, withoutCodexHookState(codexConfig, codexJsonPath));
+  await writeText(
+    codexConfigPath,
+    withoutCodexHookState(codexConfig, codexJsonPath),
+  );
   await rm(codexTomlPath, { force: true });
 }
 

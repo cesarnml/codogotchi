@@ -405,7 +405,9 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
         process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
       } else {
         const rows = Object.entries(status).map(([name, s]) => {
-          const installable = s.installable_in_phase ? "installable" : "deferred";
+          const installable = s.installable_in_phase
+            ? "installable"
+            : "deferred";
           const installed = s.installed ? "installed" : "not-installed";
           return `${name}: ${installed}, ${installable}`;
         });
