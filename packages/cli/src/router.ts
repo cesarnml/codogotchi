@@ -90,7 +90,10 @@ Environment:
                        (defaults to the OS home dir).
 `;
 
-function parseSetupFlags(args: string[]): {
+function parseSetupFlags(
+  args: string[],
+  commandName = "setup",
+): {
   force: boolean;
   help: boolean;
 } {
@@ -99,7 +102,7 @@ function parseSetupFlags(args: string[]): {
   for (const arg of args) {
     if (arg === "--force") force = true;
     else if (arg === "--help" || arg === "-h") help = true;
-    else throw new Error(`Unknown flag for setup: ${arg}`);
+    else throw new Error(`Unknown flag for ${commandName}: ${arg}`);
   }
   return { force, help };
 }
@@ -185,7 +188,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
   }
 
   if (command === "rpg") {
-    const { force, help } = parseSetupFlags(rest);
+    const { force, help } = parseSetupFlags(rest, "rpg");
     if (help) {
       process.stdout.write(USAGE);
       return { exitCode: 0 };
