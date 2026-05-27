@@ -6,7 +6,7 @@
 
 Source product plan: [`docs/product/plans/phase-05-lite-install-and-onboarding.md`](../../plans/phase-05-lite-install-and-onboarding.md).
 
-## Product Contract
+## Product contract
 
 When this phase is complete:
 
@@ -21,7 +21,7 @@ When this phase is complete:
 - README/runbook document local install and Cursor-via-Claude-bridge honesty (native Cursor hooks → Phase 06).
 - **No user-facing demo mode** — `--demo` remains developer QA only.
 
-## Grill-Me Decisions Locked
+## Grill-Me decisions locked
 
 - **Q1 — Hook policy in TypeScript.** `packages/cli` owns merge/backup/uninstall; app and Settings subprocess `codogotchi hooks …`. PATH is acceptable for Phase 05; bundling CLI in `.app` is deferred to App Store distribution work.
 - **Q2 — Canonical pet store only.** Loaders read `~/.codogotchi/pets/<pet>/`; first launch seeds Maew from app bundle (Codex grid + codogotchi sheet). No runtime read from `~/.codex/pets/`.
@@ -38,20 +38,18 @@ When this phase is complete:
 
 ## Ticket Order
 
-| Order | ID | Title | Pts | Type | Scope | Red |
-|-------|-----|--------|-----|------|-------|-----|
-| 1 | P5.01 | Lite/RPG config schema + CLI guards | 2 | feat | cli-config | required |
-| 2 | P5.02 | `hooks install \| uninstall \| status` | 3 | feat | hooks | required |
-| 3 | P5.03 | CLI `setup` / `rpg` split | 3 | feat | cli | required |
-| 4 | P5.04 | Bundled Maew + canonical pet store | 3 | feat | pet-store | required |
-| 5 | P5.05 | App bootstrap + app-state + `hooks status` | 2 | feat | app-state | required |
-| 6 | P5.06 | First-run onboarding sheet | 3 | feat | onboarding | required |
-| 7 | P5.07 | Minimal Settings window | 3 | feat | settings | required |
-| 8 | P5.08 | Operator scripts (upgrade + greenfield) | 2 | chore | operator | skip |
-| 9 | P5.09 | Operator config upgrade (developer machine) | 1 | chore | operator | skip |
-| 10 | P5.10 | Lite install runbook + README | 2 | docs | runbooks | skip |
-| 11 | P5.11 | Reveal pet folder → canonical path | 1 | fix | menubar-menu | required |
-| 12 | P5.12 | Exit validation runbook + retrospective | 2 | docs | product | skip |
+1. `P5.01 Lite/RPG config schema + CLI guards`
+2. `P5.02 hooks install | uninstall | status`
+3. `P5.03 CLI setup / rpg split`
+4. `P5.04 Bundled Maew + canonical pet store`
+5. `P5.05 App bootstrap + app-state + hooks status`
+6. `P5.06 First-run onboarding sheet`
+7. `P5.07 Minimal Settings window`
+8. `P5.08 Operator scripts (upgrade + greenfield)`
+9. `P5.09 Operator config upgrade (developer machine)`
+10. `P5.10 Lite install runbook + README`
+11. `P5.11 Reveal pet folder -> canonical path`
+12. `P5.12 Exit validation runbook + retrospective`
 
 ## Ticket Files
 

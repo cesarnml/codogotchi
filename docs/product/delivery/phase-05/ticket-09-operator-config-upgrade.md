@@ -1,4 +1,4 @@
-# P5.09 Operator config upgrade (developer machine)
+# P5.09 [Operator config upgrade (developer machine)]
 
 Size: 1 point
 Type: chore

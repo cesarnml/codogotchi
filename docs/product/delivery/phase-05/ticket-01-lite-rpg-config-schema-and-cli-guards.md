@@ -1,4 +1,4 @@
-# P5.01 Lite/RPG config schema + CLI guards
+# P5.01 [Lite/RPG config schema + CLI guards]
 
 Size: 2 points
 Type: feat

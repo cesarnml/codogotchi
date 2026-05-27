@@ -1,4 +1,4 @@
-# P5.08 Operator scripts (upgrade + greenfield)
+# P5.08 [Operator scripts (upgrade + greenfield)]
 
 Size: 2 points
 Type: chore

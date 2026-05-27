@@ -1,4 +1,4 @@
-# P5.04 Bundled Maew + canonical pet store
+# P5.04 [Bundled Maew + canonical pet store]
 
 Size: 3 points
 Type: feat

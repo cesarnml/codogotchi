@@ -1,4 +1,4 @@
-# P5.10 Lite install runbook + README
+# P5.10 [Lite install runbook + README]
 
 Size: 2 points
 Type: docs

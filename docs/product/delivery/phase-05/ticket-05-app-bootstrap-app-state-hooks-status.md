@@ -1,4 +1,4 @@
-# P5.05 App bootstrap + app-state + `hooks status`
+# P5.05 [App bootstrap + app-state + `hooks status`]
 
 Size: 2 points
 Type: feat

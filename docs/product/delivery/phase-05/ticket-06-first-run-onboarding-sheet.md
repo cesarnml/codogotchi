@@ -1,4 +1,4 @@
-# P5.06 First-run onboarding sheet
+# P5.06 [First-run onboarding sheet]
 
 Size: 3 points
 Type: feat

@@ -1,4 +1,4 @@
-# P5.12 Exit validation runbook + retrospective + doc sweep
+# P5.12 [Exit validation runbook + retrospective + doc sweep]
 
 Size: 2 points
 Type: docs

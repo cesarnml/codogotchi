@@ -1,4 +1,4 @@
-# P5.11 Reveal pet folder → canonical path
+# P5.11 [Reveal pet folder → canonical path]
 
 Size: 1 point
 Type: fix

@@ -1,4 +1,4 @@
-# P5.07 Minimal Settings window
+# P5.07 [Minimal Settings window]
 
 Size: 3 points
 Type: feat

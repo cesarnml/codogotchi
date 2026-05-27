@@ -1,4 +1,4 @@
-# P5.02 `hooks install | uninstall | status`
+# P5.02 [`hooks install | uninstall | status`]
 
 Size: 3 points
 Type: feat

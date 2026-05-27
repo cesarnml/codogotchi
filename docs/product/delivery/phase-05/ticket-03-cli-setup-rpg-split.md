@@ -1,4 +1,4 @@
-# P5.03 CLI `setup` / `rpg` split
+# P5.03 [CLI `setup` / `rpg` split]
 
 Size: 3 points
 Type: feat
