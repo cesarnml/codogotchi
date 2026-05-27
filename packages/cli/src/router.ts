@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getCodogotchiHome, readConfig } from "./config";
+import { ConfigReadError, getCodogotchiHome, readConfig } from "./config";
 import {
   ConfigCommandError,
   configGet,
@@ -18,6 +18,32 @@ import { vacationOff, vacationOn, vacationStatus } from "./vacation";
 export type DispatchResult = {
   exitCode: number;
 };
+
+function ensureRpgEnabled(
+  config: Awaited<ReturnType<typeof readConfig>>,
+  commandName: string,
+):
+  | {
+      ok: true;
+      config: Exclude<Awaited<ReturnType<typeof readConfig>>, null> & {
+        features: { rpg_enabled: true };
+      };
+    }
+  | { ok: false; exitCode: 2; message: string } {
+  if (!config) {
+    return {
+      ok: false,
+      exitCode: 2,
+      message: "codogotchi: no config found. Run `codogotchi setup` first.\n",
+    };
+  }
+  if (config.features.rpg_enabled) return { ok: true, config };
+  return {
+    ok: false,
+    exitCode: 2,
+    message: `codogotchi: \`${commandName}\` is unavailable in Lite mode. Run \`codogotchi rpg\` first.\n`,
+  };
+}
 
 export const USAGE = `codogotchi — your terminal tamagotchi
 
@@ -145,6 +171,10 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
         process.stderr.write(`${err.message}\n`);
         return { exitCode: 2 };
       }
+      if (err instanceof ConfigReadError) {
+        process.stderr.write(`${err.message}\n`);
+        return { exitCode: err.exitCode };
+      }
       throw err;
     }
   }
@@ -152,16 +182,15 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
   if (command === "sync") {
     const home = getCodogotchiHome();
     const config = await readConfig(home);
-    if (!config) {
-      process.stderr.write(
-        "codogotchi: no config found. Run `codogotchi setup` first.\n",
-      );
-      return { exitCode: 2 };
+    const gate = ensureRpgEnabled(config, "sync");
+    if (!gate.ok) {
+      process.stderr.write(gate.message);
+      return { exitCode: gate.exitCode };
     }
     const result = await runSync({
       home,
-      config,
-      readers: defaultReaders(config),
+      config: gate.config,
+      readers: defaultReaders(gate.config),
       fetch,
       now: () => new Date(),
     });
@@ -231,11 +260,21 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
         process.stderr.write(`${err.message}\n`);
         return { exitCode: err.exitCode };
       }
+      if (err instanceof ConfigReadError) {
+        process.stderr.write(`${err.message}\n`);
+        return { exitCode: err.exitCode };
+      }
       throw err;
     }
   }
 
   if (command === "loot") {
+    const config = await readConfig(getCodogotchiHome());
+    const gate = ensureRpgEnabled(config, "loot");
+    if (!gate.ok) {
+      process.stderr.write(gate.message);
+      return { exitCode: gate.exitCode };
+    }
     const parsed = parseLootFlags(rest);
     if (parsed.help) {
       process.stdout.write(USAGE);
@@ -250,6 +289,12 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
   }
 
   if (command === "vacation") {
+    const config = await readConfig(getCodogotchiHome());
+    const gate = ensureRpgEnabled(config, "vacation");
+    if (!gate.ok) {
+      process.stderr.write(gate.message);
+      return { exitCode: gate.exitCode };
+    }
     const [sub, ...subArgs] = rest;
     try {
       const deps = {
@@ -293,6 +338,10 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       );
     } catch (err) {
       if (err instanceof ConfigCommandError) {
+        process.stderr.write(`${err.message}\n`);
+        return { exitCode: err.exitCode };
+      }
+      if (err instanceof ConfigReadError) {
         process.stderr.write(`${err.message}\n`);
         return { exitCode: err.exitCode };
       }

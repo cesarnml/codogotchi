@@ -26,7 +26,7 @@ export type SourceReaders = {
 
 export type SyncDeps = {
   home: string;
-  config: CodogotchiConfig;
+  config: CodogotchiConfig & { features: { rpg_enabled: true } };
   readers: SourceReaders;
   fetch: typeof fetch;
   now: () => Date;
