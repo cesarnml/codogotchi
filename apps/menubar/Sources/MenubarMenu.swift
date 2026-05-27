@@ -17,7 +17,7 @@ extension NSWorkspace: MenuWorkspaceOpening {}
 ///
 /// The menu has four items, in this order:
 ///   1. **Open log folder** — opens `~/.codogotchi/` via `NSWorkspace.open(_:)`.
-///   2. **Reveal pet folder** — opens `~/.codex/pets/` via `NSWorkspace.open(_:)`.
+///   2. **Reveal pet folder** — opens `~/.codogotchi/pets/` via `NSWorkspace.open(_:)`.
 ///   3. **Show/Hide Floating Pet** — toggles the desktop pet surface.
 ///   4. **Quit Codogotchi** — terminates the app.
 ///
@@ -74,13 +74,16 @@ final class MenubarMenu: NSObject {
 			.appendingPathComponent(".codogotchi", isDirectory: true)
 	}
 
-	/// `~/.codex/pets/` — the Codex pets directory, surfaced via the
-	/// "Reveal pet folder" menu item. The codogotchi sheet's directory
-	/// (`~/.codogotchi/pets/`) is a supplemental asset path not shown here.
+	/// `~/.codogotchi/pets/` — the canonical pet store directory, surfaced via
+	/// the "Reveal pet folder" menu item. Respects `CODOGOTCHI_HOME` when set.
 	static func defaultPetFolderURL() -> URL {
-		FileManager.default
+		if let cStr = getenv("CODOGOTCHI_HOME"), let home = String(validatingUTF8: cStr) {
+			return URL(fileURLWithPath: home, isDirectory: true)
+				.appendingPathComponent("pets", isDirectory: true)
+		}
+		return FileManager.default
 			.homeDirectoryForCurrentUser
-			.appendingPathComponent(".codex", isDirectory: true)
+			.appendingPathComponent(".codogotchi", isDirectory: true)
 			.appendingPathComponent("pets", isDirectory: true)
 	}
 
