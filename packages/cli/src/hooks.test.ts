@@ -53,7 +53,6 @@ describe("installHooks", () => {
   it("wires codogotchi-hook into Claude and Codex hook configs", async () => {
     await installHooks({
       home: "/home/user/.codogotchi",
-      convex_http_url: "https://example.convex.site",
     });
 
     const claudeRaw = readFileSync(
@@ -139,7 +138,6 @@ describe("installHooks", () => {
 
     await installHooks({
       home: "/home/user/.codogotchi",
-      convex_http_url: "https://example.convex.site",
     });
 
     const claude = JSON.parse(
@@ -185,7 +183,6 @@ describe("installHooks", () => {
 
     await installHooks({
       home: "/home/user/.codogotchi",
-      convex_http_url: "https://example.convex.site",
     });
 
     const claude = JSON.parse(
@@ -264,7 +261,6 @@ describe("installHooks", () => {
 
     await installHooks({
       home: "/home/user/.codogotchi",
-      convex_http_url: "https://example.convex.site",
     });
 
     const codexJson = JSON.parse(
@@ -298,7 +294,6 @@ describe("installHooks", () => {
   it("is idempotent — re-running yields identical files", async () => {
     const ctx = {
       home: "/home/user/.codogotchi",
-      convex_http_url: "https://example.convex.site",
     };
     await installHooks(ctx);
     const claudeFirst = readFileSync(
@@ -354,7 +349,6 @@ describe("installHooks", () => {
 
     await installHooks({
       home: "/home/user/.codogotchi",
-      convex_http_url: "https://example.convex.site",
     });
 
     const claudeFiles = readdirSync(join(userRoot, ".claude"));
@@ -381,7 +375,6 @@ describe("installHooks", () => {
     await expect(
       installHooks({
         home: "/home/user/.codogotchi",
-        convex_http_url: "https://example.convex.site",
       }),
     ).rejects.toThrow("missing ~/.codogotchi/config.json");
   });
@@ -389,7 +382,6 @@ describe("installHooks", () => {
   it("uninstall removes codogotchi hook entries", async () => {
     await installHooks({
       home: "/home/user/.codogotchi",
-      convex_http_url: "https://example.convex.site",
     });
     await uninstallHooks();
 
@@ -420,7 +412,6 @@ describe("installHooks", () => {
 
     await installHooks({
       home: "/home/user/.codogotchi",
-      convex_http_url: "https://example.convex.site",
     });
     const after = await hooksStatus();
     expect(after.codex.installed).toBe(true);

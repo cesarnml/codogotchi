@@ -27,7 +27,6 @@ describe("router hooks commands", () => {
         profile_id: "11111111-2222-3333-4444-555555555555",
         pet: "maew",
         features: { rpg_enabled: false },
-        convex_http_url: "https://example.convex.site",
       })}\n`,
       "utf8",
     );
