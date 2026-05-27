@@ -1,10 +1,24 @@
 import { z } from "zod";
 import { healthConfigSchema } from "./sync-profile";
 
-// Canonical schema for the on-disk `~/.codogotchi/config.json` written by
-// `codogotchi setup` and inspected/mutated by `codogotchi config`.
-export const codogotchiConfigSchema = z.object({
+const configBaseSchema = z.object({
   profile_id: z.string().min(1),
+  pet: z.string().min(1).optional(),
+  features: z.object({
+    rpg_enabled: z.boolean(),
+  }),
+});
+
+const liteConfigSchema = configBaseSchema.extend({
+  features: z.object({
+    rpg_enabled: z.literal(false),
+  }),
+});
+
+const rpgConfigSchema = configBaseSchema.extend({
+  features: z.object({
+    rpg_enabled: z.literal(true),
+  }),
   handle: z.string().min(1),
   github_token: z.string().nullable(),
   github_username: z.string().nullable().optional(),
@@ -12,11 +26,19 @@ export const codogotchiConfigSchema = z.object({
   convex_http_url: z.string().url(),
   health: healthConfigSchema,
 });
+
+// Canonical schema for the on-disk `~/.codogotchi/config.json` written by
+// `codogotchi setup` and inspected/mutated by `codogotchi config`.
+export const codogotchiConfigSchema = z.union([
+  liteConfigSchema,
+  rpgConfigSchema,
+]);
 export type CodogotchiConfigShape = z.infer<typeof codogotchiConfigSchema>;
 
 // Keys that `config set` is allowed to mutate. `profile_id` is intentionally
 // excluded — rotating it would orphan the server-side profile.
 export const SETTABLE_TOP_LEVEL = [
+  "pet",
   "handle",
   "github_token",
   "github_username",
@@ -35,10 +57,12 @@ export const SETTABLE_HEALTH_KEYS = [
   "revive_hp",
 ] as const;
 export type SettableHealthKey = (typeof SETTABLE_HEALTH_KEYS)[number];
+export type FeaturesPathKind = { kind: "features"; key: "rpg_enabled" };
 
 export type ConfigPathKind =
   | { kind: "top"; key: SettableTopLevelKey }
-  | { kind: "health"; key: SettableHealthKey };
+  | { kind: "health"; key: SettableHealthKey }
+  | FeaturesPathKind;
 
 export function resolveConfigPath(path: string): ConfigPathKind | null {
   if (path.startsWith("health.")) {
@@ -50,6 +74,9 @@ export function resolveConfigPath(path: string): ConfigPathKind | null {
   }
   if ((SETTABLE_TOP_LEVEL as readonly string[]).includes(path)) {
     return { kind: "top", key: path as SettableTopLevelKey };
+  }
+  if (path === "features.rpg_enabled") {
+    return { kind: "features", key: "rpg_enabled" };
   }
   return null;
 }

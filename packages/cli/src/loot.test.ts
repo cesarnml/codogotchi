@@ -4,6 +4,7 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LootEventResponse } from "@codogotchi/contracts";
+import { writeConfig } from "./config";
 import { type LootTier, lootLogPath, readAllLoot, runLoot } from "./loot";
 import { dispatch } from "./router";
 
@@ -199,12 +200,51 @@ describe("runLoot", () => {
   });
 
   it("router rejects fractional loot limits", async () => {
+    await writeConfig(home, {
+      profile_id: "p",
+      pet: "maew",
+      features: { rpg_enabled: true },
+      handle: "ada",
+      github_token: null,
+      github_username: null,
+      wakatime_key: null,
+      convex_http_url: "https://example.convex.site",
+      health: {
+        weekend_decay: false,
+        grace_days: 2,
+        vacation_until: null,
+        timezone: "UTC",
+        decay_per_day: 5,
+        revive_threshold: 100,
+        revive_hp: 50,
+      },
+    });
+    process.env.CODOGOTCHI_HOME = home;
     await expect(dispatch(["loot", "--limit", "3.7"])).rejects.toThrow(
       "Invalid --limit value: 3.7",
     );
   });
 
   it("router exits zero for missing and empty loot history", async () => {
+    await writeConfig(home, {
+      profile_id: "p",
+      pet: "maew",
+      features: { rpg_enabled: true },
+      handle: "ada",
+      github_token: null,
+      github_username: null,
+      wakatime_key: null,
+      convex_http_url: "https://example.convex.site",
+      health: {
+        weekend_decay: false,
+        grace_days: 2,
+        vacation_until: null,
+        timezone: "UTC",
+        decay_per_day: 5,
+        revive_threshold: 100,
+        revive_hp: 50,
+      },
+    });
     process.env.CODOGOTCHI_HOME = home;
     expect(await dispatch(["loot"])).toEqual({ exitCode: 0 });
     await writeFile(lootLogPath(home), "", "utf8");

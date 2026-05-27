@@ -14,6 +14,8 @@ import { dispatch } from "./router";
 function fixture(): CodogotchiConfig {
   return {
     profile_id: "11111111-2222-3333-4444-555555555555",
+    pet: "maew",
+    features: { rpg_enabled: true },
     handle: "ada",
     github_token: "ghp_secret",
     github_username: "ada-dev",
@@ -186,5 +188,29 @@ describe("config command", () => {
         rmSync(empty, { recursive: true, force: true });
       }
     });
+  });
+
+  it("rejects legacy config missing features.rpg_enabled", async () => {
+    const legacy = {
+      profile_id: "legacy",
+      handle: "ada",
+      github_token: null,
+      github_username: null,
+      wakatime_key: null,
+      convex_http_url: "https://example.convex.site",
+      health: {
+        weekend_decay: false,
+        grace_days: 2,
+        vacation_until: null,
+        timezone: "UTC",
+        decay_per_day: 5,
+        revive_threshold: 100,
+        revive_hp: 50,
+      },
+    };
+    await Bun.write(configPath(home), `${JSON.stringify(legacy, null, 2)}\n`);
+    await expect(configGet({ home, path: "handle" })).rejects.toThrow(
+      "expected Lite/RPG schema with explicit features.rpg_enabled",
+    );
   });
 });

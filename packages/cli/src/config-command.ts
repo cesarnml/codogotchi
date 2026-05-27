@@ -45,7 +45,14 @@ const TOP_NULLABLE_STRING_KEYS = new Set([
   "github_username",
   "wakatime_key",
 ]);
-const TOP_REQUIRED_STRING_KEYS = new Set(["handle", "convex_http_url"]);
+const TOP_REQUIRED_STRING_KEYS = new Set(["handle", "convex_http_url", "pet"]);
+const RPG_ONLY_KEYS = new Set([
+  "handle",
+  "github_token",
+  "github_username",
+  "wakatime_key",
+  "convex_http_url",
+]);
 
 function parseBool(raw: string): boolean {
   if (raw === "true") return true;
@@ -99,6 +106,10 @@ function parseUrl(raw: string): string {
   }
 }
 
+function parseRpgEnabled(raw: string): boolean {
+  return parseBool(raw);
+}
+
 async function loadOrFail(home: string): Promise<CodogotchiConfigShape> {
   const config = await readConfig(home);
   if (!config) {
@@ -111,14 +122,22 @@ async function loadOrFail(home: string): Promise<CodogotchiConfigShape> {
 }
 
 function getDottedValue(config: CodogotchiConfigShape, path: string): unknown {
+  if (path === "features.rpg_enabled") {
+    return config.features.rpg_enabled;
+  }
   if (path.startsWith("health.")) {
+    if (!config.features.rpg_enabled) {
+      throw new ConfigCommandError(
+        `RPG config key unavailable in Lite mode: ${path}. Run \`codogotchi rpg\` first.`,
+      );
+    }
     const rest = path.slice("health.".length);
     if (!(SETTABLE_HEALTH_KEYS as readonly string[]).includes(rest)) {
       throw new ConfigCommandError(`Unknown config key: ${path}`);
     }
     return (config.health as Record<string, unknown>)[rest];
   }
-  if (path === "profile_id" || path === "handle") {
+  if (path === "profile_id" || path === "handle" || path === "pet") {
     return (config as Record<string, unknown>)[path];
   }
   if ((SETTABLE_TOP_LEVEL as readonly string[]).includes(path)) {
@@ -132,6 +151,11 @@ function applyTopLevelValue(
   key: string,
   raw: string,
 ): CodogotchiConfigShape {
+  if (!config.features.rpg_enabled && RPG_ONLY_KEYS.has(key)) {
+    throw new ConfigCommandError(
+      `RPG-only config key unavailable in Lite mode: ${key}. Run \`codogotchi rpg\` first.`,
+    );
+  }
   const next: CodogotchiConfigShape = { ...config };
   if (TOP_NULLABLE_STRING_KEYS.has(key)) {
     (next as Record<string, unknown>)[key] = parseNullableString(raw);
@@ -151,11 +175,33 @@ function applyTopLevelValue(
   throw new ConfigCommandError(`Unknown config key: ${key}`);
 }
 
+function applyFeaturesValue(
+  config: CodogotchiConfigShape,
+  key: string,
+  raw: string,
+): CodogotchiConfigShape {
+  if (key !== "rpg_enabled") {
+    throw new ConfigCommandError(`Unknown features key: ${key}`);
+  }
+  const enabled = parseRpgEnabled(raw);
+  if (enabled) {
+    throw new ConfigCommandError(
+      "Enabling RPG from config is not supported. Run `codogotchi rpg`.",
+    );
+  }
+  return { ...config, features: { rpg_enabled: false } };
+}
+
 function applyHealthValue(
   config: CodogotchiConfigShape,
   key: string,
   raw: string,
 ): CodogotchiConfigShape {
+  if (!config.features.rpg_enabled) {
+    throw new ConfigCommandError(
+      `RPG config key unavailable in Lite mode: health.${key}. Run \`codogotchi rpg\` first.`,
+    );
+  }
   const nextHealth = { ...config.health };
   if (HEALTH_BOOL_KEYS.has(key)) {
     (nextHealth as Record<string, unknown>)[key] = parseBool(raw);
@@ -197,7 +243,9 @@ export async function configSet(opts: ConfigSetOptions): Promise<string> {
   const next =
     resolved.kind === "top"
       ? applyTopLevelValue(config, resolved.key, opts.value)
-      : applyHealthValue(config, resolved.key, opts.value);
+      : resolved.kind === "health"
+        ? applyHealthValue(config, resolved.key, opts.value)
+        : applyFeaturesValue(config, resolved.key, opts.value);
   await writeConfig(opts.home, next);
   return `${opts.path}=${
     typeof getDottedValue(next, opts.path) === "string"

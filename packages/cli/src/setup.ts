@@ -134,6 +134,8 @@ export async function runSetup(
 
   const config: CodogotchiConfig = {
     profile_id,
+    pet: "maew",
+    features: { rpg_enabled: true },
     handle,
     github_username,
     github_token,

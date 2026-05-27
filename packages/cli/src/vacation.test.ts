@@ -16,6 +16,8 @@ const NOW = new Date("2026-05-18T00:00:00.000Z");
 function fixture(overrides: Partial<CodogotchiConfig> = {}): CodogotchiConfig {
   return {
     profile_id: "p",
+    pet: "maew",
+    features: { rpg_enabled: true },
     handle: "ada",
     github_token: null,
     github_username: null,

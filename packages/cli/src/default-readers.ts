@@ -29,7 +29,9 @@ function forwardSince(since: Date | null, now: Date): Date {
 // Default readers wrap the engine source clients with the config-driven
 // credentials and per-source defaults. A source returns null when it is not
 // configured (e.g. no token, no key) so the heartbeat sync still goes through.
-export function defaultReaders(config: CodogotchiConfig): SourceReaders {
+export function defaultReaders(
+  config: CodogotchiConfig & { features: { rpg_enabled: true } },
+): SourceReaders {
   return {
     async claude(since, now) {
       const sinceDate = forwardSince(since, now);

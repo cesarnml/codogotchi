@@ -1,17 +1,12 @@
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { HealthConfigPayload } from "@codogotchi/contracts";
+import {
+  type CodogotchiConfigShape,
+  codogotchiConfigSchema,
+} from "@codogotchi/contracts";
 
-export type CodogotchiConfig = {
-  profile_id: string;
-  handle: string;
-  github_token: string | null;
-  github_username?: string | null;
-  wakatime_key: string | null;
-  convex_http_url: string;
-  health: HealthConfigPayload;
-};
+export type CodogotchiConfig = CodogotchiConfigShape;
 
 export function getCodogotchiHome(
   env: NodeJS.ProcessEnv = process.env,
@@ -39,7 +34,13 @@ export async function readConfig(
 ): Promise<CodogotchiConfig | null> {
   try {
     const raw = await readFile(configPath(home), "utf8");
-    return JSON.parse(raw) as CodogotchiConfig;
+    const parsed = codogotchiConfigSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) {
+      throw new Error(
+        `Invalid config at ${configPath(home)}: expected Lite/RPG schema with explicit features.rpg_enabled.`,
+      );
+    }
+    return parsed.data;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw err;

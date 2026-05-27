@@ -37,37 +37,38 @@ describe("router Lite/RPG command guards", () => {
       return true;
     }) as typeof process.stderr.write;
 
-    fetchMock = mock(async () =>
-      new Response(
-        JSON.stringify({
-          profile: {
-            profile_id: "11111111-2222-3333-4444-555555555555",
-            handle: "ada",
-            xp_by_source: {
-              claude_code: 0,
-              codex: 0,
-              github: 0,
-              wakatime: 0,
+    fetchMock = mock(
+      async () =>
+        new Response(
+          JSON.stringify({
+            profile: {
+              profile_id: "11111111-2222-3333-4444-555555555555",
+              handle: "ada",
+              xp_by_source: {
+                claude_code: 0,
+                codex: 0,
+                github: 0,
+                wakatime: 0,
+              },
+              total_xp: 0,
+              stage: 0,
+              hp: 100,
+              mood: "thriving",
+              died_at: null,
+              cause: null,
+              death_count: 0,
+              last_signal_at_by_source: {
+                claude_code: null,
+                codex: null,
+                github: null,
+                wakatime: null,
+              },
+              updated_at: Date.now(),
             },
-            total_xp: 0,
-            stage: 0,
-            hp: 100,
-            mood: "thriving",
-            died_at: null,
-            cause: null,
-            death_count: 0,
-            last_signal_at_by_source: {
-              claude_code: null,
-              codex: null,
-              github: null,
-              wakatime: null,
-            },
-            updated_at: Date.now(),
-          },
-          new_loot_events: [],
-        }),
-        { status: 200 },
-      ),
+            new_loot_events: [],
+          }),
+          { status: 200 },
+        ),
     );
     globalThis.fetch = fetchMock as typeof fetch;
   });
