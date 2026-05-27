@@ -86,6 +86,39 @@ final class PetImportHelperTests: XCTestCase {
 		XCTAssertEqual(Set(pets), ["alpha", "beta"])
 	}
 
+	func testImportRestoresExistingDestinationWhenCopyFails() throws {
+		// Arrange: source exists with one file; destination already exists with a different file.
+		let source = tmp.appendingPathComponent("codex/pets/maew", isDirectory: true)
+		try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+		try Data("new-pet".utf8).write(to: source.appendingPathComponent("pet.json"))
+
+		let destination = tmp.appendingPathComponent("codogotchi/pets", isDirectory: true)
+		let destPet = destination.appendingPathComponent("maew", isDirectory: true)
+		try FileManager.default.createDirectory(at: destPet, withIntermediateDirectories: true)
+		let originalData = Data("original-pet".utf8)
+		try originalData.write(to: destPet.appendingPathComponent("pet.json"))
+
+		// Use a FileManager subclass that fails on copyItem but succeeds on all others.
+		class FailingCopyFileManager: FileManager {
+			override func copyItem(at srcURL: URL, to dstURL: URL) throws {
+				throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError)
+			}
+		}
+
+		let helper = PetImportHelper(
+			codexPetsRoot: tmp.appendingPathComponent("codex/pets"),
+			canonicalPetsRoot: destination,
+			fileManager: FailingCopyFileManager()
+		)
+
+		// Act: import should throw.
+		XCTAssertThrowsError(try helper.importPet(id: "maew"))
+
+		// Assert: original destination is restored.
+		let restoredData = try Data(contentsOf: destPet.appendingPathComponent("pet.json"))
+		XCTAssertEqual(restoredData, originalData, "Original pet should be restored after failed copy")
+	}
+
 	func testAvailableCodexPetsReturnsEmptyWhenRootAbsent() {
 		let helper = PetImportHelper(
 			codexPetsRoot: tmp.appendingPathComponent("nonexistent/pets"),
