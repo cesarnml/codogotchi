@@ -16,6 +16,7 @@
 		1D5FF0E195806DF51AF25AEF /* MenubarRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3280C616774866918681AF0C /* MenubarRenderer.swift */; };
 		2224FF2568198C777B9A666D /* maew in Resources */ = {isa = PBXBuildFile; fileRef = 7AC107DCBD46F0F6DBA5B3B6 /* maew */; };
 		2C985DFC0C4B11F3C3BF69F9 /* AppBootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */; };
+		D3B2C4E5F6A7890123456789 /* OnboardingControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2A1B3D4E5F6A78901234567 /* OnboardingControllerTests.swift */; };
 		3278D5B8A5BF524A956FECEC /* FloatingInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */; };
 		36D30A2BA8D14CA1D7D62D1C /* PetStoreSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */; };
 		36F25B978082DFFA568C39DC /* MenubarMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 379B33D9319DAC49A3CCC39C /* MenubarMenu.swift */; };
@@ -78,6 +79,7 @@
 		5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLogTests.swift; sourceTree = "<group>"; };
 		5CE9EFEFECAFAC8156F61DF7 /* FloatingPetControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetControllerTests.swift; sourceTree = "<group>"; };
 		5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrapTests.swift; sourceTree = "<group>"; };
+		C2A1B3D4E5F6A78901234567 /* OnboardingControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingControllerTests.swift; sourceTree = "<group>"; };
 		72DE062B5722F00B659A555C /* CodogotchiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodogotchiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7AC107DCBD46F0F6DBA5B3B6 /* maew */ = {isa = PBXFileReference; lastKnownFileType = folder; name = maew; path = Fixtures/maew; sourceTree = SOURCE_ROOT; };
 		88147EFF470B888D90E5B12A /* HookStatusClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookStatusClient.swift; sourceTree = "<group>"; };
@@ -123,6 +125,7 @@
 				F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */,
 				2E496AEDA38E70CA0C7D4E4F /* MenubarTests.swift */,
 				E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */,
+				C2A1B3D4E5F6A78901234567 /* OnboardingControllerTests.swift */,
 				0C648B3B6E8C5F97123E808D /* PetConfigTests.swift */,
 				079E19BBF7A258650F759E72 /* PetStateFanoutTests.swift */,
 				9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */,
@@ -333,6 +336,7 @@
 				6A78A39CED185B02C213FE62 /* MenuItemsTests.swift in Sources */,
 				025D10BD2A8B47BD0991A05D /* MenubarRendererTests.swift in Sources */,
 				146969BDD756A5353704E961 /* MenubarTests.swift in Sources */,
+				D3B2C4E5F6A7890123456789 /* OnboardingControllerTests.swift in Sources */,
 				1A65C0547AD500DEEBCF50DB /* PetConfigTests.swift in Sources */,
 				FBE36F71D1F69299A13DDADA /* PetStateFanoutTests.swift in Sources */,
 				C4F4151A25F6ED0D587172FD /* StateJsonReaderTests.swift in Sources */,
