@@ -151,6 +151,18 @@ describe("config command", () => {
       out = await configList({ home });
       expect(out).toContain('"github_token": null');
     });
+
+    it("does not synthesize secret fields for Lite configs", async () => {
+      await writeConfig(home, {
+        profile_id: "lite-profile",
+        pet: "maew",
+        features: { rpg_enabled: false },
+      });
+      const out = await configList({ home });
+      expect(out).not.toContain('"github_token"');
+      expect(out).not.toContain('"wakatime_key"');
+      expect(out).toContain('"features"');
+    });
   });
 
   it("router rejects extra args for config list", async () => {
@@ -212,5 +224,35 @@ describe("config command", () => {
     await expect(configGet({ home, path: "handle" })).rejects.toThrow(
       "expected Lite/RPG schema with explicit features.rpg_enabled",
     );
+  });
+
+  it("dispatch returns exit 2 on invalid legacy config", async () => {
+    const legacy = {
+      profile_id: "legacy",
+      handle: "ada",
+      github_token: null,
+      github_username: null,
+      wakatime_key: null,
+      convex_http_url: "https://example.convex.site",
+      health: {
+        weekend_decay: false,
+        grace_days: 2,
+        vacation_until: null,
+        timezone: "UTC",
+        decay_per_day: 5,
+        revive_threshold: 100,
+        revive_hp: 50,
+      },
+    };
+    await Bun.write(configPath(home), `${JSON.stringify(legacy, null, 2)}\n`);
+    const prev = process.env.CODOGOTCHI_HOME;
+    process.env.CODOGOTCHI_HOME = home;
+    try {
+      const result = await dispatch(["config", "list"]);
+      expect(result.exitCode).toBe(2);
+    } finally {
+      if (prev === undefined) delete process.env.CODOGOTCHI_HOME;
+      else process.env.CODOGOTCHI_HOME = prev;
+    }
   });
 });

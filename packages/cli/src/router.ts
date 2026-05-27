@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getCodogotchiHome, readConfig } from "./config";
+import { ConfigReadError, getCodogotchiHome, readConfig } from "./config";
 import {
   ConfigCommandError,
   configGet,
@@ -171,6 +171,10 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
         process.stderr.write(`${err.message}\n`);
         return { exitCode: 2 };
       }
+      if (err instanceof ConfigReadError) {
+        process.stderr.write(`${err.message}\n`);
+        return { exitCode: err.exitCode };
+      }
       throw err;
     }
   }
@@ -256,6 +260,10 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
         process.stderr.write(`${err.message}\n`);
         return { exitCode: err.exitCode };
       }
+      if (err instanceof ConfigReadError) {
+        process.stderr.write(`${err.message}\n`);
+        return { exitCode: err.exitCode };
+      }
       throw err;
     }
   }
@@ -330,6 +338,10 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       );
     } catch (err) {
       if (err instanceof ConfigCommandError) {
+        process.stderr.write(`${err.message}\n`);
+        return { exitCode: err.exitCode };
+      }
+      if (err instanceof ConfigReadError) {
         process.stderr.write(`${err.message}\n`);
         return { exitCode: err.exitCode };
       }

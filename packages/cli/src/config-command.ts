@@ -258,10 +258,14 @@ export async function configList(opts: ConfigListOptions): Promise<string> {
   const config = await loadOrFail(opts.home);
   const redacted: CodogotchiConfigShape & Record<string, unknown> = {
     ...config,
-    github_token:
-      config.github_token === null ? null : ("<set>" as unknown as null),
-    wakatime_key:
-      config.wakatime_key === null ? null : ("<set>" as unknown as null),
   };
+  if ("github_token" in config) {
+    redacted.github_token =
+      config.github_token === null ? null : ("<set>" as unknown as null);
+  }
+  if ("wakatime_key" in config) {
+    redacted.wakatime_key =
+      config.wakatime_key === null ? null : ("<set>" as unknown as null);
+  }
   return `${JSON.stringify(redacted, null, 2)}\n`;
 }

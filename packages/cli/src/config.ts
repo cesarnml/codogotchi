@@ -8,6 +8,16 @@ import {
 
 export type CodogotchiConfig = CodogotchiConfigShape;
 
+export class ConfigReadError extends Error {
+  constructor(
+    message: string,
+    public readonly exitCode = 2,
+  ) {
+    super(message);
+    this.name = "ConfigReadError";
+  }
+}
+
 export function getCodogotchiHome(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
@@ -36,7 +46,7 @@ export async function readConfig(
     const raw = await readFile(configPath(home), "utf8");
     const parsed = codogotchiConfigSchema.safeParse(JSON.parse(raw));
     if (!parsed.success) {
-      throw new Error(
+      throw new ConfigReadError(
         `Invalid config at ${configPath(home)}: expected Lite/RPG schema with explicit features.rpg_enabled.`,
       );
     }
