@@ -22,9 +22,8 @@ private struct PetManifest: Decodable {
 
 /// One sliceable row in the spritesheet grid.
 ///
-/// `rowIndex` is the 0-indexed row from the top of `spritesheet-grid-8x9.png`
-/// (the annotated grid PNG sitting alongside the spritesheet in
-/// `~/.codex/pets/mali/`). `frameCount` is how many leading columns in that
+/// `rowIndex` is the 0-indexed row from the top of the Codex 8×9 grid.
+/// `frameCount` is how many leading columns in that
 /// row carry usable frames before the row terminates in unused magenta cells.
 ///
 /// Both numbers were obtained by visual inspection of the grid PNG, owner-
@@ -38,10 +37,10 @@ struct RowSpec: Equatable {
 /// Pet asset loader for the Codex-spritesheet states.
 ///
 /// Reads `pet.json` + the WebP spritesheet from `petDirectory` (default
-/// `~/.codex/pets/mali/`) and exposes a hardcoded `ActivityState → RowSpec`
+/// `~/.codogotchi/pets/<pet>/`) and exposes a hardcoded `ActivityState → RowSpec`
 /// table. Six Codex-sheet states are mapped to their visually-inspected rows
-/// in `spritesheet-grid-8x9.png` (8 cols × 9 rows); the remaining nine
-/// codogotchi-owned states are wired in P3.04.
+/// in the 8 cols × 9 rows Codex grid; the remaining nine codogotchi-owned
+/// states are wired in P3.04.
 ///
 /// Hardcoded map is deliberate over `pet.json` extension or a sibling
 /// rows file because the format extension belongs to Phase 06's multi-pet
@@ -419,9 +418,14 @@ final class CodexPet {
 	// MARK: - Helpers
 
 	static func defaultPetDirectoryPath() -> String {
-		let home = FileManager.default.homeDirectoryForCurrentUser
-		return home
-			.appendingPathComponent(".codex")
+		if let cStr = getenv("CODOGOTCHI_HOME"), let base = String(validatingUTF8: cStr) {
+			return URL(fileURLWithPath: base)
+				.appendingPathComponent("pets")
+				.appendingPathComponent(PetConfig.resolvedPetName())
+				.path
+		}
+		return FileManager.default.homeDirectoryForCurrentUser
+			.appendingPathComponent(".codogotchi")
 			.appendingPathComponent("pets")
 			.appendingPathComponent(PetConfig.resolvedPetName())
 			.path

@@ -2,11 +2,10 @@ import AppKit
 
 /// Menu-bar agent entry point.
 ///
-/// Registers an `NSStatusItem` and, when the pet assets are present at
-/// `~/.codex/pets/mali/`, hands the status item off to a `MenubarRenderer`
-/// that paints a single static hero frame per active state. The demo driver
-/// and the live polling driver call `renderer.update(state:visualMode:)` to
-/// switch states; the floating pet (when visible) carries the live animation.
+/// Registers an `NSStatusItem` and seeds the canonical pet store from the app
+/// bundle before loading. Once pet assets are available at
+/// `~/.codogotchi/pets/<pet>/`, hands the status item off to a `MenubarRenderer`
+/// that animates the idle row on a continuous loop.
 ///
 /// The app is configured as a menu-bar agent via `LSUIElement = true` in
 /// `Info.plist` so it has no Dock icon and no main window.
@@ -81,15 +80,27 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		}
 		self.statusItem = item
 
-		// Attempt to load Mali and wire the renderer. If pet assets are
-		// missing (e.g. on a dev machine without `~/.codex/pets/mali/`
-		// populated), keep the placeholder `pawprint` icon — the renderer
-		// is optional Phase 02 scaffolding, not a hard launch requirement.
+		// Load the pet and wire the renderer. On a clean machine the bundle seed
+		// above populates the canonical store; if it fails or the seeder is not
+		// available, keep the placeholder `pawprint` icon.
 		// Resolve demo config before creating the renderer so we can pass the
 		// demo frame interval at construction time — the renderer's timer logic
 		// uses it from the first tick.
 		let config = DemoConfig.forLaunch()
 		self.demoConfig = config
+
+		// Seed Maew from the app bundle when the canonical store is absent or incomplete.
+		// Runs before pet loading so a clean machine has assets available at first launch.
+		if let bundledMaewDir = Self.bundledMaewDirectory() {
+			let canonicalPath = CodexPet.defaultPetDirectoryPath()
+			if !PetStoreSeeder.isCanonicalStoreComplete(at: canonicalPath) {
+				do {
+					try PetStoreSeeder.seed(from: bundledMaewDir, into: canonicalPath)
+				} catch {
+					NSLog("MenubarApp: bundle seed failed — \(error)")
+				}
+			}
+		}
 
 		do {
 			let codexPet = try CodexPet()
@@ -245,6 +256,18 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		demoDriver?.stop()
 		livePollingDriver?.stop()
 		transitionLog?.stop()
+	}
+
+	/// Locate the bundled Maew pet directory at `Resources/maew/`.
+	/// Returns nil when the resource directory is absent (partial build or test context).
+	private static func bundledMaewDirectory() -> URL? {
+		guard let resources = Bundle.main.resourceURL else { return nil }
+		let candidate = resources.appendingPathComponent("maew", isDirectory: true)
+		var isDir: ObjCBool = false
+		guard FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDir),
+			isDir.boolValue
+		else { return nil }
+		return candidate
 	}
 
 	/// Locate the demo fixture directory bundled into `Resources/state-json/`.

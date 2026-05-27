@@ -62,8 +62,9 @@ final class CodogotchiPet {
 	/// Load a codogotchi pet from `petDirectory`.
 	///
 	/// Reads `pet.json` for `id` and `displayName`; then attempts to load
-	/// `codogotchi-spritesheet.webp`. Missing spritesheet → soft degrade (no
-	/// throw). Malformed grid → throws `CodexPetLoadError.spritesheetIncompatibleGrid`.
+	/// `codogotchi-spritesheet.webp` (fixed filename convention). Missing
+	/// spritesheet → soft degrade (no throw). Malformed grid → throws
+	/// `CodexPetLoadError.spritesheetIncompatibleGrid`.
 	init(petDirectory: String) throws {
 		let dirURL = URL(fileURLWithPath: petDirectory)
 
@@ -87,7 +88,9 @@ final class CodogotchiPet {
 		self.id = manifest.id
 		self.displayName = manifest.displayName
 
-		let sheetURL = dirURL.appendingPathComponent(manifest.spritesheetPath)
+		// Codogotchi sheet uses a fixed filename convention; `pet.json` owns the
+		// Codex sheet path so both loaders can read from the same directory.
+		let sheetURL = dirURL.appendingPathComponent("codogotchi-spritesheet.webp")
 		guard FileManager.default.fileExists(atPath: sheetURL.path) else {
 			// Soft degrade: spritesheet absent, frames will return empty arrays.
 			// Log once so operators can diagnose silent idle rendering.
@@ -226,8 +229,13 @@ final class CodogotchiPet {
 	// MARK: - Helpers
 
 	static func defaultPetDirectoryPath() -> String {
-		let home = FileManager.default.homeDirectoryForCurrentUser
-		return home
+		if let cStr = getenv("CODOGOTCHI_HOME"), let base = String(validatingUTF8: cStr) {
+			return URL(fileURLWithPath: base)
+				.appendingPathComponent("pets")
+				.appendingPathComponent(PetConfig.resolvedPetName())
+				.path
+		}
+		return FileManager.default.homeDirectoryForCurrentUser
 			.appendingPathComponent(".codogotchi")
 			.appendingPathComponent("pets")
 			.appendingPathComponent(PetConfig.resolvedPetName())
@@ -235,9 +243,11 @@ final class CodogotchiPet {
 	}
 }
 
-/// Decoded `pet.json` for the codogotchi pet format.
+/// Decoded `pet.json` for the codogotchi pet format. Only `id` and
+/// `displayName` are read; the spritesheet path is the fixed convention
+/// `"codogotchi-spritesheet.webp"` so `pet.json` can simultaneously serve
+/// `CodexPet` (which reads `spritesheetPath` for the Codex 8×9 grid).
 private struct CodogotchiManifest: Decodable {
 	let id: String
 	let displayName: String
-	let spritesheetPath: String
 }

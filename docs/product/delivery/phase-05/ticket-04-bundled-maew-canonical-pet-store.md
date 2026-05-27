@@ -40,8 +40,10 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+**CodogotchiManifest.spritesheetPath removed.** Both `CodexPet` and `CodogotchiPet` share the same `pet.json`. `CodexPet` reads `spritesheetPath` to locate the Codex 8×9 grid. `CodogotchiPet` now uses the fixed filename `"codogotchi-spritesheet.webp"` (hardcoded convention) so `pet.json.spritesheetPath` can point to the Codex sheet for both loaders to read from the same directory without path conflicts.
+
+**Maew spritesheet.webp sourced from Mali fixture.** `Fixtures/maew/spritesheet.webp` is a copy of `Fixtures/mali/spritesheet.webp`. The Codex grid is shared; the codogotchi sheet (`codogotchi-spritesheet.webp`) is Maew-unique.
+
+**CODOGOTCHI_HOME audit.** `CodexPet.defaultPetDirectoryPath()` previously used `~/.codex/pets/<pet>/` and did not read `CODOGOTCHI_HOME`. Both loaders now resolve via the same CODOGOTCHI_HOME-aware pattern matching `PetConfig.configURL()`.
+
+**Seed is pre-load, not post-load.** `MenubarApp` seeds before `CodexPet()` is called so a clean-machine first launch finds assets immediately rather than showing a pawprint on first open and animating on second open.
