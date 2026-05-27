@@ -31,6 +31,7 @@ final class MenubarMenu: NSObject {
 	static let showFloatingPetTitle = "Show Floating Pet"
 	static let hideFloatingPetTitle = "Hide Floating Pet"
 	static let quitTitle = "Quit Codogotchi"
+	static let hooksNotActiveTitle = "⚠ Hooks not active — Retry install"
 
 	private let workspace: MenuWorkspaceOpening
 	private let terminate: () -> Void
@@ -38,7 +39,9 @@ final class MenubarMenu: NSObject {
 	private let petFolderURL: URL
 	private let fileManager: FileManager
 	private let floatingPetController: FloatingPetVisibilityControlling?
+	private let retryHooksInstall: (() -> Void)?
 	private weak var builtMenu: NSMenu?
+	private weak var hooksNotActiveItem: NSMenuItem?
 
 	init(
 		workspace: MenuWorkspaceOpening = NSWorkspace.shared,
@@ -46,7 +49,8 @@ final class MenubarMenu: NSObject {
 		logFolderURL: URL = MenubarMenu.defaultLogFolderURL(),
 		petFolderURL: URL = MenubarMenu.defaultPetFolderURL(),
 		fileManager: FileManager = .default,
-		floatingPetController: FloatingPetVisibilityControlling? = nil
+		floatingPetController: FloatingPetVisibilityControlling? = nil,
+		retryHooksInstall: (() -> Void)? = nil
 	) {
 		self.workspace = workspace
 		self.terminate = terminate
@@ -54,6 +58,7 @@ final class MenubarMenu: NSObject {
 		self.petFolderURL = petFolderURL
 		self.fileManager = fileManager
 		self.floatingPetController = floatingPetController
+		self.retryHooksInstall = retryHooksInstall
 		super.init()
 	}
 
@@ -113,7 +118,24 @@ final class MenubarMenu: NSObject {
 		quitItem.target = self
 		menu.addItem(quitItem)
 
+		let hooksItem = NSMenuItem(
+			title: Self.hooksNotActiveTitle,
+			action: #selector(retryHooksInstallAction(_:)),
+			keyEquivalent: ""
+		)
+		hooksItem.target = self
+		hooksItem.isHidden = true
+		menu.addItem(hooksItem)
+		hooksNotActiveItem = hooksItem
+
 		return menu
+	}
+
+	/// Toggles the "Hooks not active" menu item.
+	/// Called after hook status refresh: visible when onboarding is done but hooks aren't firing.
+	@MainActor
+	func refreshHooksNotActive(isActive: Bool) {
+		hooksNotActiveItem?.isHidden = isActive
 	}
 
 	@objc func openLogFolder(_ sender: Any?) {
@@ -141,6 +163,10 @@ final class MenubarMenu: NSObject {
 
 	@objc func quitMenubar(_ sender: Any?) {
 		terminate()
+	}
+
+	@objc func retryHooksInstallAction(_ sender: Any?) {
+		retryHooksInstall?()
 	}
 
 	/// Keeps the status-item menu toggle label in sync after hiding from the

@@ -5,11 +5,12 @@ import XCTest
 
 /// Behavior tests for the menu-bar `NSStatusItem` menu.
 ///
-/// The status item exposes four items:
+/// The status item exposes five items:
 ///   1. "Open log folder" — opens `~/.codogotchi/` via `NSWorkspace.open(_:)`
 ///   2. "Reveal pet folder" — opens `~/.codex/pets/` via `NSWorkspace.open(_:)`
 ///   3. "Show/Hide Floating Pet" — toggles the desktop pet surface
 ///   4. "Quit Codogotchi" — terminates the app
+///   5. "⚠ Hooks not active — Retry install" — hidden until post-onboarding hooks are inactive
 ///
 /// Tests inject a workspace stub and a termination spy so menu actions can be
 /// invoked synchronously without touching Finder or actually quitting the
@@ -50,11 +51,13 @@ final class MenuItemsTests: XCTestCase {
 		)
 		let menu = builder.build()
 
-		XCTAssertEqual(menu.items.count, 4)
+		XCTAssertEqual(menu.items.count, 5)
 		XCTAssertEqual(menu.items[0].title, MenubarMenu.openLogFolderTitle)
 		XCTAssertEqual(menu.items[1].title, MenubarMenu.revealPetFolderTitle)
 		XCTAssertEqual(menu.items[2].title, MenubarMenu.showFloatingPetTitle)
-		XCTAssertEqual(menu.items[3].title, "Quit Codogotchi")
+		XCTAssertEqual(menu.items[3].title, MenubarMenu.quitTitle)
+		XCTAssertEqual(menu.items[4].title, MenubarMenu.hooksNotActiveTitle)
+		XCTAssertTrue(menu.items[4].isHidden, "Hooks not active item should start hidden")
 	}
 
 	func testFloatingPetToggleTitleReflectsVisibleState() {
