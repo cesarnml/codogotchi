@@ -35,10 +35,12 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Red first: Created `rpg.test.ts` importing non-existent `runRpg` → compile failure confirms RED state.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+Why this path: Splitting `runSetup` (Lite, no prompts) from `runRpg` (interactive RPG) removes the only user-facing interactive command from the Lite install path. Lite setup is now purely config-file creation + hook wiring.
+
+Alternative considered: Keeping a single `setup` entry with `--rpg` flag. Rejected — separate subcommands are clearer for users and easier to gate in tests.
+
+Deferred: The `rpg` command does not reinstall hooks (assumes `setup` already ran or app bootstrapped them). If hooks are missing, the user must run `codogotchi hooks install`. Error surfacing for missing hooks is out of scope for P5.03.
+
+Contract note: `InstallHooksContext` drops `convex_http_url` — it was never used in hook wiring (only `ctx.home` was used). This is a clean type reduction with no behavioral change to `installHooks`.
