@@ -216,16 +216,30 @@ adapter automatically.
 
 ## Updating
 
+Consumer repos:
+
 ```bash
-git fetch https://github.com/cesarnml/son-of-anton.git main
-git subtree merge --prefix .son-of-anton FETCH_HEAD --squash
-bun run sync
+bash .son-of-anton/scripts/soa-update.sh
 ```
 
-Migrations apply automatically on `bun run sync`.
-Fetching first and then merging `FETCH_HEAD` keeps the subtree update pinned to
-the fetched Son-of-Anton ref, even when the consumer repo also has a local
-`main` branch.
+That script fetches upstream, pins the fetched commit SHA, merges the subtree,
+runs `soa-sync.sh`, and verifies a known template file matches. Upstream paths
+use `docs/...`; the consumer copy lives at `.son-of-anton/docs/...`.
+
+Or add to `package.json` for convenience:
+
+```json
+{
+  "scripts": {
+    "soa-update": "bash .son-of-anton/scripts/soa-update.sh",
+    "sync": "bash .son-of-anton/scripts/soa-sync.sh"
+  }
+}
+```
+
+Migrations apply automatically during sync.
+Do not pass plain `main` to `git subtree merge` — it can resolve through the
+consumer repo's local branch history instead of the fetched Son-of-Anton commit.
 
 <details>
 <summary>Claude Code shortcut</summary>

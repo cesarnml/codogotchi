@@ -111,6 +111,7 @@ It does not patch source files, and it is not a per-ticket pre-PR gate.
 | --------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `orchestrator.config.json`                                | Runtime config (boundary mode, review policy, package manager)                      |
 | `scripts/soa-sync.sh`                                     | Consumer sync script — links skills, injects agent rules, runs migrations           |
+| `scripts/soa-update.sh`                                   | Consumer update script — fetch, subtree merge, sync, and verify upstream content    |
 | `docs/template/delivery/delivery-orchestrator.md`         | Full command reference, including stable workflow-contract and optional-DI guidance |
 | `docs/template/delivery/son-of-anton.md`                  | Doctrine: why this workflow exists                                                  |
 | `docs/template/delivery/tdd-workflow.md`                  | Red-green-refactor contract for ticket implementation                               |

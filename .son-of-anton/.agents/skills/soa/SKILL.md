@@ -38,25 +38,34 @@ skills. The prefixed helper names are intentional so existing user skills named
 
 **Trigger:** `/soa update`
 
-Pull the latest changes from son-of-anton, then re-sync skill symlinks:
+Pull the latest changes from son-of-anton in **consumer repos**, then re-sync
+skill symlinks.
+
+If `.son-of-anton/scripts/soa-update.sh` exists, run:
+
+```bash
+bash .son-of-anton/scripts/soa-update.sh
+```
+
+Otherwise run the manual recipe (legacy consumers before this script shipped):
 
 ```bash
 git fetch https://github.com/cesarnml/son-of-anton.git main
-git subtree merge --prefix .son-of-anton FETCH_HEAD --squash
+UPSTREAM_SHA="$(git rev-parse FETCH_HEAD)"
+git subtree merge --prefix .son-of-anton "$UPSTREAM_SHA" --squash
 bash .son-of-anton/scripts/soa-sync.sh
+UPSTREAM_HASH="$(git show "$UPSTREAM_SHA":docs/template/delivery/adversarial-review-template.md | git hash-object --stdin)"
+LOCAL_HASH="$(git hash-object .son-of-anton/docs/template/delivery/adversarial-review-template.md)"
+test "$UPSTREAM_HASH" = "$LOCAL_HASH"
 ```
 
-Fetch the upstream branch first, then merge `FETCH_HEAD`. Do not pass plain
-`main` to the subtree command in consumer repos; it can resolve through local
-consumer history instead of the fetched Son-of-Anton commit.
+Fetch upstream first, capture `UPSTREAM_SHA`, and merge that commit — not plain
+`main` (which can resolve through the consumer repo's local branch history) and
+not bare `FETCH_HEAD` after later git commands may have moved it.
 
-After the update, verify that a known subtree file matches the fetched upstream
-ref. At minimum:
-
-```bash
-git show FETCH_HEAD:docs/template/delivery/adversarial-review-template.md | git hash-object --stdin
-git hash-object .son-of-anton/docs/template/delivery/adversarial-review-template.md
-```
+Path mapping for verification: upstream files live at `docs/...` in the
+Son-of-Anton repo; in consumer repos the same content is at
+`.son-of-anton/docs/...`.
 
 Those hashes must match. If they do not, report the update as failed and do not
 claim the repo is current.
