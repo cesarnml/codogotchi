@@ -37,6 +37,8 @@ struct PetImportHelper {
 
 	/// Copies `codexPetsRoot/<id>/` into `canonicalPetsRoot/<id>/`, creating the
 	/// destination directory tree when absent. Throws when the source pet is missing.
+	/// Uses a `.bak` sibling to make the replacement atomic: restores the backup on
+	/// `copyItem` failure so the canonical store is never left empty.
 	func importPet(id: String) throws {
 		let source = codexPetsRoot.appendingPathComponent(id, isDirectory: true)
 		guard fileManager.fileExists(atPath: source.path) else {
@@ -46,9 +48,17 @@ struct PetImportHelper {
 		let destination = canonicalPetsRoot.appendingPathComponent(id, isDirectory: true)
 		try fileManager.createDirectory(at: canonicalPetsRoot, withIntermediateDirectories: true)
 
+		let backup = canonicalPetsRoot.appendingPathComponent("\(id).bak", isDirectory: true)
 		if fileManager.fileExists(atPath: destination.path) {
-			try fileManager.removeItem(at: destination)
+			try? fileManager.removeItem(at: backup)
+			try fileManager.moveItem(at: destination, to: backup)
 		}
-		try fileManager.copyItem(at: source, to: destination)
+		do {
+			try fileManager.copyItem(at: source, to: destination)
+			try? fileManager.removeItem(at: backup)
+		} catch {
+			try? fileManager.moveItem(at: backup, to: destination)
+			throw error
+		}
 	}
 }
