@@ -211,7 +211,14 @@ final class MenuItemsTests: XCTestCase {
 	}
 
 	func testDefaultPetFolderURLPointsToCanonicalPets() {
+		unsetenv("CODOGOTCHI_HOME")
 		XCTAssertTrue(MenubarMenu.defaultPetFolderURL().path.hasSuffix("/.codogotchi/pets"))
+	}
+
+	func testDefaultPetFolderURLRespectsCodegotchiHome() {
+		setenv("CODOGOTCHI_HOME", "/custom/home", 1)
+		defer { unsetenv("CODOGOTCHI_HOME") }
+		XCTAssertEqual(MenubarMenu.defaultPetFolderURL().path, "/custom/home/pets")
 	}
 
 	func testQuitCodogotchiActionInvokesTerminationSpy() {
