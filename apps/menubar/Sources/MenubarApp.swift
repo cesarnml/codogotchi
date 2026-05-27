@@ -141,7 +141,11 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			self.floatingPetController = floatingPetController
 			setFloatingPetAppNapOptOut(active: floatingPetController.isFloatingPetVisible)
 		} catch {
-			NSLog("MenubarApp: CodexPet load failed — keeping placeholder icon (\(error))")
+			NSLog(
+				"MenubarApp: CodexPet load failed from '%@' — keeping placeholder icon (%@)",
+				CodexPet.defaultPetDirectoryPath(),
+				String(describing: error)
+			)
 		}
 
 		let menuBuilder = MenubarMenu(floatingPetController: self.floatingPetController)

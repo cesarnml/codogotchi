@@ -43,7 +43,10 @@ enum PetStoreSeeder {
 		for asset in requiredAssets {
 			let src = sourceDirectory.appendingPathComponent(asset)
 			let dst = dest.appendingPathComponent(asset)
-			guard fm.fileExists(atPath: src.path) else { continue }
+			guard fm.fileExists(atPath: src.path) else {
+				NSLog("PetStoreSeeder: bundle asset '%@' missing from source — store will remain incomplete", asset)
+				continue
+			}
 			guard !fm.fileExists(atPath: dst.path) else { continue }
 			try fm.copyItem(at: src, to: dst)
 		}
