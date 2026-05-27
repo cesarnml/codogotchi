@@ -120,6 +120,48 @@ final class AppStateTests: XCTestCase {
 		XCTAssertEqual(fitted.width, 192 * (256.0 / 208.0), accuracy: 0.01)
 	}
 
+	func testOnboardingAndHookActivityRoundTrip() throws {
+		try withTempHome { _ in
+			let original = FloatingAppState(
+				isFloatingPetVisible: true,
+				frame: CGRect(x: 10, y: 20, width: 180, height: 180),
+				onboardingCompletedAt: "2026-05-28T10:00:00Z",
+				lastHookActivityAt: "2026-05-28T11:30:00Z",
+				hooksStatus: HooksStatusSnapshot.fixtureNotInstalled()
+			)
+
+			try AppStateStore.save(original)
+			let loaded = AppStateStore.load(visibleFrame: visibleFrame)
+
+			XCTAssertEqual(loaded.onboardingCompletedAt, "2026-05-28T10:00:00Z")
+			XCTAssertEqual(loaded.lastHookActivityAt, "2026-05-28T11:30:00Z")
+			XCTAssertNotNil(loaded.hooksStatus)
+			XCTAssertEqual(loaded.hooksStatus?.codex.installed, false)
+		}
+	}
+
+	func testNewOptionalFieldsDefaultToNilWhenAbsent() throws {
+		try withTempHome { dir in
+			try writeAppState(
+				#"""
+				{
+				  "schema_version": 1,
+				  "floating_pet": {
+				    "visible": true,
+				    "frame": { "x": 12, "y": 34, "width": 180, "height": 180 }
+				  }
+				}
+				"""#,
+				in: dir
+			)
+
+			let state = AppStateStore.load(visibleFrame: visibleFrame)
+			XCTAssertNil(state.onboardingCompletedAt)
+			XCTAssertNil(state.lastHookActivityAt)
+			XCTAssertNil(state.hooksStatus)
+		}
+	}
+
 	func testAppStatePathUsesCodogotchiHomeWithoutTouchingConfig() throws {
 		try withTempHome { dir in
 			let state = FloatingAppState(
