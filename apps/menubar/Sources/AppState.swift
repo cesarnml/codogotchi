@@ -6,6 +6,23 @@ let APP_STATE_SCHEMA_VERSION = 1
 struct FloatingAppState: Codable, Equatable {
 	let isFloatingPetVisible: Bool
 	let frame: CGRect
+	let onboardingCompletedAt: String?
+	let lastHookActivityAt: String?
+	let hooksStatus: HooksStatusSnapshot?
+
+	init(
+		isFloatingPetVisible: Bool,
+		frame: CGRect,
+		onboardingCompletedAt: String? = nil,
+		lastHookActivityAt: String? = nil,
+		hooksStatus: HooksStatusSnapshot? = nil
+	) {
+		self.isFloatingPetVisible = isFloatingPetVisible
+		self.frame = frame
+		self.onboardingCompletedAt = onboardingCompletedAt
+		self.lastHookActivityAt = lastHookActivityAt
+		self.hooksStatus = hooksStatus
+	}
 }
 
 enum FloatingFramePolicy {
@@ -82,7 +99,10 @@ enum AppStateStore {
 
 		return FloatingAppState(
 			isFloatingPetVisible: payload.floatingPet.visible,
-			frame: FloatingFramePolicy.clamp(payload.floatingPet.frame.cgRect, to: visibleFrame)
+			frame: FloatingFramePolicy.clamp(payload.floatingPet.frame.cgRect, to: visibleFrame),
+			onboardingCompletedAt: payload.onboardingCompletedAt,
+			lastHookActivityAt: payload.lastHookActivityAt,
+			hooksStatus: payload.hooksStatus
 		)
 	}
 
@@ -98,7 +118,10 @@ enum AppStateStore {
 			floatingPet: FloatingPetPayload(
 				visible: state.isFloatingPetVisible,
 				frame: FloatingFramePayload(state.frame)
-			)
+			),
+			onboardingCompletedAt: state.onboardingCompletedAt,
+			lastHookActivityAt: state.lastHookActivityAt,
+			hooksStatus: state.hooksStatus
 		)
 		let encoder = JSONEncoder()
 		encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -118,6 +141,9 @@ enum AppStateStore {
 private struct AppStatePayload: Codable {
 	let schemaVersion: Int
 	let floatingPet: FloatingPetPayload
+	let onboardingCompletedAt: String?
+	let lastHookActivityAt: String?
+	let hooksStatus: HooksStatusSnapshot?
 }
 
 private struct FloatingPetPayload: Codable {
