@@ -189,7 +189,7 @@ final class CanonicalPetPathTests: XCTestCase {
 			.deletingLastPathComponent()
 			.appendingPathComponent("Fixtures/maew")
 
-		withTempCodogotchiHome { tmp in
+		try withTempCodogotchiHome { tmp in
 			let petDir = tmp.appendingPathComponent("pets/maew")
 			try FileManager.default.createDirectory(at: petDir, withIntermediateDirectories: true)
 			try PetStoreSeeder.seed(from: maewFixture, into: petDir.path)
@@ -219,7 +219,7 @@ final class CanonicalPetPathTests: XCTestCase {
 			.deletingLastPathComponent()
 			.appendingPathComponent("Fixtures/maew")
 
-		withTempCodogotchiHome { tmp in
+		try withTempCodogotchiHome { tmp in
 			let petDir = tmp.appendingPathComponent("pets/maew")
 			try FileManager.default.createDirectory(at: petDir, withIntermediateDirectories: true)
 			try PetStoreSeeder.seed(from: maewFixture, into: petDir.path)

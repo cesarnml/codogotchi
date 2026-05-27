@@ -21,6 +21,9 @@ targets:
       - path: Fixtures/state-json
         type: folder
         buildPhase: resources
+      - path: Fixtures/maew
+        type: folder
+        buildPhase: resources
     info:
       path: Info.plist
       properties:
