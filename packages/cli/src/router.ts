@@ -7,7 +7,7 @@ import {
   configSet,
 } from "./config-command";
 import { defaultReaders } from "./default-readers";
-import { installHooks } from "./hooks";
+import { hooksStatus, installHooks, uninstallHooks } from "./hooks";
 import { type LootTier, runLoot, TIERS } from "./loot";
 import { terminalPrompter } from "./prompts";
 import { ConfigExistsError, runSetup } from "./setup";
@@ -68,6 +68,9 @@ Commands:
                    Pause HP decay until the given date (defaults to 30 days).
   vacation off     Clear vacation_until.
   vacation status  Show current vacation state.
+  hooks install    Install Codogotchi hooks for supported tools.
+  hooks uninstall  Remove Codogotchi hooks from supported tool configs.
+  hooks status     Print hook installation status.
   help, --help     Show this message.
 
 Flags (setup):
@@ -347,6 +350,85 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       }
       throw err;
     }
+  }
+
+  if (command === "hooks") {
+    const [sub, ...subArgs] = rest;
+    if (sub === "install") {
+      if (subArgs.includes("--help") || subArgs.includes("-h")) {
+        process.stdout.write("Usage: codogotchi hooks install\n");
+        return { exitCode: 0 };
+      }
+      if (subArgs.length > 0) {
+        process.stderr.write("Usage: codogotchi hooks install\n");
+        return { exitCode: 2 };
+      }
+      let config: Awaited<ReturnType<typeof readConfig>>;
+      try {
+        config = await readConfig(getCodogotchiHome());
+      } catch (err) {
+        if (err instanceof ConfigReadError) {
+          process.stderr.write(`${err.message}\n`);
+          return { exitCode: err.exitCode };
+        }
+        throw err;
+      }
+      if (!config) {
+        process.stderr.write(
+          "codogotchi: missing ~/.codogotchi/config.json. Launch the app or run `codogotchi setup` first.\n",
+        );
+        return { exitCode: 2 };
+      }
+      await installHooks({
+        home: getCodogotchiHome(),
+        convex_http_url:
+          "convex_http_url" in config ? config.convex_http_url : "",
+      });
+      process.stdout.write("hooks install: ok\n");
+      return { exitCode: 0 };
+    }
+    if (sub === "uninstall") {
+      if (subArgs.includes("--help") || subArgs.includes("-h")) {
+        process.stdout.write("Usage: codogotchi hooks uninstall\n");
+        return { exitCode: 0 };
+      }
+      if (subArgs.length > 0) {
+        process.stderr.write("Usage: codogotchi hooks uninstall\n");
+        return { exitCode: 2 };
+      }
+      await uninstallHooks();
+      process.stdout.write("hooks uninstall: ok\n");
+      return { exitCode: 0 };
+    }
+    if (sub === "status") {
+      if (subArgs.includes("--help") || subArgs.includes("-h")) {
+        process.stdout.write("Usage: codogotchi hooks status [--json]\n");
+        return { exitCode: 0 };
+      }
+      const asJson = subArgs.includes("--json");
+      if (subArgs.length > (asJson ? 1 : 0)) {
+        process.stderr.write("Usage: codogotchi hooks status [--json]\n");
+        return { exitCode: 2 };
+      }
+      const status = await hooksStatus();
+      if (asJson) {
+        process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+      } else {
+        const rows = Object.entries(status).map(([name, s]) => {
+          const installable = s.installable_in_phase
+            ? "installable"
+            : "deferred";
+          const installed = s.installed ? "installed" : "not-installed";
+          return `${name}: ${installed}, ${installable}`;
+        });
+        process.stdout.write(`${rows.join("\n")}\n`);
+      }
+      return { exitCode: 0 };
+    }
+    process.stderr.write(
+      "Usage: codogotchi hooks <install|uninstall|status> [--json]\n",
+    );
+    return { exitCode: 2 };
   }
 
   process.stderr.write(`Unknown command: ${command}\n${USAGE}`);

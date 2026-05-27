@@ -1,9 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { installHooks } from "./hooks";
+import { hooksStatus, installHooks, uninstallHooks } from "./hooks";
 
 describe("installHooks", () => {
   let userRoot: string;
@@ -15,6 +22,12 @@ describe("installHooks", () => {
     prevUserRoot = process.env.CODOGOTCHI_USER_ROOT;
     prevHome = process.env.CODOGOTCHI_HOME;
     process.env.CODOGOTCHI_USER_ROOT = userRoot;
+    mkdirSync(join(userRoot, ".codogotchi"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".codogotchi", "config.json"),
+      `${JSON.stringify({ profile_id: "p", pet: "maew", features: { rpg_enabled: false } })}\n`,
+      "utf8",
+    );
   });
 
   afterEach(() => {
@@ -63,9 +76,7 @@ describe("installHooks", () => {
     );
     expect(codexRaw).toContain('command = "codogotchi-hook"');
     expect(codexRaw).toContain('CODOGOTCHI_HOME = "/home/user/.codogotchi"');
-    expect(codexRaw).toContain(
-      'CODOGOTCHI_CONVEX_URL = "https://example.convex.site"',
-    );
+    expect(codexRaw).not.toContain("CODOGOTCHI_CONVEX_URL");
 
     const codexJson = JSON.parse(
       readFileSync(join(userRoot, ".codex", "hooks.json"), "utf8"),
@@ -77,8 +88,7 @@ describe("installHooks", () => {
       expect(slot[0]?.matcher).toBe("*");
       expect(slot[0]?.hooks[0]).toEqual({
         type: "command",
-        command:
-          "CODOGOTCHI_HOME='/home/user/.codogotchi' CODOGOTCHI_CONVEX_URL='https://example.convex.site' codogotchi-hook",
+        command: "CODOGOTCHI_HOME='/home/user/.codogotchi' codogotchi-hook",
       });
     }
 
@@ -265,7 +275,7 @@ describe("installHooks", () => {
     );
     expect(preCommands).toContain("custom-pre-hook");
     expect(preCommands).toContain(
-      "CODOGOTCHI_HOME='/home/user/.codogotchi' CODOGOTCHI_CONVEX_URL='https://example.convex.site' codogotchi-hook",
+      "CODOGOTCHI_HOME='/home/user/.codogotchi' codogotchi-hook",
     );
     expect(preCommands.some((command) => command.includes("codevibe"))).toBe(
       false,
@@ -321,5 +331,101 @@ describe("installHooks", () => {
     expect(claudeSecond).toBe(claudeFirst);
     expect(codexSecond).toBe(codexFirst);
     expect(codexJsonSecond).toBe(codexJsonFirst);
+  });
+
+  it("creates timestamped backups before mutating existing files", async () => {
+    await mkdir(join(userRoot, ".claude"), { recursive: true });
+    await mkdir(join(userRoot, ".codex"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".claude", "settings.json"),
+      JSON.stringify({ hooks: {} }),
+      "utf8",
+    );
+    writeFileSync(
+      join(userRoot, ".codex", "config.toml"),
+      "[features]\n",
+      "utf8",
+    );
+    writeFileSync(
+      join(userRoot, ".codex", "hooks.json"),
+      JSON.stringify({ hooks: {} }),
+      "utf8",
+    );
+
+    await installHooks({
+      home: "/home/user/.codogotchi",
+      convex_http_url: "https://example.convex.site",
+    });
+
+    const claudeFiles = readdirSync(join(userRoot, ".claude"));
+    const codexFiles = readdirSync(join(userRoot, ".codex"));
+    expect(
+      claudeFiles.some((name) =>
+        name.startsWith("settings.json.codogotchi-backup-"),
+      ),
+    ).toBe(true);
+    expect(
+      codexFiles.some((name) =>
+        name.startsWith("config.toml.codogotchi-backup-"),
+      ),
+    ).toBe(true);
+    expect(
+      codexFiles.some((name) =>
+        name.startsWith("hooks.json.codogotchi-backup-"),
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses install when ~/.codogotchi/config.json is missing", async () => {
+    rmSync(join(userRoot, ".codogotchi"), { recursive: true, force: true });
+    await expect(
+      installHooks({
+        home: "/home/user/.codogotchi",
+        convex_http_url: "https://example.convex.site",
+      }),
+    ).rejects.toThrow("missing ~/.codogotchi/config.json");
+  });
+
+  it("uninstall removes codogotchi hook entries", async () => {
+    await installHooks({
+      home: "/home/user/.codogotchi",
+      convex_http_url: "https://example.convex.site",
+    });
+    await uninstallHooks();
+
+    const claude = JSON.parse(
+      readFileSync(join(userRoot, ".claude", "settings.json"), "utf8"),
+    ) as { hooks: HooksMap };
+    expect(hasCodogotchiMatcher(claude.hooks.PreToolUse ?? [])).toBe(false);
+    expect(hasCodogotchiMatcher(claude.hooks.Stop ?? [])).toBe(false);
+
+    const codex = JSON.parse(
+      readFileSync(join(userRoot, ".codex", "hooks.json"), "utf8"),
+    ) as { hooks: HooksMap };
+    for (const event of ["PreToolUse", "PostToolUse", "SessionStart", "Stop"]) {
+      const slot = codex.hooks[event] ?? [];
+      expect(
+        slot.some((m) =>
+          m.hooks.some((h) => h.command.includes("codogotchi-hook")),
+        ),
+      ).toBe(false);
+    }
+  });
+
+  it("reports status JSON shape for installed and not installed platforms", async () => {
+    const before = await hooksStatus();
+    expect(before.codex.installed).toBe(false);
+    expect(before.claude_code.installed).toBe(false);
+    expect(before.cursor.installable_in_phase).toBe(false);
+
+    await installHooks({
+      home: "/home/user/.codogotchi",
+      convex_http_url: "https://example.convex.site",
+    });
+    const after = await hooksStatus();
+    expect(after.codex.installed).toBe(true);
+    expect(after.claude_code.installed).toBe(true);
+    expect(after.codex).toHaveProperty("firing_recently");
+    expect(after.codex).toHaveProperty("last_event_at");
   });
 });
