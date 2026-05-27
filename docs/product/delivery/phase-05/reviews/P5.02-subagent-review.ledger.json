@@ -1,0 +1,22 @@
+{
+  "ticket": "P5.02",
+  "invocations": [
+    {
+      "runnerKind": "cursor-cli",
+      "reviewedHeadSha": "c4da74dbae89234f700c6a8cfae06d63a5d2c7a9",
+      "outcome": "skipped",
+      "completedAt": "2026-05-27T15:05:11.209Z",
+      "terminatedReason": "runner_failed",
+      "rawOutput": "docs/product/delivery/phase-05/reviews/P5.02-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-05/reviews/P5.02-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "cursor",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}
