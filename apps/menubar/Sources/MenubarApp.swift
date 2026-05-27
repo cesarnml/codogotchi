@@ -56,6 +56,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// while the app runs. Nil after the sheet is dismissed on a non-first-launch.
 	var onboardingWindowController: OnboardingWindowController?
 
+	/// Held strongly so the Settings panel is not deallocated while the app runs.
+	var settingsWindowController: SettingsWindowController?
+
 	/// Opaque observer token for `NSWorkspace.didWakeNotification`. Held
 	/// strongly so the block-based observer is not deallocated while the app
 	/// runs, and removed in `applicationWillTerminate` so the workspace
@@ -164,10 +167,16 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		let onboardingController = OnboardingWindowController()
 		self.onboardingWindowController = onboardingController
 
+		let settingsController = SettingsWindowController()
+		self.settingsWindowController = settingsController
+
 		let menuBuilder = MenubarMenu(
 			floatingPetController: self.floatingPetController,
 			retryHooksInstall: { [weak onboardingController] in
 				onboardingController?.showIfNeeded()
+			},
+			openSettings: { [weak settingsController] in
+				settingsController?.show()
 			}
 		)
 		item.menu = menuBuilder.build()
@@ -357,6 +366,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			menuBuilder?.refreshHooksNotActive(isActive: !snapshot.isHooksNotActive())
 		}
 		onboardingWindowController?.updateHookStatus(snapshot)
+		settingsWindowController?.updateHookStatus(snapshot)
 	}
 
 	private static func visibleFloatingFrame() -> CGRect {

@@ -30,6 +30,7 @@ final class MenubarMenu: NSObject {
 	static let revealPetFolderTitle = "Reveal pet folder"
 	static let showFloatingPetTitle = "Show Floating Pet"
 	static let hideFloatingPetTitle = "Hide Floating Pet"
+	static let settingsTitle = "Settings…"
 	static let quitTitle = "Quit Codogotchi"
 	static let hooksNotActiveTitle = "⚠ Hooks not active — Retry install"
 
@@ -40,6 +41,7 @@ final class MenubarMenu: NSObject {
 	private let fileManager: FileManager
 	private let floatingPetController: FloatingPetVisibilityControlling?
 	private let retryHooksInstall: (() -> Void)?
+	private let openSettings: (() -> Void)?
 	private weak var builtMenu: NSMenu?
 	private weak var hooksNotActiveItem: NSMenuItem?
 
@@ -50,7 +52,8 @@ final class MenubarMenu: NSObject {
 		petFolderURL: URL = MenubarMenu.defaultPetFolderURL(),
 		fileManager: FileManager = .default,
 		floatingPetController: FloatingPetVisibilityControlling? = nil,
-		retryHooksInstall: (() -> Void)? = nil
+		retryHooksInstall: (() -> Void)? = nil,
+		openSettings: (() -> Void)? = nil
 	) {
 		self.workspace = workspace
 		self.terminate = terminate
@@ -59,6 +62,7 @@ final class MenubarMenu: NSObject {
 		self.fileManager = fileManager
 		self.floatingPetController = floatingPetController
 		self.retryHooksInstall = retryHooksInstall
+		self.openSettings = openSettings
 		super.init()
 	}
 
@@ -109,6 +113,15 @@ final class MenubarMenu: NSObject {
 		floatingItem.target = self
 		floatingItem.isEnabled = floatingPetController != nil
 		menu.addItem(floatingItem)
+
+		let settingsItem = NSMenuItem(
+			title: Self.settingsTitle,
+			action: #selector(openSettingsAction(_:)),
+			keyEquivalent: ","
+		)
+		settingsItem.target = self
+		settingsItem.isEnabled = openSettings != nil
+		menu.addItem(settingsItem)
 
 		let quitItem = NSMenuItem(
 			title: Self.quitTitle,
@@ -167,6 +180,10 @@ final class MenubarMenu: NSObject {
 
 	@objc func retryHooksInstallAction(_ sender: Any?) {
 		retryHooksInstall?()
+	}
+
+	@objc func openSettingsAction(_ sender: Any?) {
+		openSettings?()
 	}
 
 	/// Keeps the status-item menu toggle label in sync after hiding from the
