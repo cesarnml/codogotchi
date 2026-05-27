@@ -7,7 +7,7 @@ import XCTest
 ///
 /// The status item exposes six items:
 ///   1. "Open log folder" — opens `~/.codogotchi/` via `NSWorkspace.open(_:)`
-///   2. "Reveal pet folder" — opens `~/.codex/pets/` via `NSWorkspace.open(_:)`
+///   2. "Reveal pet folder" — opens `~/.codogotchi/pets/` via `NSWorkspace.open(_:)`
 ///   3. "Show/Hide Floating Pet" — toggles the desktop pet surface
 ///   4. "Settings…" — opens the Settings panel (⌘,)
 ///   5. "Quit Codogotchi" — terminates the app
@@ -210,8 +210,8 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertFalse(settingsItem.isEnabled)
 	}
 
-	func testDefaultPetFolderURLPointsToCodexPets() {
-		XCTAssertTrue(MenubarMenu.defaultPetFolderURL().path.hasSuffix("/.codex/pets"))
+	func testDefaultPetFolderURLPointsToCanonicalPets() {
+		XCTAssertTrue(MenubarMenu.defaultPetFolderURL().path.hasSuffix("/.codogotchi/pets"))
 	}
 
 	func testQuitCodogotchiActionInvokesTerminationSpy() {
