@@ -63,7 +63,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 		let visibleFrame = visibleFrameProvider()
 		let nextState = FloatingAppState(
 			isFloatingPetVisible: visible,
-			frame: FloatingFramePolicy.clamp(state.frame, to: visibleFrame)
+			frame: FloatingFramePolicy.clamp(state.frame, to: visibleFrame),
+			onboardingCompletedAt: state.onboardingCompletedAt,
+			lastHookActivityAt: state.lastHookActivityAt,
+			hooksStatus: state.hooksStatus
 		)
 		do {
 			try saveState(nextState)
@@ -104,7 +107,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 	private func saveClampedFrame(_ frame: CGRect, visibleFrame: CGRect, logLabel: String) {
 		let nextState = FloatingAppState(
 			isFloatingPetVisible: state.isFloatingPetVisible,
-			frame: FloatingFramePolicy.clamp(frame, to: visibleFrame)
+			frame: FloatingFramePolicy.clamp(frame, to: visibleFrame),
+			onboardingCompletedAt: state.onboardingCompletedAt,
+			lastHookActivityAt: state.lastHookActivityAt,
+			hooksStatus: state.hooksStatus
 		)
 		do {
 			try saveState(nextState)

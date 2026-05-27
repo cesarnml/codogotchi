@@ -99,6 +99,15 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		let config = DemoConfig.forLaunch()
 		self.demoConfig = config
 
+		// First-launch Lite config: write minimal {profile_id, pet, features.rpg_enabled}
+		// when missing. Coordinated with bundle seed below so first frame shows Maew
+		// without `codogotchi setup`. Soft failure — log and continue.
+		do {
+			try ConfigBootstrap.ensureLiteConfig()
+		} catch {
+			NSLog("MenubarApp: ConfigBootstrap.ensureLiteConfig failed — \(error)")
+		}
+
 		// Seed Maew from the app bundle when the canonical store is absent or incomplete.
 		// Runs before pet loading so a clean machine has assets available at first launch.
 		if let bundledMaewDir = Self.bundledMaewDirectory() {
@@ -226,6 +235,11 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			self.livePollingDriver = driver
 		}
 
+		// Best-effort hook status refresh: shell out to `codogotchi hooks status --json`
+		// and cache the snapshot in app-state. Subprocess failure is logged and
+		// non-fatal — P5.06 onboarding surfaces this to the user.
+		refreshHookStatusCache()
+
 		// Wake-from-sleep: trigger an immediate out-of-band poll so the
 		// menu bar pet reflects current state without waiting up to one
 		// second after wake for the next scheduled tick. Sleep itself
@@ -279,6 +293,38 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			return nil
 		}
 		return candidate
+	}
+
+	private func refreshHookStatusCache() {
+		let client = HookStatusClient()
+		let snapshot: HooksStatusSnapshot
+		do {
+			snapshot = try client.fetch()
+		} catch {
+			NSLog("MenubarApp: hooks status refresh failed — \(error)")
+			return
+		}
+
+		let current = AppStateStore.load(visibleFrame: Self.visibleFloatingFrame())
+		let observed = [
+			snapshot.codex, snapshot.claudeCode, snapshot.cursor,
+			snapshot.vscode, snapshot.antigravity,
+		]
+		.compactMap(\.lastEventAt)
+		.max()
+		let lastActivity = observed ?? current.lastHookActivityAt
+		let next = FloatingAppState(
+			isFloatingPetVisible: current.isFloatingPetVisible,
+			frame: current.frame,
+			onboardingCompletedAt: current.onboardingCompletedAt,
+			lastHookActivityAt: lastActivity,
+			hooksStatus: snapshot
+		)
+		do {
+			try AppStateStore.save(next)
+		} catch {
+			NSLog("MenubarApp: app-state save after hook refresh failed — \(error)")
+		}
 	}
 
 	private static func visibleFloatingFrame() -> CGRect {
