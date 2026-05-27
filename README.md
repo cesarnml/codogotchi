@@ -6,16 +6,18 @@ Convex; a macOS **Codogotchi** app renders agent animation state locally from
 `~/.codogotchi/state.json` on both the menu bar micro-pet and an optional
 transparent floating desktop pet.
 
-**Status:** Phase 04 — Floating pet (private). Phase 01 CLI + Convex pipeline
+**Status:** Phase 05 — Lite install and onboarding (private). Phase 01 CLI + Convex pipeline
 is shipped; Phase 02 added the menu bar `NSStatusItem`; Phase 03 extended to
 all 15 activity states with a second spritesheet (`codogotchi-spritesheet.webp`)
 and per-pet config; Phase 04 renamed the app to **Codogotchi**, added a
 float-on-top SpriteKit surface (show/hide, drag, resize, persistence in
 `~/.codogotchi/app-state.json`), shared live/demo state fanout, and mouse-
-reactive reserved Codex rows. HP overlays, focus-aware visibility, catalog UI,
-and distribution polish remain deferred. See
-[`docs/product/plans/phase-04-floating-pet.md`](docs/product/plans/phase-04-floating-pet.md) and the
-[`phase-04 validation runbook`](docs/runbooks/phase-04-validation.md).
+reactive reserved Codex rows; Phase 05 introduced Lite vs Alive modes, a
+mandatory first-run onboarding sheet with hook consent and backup, a minimal
+Settings window, and the canonical pet store (`~/.codogotchi/pets/`) with
+Maew bundle-seeded by the app. HP overlays, focus-aware visibility, catalog UI,
+and distribution polish remain deferred. See the
+[`phase-05 Lite install runbook`](docs/runbooks/phase-05-lite-install.md).
 
 ## What ships in Phase 01
 
@@ -59,32 +61,47 @@ docs/
 
 ## Install (private, source build)
 
-There is no npm publish yet. The CLI runs from source via Bun.
+There is no npm publish yet. See the [`phase-05 Lite install runbook`](docs/runbooks/phase-05-lite-install.md) for the full walk-through (Xcode Release build → `/Applications` → first-run onboarding).
+
+Quick path via debug build:
 
 ```bash
 bun install
-bun run packages/cli/bin/codogotchi.ts setup
+bun run mac:build
+open "$(find ~/Library/Developer/Xcode/DerivedData -name 'Codogotchi.app' -path '*/Build/Products/*' | head -1)"
 ```
 
-`setup` prompts for your codogotchi **handle**, then **GitHub username** and **PAT**
-(one after the other). Merged-PR signals only work when **both** are set; skipping
-either leaves GitHub PR XP off until you fix it with `codogotchi config set` or
-`setup --force`. Wakatime and GitHub credentials are optional.
+The app shows a first-run onboarding sheet on launch that installs hooks. No CLI step needed before opening the app.
 
-Both binaries live under `packages/cli/bin/`. Wire them into your `PATH` (or
-symlink them into `~/.local/bin/`) for convenience.
+Both CLI binaries (`codogotchi`, `codogotchi-hook`) live under `packages/cli/bin/`. Wire them into your `PATH` (or symlink into `~/.local/bin/`) before opening the app so the onboarding sheet can run `codogotchi hooks install`.
+
+## Lite vs Alive
+
+Phase 05 splits the CLI into two modes:
+
+| Mode | How to enter | Convex sync | XP / Loot |
+|---|---|---|---|
+| **Lite** | `codogotchi setup` (or first app launch) | No | No |
+| **Alive (RPG)** | `codogotchi rpg` after Lite setup | Yes | Yes |
+
+Lite writes `{ "features": { "rpg_enabled": false } }` to `~/.codogotchi/config.json`. RPG commands (`sync`, `status`, `loot`, `vacation`) refuse when `rpg_enabled` is `false`. Run `codogotchi rpg` to enroll and enable them.
 
 ## CLI surface
 
 ```
-codogotchi setup                              First-run config + hook install
-codogotchi sync                               One sync cycle (all four sources)
-codogotchi status                             Cached profile, HP, recent loot
-codogotchi loot [--limit N] [--tier T]        Loot history from ~/.codogotchi/loot.log
+codogotchi setup                              Lite first-run: write minimal config + install hooks
+codogotchi rpg                                Alive enrollment: prompts for handle, GitHub, Convex URL
+codogotchi hooks install                      Install hooks for Claude Code and Codex
+codogotchi hooks uninstall                    Remove hooks from tool configs
+codogotchi hooks status [--json]              Print per-platform hook install + firing status
+
+codogotchi sync                               One sync cycle — requires rpg_enabled: true
+codogotchi status                             Cached profile, HP, recent loot — requires rpg_enabled: true
+codogotchi loot [--limit N] [--tier T]        Loot history — requires rpg_enabled: true
 codogotchi config get <key>                   Read a dotted config key
 codogotchi config set <key> <value>           Write a typed value
 codogotchi config list                        Full config as JSON (secrets redacted)
-codogotchi vacation on [--until YYYY-MM-DD]   Pause HP decay
+codogotchi vacation on [--until YYYY-MM-DD]   Pause HP decay — requires rpg_enabled: true
 codogotchi vacation off                       Resume HP decay
 codogotchi vacation status                    Show vacation state
 ```
@@ -92,9 +109,20 @@ codogotchi vacation status                    Show vacation state
 Environment overrides:
 
 | Var | Default | Effect |
-| --- | --- | --- |
+|---|---|---|
 | `CODOGOTCHI_HOME` | `~/.codogotchi` | Config / cache / log root |
 | `CODOGOTCHI_USER_ROOT` | OS home | Home dir used for hook installation |
+
+## Cursor via Claude bridge
+
+Cursor users can get Codogotchi activity via the **Claude Code** bridge: use a
+third-party skill that routes Cursor tool calls through Claude Code hooks. The
+hook fires with `source_origin: claude_code` and Cursor-originated tool names
+pass through unchanged.
+
+`codogotchi hooks status` reports `cursor.installable_in_phase: false` and
+`source_origin: "phase-06-deferred"` — native Cursor hooks are a Phase 06
+target and are not wired in Phase 05.
 
 ## Where data lives
 
@@ -108,8 +136,7 @@ Environment overrides:
 | `~/.codogotchi/sync.log` | `sync` | Per-source success / failure (rotated) |
 | `~/.codogotchi/loot.log` | `sync` (via Convex) | Loot history (for `loot`) |
 | `~/.codogotchi/scorePR.log` | `sync` | `scorePR` heuristic decisions |
-| `~/.codex/pets/<name>/` | user | Codex-sheet pet assets (`pet.json` + spritesheet) |
-| `~/.codogotchi/pets/<name>/` | user | Codogotchi-sheet pet assets (`pet.json` + `codogotchi-spritesheet.webp`) |
+| `~/.codogotchi/pets/<name>/` | app / user | Canonical pet assets — Maew seeded from bundle on first launch (`pet.json`, `spritesheet.webp`, `codogotchi-spritesheet.webp`) |
 | Convex `profiles`, `loot_events`, `users` | server | Canonical state |
 
 ## Health semantics
@@ -122,16 +149,30 @@ Three knobs in `~/.codogotchi/config.json`:
 - `health.vacation_until` — ISO date through which HP decay is suspended; set
   via `codogotchi vacation on`.
 
-## macOS app (Phase 04+)
+## macOS app (Phase 05+)
 
 The **Codogotchi** app (`apps/menubar/`) is an `LSUIElement` menu bar agent with
-an optional float-on-top desktop pet. Build with `bun run mac:build`; validate
-with [`docs/runbooks/phase-04-validation.md`](docs/runbooks/phase-04-validation.md).
-Menu items include **Show/Hide Floating Pet**, **Open log folder**, **Reveal pet
-folder**, and **Quit Codogotchi**. Demo mode (`CODOGOTCHI_DEMO=1`) drives both
-surfaces from fixtures without touching live `state.json`.
+an optional float-on-top desktop pet and a minimal Settings window. On first
+launch it bootstraps a Lite `~/.codogotchi/config.json` (if absent), seeds Maew
+from the bundle into `~/.codogotchi/pets/maew/`, and presents a mandatory
+first-run onboarding sheet. The onboarding sheet requires **Approve & install
+hooks** — there is no skip. The sheet stays open (showing **Hooks not active**)
+until install succeeds and a real tool event fires. Build and validate:
 
-## Pet configuration (Phase 03+)
+```bash
+bun run mac:build
+# For install validation, see docs/runbooks/phase-05-lite-install.md
+```
+
+Menu items include **Show/Hide Floating Pet**, **Open log folder**, **Reveal pet
+folder** (opens `~/.codogotchi/pets/` in Finder), and **Quit Codogotchi**.
+
+**Demo mode** (`CODOGOTCHI_DEMO=1` or `--demo` launch argument) cycles activity
+states from a fixture without touching live `~/.codogotchi/state.json`. This is
+a **developer QA tool only** — it is not a user-facing Lite feature and should
+not be presented as one.
+
+## Pet configuration (Phase 05+)
 
 The Codogotchi app resolves the active pet from `~/.codogotchi/config.json`:
 
@@ -139,11 +180,12 @@ The Codogotchi app resolves the active pet from `~/.codogotchi/config.json`:
 { "pet": "maew" }
 ```
 
-The `pet` key selects asset directories under `~/.codex/pets/<name>/` (Codex
-sheet) and `~/.codogotchi/pets/<name>/` (codogotchi sheet). The compiled-in
-default is `"maew"`. A missing, malformed, or `pet`-key-absent config falls
-back to `"maew"` silently. The menu bar's **Reveal pet folder** item opens
-`~/.codex/pets/` in Finder so you can inspect or swap the active pet.
+The `pet` key selects asset directories under `~/.codogotchi/pets/<name>/`
+(canonical store). Maew is bundle-seeded on first launch; no manual copy needed.
+The compiled-in default is `"maew"`. A missing, malformed, or `pet`-key-absent
+config falls back to `"maew"` silently. The menu bar's **Reveal pet folder**
+item opens `~/.codogotchi/pets/` in Finder so you can inspect or swap the
+active pet.
 
 The env var `CODOGOTCHI_HOME` overrides the config file path for the menubar
 app and is the test-isolation mechanism used in `PetConfigTests`.
