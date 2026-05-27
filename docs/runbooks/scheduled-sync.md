@@ -7,8 +7,9 @@ install paths and how to inspect logs if something stops working.
 ## Pre-requisites
 
 - `codogotchi` is installed and on `PATH`. Verify with `command -v codogotchi`.
-- `codogotchi setup` has been run at least once. The config file at
-  `~/.codogotchi/config.json` must exist before the scheduled job runs.
+- `codogotchi rpg` has been run (Alive enrollment) so `features.rpg_enabled`
+  is `true`. Lite-only `codogotchi setup` does not enable `sync`. The config
+  file at `~/.codogotchi/config.json` must exist before the scheduled job runs.
 - For GitHub PR signals: `github_token` and `github_username` are set in the
   config. The engine soft-skips when these are absent — sync still runs.
 

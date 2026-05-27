@@ -1,6 +1,6 @@
 # Phase 05: Lite Install And Onboarding
 
-**Delivery status:** Product plan approved (2026-05-27). App Store distribution is explicitly non-blocking for Phase 05 exit.
+**Delivery status:** Delivered 2026-05-28 (12/12 tickets, stacked PRs [#54](https://github.com/cesarnml/codogotchi/pull/54)–[#65](https://github.com/cesarnml/codogotchi/pull/65)). Retrospective: [`docs/product/retrospectives/phase-05-lite-install-and-onboarding-retrospective.md`](../retrospectives/phase-05-lite-install-and-onboarding-retrospective.md). Validation: [`docs/runbooks/phase-05-validation.md`](../../runbooks/phase-05-validation.md). App Store distribution remains non-blocking for this phase.
 
 ## TL;DR
 

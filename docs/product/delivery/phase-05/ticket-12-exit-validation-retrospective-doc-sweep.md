@@ -35,8 +35,7 @@ Red: skip
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+- Added `docs/runbooks/phase-05-validation.md` covering all implementation-plan exit rows; linked from lite-install runbook.
+- Wrote `docs/product/retrospectives/phase-05-lite-install-and-onboarding-retrospective.md` per `soa-write-retrospective` sections.
+- Updated product plan delivery status to Delivered with PR/retro/validation links.
+- Scoped doc sweep: `scheduled-sync.md` (RPG prerequisite for sync), `phase-10` draft (`rpg` vs `setup` for enrollment). Phase 01 historical docs left as period-accurate artifacts.
