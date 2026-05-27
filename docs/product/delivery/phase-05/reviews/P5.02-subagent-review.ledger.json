@@ -17,6 +17,23 @@
       "findings": [],
       "probedSurfaces": [],
       "patches": []
+    },
+    {
+      "runnerKind": "cursor-cli",
+      "reviewedHeadSha": "bf4bb1df3c3e662d9edbdcefac15f3aff4609aa8",
+      "outcome": "skipped",
+      "completedAt": "2026-05-27T15:27:29.345Z",
+      "terminatedReason": "rate_limit",
+      "rawOutput": "docs/product/delivery/phase-05/reviews/P5.02-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-05/reviews/P5.02-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "cursor",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
     }
   ]
 }
