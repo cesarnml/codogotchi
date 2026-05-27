@@ -5,12 +5,13 @@ import XCTest
 
 /// Behavior tests for the menu-bar `NSStatusItem` menu.
 ///
-/// The status item exposes five items:
+/// The status item exposes six items:
 ///   1. "Open log folder" — opens `~/.codogotchi/` via `NSWorkspace.open(_:)`
 ///   2. "Reveal pet folder" — opens `~/.codex/pets/` via `NSWorkspace.open(_:)`
 ///   3. "Show/Hide Floating Pet" — toggles the desktop pet surface
-///   4. "Quit Codogotchi" — terminates the app
-///   5. "⚠ Hooks not active — Retry install" — hidden until post-onboarding hooks are inactive
+///   4. "Settings…" — opens the Settings panel (⌘,)
+///   5. "Quit Codogotchi" — terminates the app
+///   6. "⚠ Hooks not active — Retry install" — hidden until post-onboarding hooks are inactive
 ///
 /// Tests inject a workspace stub and a termination spy so menu actions can be
 /// invoked synchronously without touching Finder or actually quitting the
@@ -51,13 +52,14 @@ final class MenuItemsTests: XCTestCase {
 		)
 		let menu = builder.build()
 
-		XCTAssertEqual(menu.items.count, 5)
+		XCTAssertEqual(menu.items.count, 6)
 		XCTAssertEqual(menu.items[0].title, MenubarMenu.openLogFolderTitle)
 		XCTAssertEqual(menu.items[1].title, MenubarMenu.revealPetFolderTitle)
 		XCTAssertEqual(menu.items[2].title, MenubarMenu.showFloatingPetTitle)
-		XCTAssertEqual(menu.items[3].title, MenubarMenu.quitTitle)
-		XCTAssertEqual(menu.items[4].title, MenubarMenu.hooksNotActiveTitle)
-		XCTAssertTrue(menu.items[4].isHidden, "Hooks not active item should start hidden")
+		XCTAssertEqual(menu.items[3].title, MenubarMenu.settingsTitle)
+		XCTAssertEqual(menu.items[4].title, MenubarMenu.quitTitle)
+		XCTAssertEqual(menu.items[5].title, MenubarMenu.hooksNotActiveTitle)
+		XCTAssertTrue(menu.items[5].isHidden, "Hooks not active item should start hidden")
 	}
 
 	func testFloatingPetToggleTitleReflectsVisibleState() {
@@ -132,7 +134,7 @@ final class MenuItemsTests: XCTestCase {
 
 		XCTAssertEqual(toggleItem.title, MenubarMenu.showFloatingPetTitle)
 		XCTAssertFalse(toggleItem.isEnabled)
-		XCTAssertEqual(menu.items[3].title, MenubarMenu.quitTitle)
+		XCTAssertEqual(menu.items[4].title, MenubarMenu.quitTitle)
 	}
 
 	func testOpenLogFolderActionInvokesWorkspaceOpenWithExpectedURL() {
@@ -175,6 +177,39 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(workspace.openedURLs, [expectedURL])
 	}
 
+	func testSettingsItemInvokesOpenSettingsCallback() {
+		var settingsOpenCount = 0
+		let builder = MenubarMenu(
+			workspace: WorkspaceOpenSpy(),
+			terminate: {},
+			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets"),
+			openSettings: { settingsOpenCount += 1 }
+		)
+		let menu = builder.build()
+		let settingsItem = menu.items[3]
+		XCTAssertEqual(settingsItem.title, MenubarMenu.settingsTitle)
+		XCTAssertTrue(settingsItem.isEnabled)
+
+		guard let action = settingsItem.action, let target = settingsItem.target else {
+			return XCTFail("Settings menu item must have an action and target")
+		}
+		_ = target.perform(action, with: settingsItem)
+		XCTAssertEqual(settingsOpenCount, 1)
+	}
+
+	func testSettingsItemIsDisabledWhenCallbackIsNil() {
+		let builder = MenubarMenu(
+			workspace: WorkspaceOpenSpy(),
+			terminate: {},
+			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
+		)
+		let menu = builder.build()
+		let settingsItem = menu.items[3]
+		XCTAssertFalse(settingsItem.isEnabled)
+	}
+
 	func testDefaultPetFolderURLPointsToCodexPets() {
 		XCTAssertTrue(MenubarMenu.defaultPetFolderURL().path.hasSuffix("/.codex/pets"))
 	}
@@ -188,7 +223,7 @@ final class MenuItemsTests: XCTestCase {
 			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
 		)
 		let menu = builder.build()
-		let quitItem = menu.items[3]
+		let quitItem = menu.items[4]
 
 		guard let action = quitItem.action, let target = quitItem.target else {
 			return XCTFail("Quit Codogotchi menu item must have an action and target")
