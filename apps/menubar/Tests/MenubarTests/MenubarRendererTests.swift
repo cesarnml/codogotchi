@@ -5,8 +5,9 @@ import XCTest
 @testable import Codogotchi
 
 /// Behavior contract for `MenubarRenderer` — the `NSStatusItem`-driving
-/// renderer that composites Codex-sheet and codogotchi-sheet frames, plus the
-/// desaturated visual mode used during early failure visuals.
+/// renderer that composites Codex-sheet and codogotchi-sheet frames, paints
+/// a single static hero frame per active row, and supports a desaturated
+/// visual mode used during early failure visuals.
 ///
 /// Tests inject an image-sink closure so they do not require a real
 /// `NSStatusItem` or a running `NSApplication` event loop.
@@ -67,50 +68,98 @@ final class MenubarRendererTests: XCTestCase {
 		XCTAssertNotNil(lastImage, "renderer must push at least one frame to the sink on state change")
 	}
 
-	func testStateTransitionResetsFrameIndexToZero() throws {
+	func testStateTransitionLandsOnHeroFrame() throws {
 		let codexPet = try makeCodexPet()
 		let codogotchiPet = try makeCodogotchiPet()
 		let renderer = try MenubarRenderer(codexPet: codexPet, codogotchiPet: codogotchiPet, sink: { _ in })
 
 		renderer.update(state: .implementing, visualMode: .normal)
-		// Simulate the timer firing twice so frameIndex advances away from 0.
-		renderer.advanceFrameForTesting()
-		renderer.advanceFrameForTesting()
-		XCTAssertGreaterThan(
-			renderer.currentFrameIndexForTesting,
-			0,
-			"sanity check: frame index must advance after ticks"
-		)
 
-		renderer.update(state: .runningTests, visualMode: .normal)
-
-		XCTAssertEqual(renderer.currentStateForTesting, .runningTests)
+		let implementingFrames = codexPet.frames(for: .implementing)
 		XCTAssertEqual(
 			renderer.currentFrameIndexForTesting,
-			0,
-			"state transition must reset frame index to 0 so the new loop starts at frame 0"
+			min(MenubarRenderer.heroFrameIndex, max(implementingFrames.count - 1, 0)),
+			"state transition must land on the hero frame index (clamped to row length)"
 		)
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
-			codexPet.frames(for: .runningTests).count,
-			"renderer must swap to the running-tests row frame source"
+			implementingFrames.count,
+			"renderer must hold the implementing row frame source"
 		)
 
-		// Second transition: .celebrating is in CodogotchiPet.rowMap (row 0, 24 frames)
-		// after P3.04 wires the codogotchi sheet. Frame count must equal codogotchi count.
-		renderer.advanceFrameForTesting()
-		renderer.advanceFrameForTesting()
+		// Second transition: .celebrating resolves from CodogotchiPet (24 frames),
+		// so the hero index (3) is well within bounds.
 		renderer.update(state: .celebrating, visualMode: .normal)
 		XCTAssertEqual(renderer.currentStateForTesting, .celebrating)
 		XCTAssertEqual(
 			renderer.currentFrameIndexForTesting,
-			0,
-			"every state transition must reset frame index to 0, not just the first"
+			MenubarRenderer.heroFrameIndex,
+			"every state transition must land on the hero frame, not just the first"
 		)
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
 			codogotchiPet.frames(for: .celebrating).count,
-			"celebrating must resolve from the codogotchi sheet after P3.04"
+			"celebrating must resolve from the codogotchi sheet"
+		)
+	}
+
+	func testUpdateWithUnchangedStateAndModeDoesNotRepaint() throws {
+		var paintCount = 0
+		let renderer = try makeRenderer { _ in paintCount += 1 }
+
+		renderer.update(state: .implementing, visualMode: .normal)
+		let paintsAfterFirstChange = paintCount
+		XCTAssertGreaterThan(
+			paintsAfterFirstChange,
+			0,
+			"sanity: first update with a real state must paint"
+		)
+
+		// Subsequent updates with identical inputs (the 1 Hz polling case)
+		// must be no-ops; the menubar is static between state/mode changes.
+		renderer.update(state: .implementing, visualMode: .normal)
+		renderer.update(state: .implementing, visualMode: .normal)
+		XCTAssertEqual(
+			paintCount,
+			paintsAfterFirstChange,
+			"unchanged (state, mode) updates must not repaint"
+		)
+
+		// A real state change repaints exactly once.
+		renderer.update(state: .runningTests, visualMode: .normal)
+		XCTAssertEqual(
+			paintCount,
+			paintsAfterFirstChange + 1,
+			"state change must trigger exactly one repaint"
+		)
+
+		// A visual-mode change with the same state repaints exactly once.
+		renderer.update(state: .runningTests, visualMode: .desaturated)
+		XCTAssertEqual(
+			paintCount,
+			paintsAfterFirstChange + 2,
+			"visual-mode change must trigger exactly one repaint"
+		)
+	}
+
+	func testInitialIdleUpdatePaintsEvenWhenStateMatchesDefault() throws {
+		var paintCount = 0
+		let renderer = try makeRenderer { _ in paintCount += 1 }
+
+		// The renderer's default state is `.idle`. The first `update(.idle, .normal)`
+		// must still paint so the placeholder pawprint icon is replaced.
+		renderer.update(state: .idle, visualMode: .normal)
+		XCTAssertEqual(
+			paintCount,
+			1,
+			"first update after init must paint, even when state matches the default"
+		)
+
+		renderer.update(state: .idle, visualMode: .normal)
+		XCTAssertEqual(
+			paintCount,
+			1,
+			"second identical update must be a no-op"
 		)
 	}
 

@@ -18,11 +18,11 @@ CODOGOTCHI_DEMO=1 open /Applications/Menubar.app
 CODOGOTCHI_DEMO=1 open .build/debug/Menubar.app
 ```
 
-Watch the menu bar through one full rotation. Cross-reference each state to the row tables in [`docs/contracts/animation-state-vocabulary.md`](../contracts/animation-state-vocabulary.md#codex-sheet) (Codex sheet) and the [Codogotchi Sheet section](../contracts/animation-state-vocabulary.md#codogotchi-sheet--codogotchipets-spritesheetwebp).
+Show the floating pet (**Codogotchi → Show Floating Pet**) and watch one full rotation. The menubar paints the row's static hero frame for each state; the floating pet carries the per-state animation. Cross-reference each state to the row tables in [`docs/contracts/animation-state-vocabulary.md`](../contracts/animation-state-vocabulary.md#codex-sheet) (Codex sheet) and the [Codogotchi Sheet section](../contracts/animation-state-vocabulary.md#codogotchi-sheet--codogotchipets-spritesheetwebp).
 
-**Pass:** Each of the 15 states paints a visually distinct animation without freezing or reverting to the idle pose.
+**Pass:** For each of the 15 states the menubar swaps to a visually distinct hero frame and the floating pet plays a visually distinct animation; neither reverts to the idle pose.
 
-**Tip:** Set `CODOGOTCHI_DEMO_FRAME_MS=83` (12 fps) to slow the frame rate and inspect individual frames:
+**Tip:** Set `CODOGOTCHI_DEMO_FRAME_MS=83` (12 fps) to slow the **floating pet** frame rate and inspect individual frames. The menubar is static between transitions and is not affected by this env var:
 
 ```bash
 CODOGOTCHI_DEMO=1 CODOGOTCHI_DEMO_FRAME_MS=83 open /Applications/Menubar.app
@@ -86,7 +86,7 @@ codogotchi-hook PostToolUse '{"tool_name": "Edit"}'
 {"prev":"<prior_state>","schema_version":1,"source_kind":"gate","source_name":"risky_diff_detected","source_origin":"soa","state":"nervous","ts":"..."}
 ```
 
-**Evidence to capture:** screenshot of menubar showing the `nervous` animation, plus the transition log line above.
+**Evidence to capture:** screenshot of menubar showing the `nervous` hero frame (and the floating pet's `nervous` animation if visible), plus the transition log line above.
 
 ### 3b. `ascended` (SoA `stage_advanced`, codogotchi sheet row 4)
 
@@ -222,7 +222,7 @@ When Claude Code stops and shows its input prompt, the hook fires. The hook bina
 
 **Expected sprite:** Codex sheet row 3 (the `requesting_input` / `waving` row — see [Codex Sheet table](../contracts/animation-state-vocabulary.md#codex-sheet--codexpetsmalispritesheetwebp)).
 
-**Evidence to capture:** screenshot of menubar showing the `requesting_input` animation and `jq '.activity_state' ~/.codogotchi/state.json` output.
+**Evidence to capture:** screenshot of menubar showing the `requesting_input` hero frame and `jq '.activity_state' ~/.codogotchi/state.json` output.
 
 **Note on finickiness:** The hook only fires when Claude Code actually invokes the hook binary via `settings.json`. If the hook is not wired into `~/.claude/settings.json`, this test cannot fire. Verify with:
 
@@ -261,7 +261,7 @@ codogotchi-hook PostToolUse '{"tool_name": "Bash", "error": "network error: conn
 
 **Expected sprite:** Codex sheet row 5 (the `errored` / `failed` row — see [Codex Sheet table](../contracts/animation-state-vocabulary.md#codex-sheet--codexpetsmalispritesheetwebp)).
 
-**Evidence to capture:** screenshot of menubar showing the `errored` animation (pet looks distressed) and `jq '.activity_state' ~/.codogotchi/state.json` output.
+**Evidence to capture:** screenshot of menubar showing the `errored` hero frame (pet looks distressed) and `jq '.activity_state' ~/.codogotchi/state.json` output.
 
 **Note on finickiness:** The network-disconnect approach is hardware-dependent and may not work on machines with multiple network interfaces. The fixture path (Option 2) is more repeatable for local validation but bypasses the real hook invocation path. Document which method you used in the validation log.
 
@@ -277,7 +277,7 @@ CODOGOTCHI_DEMO=1 open /Applications/Menubar.app
 
 Then trigger one live cycle of the Phase 02 floor states using the existing Phase 01 fixture approach. Any unexpected idle fallback counts as a regression.
 
-**Pass:** No Phase 02 state regresses to idle. All Codex-sheet states (rows 0, 3, 5, 6, 7, 8) paint distinct animations.
+**Pass:** No Phase 02 state regresses to idle. All Codex-sheet states (rows 0, 3, 5, 6, 7, 8) paint distinct hero frames in the menubar (and distinct animations in the floating pet when visible).
 
 ---
 
@@ -288,6 +288,6 @@ For each state, capture:
 1. **Timestamp:** The `ts` field from the relevant `state-transitions.log` line.
 2. **Observed state:** `jq '.activity_state' ~/.codogotchi/state.json` immediately after the hook fires.
 3. **Transition log line:** The full NDJSON line from `~/.codogotchi/state-transitions.log` showing the state change.
-4. **Screenshot:** A screenshot (or photo) of the macOS menu bar showing the correct sprite animation for that state.
+4. **Screenshot:** A screenshot (or photo) of the macOS menu bar showing the correct hero frame for that state.
 
-Paste these four items per state into the validation log or a comment in the phase closeout PR. Owner's judgment on what constitutes a clear screenshot — the animation sprite should be visibly distinct from the idle pose.
+Paste these four items per state into the validation log or a comment in the phase closeout PR. Owner's judgment on what constitutes a clear screenshot — the hero frame should be visibly distinct from the idle pose.
