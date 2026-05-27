@@ -354,7 +354,6 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
 
   if (command === "hooks") {
     const [sub, ...subArgs] = rest;
-    const config = await readConfig(getCodogotchiHome());
     if (sub === "install") {
       if (subArgs.includes("--help") || subArgs.includes("-h")) {
         process.stdout.write("Usage: codogotchi hooks install\n");
@@ -364,6 +363,16 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
         process.stderr.write("Usage: codogotchi hooks install\n");
         return { exitCode: 2 };
       }
+      let config: Awaited<ReturnType<typeof readConfig>>;
+      try {
+        config = await readConfig(getCodogotchiHome());
+      } catch (err) {
+        if (err instanceof ConfigReadError) {
+          process.stderr.write(`${err.message}\n`);
+          return { exitCode: err.exitCode };
+        }
+        throw err;
+      }
       if (!config) {
         process.stderr.write(
           "codogotchi: missing ~/.codogotchi/config.json. Launch the app or run `codogotchi setup` first.\n",
@@ -372,7 +381,8 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       }
       await installHooks({
         home: getCodogotchiHome(),
-        convex_http_url: config.convex_http_url ?? "",
+        convex_http_url:
+          "convex_http_url" in config ? config.convex_http_url : "",
       });
       process.stdout.write("hooks install: ok\n");
       return { exitCode: 0 };
