@@ -10,7 +10,7 @@ import { defaultReaders } from "./default-readers";
 import { hooksStatus, installHooks, uninstallHooks } from "./hooks";
 import { type LootTier, runLoot, TIERS } from "./loot";
 import { terminalPrompter } from "./prompts";
-import { ConfigExistsError, runSetup } from "./setup";
+import { ConfigExistsError, runRpg, runSetup } from "./setup";
 import { runStatus } from "./status";
 import { runSync } from "./sync";
 import { vacationOff, vacationOn, vacationStatus } from "./vacation";
@@ -51,9 +51,13 @@ Usage:
   codogotchi <command> [flags]
 
 Commands:
-  setup            Interactive first-time setup. Writes ~/.codogotchi/config.json
-                   (handle, GitHub username+PAT pair, Wakatime, Convex URL) and
-                   installs Claude Code + Codex hook entries.
+  setup            Lite first-time setup. Writes ~/.codogotchi/config.json
+                   (profile_id, pet: maew, rpg_enabled: false) and installs
+                   Claude Code + Codex hook entries. No network required.
+  rpg              Interactive Alive enrollment. Upgrades a Lite install to full
+                   RPG mode: prompts for handle, Convex URL, optional GitHub/
+                   Wakatime credentials, registers profile, and writes
+                   features.rpg_enabled: true.
   sync             Run one sync cycle: poll each source, POST to Convex, update
                    the local profile cache and append a sync.log entry.
   status           Print the cached profile, HP, current activity, recent loot,
@@ -73,7 +77,7 @@ Commands:
   hooks status     Print hook installation status.
   help, --help     Show this message.
 
-Flags (setup):
+Flags (setup, rpg):
   --force          Overwrite an existing ~/.codogotchi/config.json.
 
 Flags (loot):
@@ -160,11 +164,39 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
     try {
       await runSetup(
         {
+          home: getCodogotchiHome(),
+          randomUUID: () => randomUUID(),
+          installHooks,
+        },
+        { force },
+      );
+      return { exitCode: 0 };
+    } catch (err) {
+      if (err instanceof ConfigExistsError) {
+        process.stderr.write(`${err.message}\n`);
+        return { exitCode: 2 };
+      }
+      if (err instanceof ConfigReadError) {
+        process.stderr.write(`${err.message}\n`);
+        return { exitCode: err.exitCode };
+      }
+      throw err;
+    }
+  }
+
+  if (command === "rpg") {
+    const { force, help } = parseSetupFlags(rest);
+    if (help) {
+      process.stdout.write(USAGE);
+      return { exitCode: 0 };
+    }
+    try {
+      await runRpg(
+        {
           prompter: terminalPrompter(),
           fetch,
           home: getCodogotchiHome(),
           randomUUID: () => randomUUID(),
-          installHooks,
         },
         { force },
       );
@@ -379,11 +411,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
         );
         return { exitCode: 2 };
       }
-      await installHooks({
-        home: getCodogotchiHome(),
-        convex_http_url:
-          "convex_http_url" in config ? config.convex_http_url : "",
-      });
+      await installHooks({ home: getCodogotchiHome() });
       process.stdout.write("hooks install: ok\n");
       return { exitCode: 0 };
     }

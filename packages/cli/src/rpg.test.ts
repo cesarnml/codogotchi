@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SyncProfileRequest } from "@codogotchi/contracts";
@@ -362,8 +361,11 @@ describe("dispatch rpg command", () => {
     // Import router lazily so the import error above surfaces first in the test run
     const { USAGE } = await import("./router");
     expect(USAGE).toContain("rpg");
-    expect(USAGE).toMatch(/rpg/);
-    // setup entry no longer describes RPG enrollment
-    expect(USAGE).not.toMatch(/handle.*Convex.*setup/s);
+    // setup entry no longer describes RPG enrollment — Lite only
+    expect(USAGE).not.toContain(
+      "handle, GitHub username+PAT pair, Wakatime, Convex URL",
+    );
+    // rpg entry describes interactive enrollment
+    expect(USAGE).toMatch(/rpg.*Interactive Alive enrollment/s);
   });
 });

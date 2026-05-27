@@ -3,6 +3,7 @@ import {
   type CodogotchiConfig,
   configExists,
   configPath,
+  readConfig,
   writeConfig,
 } from "./config";
 import type { Prompter } from "./prompts";
@@ -18,12 +19,13 @@ export class ConfigExistsError extends Error {
 
 export type InstallHooksContext = {
   home: string;
-  convex_http_url: string;
 };
 
-export type SetupDeps = {
-  prompter: Prompter;
-  fetch: typeof fetch;
+// ---------------------------------------------------------------------------
+// Lite setup (codogotchi setup)
+// ---------------------------------------------------------------------------
+
+export type LiteSetupDeps = {
   home: string;
   randomUUID: () => string;
   installHooks: (ctx: InstallHooksContext) => Promise<void>;
@@ -36,6 +38,48 @@ export type SetupOptions = {
 export type SetupResult = {
   config: CodogotchiConfig;
   configPath: string;
+};
+
+/**
+ * Lite (non-interactive) setup. Writes a minimal config with rpg_enabled=false
+ * and installs hooks. No prompts, no Convex registration.
+ */
+export async function runSetup(
+  deps: LiteSetupDeps,
+  opts: SetupOptions = {},
+): Promise<SetupResult> {
+  const filePath = configPath(deps.home);
+  if ((await configExists(deps.home)) && !opts.force) {
+    throw new ConfigExistsError(filePath);
+  }
+
+  const profile_id = deps.randomUUID();
+  const config: CodogotchiConfig = {
+    profile_id,
+    pet: "maew",
+    features: { rpg_enabled: false },
+  };
+
+  // Write config first so installHooks can verify it exists
+  await writeConfig(deps.home, config);
+  await deps.installHooks({ home: deps.home });
+
+  return { config, configPath: filePath };
+}
+
+// ---------------------------------------------------------------------------
+// RPG enrollment (codogotchi rpg)
+// ---------------------------------------------------------------------------
+
+export type RpgDeps = {
+  prompter: Prompter;
+  fetch: typeof fetch;
+  home: string;
+  randomUUID: () => string;
+};
+
+export type RpgOptions = {
+  force?: boolean;
 };
 
 const HANDLE_PATTERN = /^[a-zA-Z0-9-]{1,40}$/;
@@ -60,7 +104,7 @@ async function promptOptionalSecret(
   const raw = (await prompter.ask(question)).trim();
   if (raw.length === 0) {
     prompter.notice(
-      `No ${label} provided. ${label}-derived XP will be unavailable until you re-run \`codogotchi setup --force\`.`,
+      `No ${label} provided. ${label}-derived XP will be unavailable until you re-run \`codogotchi rpg --force\`.`,
     );
     return null;
   }
@@ -86,7 +130,7 @@ async function promptGithubPair(
   }
 
   prompter.notice(
-    "Merged-PR signals need both GitHub username and PAT together. Skipping either leaves github PR XP off until both are set (e.g. `codogotchi config set …` or `codogotchi setup --force`).",
+    "Merged-PR signals need both GitHub username and PAT together. Skipping either leaves github PR XP off until both are set (e.g. `codogotchi config set …` or `codogotchi rpg --force`).",
   );
   return { github_username, github_token };
 }
@@ -109,15 +153,26 @@ async function promptConvexUrl(prompter: Prompter): Promise<string> {
   }
 }
 
-export async function runSetup(
-  deps: SetupDeps,
-  opts: SetupOptions = {},
+/**
+ * Interactive Alive enrollment (codogotchi rpg). Prompts for handle, Convex
+ * URL, optional GitHub/Wakatime, registers with Convex, and writes an RPG
+ * config. Allows upgrading a Lite config to RPG; refuses to overwrite an
+ * existing RPG config without --force.
+ */
+export async function runRpg(
+  deps: RpgDeps,
+  opts: RpgOptions = {},
 ): Promise<SetupResult> {
-  const { prompter, fetch: doFetch, home, randomUUID, installHooks } = deps;
+  const { prompter, fetch: doFetch, home, randomUUID } = deps;
 
   const filePath = configPath(home);
-  if ((await configExists(home)) && !opts.force) {
-    throw new ConfigExistsError(filePath);
+
+  // Allow Lite→RPG upgrade; only block RPG→RPG without force
+  if (await configExists(home)) {
+    const existing = await readConfig(home);
+    if (existing?.features.rpg_enabled === true && !opts.force) {
+      throw new ConfigExistsError(filePath);
+    }
   }
 
   const handle = await promptHandle(prompter);
@@ -144,9 +199,8 @@ export async function runSetup(
     health,
   };
 
-  // Run registration and hook install BEFORE persisting config so a failure
-  // in either step does not leave a `config.json` on disk that would block a
-  // retry with `ConfigExistsError`. Config write is the last side effect.
+  // Register profile with Convex before persisting config so a failure
+  // does not leave a config.json that blocks a retry.
   const syncBody = {
     profile_id,
     handle,
@@ -170,8 +224,6 @@ export async function runSetup(
       `Convex /sync registration failed: ${response.status} ${response.statusText}`,
     );
   }
-
-  await installHooks({ home, convex_http_url });
 
   await writeConfig(home, config);
 
