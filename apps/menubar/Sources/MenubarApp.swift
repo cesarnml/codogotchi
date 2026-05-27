@@ -4,9 +4,9 @@ import AppKit
 ///
 /// Registers an `NSStatusItem` and, when the pet assets are present at
 /// `~/.codex/pets/mali/`, hands the status item off to a `MenubarRenderer`
-/// that animates the idle row on a 1-second-per-cycle continuous loop.
-/// Later Phase 02 tickets (P2.06 demo driver, P2.07 live polling) call
-/// `renderer.update(state:visualMode:)` to switch states.
+/// that paints a single static hero frame per active state. The demo driver
+/// and the live polling driver call `renderer.update(state:visualMode:)` to
+/// switch states; the floating pet (when visible) carries the live animation.
 ///
 /// The app is configured as a menu-bar agent via `LSUIElement = true` in
 /// `Info.plist` so it has no Dock icon and no main window.
@@ -15,8 +15,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// Held strongly so the status item is not deallocated.
 	var statusItem: NSStatusItem?
 
-	/// Held strongly so the renderer's timer survives past the lifecycle
-	/// callback. Nil until pet assets are successfully loaded.
+	/// Held strongly so the renderer outlives the launch callback and stays
+	/// reachable from the polling driver's update sink. Nil until pet assets
+	/// are successfully loaded.
 	var renderer: MenubarRenderer?
 
 	/// Held strongly so the demo cycle's `Timer` is not deallocated. Nil
@@ -58,10 +59,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// notification center does not retain a dangling block past shutdown.
 	var workspaceWakeObserver: NSObjectProtocol?
 
-	/// Held strongly to keep `ProcessInfo.beginActivity(...)` alive — without
-	/// it, macOS App Nap can throttle the renderer's 8 Hz animation timer
-	/// (manifesting as the pet animating for one cycle, vanishing for a
-	/// second or so, then animating again).
+	/// Held strongly to keep `ProcessInfo.beginActivity(...)` alive. Originally
+	/// added to keep the menubar renderer's animation timer steady; the menubar
+	/// is now static, so today this primarily protects the floating pet's
+	/// SpriteKit timer from App Nap throttling. Narrowing or gating this on
+	/// floating-pet visibility is the planned follow-up (see
+	/// `notes/public/codogotchi-process-cost-and-menubar-static-rendering.md`
+	/// §4.3).
 	var activity: NSObjectProtocol?
 
 	static func main() {
@@ -73,10 +77,12 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	}
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
-		// Disable App Nap so the renderer's animation timer fires at a steady
-		// 8 Hz. As an LSUIElement agent with no visible window we are a prime
-		// App Nap target; without this opt-out the pet animates for ~1 second
-		// then freezes/disappears for ~1 second in a repeating cycle.
+		// Disable App Nap. As an LSUIElement agent with no visible window we
+		// are a prime App Nap target; without this opt-out the floating pet's
+		// SpriteKit timer can be throttled (manifesting as the pet animating
+		// for one cycle, vanishing for a second or so, then animating again).
+		// The menubar renderer is static and does not depend on this opt-out;
+		// narrowing the activity to floating-pet visibility is a follow-up.
 		self.activity = ProcessInfo.processInfo.beginActivity(
 			options: [.userInitiated, .latencyCritical],
 			reason: "codogotchi menubar pet animation"
@@ -119,8 +125,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				codexPet: codexPet, codogotchiPet: codogotchiPet,
 				sink: { [weak item] image in
 					item?.button?.image = image
-				},
-				demoFrameInterval: demoInterval
+				}
 			)
 			renderer.update(state: .idle, visualMode: .normal)
 			self.renderer = renderer

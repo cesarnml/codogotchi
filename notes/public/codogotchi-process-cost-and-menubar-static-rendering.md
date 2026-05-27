@@ -114,7 +114,7 @@ Codogotchi is the outlier among menubar companions: peers **poll → update → 
 On `activity_state` or `visual_mode` change only:
 
 1. Resolve frames (`MenubarRenderer.resolveFrames`).
-2. Set frame index to **middle of row**: `frameCount / 2` (integer division; works for 8-frame Codex rows and 24-frame Codogotchi rows).
+2. Set frame index to the hero pose: a single constant `heroFrameIndex = 3` (0-indexed; "frame 4" counting from 1), clamped to `max(currentFrames.count - 1, 0)` as a defensive bound. Both shipped sheets are safe at index 3 — the codogotchi sheet has 24 non-blank frames per row, and the codex sheet's rows per [codexpet.xyz/spec](https://codexpet.xyz/spec/) are non-blank at this index. Picked over the originally sketched `frameCount / 2` because a single constant avoids per-row map drift and the menubar surface is too small for the precise middle-vs-early choice to matter visually; the floating pet carries the full animation.
 3. `paintCurrent()` once.
 4. **Do not** start or restart menubar `Timer` in production.
 
@@ -162,7 +162,7 @@ Do not keep production menubar animated because demo exists.
 
 ## 5. Implementation sketch (when scheduled)
 
-1. **`MenubarRenderer`** — remove steady-state timer; middle frame on `resolveFrames`; paint once per state/mode change.
+1. **`MenubarRenderer`** — remove steady-state timer; static `heroFrameIndex = 3` (clamped) on `resolveFrames`; paint once per state/mode change; guard `update()` so identical (state, mode) inputs are no-ops at the 1 Hz polling cadence.
 2. **`MenubarApp`** — narrow or remove `beginActivity` per §4.3.
 3. **Tests** — update `MenubarRenderer` tests that advance frames via timer; add “unchanged state does not repaint” if sink is instrumented.
 4. **Contracts / docs** — menubar = static glyph, float = animated (animation-state vocabulary or runbook).
@@ -181,6 +181,6 @@ No change required to `LivePollingDriver`, hook binary, or `PetStateFanout` shap
 
 ## 7. Open questions
 
-- Should menubar static use **exact** middle frame or “hero” frame per state (product art decision)?
+- ~~Should menubar static use **exact** middle frame or "hero" frame per state (product art decision)?~~ Resolved: single constant `heroFrameIndex = 3`, clamped. See §4.1.
 - Gate App Nap only when float visible, or also when float animating (interaction overlay active)?
 - Document in user-facing README or keep cost notes dev-only?
