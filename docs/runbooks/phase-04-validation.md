@@ -59,7 +59,7 @@ Work top to bottom. Mark each row **pass / fail / skip (reason)**.
 | 1 | App identity | Launch `open "$CODOGOTCHI_APP"`. Click the menu bar icon. | Menu title reads **Codogotchi**; **Quit Codogotchi** is present. Dock icon stays hidden (LSUIElement agent). |
 | 2 | Menu bar pet alive | With the app running, watch the status item for a few seconds (or run demo mode). | Pet animates or holds a non-crashing idle pose; no repeated crash loops. |
 | 3 | Show floating pet | Menu → **Show Floating Pet**. | Transparent float-on-top pet appears near the **bottom-right** of the active display (default ~160×160 pt, 24 pt margin). |
-| 4 | Hide floating pet | Menu → **Hide Floating Pet**. | Floating surface disappears; menu bar pet remains. Toggle show again before continuing. |
+| 4 | Hide floating pet | Menu → **Hide Floating Pet**. | Floating surface disappears; menu bar pet remains (static hero frame). SpriteKit animation pauses while hidden — Activity Monitor CPU for `Codogotchi` should drop sharply vs visible float. Toggle show again before continuing; animation should resume within ~1 s. |
 | 5 | Drag | Click-hold the pet body (not the corner affordance) and drag to a new location. Release. | Panel moves smoothly; position updates while dragging. |
 | 6 | Resize min | Click-hold the **bottom-right resize affordance** and shrink until movement stops. | Size stops at **96×96 pt** minimum (`FloatingFramePolicy.minimumSize`). |
 | 7 | Resize max | From minimum, drag the affordance outward until movement stops. | Size stops at **256×256 pt** maximum (`FloatingFramePolicy.maximumSize`). |

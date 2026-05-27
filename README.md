@@ -3,8 +3,8 @@
 Codogotchi is the RPG layer on top of Codex- and Claude-format pets. Your
 agent activity feeds XP, HP, stage advancement, and loot. The data lives in
 Convex; a macOS **Codogotchi** app renders agent animation state locally from
-`~/.codogotchi/state.json` on both the menu bar micro-pet and an optional
-transparent floating desktop pet.
+`~/.codogotchi/state.json` on the menu bar (static hero frame per state) and an
+optional transparent floating desktop pet (full animation while visible).
 
 **Status:** Phase 04 — Floating pet (private). Phase 01 CLI + Convex pipeline
 is shipped; Phase 02 added the menu bar `NSStatusItem`; Phase 03 extended to

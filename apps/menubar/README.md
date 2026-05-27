@@ -9,9 +9,15 @@ macOS menu-bar app for Codogotchi. First native Swift surface in the repo (Phase
 An `LSUIElement` menu bar agent named **Codogotchi** with two render surfaces:
 
 1. **Menu bar micro-pet** — `NSStatusItem` + `MenubarRenderer`, polling
-   `~/.codogotchi/state.json` (or demo fixtures).
+   `~/.codogotchi/state.json` at ~1 Hz (or demo fixtures). Paints a **static hero
+   frame** (index 3 per row, clamped) when `activity_state` or failure mode
+   changes — no menubar flipbook animation (too small to read at 22pt).
 2. **Floating desktop pet** — transparent float-on-top `NSPanel` with a
    SpriteKit scene (`FloatingPetScene`), toggled from **Show/Hide Floating Pet**.
+   Full per-state animation while visible; **animation and App Nap opt-out pause
+   when hidden** so menubar-only idle stays cheap (~0.5% CPU typical on a dev
+   Mac vs ~5% with float visible — see
+   [`notes/public/codogotchi-process-cost-and-menubar-static-rendering.md`](../../notes/public/codogotchi-process-cost-and-menubar-static-rendering.md)).
 
 Direct manipulation: click-hold the frame to drag; click-hold the bottom-right
 resize affordance to scale between 96×96 and 256×256 pt. Placement persists in
@@ -87,10 +93,11 @@ Closing the lid (or otherwise sleeping the machine) is safe — the 1-second pol
 
 ## Demo mode
 
-Demo mode re-points the polling target to a sandboxed file under
-`$TMPDIR/codogotchi-demo/state.json` and cycles activity fixtures on a timer.
-Both the menu bar renderer and floating scene consume the same fanout, so demo
-mode validates state sync without touching live `~/.codogotchi/state.json`.
+**Developer debug only** — not a product feature. Demo mode re-points the
+polling target to a sandboxed file under `$TMPDIR/codogotchi-demo/state.json`
+and cycles activity fixtures on a timer. Both surfaces consume the same fanout;
+the menubar stays static between state changes. Optional
+`CODOGOTCHI_DEMO_FRAME_MS` slows **floating pet** frames only.
 
 Two equivalent activations:
 

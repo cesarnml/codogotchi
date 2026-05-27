@@ -1,23 +1,22 @@
 # Codogotchi process cost, Cursor helpers, and menubar static rendering
 
-Date: 2026-05-27  
-Status: Research / product direction (conversation artifact, not shipped)  
-Related: [codogotchi-platform-extension-and-signal-pipeline-research.md](./codogotchi-platform-extension-and-signal-pipeline-research.md), [codogotchi-native-codex-pet-feature-parity-roadmap.md](./codogotchi-native-codex-pet-feature-parity-roadmap.md), [phase-04 validation runbook](../../docs/runbooks/phase-04-validation.md)
+Date: 2026-05-27 (research); updated 2026-05-28 (shipped)  
+Status: **Shipped** on `main` — `892bc69` (static menubar), `8a5b5e8` (pause float + gate App Nap)  
+Related: [codogotchi-platform-extension-and-signal-pipeline-research.md](./codogotchi-platform-extension-and-signal-pipeline-research.md), [phase-04 validation runbook](../../docs/runbooks/phase-04-validation.md), [apps/menubar/README.md](../../apps/menubar/README.md)
 
 ---
 
-## Executive summary
+## Executive summary (shipped behavior)
 
-Codogotchi’s macOS app is **modest in absolute CPU** but **heavy for a menubar utility** because it **animates continuously** (menubar flipbook + optional floating `SKView`) and opts out of **App Nap** via `ProcessInfo.beginActivity(.userInitiated, .latencyCritical)`. The hook pipeline (`codogotchi-hook` → `~/.codogotchi/state.json`, polled at **1 Hz**) is cheap; the animation timers are not.
-
-**Recommended long-term split:**
-
-| Surface | Role | Rendering |
+| Surface | Rendering | CPU (dev Mac, Activity Monitor, filter `codo`) |
 | --- | --- | --- |
-| **Menubar** | Glanceable state glyph | **Static** — middle frame of the active row; repaint only when `activity_state` or `visual_mode` changes |
-| **Floating pet** | Desktop companion | **Full animation loop** — keep current `FloatingPetScene` timer + mouse interactions |
+| **Menubar** | Static **hero frame** (`heroFrameIndex = 3`, clamped per row); repaints only when `activity_state` or `visual_mode` changes | Part of menubar-only baseline |
+| **Floating pet (visible)** | Full SpriteKit frame loop + mouse interaction rows | **~5%** Codogotchi process (typical) |
+| **Floating pet (hidden)** | Timer **paused**, `SKView.isPaused = true`, App Nap opt-out **ended** | **~0.5%** Codogotchi process (typical) |
 
-**Demo mode** (`CODOGOTCHI_DEMO=1`, `--demo`) is a **developer debug affordance**, not a product feature. Production behavior should not be shaped around demo animation requirements.
+The hook pipeline (`codogotchi-hook` → `~/.codogotchi/state.json`, polled at **1 Hz**) is cheap. Steady CPU was **hidden float still animating** and **global `beginActivity(.latencyCritical)`**, not the 1 Hz read.
+
+**Product:** Menubar shows which state is active without jittery 22pt flipbook motion; float carries motion. Show/hide float remains snappy.
 
 ---
 
@@ -28,159 +27,64 @@ Activity Monitor may show:
 - **Codogotchi** — native `Codogotchi.app` (menu bar + optional floating pet).
 - **Cursor Helper (Plugin): extension-host codogotchi [1-N]** — Cursor’s extension host processes, named after the **workspace folder** (`codogotchi`), not a Codogotchi VS Code extension.
 
-This repo ships **Swift menubar app + CLI/hooks**, not a Cursor/VS Code extension manifest.
-
 Integration path:
 
 ```
-Cursor Agent
-  → lifecycle hooks (or third-party Claude hook bridge)
-  → codogotchi-hook
-  → ~/.codogotchi/state.json
-  → Codogotchi.app (poll + render)
+Cursor Agent → hooks → codogotchi-hook → ~/.codogotchi/state.json → Codogotchi.app
 ```
 
-**Quitting Cursor** (Cmd+Q) should end extension-host helpers. **Codogotchi.app** keeps running until quit separately.
+**Quitting Cursor** ends extension-host helpers. **Codogotchi.app** keeps running until quit separately.
 
 ---
 
-## 2. Process cost analysis (CPU / GPU / energy)
+## 2. What shipped (May 2026)
 
-### 2.1 What the app does today
+### 2.1 Static menubar (`892bc69`)
 
-| Work | Cadence | Cost character |
+- `MenubarRenderer`: no frame `Timer`; paints hero frame once per `(state, mode)` change.
+- `LivePollingDriver`: caches last rendered `(state, mode)` — no fanout when unchanged.
+- `CODOGOTCHI_DEMO_FRAME_MS` affects **floating pet only** (debug).
+
+### 2.2 Pause float when hidden (`8a5b5e8`)
+
+- `FloatingPetScene.pauseAnimation()` / `resumeAnimation()` on hide/show.
+- `FloatingPetInteractionView.setSpriteKitPaused(_:)` — `skView.isPaused` while hidden.
+- `MenubarApp.setFloatingPetAppNapOptOut(active:)` — `beginActivity(.latencyCritical)` **only while float is visible**.
+
+Key files: `MenubarRenderer.swift`, `LivePollingDriver.swift`, `FloatingPetScene.swift`, `FloatingPetPanel.swift`, `FloatingPetController.swift`, `MenubarApp.swift`.
+
+---
+
+## 3. Empirical findings (conversation + validation)
+
+| Scenario | Codogotchi CPU (approx.) | Notes |
 | --- | --- | --- |
-| Read `state.json` | 1 Hz (`LivePollingDriver`) | Tiny |
-| Menubar sprite updates | ~5–6 fps (`MenubarRenderer` `Timer`) | Sustained CPU |
-| Floating pet | Same flip rate + transparent `SKView` / SpriteKit | Higher CPU + compositor/GPU |
-| Transition log heartbeat | 1/hour | Negligible |
-| App Nap opt-out | Always while app runs | Energy tax |
+| Pre-static menubar + float | ~7% idle; ~26% drag torture | Debug/Xcode build |
+| Static menubar + float visible | ~5–6% | Menubar static saved **~1–2%**, not ~5% |
+| Static menubar + float **hidden** (before pause fix) | ~4–5% | Hide only `orderOut` — timer kept running |
+| Static menubar + float **hidden** (after pause fix) | **~0.5%** | Pause + App Nap gate |
+| Float visible after pause fix | ~5% | Animation + opt-out restored on show |
 
-Key code:
-
-- Polling: `apps/menubar/Sources/LivePollingDriver.swift` (`tickInterval` default 1.0s).
-- Menubar animation: `apps/menubar/Sources/MenubarRenderer.swift` — restarts timer on state change and **keeps looping** in steady state.
-- Floating animation: `apps/menubar/Sources/FloatingPetScene.swift` — `Timer` per frame interval (~167 ms codogotchi sheet, ~1.5s cycle / frame count for Codex rows).
-- App Nap: `apps/menubar/Sources/MenubarApp.swift` — `beginActivity(options: [.userInitiated, .latencyCritical], reason: "codogotchi menubar pet animation")` so menubar timers are not throttled (LSUIElement agents are prime App Nap targets).
-
-Frame intervals (production):
-
-- Codex sheet: `CodexPet.animationCycleDuration` (1.5s) / frame count.
-- Codogotchi sheet: `CodogotchiPet.frameInterval` (~167 ms/frame, 24-frame rows).
-
-### 2.2 Stance (May 2026)
-
-- **vs Cursor + LLM work:** Codogotchi CPU is noise.
-- **vs other menubar utilities:** Noticeable — continuous animation + latency-critical activity.
-- **vs the feature (mirror a JSON file):** Overbuilt at idle — information could be static between hook events.
-
-Observed on one dev machine (Activity Monitor, filtered “codo”): **Codogotchi ~7% CPU**, Energy Impact ~3.5, with floating pet likely visible. Plausible for menubar + float + always-on animation; not profiled with Instruments.
+**Misread corrected:** 1 Hz polling is **not** the main CPU hog. Unchanged state does not repaint after cache + static menubar. The cost was **off-screen animation** and **process-wide wake policy**.
 
 ---
 
-## 3. Comparison to other 24/7 processes
+## 4. Comparison to other 24/7 menubar tools
 
-Qualitative ranking for **steady CPU** on a typical dev Mac (not instrumented on a specific machine):
-
-**Lower idle CPU (typical):**
-
-- **Tailscale** — network daemon; near 0% until traffic/handshakes.
-- **Wakatime (menubar)** — periodic API sync; static icon between syncs.
-- **CodexBar** — provider quota polling on refresh presets (manual → 15m); bursts, not continuous flipbook.
-- **Amphetamine (process only)** — menubar agent is tiny; **real cost is indirect** (sleep/display assertions).
-
-**Mid / config-dependent:**
-
-- **Codogotchi** (menubar + float, current build) — sustained low-fps animation + App Nap opt-out.
-- **iStat Menus** — sensor/graph widgets on timers; fair peer for “live menubar,” cost scales with widgets.
-- **Vivid** — low menubar CPU; cost is **display/HDR pipeline**, not file polling.
-
-**Different shape (not CPU-comparable):**
-
-- **OrbStack** — VM/hypervisor baseline; **RAM** and container spikes dominate.
-
-**Dominates battery without high CPU%:**
-
-- **Amphetamine** when it prevents system sleep.
-
-Codogotchi is the outlier among menubar companions: peers **poll → update → sleep**; Codogotchi **polls → animates forever** even when `activity_state` is unchanged.
+Qualitative — Codogotchi **menubar-only + float hidden** now behaves like Wakatime/CodexBar (low idle). **Float visible** is closer to a small always-on game loop (~5%).
 
 ---
 
-## 4. Recommended product / engineering direction
+## 5. Future optimizations (not shipped)
 
-### 4.1 Menubar: static state glyph
-
-On `activity_state` or `visual_mode` change only:
-
-1. Resolve frames (`MenubarRenderer.resolveFrames`).
-2. Set frame index to the hero pose: a single constant `heroFrameIndex = 3` (0-indexed; "frame 4" counting from 1), clamped to `max(currentFrames.count - 1, 0)` as a defensive bound. Both shipped sheets are safe at index 3 — the codogotchi sheet has 24 non-blank frames per row, and the codex sheet's rows per [codexpet.xyz/spec](https://codexpet.xyz/spec/) are non-blank at this index. Picked over the originally sketched `frameCount / 2` because a single constant avoids per-row map drift and the menubar surface is too small for the precise middle-vs-early choice to matter visually; the floating pet carries the full animation.
-3. `paintCurrent()` once.
-4. **Do not** start or restart menubar `Timer` in production.
-
-Repaint triggers:
-
-- `activity_state` change (from 1 Hz poll or `pollNow` after wake).
-- `visual_mode` change (e.g. desaturated failure glyph).
-- Pet asset reload (future).
-
-No repaint when poll sees unchanged state.
-
-### 4.2 Floating: keep full loop
-
-No change to `FloatingPetScene` timer behavior for production. Mouse-reactive Codex rows (`running-right`, `running-left`, `jumping`) remain float-only.
-
-`PetStateFanout` already fans `(state, visualMode)` to menubar and float separately — menubar static mode is mostly `MenubarRenderer` + App Nap policy.
-
-### 4.3 App Nap / `beginActivity`
-
-Today justified for steady menubar timer cadence. After menubar static:
-
-- **Remove** latency-critical activity for menubar-only use, **or**
-- Gate `beginActivity` on **floating pet visible** (and/or float actively animating).
-
-### 4.4 Demo mode (debug only)
-
-Activation: `CODOGOTCHI_DEMO=1`, `--demo`, sandbox `$TMPDIR/codogotchi-demo/state.json`, `DemoCycleDriver` cycles all 15 states. Optional `CODOGOTCHI_DEMO_FRAME_MS` for fast frame inspection.
-
-**Not** a shipped product surface. For static menubar implementation:
-
-| Option | Behavior |
-| --- | --- |
-| **A (preferred)** | Demo uses same static menubar as production; validates state switching + fanout |
-| **B (opt-in)** | Fast menubar flipbook only when `CODOGOTCHI_DEMO_FRAME_MS` set — sprite QA only |
-
-Do not keep production menubar animated because demo exists.
-
-### 4.5 Deferred / separate
-
-- Focus-aware hide for floating pet (phase plan deferral) — largest UX win for “pet only when coding.”
-- Pause `SKView` between float frames / `preferredFramesPerSecond` — second-pass GPU savings.
-- Optional one-shot menubar crossfade on state change — polish, not required for v1.
+- **FSEvents** on `state.json` instead of 1 Hz timer (minor; wake policy was the issue).
+- Focus-aware auto-hide float (phase deferral).
+- Release build vs Debug for fair Codex comparison.
 
 ---
 
-## 5. Implementation sketch (when scheduled)
+## 6. Open questions
 
-1. **`MenubarRenderer`** — remove steady-state timer; static `heroFrameIndex = 3` (clamped) on `resolveFrames`; paint once per state/mode change; guard `update()` so identical (state, mode) inputs are no-ops at the 1 Hz polling cadence.
-2. **`MenubarApp`** — narrow or remove `beginActivity` per §4.3.
-3. **Tests** — update `MenubarRenderer` tests that advance frames via timer; add “unchanged state does not repaint” if sink is instrumented.
-4. **Contracts / docs** — menubar = static glyph, float = animated (animation-state vocabulary or runbook).
-
-No change required to `LivePollingDriver`, hook binary, or `PetStateFanout` shape.
-
----
-
-## 6. Validation ideas
-
-1. Hide floating pet → CPU should drop sharply if SpriteKit/compositing was significant.
-2. Quit Codogotchi vs quit Cursor — extension hosts vs app CPU separate.
-3. Instruments: 10 minutes menubar-only vs float-on vs app quit (after static menubar ships).
-
----
-
-## 7. Open questions
-
-- ~~Should menubar static use **exact** middle frame or "hero" frame per state (product art decision)?~~ Resolved: single constant `heroFrameIndex = 3`, clamped. See §4.1.
-- Gate App Nap only when float visible, or also when float animating (interaction overlay active)?
-- Document in user-facing README or keep cost notes dev-only?
+- ~~Hero frame vs middle frame~~ → `heroFrameIndex = 3`.
+- ~~Gate App Nap on float visibility~~ → shipped `8a5b5e8`.
+- Release vs Debug CPU baseline for runbook?
