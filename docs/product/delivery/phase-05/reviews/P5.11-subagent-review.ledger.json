@@ -1,0 +1,22 @@
+{
+  "ticket": "P5.11",
+  "invocations": [
+    {
+      "runnerKind": "claude-cli",
+      "reviewedHeadSha": "6bbe054a5a531f963536890df7258bc1c3d78cd2",
+      "outcome": "clean",
+      "completedAt": "2026-05-27T22:47:19.196Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-05/reviews/P5.11-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-05/reviews/P5.11-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}
