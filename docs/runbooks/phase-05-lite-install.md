@@ -150,6 +150,12 @@ This removes Codogotchi entries from Claude Code and Codex hook configs. Existin
 
 ---
 
+## Exit validation
+
+Before phase closeout, run the full exit checklist in
+[`phase-05-validation.md`](phase-05-validation.md) (greenfield install, onboarding,
+Settings, CLI Lite/RPG, operator round-trip, deferrals).
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |

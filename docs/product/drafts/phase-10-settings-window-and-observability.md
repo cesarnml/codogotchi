@@ -14,7 +14,7 @@ Replace JSON-and-Finder onboarding with a **Settings window**: the control plane
 
 ## The problem
 
-- RPG requires `codogotchi setup` in Terminal (handle, Convex, GitHub, WakaTime).
+- RPG requires `codogotchi rpg` in Terminal (handle, Convex, GitHub, WakaTime) after Lite setup.
 - Pet selection is `config.json` + Reveal `~/.codex/pets/`.
 - Loot is CLI `loot` reading JSONL — no visual delight.
 - No in-app view of `state.json` or transition log.
