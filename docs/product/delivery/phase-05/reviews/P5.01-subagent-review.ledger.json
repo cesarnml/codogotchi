@@ -17,6 +17,20 @@
       "findings": [],
       "probedSurfaces": [],
       "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "f56889c627bfa9d5540a944e6661673c9e3dbc21",
+      "outcome": "patched",
+      "completedAt": "2026-05-27T14:46:08.000Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": ["cf29b410d3385d8fe0e84e7c1cd601b77de18194"],
+      "schemaVersion": 1,
+      "primaryAgent": "unknown",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
     }
   ]
 }
