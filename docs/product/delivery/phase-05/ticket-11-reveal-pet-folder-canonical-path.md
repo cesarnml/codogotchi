@@ -31,10 +31,10 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Pattern mirrors `PetConfig.configURL()`: `getenv("CODOGOTCHI_HOME")` → non-empty string → use `$CODOGOTCHI_HOME/pets`; otherwise fall back to `~/.codogotchi/pets`.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+Subagent review found two gaps patched before open-pr:
+1. Missing `.isEmpty` guard — empty `CODOGOTCHI_HOME` produced a CWD-relative URL instead of the canonical home path.
+2. The `CODOGOTCHI_HOME` env-var branch was untested; added `setenv`/`unsetenv` guard to the existing test and a new test covering the custom-home path.
+
+Deferred: `defaultLogFolderURL()` does not respect `CODOGOTCHI_HOME` — advisory observation, follow-up ticket.
