@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+inheritance: true
+
+reviews:
+  high_level_summary: false
+  auto_review:
+    auto_incremental_review: false
+    base_branches:
+      - '.*'
+    ignore_usernames:
+      - 'dependabot[bot]'
+      - 'renovate[bot]'
+      - 'github-actions[bot]'
+    ignore_title_keywords:
+      - 'docs'
+      - 'chore'
+      - 'style'
+      - 'refactor'
+      - 'perf'
+      - 'test'
+      - 'build'
+      - 'ci'
+      - 'revert'

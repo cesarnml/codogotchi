@@ -1,0 +1,14 @@
+{
+  "session_id": "0000-codex-fixture-session",
+  "rollout_path": "/redacted/codex/rollout.jsonl",
+  "cwd": "/redacted/workspace",
+  "hook_event_name": "post_tool_use",
+  "tool_name": "Read",
+  "tool_input": {
+    "path": "/redacted/workspace/src/example.ts"
+  },
+  "tool_response": {
+    "type": "success",
+    "bytes_read": 4096
+  }
+}

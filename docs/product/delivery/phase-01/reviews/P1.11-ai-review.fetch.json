@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "fetchedAt": "2026-05-18T08:56:54.818Z",
+  "reviewedHeadSha": "a2d16aba2f05c0784ea342647e339266eacd0c3d",
+  "detected": true,
+  "vendors": ["coderabbit", "qodo"],
+  "agents": [
+    {
+      "agent": "coderabbit",
+      "state": "completed",
+      "findingsCount": 0,
+      "note": "review completed without actionable findings"
+    },
+    {
+      "agent": "qodo",
+      "state": "completed",
+      "findingsCount": 0,
+      "note": "review completed without actionable findings"
+    }
+  ],
+  "comments": [
+    {
+      "authorLogin": "coderabbitai",
+      "authorType": "unknown",
+      "body": "<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- This is an auto-generated comment: rate limited by coderabbit.ai -->\n\n> [!WARNING]\n> ## Rate limit exceeded\n> \n> `@cesarnml` has exceeded the limit for the number of commits that can be reviewed per hour. Please wait **42 minutes and 30 seconds** before requesting another review.\n> \n> You’ve run out of usage credits. Purchase more in the [billing tab](https://app.coderabbit.ai/settings/subscription?tab=usage&tenantId=f97770c6-815f-4b45-bf56-988a5a13acaa).\n> \n> <details>\n> <summary>⌛ How to resolve this issue?</summary>\n> \n> After the wait time has elapsed, a review can be triggered using the `@coderabbitai review` command as a PR comment. Alternatively, push new commits to this PR.\n> \n> We recommend that you space out your commits to avoid hitting the rate limit.\n> \n> </details>\n> \n> \n> <details>\n> <summary>🚦 How do rate limits work?</summary>\n> \n> CodeRabbit enforces hourly rate limits for each developer per organization.\n> \n> Our paid plans have higher rate limits than the trial, open-source and free plans. In all cases, we re-allow further reviews after a brief timeout.\n> \n> Please see our [FAQ](https://docs.coderabbit.ai/faq) for further information.\n> \n> </details>\n> \n> <details>\n> <summary>ℹ️ Review info</summary>\n> \n> <details>\n> <summary>⚙️ Run configuration</summary>\n> \n> **Configuration used**: Repository YAML (base), Organization UI (inherited)\n> \n> **Review profile**: CHILL\n> \n> **Plan**: Pro\n> \n> **Run ID**: `58a127a7-9fc0-473a-871c-735033ddbab7`\n> \n> </details>\n> \n> <details>\n> <summary>📥 Commits</summary>\n> \n> Reviewing files that changed from the base of the PR and between ddf874c3e2f6ec4c02cb8a7f1e9aa013f5de8cb5 and a2d16aba2f05c0784ea342647e339266eacd0c3d.\n> \n> </details>\n> \n> <details>\n> <summary>📒 Files selected for processing (10)</summary>\n> \n> * `docs/product/delivery/phase-01/reviews/P1.10-ai-review.fetch.json`\n> * `docs/product/delivery/phase-01/reviews/P1.10-ai-review.triage.json`\n> * `docs/product/delivery/phase-01/reviews/P1.10-subagent-runner.json`\n> * `docs/product/delivery/phase-01/ticket-10-source-github.md`\n> * `docs/product/delivery/phase-01/ticket-11-source-wakatime.md`\n> * `packages/engine/src/index.ts`\n> * `packages/engine/src/sources/github.test.ts`\n> * `packages/engine/src/sources/github.ts`\n> * `packages/engine/src/sources/wakatime.test.ts`\n> * `packages/engine/src/sources/wakatime.ts`\n> \n> </details>\n> \n> </details>\n\n<!-- end of auto-generated comment: rate limited by coderabbit.ai -->\n\n<!-- tips_start -->\n\n---\n\nThanks for using [CodeRabbit](https://coderabbit.ai?utm_source=oss&utm_medium=github&utm_campaign=cesarnml/codogotchi&utm_content=12)! It's free for OSS, and your support helps us grow. If you like it, consider giving us a shout-out.\n\n<details>\n<summary>❤️ Share</summary>\n\n- [X](https://twitter.com/intent/tweet?text=I%20just%20used%20%40coderabbitai%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20the%20proprietary%20code.%20Check%20it%20out%3A&url=https%3A//coderabbit.ai)\n- [Mastodon](https://mastodon.social/share?text=I%20just%20used%20%40coderabbitai%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20the%20proprietary%20code.%20Check%20it%20out%3A%20https%3A%2F%2Fcoderabbit.ai)\n- [Reddit](https://www.reddit.com/submit?title=Great%20tool%20for%20code%20review%20-%20CodeRabbit&text=I%20just%20used%20CodeRabbit%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20proprietary%20code.%20Check%20it%20out%3A%20https%3A//coderabbit.ai)\n- [LinkedIn](https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fcoderabbit.ai&mini=true&title=Great%20tool%20for%20code%20review%20-%20CodeRabbit&summary=I%20just%20used%20CodeRabbit%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20proprietary%20code)\n\n</details>\n\n\n<sub>Comment `@coderabbitai help` to get the list of available commands and usage tips.</sub>\n\n<!-- tips_end -->",
+      "channel": "issue_comment",
+      "isOutdated": false,
+      "isResolved": false,
+      "kind": "summary",
+      "updatedAt": "2026-05-18T08:50:54Z",
+      "url": "https://github.com/cesarnml/codogotchi/pull/12#issuecomment-4475971997",
+      "vendor": "coderabbit"
+    },
+    {
+      "authorLogin": "qodo-code-review",
+      "authorType": "unknown",
+      "body": "### Qodo reviews are paused for this user.\n\nTroubleshooting steps vary by plan [Learn more →](https://docs.qodo.ai/review-eligibility)\n\n\n**On a Teams plan?**\nReviews resume once this user has a paid seat *and* their Git account is linked in Qodo.\n[Link Git account →](https://app.qodo.ai)\n\n**Using GitHub Enterprise Server, GitLab Self-Managed, or Bitbucket Data Center?**\nThese require an Enterprise plan - Contact us\n[Contact us →](https://app.qodo.ai)\n",
+      "channel": "issue_comment",
+      "isOutdated": false,
+      "isResolved": false,
+      "kind": "unknown",
+      "updatedAt": "2026-05-18T08:50:51Z",
+      "url": "https://github.com/cesarnml/codogotchi/pull/12#issuecomment-4475971584",
+      "vendor": "qodo"
+    }
+  ]
+}

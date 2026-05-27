@@ -1,0 +1,11 @@
+{
+  "session_id": "0000-codex-fixture-session",
+  "rollout_path": "/redacted/codex/rollout.jsonl",
+  "cwd": "/redacted/workspace",
+  "hook_event_name": "pre_tool_use",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "pytest tests/unit",
+    "description": "Run Python unit tests"
+  }
+}

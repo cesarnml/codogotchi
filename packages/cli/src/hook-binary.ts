@@ -1,0 +1,406 @@
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rmdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
+import {
+  type ActivityState,
+  type HpOverlay,
+  hpToOverlay,
+  mapSoaEventToActivityState,
+  type ProfileResponse,
+  type SoaEventLine,
+  type SourceEvent,
+  type SourceEventKind,
+  type SourceEventOrigin,
+  STATE_JSON_SCHEMA_VERSION,
+  type StateJsonV1,
+  sourceEventSchema,
+  stateJsonV1Schema,
+} from "@codogotchi/contracts";
+import type { SoaTailState } from "@codogotchi/engine";
+import { readSoaEventsSince, resolveSoaRoot } from "@codogotchi/engine";
+
+export type HookInput = {
+  origin?: SourceEventOrigin;
+  kind?: SourceEventKind;
+  name?: string;
+  command?: string;
+  // Claude Code raw stdin shape.
+  tool_name?: string;
+  tool_input?: { command?: string } & Record<string, unknown>;
+  hook_event_name?: string;
+  // Stop-hook stop reason (e.g. "end_turn", "max_tokens").
+  stop_reason?: string;
+  // Explicit failure signal for rate-limit / network-error events.
+  is_error?: boolean;
+};
+
+export type ClassifyState = { readRun: number };
+
+export type ClassifyResult = {
+  state: ActivityState;
+  sourceEvent: SourceEvent;
+  readRun: number;
+};
+
+const SOA_GATE_TO_STATE: Record<string, ActivityState> = {
+  verification_failed: "panicking",
+  subagent_invoked: "calling_for_backup",
+  stage_advanced: "ascended",
+  ticket_completed: "celebrating",
+  review_clean_recorded: "celebrating",
+  pr_review_window_opened: "waiting",
+  risky_diff_detected: "nervous",
+  flow_state_entered: "focused",
+  ticket_started: "hyped",
+};
+
+const TEST_RUNNER_PREFIXES = [
+  "bun test",
+  "bun run test",
+  "npm test",
+  "npm run test",
+  "pnpm test",
+  "pnpm run test",
+  "yarn test",
+  "yarn run test",
+  "pytest",
+  "cargo test",
+  "go test",
+  "vitest",
+  "jest",
+];
+
+const READ_RUN_THRESHOLD = 3;
+const LOCK_RETRY_DELAY_MS = 10;
+const LOCK_TIMEOUT_MS = 2000;
+
+type NormalizedEvent = {
+  origin: SourceEventOrigin;
+  kind: SourceEventKind;
+  name: string;
+  command: string | undefined;
+};
+
+function rawHookOrigin(input: HookInput): SourceEventOrigin {
+  if (input.origin !== undefined) return input.origin;
+  const eventName = input.hook_event_name;
+  if (eventName && eventName === eventName.toLowerCase()) return "codex";
+  return "claude_code";
+}
+
+function rawHookKind(input: HookInput): SourceEventKind {
+  if (input.kind !== undefined) return input.kind;
+  if (input.tool_name) return "tool_use";
+  const eventName = input.hook_event_name?.toLowerCase();
+  if (eventName === "session_start") return "session_start";
+  if (eventName === "session_end" || eventName === "stop") return "session_end";
+  return "session_start";
+}
+
+function normalize(input: HookInput): NormalizedEvent | null {
+  // Prefer explicit shape; fall back to Claude Code raw stdin shape.
+  const rawOrigin = rawHookOrigin(input);
+  const rawName = input.name ?? input.tool_name ?? "unknown";
+  const rawKind = rawHookKind(input);
+  const candidate: SourceEvent = {
+    origin: rawOrigin as SourceEventOrigin,
+    kind: rawKind as SourceEventKind,
+    name: rawName,
+  };
+  const parsed = sourceEventSchema.safeParse(candidate);
+  if (!parsed.success) return null;
+  const rawCommand = input.command ?? input.tool_input?.command;
+  const command = typeof rawCommand === "string" ? rawCommand : undefined;
+  return { ...parsed.data, command };
+}
+
+// Stop reasons that indicate the agent did not complete its response cycle.
+const FAILURE_STOP_REASONS = new Set(["max_tokens"]);
+
+function isFailureStopReason(reason: string | undefined): boolean {
+  return reason !== undefined && FAILURE_STOP_REASONS.has(reason);
+}
+
+function matchesTestRunner(command: string): boolean {
+  const trimmed = command.trimStart();
+  return TEST_RUNNER_PREFIXES.some((prefix) => {
+    if (!trimmed.startsWith(prefix)) return false;
+    const next = trimmed.slice(prefix.length, prefix.length + 1);
+    return next === "" || next === " " || next === "\t";
+  });
+}
+
+export function classifyEvent(
+  input: HookInput,
+  prior: ClassifyState,
+): ClassifyResult {
+  const normalized = normalize(input) ?? {
+    origin: "claude_code" as const,
+    kind: "session_start" as const,
+    name: "unknown",
+    command: undefined,
+  };
+  const { origin, kind, name, command } = normalized;
+  const sourceEvent: SourceEvent = { origin, kind, name };
+
+  // SoA gate events win over heuristics.
+  if (origin === "soa" && kind === "gate") {
+    const mapped = SOA_GATE_TO_STATE[name];
+    if (mapped !== undefined) {
+      return { state: mapped, sourceEvent, readRun: 0 };
+    }
+    // Unknown gate name: don't reset readRun — SoA gates are not tool-use events.
+    return { state: "idle", sourceEvent, readRun: prior.readRun };
+  }
+
+  // Heuristic: Stop event — agent finished turn and is awaiting user input,
+  // unless the stop reason or an explicit flag indicates a response failure.
+  const rawEventName = input.hook_event_name?.toLowerCase();
+  if (rawEventName === "stop") {
+    if (input.is_error === true || isFailureStopReason(input.stop_reason)) {
+      return { state: "errored", sourceEvent, readRun: 0 };
+    }
+    return { state: "requesting_input", sourceEvent, readRun: prior.readRun };
+  }
+  // Heuristic: explicit failure signal for non-Stop events (rate limit, network error).
+  if (input.is_error === true) {
+    return { state: "errored", sourceEvent, readRun: 0 };
+  }
+
+  if (kind === "tool_use") {
+    if (name === "Edit" || name === "Write" || name === "MultiEdit") {
+      return { state: "implementing", sourceEvent, readRun: 0 };
+    }
+    if (name === "Bash" && command !== undefined) {
+      if (command.trimStart().startsWith("git push")) {
+        return { state: "pushing", sourceEvent, readRun: 0 };
+      }
+      if (matchesTestRunner(command)) {
+        return { state: "running-tests", sourceEvent, readRun: 0 };
+      }
+      return { state: "idle", sourceEvent, readRun: 0 };
+    }
+    if (name === "Read") {
+      const nextRun = prior.readRun + 1;
+      const state: ActivityState =
+        nextRun >= READ_RUN_THRESHOLD ? "reviewing" : "idle";
+      return { state, sourceEvent, readRun: nextRun };
+    }
+  }
+
+  return { state: "idle", sourceEvent, readRun: 0 };
+}
+
+type Counters = {
+  read_run: number;
+  soa_tail: SoaTailState | null;
+};
+
+function countersPath(home: string): string {
+  return join(home, ".hook-counters.json");
+}
+
+function parseSoaTail(value: unknown): SoaTailState | null {
+  if (value === null || typeof value !== "object") return null;
+  const candidate = value as Partial<SoaTailState>;
+  const offset =
+    typeof candidate.offset === "number" && Number.isFinite(candidate.offset)
+      ? Math.max(0, Math.trunc(candidate.offset))
+      : null;
+  if (offset === null) return null;
+  const inode =
+    typeof candidate.inode === "number" && Number.isFinite(candidate.inode)
+      ? candidate.inode
+      : null;
+  return { inode, offset };
+}
+
+async function readCounters(home: string): Promise<Counters> {
+  try {
+    const raw = await readFile(countersPath(home), "utf8");
+    const parsed = JSON.parse(raw) as Partial<Counters>;
+    const readRun =
+      typeof parsed.read_run === "number" && Number.isFinite(parsed.read_run)
+        ? Math.max(0, Math.trunc(parsed.read_run))
+        : 0;
+    const soaTail = parseSoaTail(parsed.soa_tail);
+    return { read_run: readRun, soa_tail: soaTail };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return { read_run: 0, soa_tail: null };
+    }
+    return { read_run: 0, soa_tail: null };
+  }
+}
+
+function tempName(target: string): string {
+  return `${target}.tmp-${process.pid}-${Date.now()}-${randomUUID()}`;
+}
+
+async function writeCounters(home: string, counters: Counters): Promise<void> {
+  const target = countersPath(home);
+  const tmp = tempName(target);
+  await writeFile(tmp, JSON.stringify(counters), "utf8");
+  await rename(tmp, target);
+}
+
+async function withHomeLock<T>(home: string, fn: () => Promise<T>): Promise<T> {
+  const lockPath = join(home, ".hook.lock");
+  const startedAt = Date.now();
+
+  while (true) {
+    try {
+      await mkdir(lockPath);
+      break;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      if (Date.now() - startedAt >= LOCK_TIMEOUT_MS) {
+        throw new Error(`Timed out waiting for hook lock at ${lockPath}`);
+      }
+      await sleep(LOCK_RETRY_DELAY_MS);
+    }
+  }
+
+  try {
+    return await fn();
+  } finally {
+    await rmdir(lockPath);
+  }
+}
+
+export type HpSnapshot = { hp: number; hpOverlay: HpOverlay };
+
+function isValidHp(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= -100 &&
+    value <= 100
+  );
+}
+
+export async function readProfileOverlay(
+  home: string,
+): Promise<HpSnapshot | null> {
+  try {
+    const raw = await readFile(join(home, "profile.json"), "utf8");
+    const parsed = JSON.parse(raw) as Partial<ProfileResponse>;
+    if (!isValidHp(parsed.hp)) return null;
+    return { hp: parsed.hp, hpOverlay: hpToOverlay(parsed.hp) };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    return null;
+  }
+}
+
+export function statePath(home: string): string {
+  return join(home, "state.json");
+}
+
+export async function writeStateAtomic(
+  home: string,
+  state: StateJsonV1,
+): Promise<void> {
+  // Validate before writing — never let a malformed payload land at the
+  // target path even if upstream callers pass an invalid shape.
+  const verified = stateJsonV1Schema.parse(state);
+  await mkdir(home, { recursive: true });
+  const target = statePath(home);
+  const tmp = tempName(target);
+  await writeFile(tmp, `${JSON.stringify(verified, null, 2)}\n`, "utf8");
+  await rename(tmp, target);
+}
+
+export type RunHookOptions = {
+  home: string;
+  now: Date;
+  /** Override env for SoA root resolution. Defaults to `process.env`. */
+  env?: NodeJS.ProcessEnv;
+  /** Override cwd for SoA root resolution. Defaults to `process.cwd()`. */
+  cwd?: string;
+};
+
+function pickLatestMappedSoaEvent(
+  events: readonly SoaEventLine[],
+): { event: SoaEventLine; state: ActivityState } | null {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i];
+    if (event === undefined) continue;
+    const mapped = mapSoaEventToActivityState(event.name);
+    if (mapped !== undefined) return { event, state: mapped };
+  }
+  return null;
+}
+
+export async function runHook(
+  input: HookInput,
+  opts: RunHookOptions,
+): Promise<void> {
+  await mkdir(opts.home, { recursive: true });
+  await withHomeLock(opts.home, async () => {
+    const counters = await readCounters(opts.home);
+    const classified = classifyEvent(input, { readRun: counters.read_run });
+
+    const env = opts.env ?? process.env;
+    const cwd = opts.cwd ?? process.cwd();
+    const soaRoot = resolveSoaRoot({
+      CLAUDE_PROJECT_DIR: env.CLAUDE_PROJECT_DIR,
+      CODEX_PROJECT_DIR: env.CODEX_PROJECT_DIR,
+      CWD: cwd,
+    });
+    let soaTail = counters.soa_tail;
+    let activityState = classified.state;
+    let sourceEvent: SourceEvent = classified.sourceEvent;
+    if (soaRoot !== null) {
+      const soaResult = await readSoaEventsSince(soaRoot, soaTail);
+      soaTail = soaResult.tail;
+      const fresh = pickLatestMappedSoaEvent(soaResult.events);
+      if (fresh !== null) {
+        activityState = fresh.state;
+        sourceEvent = { origin: "soa", kind: "gate", name: fresh.event.name };
+      }
+    }
+
+    const overlay = await readProfileOverlay(opts.home);
+    const hp = overlay?.hp ?? 100;
+    const hp_overlay = overlay?.hpOverlay ?? "thriving";
+
+    const state: StateJsonV1 = {
+      schema_version: STATE_JSON_SCHEMA_VERSION,
+      activity_state: activityState,
+      hp_overlay,
+      hp,
+      updated_at: opts.now.toISOString(),
+      source_event: sourceEvent,
+    };
+
+    await writeStateAtomic(opts.home, state);
+    await writeCounters(opts.home, {
+      read_run: classified.readRun,
+      soa_tail: soaTail,
+    });
+  });
+}
+
+export async function runHookFromStdin(
+  raw: string,
+  opts: RunHookOptions,
+): Promise<void> {
+  let parsed: HookInput;
+  try {
+    const value = JSON.parse(raw);
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      // Silently skip — see ticket rationale: a crashed hook can spam logs.
+      return;
+    }
+    parsed = value as HookInput;
+  } catch {
+    return;
+  }
+  try {
+    await runHook(parsed, opts);
+  } catch {
+    // Silent skip on any write/IO failure to avoid polluting Claude Code logs.
+  }
+}

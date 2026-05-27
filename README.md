@@ -1,353 +1,192 @@
-# Son of Anton
+# codogotchi
 
-<p align="center">
-  <img src="./media/son-of-anton-workflow.gif" alt="Animated Son of Anton workflow hero" width="720">
-</p>
+Codogotchi is the RPG layer on top of Codex- and Claude-format pets. Your
+agent activity feeds XP, HP, stage advancement, and loot. The data lives in
+Convex; a macOS **Codogotchi** app renders agent animation state locally from
+`~/.codogotchi/state.json` on both the menu bar micro-pet and an optional
+transparent floating desktop pet.
 
-The current default for AI-assisted development is one of two failure modes:
-you're either babysitting the agent line by line, or you've handed it the
-wheel and are hoping for the best. Son of Anton is neither.
+**Status:** Phase 04 — Floating pet (private). Phase 01 CLI + Convex pipeline
+is shipped; Phase 02 added the menu bar `NSStatusItem`; Phase 03 extended to
+all 15 activity states with a second spritesheet (`codogotchi-spritesheet.webp`)
+and per-pet config; Phase 04 renamed the app to **Codogotchi**, added a
+float-on-top SpriteKit surface (show/hide, drag, resize, persistence in
+`~/.codogotchi/app-state.json`), shared live/demo state fanout, and mouse-
+reactive reserved Codex rows. HP overlays, focus-aware visibility, catalog UI,
+and distribution polish remain deferred. See
+[`docs/product/plans/phase-04-floating-pet.md`](docs/product/plans/phase-04-floating-pet.md) and the
+[`phase-04 validation runbook`](docs/runbooks/phase-04-validation.md).
 
-Son of Anton is a delivery orchestrator for solo developers and small teams.
-It enforces a simple discipline: there are exactly three moments where a
-developer's judgment is irreplaceable, and the orchestrator owns everything
-in between.
+## What ships in Phase 01
 
-It runs on the agent you already use — Codex, Cursor, Copilot, Claude, or
-anything else that reads `AGENTS.md`. The directory is named `.agents` for
-a reason.
+- A Bun-powered CLI (`codogotchi`) with `setup`, `sync`, `status`, `loot`,
+  `config`, `vacation`.
+- A hook binary (`codogotchi-hook`) that writes a documented animation-state
+  vocabulary to `~/.codogotchi/state.json` on every Claude Code / Codex
+  lifecycle event.
+- XP / Health / Loot engine wired through the CLI and re-used inside Convex's
+  `syncProfile` mutation, so XP is computed server-side and the CLI is a dumb
+  pipe + cache reader.
+- Four signal sources: Claude Code JSONL, Codex JSONL, GitHub merged PRs (with
+  `scorePR` quality enrichment), Wakatime hours. **Forward-only:** each source
+  reads activity since the last sync (or since install time on first sync)—no
+  historical backfill. Per-source XP **accumulates** on each successful sync.
+- Convex Cloud schema covering `profiles` (with HP fields), `loot_events`,
+  `users`; a `syncProfile` mutation; an HTTP action receiving signals from
+  the CLI.
+- Scheduled-sync installers for launchd and cron, a `scorePR` debug log, and a
+  validation runbook.
 
----
+Public surface (web armory, leaderboard, OAuth, OG image, install script,
+macOS pet, visible loot rendering) is intentionally deferred. See
+[`docs/product/plans/phase-01-cli-convex-plumbing.md#explicit-deferrals`](docs/product/plans/phase-01-cli-convex-plumbing.md#explicit-deferrals).
 
-## The Three Gates
+## Repo layout
 
 ```
-/soa plan       → you approve the WHAT
-/soa decompose  → you approve the HOW
-/soa closeout   → you approve DONE
+packages/
+  cli/        # codogotchi + codogotchi-hook bins (Bun-only)
+  engine/     # XP / Health / Loot pure logic + Bun-only sources/
+  contracts/  # zod + types: IPC, signals, SoA event feed
+convex/       # Convex schema, mutations, HTTP action
+apps/
+  menubar/    # Codogotchi macOS app — menu bar + floating pet (Swift / SpriteKit)
+docs/
+  contracts/  # animation-state-vocabulary, soa-event-feed, convex-deployment
+  product/    # plans, delivery, retrospectives
+  runbooks/   # phase validation runbooks, scheduled-sync install
 ```
 
-**Gate 1 — Plan the WHAT.**
-Before any ticket is written, `/soa plan` runs a grill-me session that forces
-the AI to surface assumptions, constraints, and scope decisions back to you.
-You say yes or refine. The AI does not proceed until you have.
+## Install (private, source build)
 
-**Gate 2 — Decompose the HOW.**
-`/soa decompose` turns the approved plan into a ticket stack — ordered,
-dependency-aware, sized for review. You look at the ticket list and approve it.
-Architectural judgment belongs to you. Ticket authorship belongs to the agent.
-
-**Gate 3 — Approve DONE.**
-After each ticket ships, an adversarial subagent reviews the implementation
-before the PR is opened. When the full phase is done, you decide whether the
-work is complete enough to accept and run `/soa closeout`. That squash-merges
-the stack onto main. Nothing merges without you.
-
-Everything between the gates — implementation, test scaffolding, worktree
-management, PR creation, CI polling, review triage — is owned by the
-orchestrator.
-
----
-
-## What the Workflow Looks Like
+There is no npm publish yet. The CLI runs from source via Bun.
 
 ```bash
-# When you have a concrete idea
-/soa plan                                    # grill-me → approved plan → docs/product/plans/
-/soa decompose docs/product/plans/phase-N.md # ticket stack → you approve the list
-/soa execute phase-N                         # orchestrator delivers ticket by ticket
-/soa triage-ticket PR#19                     # reconcile late AI review on a done ticket PR
-/soa triage-standalone PR#19                 # run standalone AI-review triage on a non-ticket PR
-/soa triage-advisory-observations phase-N    # post-phase disposition of advisory observations
-/soa closeout phase-N                        # you approve; stacked PRs squash-merge to main
-
-# When the idea needs shaping first (optional)
-/soa ideate                                  # brainstorm → docs/product/drafts/<slug>.md
-/soa plan docs/product/drafts/<slug>.md      # grill the draft → approved plan
-# then decompose → execute → closeout as above
-
-# Runtime policy overrides — no config file edits required
-/soa execute phase-N --boundary-mode gated   # override boundary mode for this run
-/soa execute phase-N --subagent-review-policy disabled --pr-review-policy skip_doc_only
-/soa resume phase-N --boundary-mode cook     # change policy mid-run on resume
-/soa resume phase-N --baseline orchestrator  # adopt current repo defaults when policy diverged
-/soa resume phase-N --baseline run-policy    # keep persisted run policy when repo config changed
+bun install
+bun run packages/cli/bin/codogotchi.ts setup
 ```
 
-`/soa ideate` is optional. Use it when intention is too half-formed to yield
-a concrete plan directly — it lands a draft at `docs/product/drafts/` that
-feeds straight into `/soa plan <path>`. If the idea is already clear, or you
-are working from a retrospective follow-up, skip ideate and go straight to
-`/soa plan`.
+`setup` prompts for your codogotchi **handle**, then **GitHub username** and **PAT**
+(one after the other). Merged-PR signals only work when **both** are set; skipping
+either leaves GitHub PR XP off until you fix it with `codogotchi config set` or
+`setup --force`. Wakatime and GitHub credentials are optional.
 
-Between `execute` and `closeout` you are not needed. The orchestrator
-opens the worktree, implements, verifies, runs the adversarial review,
-opens the PR, polls for external AI review comments, triages them, and
-advances to the next ticket. It stops at defined boundaries and tells you
-exactly what to type to resume.
+Both binaries live under `packages/cli/bin/`. Wire them into your `PATH` (or
+symlink them into `~/.local/bin/`) for convenience.
 
-If late external AI review comments arrive after a ticket PR is already `done`,
-use `/soa triage-ticket PR#<number>` so the agent resolves the PR back to its
-delivery state and runs `triage-ticket`. For non-ticketed PRs, use
-`/soa triage-standalone PR#<number>`, which runs the standalone triage
-path instead.
+## CLI surface
 
-After closeout lands a phase on `main`, run
-`/soa triage-advisory-observations phase-N` before starting the next phase.
-That post-phase lane records explicit dispositions for non-blocking
-`Advisory Observations` from subagent-review reports. It does not patch source
-files and does not replace the blocking `Actionable findings` reconciliation
-gate.
-
----
-
-## What You Get
-
-- **Delivery orchestrator** — TypeScript CLI that drives the ticket loop,
-  manages worktrees and branches, records review outcomes, and enforces
-  stop conditions. Runs via Bun or Node.
-- **Skill layer** — behavioral instructions in `.agents/skills/` that any
-  agent can read, plus per-agent adapters for platforms with specific file
-  conventions (see [Agent compatibility](#agent-compatibility) below).
-- **Adversarial subagent review** — after each ticket, a second AI pass checks
-  the implementation assuming the first one cut corners. Artifacts per ticket:
-  `*-subagent-review.{prompt.md, report.md, ledger.json}`. The runner is
-  advisory: it returns findings prose only; the primary agent applies prudent
-  patches with a `[subagent-review]` subject suffix or records `deferred` via
-  `subagent-review record-deferred`. `reconcile-subagent-review` hard-blocks
-  `open-pr` when the ledger would silently disagree with git history. Operator
-  selection is explicit via `--subagent <claude-cli|codex-cli>` (optional
-  `subagentRunner` config default). The CLI refuses to record `clean` when the
-  runner did not actually complete.
-- **Stacked PR model** — each ticket gets its own branch and PR, stacked in
-  dependency order. Closeout squash-merges the whole phase onto main cleanly.
-- **Migration runner** — when Son of Anton ships structural changes, `bun run sync`
-  applies them to your repo automatically. You pull and run; the migration runs itself.
-- **Agent-rule injection** — `bun run sync` injects Son-of-Anton's skill-trigger
-  rules into `AGENTS.md` so every agent in your repo knows which skills to invoke
-  and when. Idempotent: re-running is always safe.
-
----
-
-## Agent Compatibility
-
-Son of Anton's core lives in `.agents/skills/` and `AGENTS.md`. Any agent
-that reads those conventions works without additional configuration.
-
-Claude Code is the exception — it has its own file preferences (`CLAUDE.md`,
-`.claude/skills/`) baked into the platform. `soa-sync.sh` handles this
-automatically: it injects a `<!-- soa:start -->` block into `CLAUDE.md` and
-symlinks `.claude/skills/soa*` alongside the universal `AGENTS.md` block.
-
----
-
-## Install
-
-### Step 1 — Embed the subtree
-
-```bash
-git subtree add --prefix .son-of-anton https://github.com/cesarnml/son-of-anton.git main --squash
+```
+codogotchi setup                              First-run config + hook install
+codogotchi sync                               One sync cycle (all four sources)
+codogotchi status                             Cached profile, HP, recent loot
+codogotchi loot [--limit N] [--tier T]        Loot history from ~/.codogotchi/loot.log
+codogotchi config get <key>                   Read a dotted config key
+codogotchi config set <key> <value>           Write a typed value
+codogotchi config list                        Full config as JSON (secrets redacted)
+codogotchi vacation on [--until YYYY-MM-DD]   Pause HP decay
+codogotchi vacation off                       Resume HP decay
+codogotchi vacation status                    Show vacation state
 ```
 
-Son of Anton embeds at `.son-of-anton/`. No submodules, no external service,
-no npm package — the files are real tracked files in your repo history.
+Environment overrides:
 
-### Step 2 — Sync
+| Var | Default | Effect |
+| --- | --- | --- |
+| `CODOGOTCHI_HOME` | `~/.codogotchi` | Config / cache / log root |
+| `CODOGOTCHI_USER_ROOT` | OS home | Home dir used for hook installation |
 
-```bash
-bash .son-of-anton/scripts/soa-sync.sh
-```
+## Where data lives
 
-This wires the skill layer for your agents, injects agent rules into `AGENTS.md`
-(and `CLAUDE.md` if you use Claude Code), creates the `.agents` and `tools`
-symlinks for the orchestrator, and runs any pending structural migrations.
+| Path | Owner | Purpose |
+| --- | --- | --- |
+| `~/.codogotchi/config.json` | `setup`, `config` | Credentials, health knobs, and pet name |
+| `~/.codogotchi/profile.json` | `sync` | Local cache of Convex profile |
+| `~/.codogotchi/state.json` | `codogotchi-hook` | Animation state for renderers (`schema_version: 2`) |
+| `~/.codogotchi/app-state.json` | Codogotchi app | Floating pet visibility, position, size (`schema_version: 1`) |
+| `~/.codogotchi/state-transitions.log` | Codogotchi app | NDJSON log of state changes and heartbeats |
+| `~/.codogotchi/sync.log` | `sync` | Per-source success / failure (rotated) |
+| `~/.codogotchi/loot.log` | `sync` (via Convex) | Loot history (for `loot`) |
+| `~/.codogotchi/scorePR.log` | `sync` | `scorePR` heuristic decisions |
+| `~/.codex/pets/<name>/` | user | Codex-sheet pet assets (`pet.json` + spritesheet) |
+| `~/.codogotchi/pets/<name>/` | user | Codogotchi-sheet pet assets (`pet.json` + `codogotchi-spritesheet.webp`) |
+| Convex `profiles`, `loot_events`, `users` | server | Canonical state |
 
-Add to `package.json` for convenience:
+## Health semantics
+
+Three knobs in `~/.codogotchi/config.json`:
+
+- `health.weekend_decay` — when `false` (default), HP does not drop Sat/Sun in
+  the local timezone.
+- `health.grace_days` — days of inactivity before HP starts decaying.
+- `health.vacation_until` — ISO date through which HP decay is suspended; set
+  via `codogotchi vacation on`.
+
+## macOS app (Phase 04+)
+
+The **Codogotchi** app (`apps/menubar/`) is an `LSUIElement` menu bar agent with
+an optional float-on-top desktop pet. Build with `bun run mac:build`; validate
+with [`docs/runbooks/phase-04-validation.md`](docs/runbooks/phase-04-validation.md).
+Menu items include **Show/Hide Floating Pet**, **Open log folder**, **Reveal pet
+folder**, and **Quit Codogotchi**. Demo mode (`CODOGOTCHI_DEMO=1`) drives both
+surfaces from fixtures without touching live `state.json`.
+
+## Pet configuration (Phase 03+)
+
+The Codogotchi app resolves the active pet from `~/.codogotchi/config.json`:
 
 ```json
-{
-  "scripts": {
-    "sync": "bash .son-of-anton/scripts/soa-sync.sh",
-    "deliver": "bun run .son-of-anton/scripts/deliver.ts",
-    "closeout-stack": "bun run .son-of-anton/scripts/closeout-stack.ts"
-  }
-}
+{ "pet": "maew" }
 ```
 
-Add `.son-of-anton/` to `.prettierignore`, `.eslintignore`, or your linter's
-equivalent. The subtree must stay tracked and unignored by git, but your
-formatter should not touch it.
+The `pet` key selects asset directories under `~/.codex/pets/<name>/` (Codex
+sheet) and `~/.codogotchi/pets/<name>/` (codogotchi sheet). The compiled-in
+default is `"maew"`. A missing, malformed, or `pet`-key-absent config falls
+back to `"maew"` silently. The menu bar's **Reveal pet folder** item opens
+`~/.codex/pets/` in Finder so you can inspect or swap the active pet.
 
-`soa-sync.sh` creates `orchestrator.config.json` at your repo root if it does not
-exist yet. Review it and adjust `defaultBranch`, `runtime`, and `packageManager` for
-your repo before running the orchestrator.
+The env var `CODOGOTCHI_HOME` overrides the config file path for the menubar
+app and is the test-isolation mechanism used in `PetConfigTests`.
 
-Add `.soa/` to your repo's `.gitignore` — SoA creates this directory at the project
-root when `codogotchi.enabled` is not `false`, and it is local-only (not committed).
-Set `codogotchi: { enabled: false }` in `orchestrator.config.json` to suppress it entirely.
+## Contracts to read before extending
 
-### Step 3 — Start
+- [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md) —
+  closed-enum state vocabulary the hook writes and the Codogotchi app reads
+  (Swift `StateJsonReader` in `apps/menubar/`).
+- [`docs/contracts/soa-event-feed.md`](docs/contracts/soa-event-feed.md) —
+  NDJSON event feed Son-of-Anton emits that the hook consumes for explicit
+  delivery-gate signals.
+- [`docs/contracts/convex-deployment.md`](docs/contracts/convex-deployment.md) —
+  deployment topology.
+
+## Development
 
 ```bash
-/soa plan         # if you have a concrete idea
-/soa ideate       # if you need to shape the idea first
+bun install
+bun test                       # engine tests (fast)
+bun run verify:quiet           # biome check (lint + format)
+bun run spellcheck             # cspell
+bun run ci:quiet               # publication gate (verify + spellcheck + mac:test)
+bun run mac:build              # Codogotchi macOS app — xcodebuild
+bun run mac:test               # Codogotchi macOS app — xcodebuild test
 ```
 
-<details>
-<summary>Claude Code: one-time global skill setup</summary>
+`mac:build` and `mac:test` shell out to `xcodebuild` against
+`apps/menubar/Codogotchi.xcodeproj`. `bun run ci` and `bun run ci:quiet`
+chain `mac:test` after biome + cspell so Swift compile / test
+failures gate the orchestrator's `post-red` and `open-pr` steps in
+the same place TS regressions are caught. `apps/**` is still
+excluded from biome and from cspell's non-md scan per the toolchain
+seam decision; only `mac:test` crosses the boundary. See
+[`docs/product/plans/phase-02-as-shipped-ci-macos-tests.md`](docs/product/plans/phase-02-as-shipped-ci-macos-tests.md)
+for the divergence from the original "ci stays TS-only" Phase 02
+plan.
 
-If you use Claude Code, install the entry-point skill globally so `/soa`
-is available in every repo without re-reading the subtree each time:
+Multi-ticket phase delivery is driven via the Son-of-Anton orchestrator
+checked in under `.son-of-anton/`. See `AGENTS.md` for skill triggers and
+`.son-of-anton/docs/template/delivery/delivery-orchestrator.md` for the
+command surface.
 
-```bash
-mkdir -p ~/.claude/skills/soa
-curl -fsSL https://raw.githubusercontent.com/cesarnml/son-of-anton/main/.agents/skills/soa/SKILL.md \
-  -o ~/.claude/skills/soa/SKILL.md
-```
+## License
 
-After this, `bun run sync` in any repo wires the rest of the Claude Code
-adapter automatically.
-
-</details>
-
----
-
-## Updating
-
-```bash
-git fetch https://github.com/cesarnml/son-of-anton.git main
-git subtree merge --prefix .son-of-anton FETCH_HEAD --squash
-bun run sync
-```
-
-Migrations apply automatically on `bun run sync`.
-Fetching first and then merging `FETCH_HEAD` keeps the subtree update pinned to
-the fetched Son-of-Anton ref, even when the consumer repo also has a local
-`main` branch.
-
-<details>
-<summary>Claude Code shortcut</summary>
-
-```
-/soa update
-```
-
-</details>
-
----
-
-## Requirements
-
-- GitHub repo (`gh` CLI used for PR operations)
-- Bun or Node (TypeScript runtime for the orchestrator CLI)
-- Any AI agent that reads `AGENTS.md` or `.agents/skills/`
-- Working lint, format, and test commands — SoA does not dictate which tools or how strict, but they must exist and do real work; without them the verify gate passes trivially and the ticket cycle is theater
-
----
-
-## Boundary Modes
-
-| Mode    | Behavior                                                         |
-| ------- | ---------------------------------------------------------------- |
-| `cook`  | Orchestrator advances immediately after each ticket merges       |
-| `gated` | Orchestrator stops after each advance and prints a resume prompt |
-
-Start with `gated` until you trust the agent's output on your codebase.
-
----
-
-## Runtime Policy Overrides
-
-`orchestrator.config.json` is the durable repo default. For one-off operational
-choices — changing boundary mode, disabling review stages for a single run —
-you can pass explicit flags to `/soa execute` or `/soa resume` without editing
-or committing config changes.
-
-### Supported flags
-
-| Flag                                 | Values                                  | What it overrides                                                                                                 |
-| ------------------------------------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `--boundary-mode`                    | `cook`, `gated`                         | `ticketBoundaryMode`                                                                                              |
-| `--subagent-review-policy`           | `required`, `skip_doc_only`, `disabled` | `reviewPolicy.subagentReview`                                                                                     |
-| `--pr-review-policy`                 | `required`, `skip_doc_only`, `disabled` | `reviewPolicy.prReview`                                                                                           |
-| `--subagent <claude-cli\|codex-cli>` | `claude-cli`, `codex-cli`               | declare execution agent identity for programmatic review; tries preferred first, then the other, then honest skip |
-
-The resolved policy is written to `state.json` at the start of every run.
-`orchestrator.config.json` is never modified.
-
-### Resume divergence
-
-If you edit `orchestrator.config.json` between tickets and the persisted run
-policy no longer matches, `/soa resume` refuses to continue silently and
-prints both policies with the exact recovery commands to use:
-
-```bash
-# adopt current repo defaults going forward
-/soa resume phase-N --baseline orchestrator
-
-# keep the policy the run started with
-/soa resume phase-N --baseline run-policy
-```
-
-Either baseline can be combined with explicit override flags to further patch
-the resolved policy for the remainder of the run.
-
----
-
-## Skills Reference
-
-Skills live in `.agents/skills/`. Each is a markdown file your agent reads
-as instructions. `bun run sync` creates platform-specific adapters (e.g.,
-`.claude/skills/soa-*` symlinks for Claude Code) pointing back to the
-canonical location.
-
-| Skill                     | Trigger                                                                                                                                                                                                                           |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `soa`                     | Main entrypoint: `/soa ideate`, `/soa plan`, `/soa decompose`, `/soa execute`, `/soa resume`, `/soa triage-ticket`, `/soa triage-standalone`, `/soa triage-advisory-observations`, `/soa install`, `/soa update`, `/soa closeout` |
-| `soa-son-of-anton-ethos`  | Auto-invoked on "execute / implement / start / deliver / resume" — owns the per-ticket loop                                                                                                                                       |
-| `soa-grill-me`            | Plan pressure-testing before any implementation                                                                                                                                                                                   |
-| `soa-pr-review`           | Triage CodeRabbit, Qodo, Greptile, SonarQube review comments (`triage`)                                                                                                                                                           |
-| `soa-enter-worktree`      | Bootstrap a fresh worktree with deps and `.env`                                                                                                                                                                                   |
-| `soa-closeout-stack`      | Squash-merge completed stacked PRs onto main                                                                                                                                                                                      |
-| `soa-write-retrospective` | Write phase retrospective to `docs/product/retrospectives/`                                                                                                                                                                       |
-
----
-
-## Why a Git Subtree
-
-Son of Anton ships as a git subtree, not an npm package or a submodule.
-`git subtree add` commits the entire upstream tree into your repo's history —
-there is no `.gitmodules`, no external reference, and no install step that
-can break. When you pull an update, the files are real git commits you can
-read, diff, and bisect.
-
-The tradeoff: `.son-of-anton/` must stay tracked and unignored so that
-`git subtree pull` can apply updates correctly. Add it to your linter's
-ignore file instead of `.gitignore`.
-
----
-
-## Injection and Migration
-
-**Injection.** `bun run sync` writes a `<!-- soa:start --> ... <!-- soa:end -->`
-block into `AGENTS.md` (and `CLAUDE.md` when Claude Code is in use). Content
-outside the markers is never touched. The block is replaced on every sync so
-your agent rules stay current with the Son of Anton version you are running.
-
-**Migration runner.** `.soa-sync-version` tracks which structural migrations
-have run. When Son of Anton ships a migration (e.g., a directory rename), `bun run sync`
-detects the version gap and applies it automatically. You never manually move files.
-
----
-
-## What Son of Anton Is Not
-
-- **Not a code generator.** It does not write boilerplate or scaffold projects.
-- **Not a fully autonomous agent.** The three gates are real stops where a human
-  decision is required. There is no "just ship it" mode.
-- **Not a cloud service.** Everything runs locally. Your code never leaves your
-  machine except where it already does (GitHub PRs, your AI provider).
-- **Not opinionated about your stack.** TypeScript is the orchestrator's runtime;
-  your application can be anything.
-- **Not tied to one agent.** The workflow runs on Codex, Cursor, Copilot, Claude,
-  OpenCode, or any agent that reads `AGENTS.md`. Swap agents mid-project if you want.
+Private repository. No license granted.

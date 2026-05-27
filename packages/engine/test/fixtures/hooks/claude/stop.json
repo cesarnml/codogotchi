@@ -1,0 +1,7 @@
+{
+  "session_id": "0000-claude-fixture-session",
+  "transcript_path": "/redacted/transcript.jsonl",
+  "cwd": "/redacted/workspace",
+  "hook_event_name": "Stop",
+  "stop_hook_active": false
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "activity_state": "celebrating",
+  "hp_overlay": "thriving",
+  "hp": 95,
+  "updated_at": "2026-05-20T19:03:00.000Z",
+  "source_event": {
+    "origin": "soa",
+    "kind": "gate",
+    "name": "ticket_completed"
+  }
+}

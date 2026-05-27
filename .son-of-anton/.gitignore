@@ -1,0 +1,11 @@
+node_modules/
+.agents/delivery/
+*.local
+.env
+.env.*
+!.env.example
+notes/private
+.vscode/settings.json
+media/**/*
+*-subagent-review.trace.log
+.soa/

@@ -1,0 +1,14 @@
+{
+  "session_id": "0000-claude-fixture-session",
+  "transcript_path": "/redacted/transcript.jsonl",
+  "cwd": "/redacted/workspace",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/redacted/workspace/src/new.ts",
+    "content": "export const greeting = 'hi'\n"
+  },
+  "tool_response": {
+    "type": "success"
+  }
+}

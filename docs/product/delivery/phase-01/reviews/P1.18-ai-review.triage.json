@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-05-18T15:42:33Z",
+  "reviewedHeadSha": "c40d3af7fa765b302fc4fa6f4d5345e58f1115b4",
+  "outcome": "patched",
+  "note": "Patched all three late CodeRabbit findings: corrected the atomic temp-name documentation, tightened malformed-stdin coverage to assert state.json absence, and serialized the read/classify/write counter sequence with a per-home hook lock.",
+  "actionSummary": "Flagged 3 finding comment(s) for follow-up.",
+  "threadResolutions": [
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6C4qKx",
+      "url": "https://github.com/cesarnml/codogotchi/pull/19#discussion_r3260128092",
+      "vendor": "coderabbit"
+    },
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6C4qLB",
+      "url": "https://github.com/cesarnml/codogotchi/pull/19#discussion_r3260128115",
+      "vendor": "coderabbit"
+    },
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6C4qLF",
+      "url": "https://github.com/cesarnml/codogotchi/pull/19#discussion_r3260128121",
+      "vendor": "coderabbit"
+    }
+  ],
+  "prBodyRefresh": {
+    "attemptedAt": "2026-05-18T15:42:33Z",
+    "status": "updated"
+  }
+}

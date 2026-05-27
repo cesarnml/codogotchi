@@ -1,0 +1,33 @@
+{
+  "name": "son-of-anton",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deliver": "bun run ./scripts/deliver.ts",
+    "closeout-stack": "bun run ./scripts/closeout-stack.ts",
+    "sync": "bash scripts/soa-sync.sh",
+    "format": "biome format --write && prettier --write .",
+    "format:check": "biome format && prettier --check .",
+    "lint": "eslint .",
+    "lint:quiet": "eslint . --quiet",
+    "verify": "bun run format:check && bun run lint",
+    "verify:quiet": "prettier --check . --log-level warn && bun run lint:quiet",
+    "ci": "bun run verify && bun test",
+    "ci:quiet": "bun run verify:quiet && bun test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.15",
+    "@eslint/js": "^10.0.1",
+    "@types/bun": "latest",
+    "@types/node": "^25.9.1",
+    "eslint": "^10.3.0",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.59.2"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

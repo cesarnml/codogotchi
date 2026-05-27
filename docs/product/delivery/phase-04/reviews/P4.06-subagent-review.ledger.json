@@ -1,0 +1,22 @@
+{
+  "ticket": "P4.06",
+  "invocations": [
+    {
+      "runnerKind": "codex-cli",
+      "reviewedHeadSha": "d6d6880cd910242d20a758ab2e7bada1697f05fa",
+      "outcome": "clean",
+      "completedAt": "2026-05-26T02:00:19.887Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-04/reviews/P4.06-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-04/reviews/P4.06-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "cursor(gpt-5.5-high)",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}

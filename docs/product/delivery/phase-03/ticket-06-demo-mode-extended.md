@@ -1,0 +1,55 @@
+# P3.06 Demo mode — extended to 15 states + CODOGOTCHI_DEMO_FRAME_MS
+
+Size: 2 points
+Type: feat
+Scope: menubar
+Red: required
+
+## Outcome
+
+- `--demo` (and the `CODOGOTCHI_DEMO=1` env var path from Phase 02) cycles all 15 activity states, one full loop per state, in a deterministic order.
+- Default frame interval in demo mode is **500 ms / frame** — overrides the production sheet-specific defaults so each frame is individually inspectable.
+- `CODOGOTCHI_DEMO_FRAME_MS` env var, when present and parseable as a positive integer, overrides the 500 ms default. Out-of-range or unparseable values silently fall back to 500 ms.
+- New fixture JSON files exist in `apps/menubar/Fixtures/state-json/` for the 11 newly-rendered states (every state not already in Phase 02): `reviewing.json`, `pushing.json`, `hyped.json`, `focused.json`, `nervous.json`, `waiting.json`, `ascended.json`, `calling-for-backup.json`, `panicking.json`, `requesting-input.json`, `errored.json`. Each fixture has `schema_version: 2` and the appropriate `activity_state`.
+- The demo cycle order is the order the states appear in the contract's Activity States table — easier to reason about against the contract doc.
+- Demo mode in Phase 03 still uses the Phase 02 sandboxed polling target (`$TMPDIR/codogotchi-demo/state.json`); no change to that mechanism.
+
+## Red
+
+- Write a test that the demo cycler exposes all 15 fixtures in its rotation list.
+- Write a test that the default demo frame interval is 500 ms (read from the constant or returned by the demo config resolver).
+- Write a test that `CODOGOTCHI_DEMO_FRAME_MS=83` is honored (returns 83).
+- Write a test that `CODOGOTCHI_DEMO_FRAME_MS=invalid` falls back to 500 ms.
+- Write a test that `CODOGOTCHI_DEMO_FRAME_MS=-10` falls back to 500 ms.
+- Write a test that each of the 11 new fixture files exists at the expected path and parses as a valid v2 state.json payload.
+- Run `xcodebuild test` and confirm the new tests fail.
+- Commit with suffix `[red]`: `test(P3.06): demo mode extended to 15 states + frame-ms env [red]`.
+
+## Green
+
+- Extend the Phase 02 demo cycler (`DemoCycleDriver.swift`) state list from 4 to 15.
+- Add the 11 new fixture files under `apps/menubar/Fixtures/state-json/`. Each follows the existing fixture shape, only `activity_state` and `source_event` differ. `source_event.origin` is set to `manual` for all demo fixtures since they're operator-curated, not from real Claude/Codex/SoA events.
+- Add a `demoFrameMs` resolver in `DemoConfig.swift` (or wherever Phase 02 keeps demo configuration). Reads `CODOGOTCHI_DEMO_FRAME_MS`, parses, validates, returns 500 ms on miss/invalid.
+- Wire the renderer's frame timing to consult `demoFrameMs` instead of the sheet-specific production timing when running in demo mode. The production paths are unchanged.
+
+## Refactor
+
+- The frame-timing decision in P3.04's renderer integration now has three sources (Codex sheet timing, codogotchi sheet timing, demo override). Confirm the resolution is in one place — the demo override is the outermost and shortcuts the sheet-specific defaults.
+- Cycle duration sanity-check: 15 states × 24 frames × 500 ms = 180 seconds = 3 minutes per full cycle. Confirm in PR that this is acceptable; if not, owner can tune via env var.
+
+## Review Focus
+
+- Fixture filenames use hyphens to match the activity-state raw values (`calling-for-backup.json`, `requesting-input.json`). Phase 02 used hyphens for `running-tests.json` — pattern preserved.
+- The 500 ms default is named as a constant in `DemoConfig.swift`, not scattered as a magic number.
+- `--demo` cycle order matches the contract Activity States table top-to-bottom (`idle`, `implementing`, `running-tests`, `reviewing`, `pushing`, `hyped`, `focused`, `nervous`, `waiting`, `celebrating`, `ascended`, `calling_for_backup`, `panicking`, `requesting_input`, `errored`).
+- Demo mode does not regress any Phase 02 invariant: still uses the sandboxed polling target, still never touches real `~/.codogotchi/state.json`.
+
+## Rationale
+
+> Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+Red first: [what test failed first]
+Why this path: [why this implementation was the smallest acceptable]
+Alternative considered: [one rejected alternative and why]
+Deferred: [what was intentionally left out of this ticket]
+Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.

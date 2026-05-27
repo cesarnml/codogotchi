@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-05-18T08:41:23.080Z",
+  "reviewedHeadSha": "ddf874c3e2f6ec4c02cb8a7f1e9aa013f5de8cb5",
+  "outcome": "patched",
+  "note": "Patched 2 of 3 CR findings: refined isRateLimited to require positive rate-limit signal (x-ratelimit-remaining=0 or retry-after) so plain-403 token errors aren't masked as throttling; wrapped search/enrichment fetch + JSON parse in try/catch to keep transient blips from killing the whole sync. Skipped the mockHttp total_count finding — the parser does not read total_count, so changing the test fixture would not strengthen contract coverage.",
+  "actionSummary": "Flagged 3 finding comment(s) for follow-up.",
+  "threadResolutions": [
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6CxF81",
+      "url": "https://github.com/cesarnml/codogotchi/pull/11#discussion_r3257461909",
+      "vendor": "coderabbit"
+    },
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6CxF88",
+      "url": "https://github.com/cesarnml/codogotchi/pull/11#discussion_r3257461917",
+      "vendor": "coderabbit"
+    },
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6CxF9E",
+      "url": "https://github.com/cesarnml/codogotchi/pull/11#discussion_r3257461927",
+      "vendor": "coderabbit"
+    }
+  ],
+  "prBodyRefresh": {
+    "attemptedAt": "2026-05-18T08:41:28.121Z",
+    "status": "updated"
+  }
+}

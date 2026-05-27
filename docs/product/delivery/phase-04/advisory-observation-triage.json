@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-05-26T11:19:43.685Z",
+  "observations": [
+    {
+      "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.report.md",
+      "ticketId": "P4.02",
+      "observationText": "---",
+      "disposition": "rejected",
+      "rationale": "This is a markdown separator parsed as an observation, not a substantive advisory observation."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.report.md",
+      "ticketId": "P4.02",
+      "observationText": "1. **`withTempHome` environment mutation is process-global.** `setenv`/`unsetenv` modify the process environment, which is not thread-safe. If Xcode ever enables parallel test execution for this target, two tests mutating `CODOGOTCHI_HOME` concurrently could see each other's values. Currently safe because XCTest runs methods of one class sequentially, but worth noting if the test suite grows or parallelism is enabled.",
+      "disposition": "deferred",
+      "rationale": "Current XCTest execution for these classes is sequential and the phase did not enable parallel Swift test execution. Revisit the shared test helper if the macOS test target turns on method-level parallelism."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.report.md",
+      "ticketId": "P4.02",
+      "observationText": "2. **Relative `CODOGOTCHI_HOME` resolves against process working directory.** `URL(fileURLWithPath: home)` with a relative path (e.g., `CODOGOTCHI_HOME=./tmp`) resolves relative to the current working directory at runtime, not the executable location. Tests always supply absolute tmp paths so this is not exercised, but a developer who sets a relative path in their environment would get a working-directory-relative store location that changes across launch contexts. An `isAbsolutePath` guard or documentation note would prevent confusion.",
+      "disposition": "deferred",
+      "rationale": "The supported test and hook paths use absolute CODOGOTCHI_HOME values today. A relative-path guard or documentation note can be considered with broader environment configuration cleanup."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.report.md",
+      "ticketId": "P4.02",
+      "observationText": "3. **Minimum-size vs. containment precedence is undocumented.** When `visibleFrame` is smaller than `minimumSize`, `clampedSize` returns `visibleSize` rather than `minimumSize`, silently violating the minimum-size contract in favor of containment. The code is probably correct for real displays, but a code comment on this intentional precedence would help the next author of the display-change ticket avoid re-introducing a confused guard.",
+      "disposition": "already-covered",
+      "rationale": "Phase 04 intentionally prioritizes keeping the floating pet inside the visible frame for degenerate display sizes. The runbook validates the normal minimum-size path, and the edge is not a Phase 04 behavior defect."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.report.md",
+      "ticketId": "P4.02",
+      "observationText": "4. **`APP_STATE_SCHEMA_VERSION` is a module-level `let`, not scoped to `AppStateStore`.** It is accessible from `AppStateTests` only because `@testable import` exposes it. If schema version ever needs to vary per store configuration, the current global placement is a future migration hazard. Not an issue for this ticket but worth noting for when the schema version is next bumped.",
+      "disposition": "deferred",
+      "rationale": "The schema is single-version and global in Phase 04. Re-scope it only when a real migration or per-store versioning requirement appears."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.03-subagent-review.report.md",
+      "ticketId": "P4.03",
+      "observationText": "The rationale has no doc-vs-code behavioral drift. One test gap remains: no test asserts desaturated output or the failure fallback behavior, which is why the colored-frame fallback can slip through despite the menu bar renderer having explicit guardrails.",
+      "disposition": "already-covered",
+      "rationale": "The desaturation fallback issue was carried forward and covered during P4.05 with deterministic gray failure fallback behavior and scene tests for desaturation failure handling."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.04-subagent-review.report.md",
+      "ticketId": "P4.04",
+      "observationText": "`apps/menubar/Tests/MenubarTests/MenuItemsTests.swift`: nil-controller soft-degrade behavior is documented and implemented, but not directly tested; a focused test should assert the Show Floating Pet item is present, disabled, and still before Quit when assets fail to load.",
+      "disposition": "deferred",
+      "rationale": "The behavior is a soft-degrade menu state rather than a Phase 04 blocking behavior. Add a focused menu construction test if this area is touched again."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.05-subagent-review.report.md",
+      "ticketId": "P4.05",
+      "observationText": "[`apps/menubar/Sources/FloatingPetPanel.swift:22`](</Users/cesar/code/codogotchi_p4_05/apps/menubar/Sources/FloatingPetPanel.swift:22>) implements the deferred “hidden panel later shows most recent state” behavior correctly, but the rationale in [`ticket-05-shared-live-demo-state-fanout.md`](</Users/cesar/code/codogotchi_p4_05/docs/product/delivery/phase-04/ticket-05-shared-live-demo-state-fanout.md:56>) is accurate that there is still no scene-level assertion for it. That is doc-aligned, not a drift bug.",
+      "disposition": "already-covered",
+      "rationale": "The report confirms implementation and rationale agree. Scene-level replay assertion coverage was consciously outside P4.05's controller/panel seam."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.06-subagent-review.report.md",
+      "ticketId": "P4.06",
+      "observationText": "In [docs/product/delivery/phase-04/ticket-06-drag-resize-affordance-cursor-persistence.md](/Users/cesar/code/codogotchi_p4_06/docs/product/delivery/phase-04/ticket-06-drag-resize-affordance-cursor-persistence.md:64), the contract note says display changes reclamp “through the same renderer-local app-state path,” but the actual persistence path is controller-owned in [apps/menubar/Sources/FloatingPetController.swift](/Users/cesar/code/codogotchi_p4_06/apps/menubar/Sources/FloatingPetController.swift:103). That is wording drift, not a behavioral defect.",
+      "disposition": "rejected",
+      "rationale": "No behavior defect is present, and the durable product contract remains that placement persists through the renderer-local app-state file. The controller ownership detail does not require a post-phase patch."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.06-subagent-review.report.md",
+      "ticketId": "P4.06",
+      "observationText": "The resize affordance cursor is `.resizeLeftRight` on a bottom-right corner affordance in [apps/menubar/Sources/FloatingPetPanel.swift](/Users/cesar/code/codogotchi_p4_06/apps/menubar/Sources/FloatingPetPanel.swift:247). The ticket only asked for a resize cursor “when practical on macOS,” so this is within scope, but it is horizontally suggestive rather than diagonal.",
+      "disposition": "already-covered",
+      "rationale": "The runbook explicitly validates the horizontal resize cursor, and the ticket scoped this to a practical macOS resize cursor rather than a diagonal custom cursor."
+    }
+  ]
+}

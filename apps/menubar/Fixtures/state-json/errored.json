@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "activity_state": "errored",
+  "hp_overlay": "critical",
+  "hp": 30,
+  "updated_at": "2026-05-24T00:10:00.000Z",
+  "source_event": {
+    "origin": "manual",
+    "kind": "demo",
+    "name": "errored"
+  }
+}

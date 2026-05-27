@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-05-18T05:26:03.531Z",
+  "reviewedHeadSha": "04a5ed596fcc02000826b56a649d2812f592949a",
+  "outcome": "patched",
+  "note": "Patched coderabbit per-test rng stub scoping in convex/http.test.ts. Pushed back: (a) duplicate zod-at-mutation-boundary is redundant given Convex v.* validators + the http layer already runs zod; (b) P1.06 review-artifact internal-state cleanup is prior-ticket scope; (c) qodo Teams-plan noise ignored per repo policy.",
+  "actionSummary": "Flagged 3 finding comment(s) for follow-up.",
+  "threadResolutions": [
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6CucQH",
+      "url": "https://github.com/cesarnml/codogotchi/pull/8#discussion_r3256511243",
+      "vendor": "coderabbit"
+    },
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6CucQM",
+      "url": "https://github.com/cesarnml/codogotchi/pull/8#discussion_r3256511251",
+      "vendor": "coderabbit"
+    },
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6CucQY",
+      "url": "https://github.com/cesarnml/codogotchi/pull/8#discussion_r3256511263",
+      "vendor": "coderabbit"
+    }
+  ],
+  "prBodyRefresh": {
+    "attemptedAt": "2026-05-18T05:26:06.760Z",
+    "status": "updated"
+  }
+}

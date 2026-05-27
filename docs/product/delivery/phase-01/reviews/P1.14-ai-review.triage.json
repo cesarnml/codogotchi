@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-05-18T09:52:07.105Z",
+  "reviewedHeadSha": "c668df4e3f91f50444c724dd8a1bae0b53de4db9",
+  "outcome": "patched",
+  "note": "Patched all three actionable CodeRabbit findings: narrowed I/O error swallowing, loot timestamp validation, and profile-cache catch.",
+  "actionSummary": "Flagged 3 finding comment(s) for follow-up.",
+  "threadResolutions": [
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6CyVZQ",
+      "url": "https://github.com/cesarnml/codogotchi/pull/15#discussion_r3257901464",
+      "vendor": "coderabbit"
+    },
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6CyVZd",
+      "url": "https://github.com/cesarnml/codogotchi/pull/15#discussion_r3257901480",
+      "vendor": "coderabbit"
+    },
+    {
+      "status": "resolved",
+      "threadId": "PRRT_kwDOSe-0eM6CyVZg",
+      "url": "https://github.com/cesarnml/codogotchi/pull/15#discussion_r3257901484",
+      "vendor": "coderabbit"
+    }
+  ],
+  "prBodyRefresh": {
+    "attemptedAt": "2026-05-18T09:52:10.349Z",
+    "status": "updated"
+  }
+}

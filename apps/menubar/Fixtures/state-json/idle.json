@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "activity_state": "idle",
+  "hp_overlay": "thriving",
+  "hp": 90,
+  "updated_at": "2026-05-20T19:00:00.000Z",
+  "source_event": {
+    "origin": "sync",
+    "kind": "sync_response",
+    "name": "baseline"
+  }
+}
