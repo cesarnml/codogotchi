@@ -17,6 +17,8 @@
 		2224FF2568198C777B9A666D /* maew in Resources */ = {isa = PBXBuildFile; fileRef = 7AC107DCBD46F0F6DBA5B3B6 /* maew */; };
 		2C985DFC0C4B11F3C3BF69F9 /* AppBootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */; };
 		D3B2C4E5F6A7890123456789 /* OnboardingControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2A1B3D4E5F6A78901234567 /* OnboardingControllerTests.swift */; };
+		A1B2C3D4E5F6789012345678 /* OnboardingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6789012345678 /* OnboardingController.swift */; };
+		E2F3A4B5C6D789012345678A /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2A3B4C5D6E789012345678B /* OnboardingWindowController.swift */; };
 		3278D5B8A5BF524A956FECEC /* FloatingInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */; };
 		36D30A2BA8D14CA1D7D62D1C /* PetStoreSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */; };
 		36F25B978082DFFA568C39DC /* MenubarMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 379B33D9319DAC49A3CCC39C /* MenubarMenu.swift */; };
@@ -80,6 +82,8 @@
 		5CE9EFEFECAFAC8156F61DF7 /* FloatingPetControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetControllerTests.swift; sourceTree = "<group>"; };
 		5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrapTests.swift; sourceTree = "<group>"; };
 		C2A1B3D4E5F6A78901234567 /* OnboardingControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingControllerTests.swift; sourceTree = "<group>"; };
+		B1C2D3E4F5A6789012345678 /* OnboardingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingController.swift; sourceTree = "<group>"; };
+		F2A3B4C5D6E789012345678B /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		72DE062B5722F00B659A555C /* CodogotchiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodogotchiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7AC107DCBD46F0F6DBA5B3B6 /* maew */ = {isa = PBXFileReference; lastKnownFileType = folder; name = maew; path = Fixtures/maew; sourceTree = SOURCE_ROOT; };
 		88147EFF470B888D90E5B12A /* HookStatusClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookStatusClient.swift; sourceTree = "<group>"; };
@@ -163,6 +167,8 @@
 				C21EFB1B7FE8C49C6377A2B2 /* MenubarApp.swift */,
 				379B33D9319DAC49A3CCC39C /* MenubarMenu.swift */,
 				3280C616774866918681AF0C /* MenubarRenderer.swift */,
+				B1C2D3E4F5A6789012345678 /* OnboardingController.swift */,
+				F2A3B4C5D6E789012345678B /* OnboardingWindowController.swift */,
 				9646F68B64C22ABAE0FE52EA /* PetConfig.swift */,
 				49C42121B54C0F2313BB1114 /* PetStateFanout.swift */,
 				E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */,
@@ -311,6 +317,8 @@
 				A691496525517AB5789BB108 /* MenubarApp.swift in Sources */,
 				36F25B978082DFFA568C39DC /* MenubarMenu.swift in Sources */,
 				1D5FF0E195806DF51AF25AEF /* MenubarRenderer.swift in Sources */,
+				A1B2C3D4E5F6789012345678 /* OnboardingController.swift in Sources */,
+				E2F3A4B5C6D789012345678A /* OnboardingWindowController.swift in Sources */,
 				BBAE72D92861A7901C3EBB73 /* PetConfig.swift in Sources */,
 				D48C3FDB43E1FA8E01113439 /* PetStateFanout.swift in Sources */,
 				36D30A2BA8D14CA1D7D62D1C /* PetStoreSeeder.swift in Sources */,

@@ -52,6 +52,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// Panel shell used for the floating pet; held so the hide prompt can call back.
 	var floatingPetPanelController: FloatingPetPanelController?
 
+	/// Held strongly so the first-run onboarding panel controller is not deallocated
+	/// while the app runs. Nil after the sheet is dismissed on a non-first-launch.
+	var onboardingWindowController: OnboardingWindowController?
+
 	/// Opaque observer token for `NSWorkspace.didWakeNotification`. Held
 	/// strongly so the block-based observer is not deallocated while the app
 	/// runs, and removed in `applicationWillTerminate` so the workspace
@@ -157,7 +161,15 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			)
 		}
 
-		let menuBuilder = MenubarMenu(floatingPetController: self.floatingPetController)
+		let onboardingController = OnboardingWindowController()
+		self.onboardingWindowController = onboardingController
+
+		let menuBuilder = MenubarMenu(
+			floatingPetController: self.floatingPetController,
+			retryHooksInstall: { [weak onboardingController] in
+				onboardingController?.showIfNeeded()
+			}
+		)
 		item.menu = menuBuilder.build()
 		self.menuBuilder = menuBuilder
 		floatingPetPanelController?.onHideFloatingPet = { [weak self] in
@@ -234,6 +246,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		// non-fatal — P5.06 onboarding surfaces this to the user.
 		refreshHookStatusCache()
 
+		// Show first-run onboarding sheet when onboardingCompletedAt is absent.
+		// Must run after hook status refresh so the sheet has fresh snapshot context.
+		onboardingController.showIfNeeded()
+
 		// Wake-from-sleep: trigger an immediate out-of-band poll so the
 		// menu bar pet reflects current state without waiting up to one
 		// second after wake for the next scheduled tick. Sleep itself
@@ -303,6 +319,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		return candidate
 	}
 
+	@MainActor
 	private func refreshHookStatusCache() {
 		let client = HookStatusClient()
 		let snapshot: HooksStatusSnapshot
@@ -333,6 +350,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		} catch {
 			NSLog("MenubarApp: app-state save after hook refresh failed — \(error)")
 		}
+
+		// Update "Hooks not active" menu item: only visible after onboarding completes
+		// and hooks aren't yet firing, so the user knows to retry.
+		if next.onboardingCompletedAt != nil {
+			menuBuilder?.refreshHooksNotActive(isActive: !snapshot.isHooksNotActive())
+		}
+		onboardingWindowController?.updateHookStatus(snapshot)
 	}
 
 	private static func visibleFloatingFrame() -> CGRect {
