@@ -46,3 +46,12 @@ Alternative considered: Using SwiftUI `Settings {}` scene — deferred because t
 Deferred: Pet selection UI that actually switches the active pet at runtime (Phase 10). General/Health/Loot/Developer tabs (Phase 10). Cursor native install (Phase 06).
 
 Contract note: Import is copy-only — no runtime read from `~/.codex/pets/` after Phase 05. Settings Install/Uninstall call `codogotchi hooks install|uninstall` subprocess, same as onboarding. Hook status is shared via `updateHookStatus(_:)` push from `MenubarApp.refreshHookStatusCache()`.
+
+Subagent-review patch: `PetImportHelper.importPet` now uses a `.bak` sibling rename before `copyItem` and restores on failure — prevents data-loss if `copyItem` fails after `removeItem` succeeds (spec-permits-real-bug finding).
+
+Advisory observations accepted as deferred or out-of-scope:
+- Canonical pet listing in Settings UI deferred to Phase 10 (Full Settings tabs).
+- Cursor bridge "link to README" is plain text in the programmatic NSPanel — acceptable for Phase 05; clickable NSAttributedString link is a polish item.
+- `SettingsWindowController` wiring coverage is advisory; sub-components are individually tested.
+- `handleImportPet` sync on main thread: acceptable tradeoff at Phase 05 sprite sizes.
+- Subprocess hang timeout: same pattern as `OnboardingController`; accepted.
