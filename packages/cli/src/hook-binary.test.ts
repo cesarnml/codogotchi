@@ -662,6 +662,102 @@ describe("runHook", () => {
     expect(() => JSON.parse(raw)).not.toThrow();
   });
 
+  // P6.04: attention payload tests
+  it("Stop event writes attention with reason_kind input_requested and 2h expiry", async () => {
+    await runHook({ hook_event_name: "Stop" } as HookInput, {
+      home,
+      now: FIXED_NOW,
+    });
+    const state = readState(home);
+    expect(state.activity_state).toBe("standby");
+    expect(state.attention).toBeDefined();
+    expect(state.attention?.reason_kind).toBe("input_requested");
+    expect(state.attention?.summary).toBe("Waiting for your input");
+    expect(state.attention?.created_at).toBe(FIXED_NOW.toISOString());
+    const expectedExpiry = new Date(
+      FIXED_NOW.getTime() + 2 * 60 * 60 * 1000,
+    ).toISOString();
+    expect(state.attention?.expires_at).toBe(expectedExpiry);
+  });
+
+  it("Stop event with is_error:true writes attention with reason_kind error_blocked and 30m expiry", async () => {
+    await runHook({ hook_event_name: "Stop", is_error: true } as HookInput, {
+      home,
+      now: FIXED_NOW,
+    });
+    const state = readState(home);
+    expect(state.activity_state).toBe("errored");
+    expect(state.attention).toBeDefined();
+    expect(state.attention?.reason_kind).toBe("error_blocked");
+    expect(state.attention?.summary).toBe(
+      "Something went wrong — agent stopped",
+    );
+    expect(state.attention?.created_at).toBe(FIXED_NOW.toISOString());
+    const expectedExpiry = new Date(
+      FIXED_NOW.getTime() + 30 * 60 * 1000,
+    ).toISOString();
+    expect(state.attention?.expires_at).toBe(expectedExpiry);
+  });
+
+  it("Edit tool_use event writes no attention field", async () => {
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.attention).toBeUndefined();
+  });
+
+  it("Bash tool_use writes tool_command", async () => {
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Bash",
+        command: "grep foo",
+      },
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.tool_command).toBe("grep foo");
+  });
+
+  it("Shell tool_use writes tool_command", async () => {
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Shell",
+        command: "ls -la",
+      },
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.tool_command).toBe("ls -la");
+  });
+
+  it("Codex raw-stdin Bash event writes tool_command from tool_input.command", async () => {
+    await runHook(
+      {
+        tool_name: "Bash",
+        hook_event_name: "pre_tool_use",
+        tool_input: { command: "echo hello" },
+      } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.tool_command).toBe("echo hello");
+  });
+
+  it("Edit tool_use writes no tool_command field", async () => {
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.tool_command).toBeUndefined();
+  });
+
   it("gate state persists through subsequent tool_use events until cleared", async () => {
     // 1. ticket_started gate fires → state shows hyped
     await runHook(

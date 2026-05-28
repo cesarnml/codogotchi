@@ -10,7 +10,7 @@ Red: required
 - When `runHook` writes `activity_state: "standby"`, it also writes an `attention` object with `reason_kind: "input_requested"`, a fixed summary string, `created_at: now`, and `expires_at: now + 2h`.
 - When `runHook` writes `activity_state: "errored"`, it also writes `attention` with `reason_kind: "error_blocked"`, a fixed summary string, and `expires_at: now + 30m`.
 - For all other states, `attention` is absent from `state.json`.
-- For every Bash or Shell tool_use event, `tool_command` is written to `state.json` (the raw command string). Absent for non-Bash/Shell events.
+- For every Bash or Shell tool_use event with a defined command string, `tool_command` is written to `state.json` (the raw command string). Absent for non-Bash/Shell events and Bash/Shell events with no command string.
 - Summary strings:
   - `input_requested`: `"Waiting for your input"`
   - `error_blocked`: `"Something went wrong — agent stopped"`
@@ -51,8 +51,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: `attention` was `undefined` on the Stop-event test — confirmed three tests failed before implementation.
 Why this path: Fixed summary strings are sufficient for Phase 06. Claude Code Stop provides no message content; Cursor stop provides only status enum. Platform-conditional rich summaries deferred to Phase 07 when Phase 07 also redesigns gate vocabulary.
 Alternative considered: Reading `transcript_path` JSONL to extract last assistant message for richer summary — rejected, adds async I/O to hot path and only works on Claude Code, not Cursor/Codex.
 Deferred: Richer summaries using Codex `last_assistant_message` or Claude Code transcript read — Phase 07. `review_ready` reason_kind (for SoA review completion signals) — Phase 07.
-Contract note: [fill in during implementation]
+Contract note: `ClassifyResult.command` is only set in Bash/Shell branches where `command !== undefined`; the `command === undefined` early return intentionally omits it so `runHook` can distinguish "no command string" from "not a Bash/Shell event". `attention` key is entirely absent (not `null`) for non-standby/errored states via the spread-operator conditional — Zod `.optional()` round-trips cleanly.

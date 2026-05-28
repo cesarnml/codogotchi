@@ -41,6 +41,7 @@ export type ClassifyResult = {
   state: ActivityState;
   sourceEvent: SourceEvent;
   readRun: number;
+  command?: string;
 };
 
 const SOA_GATE_TO_STATE: Record<string, ActivityState> = {
@@ -202,15 +203,15 @@ export function classifyEvent(
         return { state: "implementing", sourceEvent, readRun: 0 };
       }
       if (command.trimStart().startsWith("git push")) {
-        return { state: "pushing", sourceEvent, readRun: 0 };
+        return { state: "pushing", sourceEvent, readRun: 0, command };
       }
       if (matchesTestRunner(command)) {
-        return { state: "running-tests", sourceEvent, readRun: 0 };
+        return { state: "running-tests", sourceEvent, readRun: 0, command };
       }
       if (matchesReviewingCommand(command)) {
-        return { state: "reviewing", sourceEvent, readRun: 0 };
+        return { state: "reviewing", sourceEvent, readRun: 0, command };
       }
-      return { state: "implementing", sourceEvent, readRun: 0 };
+      return { state: "implementing", sourceEvent, readRun: 0, command };
     }
     if (name === "Read") {
       const nextRun = prior.readRun + 1;
@@ -364,6 +365,34 @@ export async function writeStateAtomic(
   await rename(tmp, target);
 }
 
+type AttentionPayload = NonNullable<StateJsonV1["attention"]>;
+
+const STANDBY_TTL_MS = 2 * 60 * 60 * 1000;
+const ERRORED_TTL_MS = 30 * 60 * 1000;
+
+function buildAttention(
+  state: ActivityState,
+  now: Date,
+): AttentionPayload | undefined {
+  if (state === "standby") {
+    return {
+      reason_kind: "input_requested",
+      summary: "Waiting for your input",
+      created_at: now.toISOString(),
+      expires_at: new Date(now.getTime() + STANDBY_TTL_MS).toISOString(),
+    };
+  }
+  if (state === "errored") {
+    return {
+      reason_kind: "error_blocked",
+      summary: "Something went wrong — agent stopped",
+      created_at: now.toISOString(),
+      expires_at: new Date(now.getTime() + ERRORED_TTL_MS).toISOString(),
+    };
+  }
+  return undefined;
+}
+
 export type RunHookOptions = {
   home: string;
   now: Date;
@@ -434,6 +463,16 @@ export async function runHook(
     const hp = overlay?.hp ?? 100;
     const hp_overlay = overlay?.hpOverlay ?? "thriving";
 
+    const attention = buildAttention(activityState, opts.now);
+    const isBashOrShell =
+      classified.sourceEvent.kind === "tool_use" &&
+      (classified.sourceEvent.name === "Bash" ||
+        classified.sourceEvent.name === "Shell");
+    const toolCommand =
+      isBashOrShell && classified.command !== undefined
+        ? classified.command
+        : undefined;
+
     const state: StateJsonV1 = {
       schema_version: STATE_JSON_SCHEMA_VERSION,
       activity_state: activityState,
@@ -441,6 +480,8 @@ export async function runHook(
       hp,
       updated_at: opts.now.toISOString(),
       source_event: sourceEvent,
+      ...(attention !== undefined && { attention }),
+      ...(toolCommand !== undefined && { tool_command: toolCommand }),
     };
 
     await writeStateAtomic(opts.home, state);
