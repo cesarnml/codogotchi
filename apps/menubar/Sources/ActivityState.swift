@@ -49,6 +49,14 @@ struct SourceEvent: Equatable, Decodable {
 	let name: String?
 }
 
+/// The `attention` object from the v3 schema. Present when `activity_state`
+/// is `standby`; absent otherwise. `expiresAt` drives the renderer's TTL
+/// policy (P6.07): if the timestamp is in the past the renderer treats the
+/// state as `idle` regardless of the written `activity_state`.
+struct AttentionPayload: Equatable, Decodable {
+	let expiresAt: String
+}
+
 /// Decoded form of `~/.codogotchi/state.json` v1.
 ///
 /// Only the fields Phase 02 reads are declared. The schema permits richer
@@ -56,10 +64,12 @@ struct SourceEvent: Equatable, Decodable {
 /// and ignored by `JSONDecoder` so the renderer cannot crash on shapes it
 /// does not yet paint. `sourceEvent` is the one nested object the renderer
 /// does consume — the transition log (P2.08) writes its `origin`/`kind`/
-/// `name` triplet on every observed state change.
+/// `name` triplet on every observed state change. `attention` carries the
+/// TTL expiry for `standby` states (P6.07).
 struct StateSnapshot: Equatable {
 	let schemaVersion: Int
 	let activityState: ActivityState
 	let updatedAt: String
 	let sourceEvent: SourceEvent?
+	let attention: AttentionPayload?
 }
