@@ -229,6 +229,9 @@ function parseLastGate(value: unknown): LastGate | null {
     typeof candidate.fired_at !== "string"
   )
     return null;
+  // Only gate-class states are valid for last_gate — reject anything else to
+  // prevent a corrupted counters file from locking the hook into a bad state.
+  if (!GATE_STATES.has(candidate.state as ActivityState)) return null;
   return {
     state: candidate.state as ActivityState,
     fired_at: candidate.fired_at,
