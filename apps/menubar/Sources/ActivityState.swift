@@ -1,6 +1,6 @@
 import Foundation
 
-/// All 15 states of the v2 animation-state-vocabulary closed enum.
+/// All 15 states of the v3 animation-state-vocabulary closed enum.
 ///
 /// Raw values match the hook's emitted strings exactly (snake_case; hyphenated
 /// for `running-tests` and `calling_for_backup`). Any string not in this enum
@@ -16,9 +16,9 @@ enum ActivityState: String, Equatable, Codable, CaseIterable {
 	case idle = "idle"
 	case implementing = "implementing"
 	case runningTests = "running-tests"
-	// New Codex-sheet states (wired in P3.03)
+	// New Codex-sheet states (wired in P3.03, standby replaces requesting_input in P6.01)
 	case waiting = "waiting"
-	case requestingInput = "requesting_input"
+	case standby = "standby"
 	case errored = "errored"
 	// SoA-gate states (reliable tier — rendered via codogotchi sheet in P3.04)
 	case hyped = "hyped"

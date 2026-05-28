@@ -36,7 +36,7 @@ final class DemoCycleDriver {
 		(.ascended, "ascended.json"),
 		(.callingForBackup, "calling-for-backup.json"),
 		(.panicking, "panicking.json"),
-		(.requestingInput, "requesting-input.json"),
+		(.standby, "standby.json"),
 		(.errored, "errored.json"),
 	]
 

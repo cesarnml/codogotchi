@@ -1,11 +1,11 @@
-# Animation State Vocabulary (v2)
+# Animation State Vocabulary (v3)
 
 The contract for the data the codogotchi hook binary writes to
 `~/.codogotchi/state.json` on every relevant Claude Code / Codex lifecycle event,
 and which any future renderer (macOS app, web preview, CLI ascii) consumes.
 
 This doc defines the **closed enums** of activity states and HP overlay states,
-the v2 `state.json` schema (with `schema_version: 2`), and the mapping table from
+the v3 `state.json` schema (with `schema_version: 3`), and the mapping table from
 raw signal classes to activity states. Closed enums mean a renderer can switch
 exhaustively without a `default:` catch-all; adding a state is a deliberate
 schema bump, not a runtime surprise.
@@ -30,9 +30,13 @@ between the planned vocabulary and observable lifecycle events. Any revision:
 After P1.18 lands, further changes require a new ticket and a separate
 schema-version bump.
 
-Phase 03 (P3.01) is the formal v2 bump per the clause above: it appends
-`requesting_input` and `errored` to the activity-state enum and raises
-`STATE_JSON_SCHEMA_VERSION` from 1 to 2.
+Phase 03 (P3.01) is the formal v2 bump: it appended `requesting_input` and
+`errored` to the activity-state enum and raised `STATE_JSON_SCHEMA_VERSION` from
+1 to 2.
+
+Phase 06 (P6.01) is the formal v3 bump: it renames `requesting_input` to
+`standby` and raises `STATE_JSON_SCHEMA_VERSION` to 3. Three optional fields are
+added: `attention` (object), `tool_command` (string), and `work_mode` (enum stub).
 
 ### Forward-compatibility policy
 
@@ -85,7 +89,8 @@ strings character-for-character (substituting the placeholders).
 
 ## Activity States (closed enum)
 
-States marked **v2** are planned additions that require a `schema_version` bump to `2` before the hook binary emits them. All v1 states remain unchanged.
+States marked **v2** required the v2 schema bump; **v3** required the v3 bump.
+All v1 states remain unchanged.
 
 | State                 | Ver | Meaning                                                                                  | Source signal class                                                              | Reliability |
 | --------------------- | --- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------- |
@@ -102,7 +107,7 @@ States marked **v2** are planned additions that require a `schema_version` bump 
 | `ascended`            | v1  | Pet stage-advanced — explicit SoA "level up" gate signal.                                | SoA `stage_advanced` event.                                                      | reliable    |
 | `calling_for_backup`  | v1  | Pet asked for help — explicit SoA "subagent invoked" gate signal.                        | SoA `subagent_invoked` event.                                                    | reliable    |
 | `panicking`           | v1  | Pet is in trouble — explicit SoA "CI red / verification failed" gate signal.             | SoA `verification_failed` event.                                                 | reliable    |
-| `requesting_input`    | v2  | Pet is waiting for the developer — agent paused awaiting user response.                  | Claude Code / Codex `Stop` event where the agent is requesting user input.       | reliable    |
+| `standby`             | v3  | Pet is waiting for the developer — agent paused awaiting user response.                  | Claude Code / Codex `Stop` event where the agent is requesting user input.       | reliable    |
 | `errored`             | v2  | Pet is distressed — agent response cycle did not complete.                               | Agent response failure: rate limit, network error, or incomplete round-trip.     | reliable    |
 
 `reliable` states come from explicit SoA gate events written as NDJSON to
@@ -135,15 +140,15 @@ boundaries are confirmed by the engine implementation in **P1.04** — if P1.04
 discovers a more honest curve (e.g. half-life decay around 50), it updates this
 table and bumps `schema_version`.
 
-## `state.json` v2 schema
+## `state.json` v3 schema
 
 The hook binary writes the entire object atomically (write-to-tmp + rename) on
 every relevant lifecycle event. Schema:
 
 ```json
 {
-  "schema_version": 2,
-  "activity_state": "requesting_input",
+  "schema_version": 3,
+  "activity_state": "standby",
   "hp_overlay": "thriving",
   "hp": 87,
   "updated_at": "2026-05-24T21:55:00.000Z",
@@ -151,13 +156,25 @@ every relevant lifecycle event. Schema:
     "origin": "claude_code",
     "kind": "session_end",
     "name": "Stop"
-  }
+  },
+  "attention": {
+    "reason_kind": "input_requested",
+    "summary": "Waiting for developer response",
+    "created_at": "2026-05-24T21:55:00.000Z",
+    "expires_at": "2026-05-24T22:55:00.000Z"
+  },
+  "tool_command": "git push",
+  "work_mode": "implementing"
 }
 ```
 
-The shape is identical to v1; v2 only widens the `activity_state` enum to
-include `requesting_input` and `errored`. Per the forward-compat policy, v1
-payloads continue to parse against the v2 schema (`got=1 ≤ expected=2`).
+v3 renames `requesting_input` → `standby` and adds three optional fields:
+- `attention` — object with `reason_kind` (`"input_requested" | "error_blocked" | "review_ready"`), `summary`, `created_at`, `expires_at`. Present when `activity_state` is `standby`; absent otherwise. Phase 07 will populate this from hook events.
+- `tool_command` — the raw command string for Bash tool-use events. Phase 06 P6.04 populates it.
+- `work_mode` — enum stub `"thinking" | "implementing" | "testing"`. Phase 07 populates it.
+
+Per the forward-compat policy, v1 and v2 payloads continue to parse against the
+v3 schema (`got=1 ≤ expected=3`, `got=2 ≤ expected=3`).
 
 ### Field meanings
 
@@ -208,7 +225,7 @@ could apply, the earlier row wins.
 | Bash tool-use whose command matches a known test runner                        | `running-tests`        |
 | Edit / Write / MultiEdit tool-use                                              | `implementing`         |
 | 3+ consecutive Read tool-uses with no intervening Edit/Write                   | `reviewing`            |
-| Agent `Stop` event where the agent is requesting user input (v2)               | `requesting_input`     |
+| Agent `Stop` event where the agent is requesting user input (v3)               | `standby`              |
 | Agent response failure — rate limit, network error, incomplete round-trip (v2) | `errored`              |
 | Session start with no other recent activity                                    | `idle`                 |
 | Session end or no events in the last 5 minutes                                 | `idle`                 |
@@ -252,7 +269,7 @@ reads but never writes it. Grid: **8 columns × 9 rows**, 8 frames per row.
 | 0   | `idle`               | `idle`                 |                                            |
 | 1   | `running-right`      | *(reserved)*           | Future float-on-top sprite, mouse drag     |
 | 2   | `running-left`       | *(reserved)*           | Future float-on-top sprite, mouse drag     |
-| 3   | `waving`             | `requesting_input`     | v2 — agent awaiting user response          |
+| 3   | `waving`             | `standby`              | v3 — agent awaiting user response (renamed from `requesting_input`) |
 | 4   | `jumping`            | *(reserved)*           | Future float-on-top sprite, mouse hover    |
 | 5   | `failed`             | `errored`              | v2 — agent response cycle did not complete |
 | 6   | `waiting`            | `waiting`              |                                            |

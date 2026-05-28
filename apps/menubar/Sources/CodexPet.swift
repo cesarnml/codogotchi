@@ -62,7 +62,7 @@ final class CodexPet {
 	/// - `.implementing`   → row 7 (seated chibi with laptop + glasses)
 	/// - `.runningTests`   → row 8 (bottom-row pose variants)
 	/// - `.waiting`        → row 6 (Codex-sheet waiting poses — P3.03)
-	/// - `.requestingInput`→ row 3 (Codex-sheet requesting-input poses — P3.03)
+	/// - `.standby`        → row 3 (Codex-sheet standby poses — renamed from requesting_input in P6.01)
 	/// - `.errored`        → row 5 (Codex-sheet errored poses — P3.03)
 	///
 	/// `.celebrating` was row 4 in Phase 02 (Codex `jumping` row). It is
@@ -73,7 +73,7 @@ final class CodexPet {
 		.implementing: RowSpec(rowIndex: 7, frameCount: 6),
 		.runningTests: RowSpec(rowIndex: 8, frameCount: 4),
 		.waiting: RowSpec(rowIndex: 6, frameCount: 8),
-		.requestingInput: RowSpec(rowIndex: 3, frameCount: 8),
+		.standby: RowSpec(rowIndex: 3, frameCount: 8),
 		.errored: RowSpec(rowIndex: 5, frameCount: 8),
 	]
 

@@ -7,7 +7,7 @@
 **Goal:** Fix the two most visible gaps in lite-mode experience — the pet waves forever after a session ends, and SoA gate animations flash for seconds before being stomped by tool calls — and add Cursor as a first-class platform alongside honest Bash signal enrichment.
 
 **Ships:**
-- Rename `requesting_input` → `standby` across the full contract stack (contracts, hook, renderer, fixtures) — ships as part of this phase's schema work, not a standalone commit
+- Rename `requesting_input` → `standby` across the full contract stack (contracts, hook, renderer, fixtures) — shipped in P6.01
 - Attention bubble attached to the floating pet: short summary, ℹ️ info icon, hover-reveal `×` dismiss and contextual action button (`Focus` / `Reply`)
 - TTL on `standby`: renderer shows `idle` once the attention payload expires, even if `state.json` still says `standby`
 - Sticky gate mechanic: SoA gate states persist until the next gate fires or session ends — tool_use no longer stomps them

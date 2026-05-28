@@ -88,7 +88,7 @@ final class CodexPetTests: XCTestCase {
 	func testEveryCodexSheetStateHasNonEmptyFrames() throws {
 		let pet = try CodexPet(petDirectory: fixtureDirectory())
 		// Phase 03 Codex-sheet states — celebrating is intentionally absent (wired in P3.04).
-		for state in [ActivityState.idle, .implementing, .runningTests, .waiting, .requestingInput, .errored] {
+		for state in [ActivityState.idle, .implementing, .runningTests, .waiting, .standby, .errored] {
 			XCTAssertFalse(pet.frames(for: state).isEmpty, "\(state) must yield frames")
 		}
 	}
@@ -188,8 +188,8 @@ final class CodexPetTests: XCTestCase {
 // MARK: - P3.03 Red tests: ActivityState 4→15 + Codex rowMap expansion
 
 final class ActivityStateEnumTests: XCTestCase {
-	func testRequestingInputRawValue() {
-		XCTAssertEqual(ActivityState(rawValue: "requesting_input"), .requestingInput)
+	func testStandbyRawValue() {
+		XCTAssertEqual(ActivityState(rawValue: "standby"), .standby)
 	}
 
 	func testErroredRawValue() {
@@ -217,7 +217,7 @@ final class CodexPetRowMapExpansionTests: XCTestCase {
 	}
 
 	func testRowMapRequestingInputRowIndex() {
-		XCTAssertEqual(CodexPet.rowMap[.requestingInput]?.rowIndex, 3)
+		XCTAssertEqual(CodexPet.rowMap[.standby]?.rowIndex, 3)
 	}
 
 	func testRowMapErroredRowIndex() {

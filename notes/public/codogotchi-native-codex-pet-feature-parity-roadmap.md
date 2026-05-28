@@ -22,7 +22,7 @@ Not yet matched (biggest gap)
   - a concise “reason” for why the pet is in `waiting`/`failed`/`review`/etc.
   - TTL-based expiration so pet animations decay back to `idle`
 - Codogotchi currently has only the animation state + polling truth:
-  - `requesting_input` / Codex `waving` can appear “stuck” for long periods if no new turn lifecycle event arrives.
+  - `standby` / Codex `waving` can appear “stuck” for long periods if no new turn lifecycle event arrives.
   - there is no explicit “attention reason + expiry window” concept in the UI layer.
 
 Where Codogotchi exceeds
@@ -35,7 +35,7 @@ Where Codogotchi exceeds
 
 ### User story
 
-When the pet shows an attention-critical pose (especially `requesting_input` / Codex `waving`), the user should see:
+When the pet shows an attention-critical pose (especially `standby` / Codex `waving`), the user should see:
 
 - Why: “needs approval”, “waiting for your answer”, “review output available”, “failed task”, etc.
 - Since when: timestamp (or “just now / 2m ago”).
@@ -68,8 +68,8 @@ Rationale:
 
 Acceptance criteria
 
-- When hook emits a `requesting_input`-class state, the renderer can show an attention reason.
-- Expired reasons force `idle` even if `activity_state` remains `requesting_input`.
+- When hook emits a `standby`-class state, the renderer can show an attention reason.
+- Expired reasons force `idle` even if `activity_state` remains `standby`.
 - Backward compatibility: older renderers ignore unknown fields; forward-compat policy remains strict on schema bumps.
 
 ### Phase B: Renderer UI and behavior
@@ -99,7 +99,7 @@ Acceptance criteria
 
 Hook should produce stable reason kinds + TTL:
 
-- For `requesting_input`:
+- For `standby`:
   - reason kind: “waiting on user input”
   - TTL heuristic:
     - default match to Codex-ish “attention window” (start with 2–8 hours; tune)
@@ -138,7 +138,7 @@ Implement Phase A + Phase B in the smallest slice that:
 
 1. adds `attention` payload,
 2. displays “why attention”,
-3. enforces TTL expiration to stop stuck `requesting_input` / waving animations.
+3. enforces TTL expiration to stop stuck `standby` / waving animations.
 
 Then tune TTL numbers based on real usage logs.
 

@@ -231,11 +231,11 @@ describe("classifyEvent", () => {
     expect(out.sourceEvent.kind).toBe("session_end");
   });
 
-  it("classifies Stop event as requesting_input", () => {
+  it("classifies Stop event as standby", () => {
     const out = classifyEvent({ hook_event_name: "Stop" } as HookInput, {
       readRun: 0,
     });
-    expect(out.state).toBe("requesting_input");
+    expect(out.state).toBe("standby");
     expect(out.sourceEvent.origin).toBe("claude_code");
     expect(out.sourceEvent.kind).toBe("session_end");
   });
@@ -413,16 +413,16 @@ describe("runHook", () => {
     });
     const state = readState(home);
     expect(state.schema_version).toBe(STATE_JSON_SCHEMA_VERSION);
-    expect(state.schema_version).toBe(2);
-    expect(state.activity_state).toBe("requesting_input");
+    expect(state.schema_version).toBe(3);
+    expect(state.activity_state).toBe("standby");
   });
 
-  it("classifies Stop event as requesting_input in runHook", async () => {
+  it("classifies Stop event as standby in runHook", async () => {
     await runHook({ hook_event_name: "Stop" } as HookInput, {
       home,
       now: FIXED_NOW,
     });
-    expect(readState(home).activity_state).toBe("requesting_input");
+    expect(readState(home).activity_state).toBe("standby");
   });
 
   it("classifies Stop+max_tokens as errored in runHook", async () => {
@@ -543,7 +543,7 @@ describe("runHook + SoA gate precedence", () => {
     expect(state.source_event.origin).toBe("claude_code");
   });
 
-  it("fresh SoA ticket_started overrides Stop requesting_input classification", async () => {
+  it("fresh SoA ticket_started overrides Stop standby classification", async () => {
     writeFileSync(
       join(projectRoot, ".soa", "events.ndjson"),
       `${JSON.stringify({ name: "ticket_started", ts: "2026-05-18T16:00:00Z" })}\n`,
