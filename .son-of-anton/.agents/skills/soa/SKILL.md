@@ -1,6 +1,6 @@
 ---
 name: soa
-description: Son-of-Anton canonical entrypoint. Use for /soa plan, /soa decompose, /soa execute, /soa resume, /soa triage-ticket, /soa triage-standalone, /soa triage-advisory-observations, /soa install, /soa update, /soa closeout, and /soa ideate. Manages installation, updates, and the full delivery lifecycle.
+description: Son-of-Anton canonical entrypoint. Use for /soa plan, /soa decompose, /soa execute, /soa resume, /soa preflight, /soa triage-ticket, /soa triage-standalone, /soa triage-advisory-observations, /soa install, /soa update, /soa closeout, and /soa ideate. Manages installation, updates, and the full delivery lifecycle.
 ---
 
 # Son-of-Anton Skill
@@ -123,6 +123,21 @@ Take the approved `docs/product/plans/phase-N.md` and produce a detailed deliver
 2. **Invoke the `soa-grill-me` skill** in **Mode 2 (delivery decomposition)** — pass the product plan and focus on: schema/migration strategy, API route structure, ticket granularity, PR slice boundaries, dependency order, test strategy, exit conditions per ticket.
 3. **Stop and seek developer approval of the ticket list** before writing files.
 4. Before writing any ticket file, read the canonical template at `docs/template/stubs/ticket.template.md`. Do not use existing ticket files as format references — they may predate the current template and will produce format drift if copied. Then write `docs/product/delivery/phase-N/implementation-plan.md` and individual `ticket-NN-*.md` files per that template.
+5. After files are written and developer approves, surface this prompt:
+
+   > Files written. Run `/soa preflight phase-N` to verify template compliance before starting execution.
+
+---
+
+### `preflight`
+
+**Trigger:** `/soa preflight <phase-N>`
+
+Template-compliance gate between decompose and execute. Reads `implementation-plan.md` and all ticket files for the named phase and checks them against the canonical stubs in `docs/template/stubs/`. Reports a structured PASS/FAIL checklist. Must PASS before `/soa execute` is invoked.
+
+**Invoke the `soa-preflight` skill** — pass the phase name and the path to the delivery directory.
+
+Do not proceed to `/soa execute` if preflight reports any failures. List all issues and ask the developer to fix them first.
 
 ---
 
