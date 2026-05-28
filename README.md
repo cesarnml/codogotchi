@@ -130,7 +130,7 @@ codogotchi hooks install   # installs Claude Code + Codex hooks
 ```
 
 Limitation: events fire with `source_origin: "claude_code"` instead of
-`"cursor"`. `codogotchi hooks status` reports `cursor: bridge (inferred)` for
+`"cursor"`. `codogotchi hooks status` reports `cursor: bridge` for
 this mode.
 
 ### Native (correct `source_origin`, direct shell classification)
@@ -153,7 +153,7 @@ codogotchi hooks uninstall --platform cursor
 ```
 
 `codogotchi hooks status` reports `cursor: native` when `~/.cursor/hooks.json`
-contains Codogotchi entries, and `cursor: bridge (inferred)` when Claude Code
+contains Codogotchi entries, and `cursor: bridge` when Claude Code
 hooks are installed but no native Cursor hooks file is present.
 
 ## Where data lives

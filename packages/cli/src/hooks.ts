@@ -495,12 +495,14 @@ export async function installCursorHooks(
   const cmd = cursorHookCommand(ctx);
   for (const event of CURSOR_CODOGOTCHI_EVENTS) {
     const raw = existing[event];
-    const slot: CursorHookSlot = Array.isArray(raw)
-      ? (raw as CursorHookEntry[]).filter(isCursorHookEntry)
-      : [];
-    const others = slot.filter((e) => !isCodogotchiCommand(e.command));
+    const slot = Array.isArray(raw) ? (raw as unknown[]) : [];
+    // Preserve all non-Codogotchi entries regardless of type — Cursor may gain
+    // new hook entry types (e.g. "stdin") that isCursorHookEntry does not match.
+    const others = slot.filter(
+      (e) => !(isCursorHookEntry(e) && isCodogotchiCommand(e.command)),
+    );
     others.push({ type: "command", command: cmd });
-    existing[event] = others;
+    existing[event] = others as CursorHookSlot;
   }
 
   await writeText(cursorPath, `${JSON.stringify(existing, null, 2)}\n`);
@@ -514,10 +516,12 @@ export async function uninstallCursorHooks(): Promise<void> {
   const existing = await readJsonOrEmpty<CursorHooksJson>(cursorPath);
   for (const [event, raw] of Object.entries(existing)) {
     if (!Array.isArray(raw)) continue;
-    const cleaned = (raw as CursorHookEntry[])
-      .filter(isCursorHookEntry)
-      .filter((e) => !isCodogotchiCommand(e.command));
-    if (cleaned.length > 0) existing[event] = cleaned;
+    // Preserve all non-Codogotchi entries — including unknown-type entries
+    // that isCursorHookEntry would not match — to avoid silent data loss.
+    const cleaned = (raw as unknown[]).filter(
+      (e) => !(isCursorHookEntry(e) && isCodogotchiCommand(e.command)),
+    );
+    if (cleaned.length > 0) existing[event] = cleaned as CursorHookSlot;
     else delete existing[event];
   }
 
