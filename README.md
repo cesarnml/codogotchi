@@ -6,7 +6,7 @@ Convex; a macOS **Codogotchi** app renders agent animation state locally from
 `~/.codogotchi/state.json` on the menu bar (static hero frame per state) and an
 optional transparent floating desktop pet (full animation while visible).
 
-**Status:** Phase 05 — Lite install and onboarding (private). Phase 01 CLI + Convex pipeline
+**Status:** Phase 06 — Platform parity and attention UX (private). Phase 01 CLI + Convex pipeline
 is shipped; Phase 02 added the menu bar `NSStatusItem`; Phase 03 extended to
 all 15 activity states with a second spritesheet (`codogotchi-spritesheet.webp`)
 and per-pet config; Phase 04 renamed the app to **Codogotchi**, added a
@@ -15,8 +15,11 @@ float-on-top SpriteKit surface (show/hide, drag, resize, persistence in
 reactive reserved Codex rows; Phase 05 introduced Lite vs Alive modes, a
 mandatory first-run onboarding sheet with hook consent and backup, a minimal
 Settings window, and the canonical pet store (`~/.codogotchi/pets/`) with
-Maew bundle-seeded by the app. HP overlays, focus-aware visibility, catalog UI,
-and distribution polish remain deferred. See the
+Maew bundle-seeded by the app; Phase 06 added the attention bubble UI, TTL
+decay for `standby`, sticky SoA gate mechanic, Bash 3-bucket signal heuristic,
+Cursor platform adapter (native hooks + bridge), and `requesting_input` →
+`standby` rename across the full contract stack. HP overlays, focus-aware
+visibility, catalog UI, and distribution polish remain deferred. See the
 [`phase-05 Lite install runbook`](docs/runbooks/phase-05-lite-install.md).
 
 ## What ships in Phase 01
@@ -162,7 +165,7 @@ hooks are installed but no native Cursor hooks file is present.
 | --- | --- | --- |
 | `~/.codogotchi/config.json` | `setup`, `config` | Credentials, health knobs, and pet name |
 | `~/.codogotchi/profile.json` | `sync` | Local cache of Convex profile |
-| `~/.codogotchi/state.json` | `codogotchi-hook` | Animation state for renderers (`schema_version: 2`) |
+| `~/.codogotchi/state.json` | `codogotchi-hook` | Animation state for renderers (`schema_version: 3`) |
 | `~/.codogotchi/app-state.json` | Codogotchi app | Floating pet visibility, position, size (`schema_version: 1`) |
 | `~/.codogotchi/state-transitions.log` | Codogotchi app | NDJSON log of state changes and heartbeats |
 | `~/.codogotchi/sync.log` | `sync` | Per-source success / failure (rotated) |

@@ -57,4 +57,14 @@ Red first: skip — doc-only.
 Why this path: Manual exit validation is the appropriate gate for behavioral changes that span hook binary, renderer, and UI. Unit tests cover individual behaviors; this ticket confirms the integrated system meets the phase goal.
 Alternative considered: Automated integration test for each exit condition — deferred. Cross-process integration tests (hook binary + renderer + UI) require a test harness that doesn't exist yet.
 Deferred: Retrospective — `skip` per plan decision. Phase 07 is the boundary worth retrospecting.
-Contract note: [fill in during implementation]
+Contract note: schema_version bumped to 3 in P6.01 (`requesting_input` → `standby`); README updated to reflect v3.
+
+Exit condition status (doc sweep, 2026-05-29):
+
+1. **Stuck-waving resolved:** Implemented via renderer TTL policy (P6.07) — `expires_at` on the `attention` payload causes renderer to treat `activity_state` as `idle` after TTL. Default: 2h for `standby`, 30m for `errored`. Live session confirmation deferred to Phase 07 integration test harness.
+2. **Sticky gate visible:** Implemented in P6.02 — gate states persist until next gate event or `session_end`/`stop`. Tool_use events no longer stomp them. Requires live SoA session to observe.
+3. **Cursor source_origin correct:** Fixed in P6.05 (`rawHookOrigin()` now detects camelCase Cursor event names and emits `source_origin: "cursor"`). Native hooks installer shipped in P6.06.
+4. **Bash-heavy session shows `reviewing`:** Implemented in P6.03 — 3-bucket heuristic classifies grep/find/cat/ls/tail/etc → `reviewing` instead of `idle`. Cursor `Shell` normalized to the same classification path.
+5. **Runbook complete:** README updated with bridge vs native Cursor install paths (P6.06, confirmed present). `codogotchi hooks status` reports `cursor: native` or `cursor: bridge`.
+
+`requesting_input` scan (2026-05-29): zero live code references. Three remaining mentions are all historical: (1) test in `packages/contracts/src/state-json.test.ts` that validates v3 rejects the old state — correct behavior, must stay; (2) comment in `apps/menubar/Sources/ActivityState.swift` noting the P6.01 rename; (3) doc comment in `apps/menubar/Sources/CodexPet.swift` noting the rename. No active use of `requesting_input` as a live emitted state anywhere in the codebase.
