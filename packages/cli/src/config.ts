@@ -22,6 +22,9 @@ export function getCodogotchiHome(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   const override = env.CODOGOTCHI_HOME;
+  // CODOGOTCHI_HOME must be an absolute path. A relative value resolves against
+  // the process working directory, which varies across launch contexts (terminal,
+  // login item, CI). Always use an absolute path when overriding.
   if (override && override.length > 0) return override;
   return join(homedir(), ".codogotchi");
 }

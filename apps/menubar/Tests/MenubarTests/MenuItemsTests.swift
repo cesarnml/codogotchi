@@ -47,7 +47,7 @@ final class MenuItemsTests: XCTestCase {
 			workspace: WorkspaceOpenSpy(),
 			terminate: {},
 			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
-			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/pet-store"),
 			floatingPetController: FloatingPetVisibilitySpy(isFloatingPetVisible: false)
 		)
 		let menu = builder.build()
@@ -67,14 +67,14 @@ final class MenuItemsTests: XCTestCase {
 			workspace: WorkspaceOpenSpy(),
 			terminate: {},
 			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
-			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/pet-store"),
 			floatingPetController: FloatingPetVisibilitySpy(isFloatingPetVisible: true)
 		)
 		let hiddenBuilder = MenubarMenu(
 			workspace: WorkspaceOpenSpy(),
 			terminate: {},
 			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
-			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/pet-store"),
 			floatingPetController: FloatingPetVisibilitySpy(isFloatingPetVisible: false)
 		)
 
@@ -88,7 +88,7 @@ final class MenuItemsTests: XCTestCase {
 			workspace: WorkspaceOpenSpy(),
 			terminate: {},
 			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
-			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/pet-store"),
 			floatingPetController: controller
 		)
 		let menu = builder.build()
@@ -107,7 +107,7 @@ final class MenuItemsTests: XCTestCase {
 			workspace: WorkspaceOpenSpy(),
 			terminate: {},
 			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
-			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/pet-store"),
 			floatingPetController: controller
 		)
 		let menu = builder.build()
@@ -127,7 +127,7 @@ final class MenuItemsTests: XCTestCase {
 			workspace: WorkspaceOpenSpy(),
 			terminate: {},
 			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
-			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
+			petFolderURL: URL(fileURLWithPath: "/tmp/pet-store")
 		)
 		let menu = builder.build()
 		let toggleItem = menu.items[2]
@@ -144,7 +144,7 @@ final class MenuItemsTests: XCTestCase {
 			workspace: workspace,
 			terminate: {},
 			logFolderURL: expectedURL,
-			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
+			petFolderURL: URL(fileURLWithPath: "/tmp/pet-store")
 		)
 		let menu = builder.build()
 		let openItem = menu.items[0]
@@ -159,7 +159,7 @@ final class MenuItemsTests: XCTestCase {
 
 	func testRevealPetFolderActionInvokesWorkspaceOpenWithExpectedURL() {
 		let workspace = WorkspaceOpenSpy()
-		let expectedURL = URL(fileURLWithPath: "/tmp/codex-pets")
+		let expectedURL = URL(fileURLWithPath: "/tmp/pet-store")
 		let builder = MenubarMenu(
 			workspace: workspace,
 			terminate: {},
@@ -183,7 +183,7 @@ final class MenuItemsTests: XCTestCase {
 			workspace: WorkspaceOpenSpy(),
 			terminate: {},
 			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
-			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets"),
+			petFolderURL: URL(fileURLWithPath: "/tmp/pet-store"),
 			openSettings: { settingsOpenCount += 1 }
 		)
 		let menu = builder.build()
@@ -203,7 +203,7 @@ final class MenuItemsTests: XCTestCase {
 			workspace: WorkspaceOpenSpy(),
 			terminate: {},
 			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
-			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
+			petFolderURL: URL(fileURLWithPath: "/tmp/pet-store")
 		)
 		let menu = builder.build()
 		let settingsItem = menu.items[3]
@@ -227,7 +227,7 @@ final class MenuItemsTests: XCTestCase {
 			workspace: WorkspaceOpenSpy(),
 			terminate: { terminationCount += 1 },
 			logFolderURL: URL(fileURLWithPath: "/tmp/codogotchi-tests"),
-			petFolderURL: URL(fileURLWithPath: "/tmp/codex-pets")
+			petFolderURL: URL(fileURLWithPath: "/tmp/pet-store")
 		)
 		let menu = builder.build()
 		let quitItem = menu.items[4]

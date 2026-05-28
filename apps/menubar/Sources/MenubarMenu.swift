@@ -67,9 +67,15 @@ final class MenubarMenu: NSObject {
 	}
 
 	/// `~/.codogotchi/` — the canonical log folder used by `TransitionLog`
-	/// and the live polling driver.
+	/// and the live polling driver. Respects `CODOGOTCHI_HOME` when set.
 	static func defaultLogFolderURL() -> URL {
-		FileManager.default
+		if let cStr = getenv("CODOGOTCHI_HOME"),
+			let home = String(validatingUTF8: cStr),
+			!home.isEmpty
+		{
+			return URL(fileURLWithPath: home, isDirectory: true)
+		}
+		return FileManager.default
 			.homeDirectoryForCurrentUser
 			.appendingPathComponent(".codogotchi", isDirectory: true)
 	}

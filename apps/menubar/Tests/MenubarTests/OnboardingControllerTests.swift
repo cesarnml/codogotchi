@@ -97,14 +97,26 @@ final class OnboardingControllerTests: XCTestCase {
 
 	func testIsHooksActiveReturnsTrueWhenAtLeastOnePlatformFiring() {
 		var snap = HooksStatusSnapshot.fixtureNotInstalled()
+		snap.claudeCode.installableInPhase = true
 		snap.claudeCode.installed = true
 		snap.claudeCode.firingRecently = true
 		let controller = OnboardingController()
 		XCTAssertTrue(controller.isHooksActive(snap))
 	}
 
-	func testIsHooksActiveReturnsTrueWhenCursorInstalledAndFiring() {
+	func testIsHooksActiveReturnsFalseForPhaseDeferredPlatform() {
+		// Cursor is phase-deferred (installableInPhase: false); even if the snapshot
+		// marks it installed+firing it must not flip the onboarding CTA to active.
 		var snap = HooksStatusSnapshot.fixtureNotInstalled()
+		snap.cursor.installed = true
+		snap.cursor.firingRecently = true
+		let controller = OnboardingController()
+		XCTAssertFalse(controller.isHooksActive(snap))
+	}
+
+	func testIsHooksActiveReturnsTrueWhenCursorIsPhaseEnabledAndFiring() {
+		var snap = HooksStatusSnapshot.fixtureNotInstalled()
+		snap.cursor.installableInPhase = true
 		snap.cursor.installed = true
 		snap.cursor.firingRecently = true
 		let controller = OnboardingController()

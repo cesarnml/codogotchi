@@ -10,7 +10,7 @@ Red: required
 - **`codogotchi setup`:** Lite only — if no config, write minimal Lite config (`profile_id`, `pet: "maew"`, `features.rpg_enabled: false`); then `hooks install`. No handle, Convex, GitHub, or Wakatime prompts. `--force` overwrites config as today.
 - **`codogotchi rpg`:** interactive Alive enrollment (current `setup` flow): handle, Convex URL, optional GitHub/Wakatime, first sync; sets `features.rpg_enabled: true` and required RPG fields.
 - `USAGE` and `--help` reflect the split.
-- `setup` does not enroll in Convex; `rpg` does not silently reinstall hooks unless documented (default: assume hooks already installed; if missing, error points to `hooks install` or app onboarding).
+- `setup` does not enroll in Convex; `rpg` does not reinstall hooks (assumes `setup` already ran). If hooks are missing the user must run `codogotchi hooks install` — missing-hooks error surfacing from `rpg` is deferred to a later ticket.
 - Tests cover: greenfield `setup` produces Lite config + calls install; `rpg` on Lite config upgrades shape; `rpg` refuses or prompts when already RPG as appropriate.
 
 ## Red

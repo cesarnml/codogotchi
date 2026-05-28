@@ -22,8 +22,12 @@ struct HooksStatusSnapshot: Codable, Equatable {
 	/// Hooks are "not active" when there is no installed-and-firing platform.
 	/// Onboarding shows the CTA until at least one platform is both installed
 	/// and has reported a recent hook-driven event (per CLI status contract).
+	/// Only platforms that are installable in the current phase are considered,
+	/// so phase-deferred platforms (cursor, vscode, antigravity) can never
+	/// suppress the CTA via a stale or hand-edited snapshot.
 	func isHooksNotActive() -> Bool {
 		let active = [codex, claudeCode, cursor, vscode, antigravity]
+			.filter { $0.installableInPhase }
 			.contains { $0.installed && $0.firingRecently }
 		return !active
 	}

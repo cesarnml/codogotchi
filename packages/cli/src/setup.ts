@@ -62,7 +62,14 @@ export async function runSetup(
 
   // Write config first so installHooks can verify it exists
   await writeConfig(deps.home, config);
-  await deps.installHooks({ home: deps.home });
+  try {
+    await deps.installHooks({ home: deps.home });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `config written but hooks installation failed — run \`codogotchi hooks install\` to complete setup\n${detail}`,
+    );
+  }
 
   return { config, configPath: filePath };
 }

@@ -124,8 +124,18 @@ final class AppBootstrapTests: XCTestCase {
 
 	func testHooksNotActiveFalseWhenInstalledAndFiringRecently() {
 		var snap = HooksStatusSnapshot.fixtureNotInstalled()
+		snap.claudeCode.installableInPhase = true
 		snap.claudeCode.installed = true
 		snap.claudeCode.firingRecently = true
 		XCTAssertFalse(snap.isHooksNotActive())
+	}
+
+	func testHooksNotActiveIgnoresPhaseDeferred() {
+		// A phase-deferred platform (installableInPhase: false) must not suppress
+		// the onboarding CTA even when the CLI snapshot marks it installed+firing.
+		var snap = HooksStatusSnapshot.fixtureNotInstalled()
+		snap.cursor.installed = true
+		snap.cursor.firingRecently = true
+		XCTAssertTrue(snap.isHooksNotActive())
 	}
 }
