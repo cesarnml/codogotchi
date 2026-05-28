@@ -19,6 +19,15 @@ struct HooksStatusSnapshot: Codable, Equatable {
 		var sourceOrigin: String?
 	}
 
+	/// Returns true when at least one installable platform has hooks installed on disk,
+	/// regardless of whether any hook has fired recently. Used to suppress the onboarding
+	/// sheet when the user configured hooks outside the in-app install flow.
+	func anyInstalled() -> Bool {
+		[codex, claudeCode, cursor, vscode, antigravity]
+			.filter { $0.installableInPhase }
+			.contains { $0.installed }
+	}
+
 	/// Hooks are "not active" when there is no installed-and-firing platform.
 	/// Onboarding shows the CTA until at least one platform is both installed
 	/// and has reported a recent hook-driven event (per CLI status contract).

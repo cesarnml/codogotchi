@@ -11,9 +11,11 @@ struct OnboardingController {
 		self.installRunner = installRunner
 	}
 
-	/// Returns true when `onboardingCompletedAt` is absent — the sheet should be shown.
+	/// Returns true when `onboardingCompletedAt` is absent and no hooks are installed yet.
+	/// Skips the sheet when hooks are already present to prevent a double-install prompt.
 	func needsOnboarding(appState: FloatingAppState) -> Bool {
-		return appState.onboardingCompletedAt == nil
+		guard appState.onboardingCompletedAt == nil else { return false }
+		return !(appState.hooksStatus?.anyInstalled() ?? false)
 	}
 
 	/// Runs `codogotchi hooks install` synchronously via the injected runner.

@@ -10,6 +10,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 	static let windowTitle = "Welcome to Codogotchi"
 	static let ctaTitle = "Approve & install hooks"
 	static let hooksNotActiveTitle = "Hooks not active"
+	static let hooksInstalledWaitingTitle = "Hooks installed — use Claude Code or Codex to activate"
 	static let retryTitle = "Retry install"
 	static let installingText = "Installing hooks…"
 
@@ -116,7 +117,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 			hooksStatus: current.hooksStatus
 		)
 		try? appStateSaver(next)
-		contentView?.setHooksNotActive()
+		contentView?.setInstalledWaiting()
 	}
 }
 
@@ -156,6 +157,13 @@ private final class OnboardingContentView: NSView {
 		ctaButton.title = OnboardingWindowController.ctaTitle
 		statusLabel.stringValue = message
 		statusLabel.textColor = .systemRed
+		retryButton.isHidden = true
+	}
+
+	func setInstalledWaiting() {
+		ctaButton.isHidden = true
+		statusLabel.stringValue = OnboardingWindowController.hooksInstalledWaitingTitle
+		statusLabel.textColor = .secondaryLabelColor
 		retryButton.isHidden = true
 	}
 
