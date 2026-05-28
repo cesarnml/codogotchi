@@ -18,8 +18,8 @@ fi
 
 cd "$REPO_ROOT"
 
-git fetch "$UPSTREAM_URL" "$UPSTREAM_BRANCH"
-UPSTREAM_SHA="$(git rev-parse FETCH_HEAD)"
+git fetch "$UPSTREAM_URL" "refs/heads/$UPSTREAM_BRANCH:refs/soa-upstream/main"
+UPSTREAM_SHA="$(git rev-parse refs/soa-upstream/main)"
 
 git subtree merge --prefix .son-of-anton "$UPSTREAM_SHA" --squash
 
