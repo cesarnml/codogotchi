@@ -441,6 +441,12 @@ export async function uninstallHooks(): Promise<void> {
   await rm(codexTomlPath, { force: true });
 }
 
+// P6.06 stubs — implemented in green phase
+export async function installCursorHooks(
+  _ctx: InstallHooksContext,
+): Promise<void> {}
+export async function uninstallCursorHooks(): Promise<void> {}
+
 export async function hooksStatus(): Promise<HooksStatus> {
   const root = getUserRoot();
   const claudePath = join(root, CLAUDE_SETTINGS_REL);

@@ -10,7 +10,13 @@ import {
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { hooksStatus, installHooks, uninstallHooks } from "./hooks";
+import {
+  hooksStatus,
+  installCursorHooks,
+  installHooks,
+  uninstallCursorHooks,
+  uninstallHooks,
+} from "./hooks";
 
 describe("installHooks", () => {
   let userRoot: string;
@@ -408,7 +414,7 @@ describe("installHooks", () => {
     const before = await hooksStatus();
     expect(before.codex.installed).toBe(false);
     expect(before.claude_code.installed).toBe(false);
-    expect(before.cursor.installable_in_phase).toBe(false);
+    expect(before.cursor.installable_in_phase).toBe(true);
 
     await installHooks({
       home: "/home/user/.codogotchi",
@@ -418,5 +424,117 @@ describe("installHooks", () => {
     expect(after.claude_code.installed).toBe(true);
     expect(after.codex).toHaveProperty("firing_recently");
     expect(after.codex).toHaveProperty("last_event_at");
+  });
+});
+
+describe("cursor hooks", () => {
+  type CursorHookEntry = { type: string; command: string };
+  type CursorHooksJson = Record<string, CursorHookEntry[]>;
+
+  let userRoot: string;
+  let prevUserRoot: string | undefined;
+
+  beforeEach(() => {
+    userRoot = mkdtempSync(join(tmpdir(), "codogotchi-cursor-hooks-"));
+    prevUserRoot = process.env.CODOGOTCHI_USER_ROOT;
+    process.env.CODOGOTCHI_USER_ROOT = userRoot;
+    mkdirSync(join(userRoot, ".codogotchi"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".codogotchi", "config.json"),
+      `${JSON.stringify({ profile_id: "p", pet: "maew", features: { rpg_enabled: false } })}\n`,
+      "utf8",
+    );
+  });
+
+  afterEach(() => {
+    rmSync(userRoot, { recursive: true, force: true });
+    if (prevUserRoot === undefined) delete process.env.CODOGOTCHI_USER_ROOT;
+    else process.env.CODOGOTCHI_USER_ROOT = prevUserRoot;
+  });
+
+  it("hooks install --platform cursor writes ~/.cursor/hooks.json with correct entries", async () => {
+    await installCursorHooks({ home: "/home/user/.codogotchi" });
+
+    const cursorRaw = readFileSync(
+      join(userRoot, ".cursor", "hooks.json"),
+      "utf8",
+    );
+    const cursor = JSON.parse(cursorRaw) as CursorHooksJson;
+    for (const event of [
+      "afterFileEdit",
+      "beforeShellExecution",
+      "afterShellExecution",
+      "stop",
+      "sessionEnd",
+    ]) {
+      const slot = cursor[event];
+      expect(Array.isArray(slot)).toBe(true);
+      expect(slot.some((e) => e.command.includes("codogotchi-hook"))).toBe(
+        true,
+      );
+    }
+  });
+
+  it("cursor install is idempotent — running twice does not duplicate entries", async () => {
+    const ctx = { home: "/home/user/.codogotchi" };
+    await installCursorHooks(ctx);
+    const first = readFileSync(join(userRoot, ".cursor", "hooks.json"), "utf8");
+    await installCursorHooks(ctx);
+    const second = readFileSync(
+      join(userRoot, ".cursor", "hooks.json"),
+      "utf8",
+    );
+    expect(second).toBe(first);
+  });
+
+  it("cursor uninstall removes Codogotchi entries and leaves pre-existing entries intact", async () => {
+    mkdirSync(join(userRoot, ".cursor"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".cursor", "hooks.json"),
+      `${JSON.stringify({ afterFileEdit: [{ type: "command", command: "my-custom-hook" }] }, null, 2)}\n`,
+      "utf8",
+    );
+
+    await installCursorHooks({ home: "/home/user/.codogotchi" });
+
+    // Verify install added codogotchi entries
+    const afterInstall = JSON.parse(
+      readFileSync(join(userRoot, ".cursor", "hooks.json"), "utf8"),
+    ) as CursorHooksJson;
+    expect(
+      afterInstall.afterFileEdit?.some((e) =>
+        e.command.includes("codogotchi-hook"),
+      ),
+    ).toBe(true);
+
+    await uninstallCursorHooks();
+
+    const afterUninstall = JSON.parse(
+      readFileSync(join(userRoot, ".cursor", "hooks.json"), "utf8"),
+    ) as CursorHooksJson;
+    expect(
+      afterUninstall.afterFileEdit?.some((e) =>
+        e.command.includes("codogotchi-hook"),
+      ),
+    ).toBe(false);
+    expect(
+      afterUninstall.afterFileEdit?.some((e) => e.command === "my-custom-hook"),
+    ).toBe(true);
+  });
+
+  it("hooksStatus reports cursor: native when ~/.cursor/hooks.json has Codogotchi entries", async () => {
+    await installCursorHooks({ home: "/home/user/.codogotchi" });
+    const status = await hooksStatus();
+    expect(status.cursor.installed).toBe(true);
+    expect(status.cursor.installable_in_phase).toBe(true);
+    expect(status.cursor.source_origin).toBe("native");
+  });
+
+  it("hooksStatus reports cursor: bridge when claude settings has codogotchi-hook but no cursor hooks.json", async () => {
+    await installHooks({ home: "/home/user/.codogotchi" });
+    const status = await hooksStatus();
+    expect(status.cursor.installed).toBe(true);
+    expect(status.cursor.installable_in_phase).toBe(true);
+    expect(status.cursor.source_origin).toBe("bridge");
   });
 });
