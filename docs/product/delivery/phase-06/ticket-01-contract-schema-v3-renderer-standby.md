@@ -56,8 +56,9 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: `STATE_JSON_SCHEMA_VERSION` === 3 failed (was 2); `standby` accepted failed (not in enum); attention fields failed (not in schema).
 Why this path: Bundling contracts rename and renderer `standby` handling into one PR eliminates the broken-intermediate-state window where `state.json` emits `standby` to a renderer still expecting `requesting_input`. Two-language PR accepted for single-operator delivery.
 Alternative considered: Separate contracts PR (P6.01) and renderer PR (old P6.07) with a documented prerequisite — rejected because the ordering constraint is operational risk with no reviewer benefit.
 Deferred: `work_mode` population is Phase 07. Renderer dedicated `standby` animation row is Phase 07. Richer `attention.reason_kind` values beyond the starter set are Phase 07.
 Contract note: `StateJsonV1` type name is kept despite schema version 3 — the version field is a forward-compat guard, not a type rename signal.
+Swift: `ActivityState.requestingInput` renamed to `.standby`. `EXPECTED_STATE_SCHEMA_VERSION` bumped to 3. `CodexPet.rowMap` key updated — row index 3 (waving) unchanged. DemoCycleDriver, all tests, and fixtures updated.
