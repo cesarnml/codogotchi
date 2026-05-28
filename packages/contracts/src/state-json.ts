@@ -15,6 +15,7 @@ const schemaVersionField = z
 export const sourceEventOriginSchema = z.enum([
   "claude_code",
   "codex",
+  "cursor",
   "soa",
   "sync",
   "manual",

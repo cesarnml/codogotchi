@@ -19,6 +19,8 @@ export type ReadSoaEventsResult = {
 export type SoaPathEnv = {
   CLAUDE_PROJECT_DIR?: string;
   CODEX_PROJECT_DIR?: string;
+  // workspace_roots[0] from a Cursor hook payload; lower priority than env vars, higher than cwd.
+  CURSOR_WORKSPACE_ROOT?: string;
   CWD?: string;
 };
 
@@ -26,7 +28,8 @@ export type SoaPathEnv = {
  * Resolve the project root for the SoA event feed. Priority:
  *   1. $CLAUDE_PROJECT_DIR
  *   2. $CODEX_PROJECT_DIR
- *   3. cwd (passed in as `CWD` for testability)
+ *   3. CURSOR_WORKSPACE_ROOT (workspace_roots[0] from Cursor hook payload)
+ *   4. cwd (passed in as `CWD` for testability)
  *
  * `events.ndjson` is then read from `${root}/.soa/events.ndjson`.
  */
@@ -36,6 +39,9 @@ export function resolveSoaRoot(env: SoaPathEnv): string | null {
   }
   if (env.CODEX_PROJECT_DIR && env.CODEX_PROJECT_DIR.length > 0) {
     return env.CODEX_PROJECT_DIR;
+  }
+  if (env.CURSOR_WORKSPACE_ROOT && env.CURSOR_WORKSPACE_ROOT.length > 0) {
+    return env.CURSOR_WORKSPACE_ROOT;
   }
   if (env.CWD && env.CWD.length > 0) return env.CWD;
   return null;

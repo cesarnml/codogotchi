@@ -57,8 +57,10 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: `Cursor afterFileEdit classifies as implementing with cursor origin` — origin returned `"codex"` because the old logic treated all non-PascalCase events as Codex.
 Why this path: The origin misattribution bug (`claude_code` for Cursor events) is a data-quality issue that corrupts `source_origin` in `state-transitions.log`. Fixing it in `rawHookOrigin` is a 3-line change with high diagnostic value.
 Alternative considered: Adding explicit `platform: "cursor"` field to HookInput and requiring callers to set it — rejected, would require updating the Cursor hook installer to pass an extra field, coupling installer and binary versions.
+Origin detection: 4-branch heuristic — PascalCase (`"Stop"`) → `claude_code`; camelCase (`"afterFileEdit"`) → `cursor`; snake_case with underscores (`"session_end"`) → `codex`; simple lowercase without underscores (`"stop"`) → `cursor` (Codex never uses bare lowercase event names, only snake_case).
+`workspace_roots` fallback: Added `CURSOR_WORKSPACE_ROOT` to `SoaPathEnv` so `resolveSoaRoot` tries it between `CODEX_PROJECT_DIR` and `CWD`. The hook binary passes `input.workspace_roots?.[0]`. This keeps the engine layer agnostic to the Cursor payload shape.
+`beforeShellExecution`/`afterShellExecution`: Both events are treated as valid classification signals (both fire per command invocation). The 3-bucket logic applies to whichever arrives; in practice both arrive and are classified independently. No deduplication needed — each is a separate hook invocation.
 Deferred: `CURSOR_PROJECT_DIR` env var support (if Cursor exposes it) — Phase 07. `afterAgentThought` → `thinking` work_mode signal — Phase 07 (confirmed available in Cursor hooks docs: `{ text, duration_ms }`).
-Contract note: [fill in during implementation]
