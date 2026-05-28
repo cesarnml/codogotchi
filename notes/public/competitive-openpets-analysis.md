@@ -188,11 +188,13 @@ The trajectory: **general desktop companion platform that optionally connects to
 | **Team size** | ~1 person | 1 person |
 
 ### Where OpenPets wins
-- **Cross-platform** — serves Windows/Linux users codogotchi doesn't reach
+- **Cross-platform** — serves Windows/Linux users codogotchi doesn't reach *(caveat below)*
 - **Pet catalog breadth** — 1090+ is a massive social moat; codogotchi ships 3
 - **Time to first pet** — download, no agent required, pet is alive via plugins immediately
 - **MCP-native** — any MCP-capable agent can drive it without hooks; forward-compatible
 - **Plugin ecosystem potential** — non-agent ambient behaviors are a real product category
+
+**Caveat on cross-platform:** Mac users pay for premium software; Windows/Android users largely don't — this is the App Store vs Play Store monetization reality. Codogotchi's initial target market is Mac-native developers. Cross-platform reach expands the audience but doesn't expand the paying audience at v1. OpenPets' Windows/Linux users are real users who won't be paying customers for a premium alive-mode tier. The macOS-only bet is a deliberate monetization alignment, not a gap.
 
 ### Where Codogotchi wins
 - **Signal fidelity** — codogotchi knows *what* the agent is doing; OpenPets knows *that* it did something
@@ -200,6 +202,7 @@ The trajectory: **general desktop companion platform that optionally connects to
 - **Attention UX** — the bubble has a reason, an expiry, a focus action; OpenPets speech is static
 - **macOS native** — lower memory, no Electron overhead, notarized distribution
 - **RPG depth** — XP, HP, loot, alive mode is a retention/monetization layer OpenPets explicitly doesn't have
+- **Token-neutral** — hooks fire on lifecycle events outside the agent's context window; zero tokens, always on. OpenPets' MCP-first model means every `openpets_say`/`openpets_react` call burns tokens for the invocation + response + whatever the agent spent deciding to call it. The pet only reacts when the agent chooses to spend on it. Codogotchi's pet always reflects what the agent is doing, for free.
 - **No "agent cooperation required"** — passive hook observation works even when the agent ignores you; MCP-first requires the agent to call the tools
 
 ### The real question
@@ -219,3 +222,9 @@ The risk scenario: OpenPets adds signal intelligence and SoA awareness. Given th
 Their `openpets_say` MCP tool with privacy guards is actually a smart design pattern that codogotchi doesn't have an equivalent of: **the agent can explicitly annotate the pet's bubble.** When Claude finishes a hard task it can say "Done, all tests pass" and the pet says it. This is a different contract than codogotchi's passive state inference — it's cooperative rather than observational. For users who want their agent to narrate its own work, that's compelling even if the signal vocabulary is shallower.
 
 The answer isn't to copy it — codogotchi's passive observation model is more honest and doesn't require agent cooperation. But worth knowing it exists as a use case.
+
+---
+
+## One thing to steal
+
+**`npx skills add` as the install surface is genuinely clever distribution.** The user types one command, tells their agent to install it, and the AI does the wiring. Zero friction for the exact audience that already has an AI agent running. Codogotchi's current install is `codogotchi hooks install` which is fine — but a `npx skills add codogotchi` (or equivalent) wrapper that lets the agent self-install via natural language would be worth building for Phase 08 or the post-launch distribution push. The mechanic doesn't require the `skills.sh` ecosystem specifically — the pattern is: one-liner that the agent can run, agent handles the rest.
