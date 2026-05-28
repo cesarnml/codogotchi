@@ -1,14 +1,14 @@
 {
-  "ticket": "P6.04",
+  "ticket": "P6.06",
   "invocations": [
     {
       "runnerKind": "claude-cli",
-      "reviewedHeadSha": "f9204b82b9d9bd5f3ef07b76ae2f9020aa87d26c",
+      "reviewedHeadSha": "5e4562e987f9305f2d17e6f1f0ebb51bb81ce4a3",
       "outcome": "clean",
-      "completedAt": "2026-05-28T18:30:32.235Z",
+      "completedAt": "2026-05-28T22:05:55.924Z",
       "terminatedReason": "completed",
-      "rawOutput": "docs/product/delivery/phase-06/reviews/P6.04-subagent-review.report.md",
-      "filledPrompt": "docs/product/delivery/phase-06/reviews/P6.04-subagent-review.prompt.md",
+      "rawOutput": "docs/product/delivery/phase-06/reviews/P6.06-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-06/reviews/P6.06-subagent-review.prompt.md",
       "fallbackLevel": "preferred",
       "schemaVersion": 1,
       "primaryAgent": "claude",
@@ -20,13 +20,15 @@
     },
     {
       "runnerKind": "operator-recorder",
-      "reviewedHeadSha": "f9204b82b9d9bd5f3ef07b76ae2f9020aa87d26c",
+      "reviewedHeadSha": "5e4562e987f9305f2d17e6f1f0ebb51bb81ce4a3",
       "outcome": "patched",
-      "completedAt": "2026-05-28T18:32:15.046Z",
+      "completedAt": "2026-05-28T22:09:13.751Z",
       "terminatedReason": "completed",
       "findings": [],
       "probedSurfaces": [],
-      "patches": ["a40b94ba20c695650d71d5a3487aff0fc1273c5c"],
+      "patches": [
+        "d4ada333d0d3b419d4c95dbaaf8842abf1c29c4a"
+      ],
       "schemaVersion": 1,
       "primaryAgent": "unknown",
       "runnerSelfReport": null,

@@ -28,6 +28,7 @@ const CLAUDE_SETTINGS_REL = join(".claude", "settings.json");
 const CODEX_CONFIG_REL = join(".codex", "config.toml");
 const CODEX_HOOKS_REL = join(".codex", "hooks", "codogotchi.toml");
 const CODEX_HOOKS_JSON_REL = join(".codex", "hooks.json");
+const CURSOR_HOOKS_REL = join(".cursor", "hooks.json");
 const CODOGOTCHI_CONFIG_REL = join(".codogotchi", "config.json");
 
 function getUserRoot(): string {
@@ -84,12 +85,48 @@ const CODEX_CODOGOTCHI_EVENTS = [
   "SessionStart",
   "Stop",
 ] as const;
+const CURSOR_CODOGOTCHI_EVENTS = [
+  "afterFileEdit",
+  "beforeShellExecution",
+  "afterShellExecution",
+  "stop",
+  "sessionEnd",
+] as const;
+
+type CursorHookEntry = { type: "command"; command: string };
+type CursorHookSlot = CursorHookEntry[];
+// Cursor hooks.json is a flat map from event name to array of hook entries —
+// no "hooks" wrapper key, unlike Codex hooks.json.
+type CursorHooksJson = Record<string, CursorHookSlot | unknown>;
+
+function isCursorHookEntry(value: unknown): value is CursorHookEntry {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return v.type === "command" && typeof v.command === "string";
+}
+
+function cursorHookCommand(ctx: InstallHooksContext): string {
+  return [`CODOGOTCHI_HOME=${shellQuote(ctx.home)}`, CODOGOTCHI_COMMAND].join(
+    " ",
+  );
+}
+
+function cursorInstalled(hooks: CursorHooksJson): boolean {
+  return CURSOR_CODOGOTCHI_EVENTS.every((event) => {
+    const slot = hooks[event];
+    if (!Array.isArray(slot)) return false;
+    return slot.some(
+      (e) => isCursorHookEntry(e) && isCodogotchiCommand(e.command),
+    );
+  });
+}
 
 async function readJsonOrEmpty<T extends object>(path: string): Promise<T> {
   try {
     const raw = await readFile(path, "utf8");
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") return parsed as T;
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed))
+      return parsed as T;
     return {} as T;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return {} as T;
@@ -441,16 +478,72 @@ export async function uninstallHooks(): Promise<void> {
   await rm(codexTomlPath, { force: true });
 }
 
+export async function installCursorHooks(
+  ctx: InstallHooksContext,
+): Promise<void> {
+  const root = getUserRoot();
+  const configPath = join(root, CODOGOTCHI_CONFIG_REL);
+  if (!(await fileExists(configPath))) {
+    throw new Error(
+      "codogotchi: missing ~/.codogotchi/config.json. Launch the app or run `codogotchi setup` first.",
+    );
+  }
+
+  const cursorPath = join(root, CURSOR_HOOKS_REL);
+  await backupIfExists(cursorPath);
+  const existing = await readJsonOrEmpty<CursorHooksJson>(cursorPath);
+
+  const cmd = cursorHookCommand(ctx);
+  for (const event of CURSOR_CODOGOTCHI_EVENTS) {
+    const raw = existing[event];
+    const slot = Array.isArray(raw) ? (raw as unknown[]) : [];
+    // Preserve all non-Codogotchi entries regardless of type — Cursor may gain
+    // new hook entry types (e.g. "stdin") that isCursorHookEntry does not match.
+    const others = slot.filter(
+      (e) => !(isCursorHookEntry(e) && isCodogotchiCommand(e.command)),
+    );
+    others.push({ type: "command", command: cmd });
+    existing[event] = others as CursorHookSlot;
+  }
+
+  await writeText(cursorPath, `${JSON.stringify(existing, null, 2)}\n`);
+}
+
+export async function uninstallCursorHooks(): Promise<void> {
+  const root = getUserRoot();
+  const cursorPath = join(root, CURSOR_HOOKS_REL);
+  // Short-circuit: nothing to remove if the file doesn't exist.
+  if (!(await fileExists(cursorPath))) return;
+  await backupIfExists(cursorPath);
+
+  const existing = await readJsonOrEmpty<CursorHooksJson>(cursorPath);
+  for (const [event, raw] of Object.entries(existing)) {
+    if (!Array.isArray(raw)) continue;
+    // Preserve all non-Codogotchi entries — including unknown-type entries
+    // that isCursorHookEntry would not match — to avoid silent data loss.
+    const cleaned = (raw as unknown[]).filter(
+      (e) => !(isCursorHookEntry(e) && isCodogotchiCommand(e.command)),
+    );
+    if (cleaned.length > 0) existing[event] = cleaned as CursorHookSlot;
+    else delete existing[event];
+  }
+
+  await writeText(cursorPath, `${JSON.stringify(existing, null, 2)}\n`);
+}
+
 export async function hooksStatus(): Promise<HooksStatus> {
   const root = getUserRoot();
   const claudePath = join(root, CLAUDE_SETTINGS_REL);
   const codexJsonPath = join(root, CODEX_HOOKS_JSON_REL);
+  const cursorPath = join(root, CURSOR_HOOKS_REL);
 
-  const [claudePresent, codexPresent, state] = await Promise.all([
-    fileExists(claudePath),
-    fileExists(codexJsonPath),
-    readStateJson(root),
-  ]);
+  const [claudePresent, codexPresent, cursorNativePresent, state] =
+    await Promise.all([
+      fileExists(claudePath),
+      fileExists(codexJsonPath),
+      fileExists(cursorPath),
+      readStateJson(root),
+    ]);
 
   const claude = claudePresent
     ? await readJsonOrEmpty<ClaudeSettings>(claudePath)
@@ -458,12 +551,30 @@ export async function hooksStatus(): Promise<HooksStatus> {
   const codex = codexPresent
     ? await readJsonOrEmpty<CodexHooksJson>(codexJsonPath)
     : ({} as CodexHooksJson);
+  const cursorJson = cursorNativePresent
+    ? await readJsonOrEmpty<CursorHooksJson>(cursorPath)
+    : ({} as CursorHooksJson);
 
   const lastEventAt = state?.updated_at ?? null;
   const origin = state?.source_event?.origin ?? null;
   const firingRecently =
     lastEventAt !== null &&
     Date.now() - new Date(lastEventAt).getTime() < FIRING_RECENTLY_WINDOW_MS;
+
+  const claudeCodeInstalled = claudeInstalled(
+    (claude.hooks ?? {}) as ClaudeHooks,
+  );
+  const cursorNativeInstalled = cursorInstalled(cursorJson);
+  // Bridge: Cursor Third-party skills route events through Claude Code hooks —
+  // inferred when Claude Code hooks are wired and no ~/.cursor/hooks.json exists at all.
+  // Use !cursorNativePresent (not !cursorNativeInstalled) so a cursor file with
+  // only third-party entries does not falsely report "bridge".
+  const cursorBridgeInstalled = !cursorNativePresent && claudeCodeInstalled;
+  const cursorSourceOrigin = cursorNativeInstalled
+    ? "native"
+    : cursorBridgeInstalled
+      ? "bridge"
+      : undefined;
 
   return {
     codex: {
@@ -476,17 +587,17 @@ export async function hooksStatus(): Promise<HooksStatus> {
     claude_code: {
       present_on_disk: claudePresent,
       installable_in_phase: true,
-      installed: claudeInstalled((claude.hooks ?? {}) as ClaudeHooks),
+      installed: claudeCodeInstalled,
       firing_recently: firingRecently && origin === "claude_code",
       last_event_at: origin === "claude_code" ? lastEventAt : null,
     },
     cursor: {
-      present_on_disk: false,
-      installable_in_phase: false,
-      installed: false,
-      firing_recently: false,
-      last_event_at: null,
-      source_origin: "phase-06-deferred",
+      present_on_disk: cursorNativePresent,
+      installable_in_phase: true,
+      installed: cursorNativeInstalled || cursorBridgeInstalled,
+      firing_recently: firingRecently && origin === "cursor",
+      last_event_at: origin === "cursor" ? lastEventAt : null,
+      source_origin: cursorSourceOrigin,
     },
     vscode: {
       present_on_disk: false,
@@ -494,7 +605,6 @@ export async function hooksStatus(): Promise<HooksStatus> {
       installed: false,
       firing_recently: false,
       last_event_at: null,
-      source_origin: "phase-06-deferred",
     },
     antigravity: {
       present_on_disk: false,
@@ -502,7 +612,6 @@ export async function hooksStatus(): Promise<HooksStatus> {
       installed: false,
       firing_recently: false,
       last_event_at: null,
-      source_origin: "phase-06-deferred",
     },
   };
 }

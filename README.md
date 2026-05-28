@@ -92,7 +92,9 @@ Lite writes `{ "features": { "rpg_enabled": false } }` to `~/.codogotchi/config.
 codogotchi setup                              Lite first-run: write minimal config + install hooks
 codogotchi rpg                                Alive enrollment: prompts for handle, GitHub, Convex URL
 codogotchi hooks install                      Install hooks for Claude Code and Codex
-codogotchi hooks uninstall                    Remove hooks from tool configs
+codogotchi hooks install --platform cursor    Write ~/.cursor/hooks.json (native Cursor hooks)
+codogotchi hooks uninstall                    Remove hooks from Claude Code and Codex
+codogotchi hooks uninstall --platform cursor  Remove Codogotchi entries from ~/.cursor/hooks.json
 codogotchi hooks status [--json]              Print per-platform hook install + firing status
 
 codogotchi sync                               One sync cycle — requires rpg_enabled: true
@@ -113,16 +115,46 @@ Environment overrides:
 | `CODOGOTCHI_HOME` | `~/.codogotchi` | Config / cache / log root |
 | `CODOGOTCHI_USER_ROOT` | OS home | Home dir used for hook installation |
 
-## Cursor via Claude bridge
+## Cursor install paths
 
-Cursor users can get Codogotchi activity via the **Claude Code** bridge: use a
-third-party skill that routes Cursor tool calls through Claude Code hooks. The
-hook fires with `source_origin: claude_code` and Cursor-originated tool names
-pass through unchanged.
+Codogotchi supports two install modes for Cursor users.
 
-`codogotchi hooks status` reports `cursor.installable_in_phase: false` and
-`source_origin: "phase-06-deferred"` — native Cursor hooks are a Phase 06
-target and are not wired in Phase 05.
+### Bridge (simpler, no Cursor restart required)
+
+If you already have Claude Code hooks installed, Cursor's **Third-party skills**
+feature can route Cursor tool calls through Claude Code hooks automatically. No
+extra install step needed.
+
+```bash
+codogotchi hooks install   # installs Claude Code + Codex hooks
+```
+
+Limitation: events fire with `source_origin: "claude_code"` instead of
+`"cursor"`. `codogotchi hooks status` reports `cursor: bridge` for
+this mode.
+
+### Native (correct `source_origin`, direct shell classification)
+
+Native Cursor hooks write `~/.cursor/hooks.json` and give Codogotchi direct
+access to Cursor's hook events (`afterFileEdit`, `beforeShellExecution`,
+`afterShellExecution`, `stop`, `sessionEnd`). Events fire with
+`source_origin: "cursor"`.
+
+```bash
+codogotchi hooks install --platform cursor
+```
+
+Restart Cursor after installing so it picks up the new `~/.cursor/hooks.json`.
+
+To remove native Cursor hooks without touching Claude Code or Codex:
+
+```bash
+codogotchi hooks uninstall --platform cursor
+```
+
+`codogotchi hooks status` reports `cursor: native` when `~/.cursor/hooks.json`
+contains Codogotchi entries, and `cursor: bridge` when Claude Code
+hooks are installed but no native Cursor hooks file is present.
 
 ## Where data lives
 

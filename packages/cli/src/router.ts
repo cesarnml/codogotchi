@@ -7,7 +7,13 @@ import {
   configSet,
 } from "./config-command";
 import { defaultReaders } from "./default-readers";
-import { hooksStatus, installHooks, uninstallHooks } from "./hooks";
+import {
+  hooksStatus,
+  installCursorHooks,
+  installHooks,
+  uninstallCursorHooks,
+  uninstallHooks,
+} from "./hooks";
 import { type LootTier, runLoot, TIERS } from "./loot";
 import { terminalPrompter } from "./prompts";
 import { ConfigExistsError, runRpg, runSetup } from "./setup";
@@ -72,9 +78,13 @@ Commands:
                    Pause HP decay until the given date (defaults to 30 days).
   vacation off     Clear vacation_until.
   vacation status  Show current vacation state.
-  hooks install    Install Codogotchi hooks for supported tools.
-  hooks uninstall  Remove Codogotchi hooks from supported tool configs.
-  hooks status     Print hook installation status.
+  hooks install [--platform <claude_code|cursor>]
+                   Install Codogotchi hooks. Defaults to Claude Code + Codex.
+                   Pass --platform cursor to write ~/.cursor/hooks.json instead.
+  hooks uninstall [--platform <claude_code|cursor>]
+                   Remove hooks. Defaults to Claude Code + Codex.
+                   Pass --platform cursor to remove Cursor hook entries only.
+  hooks status     Print hook installation status per platform.
   help, --help     Show this message.
 
 Flags (setup, rpg):
@@ -143,6 +153,31 @@ function parseLootFlags(args: string[]): {
     }
   }
   return { limit, tier, help };
+}
+
+type HooksPlatform = "claude_code" | "cursor";
+
+function parseHooksPlatformFlag(args: string[]): {
+  platform: HooksPlatform;
+  rest: string[];
+} {
+  let platform: HooksPlatform = "claude_code";
+  const rest: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--platform") {
+      const v = args[i + 1];
+      i += 1;
+      if (v !== "claude_code" && v !== "cursor") {
+        throw new Error(
+          `Invalid --platform value: ${v ?? "(missing)"}; expected claude_code or cursor`,
+        );
+      }
+      platform = v;
+    } else {
+      rest.push(args[i] as string);
+    }
+  }
+  return { platform, rest };
 }
 
 export async function dispatch(argv: string[]): Promise<DispatchResult> {
@@ -391,11 +426,25 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
     const [sub, ...subArgs] = rest;
     if (sub === "install") {
       if (subArgs.includes("--help") || subArgs.includes("-h")) {
-        process.stdout.write("Usage: codogotchi hooks install\n");
+        process.stdout.write(
+          "Usage: codogotchi hooks install [--platform <claude_code|cursor>]\n",
+        );
         return { exitCode: 0 };
       }
-      if (subArgs.length > 0) {
-        process.stderr.write("Usage: codogotchi hooks install\n");
+      let platform: HooksPlatform;
+      let rest: string[];
+      try {
+        ({ platform, rest } = parseHooksPlatformFlag(subArgs));
+      } catch (err) {
+        process.stderr.write(
+          `${err instanceof Error ? err.message : String(err)}\n`,
+        );
+        return { exitCode: 2 };
+      }
+      if (rest.length > 0) {
+        process.stderr.write(
+          "Usage: codogotchi hooks install [--platform <claude_code|cursor>]\n",
+        );
         return { exitCode: 2 };
       }
       let config: Awaited<ReturnType<typeof readConfig>>;
@@ -414,20 +463,42 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
         );
         return { exitCode: 2 };
       }
-      await installHooks({ home: getCodogotchiHome() });
+      if (platform === "cursor") {
+        await installCursorHooks({ home: getCodogotchiHome() });
+      } else {
+        await installHooks({ home: getCodogotchiHome() });
+      }
       process.stdout.write("hooks install: ok\n");
       return { exitCode: 0 };
     }
     if (sub === "uninstall") {
       if (subArgs.includes("--help") || subArgs.includes("-h")) {
-        process.stdout.write("Usage: codogotchi hooks uninstall\n");
+        process.stdout.write(
+          "Usage: codogotchi hooks uninstall [--platform <claude_code|cursor>]\n",
+        );
         return { exitCode: 0 };
       }
-      if (subArgs.length > 0) {
-        process.stderr.write("Usage: codogotchi hooks uninstall\n");
+      let platform: HooksPlatform;
+      let rest: string[];
+      try {
+        ({ platform, rest } = parseHooksPlatformFlag(subArgs));
+      } catch (err) {
+        process.stderr.write(
+          `${err instanceof Error ? err.message : String(err)}\n`,
+        );
         return { exitCode: 2 };
       }
-      await uninstallHooks();
+      if (rest.length > 0) {
+        process.stderr.write(
+          "Usage: codogotchi hooks uninstall [--platform <claude_code|cursor>]\n",
+        );
+        return { exitCode: 2 };
+      }
+      if (platform === "cursor") {
+        await uninstallCursorHooks();
+      } else {
+        await uninstallHooks();
+      }
       process.stdout.write("hooks uninstall: ok\n");
       return { exitCode: 0 };
     }
@@ -450,7 +521,9 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
             ? "installable"
             : "deferred";
           const installed = s.installed ? "installed" : "not-installed";
-          return `${name}: ${installed}, ${installable}`;
+          const mode =
+            s.source_origin !== undefined ? ` (${s.source_origin})` : "";
+          return `${name}: ${installed}${mode}, ${installable}`;
         });
         process.stdout.write(`${rows.join("\n")}\n`);
       }
