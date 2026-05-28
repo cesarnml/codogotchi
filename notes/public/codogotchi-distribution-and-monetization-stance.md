@@ -42,6 +42,12 @@ CodexBar stays direct partly for the same reason: provider CLIs, cookies, Keycha
 
 ### 1.3 When App Store becomes worth it
 
+**DMG is not a distribution stopgap — it is the right permanent model for this product.** Codogotchi's core value prop is sandbox-hostile: it writes to `~/.claude/settings.json`, `~/.codex/hooks.json`, and spawns `codogotchi-hook` on agent lifecycle events. App Store sandboxing fights every one of those requirements. The target audience (AI developers) already installs Cursor, Warp, and CodexBar via DMG without friction — the trust and discoverability arguments for App Store do not apply here.
+
+**GitHub Releases + notarized DMG + Sparkle** (+ optional `brew install --cask`) is the release model through v1 and likely beyond. Do not treat App Store as an implied next phase; treat it as a deliberate strategic pivot to revisit only if non-developer user acquisition becomes a priority.
+
+**The DMG story closes completely at Phase 10** when the `codogotchi` CLI binary is bundled inside `Contents/MacOS/`. After that, the DMG is a fully self-contained drag-and-drop artifact — no PATH prerequisite, no brew install, no Terminal required.
+
 Consider Mac App Store only when:
 
 - Hook installer and CLI are **bundled** in `.app` with a clear permissions story.
@@ -49,7 +55,7 @@ Consider Mac App Store only when:
 - In-app premium unlocks use **IAP** (or a vetted “account / reader” model with legal review).
 - **Non-developer discovery** justifies the overhead.
 
-Until then: **GitHub Releases + notarized DMG + Sparkle** (+ optional `brew install --cask`).
+Until that strategic pivot is made explicitly: **GitHub Releases + notarized DMG + Sparkle** (+ optional `brew install --cask`).
 
 ### 1.4 Frontend analogy (dev server vs production bundle)
 

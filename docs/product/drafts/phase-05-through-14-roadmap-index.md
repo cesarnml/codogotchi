@@ -6,6 +6,21 @@ _Prior shipped: Phase 01–04 ([phase-04-floating-pet.md](../plans/phase-04-floa
 
 ---
 
+## Distribution model
+
+**Codogotchi ships as a notarized DMG — not Mac App Store.** This is the permanent model for v1, not a stopgap. The hook pipeline writes to agent config dirs and spawns `codogotchi-hook` on lifecycle events; App Store sandboxing is incompatible with the core value prop. The target audience (AI developers) expects and trusts direct distribution.
+
+| Channel | Status |
+| --- | --- |
+| **GitHub Releases + notarized DMG** | Primary |
+| **Sparkle** (auto-update) | Phase 10+ |
+| **`brew install --cask`** | Optional alongside GitHub Releases |
+| **Mac App Store** | Not v1 — revisit only if non-developer discovery becomes a strategic priority |
+
+**Distribution milestone:** Phase 10 (CLI bundling inside `Contents/MacOS/`) closes the DMG story. After that the `.app` is a fully self-contained drag-and-drop artifact with no PATH prerequisite. See [distribution and monetization stance](../../notes/public/codogotchi-distribution-and-monetization-stance.md).
+
+---
+
 ## Product model
 
 | Mode | Default | Unlock |
