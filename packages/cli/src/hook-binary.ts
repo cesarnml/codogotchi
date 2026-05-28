@@ -33,6 +33,8 @@ export type HookInput = {
   stop_reason?: string;
   // Explicit failure signal for rate-limit / network-error events.
   is_error?: boolean;
+  // Cursor hook payload: project directories passed by the Cursor runtime.
+  workspace_roots?: string[];
 };
 
 export type ClassifyState = { readRun: number };
@@ -102,14 +104,28 @@ type NormalizedEvent = {
 function rawHookOrigin(input: HookInput): SourceEventOrigin {
   if (input.origin !== undefined) return input.origin;
   const eventName = input.hook_event_name;
-  if (eventName && eventName === eventName.toLowerCase()) return "codex";
-  return "claude_code";
+  if (!eventName) return "claude_code";
+  // codex=snake_case (all-lowercase with underscores), claude_code=PascalCase,
+  // cursor=camelCase or simple lowercase (no underscores, e.g. "stop").
+  if (eventName[0] !== eventName[0].toUpperCase()) {
+    if (eventName !== eventName.toLowerCase()) return "cursor"; // camelCase
+    if (eventName.includes("_")) return "codex"; // snake_case
+    return "cursor"; // simple lowercase (e.g. Cursor "stop")
+  }
+  return "claude_code"; // PascalCase
 }
 
 function rawHookKind(input: HookInput): SourceEventKind {
   if (input.kind !== undefined) return input.kind;
   if (input.tool_name) return "tool_use";
-  const eventName = input.hook_event_name?.toLowerCase();
+  const hookName = input.hook_event_name;
+  if (
+    hookName === "afterFileEdit" ||
+    hookName === "beforeShellExecution" ||
+    hookName === "afterShellExecution"
+  )
+    return "tool_use";
+  const eventName = hookName?.toLowerCase();
   if (eventName === "session_start") return "session_start";
   if (eventName === "session_end" || eventName === "stop") return "session_end";
   return "session_start";
@@ -118,7 +134,16 @@ function rawHookKind(input: HookInput): SourceEventKind {
 function normalize(input: HookInput): NormalizedEvent | null {
   // Prefer explicit shape; fall back to Claude Code raw stdin shape.
   const rawOrigin = rawHookOrigin(input);
-  const rawName = input.name ?? input.tool_name ?? "unknown";
+  const hookName = input.hook_event_name;
+  let rawName = input.name ?? input.tool_name ?? "unknown";
+  if (hookName === "afterFileEdit") {
+    rawName = "Edit";
+  } else if (
+    hookName === "beforeShellExecution" ||
+    hookName === "afterShellExecution"
+  ) {
+    rawName = "Shell";
+  }
   const rawKind = rawHookKind(input);
   const candidate: SourceEvent = {
     origin: rawOrigin as SourceEventOrigin,
@@ -428,6 +453,7 @@ export async function runHook(
     const soaRoot = resolveSoaRoot({
       CLAUDE_PROJECT_DIR: env.CLAUDE_PROJECT_DIR,
       CODEX_PROJECT_DIR: env.CODEX_PROJECT_DIR,
+      CURSOR_WORKSPACE_ROOT: input.workspace_roots?.[0],
       CWD: cwd,
     });
     let soaTail = counters.soa_tail;
