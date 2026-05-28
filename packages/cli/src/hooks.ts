@@ -8,7 +8,21 @@ import {
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import type { StateJsonV1 } from "@codogotchi/contracts";
 import type { InstallHooksContext } from "./setup";
+
+const CODOGOTCHI_HOME_REL = ".codogotchi";
+const STATE_JSON_REL = join(CODOGOTCHI_HOME_REL, "state.json");
+const FIRING_RECENTLY_WINDOW_MS = 5 * 60 * 1000;
+
+async function readStateJson(userRoot: string): Promise<StateJsonV1 | null> {
+  try {
+    const raw = await readFile(join(userRoot, STATE_JSON_REL), "utf8");
+    return JSON.parse(raw) as StateJsonV1;
+  } catch {
+    return null;
+  }
+}
 
 const CLAUDE_SETTINGS_REL = join(".claude", "settings.json");
 const CODEX_CONFIG_REL = join(".codex", "config.toml");
@@ -432,8 +446,11 @@ export async function hooksStatus(): Promise<HooksStatus> {
   const claudePath = join(root, CLAUDE_SETTINGS_REL);
   const codexJsonPath = join(root, CODEX_HOOKS_JSON_REL);
 
-  const claudePresent = await fileExists(claudePath);
-  const codexPresent = await fileExists(codexJsonPath);
+  const [claudePresent, codexPresent, state] = await Promise.all([
+    fileExists(claudePath),
+    fileExists(codexJsonPath),
+    readStateJson(root),
+  ]);
 
   const claude = claudePresent
     ? await readJsonOrEmpty<ClaudeSettings>(claudePath)
@@ -442,20 +459,26 @@ export async function hooksStatus(): Promise<HooksStatus> {
     ? await readJsonOrEmpty<CodexHooksJson>(codexJsonPath)
     : ({} as CodexHooksJson);
 
+  const lastEventAt = state?.updated_at ?? null;
+  const origin = state?.source_event?.origin ?? null;
+  const firingRecently =
+    lastEventAt !== null &&
+    Date.now() - new Date(lastEventAt).getTime() < FIRING_RECENTLY_WINDOW_MS;
+
   return {
     codex: {
       present_on_disk: codexPresent,
       installable_in_phase: true,
       installed: codexInstalled((codex.hooks ?? {}) as CodexHooks),
-      firing_recently: false,
-      last_event_at: null,
+      firing_recently: firingRecently && origin === "codex",
+      last_event_at: origin === "codex" ? lastEventAt : null,
     },
     claude_code: {
       present_on_disk: claudePresent,
       installable_in_phase: true,
       installed: claudeInstalled((claude.hooks ?? {}) as ClaudeHooks),
-      firing_recently: false,
-      last_event_at: null,
+      firing_recently: firingRecently && origin === "claude_code",
+      last_event_at: origin === "claude_code" ? lastEventAt : null,
     },
     cursor: {
       present_on_disk: false,
