@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-05-28T02:30:27.513Z",
+  "observations": [
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.01-subagent-review.report.md",
+      "ticketId": "P5.01",
+      "observationText": "- **`router-lite-rpg-guard.test.ts` covers only `sync` refusal** — `loot` and `vacation` have identical guards but no router-level tests; ticket Red asked for all RPG command refusals. - **No positive router test** that `sync` proceeds (or at least passes the gate) when `rpg_enabled: true`. - **No Lite `config set` refusal tests** for keys like `handle` or `health.grace_days`. - **No Lite round-trip test** (`writeConfig` → `readConfig` → `config get`). - **`codogotchi loot --help` in Lite mode** returns exit 2 with RPG message instead of usage — minor flag-symmetry edge case. - **`config get` on Lite** returns `null` for RPG keys like `github_token` without the explicit Lite refusal message that `config set` uses — inconsistent but outside ticket Outcome wording. - **`setup.ts` unchanged in behavior** — still RPG-only with Convex registration; Lite greenfield seeding deferred to P5.03. Ticket Outcome mentions default `pet: \"maew\"` when writing Lite seed; only RPG setup writes `pet` today. - **`sync.test.ts` `defaultConfig()`** omits `features.rpg_enabled` — test fixture drift; may still pass because `runSync` bypasses `readConfig` validation. - **Ticket `## Rationale` is empty** — no record of deferrals (setup split, operator migration in P5.09) despite implementation trade-offs being visible in code.",
+      "disposition": "deferred",
+      "rationale": "Nine test coverage gaps and doc quality issues: missing router-level tests for loot/vacation RPG guards, no positive RPG gate test, no Lite config-set refusal tests, no round-trip test, loot --help flag-symmetry edge, config-get inconsistency, setup.ts Lite seed deferred (covered by P5.03), sync.test.ts fixture drift, and empty Rationale section. Low individual severity; worth addressing collectively when the CLI test suite is next extended."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.01-subagent-review.report.md",
+      "ticketId": "P5.01",
+      "observationText": "---",
+      "disposition": "rejected",
+      "rationale": "Markdown horizontal rule separator parsed as an observation, not a substantive advisory observation."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.03-subagent-review.report.md",
+      "ticketId": "P5.03",
+      "observationText": "---",
+      "disposition": "rejected",
+      "rationale": "Markdown horizontal rule separator parsed as an observation, not a substantive advisory observation."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.03-subagent-review.report.md",
+      "ticketId": "P5.03",
+      "observationText": "1. **Partial state on `installHooks` failure in `runSetup`** (`packages/cli/src/setup.ts:64–65`, `packages/cli/src/router.ts:174–183`): If `writeConfig` succeeds and `deps.installHooks` throws, `config.json` is left on disk. The router rethrows the unknown error as a stack trace with no message explaining the partial state. On retry, the user hits `ConfigExistsError` with no indication of what happened. Spec clause that permits it: \"Write config first so `installHooks` can verify it exists.\" Low-risk fix: catch the `installHooks` failure in `runSetup` (or in the router handler), emit a human-readable message like `\"config written but hooks installation failed — run codogotchi hooks install to complete setup\"`, and rethrow. The config staying on disk is actually desirable; only the messaging is missing.",
+      "disposition": "deferred",
+      "rationale": "Spec-permitted partial state: config.json is left on disk when installHooks throws, and the user gets an unhelpful ConfigExistsError on retry instead of a diagnostic message. Low-risk messaging fix; defer until hooks setup UX is revisited."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.03-subagent-review.report.md",
+      "ticketId": "P5.03",
+      "observationText": "2. **`parseSetupFlags` error message says \"setup\" when invoked from `rpg`** (`packages/cli/src/router.ts:188`, `router.ts:93–105`): `throw new Error(\"Unknown flag for setup: ${arg}\")` — passing an unknown flag to `rpg` emits a confusing \"Unknown flag for **setup**\" message. Simple fix: parameterize the command name, or create a thin `parseRpgFlags` wrapper.",
+      "disposition": "deferred",
+      "rationale": "Cosmetic CLI message drift: parseSetupFlags emits \"Unknown flag for setup\" when invoked from the rpg command. Simple parameterization fix; defer to a CLI polish ticket."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.03-subagent-review.report.md",
+      "ticketId": "P5.03",
+      "observationText": "3. **Raw network errors escape `runRpg` without user-friendly messaging** (`packages/cli/src/router.ts:204–214`): DNS failures, TLS errors, and connection timeouts from `doFetch` are rethrown as `TypeError` or system errors. The interactive enrollment context suggests wrapping these with a message like `\"Convex registration failed: <reason>. Check your URL and network, then retry.\"` Not a blocking issue, but notable in a first-run UX path.",
+      "disposition": "deferred",
+      "rationale": "First-run UX gap: raw network errors (DNS, TLS, connection timeout) from doFetch surface as Node.js stack traces instead of actionable messages. Defer to a CLI error-handling hardening ticket."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.03-subagent-review.report.md",
+      "ticketId": "P5.03",
+      "observationText": "4. **`runRpg` Convex-registered-but-no-config window** (`packages/cli/src/setup.ts:217–228`): If Convex `/sync` succeeds and `writeConfig` subsequently throws (e.g., disk full), the user is registered with Convex under a `profile_id` that is never persisted. A retry generates a new UUID and creates a second orphan registration. Extremely unlikely; mentioned for completeness given the spec's emphasis on atomicity.",
+      "disposition": "deferred",
+      "rationale": "Extremely unlikely atomicity window: successful Convex /sync followed by writeConfig failure orphans the Convex registration. Noted for completeness; defer until a broader idempotency pass on the rpg enrollment flow."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.03-subagent-review.report.md",
+      "ticketId": "P5.03",
+      "observationText": "5. **Outcome vs Rationale drift on missing-hooks error for `rpg`** (ticket lines 14 and 44): The Outcome section promises `\"if missing, error points to hooks install\"` but the Rationale explicitly defers hooks-missing error surfacing for `runRpg` to a future ticket. The implementation follows the Rationale. The primary agent should align the Outcome text with the Rationale (either note the deferral in the Outcome, or open a follow-up ticket to implement the check).",
+      "disposition": "deferred",
+      "rationale": "Ticket Outcome text promises \"if missing, error points to hooks install\" but Rationale explicitly defers that check. Implementation correctly follows the Rationale. The Outcome text should be aligned in a follow-up doc sweep."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.04-subagent-review.report.md",
+      "ticketId": "P5.04",
+      "observationText": "---",
+      "disposition": "rejected",
+      "rationale": "Markdown horizontal rule separator parsed as an observation, not a substantive advisory observation."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.04-subagent-review.report.md",
+      "ticketId": "P5.04",
+      "observationText": "1. **`MenubarApp.applicationDidFinishLaunching` — no `NSLog` on successful seed.** When the seed runs and succeeds, there is no log entry. A first-launch trace in Console.app would show `CodexPet` load success but no indication that the seed fired. Adding `NSLog(\"MenubarApp: seeded Maew from bundle into %@\", canonicalPath)` after `seed(from:into:)` succeeds would aid first-launch diagnostics without changing behavior.",
+      "disposition": "deferred",
+      "rationale": "No NSLog on successful seed makes first-launch Console.app tracing harder. Low-value diagnostic improvement; defer to a broader observability sweep."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.04-subagent-review.report.md",
+      "ticketId": "P5.04",
+      "observationText": "2. **`MenubarApp.bundledMaewDirectory` — test coverage gap.** The nil-return path of `bundledMaewDirectory()` is not covered by any test. The function is private and only exercised in the live app. A unit test that calls `PetStoreSeeder.seed(from:into:)` from a non-existent source directory and verifies the app-level degradation would close this gap, but it requires refactoring `applicationDidFinishLaunching` to be injectable — outside this ticket's scope.",
+      "disposition": "deferred",
+      "rationale": "bundledMaewDirectory nil-return path is private and only exercised in the live app. Closing the gap requires refactoring applicationDidFinishLaunching to be injectable — defer to when that seam is next touched."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.04-subagent-review.report.md",
+      "ticketId": "P5.04",
+      "observationText": "3. **`seed` error handling in `MenubarApp` — recoverable vs. non-recoverable not distinguished.** `catch error` after `seed(from:into:)` logs and continues regardless of error type. A `CocoaError.fileWriteOutOfSpace` (disk full) and a `CocoaError.fileNoSuchFile` both collapse to the same log line and the same fallback behavior. This is fine for the current scope but worth noting as the seeder gains more assets.",
+      "disposition": "deferred",
+      "rationale": "Recoverable vs. non-recoverable error distinction absent in seed catch block. Both collapse to the same log-and-continue behavior. Acceptable for current scope; revisit when the seeder gains more assets or recovery paths."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.05-subagent-review.report.md",
+      "ticketId": "P5.05",
+      "observationText": "**`isHooksNotActive` ignores `installable_in_phase`:** The predicate fires \"active\" on any platform with `installed && firingRecently`, including the three phase-deferred platforms (cursor, vscode, antigravity) that the CLI always sets to `installed: false` today. If a CLI bug or hand-edited snapshot sets one of those to active, the onboarding CTA would suppress itself for a non-real integration. A guard like `.filter { $0.installableInPhase }` before the `contains` call would make the predicate defensive against schema drift.",
+      "disposition": "deferred",
+      "rationale": "isHooksNotActive predicate does not guard on installable_in_phase, so a future CLI schema change could suppress the onboarding CTA for a non-real integration. Low risk today since cursor/vscode/antigravity always ship with installed: false. Defer until those platforms become installable."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.05-subagent-review.report.md",
+      "ticketId": "P5.05",
+      "observationText": "**`lastEventAt` string propagation without ISO validation:** `refreshHookStatusCache` uses string `max()` to pick the most recent event timestamp. ISO 8601 UTC strings with uniform sub-second precision sort correctly lexicographically, but mixed-precision or non-UTC strings would produce a wrong winner. If a future CLI version changes the timestamp format, the stored `lastHookActivityAt` silently becomes a garbled ordering artifact rather than a hard error. A simple prefix-length guard or `ISO8601DateFormatter` parse before the `max()` would make the failure loud.",
+      "disposition": "deferred",
+      "rationale": "lastEventAt strings propagate without ISO 8601 validation into lastHookActivityAt; lexicographic max works correctly for uniform UTC precision but would break on mixed-format inputs. Display-metadata impact only; defer to a CLI timestamp hygiene pass."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.05-subagent-review.report.md",
+      "ticketId": "P5.05",
+      "observationText": "**Phase 04 → Phase 05 downgrade drops new fields on re-save:** A developer switching back to a P4 build will silently lose `onboardingCompletedAt`, `lastHookActivityAt`, and `hooksStatus` from `app-state.json` on the first frame drag or visibility toggle. This is by design per the ticket Rationale but is not documented in the file format comment. A one-line comment on `APP_STATE_SCHEMA_VERSION` noting \"P5.05 additive fields are lossy on P4 re-save\" would help future readers avoid version-bump confusion.",
+      "disposition": "already-covered",
+      "rationale": "Phase 04 → Phase 05 downgrade field loss is intentional per the ticket Rationale (\"older readers ignore them\"). The behavior is by design and no patch is needed; the observation is informational."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.07-subagent-review.report.md",
+      "ticketId": "P5.07",
+      "observationText": "---",
+      "disposition": "rejected",
+      "rationale": "Markdown horizontal rule separator parsed as an observation, not a substantive advisory observation."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.07-subagent-review.report.md",
+      "ticketId": "P5.07",
+      "observationText": "1. **Doc-vs-code drift — canonical pet listing missing**: The ticket outcome specifies *\"Pet: list/select pets under `~/.codogotchi/pets/`\"* but the Pet section lists only Codex pets for import. There is no UI to view or select already-imported canonical pets. If this is intentionally out of scope for P5.07, the ticket rationale should note the deferral explicitly.",
+      "disposition": "deferred",
+      "rationale": "Ticket Outcome specifies listing canonical pets under ~/.codogotchi/pets/ but the Settings Pet section only exposes import from Codex. If intentionally out of scope, the ticket Rationale should note the deferral; otherwise a follow-up ticket should add the listing UI."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.07-subagent-review.report.md",
+      "ticketId": "P5.07",
+      "observationText": "2. **Doc-vs-code drift — Cursor bridge has no hyperlink**: The ticket says \"link to README\" for the Cursor bridge note; the implementation provides plain text (\"See README for details\") with no clickable link. This may be a deliberate simplification given the programmatic NSPanel context, but warrants a note in the ticket.",
+      "disposition": "deferred",
+      "rationale": "Ticket says \"link to README\" for the Cursor bridge note but the implementation uses plain text (\"See README for details\") with no hyperlink. A doc note or clickable link should be added in a follow-up pass."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.07-subagent-review.report.md",
+      "ticketId": "P5.07",
+      "observationText": "3. **`SettingsWindowController` integration wiring untested**: `handleImportPet` → `setPetImportSuccess/Error`, and the `handleInstallHooks`/`handleUninstallHooks` GCD → main-thread feedback display chain, have no test coverage. The unit tests for `SettingsController` and `PetImportHelper` in isolation are solid; the wiring inside `SettingsWindowController` is verified only by code review. A lightweight test double for `SettingsContentView` (or a spy on the callbacks) would close this gap.",
+      "disposition": "deferred",
+      "rationale": "handleImportPet → setPetImportSuccess/Error and the GCD → main-thread feedback chain in SettingsWindowController have no test coverage. Unit tests for SettingsController and PetImportHelper in isolation are solid; integration wiring is verified only by code review. A lightweight test double for SettingsContentView would close this gap."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.07-subagent-review.report.md",
+      "ticketId": "P5.07",
+      "observationText": "4. **`handleImportPet` runs synchronously on the main thread**: `SettingsWindowController.handleImportPet` calls `petImportHelper.importPet(id:)` directly on the main actor (unlike `handleInstallHooks` which dispatches to a background queue). For a pet directory with many large sprite assets, this will block the main thread and freeze the UI until the copy completes. No timeout or progress indication exists. This mirrors an accepted tradeoff at this phase but diverges from the hooks install async pattern.",
+      "disposition": "deferred",
+      "rationale": "handleImportPet runs synchronously on the main actor, potentially freezing the UI for large pet asset directories. Mirrors an accepted tradeoff at this phase but diverges from the hooks install async pattern. Defer until pet import UX is revisited."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.07-subagent-review.report.md",
+      "ticketId": "P5.07",
+      "observationText": "5. **Subprocess hang has no timeout**: A hung `codogotchi hooks install/uninstall` subprocess will occupy the `.userInitiated` GCD thread indefinitely. The Install/Uninstall buttons are disabled while working (correct), but there is no way for the user to cancel or for the app to recover. This is the same pattern as `OnboardingController`; the advisory applies equally to both.",
+      "disposition": "deferred",
+      "rationale": "Subprocess hang on codogotchi hooks install/uninstall has no timeout or cancellation path. Pre-existing pattern shared with OnboardingController; applies to both. Defer to a broader subprocess lifecycle ticket."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.07-subagent-review.report.md",
+      "ticketId": "P5.07",
+      "observationText": "6. **`appStateLoader` performs file I/O on the main thread at window open**: Same observation as Surface 3 — acceptable at current file sizes, but if `AppStateStore.load` ever adds heavier parsing, the synchronous call in `openWindow()` is the wrong place.",
+      "disposition": "deferred",
+      "rationale": "appStateLoader calls AppStateStore.load on the main thread at window open. Sub-millisecond at current file sizes; acceptable today but worth tracking if AppStateStore.load gains heavier parsing."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.11-subagent-review.report.md",
+      "ticketId": "P5.11",
+      "observationText": "---",
+      "disposition": "rejected",
+      "rationale": "Markdown horizontal rule separator parsed as an observation, not a substantive advisory observation."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.11-subagent-review.report.md",
+      "ticketId": "P5.11",
+      "observationText": "1. `defaultLogFolderURL()` (line 71–75) does not respect `CODOGOTCHI_HOME` — it always returns `~/.codogotchi/`. If a user sets `CODOGOTCHI_HOME=/custom/home`, the \"Open log folder\" action opens the wrong directory while \"Reveal pet folder\" opens the correct one. This inconsistency is outside this ticket's scope but is user-visible and worth a follow-up ticket.",
+      "disposition": "deferred",
+      "rationale": "defaultLogFolderURL() hard-codes ~/.codogotchi/ and does not respect CODOGOTCHI_HOME, creating a visible inconsistency when a user sets a custom home: \"Open log folder\" opens the wrong directory while \"Reveal pet folder\" opens the correct one. Worth a follow-up ticket to unify the path resolution."
+    },
+    {
+      "sourceReportPath": "docs/product/delivery/phase-05/reviews/P5.11-subagent-review.report.md",
+      "ticketId": "P5.11",
+      "observationText": "2. Several test call sites pass `petFolderURL: URL(fileURLWithPath: \"/tmp/codex-pets\")` (e.g., `MenuItemsTests.swift:50, 70, 77, 91, 110, 130, 147, 186, 206, 223`). The literal `codex-pets` in the injected URL is a leftover naming artifact from before this ticket; it has no behavioral impact (the URL is injected at init and never compared against a canonical path), but it could mislead a future reader into thinking the test is validating the old Codex path.",
+      "disposition": "deferred",
+      "rationale": "Test call sites inject petFolderURL: URL(fileURLWithPath: \"/tmp/codex-pets\") — a leftover naming artifact from before this ticket. No behavioral impact, but the \"codex-pets\" literal could mislead a future reader. Clean up when next touching MenuItemsTests."
+    }
+  ]
+}
