@@ -202,4 +202,74 @@ final class StateJsonReaderTests: XCTestCase {
 			return
 		}
 	}
+
+	// MARK: - TTL policy (P6.07)
+
+	func testStandbyWithExpiredTTLResolvesToIdle() throws {
+		let json = """
+			{"schema_version": 3, "activity_state": "standby", "updated_at": "2026-05-29T00:00:00.000Z", "attention": {"expires_at": "2020-01-01T00:00:00.000Z", "reason_kind": "input_requested", "summary": "x", "created_at": "2019-12-31T23:00:00.000Z"}}
+			"""
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("ttl-expired-\(UUID().uuidString).json")
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	func testStandbyWithFutureTTLRemainsStandby() throws {
+		let json = """
+			{"schema_version": 3, "activity_state": "standby", "updated_at": "2026-05-29T00:00:00.000Z", "attention": {"expires_at": "2099-01-01T00:00:00.000Z", "reason_kind": "input_requested", "summary": "x", "created_at": "2026-05-29T00:00:00.000Z"}}
+			"""
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("ttl-future-\(UUID().uuidString).json")
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.activityState, .standby)
+	}
+
+	func testStandbyWithNoAttentionRemainsStandby() throws {
+		let json = """
+			{"schema_version": 3, "activity_state": "standby", "updated_at": "2026-05-29T00:00:00.000Z"}
+			"""
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("ttl-absent-\(UUID().uuidString).json")
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.activityState, .standby)
+	}
+
+	func testIdleWithExpiredTTLRemainsIdle() throws {
+		let json = """
+			{"schema_version": 3, "activity_state": "idle", "updated_at": "2026-05-29T00:00:00.000Z", "attention": {"expires_at": "2020-01-01T00:00:00.000Z", "reason_kind": "input_requested", "summary": "x", "created_at": "2019-12-31T23:00:00.000Z"}}
+			"""
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("ttl-idle-expired-\(UUID().uuidString).json")
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
 }
