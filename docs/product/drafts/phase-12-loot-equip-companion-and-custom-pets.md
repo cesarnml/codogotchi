@@ -16,7 +16,7 @@ Reference workflow: baseline portrait (pink plate) → equipped still → 8-fram
 
 ## The problem
 
-- `loot.log` is NDJSON; Settings Phase 10 shows cards read-only.
+- `loot.log` is NDJSON; Settings Phase 08 shows cards read-only.
 - “Visible loot on sprite” was deferred since Phase 01.
 - No slot model for hand/head/companion; no per-row equip assets.
 
@@ -64,7 +64,7 @@ Runtime: when premium entitled + equipped, floating/menubar renderer prefers equ
 
 ### 7. Settings Loot tab upgrade
 
-- From Phase 10 read-only gallery → equip/unequip when entitled
+- From Phase 08 read-only gallery → equip/unequip when entitled
 
 ---
 
@@ -88,8 +88,8 @@ Runtime: when premium entitled + equipped, floating/menubar renderer prefers equ
 
 ## Dependencies
 
-- **Phase 10** Settings + Loot gallery
-- **Phase 10** pet import / `~/.codogotchi/pets/` canonical layout
+- **Phase 08** Settings + Loot gallery
+- **Phase 08** pet import / `~/.codogotchi/pets/` canonical layout
 - **Phase 11** optional (level-gated loot rarity can wait)
 - **Phase 06–07** recommended before loot tied to `source_origin` / platform-specific drops (Cursor vs Claude vs Codex)
 

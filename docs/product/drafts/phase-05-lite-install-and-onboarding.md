@@ -10,7 +10,7 @@ _Source: [codogotchi-ideation-storm-roadmap-draft.md](../../notes/public/codogot
 
 Codogotchi should install like a **native Codex-class desktop pet**: hooks + app, no Convex handle, no WakaTime, no “RPG enrollment” on day one. The menubar and floating pet are already a `state.json` visualizer; **Phase 01–02 coupling** (everything flows through `codogotchi setup`) is the main onboarding wall.
 
-This phase splits install paths and introduces **`features.rpg_enabled: false`** as the default for new users. **Alive pet** (XP, health decay, loot, sync) unlocks later from Settings (Phase 10).
+This phase splits install paths and introduces **`features.rpg_enabled: false`** as the default for new users. **Alive pet** (XP, health decay, loot, sync) unlocks later from Settings (Phase 08).
 
 ---
 
@@ -31,7 +31,7 @@ Users who only want “pet that reacts to my agent” must still enroll in the f
 | Mode | Default? | User gets |
 | --- | --- | --- |
 | **Lite** | Yes (new installs) | `hooks install` + Codogotchi.app; hook-driven animation; SoA gates when present; `hp` defaults to 100 / thriving unless `profile.json` exists |
-| **Alive (RPG)** | Opt-in via Settings (Phase 10) or `codogotchi enroll` | Convex handle, sync, signals, health/XP/loot — existing Phase 01 engine |
+| **Alive (RPG)** | Opt-in via Settings (Phase 08) or `codogotchi enroll` | Convex handle, sync, signals, health/XP/loot — existing Phase 01 engine |
 
 ---
 
@@ -63,13 +63,13 @@ Users who only want “pet that reacts to my agent” must still enroll in the f
 ### 4. Codex import-on-select (minimal)
 
 - If `~/.codex/pets/*` exists, allow choosing a pet id in config without full Settings UI (CLI `config set pet <id>` or tiny prompt in `hooks install`)
-- **Copy** (not live-read) selected Codex pet assets into `~/.codogotchi/pets/<id>/` on first selection — canonical store for runtime (full Pet tab UI in Phase 10)
+- **Copy** (not live-read) selected Codex pet assets into `~/.codogotchi/pets/<id>/` on first selection — canonical store for runtime (full Pet tab UI in Phase 08)
 
 ### 5. Menubar / README messaging
 
 - Menu: **Install hooks…** (opens help or runs documented command) vs **Enable alive pet…** (deferred UI wire to Phase 10; stub or deep-link OK)
 - README: “Lite install” path (3 steps: build app, `hooks install`, use agent) separate from “Alive pet” path
-- No HUD / hearts / XP UI in this phase (Phase 08+, gated)
+- No HUD / hearts / XP UI in this phase (Phase 09+, gated)
 
 ### 6. Hook behavior in lite mode
 
@@ -97,7 +97,7 @@ README / runbook: verify bridge with `jq '.hooks' ~/.claude/settings.json | grep
 
 - Native multi-platform hooks (`~/.cursor/hooks.json`, VS Code, Antigravity) and truthful `source_origin` → **Phase 06** (Cursor may already animate via Claude bridge until then)
 - Attention tray, TTL, bubble UX → **Phase 06**
-- Settings window and RPG unlock UI → **Phase 10**
+- Settings window and RPG unlock UI → **Phase 08**
 - Convex schema changes
 - Premium / loot / equip
 

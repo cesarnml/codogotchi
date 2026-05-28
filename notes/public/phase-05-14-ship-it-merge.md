@@ -90,7 +90,7 @@ Includes **12 + 13 + 14** (unless a small piece is needed for launch story).
 - Keep only if a very small HUD slice can ship without destabilizing launch.
 - Otherwise defer entire visual health stack.
 
-### Phase 10 (pull forward, trim hard)
+### Phase 08 (pull forward, trim hard)
 
 - Keep: one settings window + diagnostics + pet selection path.
 - Cut now: full tab richness, loot-heavy UI, advanced config surfaces.

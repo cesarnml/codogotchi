@@ -17,8 +17,8 @@
 
 - **App Store submission**, Apple Developer Program enrollment, store listing, and review-driven packaging (later phase when the product is viable—not a Phase 05 gate).
 - Native Cursor / VS Code / Antigravity hook installers and truthful `source_origin` (Phase 06).
-- Full in-app RPG enrollment UI and multi-tab Settings (Phase 10).
-- Attention tray, signal honesty, HUD, health, loot (Phase 06+ / Phase 08+).
+- Full in-app RPG enrollment UI and multi-tab Settings (Phase 08).
+- Attention tray, signal honesty, HUD, health, loot (Phase 06+ / Phase 09+).
 
 ---
 
@@ -47,11 +47,11 @@ This phase should leave the product in a state where:
 
 ### Minimal Settings Window
 
-A small Settings window (expanded in Phase 10), not a substitute for first-run onboarding:
+A small Settings window (expanded in Phase 08), not a substitute for first-run onboarding:
 
 - **Hooks:** per-platform status (`not installed | installed | firing recently | unknown`), install/uninstall for supported platforms, last event time and `source_origin` when available.
 - **Pet:** select active pet from `~/.codogotchi/pets/`; optional import/copy from `~/.codex/pets/*` into the canonical store (no live-read from Codex at runtime).
-- **Alive (RPG):** **stub only**—what RPG unlocks and that enrollment is `codogotchi rpg` today; full in-app enroll deferred to Phase 10.
+- **Alive (RPG):** **stub only**—what RPG unlocks and that enrollment is `codogotchi rpg` today; full in-app enroll deferred to Phase 08.
 
 ### Hook Install Scope (Phase 05)
 
@@ -94,9 +94,9 @@ Reliable installers in this phase:
 
 - **Mac App Store distribution:** Apple Developer Program account, app signing for store, notarization for store submission, App Store Connect metadata, and review. Phase 05 only requires a reproducible **developer install** path documented in README/runbook. Store readiness is a later milestone (after Phases 05–14 land on the 2026-06-30 working deadline).
 - Native Cursor, VS Code, and Antigravity hook installers; tool-alias tables and attribution fixes (Phase 06).
-- Full Settings tabs (General, Health, Loot, Developer depth) and in-app RPG enrollment flow (Phase 10).
+- Full Settings tabs (General, Health, Loot, Developer depth) and in-app RPG enrollment flow (Phase 08).
 - Attention bubble, tray, TTL, signal honesty (`tool.command`, `work_mode`, origin fixes).
-- Convex schema changes; XP/HP/loot HUD; premium gating; equip rendering (Phase 08+).
+- Convex schema changes; XP/HP/loot HUD; premium gating; equip rendering (Phase 09+).
 
 ## Exit Condition
 

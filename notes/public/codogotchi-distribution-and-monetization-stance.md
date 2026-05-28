@@ -147,7 +147,7 @@ Phase 12 defers StoreKit; entitlement stub (Convex field or local flag) is enoug
 
 ```text
 Phases 05–07     Direct install (DMG/notarized), free lite pet + hooks
-Phase 10–12      Settings loot → equip folders → renderer row override
+Phase 08–12      Settings loot → equip folders → renderer row override
 Monetization v1  Web checkout → credits / Pro → generation + equip download
 Optional later   Mac App Store build + IAP if discovery warrants it
 Parallel         Static menubar, Release perf (see process-cost notes)

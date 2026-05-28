@@ -1,7 +1,8 @@
 # Phase 06 Draft — Platform Parity and Attention UX
 
 _Drafted: 2026-05-27_
-_Status: Pre-planning draft — not yet through `/soa plan`_
+_Updated: 2026-05-28 — planning session complete; product plan written at [docs/product/plans/phase-06-platform-parity-and-attention.md](../plans/phase-06-platform-parity-and-attention.md)_
+_Status: **Product plan approved — ready for `/soa decompose`**_
 _Source: [codogotchi-native-codex-pet-feature-parity-roadmap.md](../../notes/public/codogotchi-native-codex-pet-feature-parity-roadmap.md), [codogotchi-platform-extension-and-signal-pipeline-research.md](../../notes/public/codogotchi-platform-extension-and-signal-pipeline-research.md), [codex-native-pet-animation-triggers.md](../../notes/public/codex-native-pet-animation-triggers.md)_
 
 ---
@@ -83,7 +84,7 @@ Optional `attention` on `state.json` (or documented sibling file):
 - Antigravity without captured fixtures → **Phase 14**
 - SoA direct write to `~/.codogotchi/` → **Phase 07** (upstream + reader)
 - Full `work_mode: thinking | implementing | testing` taxonomy → **Phase 07**
-- HUD hearts / XP → **Phase 08+** (RPG-gated)
+- HUD hearts / XP → **Phase 09+** (RPG-gated)
 
 ---
 
