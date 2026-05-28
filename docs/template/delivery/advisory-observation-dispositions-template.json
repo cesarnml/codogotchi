@@ -1,0 +1,56 @@
+{
+  "_template_doc": "Canonical input format for `bun run deliver --plan <plan> triage-advisory-observations --dispositions <this-file>`. Drop this file under `.agents/delivery/<plan-key>/advisory-observation-dispositions.json` (the .agents directory is gitignored) and fill in one entry per parsed advisory observation. The primary agent IS expected to patch where prudent during this triage lane — this file records the action taken, not just a summary of what the subagent observed. Disposition vocabulary: patched | rejected | already-covered | requires-human-review (legacy `deferred` and `converted-to-ticket` are auto-migrated on read).",
+
+  "_field_doc": {
+    "disposition": "Action taken. Patched means a fix landed in a commit; the commit SHA goes under `patch.commitSha`. Rejected means the observation is not actionable (markdown artifact, false positive, scope drift, or filed as a follow-up ticket with the ticket path under `followUpReference`). Already-covered means the observation is already addressed by behavior in a sibling ticket or earlier phase — name where in `rationale`. Requires-human-review is the only escape hatch: the decision is genuinely ambiguous and the developer must call it; not a synonym for skip.",
+    "rationale": "Required for every disposition, including patched. Explains why this disposition was chosen. For patched: what the fix does. For rejected: why the observation is not actionable. For already-covered: where the behavior was added. For requires-human-review: the specific question the developer must decide.",
+    "patch": "Required when disposition is patched. `commitSha` is the SHA of the commit that applied the fix. `files` (optional) is the list of paths touched, for reviewer convenience.",
+    "followUpReference": "Optional. Path to a follow-up ticket, GitHub issue URL, or PR URL. Most useful when the disposition is rejected (with reason: filed as separate ticket) or requires-human-review (with the issue tracking the open decision).",
+    "source": "Origin of the observation. `reportPath` is the repo-relative path to the subagent-review.report.md file; `ticketId` is the phase ticket identifier (e.g. P05.06).",
+    "observation": "Verbatim observation text from the report's Advisory Observations section. This is the matching key the command uses to align dispositions with parsed observations. Must match the parsed text exactly — if the report uses a bullet, this is the bullet text without the leading `- `. If it is a paragraph, it is the paragraph as a single line (the parser flattens newlines inside paragraphs to spaces)."
+  },
+
+  "observations": [
+    {
+      "disposition": "patched",
+      "rationale": "Added an absolute-path guard in resolveHome() so a relative CODOGOTCHI_HOME no longer resolves against the process working directory at launch.",
+      "patch": {
+        "commitSha": "0123456789abcdef0123456789abcdef01234567",
+        "files": ["packages/cli/src/config.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-05/reviews/P05.02-subagent-review.report.md",
+        "ticketId": "P05.02"
+      },
+      "observation": "Relative CODOGOTCHI_HOME resolves against process working directory. URL(fileURLWithPath: home) with a relative path (e.g., CODOGOTCHI_HOME=./tmp) resolves relative to the current working directory at runtime, not the executable location."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Markdown horizontal-rule separator parsed as an observation, not a substantive advisory observation.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-05/reviews/P05.02-subagent-review.report.md",
+        "ticketId": "P05.02"
+      },
+      "observation": "---"
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "P5.05 already added deterministic gray failure fallback behavior and scene tests for desaturation failure handling; no additional action needed in this phase.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-05/reviews/P05.03-subagent-review.report.md",
+        "ticketId": "P05.03"
+      },
+      "observation": "One test gap remains: no test asserts desaturated output or the failure fallback behavior, which is why the colored-frame fallback can slip through despite the menu bar renderer having explicit guardrails."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "Fixing this thread-safety gap requires either a test-local env isolation mechanism or a thread-safe CODOGOTCHI_HOME override API. Both require broader test-infrastructure design — developer should decide if/when XCTest method-level parallelism is enabled for this target before investing.",
+      "followUpReference": "https://github.com/example/repo/issues/123",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-05/reviews/P05.02-subagent-review.report.md",
+        "ticketId": "P05.02"
+      },
+      "observation": "withTempHome environment mutation is process-global. setenv/unsetenv modify the process environment, which is not thread-safe. If Xcode ever enables parallel test execution for this target, two tests mutating CODOGOTCHI_HOME concurrently could see each other's values."
+    }
+  ]
+}

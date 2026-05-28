@@ -2,6 +2,15 @@
 
 This template is filled in by the **primary execution agent** before invoking the review subagent. It produces the subagent's complete prompt. Do not pass a vague "find holes" directive — fill in every section from the diff and ticket spec before handing off.
 
+**Companion template:** the subagent writes its findings into a report whose
+structure is canonical, not free-form. See
+[`subagent-review-report-template.md`](./subagent-review-report-template.md)
+for the required section headings (`Invariant results`, `Surface results`,
+`Actionable findings`, `Advisory Observations`, `Runner termination`) and
+the bullet/paragraph rules. The downstream parser
+(`tools/delivery/reconciliation.ts`) depends on those headings — drift
+silently truncates extracted observations.
+
 ---
 
 ## How to use this template
@@ -11,6 +20,9 @@ This template is filled in by the **primary execution agent** before invoking th
 3. Fill in the three execution-agent sections below: **Invariants**, **Attack surfaces**, and **Diff context**.
 4. Pass the completed prompt to the subagent verbatim. Do not editorialize.
 5. Stay idle until the subagent completes. Do not read ahead.
+6. When the subagent returns, expect the report shape defined in
+   `subagent-review-report-template.md`. The primary agent does not edit
+   that file — the subagent owns it.
 
 ---
 
@@ -170,7 +182,19 @@ correct output is a clean report. Do not invent findings to justify the review s
 
 ### Required output format
 
-After completing your review, report in this exact structure (prose only — no file edits):
+After completing your review, report in this exact structure (prose only — no file edits).
+The structure is canonical and machine-parsed by downstream tooling — see
+`docs/template/delivery/subagent-review-report-template.md` for the full
+rules. Two rules that catch the most common drift bugs:
+
+- Use exactly these five top-level section headings, in this order:
+  `Invariant results`, `Surface results`, `Actionable findings`,
+  `Advisory Observations`, `Runner termination`.
+- Inside `Advisory Observations`, write **one observation per bullet or one
+  observation per paragraph**. Do NOT use a bold span (`**A1 — Title**`) on a
+  line by itself before the observation body — that visually mimics a
+  section heading and splits one labeled observation into two parsed
+  observations.
 
 **Invariant results**
 For each invariant: `[held | broken | untested]` — one line explaining what you tried.
@@ -188,7 +212,7 @@ If none: "None."
 **Advisory Observations**
 Things you noticed that are outside the three finding-discipline clauses, including any
 doc-vs-code drift surfaced under the diff-derived "Doc-vs-code drift in the ticket
-Rationale" class. If none: "None."
+Rationale" class. One bullet or one paragraph per observation. If none: "None."
 
 **Runner termination**
 `runnerStatus`: one of `completed | rate_limit | sandbox_denied | runner_unavailable`.

@@ -52,11 +52,11 @@ export function deriveAdvisoryObservationTriageArtifactPath(
 }
 
 function dispositionKey(input: {
-  observationText: string;
-  sourceReportPath: string;
+  observation: string;
+  reportPath: string;
   ticketId: string;
 }): string {
-  return `${input.sourceReportPath}\u0000${input.ticketId}\u0000${input.observationText}`;
+  return `${input.reportPath}\u0000${input.ticketId}\u0000${input.observation}`;
 }
 
 function normalizeDispositions(
@@ -64,7 +64,14 @@ function normalizeDispositions(
 ): Map<string, AdvisoryObservationDispositionInput> {
   const byKey = new Map<string, AdvisoryObservationDispositionInput>();
   for (const disposition of dispositions) {
-    byKey.set(dispositionKey(disposition), disposition);
+    byKey.set(
+      dispositionKey({
+        observation: disposition.observation,
+        reportPath: disposition.source.reportPath,
+        ticketId: disposition.source.ticketId,
+      }),
+      disposition,
+    );
   }
   return byKey;
 }
@@ -193,16 +200,16 @@ export async function runAdvisoryObservationTriage(input: {
   const incoming: AdvisoryObservationTriageEntry[] = [];
 
   for (const group of groups) {
-    for (const observationText of group.observations) {
+    for (const observation of group.observations) {
       const key = dispositionKey({
-        sourceReportPath: group.sourceReportPath,
+        reportPath: group.sourceReportPath,
         ticketId: group.ticketId,
-        observationText,
+        observation,
       });
       const disposition = dispositionsByKey.get(key);
       if (!disposition) {
         throw new Error(
-          `Missing advisory observation disposition data for ${group.ticketId} in ${group.sourceReportPath}: ${observationText}`,
+          `Missing advisory observation disposition data for ${group.ticketId} in ${group.sourceReportPath}: ${observation}`,
         );
       }
       incoming.push(disposition);
@@ -214,20 +221,28 @@ export async function runAdvisoryObservationTriage(input: {
   const existing = existsSync(absoluteArtifactPath)
     ? await readAdvisoryObservationTriageArtifact(absoluteArtifactPath)
     : {
-        schemaVersion: 1 as const,
+        schemaVersion: 2 as const,
         recordedAt: new Date().toISOString(),
-        observations: [],
+        summary: {
+          total: 0,
+          patched: 0,
+          rejected: 0,
+          'already-covered': 0,
+          'requires-human-review': 0,
+        },
+        dispositions: [],
       };
 
   await mkdir(dirname(absoluteArtifactPath), { recursive: true });
   const merged = mergeAdvisoryObservationTriageEntries(
-    existing.observations,
+    existing.dispositions,
     incoming,
   );
   await writeAdvisoryObservationTriageArtifact(absoluteArtifactPath, {
-    ...existing,
+    schemaVersion: 2,
     recordedAt: new Date().toISOString(),
-    observations: merged,
+    summary: existing.summary,
+    dispositions: merged,
   });
 
   return {

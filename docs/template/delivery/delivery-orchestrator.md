@@ -290,13 +290,48 @@ bun run deliver --plan docs/product/delivery/phase-16/implementation-plan.md \
   triage-advisory-observations --dispositions <path>
 ```
 
-The command scans completed subagent-review report sidecars for the
-`Advisory Observations` section, excludes `Actionable findings`, and writes
-operator dispositions to
-`docs/product/delivery/<phase>/advisory-observation-triage.json`. Dispositions
-are explicit input; the command does not infer or apply them, and it never
-patches source code. This is a post-phase audit lane, not an additional
-per-ticket pre-PR gate.
+**This is a primary-agent patching lane, not an advisory-only lane.** During
+triage, the primary agent reads each parsed advisory observation, decides
+whether it is prudent to fix, and **applies patches directly to `main`**
+where prudent. The `triage-advisory-observations` command itself is a state
+recorder — it scans completed subagent-review report sidecars, parses the
+`Advisory Observations` section (excluding `Actionable findings`), aligns
+the parsed observations with the operator's explicit dispositions, and
+writes the triage artifact at
+`docs/product/delivery/<phase>/advisory-observation-triage.json`. The
+**primary agent** is the one that applies any code/doc patches before
+recording dispositions. The command does not infer dispositions and never
+patches automatically — but the operator running the command is expected
+to patch where prudent and record `disposition: patched` with the resulting
+`patch.commitSha`.
+
+> The "must not apply patches" rule that applies to the **subagent review
+> runner** (advisory-only contract; file writes in the worktree trigger
+> `outcome: skipped`) does NOT apply to this post-phase triage lane. The
+> primary agent owns patches here just like it owns patches during a
+> normal ticket implementation.
+
+**Disposition vocabulary** (recorded in
+`advisory-observation-triage.json` under each entry's `disposition` field):
+
+| Disposition             | Meaning                                                                                                                                 |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `patched`               | Primary agent applied a prudent fix. Requires `patch.commitSha`; `patch.files` is optional.                                             |
+| `rejected`              | Observation is not actionable (markdown artifact, false positive, scope drift, or filed as a follow-up ticket via `followUpReference`). |
+| `already-covered`       | Observation is already addressed by behavior in a sibling ticket or earlier phase. Rationale should name where.                         |
+| `requires-human-review` | The only escape hatch. Genuinely ambiguous; developer must decide. Not a synonym for skip or hold.                                      |
+
+Legacy `deferred` and `converted-to-ticket` from schema v1 are auto-migrated
+on read (`deferred` → `requires-human-review`, `converted-to-ticket` →
+`rejected` with `followUpReference` preserved). New triage artifacts emit
+schema v2 with a `summary` block and the entries under `dispositions`.
+
+The dispositions input file is gitignored under
+`.agents/delivery/<plan-key>/advisory-observation-dispositions.json`. See
+`docs/template/delivery/advisory-observation-dispositions-template.json` for
+the canonical shape — the primary agent fills it in (one entry per parsed
+observation), runs the command, and the command emits the triage artifact
+that lands in `docs/product/delivery/<phase>/`.
 
 Closeout/status summaries may warn when advisory observations are untriaged or
 when clean/completed subagent-review evidence is suspiciously missing or empty.

@@ -10,41 +10,58 @@ import {
   writeAdvisoryObservationTriageArtifact,
   type AdvisoryObservationDisposition,
   type AdvisoryObservationTriageArtifact,
+  type AdvisoryObservationTriageEntry,
 } from '../advisory-observation-triage';
 
 const DISPOSITIONS: AdvisoryObservationDisposition[] = [
   'patched',
   'rejected',
-  'deferred',
   'already-covered',
-  'converted-to-ticket',
+  'requires-human-review',
 ];
 
-function makeArtifact(): AdvisoryObservationTriageArtifact {
-  return {
-    schemaVersion: 1,
-    recordedAt: '2026-05-24T04:00:00.000Z',
-    observations: DISPOSITIONS.map((disposition, index) => ({
-      sourceReportPath: `docs/product/delivery/phase-16/reviews/P16.0${index + 1}-subagent-review.report.md`,
+function entryFor(
+  disposition: AdvisoryObservationDisposition,
+  index: number,
+): AdvisoryObservationTriageEntry {
+  const base: AdvisoryObservationTriageEntry = {
+    disposition,
+    rationale: `Rationale for ${disposition}`,
+    source: {
+      reportPath: `docs/product/delivery/phase-16/reviews/P16.0${index + 1}-subagent-review.report.md`,
       ticketId: `P16.0${index + 1}`,
-      observationText: `Observation ${index + 1}`,
-      disposition,
-      rationale:
-        disposition === 'patched' ? undefined : `Rationale for ${disposition}`,
-      patchCommitSha:
-        disposition === 'patched'
-          ? '0123456789abcdef0123456789abcdef01234567'
-          : undefined,
-      followUpReference:
-        disposition === 'converted-to-ticket'
-          ? 'docs/product/delivery/phase-17/ticket-01-follow-up.md'
-          : undefined,
-    })),
+    },
+    observation: `Observation ${index + 1}`,
+  };
+  if (disposition === 'patched') {
+    return {
+      ...base,
+      patch: { commitSha: '0123456789abcdef0123456789abcdef01234567' },
+    };
+  }
+  return base;
+}
+
+function makeArtifact(): AdvisoryObservationTriageArtifact {
+  const dispositions = DISPOSITIONS.map((disposition, index) =>
+    entryFor(disposition, index),
+  );
+  return {
+    schemaVersion: 2,
+    recordedAt: '2026-05-24T04:00:00.000Z',
+    summary: {
+      total: dispositions.length,
+      patched: 1,
+      rejected: 1,
+      'already-covered': 1,
+      'requires-human-review': 1,
+    },
+    dispositions,
   };
 }
 
 describe('P16.02 advisory observation triage artifact', () => {
-  it('round-trips a valid artifact with all five dispositions', async () => {
+  it('round-trips a valid artifact with all four v2 dispositions', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'p16-02-'));
     const path = join(dir, 'advisory-observation-triage.json');
 
@@ -56,10 +73,15 @@ describe('P16.02 advisory observation triage artifact', () => {
       expect(raw.endsWith('\n')).toBe(true);
 
       const parsed = await readAdvisoryObservationTriageArtifact(path);
-      expect(parsed).toEqual(artifact);
-      expect(parsed.observations.map((entry) => entry.disposition)).toEqual(
-        DISPOSITIONS,
-      );
+      expect(parsed.schemaVersion).toBe(2);
+      expect(
+        parsed.dispositions.map((entry) => entry.disposition).sort(),
+      ).toEqual([...DISPOSITIONS].sort());
+      expect(parsed.summary.total).toBe(4);
+      expect(parsed.summary.patched).toBe(1);
+      expect(parsed.summary.rejected).toBe(1);
+      expect(parsed.summary['already-covered']).toBe(1);
+      expect(parsed.summary['requires-human-review']).toBe(1);
     } finally {
       await rm(dir, { force: true, recursive: true });
     }
@@ -69,9 +91,9 @@ describe('P16.02 advisory observation triage artifact', () => {
     const artifact = makeArtifact();
     const malformed = {
       ...artifact,
-      observations: [
+      dispositions: [
         {
-          ...artifact.observations[0]!,
+          ...artifact.dispositions[0]!,
           disposition: 'accepted',
         },
       ],
@@ -82,32 +104,51 @@ describe('P16.02 advisory observation triage artifact', () => {
     );
   });
 
-  it('rejects non-patched dispositions without rationale', () => {
+  it('rejects every disposition that lacks a rationale (including patched)', () => {
     const artifact = makeArtifact();
     const malformed = {
       ...artifact,
-      observations: [
+      dispositions: [
         {
-          ...artifact.observations[1]!,
+          ...artifact.dispositions[1]!,
           rationale: '',
         },
       ],
     };
 
     expect(() => validateAdvisoryObservationTriageArtifact(malformed)).toThrow(
-      /requires a non-empty rationale/,
+      /rationale.* is required/,
     );
   });
 
-  it('accepts a patched disposition with a commit SHA', () => {
+  it('rejects patched dispositions without patch.commitSha', () => {
     const artifact = makeArtifact();
-    const patched = validateAdvisoryObservationTriageArtifact({
+    const patchedEntry = artifact.dispositions.find(
+      (entry) => entry.disposition === 'patched',
+    )!;
+    const { patch: _patch, ...missingPatch } = patchedEntry;
+    const malformed = {
       ...artifact,
-      observations: [artifact.observations[0]],
+      dispositions: [missingPatch],
+    };
+
+    expect(() => validateAdvisoryObservationTriageArtifact(malformed)).toThrow(
+      /patched.*requires.*patch\.commitSha/,
+    );
+  });
+
+  it('accepts a patched disposition with structured patch evidence', () => {
+    const artifact = makeArtifact();
+    const patchedEntry = artifact.dispositions.find(
+      (entry) => entry.disposition === 'patched',
+    )!;
+    const validated = validateAdvisoryObservationTriageArtifact({
+      ...artifact,
+      dispositions: [patchedEntry],
     });
 
-    expect(patched.observations[0]?.disposition).toBe('patched');
-    expect(patched.observations[0]?.patchCommitSha).toBe(
+    expect(validated.dispositions[0]?.disposition).toBe('patched');
+    expect(validated.dispositions[0]?.patch?.commitSha).toBe(
       '0123456789abcdef0123456789abcdef01234567',
     );
   });
@@ -119,37 +160,72 @@ describe('P16.02 advisory observation triage artifact', () => {
     try {
       await writeAdvisoryObservationTriageArtifact(path, makeArtifact());
       const parsed = await readAdvisoryObservationTriageArtifact(path);
+      const sorted = [...parsed.dispositions].sort((a, b) =>
+        a.source.ticketId.localeCompare(b.source.ticketId),
+      );
 
-      expect(parsed.observations[0]?.sourceReportPath).toBe(
+      expect(sorted[0]?.source.reportPath).toBe(
         'docs/product/delivery/phase-16/reviews/P16.01-subagent-review.report.md',
       );
-      expect(parsed.observations[0]?.ticketId).toBe('P16.01');
+      expect(sorted[0]?.source.ticketId).toBe('P16.01');
     } finally {
       await rm(dir, { force: true, recursive: true });
     }
   });
 
-  it('updates matching observations without duplicating decisions', () => {
+  it('updates matching dispositions without duplicating decisions', () => {
     const artifact = makeArtifact();
-    const updated = {
-      ...artifact.observations[1]!,
-      disposition: 'deferred' as const,
+    const target = artifact.dispositions[1]!;
+    const updated: AdvisoryObservationTriageEntry = {
+      ...target,
+      disposition: 'requires-human-review',
       rationale: 'Needs a product decision after closeout.',
     };
 
     const merged = mergeAdvisoryObservationTriageEntries(
-      artifact.observations,
+      artifact.dispositions,
       [updated],
     );
 
-    expect(merged).toHaveLength(5);
+    expect(merged).toHaveLength(4);
     expect(
       merged.find(
         (entry) =>
-          entry.sourceReportPath === updated.sourceReportPath &&
-          entry.ticketId === updated.ticketId &&
-          entry.observationText === updated.observationText,
+          entry.source.reportPath === updated.source.reportPath &&
+          entry.source.ticketId === updated.source.ticketId &&
+          entry.observation === updated.observation,
       ),
     ).toEqual(updated);
+  });
+
+  it('upgrades legacy schemaVersion 1 artifacts on read', () => {
+    const legacy = {
+      schemaVersion: 1,
+      recordedAt: '2026-05-24T04:00:00.000Z',
+      observations: [
+        {
+          sourceReportPath: 'docs/.../P16.01-subagent-review.report.md',
+          ticketId: 'P16.01',
+          observationText: 'Legacy entry',
+          disposition: 'deferred',
+          rationale: 'Waiting on later phase decision',
+        },
+        {
+          sourceReportPath: 'docs/.../P16.02-subagent-review.report.md',
+          ticketId: 'P16.02',
+          observationText: 'Converted entry',
+          disposition: 'converted-to-ticket',
+          rationale: 'Filed as follow-up ticket',
+          followUpReference: 'docs/.../ticket-17-follow-up.md',
+        },
+      ],
+    };
+
+    const migrated = validateAdvisoryObservationTriageArtifact(legacy);
+    expect(migrated.schemaVersion).toBe(2);
+    const dispositions = migrated.dispositions.map((d) => d.disposition).sort();
+    expect(dispositions).toEqual(['rejected', 'requires-human-review']);
+    expect(migrated.summary['requires-human-review']).toBe(1);
+    expect(migrated.summary.rejected).toBe(1);
   });
 });
