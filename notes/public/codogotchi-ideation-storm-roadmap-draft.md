@@ -33,7 +33,7 @@
 
 **Where we are:** ~**90% feature parity** with the **native Codex desktop pet** for animation and floating-window behavior. Codogotchi **exceeds** native in several dimensions (persistent menubar pet, SoA-aware states, hook-driven implementing/testing heuristics, richer activity vocabulary).
 
-**Primary native gap:** **Attention UX** when the agent needs the user — native Codex shows a **chat bubble** (short reason), dismiss → **notification badge** with count, click → focus Codex app. Codogotchi has the **waving** animation (`requesting_input` / Codex row 6) but **no bubble, no tray, no deep-link focus**.
+**Primary native gap:** **Attention UX** when the agent needs the user — native Codex shows a **chat bubble** (short reason), dismiss → **notification badge** with count, click → focus Codex app. Codogotchi has the **waving** animation (`standby` / Codex row 6) but **no bubble, no tray, no deep-link focus**.
 
 **Next big bet:** Make **progression and health legible** on the **floating pet** — Zelda-style hearts, WoW-style XP bar, level badge — plus a **settings window** and a **pet + loot** economy tied to Codex pets and optional premium layers.
 
@@ -61,7 +61,7 @@
 | **Attention bubble** — why the pet wants you | Chat bubble with short summary | Animation only |
 | **Dismiss → notification icon** with message count | Yes | No |
 | **Click bubble/icon → focus agent app** | Focus Codex | No deep link |
-| **TTL / decay** when attention is stale | Notification expiry | Can stick on `requesting_input` (see parity roadmap) |
+| **TTL / decay** when attention is stale | Notification expiry | Can stick on `standby` (see parity roadmap) |
 
 **Product intent:** Implement something **similar** for Codogotchi — bubble + dismiss + badge + focus target (Cursor / Codex / VS Code as platform allows).
 
@@ -213,7 +213,7 @@ These came from prior research; **not** repeated in full here — attach to phas
 
 | Theme | Summary | Primary repo |
 | --- | --- | --- |
-| **Attention tray + TTL** | Bubble, badge, focus app, decay stale `requesting_input` | Codogotchi |
+| **Attention tray + TTL** | Bubble, badge, focus app, decay stale `standby` | Codogotchi |
 | **Multi-platform hooks** | Cursor, VS Code Copilot, Antigravity adapters | Codogotchi |
 | **Signal honesty** | Fix `claude_code` mislabel for Cursor; log shell commands | Codogotchi |
 | **Work-mode taxonomy** | Thinking / Implementing / Testing heuristics | Codogotchi |

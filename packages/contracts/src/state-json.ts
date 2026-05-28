@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { activityStateSchema, hpOverlaySchema } from "./animation-state";
 
-export const STATE_JSON_SCHEMA_VERSION = 2;
+export const STATE_JSON_SCHEMA_VERSION = 3;
 
 // Forward-compat policy from docs/contracts/animation-state-vocabulary.md:
 // renderers accept any `schema_version` ≤ EXPECTED_VERSION (this constant),
@@ -45,6 +45,16 @@ export const stateJsonV1Schema = z.object({
   hp: z.number().int().min(-100).max(100),
   updated_at: z.string().datetime({ offset: true }),
   source_event: sourceEventSchema,
+  attention: z
+    .object({
+      reason_kind: z.enum(["input_requested", "error_blocked", "review_ready"]),
+      summary: z.string(),
+      created_at: z.string().datetime({ offset: true }),
+      expires_at: z.string().datetime({ offset: true }),
+    })
+    .optional(),
+  tool_command: z.string().optional(),
+  work_mode: z.enum(["thinking", "implementing", "testing"]).optional(),
 });
 export type StateJsonV1 = z.infer<typeof stateJsonV1Schema>;
 

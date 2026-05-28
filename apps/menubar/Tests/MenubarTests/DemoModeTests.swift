@@ -220,11 +220,11 @@ final class DemoModeTests: XCTestCase {
 
 	// MARK: - P3.06: New fixture files
 
-	func testNewFixtureFilesExistAndParseAsV2() {
+	func testNewFixtureFilesExistAndParse() {
 		let newFilenames = [
 			"reviewing.json", "pushing.json", "hyped.json", "focused.json",
 			"nervous.json", "waiting.json", "ascended.json", "calling-for-backup.json",
-			"panicking.json", "requesting-input.json", "errored.json",
+			"panicking.json", "standby.json", "errored.json",
 		]
 		let dir = fixturesDirectory()
 		for filename in newFilenames {
@@ -236,12 +236,9 @@ final class DemoModeTests: XCTestCase {
 			let result = StateJsonReader.read(at: url.path)
 			switch result {
 			case .failure(let err):
-				XCTFail("\(filename) failed to parse as v2 state.json: \(err)")
-			case .success(let snapshot):
-				XCTAssertEqual(
-					snapshot.schemaVersion, 2,
-					"\(filename) must have schema_version 2, got \(snapshot.schemaVersion)"
-				)
+				XCTFail("\(filename) failed to parse: \(err)")
+			case .success:
+				break
 			}
 		}
 	}

@@ -17,7 +17,7 @@ _Context: Phase 06 planning session — state-transitions.log analysis, animatio
 |---|---|---|---|---|---|---|---|
 | `idle` | 876 | 48.5% | tool_use(820), unknown(31), session_end(12) | 30s | 10–30s | 4.1m | 10.7h |
 | `implementing` | 384 | 21.3% | tool_use(381), unknown(3) | 7s | 2–10s | 39s | 33.9m |
-| `requesting_input` | 285 | 15.8% | session_end(252), unknown(33) | 2.9m | 1–5m | 1.9h | 10.0h |
+| `standby` | 285 | 15.8% | session_end(252), unknown(33) | 2.9m | 1–5m | 1.9h | 10.0h |
 | `reviewing` | 135 | 7.5% | tool_use(135) | 10s | 2–10s | 52s | 9.6m |
 | `hyped` | 35 | 1.9% | gate(35) | 5s | 2–10s | 19s | 19.1m |
 | `celebrating` | 31 | 1.7% | gate(27), unknown(4) | 1.1m | 1–5m | 9.7m | 5.1h |
@@ -32,7 +32,7 @@ _Context: Phase 06 planning session — state-transitions.log analysis, animatio
 
 **`idle` is noise (48.5%):** Almost entirely from Bash/Shell commands falling through the classification gap. Every unknown Bash command → `idle`. The 3-bucket Bash heuristic (Phase 06) collapses most of this into `reviewing` and `implementing`.
 
-**`requesting_input` semantic mismatch:** Fires after every `session_end` (agent completed a turn). It is NOT "agent urgently needs input" — it is "agent finished, ready for next prompt." Renamed to `standby` in Phase 06. Duration tail is the stuck-waving bug: median 2.9m is fine, but p90 = 1.9h and max = 10h.
+**`standby` semantic mismatch:** Fires after every `session_end` (agent completed a turn). It is NOT "agent urgently needs input" — it is "agent finished, ready for next prompt." Renamed to `standby` in Phase 06. Duration tail is the stuck-waving bug: median 2.9m is fine, but p90 = 1.9h and max = 10h.
 
 **Gate animations are invisible:** `hyped` actual median = 5s, `calling_for_backup` = 7s. These flash and disappear because the next tool_use overwrites them. Gate-to-gate window (what they'd show if sticky) is 8.3m median for `hyped`, 2.2m for `calling_for_backup`.
 
@@ -72,7 +72,7 @@ review_clean        → celebrating     (16m–hours)
 | 0 | Idle | `idle` | No agent context |
 | 1 | Run Right | _(interaction only)_ | Mouse drag |
 | 2 | Run Left | _(interaction only)_ | Mouse drag |
-| 3 | Wave | `standby` (was `requesting_input`) | session_end (agent turn done) |
+| 3 | Wave | `standby` (was `standby`) | session_end (agent turn done) |
 | 4 | Jump | _(interaction only)_ | Mouse click |
 | 5 | Failed | `errored` | is_error / max_tokens |
 | 6 | Waiting | `waiting` | SoA pr_review_window_opened |

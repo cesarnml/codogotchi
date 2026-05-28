@@ -13,7 +13,7 @@ Codogotchi today is a **hook-driven animation pipeline** for Claude Code and Cod
 Three gaps dominate real usage (confirmed 2026-05-27 on Cursor-only workflows):
 
 1. **Platform mis-attribution** — Cursor hook traffic is labeled `source_origin: "claude_code"` because origin detection is a two-line heuristic, not platform truth.
-2. **Stale attention states** — `requesting_input` (Codex `waving` row) can persist indefinitely after a turn completes because there is no TTL / session-boundary decay (unlike native Codex’s notification + expiry model).
+2. **Stale attention states** — `standby` (Codex `waving` row) can persist indefinitely after a turn completes because there is no TTL / session-boundary decay (unlike native Codex’s notification + expiry model).
 3. **Shallow tool logging** — transition log records `source_name: "Bash"` but not the shell command string; generic Bash (`ls`, `rg`) maps to `idle` even when the agent is clearly “working.”
 
 **Recommendation:** Treat the next major increment as two coupled tracks:
@@ -75,7 +75,7 @@ No installer paths yet for Cursor, VS Code, or Antigravity.
 **Precedence inside one hook invocation:**
 
 1. If stdin is explicit SoA gate (`origin: soa`, `kind: gate`) → map via `SOA_GATE_TO_STATE`
-2. Else if `hook_event_name === "stop"` (case-insensitive) → `requesting_input` or `errored`
+2. Else if `hook_event_name === "stop"` (case-insensitive) → `standby` or `errored`
 3. Else if `is_error` → `errored`
 4. Else if `kind === "tool_use"`:
    - `Edit` / `Write` / `MultiEdit` → `implementing`
@@ -115,9 +115,9 @@ The hook **uses** `command` for Bash heuristics but **does not persist** it to `
 
 ### 1.6 Animation mapping (not the same as “work mode”)
 
-`ActivityState` is a **15-value closed enum** (`idle`, `implementing`, `running-tests`, `reviewing`, `pushing`, SoA gates, `requesting_input`, `errored`, …). Sprites map via:
+`ActivityState` is a **15-value closed enum** (`idle`, `implementing`, `running-tests`, `reviewing`, `pushing`, SoA gates, `standby`, `errored`, …). Sprites map via:
 
-- Codex sheet rows for: `idle`, `implementing`, `running-tests`, `waiting`, `requesting_input`, `errored`
+- Codex sheet rows for: `idle`, `implementing`, `running-tests`, `waiting`, `standby`, `errored`
 - Codogotchi sheet rows for: SoA-only states + `reviewing`, `pushing`
 
 There is **no** first-class `thinking | implementing | testing` dimension today.
@@ -140,7 +140,7 @@ There is **no** first-class `thinking | implementing | testing` dimension today.
 | `beforeShellExecution` / `afterShellExecution` | Bash-like commands (`tool_name` often `Shell`) |
 | `beforeReadFile` / `afterFileEdit` | Read vs write paths (file edits are not `Edit`/`Write`) |
 | `beforeMCPExecution` / `afterMCPExecution` | MCP (e.g. Context7, browser) → **Thinking** heuristics |
-| `stop` / `sessionEnd` | Turn complete → clear `requesting_input`, TTL |
+| `stop` / `sessionEnd` | Turn complete → clear `standby`, TTL |
 | `sessionStart` | Session boundary → reset counters / idle |
 
 **Project root:** `workspace_roots[]` in payload — must feed `resolveSoaRoot()` (today only `CLAUDE_PROJECT_DIR`, `CODEX_PROJECT_DIR`, `cwd`).
@@ -254,7 +254,7 @@ Extend `TransitionLog` line shape:
 ```json
 {
   "ts": "...",
-  "state": "requesting_input",
+  "state": "standby",
   "prev": "implementing",
   "schema_version": 2,
   "source_origin": "cursor",
@@ -270,11 +270,11 @@ This makes log search (`rg Bash`, `rg pytest`) honest and debuggable.
 
 ---
 
-## 4. Why `requesting_input` / waving sticks (and how native Codex differs)
+## 4. Why `standby` / waving sticks (and how native Codex differs)
 
 **Codogotchi today:**
 
-- `Stop` hook → `requesting_input` (unless error/max_tokens).
+- `Stop` hook → `standby` (unless error/max_tokens).
 - No automatic return to `idle` when the user walks away after the agent finished.
 - Menubar polls `state.json` faithfully; **staleness is a product-policy gap**, not a read failure.
 
@@ -383,7 +383,7 @@ Freshness window: same as today — gate seen since last hook offset, or TTL on 
 
 ### Phase 2 — Attention tray + TTL (highest UX value)
 
-See parity roadmap. Unblocks stuck `requesting_input` without waiting for full platform parity.
+See parity roadmap. Unblocks stuck `standby` without waiting for full platform parity.
 
 ### Phase 3 — `work_mode` taxonomy
 
@@ -425,7 +425,7 @@ A smart engineer would argue the product should stay a thin **state.json** shim,
 2. **Reproduce origin bug** — add test: stdin with `hook_event_name: "preToolUse"` must **not** classify as `codex` or default `claude_code` without adapter.
 3. **Prototype `work_mode` classifier** — table-driven tests for Bash commands (`rg` → thinking, `pytest` → testing).
 4. **Design `~/.codogotchi/gate-events.ndjson`** — contract doc + SoA stub in alignment draft.
-5. **Ship attention TTL** in renderer (can precede full tray UI) — stops long-lived `requesting_input` in menubar.
+5. **Ship attention TTL** in renderer (can precede full tray UI) — stops long-lived `standby` in menubar.
 
 ---
 

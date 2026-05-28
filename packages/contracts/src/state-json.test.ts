@@ -79,7 +79,11 @@ describe("attention field (P6.01)", () => {
   });
 
   it("accepts absence of attention field", () => {
-    const payload = { ...baseV1Payload, schema_version: 3, activity_state: "standby" };
+    const payload = {
+      ...baseV1Payload,
+      schema_version: 3,
+      activity_state: "standby",
+    };
     expect(() => parseStateJson(payload)).not.toThrow();
     expect(parseStateJson(payload).attention).toBeUndefined();
   });
@@ -102,25 +106,44 @@ describe("attention field (P6.01)", () => {
 
 describe("work_mode field (P6.01 stub)", () => {
   it("accepts work_mode: thinking", () => {
-    const payload = { ...baseV1Payload, schema_version: 3, activity_state: "standby", work_mode: "thinking" };
+    const payload = {
+      ...baseV1Payload,
+      schema_version: 3,
+      activity_state: "standby",
+      work_mode: "thinking",
+    };
     expect(() => parseStateJson(payload)).not.toThrow();
     expect(parseStateJson(payload).work_mode).toBe("thinking");
   });
 
   it("accepts work_mode: implementing", () => {
-    const payload = { ...baseV1Payload, schema_version: 3, activity_state: "standby", work_mode: "implementing" };
+    const payload = {
+      ...baseV1Payload,
+      schema_version: 3,
+      activity_state: "standby",
+      work_mode: "implementing",
+    };
     expect(() => parseStateJson(payload)).not.toThrow();
     expect(parseStateJson(payload).work_mode).toBe("implementing");
   });
 
   it("accepts work_mode: testing", () => {
-    const payload = { ...baseV1Payload, schema_version: 3, activity_state: "standby", work_mode: "testing" };
+    const payload = {
+      ...baseV1Payload,
+      schema_version: 3,
+      activity_state: "standby",
+      work_mode: "testing",
+    };
     expect(() => parseStateJson(payload)).not.toThrow();
     expect(parseStateJson(payload).work_mode).toBe("testing");
   });
 
   it("accepts absence of work_mode", () => {
-    const payload = { ...baseV1Payload, schema_version: 3, activity_state: "standby" };
+    const payload = {
+      ...baseV1Payload,
+      schema_version: 3,
+      activity_state: "standby",
+    };
     expect(() => parseStateJson(payload)).not.toThrow();
     expect(parseStateJson(payload).work_mode).toBeUndefined();
   });
@@ -132,7 +155,11 @@ describe("backward compatibility for v1 and v2 payloads", () => {
   });
 
   it("still parses schema_version 2 + errored", () => {
-    const payload = { ...baseV1Payload, schema_version: 2, activity_state: "errored" };
+    const payload = {
+      ...baseV1Payload,
+      schema_version: 2,
+      activity_state: "errored",
+    };
     expect(() => parseStateJson(payload)).not.toThrow();
   });
 });

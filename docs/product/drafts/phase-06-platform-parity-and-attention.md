@@ -17,7 +17,7 @@ Codogotchi already exceeds native on state vocabulary and SoA gates; the largest
 
 ## The problem
 
-- `requesting_input` / Codex `waving` can persist indefinitely — no `attention` payload or renderer TTL ([parity roadmap](../../notes/public/codogotchi-native-codex-pet-feature-parity-roadmap.md)).
+- `standby` / Codex `waving` can persist indefinitely — no `attention` payload or renderer TTL ([parity roadmap](../../notes/public/codogotchi-native-codex-pet-feature-parity-roadmap.md)).
 - **Cursor already drives the pet for many users without any `~/.cursor/hooks.json` entry.** Cursor loads **Claude Code–compatible** hooks from `~/.claude/settings.json` when **Third-party skills** is enabled ([Cursor third-party hooks](https://cursor.com/docs/reference/third-party-hooks)). `codogotchi-hook` runs on Cursor Agent lifecycle events, but logs **`source_origin: claude_code`** because `rawHookOrigin()` treats camelCase (`preToolUse`) as non-Codex and defaults to Claude ([platform research](../../notes/public/codogotchi-platform-extension-and-signal-pipeline-research.md)). Tool names like **`Shell`** / **`Grep`** in `state-transitions.log` are the reliable Cursor fingerprint.
 - Hook uses `command` for heuristics but does not persist it to `state.json` or transition log.
 - Installers today only write **Claude Code** + **Codex** config; there is no first-class **`~/.cursor/hooks.json`** path yet.
@@ -31,9 +31,9 @@ Codogotchi already exceeds native on state vocabulary and SoA gates; the largest
 Optional `attention` on `state.json` (or documented sibling file):
 
 - `reason_kind`, `summary`, `created_at`, `expires_at` (or `ttl_ms`)
-- Hook emits on `requesting_input`-class states; kinds for review ready, verification failed, etc. (starter set)
+- Hook emits on `standby`-class states; kinds for review ready, verification failed, etc. (starter set)
 
-**Renderer policy:** if `expires_at < now` → show `idle` animation even when `activity_state` still says `requesting_input`.
+**Renderer policy:** if `expires_at < now` → show `idle` animation even when `activity_state` still says `standby`.
 
 ### 2. Attention UI (Codex-like)
 
@@ -113,7 +113,7 @@ Optional `attention` on `state.json` (or documented sibling file):
 ## Open questions
 
 1. Bubble on floating only vs menubar + floating?
-2. Default TTL for `requesting_input` (2h vs 8h)?
+2. Default TTL for `standby` (2h vs 8h)?
 3. Focus target when multiple IDEs open?
 4. Ship native `~/.cursor/hooks.json` only, or also detect/advertise third-party bridge when Third-party skills is on?
 5. If both bridge and native hooks fire, dedupe or define merge precedence in `codogotchi-hook`?

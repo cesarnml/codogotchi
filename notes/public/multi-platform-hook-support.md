@@ -155,7 +155,7 @@ Key files:
 | **A. Hook installer per platform** | Small | Extend `installHooks()` — 4 config file formats |
 | **B. Platform adapter layer** | Medium–Large | `normalizeHookInput(platform, rawJson) → HookInput` |
 | **C. Tool-name mapping table** | Medium | Cursor `Shell`→bash heuristics; VS Code `editFiles`→implementing; etc. |
-| **D. Event-name mapping** | Small–Medium | `preToolUse`→tool_use, `Stop`/`stop`→requesting_input, session_end semantics |
+| **D. Event-name mapping** | Small–Medium | `preToolUse`→tool_use, `Stop`/`stop`→standby, session_end semantics |
 | **E. SoA project root resolution** | Small | `workspace_roots`, `cwd`, platform env vars |
 | **F. Contract/schema updates** | Small | Add origins: `cursor`, `vscode`, `antigravity`; update docs |
 | **G. Fixture capture + tests** | Medium | Real stdin per platform per event; classification tests |

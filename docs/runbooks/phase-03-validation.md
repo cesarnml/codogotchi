@@ -30,7 +30,7 @@ CODOGOTCHI_DEMO=1 CODOGOTCHI_DEMO_FRAME_MS=83 open /Applications/Menubar.app
 
 ---
 
-## EC2. `state.json` schema version is 2
+## EC2. `state.json` schema version is 3
 
 **How to check:**
 
@@ -38,7 +38,7 @@ CODOGOTCHI_DEMO=1 CODOGOTCHI_DEMO_FRAME_MS=83 open /Applications/Menubar.app
 jq '.schema_version' ~/.codogotchi/state.json
 ```
 
-**Pass:** Output is `2`.
+**Pass:** Output is `3` (bumped from 2 in P3.01 to 3 in P6.01).
 
 ---
 
@@ -196,13 +196,16 @@ grep -c "risky_diff_detected\|stage_advanced\|subagent_invoked\|verification_fai
 
 ---
 
-## EC4. `requesting_input` and `errored` fire from real Claude/Codex events
+## EC4. `standby` and `errored` fire from real Claude/Codex events
 
 These two states are triggered by the hook's tool-call heuristics, not SoA gate events. They require deliberately inducing the conditions that the hook classifies as "agent awaiting input" and "agent response failure."
 
-### 4a. `requesting_input` — agent paused awaiting user response
+> **Note (P6.01):** `requesting_input` was renamed to `standby` in schema v3. The
+> sprite row (Codex sheet row 3 — `waving`) is unchanged.
 
-**Trigger mechanism:** Claude Code emits a `Stop` event when it stops to wait for user input. The hook intercepts this event type and writes `requesting_input` to `state.json`.
+### 4a. `standby` — agent paused awaiting user response
+
+**Trigger mechanism:** Claude Code emits a `Stop` event when it stops to wait for user input. The hook intercepts this event type and writes `standby` to `state.json`.
 
 **Reliable recipe:** Ask Claude Code to stop and wait mid-task. In a Claude Code session, run a task that ends with a question requiring your input, then observe the hook fire when Claude Code reaches its stop point. Example prompt that reliably triggers a stop-with-input:
 
@@ -214,15 +217,15 @@ When Claude Code stops and shows its input prompt, the hook fires. The hook bina
 
 ```json
 {
-  "schema_version": 2,
-  "activity_state": "requesting_input",
-  "source_event": { "origin": "claude_code", "kind": "stop", "name": "requesting_input" }
+  "schema_version": 3,
+  "activity_state": "standby",
+  "source_event": { "origin": "claude_code", "kind": "stop", "name": "Stop" }
 }
 ```
 
-**Expected sprite:** Codex sheet row 3 (the `requesting_input` / `waving` row — see [Codex Sheet table](../contracts/animation-state-vocabulary.md#codex-sheet--codexpetsmalispritesheetwebp)).
+**Expected sprite:** Codex sheet row 3 (the `standby` / `waving` row — see [Codex Sheet table](../contracts/animation-state-vocabulary.md#codex-sheet--codexpetsmalispritesheetwebp)).
 
-**Evidence to capture:** screenshot of menubar showing the `requesting_input` hero frame and `jq '.activity_state' ~/.codogotchi/state.json` output.
+**Evidence to capture:** screenshot of menubar showing the `standby` hero frame and `jq '.activity_state' ~/.codogotchi/state.json` output.
 
 **Note on finickiness:** The hook only fires when Claude Code actually invokes the hook binary via `settings.json`. If the hook is not wired into `~/.claude/settings.json`, this test cannot fire. Verify with:
 

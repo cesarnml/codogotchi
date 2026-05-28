@@ -84,18 +84,18 @@ final class StateJsonReaderTests: XCTestCase {
 			return
 		}
 		XCTAssertEqual(got, 99)
-		XCTAssertEqual(expected, 2)
+		XCTAssertEqual(expected, 3)
 	}
 
-	func testExpectedSchemaVersionIs2() {
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 2)
+	func testExpectedSchemaVersionIs3() {
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 3)
 	}
 
-	func testSchemaVersion3FailsWithSchemaNewer() throws {
-		// After the P3.04 bump, a v3 payload must fail with schemaNewer(got: 3, expected: 2).
+	func testSchemaVersion4FailsWithSchemaNewer() throws {
+		// After the P6.01 v3 bump, a v4 payload must fail with schemaNewer(got: 4, expected: 3).
 		let tmp = FileManager.default.temporaryDirectory
-			.appendingPathComponent("schema-v3-\(UUID().uuidString).json")
-		try #"{"schema_version": 3, "activity_state": "idle", "updated_at": "x"}"#
+			.appendingPathComponent("schema-v4-\(UUID().uuidString).json")
+		try #"{"schema_version": 4, "activity_state": "idle", "updated_at": "x"}"#
 			.write(to: tmp, atomically: true, encoding: .utf8)
 		defer { try? FileManager.default.removeItem(at: tmp) }
 
@@ -108,8 +108,25 @@ final class StateJsonReaderTests: XCTestCase {
 			XCTFail("expected schemaNewer, got \(error)")
 			return
 		}
-		XCTAssertEqual(got, 3)
-		XCTAssertEqual(expected, 2)
+		XCTAssertEqual(got, 4)
+		XCTAssertEqual(expected, 3)
+	}
+
+	func testSchemaVersion3WithStandbyParsesSuccessfully() throws {
+		// After the P6.01 v3 bump, a v3 payload with standby must parse cleanly.
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("schema-v3-standby-\(UUID().uuidString).json")
+		try #"{"schema_version": 3, "activity_state": "standby", "updated_at": "2026-05-29T00:00:00.000Z"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.activityState, .standby)
+		XCTAssertEqual(snapshot.schemaVersion, 3)
 	}
 
 	func testBooleanSchemaVersionReturnsSchemaMissingOrInvalid() throws {

@@ -14,7 +14,7 @@ export const ACTIVITY_STATES = [
   "ascended",
   "calling_for_backup",
   "panicking",
-  "requesting_input",
+  "standby",
   "errored",
 ] as const;
 
@@ -41,7 +41,7 @@ export const RELIABLE_ACTIVITY_STATES = [
   "ascended",
   "calling_for_backup",
   "panicking",
-  "requesting_input",
+  "standby",
   "errored",
 ] as const satisfies readonly ActivityState[];
 

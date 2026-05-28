@@ -58,7 +58,7 @@ If no SoA gate override fires, `classifyEvent` applies heuristics:
   - counts consecutive `Read` runs across hook invocations (`readRun`)
   - only on/after `READ_RUN_THRESHOLD` (3) → `reviewing`
 - `Stop` event:
-  - requesting user input → `requesting_input`
+  - requesting user input → `standby`
   - response failure / `max_tokens` / `is_error` → `errored`
 - explicit `is_error: true` (rate limit/network failures) → `errored`
 

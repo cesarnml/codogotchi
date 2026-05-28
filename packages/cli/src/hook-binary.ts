@@ -161,7 +161,7 @@ export function classifyEvent(
     if (input.is_error === true || isFailureStopReason(input.stop_reason)) {
       return { state: "errored", sourceEvent, readRun: 0 };
     }
-    return { state: "requesting_input", sourceEvent, readRun: prior.readRun };
+    return { state: "standby", sourceEvent, readRun: prior.readRun };
   }
   // Heuristic: explicit failure signal for non-Stop events (rate limit, network error).
   if (input.is_error === true) {
