@@ -473,6 +473,54 @@ describe("classifyEvent", () => {
     );
     expect(out.state).toBe("implementing");
   });
+
+  // P6.05: Cursor origin fix + shell hooks
+  it("Cursor afterFileEdit classifies as implementing with cursor origin", () => {
+    const out = classifyEvent(
+      { hook_event_name: "afterFileEdit" } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("implementing");
+    expect(out.sourceEvent.origin).toBe("cursor");
+  });
+
+  it("Cursor beforeShellExecution 'grep' classifies as reviewing with cursor origin", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "beforeShellExecution",
+        command: "grep foo",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("reviewing");
+    expect(out.sourceEvent.origin).toBe("cursor");
+  });
+
+  it("Cursor afterShellExecution 'npm install' classifies as implementing with cursor origin", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "afterShellExecution",
+        command: "npm install",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("implementing");
+    expect(out.sourceEvent.origin).toBe("cursor");
+  });
+
+  it("Cursor lowercase 'stop' has cursor origin (not claude_code)", () => {
+    const out = classifyEvent({ hook_event_name: "stop" } as HookInput, {
+      readRun: 0,
+    });
+    expect(out.sourceEvent.origin).toBe("cursor");
+  });
+
+  it("Claude Code PascalCase 'Stop' has claude_code origin", () => {
+    const out = classifyEvent({ hook_event_name: "Stop" } as HookInput, {
+      readRun: 0,
+    });
+    expect(out.sourceEvent.origin).toBe("claude_code");
+  });
 });
 
 describe("runHook", () => {
@@ -814,6 +862,37 @@ describe("runHook", () => {
       { home, now: FIXED_NOW },
     );
     expect(readState(home).activity_state).toBe("calling_for_backup");
+  });
+
+  // P6.05: workspace_roots fallback
+  it("Cursor afterFileEdit with workspace_roots uses workspace_roots[0] for SoA resolution", async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), "codogotchi-cursor-root-"));
+    try {
+      await mkdir(join(projectRoot, ".soa"), { recursive: true });
+      writeFileSync(
+        join(projectRoot, ".soa", "events.ndjson"),
+        `${JSON.stringify({ name: "ticket_started", ts: "2026-05-18T16:00:00Z" })}\n`,
+      );
+      // No CLAUDE_PROJECT_DIR or CODEX_PROJECT_DIR — workspace_roots[0] must be used
+      await runHook(
+        {
+          hook_event_name: "afterFileEdit",
+          workspace_roots: [projectRoot],
+        } as HookInput,
+        {
+          home,
+          now: FIXED_NOW,
+          env: {},
+          cwd: tmpdir(),
+        },
+      );
+      const state = readState(home);
+      // SoA ticket_started event resolved via workspace_roots[0]
+      expect(state.activity_state).toBe("hyped");
+      expect(state.source_event.origin).toBe("soa");
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
   });
 });
 
