@@ -521,7 +521,9 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
             ? "installable"
             : "deferred";
           const installed = s.installed ? "installed" : "not-installed";
-          return `${name}: ${installed}, ${installable}`;
+          const mode =
+            s.source_origin !== undefined ? ` (${s.source_origin})` : "";
+          return `${name}: ${installed}${mode}, ${installable}`;
         });
         process.stdout.write(`${rows.join("\n")}\n`);
       }

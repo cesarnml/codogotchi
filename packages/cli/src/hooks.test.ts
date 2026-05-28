@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -520,6 +521,14 @@ describe("cursor hooks", () => {
     expect(
       afterUninstall.afterFileEdit?.some((e) => e.command === "my-custom-hook"),
     ).toBe(true);
+  });
+
+  it("cursor uninstall is a true no-op when ~/.cursor/hooks.json does not exist", async () => {
+    // File must not exist before uninstall
+    expect(existsSync(join(userRoot, ".cursor", "hooks.json"))).toBe(false);
+    await uninstallCursorHooks();
+    // File must still not exist — uninstall must not create a ghost file
+    expect(existsSync(join(userRoot, ".cursor", "hooks.json"))).toBe(false);
   });
 
   it("hooksStatus reports cursor: native when ~/.cursor/hooks.json has Codogotchi entries", async () => {

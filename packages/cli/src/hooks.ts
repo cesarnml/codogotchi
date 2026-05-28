@@ -125,7 +125,8 @@ async function readJsonOrEmpty<T extends object>(path: string): Promise<T> {
   try {
     const raw = await readFile(path, "utf8");
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") return parsed as T;
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed))
+      return parsed as T;
     return {} as T;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return {} as T;
@@ -511,6 +512,8 @@ export async function installCursorHooks(
 export async function uninstallCursorHooks(): Promise<void> {
   const root = getUserRoot();
   const cursorPath = join(root, CURSOR_HOOKS_REL);
+  // Short-circuit: nothing to remove if the file doesn't exist.
+  if (!(await fileExists(cursorPath))) return;
   await backupIfExists(cursorPath);
 
   const existing = await readJsonOrEmpty<CursorHooksJson>(cursorPath);
@@ -563,8 +566,10 @@ export async function hooksStatus(): Promise<HooksStatus> {
   );
   const cursorNativeInstalled = cursorInstalled(cursorJson);
   // Bridge: Cursor Third-party skills route events through Claude Code hooks —
-  // inferred when Claude Code hooks are wired but no native ~/.cursor/hooks.json exists.
-  const cursorBridgeInstalled = !cursorNativeInstalled && claudeCodeInstalled;
+  // inferred when Claude Code hooks are wired and no ~/.cursor/hooks.json exists at all.
+  // Use !cursorNativePresent (not !cursorNativeInstalled) so a cursor file with
+  // only third-party entries does not falsely report "bridge".
+  const cursorBridgeInstalled = !cursorNativePresent && claudeCodeInstalled;
   const cursorSourceOrigin = cursorNativeInstalled
     ? "native"
     : cursorBridgeInstalled
