@@ -1,27 +1,28 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-05-26T11:19:43.685Z",
+  "recordedAt": "2026-05-28T03:30:00.000Z",
   "observations": [
     {
       "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.report.md",
       "ticketId": "P4.02",
       "observationText": "---",
       "disposition": "rejected",
-      "rationale": "This is a markdown separator parsed as an observation, not a substantive advisory observation."
+      "rationale": "Markdown horizontal rule separator parsed as an observation, not a substantive advisory observation."
     },
     {
       "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.report.md",
       "ticketId": "P4.02",
       "observationText": "1. **`withTempHome` environment mutation is process-global.** `setenv`/`unsetenv` modify the process environment, which is not thread-safe. If Xcode ever enables parallel test execution for this target, two tests mutating `CODOGOTCHI_HOME` concurrently could see each other's values. Currently safe because XCTest runs methods of one class sequentially, but worth noting if the test suite grows or parallelism is enabled.",
-      "disposition": "deferred",
-      "rationale": "Current XCTest execution for these classes is sequential and the phase did not enable parallel Swift test execution. Revisit the shared test helper if the macOS test target turns on method-level parallelism."
+      "disposition": "requires-human-review",
+      "rationale": "Fixing the thread-safety gap requires either a test-local env isolation mechanism or a thread-safe CODOGOTCHI_HOME override API. Both require broader test infrastructure design. Human to decide if/when XCTest parallelism is enabled for this target."
     },
     {
       "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.report.md",
       "ticketId": "P4.02",
       "observationText": "2. **Relative `CODOGOTCHI_HOME` resolves against process working directory.** `URL(fileURLWithPath: home)` with a relative path (e.g., `CODOGOTCHI_HOME=./tmp`) resolves relative to the current working directory at runtime, not the executable location. Tests always supply absolute tmp paths so this is not exercised, but a developer who sets a relative path in their environment would get a working-directory-relative store location that changes across launch contexts. An `isAbsolutePath` guard or documentation note would prevent confusion.",
-      "disposition": "deferred",
-      "rationale": "The supported test and hook paths use absolute CODOGOTCHI_HOME values today. A relative-path guard or documentation note can be considered with broader environment configuration cleanup."
+      "disposition": "patched",
+      "patchCommitSha": "5cbb49d9913805ef79b5a3866383f88b676e6113",
+      "rationale": "Added a doc comment to getCodogotchiHome() in packages/cli/src/config.ts stating that CODOGOTCHI_HOME must be an absolute path and explaining why a relative value is hazardous."
     },
     {
       "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.report.md",
@@ -34,8 +35,8 @@
       "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.02-subagent-review.report.md",
       "ticketId": "P4.02",
       "observationText": "4. **`APP_STATE_SCHEMA_VERSION` is a module-level `let`, not scoped to `AppStateStore`.** It is accessible from `AppStateTests` only because `@testable import` exposes it. If schema version ever needs to vary per store configuration, the current global placement is a future migration hazard. Not an issue for this ticket but worth noting for when the schema version is next bumped.",
-      "disposition": "deferred",
-      "rationale": "The schema is single-version and global in Phase 04. Re-scope it only when a real migration or per-store versioning requirement appears."
+      "disposition": "requires-human-review",
+      "rationale": "Moving APP_STATE_SCHEMA_VERSION into AppStateStore is a refactoring decision that touches the schema versioning contract. Human to decide when/whether to scope it, preferably at the next schema version bump."
     },
     {
       "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.03-subagent-review.report.md",
@@ -48,8 +49,8 @@
       "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.04-subagent-review.report.md",
       "ticketId": "P4.04",
       "observationText": "`apps/menubar/Tests/MenubarTests/MenuItemsTests.swift`: nil-controller soft-degrade behavior is documented and implemented, but not directly tested; a focused test should assert the Show Floating Pet item is present, disabled, and still before Quit when assets fail to load.",
-      "disposition": "deferred",
-      "rationale": "The behavior is a soft-degrade menu state rather than a Phase 04 blocking behavior. Add a focused menu construction test if this area is touched again."
+      "disposition": "requires-human-review",
+      "rationale": "Adding a focused nil-controller menu construction test is straightforward but requires deciding the exact fixture shape (which assets fail, what the expected menu state is). Human to author when this area is next touched."
     },
     {
       "sourceReportPath": "docs/product/delivery/phase-04/reviews/P4.05-subagent-review.report.md",
