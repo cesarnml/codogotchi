@@ -1,7 +1,7 @@
 # Phase 06 Animation, Signal, and Spritesheet Research
 
-_Session: 2026-05-28_
-_Context: Phase 06 planning session — state-transitions.log analysis, animation vocabulary audit, spritesheet architecture decisions_
+_Session: 2026-05-28 (log analysis); 2026-05-29 (Tier 1 Codex-only mapping locked)_
+_Context: Phase 06 planning session — state-transitions.log analysis, animation vocabulary audit, spritesheet architecture decisions. **§6** records agreed redesign for BYO `spritesheet.webp` users; lite / soa / rpg tiers are a separate follow-on.
 
 ---
 
@@ -69,17 +69,70 @@ review_clean        → celebrating     (16m–hours)
 
 | Row | Codex label | Codogotchi `ActivityState` | Trigger |
 |---|---|---|---|
-| 0 | Idle | `idle` | No agent context |
+| 0 | Idle | `idle` | **Renderer fallback** (TTL decay — not hook-driven) |
 | 1 | Run Right | _(interaction only)_ | Mouse drag |
 | 2 | Run Left | _(interaction only)_ | Mouse drag |
-| 3 | Wave | `standby` (was `requesting_input`) | session_end (agent turn done) |
-| 4 | Jump | _(interaction only)_ | Mouse click |
-| 5 | Failed | `errored` | is_error / max_tokens |
-| 6 | Waiting | `waiting` | SoA pr_review_window_opened |
-| 7 | Running | `implementing` | Edit / Write / MultiEdit |
-| 8 | Review | `running-tests` | Bash test runner commands |
+| 3 | Wave | `standby` + greeting | Dual use — see below |
+| 4 | Jump | _(interaction only)_ | Mouse hover |
+| 5 | Failed | `errored` | Terminal turn failure — see below |
+| 6 | Waiting | `waiting_for_input` | Platform blockers — see below |
+| 7 | Running | `implementing`, `testing` | Active work — see below |
+| 8 | Review | `thinking` | Bash explore bucket — see below |
 
-Note: Codex row 7 is labeled "Running" in the Codex spec but codogotchi uses it for `implementing` (seated with laptop). Maew's spritesheet was designed with this mapping in mind. Third-party Codex pets using the native sheet will show a running animation for `implementing` — semantic mismatch that the 2-sheet architecture resolves.
+**Authoritative Tier 1 spec:** §6. Rows 1–2 and 4 are `FloatingInteraction` only (never in `state.json`).
+
+Note: On the BYO Codex sheet, row 7 is literally a **running** loop for both `implementing` and `testing` — a known visual compromise until **`codogotchi-lite-spritesheet.webp`** supplies typing/coding and proper test rows. Maew’s custom art already separates those on the lite sheet.
+
+**Row 5 (`errored`) — agreed mapping, hook gap (2026-05-29):** Native Codex maps session `failed` → row 5 (`danger` notification). Codogotchi `ActivityState.errored` uses the same row. Meaning: the agent did not complete the turn successfully (rate limit, network, API error, truncation) — not “tool failed once while agent continues.” Classifier already handles `Stop` + `is_error` / `max_tokens` and generic `is_error`; **0 fires in 6 days** because the dominant failure path (Claude `StopFailure` on rate limit) never reaches the hook. Fix = register + classify the right terminal events per platform (no spritesheet change for BYO Codex pets):
+
+| Platform | Hook that should clear `implementing` → `errored` |
+|---|---|
+| Claude Code | **`StopFailure`** (API errors; runs *instead of* `Stop`). Also `Stop` + `stop_reason: max_tokens`. Installer today: `PreToolUse` + `Stop` only. |
+| Cursor (native) | **`stop`** with `status: "error"`; backstop **`postToolUseFailure`**, **`sessionEnd`** with `reason: "error"`. No `StopFailure` in Cursor docs. |
+| Codex | **`Stop`** only in public docs — no `StopFailure`. Need a real fixture for API/rate-limit failures on `Stop` (`last_assistant_message`, etc.). |
+
+Full hook research: `docs/product/drafts/phase-07-signal-honesty-and-soa-global-gates.md` § Platform hook research — failure → `errored`.
+
+**Row 3 (`waving`) — agreed dual duty (2026-05-29):** Same Codex row, two triggers. Native Codex uses `waving` for **first-awake** when the floating pet appears (`first-awake` notification → row 3). Codogotchi **keeps** that greeting path: show floating pet → one-shot wave + “Hi” / short pet intro (renderer/UI; does not write `state.json`).
+
+For users with **only** `spritesheet.webp` (no codogotchi extension sheets), row 3 **also** maps to **`standby`**: agent finished a turn successfully and is ready for the next prompt. Hook: **`Stop`** with no failure (`StopFailure` / `is_error` / `max_tokens` → `errored` instead). Meaning is *not* native Codex `waiting` (row 6 — approvals / blocked on user); it is “turn done, your move.” Phase 06 renames `requesting_input` → `standby` and adds attention TTL so wave does not stick for hours.
+
+| Path | Mechanism | `ActivityState` | Codex row 3 |
+|---|---|---|---|
+| Show floating pet | Renderer one-shot greeting | _(none — overlay only)_ | Wave + intro copy |
+| Agent turn ends OK | `Stop` hook (Claude/Codex); Cursor `stop` `status: "completed"` | `standby` | Wave (Codex-sheet-only users) |
+
+When Tier 2+ sheets ship, `standby` may get a dedicated row on `codogotchi-lite-spritesheet.webp`; row 3 on the BYO Codex sheet remains greeting + Codex-only `standby` fallback.
+
+**Row 6 (`waiting`) — rename + SoA split (2026-05-29):** Native Codex row 6 = user-input / approval / permission / MCP elicitation / plan blocked on human (`warning` notification). **`ActivityState` → `waiting_for_input`** (agreed; schema bump with `standby`). Rare in Yolo mode because those blockers are skipped — wire when we register platform hooks that surface them (`PermissionRequest`, etc.), not via SoA gates.
+
+**Do not** use row 6 for SoA `pr_review_window_opened` (AI poll-review ~30s). That mapping was a convenience; semantics are wrong vs Codex. **Phase 07+:** `pr_review_window_opened` → dedicated SoA-only state (e.g. `poll_review` / `awaiting_ai_review`) on **`codogotchi-soa-spritesheet.webp`** only. Codex-sheet-only users never see it; BYO pets keep row 6 for true `waiting_for_input` only.
+
+| State | Codex row 6? | Trigger |
+|---|---|---|
+| `waiting_for_input` | Yes (BYO sheet) | Platform: blocked on user (approval, permission, MCP, …) |
+| _(SoA sheet TBD)_ | No — SoA extension row | `pr_review_window_opened` until `review_clean_recorded` |
+
+Until SoA sheet lands, interim may keep gate→row 6 under old name `waiting` in code — migrate when splitting sheets.
+
+**Row 0 (`idle`) — agreed (2026-05-29):** `idle` is the **floor state**, not a first-class hook target. Once attention / gate TTL lands, the renderer **resolves to `idle`** (Codex row 0) when nothing else applies. Hook may still *emit* `idle` as a classifier fallback today (Bash gaps, unknown gates) — that is misclassification noise, not “user entered idle.” Idle-impatient / idle-frustrated progression is **lite-sheet + renderer timers** (out of Tier 1 scope).
+
+**Row 7 (`running`) — agreed (2026-05-29):** Codex row 7 maps to two hook-driven states on the BYO sheet only:
+
+| `ActivityState` | Hook signal |
+|---|---|
+| `implementing` | `PreToolUse` — `Edit`, `Write`, `MultiEdit`; Bash fallback (non-test, non-explore) |
+| `testing` | `PreToolUse` / `Bash` — test, lint, format runners (`bun test`, `pytest`, `vitest`, …) |
+
+Both states paint **row 7** for Codex-only users. Closed enum: **`testing`** (replaces `running-tests`).
+
+**Row 8 (`review`) — agreed (2026-05-29):** Codex row 8 is owned by **`thinking`** on Tier 1. Native Codex “output ready for your review” (`success` notification → mascot `review`) is **not targeted** — no reliable hook in Claude / Cursor / Codex public docs. If a hook appears later, row 8 may gain a second meaning; until then, do not fake it.
+
+| `ActivityState` | Hook signal |
+|---|---|
+| `thinking` | `PreToolUse` / `Bash` / `Shell` — read-only explore: `grep`, `rg`, `find`, `ls`, `cat`, `tail`, `head`, `wc`, `awk`, … |
+
+`reviewing` (Read ×3+), `pushing`, and all SoA gate states require **extension sheets** — Codex-only users do not get them on this sheet.
 
 ### Codogotchi spritesheet (24 cols × 9 rows — all 9 rows occupied)
 
@@ -104,12 +157,13 @@ From `hook-binary.ts:classifyEvent()`:
 | Tool / command | Current state | Better state |
 |---|---|---|
 | `Edit`, `Write`, `MultiEdit` | `implementing` | ✓ correct |
-| `Bash` + `git push` | `pushing` | ✓ correct |
-| `Bash` + test runner | `running-tests` | ✓ correct |
-| `Bash` + `grep`/`find`/`ls`/`cat`/`tail`/`head`/`wc`/`rg` | `idle` | → `reviewing` |
-| `Bash` + anything else | `idle` | → `implementing` (fallback) |
+| `Bash` + `git push` | `pushing` | → extension sheet only (not Tier 1 Codex row) |
+| `Bash` + test runner | `running-tests` (today) | → `testing` (Codex row 7; enum rename) |
+| `Bash` + `grep`/`find`/`ls`/`cat`/`tail`/`head`/`wc`/`rg`/`awk` | `idle` | → `thinking` (Codex row 8) |
+| `Bash` + anything else | `idle` | → `implementing` (Codex row 7) |
 | `Shell` (Cursor) + any command | `idle` | → same 3-bucket as Bash |
-| `Read` × 3+ | `reviewing` | ✓ correct |
+| `Read` ×1–2 | `idle` (today) | → **`reading`** (lite row; Codex → row 8) |
+| `Read` ×3+ | `reviewing` | → **`cramming`** (lite row; Codex → row 8) |
 
 ---
 
@@ -134,20 +188,19 @@ The guiding principle: **each sheet maps to a buy-in tier**. The renderer loads 
 
 **Tier 1 — Codex sheet (BYO, always supported)**
 - Any Codex-compatible `spritesheet.webp` + `pet.json` works via Settings → Import Pet
-- Codogotchi maps its `ActivityState` vocabulary onto Codex rows using its own trigger semantics
-- `waving` row: initial float-in greeting (one-shot) + `standby` fallback when no base sheet present
-- `running` row: `implementing` fallback when no base sheet present
+- Full row map: **§6 Conclusions — Tier 1 (Codex-only)**
+- `waving` row: greeting (renderer) + `standby` (`Stop` success)
+- `running` row: `implementing` + `testing` (both use row 7 — visual compromise)
+- `review` row: `thinking` only; native Codex “output ready” review deferred
+- `idle` row: renderer fallback after TTL — not hook-driven
 
 **Tier 2 — `codogotchi-lite-spritesheet.webp`**
-Enhanced animation language — NOT linked to SoA usage:
-- `thinking` (browsing/searching — grep/find/cat/ls)
-- `implementing` (richer coding animation — distinct from Codex "running")
-- `testing` (test/lint/format runners)
-- `idle` progression: `idle` → `idle-impatient` (TTL ~5m) → `idle-frustrated` (TTL ~20m, pet is being ignored)
-- Multiple `running-right` / `running-left` variants (selected at random on mouse drag)
-- Multiple `jumping` variants (selected at random on click)
-- Initial float-in greeting (one-shot on show floating pet)
-- Optional: `waving-back` (hover interaction trigger)
+Enhanced animation language — NOT linked to SoA usage. Row map in progress: **§7**.
+
+- Relieves Tier 1 double-duty rows (`standby`, `implementing`, `testing`, `thinking`, …).
+- When lite sheet is present, Codex row 3 **`wave` is greeting / pet-hatch only** — not `standby`.
+- `idle` progression: `idle` → `idle-impatient` (TTL ~5m) → `idle-frustrated` (TTL ~20m) — renderer timers (TBD in §7).
+- Interaction polish: multiple run/jump variants, optional `waving-back` (TBD in §7).
 
 **Tier 3 — `codogotchi-soa-spritesheet.webp`**
 SoA gate-triggered animations — requires SoA integration:
@@ -177,16 +230,9 @@ RPG milestone animations — requires alive mode (Convex enroll):
 
 Codogotchi ships 3 default pets (all spritesheets made by owner). v1 development continues with **Maew** only until v1 ships.
 
-### Idle animation TTL design (sketch — not committed)
+### Idle animation TTL design (lite — locked in §7)
 
-```
-idle (default loop)
-  → after ~5 min of no agent activity: idle-impatient
-  → after ~20 min of no agent activity: idle-frustrated (long TTL, loops)
-  → (future) hover during frustrated: one-shot tear animation
-```
-
-This makes the pet feel like it misses you without requiring any hook or agent event — purely renderer-side timer logic reading `state.json` timestamps.
+**Calm `idle` = Codex row 0.** **Impatient + frustrated rows live on the lite sheet only.** Renderer TTL; clock resets on any new `state.json` state transition. **v1: TTL only** — no interaction mood bump yet.
 
 ---
 
@@ -226,3 +272,311 @@ Harden: `verification_failed` trigger — confirm what conditions produce it and
 **Phase 07 full:** SoA writes `state.json` directly. Hook drops tail reader. Gate TTL (30s) prevents tool_use stomping a fresh gate during rapid post-gate agent activity.
 
 **No backward-compat needed:** single user until v1.
+
+---
+
+## 6. Conclusions — Tier 1 (Codex-only `spritesheet.webp`)
+
+_Locked: 2026-05-29._ Applies to users who import **`pet.json` + `spritesheet.webp`** only (no `codogotchi-*-spritesheet.webp`). Extension buy-ins (**lite**, **soa**, **rpg**) are documented separately when that tier is designed.
+
+### Scope
+
+- **In:** 8×9 Codex grid rows 0–8, `ActivityState` strings written by the hook (where applicable), `FloatingInteraction` for rows 1/2/4, renderer policy for `idle` and greeting.
+- **Out:** SoA gates, `reviewing` (Read×3), `pushing`, RPG overlays, lite idle progression, dedicated typing/test art — require extension sheets.
+
+### Master map
+
+| Row | Codex label | `ActivityState` / overlay | Driver | Status |
+|:---:|---|---|---|---|
+| 0 | Idle | `idle` | Renderer fallback after TTL / no signal | Agreed |
+| 1 | Run right | `FloatingInteraction.runningRight` | Horizontal drag Δx > 0 | Agreed — no change |
+| 2 | Run left | `FloatingInteraction.runningLeft` | Horizontal drag Δx < 0 | Agreed — no change |
+| 3 | Wave | _(none)_ + `standby` | Greeting: show floating pet; standby: `Stop` success | Agreed |
+| 4 | Jump | `FloatingInteraction.jumping` | Mouse hover (not click) | Agreed — no change |
+| 5 | Failed | `errored` | `StopFailure`, `Stop`+failure, Cursor error stops | Agreed — hooks TBD |
+| 6 | Waiting | `waiting_for_input` | `PermissionRequest` (Claude/Codex); Cursor `before*Execution` best-effort | Agreed — hooks TBD |
+| 7 | Running | `implementing`, `testing` | Edit/Write; test runners; Bash fallback | Agreed |
+| 8 | Review | `thinking` | Bash/Shell explore bucket | Agreed; native review **deferred** |
+
+### Hook buckets (Tier 1 agent activity)
+
+```
+Edit / Write / MultiEdit     → implementing  → row 7
+Bash test/lint/format        → testing       → row 7
+Bash grep/rg/find/ls/cat/…   → thinking      → row 8
+Stop (success)               → standby       → row 3
+StopFailure / error          → errored       → row 5
+PermissionRequest            → waiting_for_input → row 6
+(no signal / TTL expired)    → idle          → row 0  (renderer)
+```
+
+### Enum / schema notes (implementation backlog)
+
+| Decision | Action |
+|---|---|
+| `requesting_input` → `standby` | Schema v3 + attention TTL (Phase 06) |
+| `waiting` → `waiting_for_input` | Same bump; stop mapping SoA `pr_review_window_opened` to row 6 |
+| `running-tests` → `testing` | **Required** enum rename (`ACTIVITY_STATES`, Swift, contracts, fixtures) — same schema bump as `standby` / `waiting_for_input` |
+| `thinking` | Add to closed enum + hook 3-bucket (explore → `thinking`) |
+| SoA `pr_review_window_opened` | Future **soa** sheet only (e.g. `poll_review`) |
+
+### Platform hooks to register (Tier 1 parity)
+
+| Platform | Beyond today’s `PreToolUse` + `Stop` |
+|---|---|
+| Claude Code | `StopFailure`, `PermissionRequest` (+ optional `Notification` / `Elicitation`) |
+| Codex | `PermissionRequest` (on existing Codex hook set) |
+| Cursor | `beforeShellExecution`, `beforeMCPExecution`, `stop` with `status`, clear on `after*` |
+
+### Known compromises (accepted for Tier 1)
+
+1. Row 7 **running** art during coding and tests — fixed by **lite** sheet.
+2. Row 3 **wave** doubles as greeting + `standby` — fixed by **lite** `standby` row when sheet present.
+3. Row 8 native Codex **review** notification not replicated — row 8 used for **`thinking`** only.
+4. Read×3+ **`reviewing`** invisible on Tier 1 — needs **soa** or **lite** row.
+
+### Next tier
+
+See **§7** (lite sheet — in progress).
+
+---
+
+## 7. Conclusions — Tier 2 (`codogotchi-lite-spritesheet.webp`)
+
+_In progress: 2026-05-29._ Users with a **spec-compliant** `codogotchi-lite-spritesheet.webp` (BYO or premium art derived from their Codex sheet) load **Tier 1 + Tier 2**. Renderer resolves `ActivityState` on the lite sheet first, then falls back to Tier 1 Codex rows only for states the lite sheet does not define.
+
+### Sheet format (stub)
+
+- Grid and `pet.json` companion fields TBD (likely 24×9 to match Maew; publish a lite spritesheet contract doc when the first row map stabilizes).
+- Buy-in levels above Codex: **lite**, **soa**, **rpg** (three extension sheets).
+
+### Vocabulary table (building)
+
+Columns: **Animation label** (artist-facing), **`ActivityState`**, **Trigger**, **hasTTL**.
+
+| Animation label | `ActivityState` | Trigger | hasTTL |
+|---|---|---|---|
+| standby | `standby` | Agent turn completed successfully — **`Stop`** (Claude/Codex) or analogous (**Cursor** `stop` with `status: "completed"`). Not `StopFailure` / not `errored`. | **Yes** |
+| implementing | `implementing` | **`PreToolUse`** — `Edit`, `Write`, `MultiEdit`. **`Bash` / `Shell`** when the command indicates a **write** action (mutating shell: e.g. redirects to file, `sed -i`, `tee`, `cp`/`mv`, `install`, patch apply — not read-only explore, not test runners). | **No** |
+| testing | `testing` | **`Bash` / `Shell`** when the command is a **test runner**, **linter**, **formatter**, or **static-analysis** tool (e.g. `bun test`, `pytest`, `vitest`, `eslint`, `prettier`, `tsc --noEmit`, `cargo clippy` — classifier prefix list TBD). | **No** |
+| thinking | `thinking` | **`Bash` / `Shell`** — **read + search** commands (e.g. `grep`, `rg`, `find`, `ls`, `cat`, `tail`, `head`, `wc`, `awk`, `git log`, `git diff`, … — classifier list TBD). | **No** |
+| reading | `reading` | **`PreToolUse` `Read`** ×1–2 (streak; reset on write tools). Lite row; **Codex fallback: row 8 `review`**. | **No** |
+| cramming | `cramming` | Same streak, **`Read` ×3+**. Lite row; **Codex fallback: row 8 `review`**. | **No** |
+| idle | `idle` | **Codex sheet row 0** — base idle loop (Tier 1). Lite sheet does **not** ship a separate calm-idle row. | **30m** → impatient |
+| idle-impatient | `idle` | **Lite sheet only** — renderer after 30m on idle floor. | **60m** → frustrated |
+| idle-frustrated | `idle` | **Lite sheet only** — renderer 60m after impatient (90m from landing on idle). | loops until transition |
+| errored | `errored` | **Codex row 5** always — lite sheet has **no** failed row. | No (hook clears on next event; `errored` attention ~30m per Phase 06) |
+| waiting_for_input | `waiting_for_input` | **Codex row 6** always — lite sheet has **no** waiting row. | No |
+
+#### `standby` (locked)
+
+- **Meaning:** Task/turn finished; agent is ready for the next prompt (“your move”). Same hook signal as Tier 1, but **lite sheet owns the pixels** — ends the Codex **wave** double-duty.
+- **Tier 1 fallback (no lite sheet):** `standby` still maps to Codex row 3 (wave).
+- **Tier 2 (lite present):** dedicated **standby** row on `codogotchi-lite-spritesheet.webp`. Codex row 3 **wave** = **greeting / pet hatch only** (renderer one-shot on show floating pet — not written to `state.json`).
+- **TTL:** Hook writes `attention` with `expires_at` (Phase 06: **2h** for `reason_kind: "input_requested"`). Renderer treats expired attention as **`idle`** (row 0) without a new hook event — fixes stuck wave.
+- **UI:** Attention bubble while unexpired (Phase 06 `input_requested` → “Waiting for your input”).
+
+#### `implementing` (locked)
+
+- **Meaning:** Agent is **mutating** the codebase (typing/editing/writing files) — Maew-at-keyboard art, not Codex row 7 “running.”
+- **Tier 1 fallback (no lite sheet):** `implementing` paints Codex row 7 (running loop) — visual compromise.
+- **Tier 2 (lite present):** dedicated **implementing** row on `codogotchi-lite-spritesheet.webp`. Ends sharing row 7 with `testing`.
+- **Trigger:** Hook classifies on **`PreToolUse`** write tools plus **`Bash` / `Shell`** when the command is a write/mutate pattern (Phase 06+ 3-bucket: write bucket → `implementing`; explore → `thinking`; runners → `testing`). Exact Bash allowlist TBD in classifier.
+- **TTL:** **No** — cleared by the next hook event (tool_use, `Stop`, gate, etc.).
+
+#### `testing` (locked)
+
+- **Meaning:** Agent is running **verification** — tests, lint, format, static analysis — not editing and not read-only explore.
+- **Tier 1 fallback (no lite sheet):** `testing` paints Codex row 7 — shares the **running** loop with `implementing`.
+- **Tier 2 (lite present):** dedicated **testing** row on `codogotchi-lite-spritesheet.webp`. Row 7 on the Codex sheet is no longer used for tests when lite is loaded.
+- **Trigger:** **`Bash` / `Shell`** only — match test/lint/format/static-analysis commands (same family as today’s `TEST_RUNNER_PREFIXES` in `hook-binary.ts`, extended for linters/formatters).
+- **TTL:** **No**.
+
+#### `thinking` (locked)
+
+- **Meaning:** Agent is **exploring** via shell — grep/find/cat, not mutating, not running verification.
+- **Tier 1 fallback (no lite sheet):** `thinking` paints Codex row 8 (**review** row). Native Codex “output ready for review” is **not** hooked — row 8 is explore-only on Tier 1.
+- **Tier 2 (lite present):** dedicated **thinking** row on `codogotchi-lite-spritesheet.webp`. Ends overloading Codex row 8.
+- **Trigger:** **`Bash` / `Shell`** read/search bucket only (not `Read` tool — see **`cramming`**).
+- **TTL:** **No**.
+
+#### `reading` / `cramming` (locked)
+
+Two **lite** rows for the agent **`Read`** tool — same persisted `read_run` counter, reset on `Edit` / `Write` / `MultiEdit`:
+
+| `read_run` | `ActivityState` | Vibe |
+|:---:|:---:|---|
+| 1–2 | **`reading`** | Flipping through files — light read |
+| 3+ | **`cramming`** | Deep study before writing (old `reviewing` ×3 signal) |
+
+- **`thinking`** stays **Bash/Shell only** — not used for `Read`.
+- **Tier 1 (Codex only):** both **`reading`** and **`cramming`** paint **Codex row 8 (`review`)** — same art, two enum states; best match for agent `Read` without a lite sheet.
+- **Tier 2 (lite):** separate **`reading`** and **`cramming`** rows on `codogotchi-lite-spritesheet.webp` (no longer overload row 8 for lite users).
+- **TTL:** **No** for both.
+- **Telemetry:** ×3+ bucket was **135×** as `reviewing`; ×1–2 were invisible in **`idle`** — `reading` fixes that.
+
+#### `idle` / `idle-impatient` / `idle-frustrated` (locked)
+
+- **`ActivityState` in `state.json`:** stays **`idle`** for all three animation labels. Enum does not multiply for mood (keeps hook single-writer simple).
+- **Sheet split (lite users load Codex + lite):**
+  - **`idle` (calm)** → pixels from **`spritesheet.webp` row 0** (Codex base). Lite sheet has **no** calm-idle row.
+  - **`idle-impatient`** → pixels from **`codogotchi-lite-spritesheet.webp`** only.
+  - **`idle-frustrated`** → pixels from **`codogotchi-lite-spritesheet.webp`** only.
+- **Codex-only users (no lite sheet):** row 0 `idle` only — never see impatient/frustrated.
+- **Not hook-driven:** impatient/frustrated are **never** written to `state.json`.
+- **Clock:** Time since **last state transition**. New agent activity → back to **Codex calm idle** (fresh 30m timer).
+- **Degradation ladder — Option A (locked):** 30m → lite impatient → +60m → lite frustrated (90m from landing on idle). Not Option B (60m frustrated from first idle).
+
+| Animation label | Sheet | Enter |
+|---|---|---|
+| idle | **Codex** row 0 | Floor / decay / hook `idle` |
+| idle-impatient | **Lite** | 30m no transition on idle floor |
+| idle-frustrated | **Lite** | 60m after impatient |
+
+- **Future (out of v1):** pet interaction bumps mood back toward calm Codex idle — TTL-only for now.
+
+#### `errored` / `waiting_for_input` (locked — Codex pixels only)
+
+- **Codex + lite users:** reuse **Tier 1 Codex rows** for these states. No lite-sheet rows — same hooks/triggers as §6; only pixel source is Codex `spritesheet.webp`.
+- **`errored`:** row 5 — `StopFailure`, failed `Stop`, Cursor error stops (hooks TBD).
+- **`waiting_for_input`:** row 6 — `PermissionRequest` (and peers); rare in Yolo mode.
+
+### Tier 1 vs Tier 2 — `standby` / wave
+
+| User has | `standby` animation | Codex row 3 `wave` |
+|---|---|---|
+| Codex sheet only | wave (double duty) | greeting + standby |
+| Codex + lite sheet | lite **standby** row | greeting / hatch only |
+
+### Tier 1 vs Tier 2 — `implementing` / running row
+
+| User has | `implementing` animation | Codex row 7 `running` |
+|---|---|---|
+| Codex sheet only | row 7 (running) | also used for `testing` |
+| Codex + lite sheet | lite **implementing** row | lite **testing** row (row 7 unused for agent states) |
+
+### Tier 1 vs Tier 2 — `thinking` / `reading` / `cramming` / review row
+
+| User has | `thinking` | `reading` / `cramming` | Codex row 8 `review` |
+|---|---|---|---|
+| Codex sheet only | row 8 (Bash explore only) | **row 8** for both `reading` & `cramming` (`Read` tool) | agent file reads |
+| Codex + lite sheet | lite **thinking** | lite **reading** + **cramming** rows | unused for agent states |
+
+### Next lite rows
+
+_To document in this table:_ interaction variants (hatch, run/jump variants, `waving-back`).
+
+---
+
+## 8. Conclusions — Tier 3 (`codogotchi-soa-spritesheet.webp`) — in progress
+
+_Locked: 2026-05-29 (vocabulary draft)._ Requires **SoA sheet** loaded. SoA writes **`state.json` directly** (Phase 07).
+
+**Out of scope for SoA pet animations:** `/soa plan`, `/soa decompose`, `/soa closeout` — no gates, no sprites. During those phases the pet uses **normal hook heuristics** (`implementing`, `thinking`, `testing`, `standby`, …) like any other agent session.
+
+**In scope:** `bun run deliver …` ticket gates only. **Sticky SoA gate wins** over hook `tool_use` until the next gate or TTL expiry — so `hyped` is not erased by Bash in 5s. Between gates, hooks behave normally (lite/Codex rows for implement/test/think).
+
+**TTL policy:** Table below is **v1 guess**. Expect to **shrink TTLs** if delivery feels too dead (only gate poses visible); lengthen if gates still get stomped. Tune from `state-transitions.log` after direct-write lands.
+
+### Vocabulary table (draft)
+
+| Animation label | `ActivityState` | Gate (emit trigger) | Sticky TTL (v1) |
+|---|---|---|---|
+| ticket_started | `ticket_started` | `start` / ticket → `in_progress` (NDJSON: `ticket_started`) | 5m |
+| red_tdd | `red_tdd` | `post-red` recorded | 10m |
+| green_tdd | `green_tdd` | After `post-red` until `post-verify` — implement + verify window; **hook stomp suppressed** | 30m |
+| adversarial_review | `adversarial_review` | **`write-subagent-adversarial-review`** (not `subagent-review`) | 10m |
+| open_pr | `open_pr` | `open-pr` succeeds | 4m |
+| poll_review | `poll_review` | After `open-pr` until `review_clean_recorded` or `needs_patch` | 12m |
+| record_review | `record_review` | `record-review` command | 5m |
+| advance | `advance` | `advance` — short gated beat between tickets (not `done` itself) | 2m |
+| ticket_completed | `ticket_completed` | Ticket → `done` on `advance` | TBD |
+| review_clean | `review_clean` | PR review outcome **clean** (NDJSON: `review_clean_recorded`) | TBD |
+
+### Precedence (renderer / hook consumer)
+
+```
+if unexpired sticky SoA gate in state.json:
+  paint SoA sheet row for that ActivityState
+else:
+  hook classifies tool_use → implementing | thinking | testing | …
+  (lite sheet first, then Codex fallback)
+```
+
+During **`green_tdd`**, suppress hook overwrite of SoA state — agent may still be editing/testing under the hood, but the pet stays on **green_tdd** until `post-verify` or TTL.
+
+### Retired / renamed (from old codogotchi mapping)
+
+| Old | New |
+|---|---|
+| `waiting` ← `pr_review_window_opened` | **`poll_review`** (SoA sheet) |
+| `hyped` ← `ticket_started` | **`ticket_started`** (one row — drop `hyped` label unless art keeps the name) |
+| `celebrating` ← both clean + completed | Split **`review_clean`** + **`ticket_completed`** (or one row TBD) |
+| `calling_for_backup` ← `subagent_invoked` | **`adversarial_review`** at write time |
+| `subagent_invoked` NDJSON | Retire for pet timing; optional telemetry only |
+
+**Not animated on SoA sheet:** `planning`, `decomposing`, `closeout`. **Contract-only, not wired:** `flow_state_entered`, `risky_diff_detected`, `stage_advanced`, `verification_failed`.
+
+### Implementation notes
+
+1. SoA direct-write + sticky `last_gate` (or equivalent) + `expires_at` per gate.
+2. Hook binary: **do not** write `activity_state` over an unexpired SoA gate (read sticky first).
+3. Emit **`adversarial_review`** on `write-subagent-adversarial-review`, not runner start.
+4. Revisit TTLs after a real delivery — bias toward **shorter** if the pet feels lifeless between tool bursts.
+
+### Closed `ActivityState` enum — Phase 07 schema bump (locked 2026-05-29)
+
+**19 states total.** Renames are breaking (`schema_version` bump). RPG sheet may reintroduce milestone labels later (**not** in this enum).
+
+#### Hook + lite + Codex (9)
+
+| `ActivityState` | Sheet / driver |
+|---|---|
+| `idle` | Codex row 0 + lite impatient/frustrated (renderer phases) |
+| `standby` | Lite (`Stop` success); Codex wave = greeting only |
+| `implementing` | Lite |
+| `testing` | Lite (replaces `running-tests`) |
+| `thinking` | Lite — Bash explore; Codex row 8 fallback |
+| `reading` | Lite — `Read` ×1–2; Codex row 8 (`review`) fallback |
+| `cramming` | Lite — `Read` ×3+; Codex row 8 (`review`) fallback |
+| `errored` | Codex row 5 |
+| `waiting_for_input` | Codex row 6 (platform `PermissionRequest`; **not** `poll_review`) |
+
+#### SoA delivery gates (10) — `codogotchi-soa-spritesheet.webp`
+
+| `ActivityState` | Replaces (deleted) |
+|---|---|
+| `ticket_started` | `hyped` |
+| `red_tdd` | _(new)_ |
+| `green_tdd` | _(new)_ |
+| `adversarial_review` | `calling_for_backup` |
+| `open_pr` | _(new; was NDJSON only as `pr_review_window_opened`)_ |
+| `poll_review` | `waiting` (SoA AI-review window) |
+| `record_review` | _(new)_ |
+| `advance` | _(new)_ |
+| `ticket_completed` | `celebrating` (partial — ticket done) |
+| `review_clean` | `celebrating` (partial — PR clean) |
+
+#### Deleted from enum (Phase 07)
+
+| Removed | Notes |
+|---|---|
+| `hyped` | → `ticket_started` |
+| `celebrating` | → `review_clean` + `ticket_completed` |
+| `calling_for_backup` | → `adversarial_review` |
+| `waiting` | → `poll_review` (SoA); platform wait = `waiting_for_input` |
+| `focused`, `nervous`, `panicking` | Retired; never fired |
+| `ascended` | Retired from Phase 07 enum; see RPG deferral |
+| `reviewing` | → **`reading`** (×1–2) + **`cramming`** (×3+) |
+| `pushing` | No SoA row; hook heuristic dropped for now |
+| `running-tests` | → `testing` |
+| `requesting_input` | → `standby` |
+
+#### Deferred — RPG sheet only (out of Phase 07 scope)
+
+May return as **separate** `ActivityState` values or RPG-only presentation when `codogotchi-rpg-spritesheet.webp` is designed — **not** in the Phase 07 closed enum:
+
+- **`celebrating`** (milestone / victory — richer than `review_clean`)
+- **`ascended`** (stage / evolution)
+
+Phase 07 implementation uses this doc + §6 (Codex-only) + §7 (lite) + §8 (SoA); code changes (`animation-state.ts`, `SOA_EVENT_TO_ACTIVITY_STATE`, Swift `ActivityState`, hook maps) follow in a dedicated schema-bump ticket.
