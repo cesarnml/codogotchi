@@ -100,11 +100,12 @@ enum StateJsonReader {
 	/// default: `"2026-05-29T14:00:00.000Z"`) then falls back to whole-seconds
 	/// form so both hook output shapes are accepted.
 	static func resolveActivityState(_ snapshot: StateSnapshot, now: Date = Date()) -> ActivityState {
-		guard let attention = snapshot.attention else { return snapshot.activityState }
-		if let expiry = parseISO8601Date(attention.expiresAt), expiry < now {
-			return .idle
-		}
-		return snapshot.activityState
+		guard let attention = snapshot.attention,
+			let expiresAtStr = attention.expiresAt,
+			let expiry = parseISO8601Date(expiresAtStr),
+			expiry < now
+		else { return snapshot.activityState }
+		return .idle
 	}
 
 	private static func parseISO8601Date(_ string: String) -> Date? {

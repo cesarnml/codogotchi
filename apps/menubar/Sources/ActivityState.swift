@@ -54,7 +54,7 @@ struct SourceEvent: Equatable, Decodable {
 /// policy (P6.07): if the timestamp is in the past the renderer treats the
 /// state as `idle` regardless of the written `activity_state`.
 struct AttentionPayload: Equatable, Decodable {
-	let expiresAt: String
+	let expiresAt: String?
 }
 
 /// Decoded form of `~/.codogotchi/state.json` v1.
