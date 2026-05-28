@@ -60,8 +60,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: `grep "foo" bar.ts` → expected `reviewing`, received `idle` (new bucket not yet present).
 Why this path: Extending the existing `classifyEvent` with a third bucket requires no architectural change — same prefix-match pattern already used for test runners. Cursor Shell normalization is zero extra branches by using the same code path.
 Alternative considered: Separate `classifyShell` function for Cursor — rejected, identical logic with different name is dead weight.
 Deferred: Detecting `awk`/`sed` used for in-place file edits (which could be `implementing`) — deferred as edge case. Phase 07 can refine if the 3-bucket heuristic proves too coarse.
-Contract note: [fill in during implementation]
+Contract note: Cursor `Shell` tool_name confirmed as `"Shell"` (capital S) per Cursor hook format. The `undefined` command case returning `implementing` rather than `idle` is a deliberate policy change — any Bash/Shell call where we can't classify the command defaults to assuming work is happening rather than nothing.
