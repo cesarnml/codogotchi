@@ -2,7 +2,7 @@
 
 _Drafted: 2026-05-27_
 _Status: Pre-planning draft — not yet through `/soa plan`_
-_Source: [codogotchi-native-codex-pet-feature-parity-roadmap.md](../../notes/public/codogotchi-native-codex-pet-feature-parity-roadmap.md), [codogotchi-platform-extension-and-signal-pipeline-research.md](../../notes/public/codogotchi-platform-extension-and-signal-pipeline-research.md)_
+_Source: [codogotchi-native-codex-pet-feature-parity-roadmap.md](../../notes/public/codogotchi-native-codex-pet-feature-parity-roadmap.md), [codogotchi-platform-extension-and-signal-pipeline-research.md](../../notes/public/codogotchi-platform-extension-and-signal-pipeline-research.md), [codex-native-pet-animation-triggers.md](../../notes/public/codex-native-pet-animation-triggers.md)_
 
 ---
 
@@ -42,6 +42,12 @@ Optional `attention` on `state.json` (or documented sibling file):
 - Works in **lite** and **alive** modes
 
 ### 3. Hook semantics + TTL
+
+> **Baseline reference:** [codex-native-pet-animation-triggers.md](../../notes/public/codex-native-pet-animation-triggers.md) documents the reverse-engineered trigger dynamics and timing constants from the native Codex desktop pet. Use these as a floor to beat, not a ceiling to copy. Key signals to improve upon:
+> - Native TTLs: `running` 3 min, `failed` 1 hr, `waiting` 24 hr, `review` 7 days, `first-awake` 8 sec.
+> - Native priority order: `waiting` > `failed` > `review` > `running` > `idle`.
+> - Native mascot resolution runs through notification level (`warning → waiting`, `danger → failed`, `success → review`, `isLoading → running`) — codogotchi can carry richer `reason_kind` semantics instead.
+> - Native interaction overrides (`jumping`, `running-left`, `running-right`) are pointer-only; codogotchi can expose agent-driven equivalents.
 
 - Stable `reason_kind` + TTL heuristics per state (waiting on user: hours; errors: shorter; review: longer)
 - `sessionEnd` / `stop` clears attention where platform sends it (Cursor)
