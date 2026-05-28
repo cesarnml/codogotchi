@@ -113,8 +113,8 @@ describe('P16.04 advisory observation warnings', () => {
         {
           kind: 'untriaged_observation',
           ticketId: 'P16.01',
-          sourceReportPath: reportPath,
-          observationText: 'Record this operator decision after closeout.',
+          reportPath,
+          observation: 'Record this operator decision after closeout.',
         },
       ]);
     });
@@ -140,15 +140,21 @@ describe('P16.04 advisory observation warnings', () => {
           `docs/product/delivery/${PLAN_KEY}/advisory-observation-triage.json`,
         ),
         `${JSON.stringify({
-          schemaVersion: 1,
+          schemaVersion: 2,
           recordedAt: '2026-05-24T00:00:00.000Z',
-          observations: [
+          summary: {
+            total: 1,
+            patched: 0,
+            rejected: 0,
+            'already-covered': 1,
+            'requires-human-review': 0,
+          },
+          dispositions: [
             {
-              sourceReportPath: reportPath,
-              ticketId: 'P16.01',
-              observationText: 'Already covered elsewhere.',
               disposition: 'already-covered',
               rationale: 'Covered by the closeout checklist.',
+              source: { reportPath, ticketId: 'P16.01' },
+              observation: 'Already covered elsewhere.',
             },
           ],
         })}\n`,
@@ -202,8 +208,8 @@ describe('P16.04 advisory observation warnings', () => {
         {
           kind: 'untriaged_observation',
           ticketId: 'P16.01',
-          sourceReportPath: `${REVIEWS_DIR}/P16.01-subagent-review.report.md`,
-          observationText: 'Record this operator decision after closeout.',
+          reportPath: `${REVIEWS_DIR}/P16.01-subagent-review.report.md`,
+          observation: 'Record this operator decision after closeout.',
         },
       ],
     );

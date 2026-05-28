@@ -117,19 +117,17 @@ describe('P16.03 advisory observation triage command', () => {
       );
       const dispositions: AdvisoryObservationDispositionInput[] = [
         {
-          sourceReportPath,
-          ticketId: 'P16.01',
-          observationText:
-            'Consider documenting the closeout operator decision.',
-          disposition: 'converted-to-ticket',
-          rationale: 'Tracked in the docs ticket.',
+          source: { reportPath: sourceReportPath, ticketId: 'P16.01' },
+          observation: 'Consider documenting the closeout operator decision.',
+          disposition: 'rejected',
+          rationale:
+            'Filed as a follow-up ticket; not patched in this triage pass.',
           followUpReference:
             'docs/product/delivery/phase-16/ticket-05-docs-soa-wrapper-guidance-and-retrospective.md',
         },
         {
-          sourceReportPath,
-          ticketId: 'P16.01',
-          observationText: 'Keep this flow post-phase only.',
+          source: { reportPath: sourceReportPath, ticketId: 'P16.01' },
+          observation: 'Keep this flow post-phase only.',
           disposition: 'already-covered',
           rationale: 'The implementation plan locks this as post-phase.',
         },
@@ -155,10 +153,16 @@ describe('P16.03 advisory observation triage command', () => {
 
       const artifact = JSON.parse(
         await readFile(join(repoRoot, TRIAGE_ARTIFACT), 'utf8'),
-      ) as { observations: Array<{ observationText: string }> };
-      expect(
-        artifact.observations.map((entry) => entry.observationText),
-      ).toEqual([
+      ) as {
+        schemaVersion: number;
+        summary: { total: number; rejected: number; 'already-covered': number };
+        dispositions: Array<{ observation: string; disposition: string }>;
+      };
+      expect(artifact.schemaVersion).toBe(2);
+      expect(artifact.summary.total).toBe(2);
+      expect(artifact.summary.rejected).toBe(1);
+      expect(artifact.summary['already-covered']).toBe(1);
+      expect(artifact.dispositions.map((entry) => entry.observation)).toEqual([
         'Consider documenting the closeout operator decision.',
         'Keep this flow post-phase only.',
       ]);
@@ -185,11 +189,10 @@ describe('P16.03 advisory observation triage command', () => {
         state: makeState(repoRoot),
         dispositions: [
           {
-            sourceReportPath,
-            ticketId: 'P16.01',
-            observationText: 'Consider a follow-up dashboard.',
-            disposition: 'deferred',
-            rationale: 'Out of scope for this phase.',
+            source: { reportPath: sourceReportPath, ticketId: 'P16.01' },
+            observation: 'Consider a follow-up dashboard.',
+            disposition: 'requires-human-review',
+            rationale: 'Operator must decide whether to file a tracking issue.',
           },
         ],
       });
@@ -241,9 +244,8 @@ describe('P16.03 advisory observation triage command', () => {
       );
       const dispositions: AdvisoryObservationDispositionInput[] = [
         {
-          sourceReportPath,
-          ticketId: 'P16.01',
-          observationText: 'Already tracked elsewhere.',
+          source: { reportPath: sourceReportPath, ticketId: 'P16.01' },
+          observation: 'Already tracked elsewhere.',
           disposition: 'rejected',
           rationale: 'Duplicate of an existing workflow.',
         },
@@ -262,8 +264,8 @@ describe('P16.03 advisory observation triage command', () => {
 
       const artifact = JSON.parse(
         await readFile(join(repoRoot, TRIAGE_ARTIFACT), 'utf8'),
-      ) as { observations: unknown[] };
-      expect(artifact.observations).toHaveLength(1);
+      ) as { dispositions: unknown[] };
+      expect(artifact.dispositions).toHaveLength(1);
     });
   });
 });

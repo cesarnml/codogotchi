@@ -19,8 +19,8 @@ import type { DeliveryState } from './types';
 export type AdvisoryObservationWarning =
   | {
       kind: 'untriaged_observation';
-      observationText: string;
-      sourceReportPath: string;
+      observation: string;
+      reportPath: string;
       ticketId: string;
     }
   | {
@@ -54,11 +54,11 @@ function toAbsolute(repoRoot: string, repoPath: string): string {
 }
 
 function observationKey(input: {
-  observationText: string;
-  sourceReportPath: string;
+  observation: string;
+  reportPath: string;
   ticketId: string;
 }): string {
-  return `${input.sourceReportPath}\u0000${input.ticketId}\u0000${input.observationText}`;
+  return `${input.reportPath}\u0000${input.ticketId}\u0000${input.observation}`;
 }
 
 async function readJson(path: string): Promise<unknown> {
@@ -195,8 +195,12 @@ async function readTriagedObservationKeys(input: {
 
   const artifact = await readAdvisoryObservationTriageArtifact(artifactPath);
   return new Set(
-    artifact.observations.map((entry: AdvisoryObservationTriageEntry) =>
-      observationKey(entry),
+    artifact.dispositions.map((entry: AdvisoryObservationTriageEntry) =>
+      observationKey({
+        observation: entry.observation,
+        reportPath: entry.source.reportPath,
+        ticketId: entry.source.ticketId,
+      }),
     ),
   );
 }
@@ -210,18 +214,18 @@ export async function computeAdvisoryObservationWarnings(input: {
   const untriaged: AdvisoryObservationWarning[] = [];
 
   for (const group of groups) {
-    for (const observationText of group.observations) {
+    for (const observation of group.observations) {
       const key = observationKey({
         ticketId: group.ticketId,
-        sourceReportPath: group.sourceReportPath,
-        observationText,
+        reportPath: group.sourceReportPath,
+        observation,
       });
       if (!triagedKeys.has(key)) {
         untriaged.push({
           kind: 'untriaged_observation',
           ticketId: group.ticketId,
-          sourceReportPath: group.sourceReportPath,
-          observationText,
+          reportPath: group.sourceReportPath,
+          observation,
         });
       }
     }
@@ -243,7 +247,7 @@ export function formatAdvisoryObservationWarnings(
   for (const warning of warnings) {
     if (warning.kind === 'untriaged_observation') {
       lines.push(
-        `- untriaged ${warning.ticketId}: ${warning.observationText} (${warning.sourceReportPath})`,
+        `- untriaged ${warning.ticketId}: ${warning.observation} (${warning.reportPath})`,
       );
       continue;
     }
@@ -263,7 +267,7 @@ export function formatAdvisoryObservationWarnings(
 
 function formatWarningSortKey(warning: AdvisoryObservationWarning): string {
   if (warning.kind === 'untriaged_observation') {
-    return `${warning.ticketId}\u0000${warning.sourceReportPath}\u0000${warning.observationText}`;
+    return `${warning.ticketId}\u0000${warning.reportPath}\u0000${warning.observation}`;
   }
 
   if (warning.kind === 'warning_error') {

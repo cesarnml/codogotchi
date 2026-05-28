@@ -243,6 +243,49 @@ describe('P16.01 — parseAdvisoryObservations', () => {
       'Keep this note triageable.',
     ]);
   });
+
+  it('does not treat bold observation-prefix lines as section terminators', () => {
+    // Regression: in Phase 05 P5.06 the subagent used `**A1 — Title**` as an
+    // observation prefix inside the Advisory Observations section. The prior
+    // parser called isSectionHeadingLine() on every line and terminated the
+    // section extraction at `**A1 — ...**`, silently dropping every
+    // observation. Only canonical sibling headings should terminate the body.
+    // The canonical report template instructs the subagent to keep each
+    // observation as one bullet or one paragraph — the test below verifies the
+    // parser preserves all content under that mixed-bold format rather than
+    // truncating at the first bold line.
+    expect(RM.parseAdvisoryObservations).toBeDefined();
+    const md = [
+      '**Actionable findings**',
+      'None.',
+      '',
+      '**Advisory Observations**',
+      '',
+      '**A1 — getEvent fallback logic**',
+      '',
+      'The fallback returns nil silently when the event row is missing.',
+      '',
+      '**A2 — Schema drift in event types**',
+      '',
+      'The EventV2 type does not match the migration in 0042.',
+      '',
+      '**Runner termination**',
+      'completed',
+    ].join('\n');
+    const observations = RM.parseAdvisoryObservations!(md);
+    // Crucial: the parser must not return [] (the pre-fix behavior). With
+    // mixed-bold content it returns all paragraphs in the section body, which
+    // the canonical report template avoids by recommending one paragraph or
+    // bullet per observation.
+    expect(observations.length).toBeGreaterThan(0);
+    const joined = observations.join('\n');
+    expect(joined).toContain('A1');
+    expect(joined).toContain('fallback returns nil silently');
+    expect(joined).toContain('A2');
+    expect(joined).toContain('Schema drift');
+    // And critically: the section did not get truncated at `**Runner termination**`.
+    expect(joined).not.toContain('completed');
+  });
 });
 
 describe('P16.01 — inspectSubagentReviewEvidence', () => {
