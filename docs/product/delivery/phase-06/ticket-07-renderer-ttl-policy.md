@@ -54,8 +54,10 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: `testStandbyWithExpiredTTLResolvesToIdle` — reader returned `standby` unchanged; test expected `idle`.
 Why this path: TTL check at read time is the simplest correct approach — no background timer, no extra write, no additional state. The renderer already re-reads `state.json` on change; expiry is observed on the next natural read cycle.
 Alternative considered: Background timer in renderer that fires at `expires_at` and writes `idle` back to `state.json` — rejected, renderer should not write to `state.json` (hook binary owns writes).
+Polling window: `LivePollingDriver` polls every 1 second (default `tickInterval`). After `expires_at`, the pet may show `standby` for up to ~1 second before the next read cycle observes expiry. Acceptable for Phase 06.
+ISO 8601 parse: Two-pass — tries `.withFractionalSeconds` first (Zod default: `"…000Z"`), falls back to whole-seconds form. Both offset-aware forms supported.
 Deferred: Gate TTL (sticky gate expiry in hook counters) — Phase 07. Bubble dismissal writing `attention: null` back to state — that's P6.08 scope (dismiss is a UI action, not a TTL).
-Contract note: [fill in during implementation]
+Contract note: `AttentionPayload` decodes only `expires_at`; `reason_kind`, `summary`, and `created_at` are silently ignored (forward-compat: Decodable drops unknown keys). P6.08 may decode more fields when it needs them.
