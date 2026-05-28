@@ -33,6 +33,21 @@
       "outcome": "clean",
       "acknowledgment": "operator-confirmed-clean",
       "reason": "Reconciler false-positive: subagent used HR separator (---) between Actionable findings and Advisory Observations, causing None. + --- to fail the /^none/ check. Actionable findings are genuinely None as confirmed by reading the report."
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "f3c55b32151feededdf5533d6e7c10c3360d0b4b",
+      "completedAt": "2026-05-28T18:49:00.043Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "outcome": "deferred",
+      "reason": "False positive: subagent's --- HR separator between sections caused None. + --- to fail the /^none/ regex in parseActionableFindings. Actionable findings are genuinely None per report."
     }
   ]
 }
