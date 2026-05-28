@@ -1,12 +1,12 @@
 {
   "schema_version": 3,
   "activity_state": "standby",
-  "hp_overlay": "stable",
+  "hp_overlay": "thriving",
   "hp": 70,
   "updated_at": "2026-05-24T00:09:00.000Z",
   "source_event": {
     "origin": "manual",
-    "kind": "demo",
+    "kind": "cli",
     "name": "standby"
   }
 }
