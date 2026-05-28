@@ -73,6 +73,20 @@ const TEST_RUNNER_PREFIXES = [
   "jest",
 ];
 
+const REVIEWING_BASH_PREFIXES = [
+  "grep",
+  "find",
+  "rg",
+  "ls",
+  "cat",
+  "head",
+  "tail",
+  "wc",
+  "awk",
+  "sed",
+  "jq",
+];
+
 const READ_RUN_THRESHOLD = 3;
 const LOCK_RETRY_DELAY_MS = 10;
 const LOCK_TIMEOUT_MS = 2000;
@@ -133,6 +147,15 @@ function matchesTestRunner(command: string): boolean {
   });
 }
 
+function matchesReviewingCommand(command: string): boolean {
+  const trimmed = command.trimStart();
+  return REVIEWING_BASH_PREFIXES.some((prefix) => {
+    if (!trimmed.startsWith(prefix)) return false;
+    const next = trimmed.slice(prefix.length, prefix.length + 1);
+    return next === "" || next === " " || next === "\t";
+  });
+}
+
 export function classifyEvent(
   input: HookInput,
   prior: ClassifyState,
@@ -174,14 +197,20 @@ export function classifyEvent(
     if (name === "Edit" || name === "Write" || name === "MultiEdit") {
       return { state: "implementing", sourceEvent, readRun: 0 };
     }
-    if (name === "Bash" && command !== undefined) {
+    if (name === "Bash" || name === "Shell") {
+      if (command === undefined) {
+        return { state: "implementing", sourceEvent, readRun: 0 };
+      }
       if (command.trimStart().startsWith("git push")) {
         return { state: "pushing", sourceEvent, readRun: 0 };
       }
       if (matchesTestRunner(command)) {
         return { state: "running-tests", sourceEvent, readRun: 0 };
       }
-      return { state: "idle", sourceEvent, readRun: 0 };
+      if (matchesReviewingCommand(command)) {
+        return { state: "reviewing", sourceEvent, readRun: 0 };
+      }
+      return { state: "implementing", sourceEvent, readRun: 0 };
     }
     if (name === "Read") {
       const nextRun = prior.readRun + 1;
