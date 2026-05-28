@@ -673,6 +673,7 @@ describe("runHook", () => {
     expect(state.attention).toBeDefined();
     expect(state.attention?.reason_kind).toBe("input_requested");
     expect(state.attention?.summary).toBe("Waiting for your input");
+    expect(state.attention?.created_at).toBe(FIXED_NOW.toISOString());
     const expectedExpiry = new Date(
       FIXED_NOW.getTime() + 2 * 60 * 60 * 1000,
     ).toISOString();
@@ -691,6 +692,7 @@ describe("runHook", () => {
     expect(state.attention?.summary).toBe(
       "Something went wrong — agent stopped",
     );
+    expect(state.attention?.created_at).toBe(FIXED_NOW.toISOString());
     const expectedExpiry = new Date(
       FIXED_NOW.getTime() + 30 * 60 * 1000,
     ).toISOString();
@@ -718,6 +720,33 @@ describe("runHook", () => {
     );
     const state = readState(home);
     expect(state.tool_command).toBe("grep foo");
+  });
+
+  it("Shell tool_use writes tool_command", async () => {
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Shell",
+        command: "ls -la",
+      },
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.tool_command).toBe("ls -la");
+  });
+
+  it("Codex raw-stdin Bash event writes tool_command from tool_input.command", async () => {
+    await runHook(
+      {
+        tool_name: "Bash",
+        hook_event_name: "pre_tool_use",
+        tool_input: { command: "echo hello" },
+      } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.tool_command).toBe("echo hello");
   });
 
   it("Edit tool_use writes no tool_command field", async () => {

@@ -10,7 +10,7 @@ Red: required
 - When `runHook` writes `activity_state: "standby"`, it also writes an `attention` object with `reason_kind: "input_requested"`, a fixed summary string, `created_at: now`, and `expires_at: now + 2h`.
 - When `runHook` writes `activity_state: "errored"`, it also writes `attention` with `reason_kind: "error_blocked"`, a fixed summary string, and `expires_at: now + 30m`.
 - For all other states, `attention` is absent from `state.json`.
-- For every Bash or Shell tool_use event, `tool_command` is written to `state.json` (the raw command string). Absent for non-Bash/Shell events.
+- For every Bash or Shell tool_use event with a defined command string, `tool_command` is written to `state.json` (the raw command string). Absent for non-Bash/Shell events and Bash/Shell events with no command string.
 - Summary strings:
   - `input_requested`: `"Waiting for your input"`
   - `error_blocked`: `"Something went wrong — agent stopped"`
