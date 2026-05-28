@@ -50,11 +50,28 @@ struct SourceEvent: Equatable, Decodable {
 }
 
 /// The `attention` object from the v3 schema. Present when `activity_state`
-/// is `standby`; absent otherwise. `expiresAt` drives the renderer's TTL
-/// policy (P6.07): if the timestamp is in the past the renderer treats the
-/// state as `idle` regardless of the written `activity_state`.
+/// is `standby` or `errored`; absent otherwise. `expiresAt` drives the renderer's
+/// TTL policy (P6.07): if the timestamp is in the past the renderer treats the
+/// state as `idle` regardless of the written `activity_state`. `summary` and
+/// `reasonKind` are the user-facing copy shown in the attention bubble (P6.08).
 struct AttentionPayload: Equatable, Decodable {
 	let expiresAt: String?
+	let summary: String?
+	let reasonKind: String?
+}
+
+extension AttentionPayload {
+	/// Returns true when `expiresAt` is parseable and strictly in the past.
+	/// Mirrors the two-pass ISO 8601 strategy in `StateJsonReader.resolveActivityState`.
+	func isExpired(now: Date = Date()) -> Bool {
+		guard let str = expiresAt else { return false }
+		let fmt = ISO8601DateFormatter()
+		fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+		if let d = fmt.date(from: str) { return d < now }
+		fmt.formatOptions = [.withInternetDateTime]
+		if let d = fmt.date(from: str) { return d < now }
+		return false
+	}
 }
 
 /// Decoded form of `~/.codogotchi/state.json` v1.

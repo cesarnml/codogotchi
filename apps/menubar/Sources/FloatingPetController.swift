@@ -13,8 +13,13 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func show(frame: CGRect)
 	func hide()
 	func apply(state: ActivityState, visualMode: VisualMode)
+	func applyAttention(payload: AttentionPayload?, sourceOrigin: String?)
 	func setInteraction(_ interaction: FloatingInteraction?)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
+}
+
+extension FloatingPetPanelManaging {
+	func applyAttention(payload: AttentionPayload?, sourceOrigin: String?) {}
 }
 
 @MainActor
@@ -91,6 +96,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 
 	func apply(state: ActivityState, visualMode: VisualMode) {
 		panel.apply(state: state, visualMode: visualMode)
+	}
+
+	func applyAttention(payload: AttentionPayload?, sourceOrigin: String?) {
+		panel.applyAttention(payload: payload, sourceOrigin: sourceOrigin)
 	}
 
 	func persistFrameChange(_ frame: CGRect) {
