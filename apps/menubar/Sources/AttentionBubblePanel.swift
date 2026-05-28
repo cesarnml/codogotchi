@@ -240,6 +240,7 @@ private final class AttentionBubbleView: NSView {
 			actionButton.isHidden = false
 		default:
 			actionButton.isHidden = true
+			actionButton.alphaValue = 0  // clear any hover residue from a prior payload
 		}
 
 		// Reset hover state on new payload arrival so controls are not stuck visible.
