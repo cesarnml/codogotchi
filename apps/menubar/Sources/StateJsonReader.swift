@@ -70,17 +70,50 @@ enum StateJsonReader {
 		decoder.keyDecodingStrategy = .convertFromSnakeCase
 		do {
 			let payload = try decoder.decode(StatePayload.self, from: data)
+			let raw = StateSnapshot(
+				schemaVersion: payload.schemaVersion,
+				activityState: payload.activityState,
+				updatedAt: payload.updatedAt,
+				sourceEvent: payload.sourceEvent,
+				attention: payload.attention
+			)
 			return .success(
 				StateSnapshot(
-					schemaVersion: payload.schemaVersion,
-					activityState: payload.activityState,
-					updatedAt: payload.updatedAt,
-					sourceEvent: payload.sourceEvent
+					schemaVersion: raw.schemaVersion,
+					activityState: resolveActivityState(raw),
+					updatedAt: raw.updatedAt,
+					sourceEvent: raw.sourceEvent,
+					attention: raw.attention
 				)
 			)
 		} catch {
 			return .failure(.malformed)
 		}
+	}
+
+	/// Applies the TTL policy: if `attention.expires_at` is parseable and in
+	/// the past, returns `.idle` regardless of the written `activity_state`.
+	/// When `attention` is absent or `expires_at` cannot be parsed, the raw
+	/// `activity_state` is returned unchanged.
+	///
+	/// Two-pass ISO 8601 parse: tries fractional-seconds form first (Zod
+	/// default: `"2026-05-29T14:00:00.000Z"`) then falls back to whole-seconds
+	/// form so both hook output shapes are accepted.
+	static func resolveActivityState(_ snapshot: StateSnapshot, now: Date = Date()) -> ActivityState {
+		guard let attention = snapshot.attention,
+			let expiresAtStr = attention.expiresAt,
+			let expiry = parseISO8601Date(expiresAtStr),
+			expiry < now
+		else { return snapshot.activityState }
+		return .idle
+	}
+
+	private static func parseISO8601Date(_ string: String) -> Date? {
+		let formatter = ISO8601DateFormatter()
+		formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+		if let date = formatter.date(from: string) { return date }
+		formatter.formatOptions = [.withInternetDateTime]
+		return formatter.date(from: string)
 	}
 }
 
@@ -89,9 +122,11 @@ enum StateJsonReader {
 /// `Decodable` ignores unknown keys by default. `sourceEvent` is decoded
 /// when present so the transition log (P2.08) can record its
 /// `origin`/`kind`/`name` triplet; absence is normal and surfaces as nil.
+/// `attention` carries the TTL expiry used by `resolveActivityState` (P6.07).
 private struct StatePayload: Decodable {
 	let schemaVersion: Int
 	let activityState: ActivityState
 	let updatedAt: String
 	let sourceEvent: SourceEvent?
+	let attention: AttentionPayload?
 }

@@ -42,7 +42,8 @@ final class TransitionLogTests: XCTestCase {
 			schemaVersion: 1,
 			activityState: state,
 			updatedAt: updatedAt,
-			sourceEvent: sourceEvent
+			sourceEvent: sourceEvent,
+			attention: nil
 		)
 	}
 
