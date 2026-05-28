@@ -33,6 +33,21 @@
       "outcome": "clean",
       "acknowledgment": "operator-confirmed-clean",
       "reason": "reconciler false-positive: --- separator after None. in Actionable findings section body causes parseActionableFindings to return true; report text is unambiguously None."
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "385ad8b55a1972d67f96ae794e6b906598eba76f",
+      "completedAt": "2026-05-28T22:43:46.937Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "outcome": "deferred",
+      "reason": "reconciler false-positive: markdown --- separator between Actionable findings None. and Advisory Observations is included in section body by extractReportSection, causing parseActionableFindings to return true; actual report states None with zero actionable findings"
     }
   ]
 }
