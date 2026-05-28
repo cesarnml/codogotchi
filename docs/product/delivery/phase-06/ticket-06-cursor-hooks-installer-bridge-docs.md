@@ -54,8 +54,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: `hooks install --platform cursor writes ~/.cursor/hooks.json with correct entries` — `installCursorHooks` was a no-op stub, so the file was never created and `readFileSync` threw.
 Why this path: Native Cursor hooks give correct `source_origin: "cursor"` and shell classification signals. Bridge path continues to work for users who prefer it — both paths are supported and documented.
 Alternative considered: Auto-detect Cursor presence and install native hooks automatically during `codogotchi hooks install` — rejected, modifying `~/.cursor/hooks.json` without explicit `--platform cursor` opt-in is too invasive.
 Deferred: VS Code Copilot hook installer — Phase 14. Auto-detection of Cursor Third-party skills state — Phase 07 if needed.
-Contract note: [fill in during implementation]
+Contract note: `~/.cursor/hooks.json` uses a flat event-name → hook-array map (no `"hooks"` wrapper key, unlike Codex). The command string follows the same `CODOGOTCHI_HOME='...' codogotchi-hook` pattern as Codex. No `--platform cursor` arg is passed to the binary — origin is auto-detected from `hook_event_name` camelCase heuristic (P6.05). Bridge detection is best-effort: `source_origin` will show `"cursor"` for native events but `"claude_code"` in bridge mode.
