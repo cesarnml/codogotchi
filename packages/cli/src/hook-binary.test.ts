@@ -462,16 +462,21 @@ describe("runHook", () => {
 
     // 2. Bash tool_use (heuristic idle) → state still shows hyped (sticky)
     await runHook(
-      { origin: "claude_code", kind: "tool_use", name: "Bash", command: "ls -la" },
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Bash",
+        command: "ls -la",
+      },
       { home, now: FIXED_NOW },
     );
     expect(readState(home).activity_state).toBe("hyped");
 
     // 3. Stop event → state shows standby (gate cleared)
-    await runHook(
-      { hook_event_name: "Stop" } as HookInput,
-      { home, now: FIXED_NOW },
-    );
+    await runHook({ hook_event_name: "Stop" } as HookInput, {
+      home,
+      now: FIXED_NOW,
+    });
     expect(readState(home).activity_state).toBe("standby");
   });
 
@@ -582,6 +587,8 @@ describe("runHook + SoA gate precedence", () => {
     );
     // Same file, same content. Second invocation has no fresh SoA events
     // because the tail offset is past the existing line.
+    // The sticky gate (hyped) persists and overrides the Write heuristic —
+    // the source_event stays claude_code, confirming no re-consumption.
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Write" },
       {
@@ -592,7 +599,7 @@ describe("runHook + SoA gate precedence", () => {
       },
     );
     const state = readState(home);
-    expect(state.activity_state).toBe("implementing");
+    expect(state.activity_state).toBe("hyped");
     expect(state.source_event.origin).toBe("claude_code");
   });
 
