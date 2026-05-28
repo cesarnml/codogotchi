@@ -100,7 +100,49 @@ describe("classifyEvent", () => {
     ).toBe("pushing");
   });
 
-  it("classifies Bash with no recognized command as idle", () => {
+  it("classifies Bash 'grep' as reviewing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: 'grep "foo" bar.ts',
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("reviewing");
+  });
+
+  it("classifies Bash 'find' as reviewing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: 'find . -name "*.ts"',
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("reviewing");
+  });
+
+  it("classifies Bash 'rg' as reviewing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: "rg pattern",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("reviewing");
+  });
+
+  it("classifies Bash 'ls' as reviewing", () => {
     expect(
       classifyEvent(
         {
@@ -111,7 +153,175 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("idle");
+    ).toBe("reviewing");
+  });
+
+  it("classifies Bash 'cat' as reviewing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: "cat README.md",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("reviewing");
+  });
+
+  it("classifies Bash 'jq' as reviewing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: "jq '.foo' file.json",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("reviewing");
+  });
+
+  it("classifies Bash 'npm install' as implementing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: "npm install",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("implementing");
+  });
+
+  it("classifies Bash 'bun run build' as implementing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: "bun run build",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("implementing");
+  });
+
+  it("classifies Bash 'echo hello' as implementing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: "echo hello",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("implementing");
+  });
+
+  it("classifies Bash with undefined command as implementing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: undefined,
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("implementing");
+  });
+
+  it("classifies Cursor Shell 'grep' as reviewing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Shell",
+          command: 'grep "foo" bar.ts',
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("reviewing");
+  });
+
+  it("classifies Cursor Shell 'npm install' as implementing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Shell",
+          command: "npm install",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("implementing");
+  });
+
+  it("classifies Cursor Shell with undefined command as implementing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Shell",
+          command: undefined,
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("implementing");
+  });
+
+  it("does not false-positive 'catfish' as reviewing (word-boundary guard)", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: "catfish data.txt",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("implementing");
+  });
+
+  it("does not false-positive 'lsblk' as reviewing (word-boundary guard)", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: "lsblk",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("implementing");
+  });
+
+  it("reviewing bucket resets readRun to 0", () => {
+    const out = classifyEvent(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Bash",
+        command: "grep pattern src/",
+      },
+      { readRun: 2 },
+    );
+    expect(out.state).toBe("reviewing");
+    expect(out.readRun).toBe(0);
   });
 
   it("requires 3 consecutive Read tool-uses to classify as reviewing", () => {
