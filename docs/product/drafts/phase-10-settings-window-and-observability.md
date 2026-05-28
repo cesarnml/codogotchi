@@ -19,6 +19,7 @@ Replace JSON-and-Finder onboarding with a **Settings window**: the control plane
 - Loot is CLI `loot` reading JSONL — no visual delight.
 - No in-app view of `state.json` or transition log.
 - Cursor users see the pet work with **empty `~/.cursor/hooks.json`** and cannot tell whether hooks are native, Claude-bridge, or broken — logs show `claude_code` during Cursor Agent work ([platform research](../../notes/public/codogotchi-platform-extension-and-signal-pipeline-research.md)).
+- The app shells out to `codogotchi` via PATH for hooks install, status, and enroll — a drag-and-drop install from a DMG or direct `.app` copy silently breaks all of these because the CLI is a separate prerequisite the user may never have installed.
 
 ---
 
@@ -55,6 +56,15 @@ Menubar → **Settings…** opens a standard macOS window (not a tiny panel). Ta
 - Folder layout: `pet.json`, `codogotchi-animations.webp` (Codex rows), `codogotchi-soa-animations.webp` (SoA rows)
 - Power users drop folder under `~/.codogotchi/pets/<id>/`
 
+### Bundle the CLI binary
+
+Embed the `codogotchi` binary inside the app bundle (`Contents/MacOS/codogotchi` or `Contents/Resources/codogotchi`) so the app is a fully self-contained drag-and-drop artifact with no PATH prerequisites.
+
+- `HookStatusClient.defaultRunner` and the onboarding install runner resolve the binary from the bundle first (`Bundle.main.bundleURL` + relative path), falling back to PATH for dev builds where the bundle copy is absent.
+- The bundled binary is the same build artifact as the standalone CLI — no separate codebase, just a copy step in the Xcode build phase.
+- `codogotchi hooks install` invoked from Settings (and onboarding) uses the bundled copy, so hooks work correctly on a cold machine that has never run `brew install codogotchi`.
+- Document the bundle path in the runbook so operators know where the binary lives post-install.
+
 ### Developer tab
 
 - Pretty-print `state.json` (refresh button)
@@ -81,6 +91,7 @@ Menubar → **Settings…** opens a standard macOS window (not a tiny panel). Ta
 3. Developer tab shows live `state.json` matching hook output.
 4. Loot tab renders at least one earned item as a card from `loot.log`.
 5. Developer tab or help text answers “why does my pet react in Cursor when `~/.cursor/hooks.json` is empty?” without requiring external docs.
+6. A fresh machine with only `Codogotchi.app` copied to `/Applications` — no `codogotchi` on PATH — can complete the full onboarding and hook install flow without error.
 
 ---
 
@@ -96,6 +107,7 @@ Menubar → **Settings…** opens a standard macOS window (not a tiny panel). Ta
 
 1. In-app enroll vs always Terminal for Convex registration?
 2. Import-on-select: overwrite existing `~/.codogotchi/pets/<id>` or versioned copy?
+3. CLI bundling: ship a universal binary or arm64-only to match the app target?
 
 ---
 
