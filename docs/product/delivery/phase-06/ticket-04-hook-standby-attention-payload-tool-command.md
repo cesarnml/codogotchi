@@ -51,8 +51,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: `attention` was `undefined` on the Stop-event test — confirmed three tests failed before implementation.
 Why this path: Fixed summary strings are sufficient for Phase 06. Claude Code Stop provides no message content; Cursor stop provides only status enum. Platform-conditional rich summaries deferred to Phase 07 when Phase 07 also redesigns gate vocabulary.
 Alternative considered: Reading `transcript_path` JSONL to extract last assistant message for richer summary — rejected, adds async I/O to hot path and only works on Claude Code, not Cursor/Codex.
 Deferred: Richer summaries using Codex `last_assistant_message` or Claude Code transcript read — Phase 07. `review_ready` reason_kind (for SoA review completion signals) — Phase 07.
-Contract note: [fill in during implementation]
+Contract note: `ClassifyResult.command` is only set in Bash/Shell branches where `command !== undefined`; the `command === undefined` early return intentionally omits it so `runHook` can distinguish "no command string" from "not a Bash/Shell event". `attention` key is entirely absent (not `null`) for non-standby/errored states via the spread-operator conditional — Zod `.optional()` round-trips cleanly.
