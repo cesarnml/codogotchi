@@ -56,6 +56,7 @@ enum LivePollingTooltips {
 final class LivePollingDriver {
 	typealias Apply = (ActivityState, VisualMode) -> Void
 	typealias SetTooltip = (String?) -> Void
+	typealias ApplyAttention = (AttentionPayload?, String?) -> Void
 	typealias Reader = (String) -> Result<StateSnapshot, StateReadError>
 
 	private let pollingTargetPath: String
@@ -65,10 +66,19 @@ final class LivePollingDriver {
 	private let tickInterval: TimeInterval
 	private let transitionLog: TransitionLog?
 
+	/// Optional sink for attention payload updates. Called when `attention`
+	/// or `sourceEvent.origin` changes between ticks. Second parameter is the
+	/// source origin from `source_event.origin` (e.g. `"claude_code"`, `"cursor"`).
+	var applyAttention: ApplyAttention?
+
 	private var timer: Timer?
 	private var lastRendered: (state: ActivityState, mode: VisualMode)?
 	private var lastTooltip: String?
 	private var hasEmittedTooltip: Bool = false
+	/// Cached attention emission — nil means "never emitted". Outer Optional wraps
+	/// the inner `(AttentionPayload?, String?)` so we can distinguish "never
+	/// emitted" from "emitted (nil, nil)".
+	private var lastAttentionEmission: (AttentionPayload?, String?)? = nil
 	/// Agent-reported state from the last successful read. The transition log
 	/// records changes against this value, not against the rendered visual
 	/// state, because failure visuals collapse to `.idle` regardless of what
@@ -148,21 +158,38 @@ final class LivePollingDriver {
 		let state: ActivityState
 		let mode: VisualMode
 		let tooltip: String?
+		let attention: AttentionPayload?
+		let sourceOrigin: String?
 	}
 
 	private func decide(from result: Result<StateSnapshot, StateReadError>) -> Outcome {
 		switch result {
 		case .success(let snapshot):
-			return Outcome(state: snapshot.activityState, mode: .normal, tooltip: nil)
+			return Outcome(
+				state: snapshot.activityState,
+				mode: .normal,
+				tooltip: nil,
+				attention: snapshot.attention,
+				sourceOrigin: snapshot.sourceEvent?.origin
+			)
 		case .failure(.fileNotFound):
-			return Outcome(state: .idle, mode: .desaturated, tooltip: LivePollingTooltips.noHookDetected)
+			return Outcome(
+				state: .idle, mode: .desaturated,
+				tooltip: LivePollingTooltips.noHookDetected,
+				attention: nil, sourceOrigin: nil
+			)
 		case .failure(.malformed), .failure(.schemaMissingOrInvalid):
-			return Outcome(state: .idle, mode: .desaturated, tooltip: LivePollingTooltips.schemaMissing)
+			return Outcome(
+				state: .idle, mode: .desaturated,
+				tooltip: LivePollingTooltips.schemaMissing,
+				attention: nil, sourceOrigin: nil
+			)
 		case .failure(.schemaNewer(let got, let expected)):
 			return Outcome(
 				state: .idle,
 				mode: .desaturated,
-				tooltip: LivePollingTooltips.schemaNewer(got: got, expected: expected)
+				tooltip: LivePollingTooltips.schemaNewer(got: got, expected: expected),
+				attention: nil, sourceOrigin: nil
 			)
 		}
 	}
@@ -189,6 +216,21 @@ final class LivePollingDriver {
 			setTooltip(outcome.tooltip)
 			lastTooltip = outcome.tooltip
 			hasEmittedTooltip = true
+		}
+
+		// Attention payload — emit when changed; suppress identical repeats.
+		if let sink = applyAttention {
+			let newAttention = (outcome.attention, outcome.sourceOrigin)
+			let attentionChanged: Bool
+			if let last = lastAttentionEmission {
+				attentionChanged = last.0 != newAttention.0 || last.1 != newAttention.1
+			} else {
+				attentionChanged = true
+			}
+			if attentionChanged {
+				sink(newAttention.0, newAttention.1)
+				lastAttentionEmission = newAttention
+			}
 		}
 	}
 }

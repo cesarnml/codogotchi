@@ -14,6 +14,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var frameChangeHandler: ((CGRect) -> Void)?
 	var onHideFloatingPet: (() -> Void)?
 
+	// Attention bubble — shown below the pet when a non-expired attention payload is active.
+	private var attentionBubble: AttentionBubblePanel?
+	private var lastPanelFrame: CGRect = .zero
+	private var isPanelShown = false
+	private var attentionActive = false
+
 	init(
 		codexPet: CodexPet,
 		codogotchiPet: CodogotchiPet?,
@@ -55,6 +61,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			interactionView.prepareForDisplay()
 		}
 		scene?.resumeAnimation()
+
+		isPanelShown = true
+		lastPanelFrame = frame
+		if attentionActive {
+			repositionAndShowBubble()
+		}
 	}
 
 	func hide() {
@@ -62,6 +74,35 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		scene?.pauseAnimation()
 		(panel?.contentView as? FloatingPetInteractionView)?.setSpriteKitPaused(true)
 		panel?.orderOut(nil)
+		isPanelShown = false
+		attentionBubble?.orderOut(nil)
+	}
+
+	func applyAttention(payload: AttentionPayload?, sourceOrigin: String?) {
+		guard let payload, !payload.isExpired() else {
+			attentionActive = false
+			attentionBubble?.orderOut(nil)
+			return
+		}
+		attentionActive = true
+		let bubble = attentionBubble ?? {
+			let b = AttentionBubblePanel()
+			attentionBubble = b
+			return b
+		}()
+		bubble.update(payload: payload, sourceOrigin: sourceOrigin)
+		if isPanelShown {
+			repositionAndShowBubble()
+		}
+	}
+
+	private func repositionAndShowBubble() {
+		guard let bubble = attentionBubble else { return }
+		bubble.reposition(
+			relativeTo: lastPanelFrame,
+			visibleFrame: visibleFrameProvider()
+		)
+		bubble.orderFrontRegardless()
 	}
 
 	func apply(state: ActivityState, visualMode: VisualMode) {

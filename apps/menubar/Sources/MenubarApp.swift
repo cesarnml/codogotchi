@@ -246,6 +246,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				},
 				transitionLog: self.transitionLog
 			)
+			driver.applyAttention = { [weak floatingPetController = self.floatingPetController] payload, origin in
+				floatingPetController?.applyAttention(payload: payload, sourceOrigin: origin)
+			}
 			driver.start()
 			self.livePollingDriver = driver
 		}

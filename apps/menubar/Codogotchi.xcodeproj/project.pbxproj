@@ -20,6 +20,7 @@
 		36D30A2BA8D14CA1D7D62D1C /* PetStoreSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */; };
 		36F25B978082DFFA568C39DC /* MenubarMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 379B33D9319DAC49A3CCC39C /* MenubarMenu.swift */; };
 		38FAEA0F65A0C396AC8AD302 /* FloatingPetController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA899400094213B8A814D114 /* FloatingPetController.swift */; };
+		47D0E47137D743E19BBC7D05 /* AttentionBubblePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8671764E6A54AC69E16FECE /* AttentionBubblePanel.swift */; };
 		38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */; };
 		3B83084BAD4FC401B7C5CF37 /* OnboardingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712A24CF66C43196AE34459D /* OnboardingController.swift */; };
 		49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */; };
@@ -115,6 +116,7 @@
 		E6829E3A0570398A50A596E4 /* CodexPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPet.swift; sourceTree = "<group>"; };
 		E97D90D6AFBAC5EB23BBC4A8 /* FloatingInteraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingInteraction.swift; sourceTree = "<group>"; };
 		E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStoreSeeder.swift; sourceTree = "<group>"; };
+		E8671764E6A54AC69E16FECE /* AttentionBubblePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttentionBubblePanel.swift; sourceTree = "<group>"; };
 		EA899400094213B8A814D114 /* FloatingPetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetController.swift; sourceTree = "<group>"; };
 		F03E85F706D8680019622FDC /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRendererTests.swift; sourceTree = "<group>"; };
@@ -164,6 +166,7 @@
 			children = (
 				FB013AD16C8FDB083F522012 /* ActivityState.swift */,
 				F60153C0C8806DC3EB2137C9 /* AppState.swift */,
+				E8671764E6A54AC69E16FECE /* AttentionBubblePanel.swift */,
 				E6829E3A0570398A50A596E4 /* CodexPet.swift */,
 				31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */,
 				BFDA2FD41708D0AEB3230327 /* ConfigBootstrap.swift */,
@@ -317,6 +320,7 @@
 			files = (
 				5D332CB1205CD66508BB99BD /* ActivityState.swift in Sources */,
 				83BF56E6794A2BBFBCEE42E3 /* AppState.swift in Sources */,
+				47D0E47137D743E19BBC7D05 /* AttentionBubblePanel.swift in Sources */,
 				F7D1881F6D3DB1D5BFC19B63 /* CodexPet.swift in Sources */,
 				A28BAB9D5F23FFBE6C429720 /* CodogotchiPet.swift in Sources */,
 				17A4A67B836C574013DB2CDA /* ConfigBootstrap.swift in Sources */,
