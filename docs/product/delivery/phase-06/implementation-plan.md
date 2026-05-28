@@ -72,7 +72,7 @@ Phase 06 is done when:
 
 Run `bun run ci:quiet` on `main` before P6.01 starts and record the result here.
 
-> Baseline recorded: [date] — [pass / N pre-existing errors: brief summary]
+> Baseline recorded: 2026-05-29 — pass / 222 tests, 0 failures
 
 ## Review Rules
 
