@@ -451,6 +451,64 @@ describe("runHook", () => {
     const raw = readFileSync(join(home, "state.json"), "utf8");
     expect(() => JSON.parse(raw)).not.toThrow();
   });
+
+  it("gate state persists through subsequent tool_use events until cleared", async () => {
+    // 1. ticket_started gate fires → state shows hyped
+    await runHook(
+      { origin: "soa", kind: "gate", name: "ticket_started" },
+      { home, now: FIXED_NOW },
+    );
+    expect(readState(home).activity_state).toBe("hyped");
+
+    // 2. Bash tool_use (heuristic idle) → state still shows hyped (sticky)
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Bash",
+        command: "ls -la",
+      },
+      { home, now: FIXED_NOW },
+    );
+    expect(readState(home).activity_state).toBe("hyped");
+
+    // 3. Stop event → state shows standby (gate cleared)
+    await runHook({ hook_event_name: "Stop" } as HookInput, {
+      home,
+      now: FIXED_NOW,
+    });
+    expect(readState(home).activity_state).toBe("standby");
+  });
+
+  it("a new gate event overwrites the sticky gate state", async () => {
+    // First gate: ticket_started → hyped (sticky)
+    await runHook(
+      { origin: "soa", kind: "gate", name: "ticket_started" },
+      { home, now: FIXED_NOW },
+    );
+    expect(readState(home).activity_state).toBe("hyped");
+
+    // tool_use confirms sticky is active
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Bash", command: "ls" },
+      { home, now: FIXED_NOW },
+    );
+    expect(readState(home).activity_state).toBe("hyped");
+
+    // Second gate: subagent_invoked → calling_for_backup (overwrites sticky)
+    await runHook(
+      { origin: "soa", kind: "gate", name: "subagent_invoked" },
+      { home, now: FIXED_NOW },
+    );
+    expect(readState(home).activity_state).toBe("calling_for_backup");
+
+    // Subsequent tool_use now sticks to calling_for_backup
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Bash", command: "ls" },
+      { home, now: FIXED_NOW },
+    );
+    expect(readState(home).activity_state).toBe("calling_for_backup");
+  });
 });
 
 describe("runHook + SoA gate precedence", () => {
@@ -529,6 +587,8 @@ describe("runHook + SoA gate precedence", () => {
     );
     // Same file, same content. Second invocation has no fresh SoA events
     // because the tail offset is past the existing line.
+    // The sticky gate (hyped) persists and overrides the Write heuristic —
+    // the source_event stays claude_code, confirming no re-consumption.
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Write" },
       {
@@ -539,7 +599,7 @@ describe("runHook + SoA gate precedence", () => {
       },
     );
     const state = readState(home);
-    expect(state.activity_state).toBe("implementing");
+    expect(state.activity_state).toBe("hyped");
     expect(state.source_event.origin).toBe("claude_code");
   });
 

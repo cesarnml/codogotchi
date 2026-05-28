@@ -55,6 +55,8 @@ const SOA_GATE_TO_STATE: Record<string, ActivityState> = {
   ticket_started: "hyped",
 };
 
+const GATE_STATES = new Set<ActivityState>(Object.values(SOA_GATE_TO_STATE));
+
 const TEST_RUNNER_PREFIXES = [
   "bun test",
   "bun run test",
@@ -192,9 +194,12 @@ export function classifyEvent(
   return { state: "idle", sourceEvent, readRun: 0 };
 }
 
+type LastGate = { state: ActivityState; fired_at: string };
+
 type Counters = {
   read_run: number;
   soa_tail: SoaTailState | null;
+  last_gate: LastGate | null;
 };
 
 function countersPath(home: string): string {
@@ -216,6 +221,23 @@ function parseSoaTail(value: unknown): SoaTailState | null {
   return { inode, offset };
 }
 
+function parseLastGate(value: unknown): LastGate | null {
+  if (value === null || typeof value !== "object") return null;
+  const candidate = value as Partial<LastGate>;
+  if (
+    typeof candidate.state !== "string" ||
+    typeof candidate.fired_at !== "string"
+  )
+    return null;
+  // Only gate-class states are valid for last_gate — reject anything else to
+  // prevent a corrupted counters file from locking the hook into a bad state.
+  if (!GATE_STATES.has(candidate.state as ActivityState)) return null;
+  return {
+    state: candidate.state as ActivityState,
+    fired_at: candidate.fired_at,
+  };
+}
+
 async function readCounters(home: string): Promise<Counters> {
   try {
     const raw = await readFile(countersPath(home), "utf8");
@@ -225,12 +247,13 @@ async function readCounters(home: string): Promise<Counters> {
         ? Math.max(0, Math.trunc(parsed.read_run))
         : 0;
     const soaTail = parseSoaTail(parsed.soa_tail);
-    return { read_run: readRun, soa_tail: soaTail };
+    const lastGate = parseLastGate(parsed.last_gate);
+    return { read_run: readRun, soa_tail: soaTail, last_gate: lastGate };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return { read_run: 0, soa_tail: null };
+      return { read_run: 0, soa_tail: null, last_gate: null };
     }
-    return { read_run: 0, soa_tail: null };
+    return { read_run: 0, soa_tail: null, last_gate: null };
   }
 }
 
@@ -350,6 +373,7 @@ export async function runHook(
       CWD: cwd,
     });
     let soaTail = counters.soa_tail;
+    let lastGate = counters.last_gate;
     let activityState = classified.state;
     let sourceEvent: SourceEvent = classified.sourceEvent;
     if (soaRoot !== null) {
@@ -360,6 +384,21 @@ export async function runHook(
         activityState = fresh.state;
         sourceEvent = { origin: "soa", kind: "gate", name: fresh.event.name };
       }
+    }
+
+    // Sticky gate: gate states persist through subsequent tool_use events.
+    // fired_at approximates current time when the gate comes from the SoA tail
+    // (no separate timestamp available there). Known approximation; Phase 07 TTL
+    // will use this field.
+    if (GATE_STATES.has(activityState)) {
+      lastGate = { state: activityState, fired_at: opts.now.toISOString() };
+    } else if (classified.sourceEvent.kind === "session_end") {
+      lastGate = null;
+    } else if (
+      lastGate !== null &&
+      classified.sourceEvent.kind === "tool_use"
+    ) {
+      activityState = lastGate.state;
     }
 
     const overlay = await readProfileOverlay(opts.home);
@@ -379,6 +418,7 @@ export async function runHook(
     await writeCounters(opts.home, {
       read_run: classified.readRun,
       soa_tail: soaTail,
+      last_gate: lastGate,
     });
   });
 }
