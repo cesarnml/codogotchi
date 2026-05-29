@@ -75,10 +75,11 @@ export type HooksStatus = {
 const CODOGOTCHI_COMMAND = "codogotchi-hook";
 
 /// Claude Code event slots the hook is registered against. `PreToolUse` fires
-/// on every tool invocation; `Stop` fires when Claude finishes a turn. Between
-/// them the hook sees enough lifecycle traffic to drive the menubar pet's
-/// `activity_state` without overlapping into Codex's hook surface.
-const CODOGOTCHI_EVENTS = ["PreToolUse", "Stop"] as const;
+/// on every tool invocation; `Stop` fires when Claude finishes a turn;
+/// `StopFailure` fires instead of `Stop` on API errors (rate-limit,
+/// authentication, billing, server errors). Together they give the hook
+/// full lifecycle coverage for success and terminal failure paths.
+const CODOGOTCHI_EVENTS = ["PreToolUse", "Stop", "StopFailure"] as const;
 const CODEX_CODOGOTCHI_EVENTS = [
   "PreToolUse",
   "PostToolUse",

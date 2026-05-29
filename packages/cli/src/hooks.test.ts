@@ -550,21 +550,31 @@ describe("cursor hooks", () => {
 
 describe("P7.03 StopFailure registration", () => {
   let userRoot: string;
+  let prevUserRoot: string | undefined;
 
   beforeEach(async () => {
     userRoot = mkdtempSync(join(tmpdir(), "hooks-p703-"));
+    mkdirSync(join(userRoot, ".codogotchi"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".codogotchi", "config.json"),
+      `${JSON.stringify({ profile_id: "p", pet: "maew", features: { rpg_enabled: false } })}\n`,
+      "utf8",
+    );
     await mkdir(join(userRoot, ".claude"), { recursive: true });
+    prevUserRoot = process.env.CODOGOTCHI_USER_ROOT;
+    process.env.CODOGOTCHI_USER_ROOT = userRoot;
   });
 
   afterEach(() => {
     rmSync(userRoot, { recursive: true, force: true });
+    if (prevUserRoot === undefined) delete process.env.CODOGOTCHI_USER_ROOT;
+    else process.env.CODOGOTCHI_USER_ROOT = prevUserRoot;
   });
 
   it("Claude installer writes StopFailure hook slot", async () => {
     // StopFailure must be in CODOGOTCHI_EVENTS and written to settings.json
     await installHooks({
       home: "/home/user/.codogotchi",
-      userRoot,
     });
     const raw = readFileSync(
       join(userRoot, ".claude", "settings.json"),
@@ -592,13 +602,12 @@ describe("P7.03 StopFailure registration", () => {
         ],
       },
     });
-    await mkdir(join(userRoot, ".claude"), { recursive: true });
-    const { writeFileSync: wfs } = await import("node:fs");
-    wfs(join(userRoot, ".claude", "settings.json"), partialSettings, "utf8");
-    const status = await hooksStatus({
-      home: "/home/user/.codogotchi",
-      userRoot,
-    });
+    writeFileSync(
+      join(userRoot, ".claude", "settings.json"),
+      partialSettings,
+      "utf8",
+    );
+    const status = await hooksStatus();
     // installed must be false because StopFailure slot is missing
     expect(status.claude_code.installed).toBe(false);
   });
