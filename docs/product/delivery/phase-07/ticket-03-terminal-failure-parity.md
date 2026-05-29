@@ -47,10 +47,12 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Red first: `StopFailure` payload → `errored` failed (branch not in classifier). Cursor `stop` with `status:"error"` failed (only `is_error` and `stop_reason` were checked). `postToolUseFailure` failed (event not handled). Then Claude installer test failed because `StopFailure` was not in `CODOGOTCHI_EVENTS`.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here.
+Why this path: Minimal branches — three new cases added before the existing Stop branch. `StopFailure` always errors; `postToolUseFailure` errors only when `is_interrupt !== true`; Cursor `stop` with `status:"error"` added to the existing Stop branch. `rawHookKind` maps `stopfailure` → `session_end` and `posttoolusefailure` → `tool_use`. `CODOGOTCHI_EVENTS` extended to `["PreToolUse", "Stop", "StopFailure"]` — installer and detection loops pick it up automatically.
+
+Alternative considered: Separate function `isTerminalFailure(input)` that encapsulates all failure detection paths — rejected because the three cases have different non-failure branches (StopFailure has none; postToolUseFailure skips when is_interrupt; stop/Stop has the success→standby path), making a single predicate awkward.
+
+Deferred: Codex `StopFailure` equivalent — no documented hook surface; gap noted in P7.05 docs. Cursor `PermissionRequest` — deferred per implementation plan.
+
+Contract note: `HookInput` gained three new optional fields: `error`, `status`, `is_interrupt`. These widen the type without breaking callers.
