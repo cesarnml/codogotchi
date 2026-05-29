@@ -253,23 +253,23 @@ Codogotchi ships 3 default pets (all spritesheets made by owner). v1 development
 
 ### Proposed Phase 07 vocabulary
 
-Replace `subagent_invoked` → `adversarial_prompt_written`: fire when the adversarial prompt is committed to the review artifact, not when the subagent process starts. Makes the animation honest (the intent is visible before the work begins).
+Replace `subagent_invoked` → `adversarial_review`: emit at the `write-subagent-adversarial-review` gate, **before** SoA directs the agent to begin writing the adversarial prompt ("emit then action") — not at subagent process start, and not after the prompt is committed. Emitting before the write extends the effective window and makes the animation honest (intent visible before work begins). **§8 is the authoritative emit spec; son-of-anton Phase 17 owns the emitter.**
 
-Retire until wired: `flow_state_entered`, `risky_diff_detected` (evaluate whether these gates actually fire before assigning animations).
+Retire (never fired in real delivery): `flow_state_entered` → `focused`, `risky_diff_detected` → `nervous`. These gates are not emitted; their ActivityStates are deleted from the Phase 07 closed enum (see §8).
 
-Harden: `verification_failed` trigger — confirm what conditions produce it and write a test.
+`verification_failed` → `panicking`: also retired from the Phase 07 enum (never fired). Terminal agent failure is covered by `errored` (Codex row 5) via platform failure hooks, not a SoA gate.
 
 ---
 
-## 5. Architecture Decision: SoA Direct Write
+## 5. Architecture Decision: SoA Direct Write (sidecar)
 
-**Decision (Phase 06 planning, 2026-05-28):** SoA writes gate events directly to `~/.codogotchi/state.json`. The `events.ndjson` tail reader in `hook-binary.ts` is retired in Phase 07.
+**Decision (Phase 06 planning 2026-05-28; refined to sidecar in son-of-anton Phase 17 planning 2026-05-29):** SoA writes gate events directly to a dedicated sidecar `~/.codogotchi/gate.json` that SoA owns exclusively. The `events.ndjson` tail reader in `hook-binary.ts` is retired. The earlier "SoA writes `state.json` directly" framing is **superseded** — SoA and the hook-binary must never share a writer on the same file.
 
-**Rationale:** The tail-pickup architecture means gate events are second-class citizens that only render on the next tool_use invocation. Real delivery shows `hyped` rendering for 5s (stomped) vs an 8.3m natural window. The indirection adds latency with no benefit — SoA already knows `~/.codogotchi/` via the hook binary it invokes. Direct write gives instant gate display and works during agent idle periods (e.g., `celebrating` persisting while the developer reviews a PR with no agent activity).
+**Rationale:** The tail-pickup architecture means gate events are second-class citizens that only render on the next tool_use invocation. Real delivery shows `hyped` rendering for 5s (stomped) vs an 8.3m natural window. The indirection adds latency with no benefit. A **sidecar** (`gate.json` owned by SoA, `state.json` owned by the hook) eliminates the two-writer race entirely: no read-modify-write merge, no concurrent-write corruption window. The renderer reads both and merges on poll.
 
 **Phase 06 interim:** sticky gate mechanic in `hook-binary.ts` — gate states persist until next gate or session_end. Tool_use doesn't clear them.
 
-**Phase 07 full:** SoA writes `state.json` directly. Hook drops tail reader. Gate TTL (30s) prevents tool_use stomping a fresh gate during rapid post-gate agent activity.
+**Phase 07 + son-of-anton Phase 17 full:** SoA writes `gate.json` (sidecar). Path: `$CODOGOTCHI_HOME/gate.json` (default `~/.codogotchi/gate.json`). Hook drops tail reader and never touches `gate.json`. Each gate write carries `{ gate, since, expires_at }`. **Authoritative spec for the writer and gate TTLs: [son-of-anton Phase 17 plan](../../../son-of-anton/docs/product/plans/phase-17-codogotchi-direct-gate-write.md).**
 
 **No backward-compat needed:** single user until v1.
 
@@ -470,40 +470,45 @@ _To document in this table:_ interaction variants (hatch, run/jump variants, `wa
 
 ## 8. Conclusions — Tier 3 (`codogotchi-soa-spritesheet.webp`) — in progress
 
-_Locked: 2026-05-29 (vocabulary draft)._ Requires **SoA sheet** loaded. SoA writes **`state.json` directly** (Phase 07).
+_Locked: 2026-05-29 (vocabulary draft); TTL + write model aligned to son-of-anton Phase 17._ Requires **SoA sheet** loaded. SoA writes the **`gate.json` sidecar** (not `state.json` — see §5).
 
 **Out of scope for SoA pet animations:** `/soa plan`, `/soa decompose`, `/soa closeout` — no gates, no sprites. During those phases the pet uses **normal hook heuristics** (`implementing`, `thinking`, `testing`, `standby`, …) like any other agent session.
 
-**In scope:** `bun run deliver …` ticket gates only. **Sticky SoA gate wins** over hook `tool_use` until the next gate or TTL expiry — so `hyped` is not erased by Bash in 5s. Between gates, hooks behave normally (lite/Codex rows for implement/test/think).
+**In scope:** `bun run deliver …` ticket gates only. **Sticky gate, short TTL, then hooks bleed through.** A gate wins over hook `tool_use` for its TTL window — so `ticket_started` is not erased by Bash in 5s. But the TTL is deliberately **short** so that after the gate has had its visible moment, hook-driven agent-activity animations (`implementing`, `testing`, `thinking`) **bleed through** rather than being fully suppressed by a long gate TTL. The gate context is not lost — it persists on the `gate.json` sidecar (badge layer) until the next gate fires.
 
-**TTL policy:** Table below is **v1 guess**. Expect to **shrink TTLs** if delivery feels too dead (only gate poses visible); lengthen if gates still get stomped. Tune from `state-transitions.log` after direct-write lands.
+**TTL policy (revised):** All gates ship at a **flat 3m TTL** as the v1 baseline (set in son-of-anton Phase 17). This is intentionally short to explore the bleed-through balance — gate gets its moment, then real work shows through. Tune individual gates up/down from `state-transitions.log` after a few real delivery runs. **son-of-anton Phase 17 is authoritative for emitted TTLs.**
 
 ### Vocabulary table (draft)
 
-| Animation label | `ActivityState` | Gate (emit trigger) | Sticky TTL (v1) |
+Emit model is **"emit then action"** — SoA writes the gate *before* directing the agent to the action, extending the effective window. TTLs are flat 3m v1 (see son-of-anton Phase 17). `advance` is defined in the enum but **not emitted in Phase 17** (deferred — no hook in `closeout-stack.ts`).
+
+| Animation label | `ActivityState` | Gate (emit trigger — emit then action) | TTL (v1) |
 |---|---|---|---|
-| ticket_started | `ticket_started` | `start` / ticket → `in_progress` (NDJSON: `ticket_started`) | 5m |
-| red_tdd | `red_tdd` | `post-red` recorded | 10m |
-| green_tdd | `green_tdd` | After `post-red` until `post-verify` — implement + verify window; **hook stomp suppressed** | 30m |
-| adversarial_review | `adversarial_review` | **`write-subagent-adversarial-review`** (not `subagent-review`) | 10m |
-| open_pr | `open_pr` | `open-pr` succeeds | 4m |
-| poll_review | `poll_review` | After `open-pr` until `review_clean_recorded` or `needs_patch` | 12m |
-| record_review | `record_review` | `record-review` command | 5m |
-| advance | `advance` | `advance` — short gated beat between tickets (not `done` itself) | 2m |
-| ticket_completed | `ticket_completed` | Ticket → `done` on `advance` | TBD |
-| review_clean | `review_clean` | PR review outcome **clean** (NDJSON: `review_clean_recorded`) | TBD |
+| ticket_started | `ticket_started` | Before agent begins ticket work: `start`; `advance` auto-start (cook mode); `resume` on an `in_progress` ticket | 3m |
+| red_tdd | `red_tdd` | Before directing agent to write failing tests (TDD red instruction) | 3m |
+| green_tdd | `green_tdd` | When `post-red` records (failing tests confirmed), before directing agent to implement; **closes on next gate fire** (`adversarial_review` / `open_pr`), not on `post-verify` | 3m |
+| adversarial_review | `adversarial_review` | Before directing agent to write the adversarial prompt: **`write-subagent-adversarial-review`** (not `subagent-review`, not runner start) | 3m |
+| open_pr | `open_pr` | Before `gh pr create` (`open-pr`) | 3m |
+| poll_review | `poll_review` | Before directing agent to poll review | 3m |
+| record_review | `record_review` | Before `record-review` records outcome | 3m |
+| advance _(deferred)_ | `advance` | `advance` beat between tickets — **defined in enum, not emitted in Phase 17** | 3m |
+| ticket_completed | `ticket_completed` | Ticket → `done` on `advance` | 3m |
+| review_clean | `review_clean` | PR review outcome **clean** — across `record-review` / `poll-review` / `triage-ticket` | 3m |
 
-### Precedence (renderer / hook consumer)
+### Precedence (renderer reads two files: `gate.json` sidecar + `state.json`)
 
 ```
-if unexpired sticky SoA gate in state.json:
-  paint SoA sheet row for that ActivityState
+read gate.json (SoA-owned) and state.json (hook-owned)
+if gate.json present and gate.expires_at > now:
+  ANIMATION: paint SoA sheet row for gate.activity_state
 else:
-  hook classifies tool_use → implementing | thinking | testing | …
-  (lite sheet first, then Codex fallback)
+  ANIMATION: hook classifies state.json activity_state
+             → implementing | thinking | testing | … (lite sheet first, Codex fallback)
+BADGE (future UI): if gate.json present, show gate context regardless of expires_at
+                   (cleared only when SoA overwrites gate.json on next gate or resolution)
 ```
 
-During **`green_tdd`**, suppress hook overwrite of SoA state — agent may still be editing/testing under the hood, but the pet stays on **green_tdd** until `post-verify` or TTL.
+**No special-case suppression during `green_tdd`.** The old "stay on green_tdd until post-verify" model is **retired** — that long suppression is exactly what the short TTL is replacing. `green_tdd` shows for its 3m TTL, then hook-driven animations (`implementing`, `testing`) bleed through to reflect the real work, while the `gate.json` sidecar keeps `green_tdd` as the badge context until the next gate fires.
 
 ### Retired / renamed (from old codogotchi mapping)
 
@@ -519,10 +524,10 @@ During **`green_tdd`**, suppress hook overwrite of SoA state — agent may still
 
 ### Implementation notes
 
-1. SoA direct-write + sticky `last_gate` (or equivalent) + `expires_at` per gate.
-2. Hook binary: **do not** write `activity_state` over an unexpired SoA gate (read sticky first).
-3. Emit **`adversarial_review`** on `write-subagent-adversarial-review`, not runner start.
-4. Revisit TTLs after a real delivery — bias toward **shorter** if the pet feels lifeless between tool bursts.
+1. SoA writes the **`gate.json` sidecar** (`{ gate, since, expires_at }` per gate). SoA owns this file exclusively; the hook never writes it. (son-of-anton Phase 17.)
+2. Hook binary: writes `state.json` only; **never reads or writes `gate.json`**. The renderer (not the hook) merges the two files and resolves precedence by `expires_at`.
+3. Emit **`adversarial_review`** on `write-subagent-adversarial-review`, not runner start; "emit then action" for all gates.
+4. All gates ship at **flat 3m TTL** (v1). Revisit per-gate after real delivery — the goal is gate-gets-its-moment-then-hooks-bleed-through, not long suppression.
 
 ### Closed `ActivityState` enum — Phase 07 schema bump (locked 2026-05-29)
 
