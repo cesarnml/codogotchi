@@ -1,4 +1,20 @@
-# SoA event feed (`.soa/events.ndjson`)
+# SoA event feed (`.soa/events.ndjson`) — SUPERSEDED
+
+> **This document is superseded as of Phase 07.**
+>
+> The codogotchi hook binary no longer reads `.soa/events.ndjson`. The hook is
+> now a **pure platform-event classifier** — it writes `state.json` from tool-use
+> signals only and has no dependency on the SoA delivery orchestrator.
+>
+> Gate signals from the SoA orchestrator are now delivered via the
+> `gate.json` sidecar. See [`docs/contracts/gate-json.md`](./gate-json.md)
+> for the current contract.
+>
+> The archived content below is preserved for historical reference only.
+
+---
+
+# SoA event feed (`.soa/events.ndjson`) — archived
 
 Son of Anton (the delivery orchestrator that ships in `.son-of-anton/`) writes
 one append-only NDJSON file per project at `.soa/events.ndjson`. The

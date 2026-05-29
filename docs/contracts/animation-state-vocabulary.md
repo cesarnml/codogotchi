@@ -1,11 +1,11 @@
-# Animation State Vocabulary (v3)
+# Animation State Vocabulary (v4)
 
 The contract for the data the codogotchi hook binary writes to
-`~/.codogotchi/state.json` on every relevant Claude Code / Codex lifecycle event,
+`~/.codogotchi/state.json` on every relevant Claude Code / Codex / Cursor lifecycle event,
 and which any future renderer (macOS app, web preview, CLI ascii) consumes.
 
 This doc defines the **closed enums** of activity states and HP overlay states,
-the v3 `state.json` schema (with `schema_version: 3`), and the mapping table from
+the v4 `state.json` schema (with `schema_version: 4`), and the mapping table from
 raw signal classes to activity states. Closed enums mean a renderer can switch
 exhaustively without a `default:` catch-all; adding a state is a deliberate
 schema bump, not a runtime surprise.
@@ -36,7 +36,14 @@ Phase 03 (P3.01) is the formal v2 bump: it appended `requesting_input` and
 
 Phase 06 (P6.01) is the formal v3 bump: it renames `requesting_input` to
 `standby` and raises `STATE_JSON_SCHEMA_VERSION` to 3. Three optional fields are
-added: `attention` (object), `tool_command` (string), and `work_mode` (enum stub).
+added: `attention` (object), `tool_command` (string), and `work_mode` (enum stub, later removed).
+
+Phase 07 (P7.01) is the formal v4 bump: it replaces the 15-state enum with the 19-state
+closed schema-v4 enum, removes the `work_mode` field, and locks the 6-tier animation
+model described in §7 of `notes/public/phase-06-animation-and-signal-research.md`.
+The hook binary becomes a pure platform-event classifier (no `.soa/events.ndjson` reads);
+gate signals are delivered via `~/.codogotchi/gate.json` instead
+(see `docs/contracts/gate-json.md`).
 
 ### Forward-compatibility policy
 
@@ -87,39 +94,53 @@ strings character-for-character (substituting the placeholders).
   `{expected}` = renderer's `EXPECTED_VERSION`):
   - `state.json schema_version is v{got}; this app supports v{expected}. Update the menu bar app.`
 
-## Activity States (closed enum)
+## Activity States (v4 closed enum — 19 states)
 
-States marked **v2** required the v2 schema bump; **v3** required the v3 bump.
-All v1 states remain unchanged.
+States marked **v2** required the v2 schema bump; **v3** v3 bump; **v4** v4 bump.
+The 12 states removed in v4 (`hyped`, `celebrating`, `calling_for_backup`, `waiting`,
+`focused`, `nervous`, `panicking`, `ascended`, `reviewing`, `pushing`, `running-tests`,
+`requesting_input`) are no longer valid; a renderer that sees them in an old payload
+decodes them as `idle`.
 
-| State                 | Ver | Meaning                                                                                  | Source signal class                                                              | Reliability |
-| --------------------- | --- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------- |
-| `idle`                | v1  | No active session or no recent tool activity.                                            | Absence of recent lifecycle events. Baseline.                                    | reliable    |
-| `implementing`        | v1  | Pet is writing code — Edit/Write tool usage in a coding session.                         | Claude Code / Codex tool-use events on `Edit`, `Write`, or `MultiEdit` tools.    | heuristic   |
-| `running-tests`       | v1  | Pet is running test commands.                                                            | Tool-use events on `Bash` whose command matches a test runner.                   | heuristic   |
-| `reviewing`           | v1  | Pet is reading code — sequential Read tool usage without edits.                          | Run of 3+ Read tool-use events with no intervening Edit/Write.                   | heuristic   |
-| `pushing`             | v1  | Pet is publishing — `git push` observed.                                                 | Tool-use Bash event whose command begins with `git push`.                        | heuristic   |
-| `hyped`               | v1  | Pet is energized — explicit SoA "ticket started" gate signal.                            | SoA `ticket_started` event from `.soa/events.ndjson`.                            | reliable    |
-| `focused`             | v1  | Pet is deep in flow — explicit SoA "long uninterrupted session" gate signal.             | SoA `flow_state_entered` event.                                                  | reliable    |
-| `nervous`             | v1  | Pet senses risk — explicit SoA "risky diff" gate signal.                                 | SoA `risky_diff_detected` event.                                                 | reliable    |
-| `waiting`             | v1  | Pet is waiting on external review — explicit SoA "PR review pending" gate signal.        | SoA `pr_review_window_opened` event.                                             | reliable    |
-| `celebrating`         | v1  | Pet is celebrating — explicit SoA "PR clean / ticket done" gate signal.                  | SoA `ticket_completed` or `review_clean_recorded` event.                         | reliable    |
-| `ascended`            | v1  | Pet stage-advanced — explicit SoA "level up" gate signal.                                | SoA `stage_advanced` event.                                                      | reliable    |
-| `calling_for_backup`  | v1  | Pet asked for help — explicit SoA "subagent invoked" gate signal.                        | SoA `subagent_invoked` event.                                                    | reliable    |
-| `panicking`           | v1  | Pet is in trouble — explicit SoA "CI red / verification failed" gate signal.             | SoA `verification_failed` event.                                                 | reliable    |
-| `standby`             | v3  | Pet is waiting for the developer — agent paused awaiting user response.                  | Claude Code / Codex `Stop` event where the agent is requesting user input.       | reliable    |
-| `errored`             | v2  | Pet is distressed — agent response cycle did not complete.                               | Agent response failure: rate limit, network error, or incomplete round-trip.     | reliable    |
+### Hook states (written by `codogotchi-hook`)
 
-`reliable` states come from explicit SoA gate events written as NDJSON to
-`.soa/events.ndjson` (see `docs/contracts/soa-event-feed.md` — landing in P1.19).
-`heuristic` states are inferred from raw Claude Code / Codex tool-use stream
-patterns; they are best-effort and may misclassify edge cases.
+| State             | Ver | Meaning                                                      | Source signal class                                                                    | Reliability |
+| ----------------- | --- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ----------- |
+| `idle`            | v1  | No active session or no recent activity.                     | Session start/end; unrecognized events. Baseline.                                      | reliable    |
+| `standby`         | v3  | Pet is waiting for the developer.                            | `Stop` (success) / Cursor `stop` (no error) / Codex `SessionEnd`.                     | reliable    |
+| `errored`         | v2  | Pet is distressed — agent failed.                            | `StopFailure`; `Stop` + `stop_reason: max_tokens`; Cursor `stop` + `status: error`; Cursor `postToolUseFailure` (non-interrupt). | reliable    |
+| `waiting_for_input` | v4 | Pet is awaiting a permission prompt.                         | `PermissionRequest` — wiring deferred to platform-hooks phase. Reserved enum entry.   | reliable    |
+| `implementing`    | v1  | Pet is writing code.                                         | `Edit`, `Write`, `MultiEdit` tool-use; unknown/write Bash commands.                    | heuristic   |
+| `testing`         | v4  | Pet is running tests / lint / format.                        | Bash commands matching test-runner prefixes (bun test, pytest, vitest, …).             | heuristic   |
+| `thinking`        | v4  | Pet is exploring/searching the codebase.                     | Bash read/search commands (grep, rg, find, ls, cat, head, tail, wc, awk, jq, git log, git diff). | heuristic   |
+| `reading`         | v4  | Pet is reading source files (light streak).                  | `Read` tool-use ×1–2 in a row without an intervening write.                            | heuristic   |
+| `cramming`        | v4  | Pet is deep-reading (heavy streak).                          | `Read` tool-use ×3+ in a row without an intervening write.                             | heuristic   |
 
-The mapping from raw signal to state is single-writer: the hook binary
-classifies, writes one state per event, and never blends. When SoA gate events
-and tool-stream heuristics conflict, **SoA gate events win** (they are
-explicit). The renderer reads the last written state; the hook does not
-maintain a history.
+### SoA gate states (rendered via `gate.json` sidecar, written by son-of-anton Phase 17)
+
+| State              | Ver | Meaning                                           | gate.json `gate` value  | Sprite row (codogotchi sheet) |
+| ------------------ | --- | ------------------------------------------------- | ----------------------- | ----------------------------- |
+| `ticket_started`   | v4  | Delivery ticket just started.                     | `ticket_started`        | 1 (permanent) |
+| `red_tdd`          | v4  | Failing test committed.                           | `red_tdd`               | 3 (TEMP placeholder) |
+| `green_tdd`        | v4  | Tests passing.                                    | `green_tdd`             | 2 (TEMP placeholder) |
+| `adversarial_review` | v4 | Subagent review in progress.                     | `adversarial_review`    | 5 (permanent) |
+| `open_pr`          | v4  | PR opened for review.                             | `open_pr`               | 4 (TEMP placeholder) |
+| `poll_review`      | v4  | AI review window open.                            | `poll_review`           | none — falls to hook |
+| `record_review`    | v4  | Review outcome recorded.                          | `record_review`         | 8 (TEMP placeholder) |
+| `advance`          | v4  | Phase/ticket advanced.                            | `advance`               | none — falls to hook |
+| `ticket_completed` | v4  | Ticket marked done.                               | `ticket_completed`      | 0 (shared, permanent) |
+| `review_clean`     | v4  | Review recorded as clean.                         | `review_clean`          | 0 (shared, permanent) |
+
+Temporary placeholder rows repurpose existing Codex sheet art until
+`codogotchi-soa-spritesheet.webp` ships. See `docs/contracts/gate-json.md`
+for the full precedence rules and per-gate row assignments.
+
+`reliable` states come from explicit lifecycle signals (Stop events, StopFailure, gate.json).
+`heuristic` states are inferred from raw tool-use stream patterns; best-effort.
+
+The mapping is single-writer: the hook binary classifies and writes one state per event.
+The renderer merges the hook state with the gate.json sidecar state using the resolver
+in `GateJsonReader.swift` (gate wins when unexpired + has art; else hook state shows through).
 
 ## HP Overlay States (closed enum)
 
@@ -140,41 +161,38 @@ boundaries are confirmed by the engine implementation in **P1.04** — if P1.04
 discovers a more honest curve (e.g. half-life decay around 50), it updates this
 table and bumps `schema_version`.
 
-## `state.json` v3 schema
+## `state.json` v4 schema
 
 The hook binary writes the entire object atomically (write-to-tmp + rename) on
 every relevant lifecycle event. Schema:
 
 ```json
 {
-  "schema_version": 3,
-  "activity_state": "standby",
+  "schema_version": 4,
+  "activity_state": "testing",
   "hp_overlay": "thriving",
   "hp": 87,
-  "updated_at": "2026-05-24T21:55:00.000Z",
+  "updated_at": "2026-05-29T12:00:00.000Z",
   "source_event": {
     "origin": "claude_code",
-    "kind": "session_end",
-    "name": "Stop"
+    "kind": "tool_use",
+    "name": "Bash"
   },
-  "attention": {
-    "reason_kind": "input_requested",
-    "summary": "Waiting for developer response",
-    "created_at": "2026-05-24T21:55:00.000Z",
-    "expires_at": "2026-05-24T22:55:00.000Z"
-  },
-  "tool_command": "git push",
-  "work_mode": "implementing"
+  "tool_command": "bun test packages/contracts"
 }
 ```
 
-v3 renames `requesting_input` → `standby` and adds three optional fields:
-- `attention` — object with `reason_kind` (`"input_requested" | "error_blocked" | "review_ready"`), `summary`, `created_at`, `expires_at`. Present when `activity_state` is `standby`; absent otherwise. Phase 07 will populate this from hook events.
-- `tool_command` — the raw command string for Bash tool-use events. Phase 06 P6.04 populates it.
-- `work_mode` — enum stub `"thinking" | "implementing" | "testing"`. Phase 07 populates it.
+v4 changes from v3:
+- `activity_state` uses the v4 19-state enum (old states like `running-tests`,
+  `reviewing`, `pushing`, `hyped`, etc. are removed).
+- `work_mode` field is **removed** — the information it carried is now expressed
+  by the v4 activity states (`testing`, `thinking`, `implementing`).
+- `gate_badge` field was never added (deferred; gate signals use `gate.json` instead).
+- `attention` and `tool_command` optional fields are unchanged.
 
-Per the forward-compat policy, v1 and v2 payloads continue to parse against the
-v3 schema (`got=1 ≤ expected=3`, `got=2 ≤ expected=3`).
+Per the forward-compat policy, v1–v3 payloads continue to parse against the
+v4 schema (`got ≤ expected=4`). Old activity_state values from removed states
+decode as `idle` in the Swift renderer (unknown-rawValue fallback).
 
 ### Field meanings
 
@@ -206,52 +224,73 @@ v3 schema (`got=1 ≤ expected=3`, `got=2 ≤ expected=3`).
 The hook binary creates the parent directory on first write. Read paths must
 tolerate missing-file gracefully (treat as `idle` baseline).
 
-## Mapping Table (raw signal → activity state)
+## Mapping Table (raw signal → activity state) — v4
 
-This is the canonical mapping consumed by the hook binary. When two rules
+This is the canonical mapping consumed by the hook binary (v4). When two rules
 could apply, the earlier row wins.
 
-| Source signal                                                                  | activity_state         |
-| ------------------------------------------------------------------------------ | ---------------------- |
-| SoA event `verification_failed`                                                | `panicking`            |
-| SoA event `subagent_invoked`                                                   | `calling_for_backup`   |
-| SoA event `stage_advanced`                                                     | `ascended`             |
-| SoA event `ticket_completed` or `review_clean_recorded`                        | `celebrating`          |
-| SoA event `pr_review_window_opened`                                            | `waiting`              |
-| SoA event `risky_diff_detected`                                                | `nervous`              |
-| SoA event `flow_state_entered`                                                 | `focused`              |
-| SoA event `ticket_started`                                                     | `hyped`                |
-| Bash tool-use whose command begins with `git push`                             | `pushing`              |
-| Bash tool-use whose command matches a known test runner                        | `running-tests`        |
-| Edit / Write / MultiEdit tool-use                                              | `implementing`         |
-| 3+ consecutive Read tool-uses with no intervening Edit/Write                   | `reviewing`            |
-| Agent `Stop` event where the agent is requesting user input (v3)               | `standby`              |
-| Agent response failure — rate limit, network error, incomplete round-trip (v2) | `errored`              |
-| Session start with no other recent activity                                    | `idle`                 |
-| Session end or no events in the last 5 minutes                                 | `idle`                 |
+| Source signal                                                                               | activity_state     |
+| ------------------------------------------------------------------------------------------- | ------------------ |
+| `StopFailure` hook event (any error value)                                                  | `errored`          |
+| Cursor `postToolUseFailure` with `is_interrupt: false` (or absent)                          | `errored`          |
+| `Stop` / Cursor `stop` with `is_error: true`, `stop_reason: max_tokens`, or `status: error`| `errored`          |
+| `Stop` (success) / Cursor `stop` (success)                                                  | `standby`          |
+| Edit / Write / MultiEdit tool-use                                                           | `implementing`     |
+| Bash/Shell command matching a test/lint/format runner                                       | `testing`          |
+| Bash/Shell read/search command (grep, rg, find, ls, cat, head, tail, wc, awk, jq, git log, git diff) | `thinking` |
+| `Read` tool-use ×1 or ×2 (streak, no intervening write)                                    | `reading`          |
+| `Read` tool-use ×3+ (streak, no intervening write)                                         | `cramming`         |
+| Bash/Shell — all other commands (write/mutate/unknown)                                      | `implementing`     |
+| All other tool-use / session-start events                                                   | `idle`             |
 
-### Known test-runner prefixes
+Note: SoA gate states (`ticket_started`, `ticket_completed`, etc.) are delivered via
+`gate.json` and merged by the renderer — the hook binary does not emit them.
 
-The `running-tests` heuristic matches Bash commands beginning with any of:
+### Known test-runner prefixes (v4)
+
+The `testing` heuristic matches Bash/Shell commands beginning with any of:
 `bun test`, `bun run test`, `npm test`, `npm run test`, `pnpm test`, `pnpm run test`,
 `yarn test`, `yarn run test`, `pytest`, `cargo test`, `go test`, `vitest`, `jest`.
-Anything outside this list stays at the prior activity state.
+
+### Known thinking (explore) prefixes (v4)
+
+The `thinking` heuristic matches Bash/Shell commands beginning with any of:
+`grep`, `find`, `rg`, `ls`, `cat`, `head`, `tail`, `wc`, `awk`, `jq`,
+`git log`, `git diff`.
+
+## 6-Tier User Model
+
+Phase 07 locks the 6-tier animation model from research §7:
+
+| Tier | Configuration           | Available states (hook)             | Available states (gate)       |
+| ---- | ----------------------- | ----------------------------------- | ----------------------------- |
+| 1    | Codex sheet only        | idle, standby, errored, implementing, testing (row 7), thinking (row 8) | none (no rowMap entries) |
+| 2    | Codex + lite sheet      | All hook states with dedicated art  | none |
+| 3    | Codex + SoA gate        | Codex Tier 1 + gate falls through   | ticket_started, adversarial_review, review_clean, ticket_completed + TEMP placeholders |
+| 4    | Codex + lite + SoA gate | Tier 2 + Tier 3 combined            | full gate coverage |
+| 5    | Codex + lite + RPG      | Tier 2 + RPG overlays               | none |
+| 6    | Full (all sheets)       | All states                          | All gate states |
+
+Rules:
+- **Lite sheet is required for RPG** (RPG overlays are lite-sheet rows).
+- **Lite sheet is recommended for SoA gates** (gate art ships on the SoA sheet which requires the lite sheet loader).
+- At Tier 1 (Codex only): `testing` and `implementing` share row 7 (visual compromise); `thinking` uses row 8.
+- At Tier 3: gate states with no art fall through to hook animation.
 
 ## Reliability caveats
 
-- Heuristic states (`implementing`, `running-tests`, `reviewing`, `pushing`)
-  reflect *observed tool use*, not intent. A pet that "reviews" three Reads in
-  a row may actually be navigating to a known location. Renderers should treat
-  heuristic states as soft hints, not authoritative claims about developer
-  intent.
-- SoA gate states are only as reliable as SoA itself writing the corresponding
-  events. The hook silently falls back to heuristic states when
-  `.soa/events.ndjson` is absent.
+- Heuristic states (`implementing`, `testing`, `thinking`, `reading`, `cramming`)
+  reflect *observed tool use*, not intent. Renderers should treat heuristic states
+  as soft hints, not authoritative claims about developer intent.
+- Gate states from `gate.json` are only as reliable as the SoA orchestrator writing
+  them. The renderer falls back to hook animation when `gate.json` is absent,
+  expired, or points to an artless state.
 - `hp` and `hp_overlay` lag real progression: they reflect the last completed
-  sync, not the current second's truth. A 30-minute streak of intense
-  `implementing` does not move `hp` until the next `codogotchi sync` runs.
+  sync, not the current second's truth.
 - The hook writes one state per event with no temporal smoothing. Renderers
   that want smoothing or anti-flicker should debounce on their side.
+- Gate + state.json reads happen independently on each poll tick; a one-tick
+  skew between the two files is possible on fast gate writes.
 
 ## Spritesheet Asset Layout
 
@@ -264,21 +303,20 @@ states it owns degrade to `idle` (same behavior as today for unrecognized states
 LVL 1 onboarding sheet. Owned and generated by the Codex pet system. Codogotchi
 reads but never writes it. Grid: **8 columns × 9 rows**, 8 frames per row.
 
-| Row | Codex animation name | Codogotchi state       | Notes                                      |
+| Row | Codex animation name | Codogotchi state (v4)  | Notes                                      |
 | --- | -------------------- | ---------------------- | ------------------------------------------ |
 | 0   | `idle`               | `idle`                 |                                            |
 | 1   | `running-right`      | *(reserved)*           | Future float-on-top sprite, mouse drag     |
 | 2   | `running-left`       | *(reserved)*           | Future float-on-top sprite, mouse drag     |
-| 3   | `waving`             | `standby`              | v3 — agent awaiting user response (renamed from `requesting_input`) |
+| 3   | `waving`             | `standby`              | v3 — agent awaiting user response          |
 | 4   | `jumping`            | *(reserved)*           | Future float-on-top sprite, mouse hover    |
 | 5   | `failed`             | `errored`              | v2 — agent response cycle did not complete |
-| 6   | `waiting`            | `waiting`              |                                            |
-| 7   | `running`            | `implementing`         |                                            |
-| 8   | `review`             | `running-tests`        |                                            |
+| 6   | *(retired)*          | *(none)*               | `waiting` (v1) retired in v4               |
+| 7   | `running`            | `implementing`, `testing` | Shared row — visual compromise until lite sheet ships |
+| 8   | `review`             | `thinking`             | Explore/search bucket (v4, §7)             |
 
-`celebrating` is intentionally absent from the Codex sheet — the `jumping` row (4)
-does not semantically match. `celebrating` is served exclusively from the
-codogotchi sheet below.
+Gate states (`ticket_started`, `ticket_completed`, etc.) are served exclusively
+from the codogotchi sheet. They are absent from the Codex sheet by design.
 
 ### Codogotchi sheet — `~/.codogotchi/pets/<pet>/spritesheet.webp`
 
@@ -291,17 +329,19 @@ than the Codex sheet (8 frames, ~1-second loop at 8 fps).
 > state (`heroFrameIndex = 3`, clamped) because motion is imperceptible at
 > status-item scale.
 
-| Row | Codogotchi state      | Trigger                                          |
-| --- | --------------------- | ------------------------------------------------ |
-| 0   | `celebrating`         | SoA `ticket_completed` / `review_clean_recorded` |
-| 1   | `hyped`               | SoA `ticket_started`                             |
-| 2   | `focused`             | SoA `flow_state_entered`                         |
-| 3   | `nervous`             | SoA `risky_diff_detected`                        |
-| 4   | `ascended`            | SoA `stage_advanced`                             |
-| 5   | `calling_for_backup`  | SoA `subagent_invoked`                           |
-| 6   | `panicking`           | SoA `verification_failed`                        |
-| 7   | `reviewing`           | 3+ consecutive Reads with no intervening Edit    |
-| 8   | `pushing`             | `git push` Bash command                          |
+| Row | Codogotchi state (v4)  | Source                                        | Notes |
+| --- | ---------------------- | --------------------------------------------- | ----- |
+| 0   | `review_clean`, `ticket_completed` | gate.json gate              | Shared row |
+| 1   | `ticket_started`       | gate.json                                     |  |
+| 2   | `green_tdd`            | gate.json                                     | TEMP placeholder (target: soa-sheet) |
+| 3   | `red_tdd`              | gate.json                                     | TEMP placeholder (target: soa-sheet) |
+| 4   | `open_pr`              | gate.json                                     | TEMP placeholder (target: soa-sheet) |
+| 5   | `adversarial_review`   | gate.json                                     |  |
+| 6   | *(none)*               |                                               | Row 6 currently unused in v4 |
+| 7   | *(none)*               |                                               | Row 7 currently unused (was `reviewing`) |
+| 8   | `record_review`        | gate.json                                     | TEMP placeholder (target: soa-sheet) |
+
+TEMP rows reuse existing Codex-sheet art until `codogotchi-soa-spritesheet.webp` ships.
 
 ### Manifest format — `~/.codogotchi/pets/<pet>/pet.json`
 

@@ -165,7 +165,8 @@ hooks are installed but no native Cursor hooks file is present.
 | --- | --- | --- |
 | `~/.codogotchi/config.json` | `setup`, `config` | Credentials, health knobs, and pet name |
 | `~/.codogotchi/profile.json` | `sync` | Local cache of Convex profile |
-| `~/.codogotchi/state.json` | `codogotchi-hook` | Animation state for renderers (`schema_version: 3`) |
+| `~/.codogotchi/state.json` | `codogotchi-hook` | Animation state for renderers (`schema_version: 4`, v4 19-state enum) |
+| `~/.codogotchi/gate.json` | son-of-anton Phase 17 | Active delivery gate state (written by SoA, read by renderer; `expires_at`-bounded) |
 | `~/.codogotchi/app-state.json` | Codogotchi app | Floating pet visibility, position, size (`schema_version: 1`) |
 | `~/.codogotchi/state-transitions.log` | Codogotchi app | NDJSON log of state changes and heartbeats |
 | `~/.codogotchi/sync.log` | `sync` | Per-source success / failure (rotated) |
