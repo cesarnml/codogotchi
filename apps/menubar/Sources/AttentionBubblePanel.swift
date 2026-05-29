@@ -63,6 +63,11 @@ final class AttentionBubblePanel: NSPanel {
 	override var canBecomeKey: Bool { false }
 	override var canBecomeMain: Bool { false }
 
+	var onDismiss: (() -> Void)? {
+		get { bubbleView.onDismiss }
+		set { bubbleView.onDismiss = newValue }
+	}
+
 	func update(payload: AttentionPayload, sourceOrigin: String?) {
 		bubbleView.configure(
 			summary: payload.summary ?? "",
@@ -94,6 +99,8 @@ private final class AttentionBubbleView: NSView {
 	// Hover-revealed
 	private let dismissButton = NSButton(frame: .zero)
 	private let actionButton = NSButton(frame: .zero)
+
+	var onDismiss: (() -> Void)?
 
 	private var trackingArea: NSTrackingArea?
 	private var isHovered = false
@@ -329,6 +336,7 @@ private final class AttentionBubbleView: NSView {
 	}
 
 	@objc private func dismissBubble() {
+		onDismiss?()
 		window?.orderOut(nil)
 	}
 

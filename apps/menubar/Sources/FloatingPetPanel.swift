@@ -87,6 +87,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		attentionActive = true
 		let bubble = attentionBubble ?? {
 			let b = AttentionBubblePanel()
+			b.onDismiss = { [weak self] in self?.handleBubbleDismiss() }
 			attentionBubble = b
 			return b
 		}()
@@ -94,6 +95,11 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		if isPanelShown {
 			repositionAndShowBubble()
 		}
+	}
+
+	private func handleBubbleDismiss() {
+		attentionActive = false
+		apply(state: .idle, visualMode: currentMode)
 	}
 
 	private func repositionAndShowBubble() {
