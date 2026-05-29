@@ -837,3 +837,61 @@ describe("P7.02 §7 pure classifier", () => {
     }
   });
 });
+
+describe("P7.03 terminal failure parity", () => {
+  it("classifies Claude Code StopFailure (rate_limit) as errored", () => {
+    const out = classifyEvent(
+      { hook_event_name: "StopFailure", error: "rate_limit" } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("errored");
+  });
+
+  it("classifies Claude Code StopFailure (any error value) as errored", () => {
+    const out = classifyEvent(
+      { hook_event_name: "StopFailure", error: "server_error" } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("errored");
+  });
+
+  it("classifies Cursor stop with status:error as errored", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "stop",
+        status: "error",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("errored");
+  });
+
+  it("classifies Cursor postToolUseFailure (is_interrupt:false) as errored", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "postToolUseFailure",
+        is_interrupt: false,
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("errored");
+  });
+
+  it("classifies Cursor postToolUseFailure (is_interrupt:true) as idle (user-initiated)", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "postToolUseFailure",
+        is_interrupt: true,
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).not.toBe("errored");
+  });
+
+  it("normal Stop success still produces standby (no regression)", () => {
+    const out = classifyEvent({ hook_event_name: "Stop" } as HookInput, {
+      readRun: 0,
+    });
+    expect(out.state).toBe("standby");
+  });
+});
