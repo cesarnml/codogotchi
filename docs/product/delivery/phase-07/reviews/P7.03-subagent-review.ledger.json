@@ -33,6 +33,22 @@
       "outcome": "clean",
       "acknowledgment": "operator-confirmed-clean",
       "reason": "Report has no actionable findings; reconcile false-positive caused by --- separators the subagent added despite template prohibition"
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "08854da175cfe8f0f417971ffa521e326637e0e7",
+      "completedAt": "2026-05-29T16:59:15.702Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "outcome": "clean",
+      "acknowledgment": "operator-confirmed-clean",
+      "reason": "Report has no actionable findings; reconciler false-positive from subagent-added --- separators"
     }
   ]
 }
