@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'bun:test';
@@ -62,8 +61,12 @@ function makeState(planKey: string, tickets: TicketState[]): DeliveryState {
 
 const PLAN_KEY = 'phase-15';
 
-describe('P15.02 — emitSoaEventsForTransitions (gate enabled)', () => {
-  it('emits ticket_started when start transitions a ticket from pending to in_progress', async () => {
+// Phase 17 retired the ticket_started/ticket_completed NDJSON emission from
+// emitSoaEventsForTransitions. These events now write to gate.json via
+// emitGateForTransitions. The function is a no-op stub retained for
+// backwards-compatible call sites and will be removed in P17.04.
+describe('P15.02 — emitSoaEventsForTransitions (retired NDJSON emission)', () => {
+  it('does not create .soa/events.ndjson for pending → in_progress (retired behavior)', async () => {
     const root = makeTmpDir();
     const config = enabledConfig();
 
@@ -72,16 +75,10 @@ describe('P15.02 — emitSoaEventsForTransitions (gate enabled)', () => {
 
     await emitSoaEventsForTransitions(previous, next, config, root);
 
-    const content = await readFile(join(root, '.soa', 'events.ndjson'), 'utf8');
-    const lines = content.trim().split('\n');
-    expect(lines).toHaveLength(1);
-    const parsed = JSON.parse(lines[0]!);
-    expect(parsed.name).toBe('ticket_started');
-    expect(parsed.plan_key).toBe(PLAN_KEY);
-    expect(parsed.ticket_id).toBe('P15.02');
+    expect(existsSync(join(root, '.soa'))).toBe(false);
   });
 
-  it('appends ticket_completed when advance transitions in_progress → done', async () => {
+  it('does not create .soa/events.ndjson for in_progress → done (retired behavior)', async () => {
     const root = makeTmpDir();
     const config = enabledConfig();
 
@@ -90,16 +87,10 @@ describe('P15.02 — emitSoaEventsForTransitions (gate enabled)', () => {
 
     await emitSoaEventsForTransitions(previous, next, config, root);
 
-    const content = await readFile(join(root, '.soa', 'events.ndjson'), 'utf8');
-    const lines = content.trim().split('\n');
-    expect(lines).toHaveLength(1);
-    const parsed = JSON.parse(lines[0]!);
-    expect(parsed.name).toBe('ticket_completed');
-    expect(parsed.plan_key).toBe(PLAN_KEY);
-    expect(parsed.ticket_id).toBe('P15.02');
+    expect(existsSync(join(root, '.soa'))).toBe(false);
   });
 
-  it('emits ticket_completed(A) then ticket_started(B) when advance transitions both', async () => {
+  it('does not create .soa/events.ndjson for cook-mode advance (retired behavior)', async () => {
     const root = makeTmpDir();
     const config = enabledConfig();
 
@@ -114,15 +105,7 @@ describe('P15.02 — emitSoaEventsForTransitions (gate enabled)', () => {
 
     await emitSoaEventsForTransitions(previous, next, config, root);
 
-    const content = await readFile(join(root, '.soa', 'events.ndjson'), 'utf8');
-    const lines = content.trim().split('\n');
-    expect(lines).toHaveLength(2);
-    const first = JSON.parse(lines[0]!);
-    const second = JSON.parse(lines[1]!);
-    expect(first.name).toBe('ticket_completed');
-    expect(first.ticket_id).toBe('P15.01');
-    expect(second.name).toBe('ticket_started');
-    expect(second.ticket_id).toBe('P15.02');
+    expect(existsSync(join(root, '.soa'))).toBe(false);
   });
 });
 
@@ -135,16 +118,6 @@ describe('P15.02 — emitSoaEventsForTransitions (gate disabled)', () => {
     const next = makeState(PLAN_KEY, [makeTicket('P15.02', 'in_progress')]);
 
     await emitSoaEventsForTransitions(previous, next, config, root);
-
-    expect(existsSync(join(root, '.soa'))).toBe(false);
-
-    // Also verify advance-path transitions are suppressed
-    const previous2 = makeState(PLAN_KEY, [
-      makeTicket('P15.02', 'in_progress'),
-    ]);
-    const next2 = makeState(PLAN_KEY, [makeTicket('P15.02', 'done')]);
-
-    await emitSoaEventsForTransitions(previous2, next2, config, root);
 
     expect(existsSync(join(root, '.soa'))).toBe(false);
   });

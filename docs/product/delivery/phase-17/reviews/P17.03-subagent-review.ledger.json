@@ -1,0 +1,53 @@
+{
+  "ticket": "P17.03",
+  "invocations": [
+    {
+      "runnerKind": "claude-cli",
+      "reviewedHeadSha": "acabbe134e87f73b75e998fa557be89f76b9f25a",
+      "outcome": "clean",
+      "completedAt": "2026-05-29T11:46:28.616Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-17/reviews/P17.03-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-17/reviews/P17.03-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    },
+    {
+      "runnerKind": "claude-cli",
+      "reviewedHeadSha": "812564e526d2cd20e29fd0d8f19f05b0c8ecc631",
+      "outcome": "clean",
+      "completedAt": "2026-05-29T11:50:42.708Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-17/reviews/P17.03-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-17/reviews/P17.03-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "812564e526d2cd20e29fd0d8f19f05b0c8ecc631",
+      "outcome": "patched",
+      "completedAt": "2026-05-29T11:51:23.445Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": ["c27b5eca2dc0ca87ab2eaa8eabe078ac9a275a4a"],
+      "schemaVersion": 1,
+      "primaryAgent": "unknown",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
+    }
+  ]
+}

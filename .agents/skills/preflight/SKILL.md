@@ -41,12 +41,12 @@ Cross-checks:
 
 **Metadata (lines 3–6, immediately after the `# PN.NN` title):**
 
-| Field | Valid values |
-|---|---|
-| `Size:` | `N point` or `N points` (integer N) |
-| `Type:` | `feat`, `fix`, `docs`, `refactor`, `test`, `chore` |
+| Field    | Valid values                                             |
+| -------- | -------------------------------------------------------- |
+| `Size:`  | `N point` or `N points` (integer N)                      |
+| `Type:`  | `feat`, `fix`, `docs`, `refactor`, `test`, `chore`       |
 | `Scope:` | lowercase letters, digits, hyphens only (optional field) |
-| `Red:` | `required` or `skip` |
+| `Red:`   | `required` or `skip`                                     |
 
 **Required sections (exact heading text):**
 

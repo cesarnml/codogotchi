@@ -17,7 +17,6 @@ import {
   realpathSync,
   writeFileSync,
 } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -123,12 +122,15 @@ describe('findPrimaryWorktreePath — worktree routing', () => {
   });
 });
 
-describe('emitSoaEventsForTransitions — events land in primary .soa/', () => {
-  it('writes to primary .soa/ when projectRoot is resolved through findPrimaryWorktreePath', async () => {
+// Phase 17 retired the ticket_started/ticket_completed NDJSON emission from
+// emitSoaEventsForTransitions. Events now write to gate.json via emitGateForTransitions.
+// The worktree routing concern this test file originally addressed no longer applies
+// to the NDJSON path (there is none); gate.json uses CODOGOTCHI_HOME which is global.
+describe('emitSoaEventsForTransitions — retired NDJSON worktree routing', () => {
+  it('no longer writes to primary .soa/ (retired behavior — gate.json handles these events)', async () => {
     const { primary, worktree } = makeGitWorktreeFixture();
     const config = enabledConfig();
 
-    // Simulate what runDeliverCli now does: resolve eventRoot from worktree CWD.
     const eventRoot = findPrimaryWorktreePath(worktree, config) ?? worktree;
 
     const previous = makeState('phase-04', [makeTicket('P4.01', 'pending')]);
@@ -136,25 +138,15 @@ describe('emitSoaEventsForTransitions — events land in primary .soa/', () => {
 
     await emitSoaEventsForTransitions(previous, next, config, eventRoot);
 
-    // Event must appear in primary, not in the worktree.
-    expect(existsSync(join(primary, '.soa', 'events.ndjson'))).toBe(true);
+    // NDJSON emission for ticket_started/ticket_completed is retired.
+    expect(existsSync(join(primary, '.soa', 'events.ndjson'))).toBe(false);
     expect(existsSync(join(worktree, '.soa', 'events.ndjson'))).toBe(false);
-
-    const content = await readFile(
-      join(primary, '.soa', 'events.ndjson'),
-      'utf8',
-    );
-    const parsed = JSON.parse(content.trim().split('\n')[0]!);
-    expect(parsed.name).toBe('ticket_started');
-    expect(parsed.ticket_id).toBe('P4.01');
   });
 
-  it('events land in primary when bun is invoked from a worktree (pre-fix behaviour regression)', async () => {
+  it('no longer writes ticket_completed to primary (retired behavior — gate.json handles these events)', async () => {
     const { primary, worktree } = makeGitWorktreeFixture();
     const config = enabledConfig();
 
-    // Pre-fix: passing worktree directly as projectRoot would have written here.
-    // Post-fix: eventRoot resolves to primary so worktree gets nothing.
     const eventRoot = findPrimaryWorktreePath(worktree, config) ?? worktree;
 
     const previous = makeState('phase-04', [
@@ -165,12 +157,6 @@ describe('emitSoaEventsForTransitions — events land in primary .soa/', () => {
     await emitSoaEventsForTransitions(previous, next, config, eventRoot);
 
     expect(existsSync(join(worktree, '.soa'))).toBe(false);
-
-    const content = await readFile(
-      join(primary, '.soa', 'events.ndjson'),
-      'utf8',
-    );
-    const parsed = JSON.parse(content.trim().split('\n')[0]!);
-    expect(parsed.name).toBe('ticket_completed');
+    expect(existsSync(join(primary, '.soa'))).toBe(false);
   });
 });
