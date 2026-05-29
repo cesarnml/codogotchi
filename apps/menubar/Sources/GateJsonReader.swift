@@ -11,7 +11,10 @@ struct GateSnapshot {
 	let planKey: String?
 	let ticketId: String?
 
-	/// Returns true when `expiresAt` is parseable and strictly in the past.
+	/// Returns true when `expiresAt` is in the past or unparseable.
+	///
+	/// An unparseable `expiresAt` is treated as expired (not as never-expiring)
+	/// so a corrupt gate.json never silently locks the renderer into a gate state.
 	/// Uses the same two-pass ISO 8601 strategy as `StateJsonReader`.
 	func isExpired(now: Date = Date()) -> Bool {
 		let fmt = ISO8601DateFormatter()
@@ -19,7 +22,8 @@ struct GateSnapshot {
 		if let d = fmt.date(from: expiresAt) { return d < now }
 		fmt.formatOptions = [.withInternetDateTime]
 		if let d = fmt.date(from: expiresAt) { return d < now }
-		return false
+		// Unparseable date → treat as expired; do not activate the gate.
+		return true
 	}
 }
 

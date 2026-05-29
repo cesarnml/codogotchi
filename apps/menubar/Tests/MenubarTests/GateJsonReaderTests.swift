@@ -47,7 +47,6 @@ final class GateJsonReaderTests: XCTestCase {
 	}
 
 	func testGateJsonMissingGateFieldReturnsNil() throws {
-		// [red] gate field is required; absent → nil
 		let json = """
 			{"since": "2026-05-29T12:00:00.000Z", "expires_at": "2099-01-01T00:00:00.000Z"}
 			"""
@@ -56,6 +55,24 @@ final class GateJsonReaderTests: XCTestCase {
 
 		let snapshot = GateJsonReader.read(at: tmp.path)
 		XCTAssertNil(snapshot, "gate.json missing required 'gate' field must return nil")
+	}
+
+	func testGateJsonMissingExpiresAtFieldReturnsNil() throws {
+		let json = """
+			{"gate": "ticket_started", "since": "2026-05-29T12:00:00.000Z"}
+			"""
+		let tmp = writeTemp(json)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = GateJsonReader.read(at: tmp.path)
+		XCTAssertNil(snapshot, "gate.json missing required 'expires_at' field must return nil")
+	}
+
+	func testUnparseableExpiresAtTreatedAsExpired() {
+		// Corrupt expires_at must not activate the gate indefinitely
+		let gate = makeGate(gate: "ticket_started", expiresAt: "not-a-date")
+		let result = resolveActivityState(gate: gate, hookState: .implementing, now: Date())
+		XCTAssertEqual(result, .implementing, "unparseable expires_at must fall through to hook state (treated as expired)")
 	}
 
 	// MARK: - resolveActivityState merge resolver
