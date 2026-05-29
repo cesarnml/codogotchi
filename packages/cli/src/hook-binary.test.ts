@@ -1027,3 +1027,84 @@ describe("runHook + SoA gate precedence", () => {
     expect(state.source_event.origin).toBe("claude_code");
   });
 });
+
+describe("P7.02 §7 pure classifier — [red]", () => {
+  it("classifies single Read as reading (not idle)", () => {
+    const out = classifyEvent(
+      { origin: "claude_code", kind: "tool_use", name: "Read" },
+      { readRun: 0 },
+    );
+    // [red] Read ×1 must emit reading, not idle
+    expect(out.state).toBe("reading");
+    expect(out.readRun).toBe(1);
+  });
+
+  it("classifies two consecutive Reads as reading", () => {
+    const first = classifyEvent(
+      { origin: "claude_code", kind: "tool_use", name: "Read" },
+      { readRun: 0 },
+    );
+    const second = classifyEvent(
+      { origin: "claude_code", kind: "tool_use", name: "Read" },
+      { readRun: first.readRun },
+    );
+    // [red] Read ×2 must still emit reading (streak threshold is ×3 for cramming)
+    expect(second.state).toBe("reading");
+    expect(second.readRun).toBe(2);
+  });
+
+  it("classifies three consecutive Reads as cramming (not thinking)", () => {
+    const third = classifyEvent(
+      { origin: "claude_code", kind: "tool_use", name: "Read" },
+      { readRun: 2 },
+    );
+    // [red] Read ×3+ must emit cramming, not thinking
+    expect(third.state).toBe("cramming");
+    expect(third.readRun).toBe(3);
+  });
+
+  it("classifies Bash 'sed -i' as implementing (write command, not thinking)", () => {
+    // [red] sed -i is a write/mutate command; the thinking bucket covers read-only sed
+    const out = classifyEvent(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Bash",
+        command: "sed -i 's/foo/bar/g' src/index.ts",
+      },
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("implementing");
+  });
+
+  it("SoA events.ndjson does not override tool-use state after hook-binary drops the reader", async () => {
+    // [red] After P7.02 removes resolveSoaRoot/readSoaEventsSince, an Edit event
+    // must produce implementing even when a .soa/events.ndjson with ticket_started exists.
+    const home = mkdtempSync(join(tmpdir(), "codogotchi-p702-red-"));
+    const projectRoot = mkdtempSync(join(tmpdir(), "codogotchi-soa-p702-red-"));
+    try {
+      await mkdir(home, { recursive: true });
+      await mkdir(join(projectRoot, ".soa"), { recursive: true });
+      writeFileSync(
+        join(projectRoot, ".soa", "events.ndjson"),
+        `${JSON.stringify({ name: "ticket_started", ts: "2026-05-18T16:00:00Z" })}\n`,
+      );
+      await runHook(
+        { origin: "claude_code", kind: "tool_use", name: "Edit" },
+        {
+          home,
+          now: FIXED_NOW,
+          env: { CLAUDE_PROJECT_DIR: projectRoot },
+          cwd: projectRoot,
+        },
+      );
+      const state = readState(home);
+      // [red] pure classifier: Edit → implementing, SoA file is ignored
+      expect(state.activity_state).toBe("implementing");
+      expect(state.source_event.origin).toBe("claude_code");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+});
