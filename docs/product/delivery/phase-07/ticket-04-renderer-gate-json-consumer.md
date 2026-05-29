@@ -48,10 +48,12 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Red first: `GateJsonReader` and `resolveActivityState` were undefined — tests failed to compile once the test file was included in the xcodeproj after xcodegen regeneration.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here.
+Why this path: `GateJsonReader` as a namespace enum mirroring `StateJsonReader`'s style; `GateSnapshot` as a plain struct with an `isExpired(now:)` helper; `resolveActivityState` as a free function (not on a type) for maximum unit-testability without a class instance. `LivePollingDriver` received `gatePath: String?` and `gateReader: GateReader` (injectable for tests) with defaults wired to the real `gate.json` path.
+
+Alternative considered: Adding `gate` to `DemoConfig` — rejected because deriving the gate path from `config.pollingTarget.deletingLastPathComponent().appendingPathComponent("gate.json")` is simpler and correct for both live and demo mode (no gate.json in the demo tmp dir → `GateJsonReader` returns nil → resolver falls through to hook state, which is the right behavior).
+
+Deferred: Badge UI widget — later phase. Multi-sheet loader for gate art — later phase. `advance`/`stage_advanced` gate rendering — enum entry stays, son-of-anton Phase 17 does not emit it yet.
+
+Contract note: `LivePollingDriver.init` gained two new optional params (`gatePath`, `gateReader`) with backwards-compatible defaults. The xcodeproj must be regenerated via `xcodegen generate` in `apps/menubar/` when new Swift source files are added.
