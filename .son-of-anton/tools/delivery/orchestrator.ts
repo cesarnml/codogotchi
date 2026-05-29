@@ -103,12 +103,6 @@ export type {
 } from './platform-adapters';
 export { parseDotEnv } from './env';
 export {
-  appendSoaEvent,
-  buildSoaEventLine,
-  maybeEmitReviewCleanRecorded,
-} from './soa-event-feed';
-export type { SoaEventLine } from './soa-event-feed';
-export {
   appendInvocationToArtifact,
   buildRunnerArtifact,
   buildRunnerInvocation,

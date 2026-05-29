@@ -154,12 +154,7 @@ import {
   writeSubagentAdversarialPrompt,
 } from './subagent-prompt';
 import { readFileSync, writeFileSync } from 'node:fs';
-import {
-  appendSoaEvent,
-  buildSoaEventLine,
-  emitSubagentInvoked,
-  maybeEmitReviewCleanRecorded,
-} from './soa-event-feed';
+import { GATE_NAMES, writeGateEvent } from './codogotchi-gate';
 
 export const WORKTREE_EXEMPT = new Set(['status', 'sync', 'start']);
 
@@ -314,7 +309,6 @@ export async function runDeliveryOrchestrator(
     const notifier = resolveNotifier();
     // Always emit SoA events into the primary worktree's .soa/, regardless of
     // which worktree directory bun was invoked from.
-    const eventRoot = findPrimaryWorktreePath(cwd, context.config) ?? cwd;
     if (isStandaloneTriageCommand(parsed.command)) {
       const result = await runStandaloneAiReview(
         cwd,
@@ -489,6 +483,20 @@ export async function runDeliveryOrchestrator(
         if (hasExplicitPolicyFlags) {
           context = { ...context, config: resolvedConfig };
         }
+        // Determine target ticket before start so ticket_started is emitted at entry
+        const startTargetId =
+          parsed.positionals[0] ??
+          (
+            stateForStart.tickets.find((t) => t.status === 'in_progress') ??
+            stateForStart.tickets.find((t) => t.status === 'pending')
+          )?.id;
+        if (startTargetId) {
+          await writeGateEvent(context.config, {
+            gate: GATE_NAMES.TICKET_STARTED,
+            planKey: stateForStart.planKey,
+            ticketId: startTargetId,
+          });
+        }
         const nextState = await startTicket(
           stateForStart,
           cwd,
@@ -497,12 +505,17 @@ export async function runDeliveryOrchestrator(
         );
         await saveState(cwd, nextState);
         console.log(formatStatus(nextState, context.config));
-        await emitSoaEventsForTransitions(
-          stateForStart,
-          nextState,
-          context.config,
-          eventRoot,
-        );
+        // Emit start exit gate: red_tdd for Red: required, green_tdd for Red: skip
+        const startedTicket = startTargetId
+          ? nextState.tickets.find((t) => t.id === startTargetId)
+          : nextState.tickets.find((t) => t.status === 'in_progress');
+        if (startedTicket) {
+          await emitStartExitGate(
+            startedTicket,
+            context.config,
+            nextState.planKey,
+          );
+        }
         await emitNotificationWarnings(
           notifier,
           cwd,
@@ -559,6 +572,21 @@ export async function runDeliveryOrchestrator(
         );
         await saveState(cwd, nextState);
         console.log(formatStatus(nextState, context.config));
+        // Emit green_tdd: Red: required ticket has passed its failing test gate
+        const postRedTicket =
+          nextState.tickets.find(
+            (t) =>
+              t.status === 'red_complete' &&
+              state.tickets.find((s) => s.id === t.id)?.status !==
+                'red_complete',
+          ) ?? nextState.tickets.find((t) => t.status === 'red_complete');
+        if (postRedTicket) {
+          await emitPostRedGate(
+            postRedTicket,
+            context.config,
+            nextState.planKey,
+          );
+        }
         return 0;
       }
       case 'write-subagent-adversarial-review': {
@@ -599,6 +627,12 @@ export async function runDeliveryOrchestrator(
             `Ticket ${writeTarget.id} is doc-only under skip_doc_only — subagent review auto-skips and no adversarial prompt is required. Run subagent-review next.`,
           );
         }
+
+        await emitAdversarialReviewGate(
+          writeTarget,
+          context.config,
+          state.planKey,
+        );
 
         const promptContent = resolveAdversarialPromptContent({
           repoRoot: cwd,
@@ -953,14 +987,6 @@ export async function runDeliveryOrchestrator(
                   },
                 );
                 try {
-                  void emitSubagentInvoked(
-                    context.config,
-                    findPrimaryWorktreePath(worktreePath, context.config) ??
-                      worktreePath,
-                    state.planKey,
-                    subagentTarget.id,
-                    runner,
-                  );
                   const spawned = spawnSync(bin, args, {
                     cwd: worktreePath,
                     timeout: RUNNER_TIMEOUT_MS,
@@ -1172,6 +1198,19 @@ export async function runDeliveryOrchestrator(
         }
         // Hard-block silent-lie conditions before publish.
         runReconciliationGate(state, cwd, context, parsed.positionals[0]);
+        // Emit open_pr gate before publishing the PR (emit-then-action).
+        // Mirror openPullRequest's internal resolution: subagent_review_complete
+        // first, then verified (subagentReview=disabled path).
+        const openPrTarget =
+          (parsed.positionals[0]
+            ? state.tickets.find((t) => t.id === parsed.positionals[0])
+            : (state.tickets.find(
+                (t) => t.status === 'subagent_review_complete',
+              ) ?? state.tickets.find((t) => t.status === 'verified'))) ??
+          undefined;
+        if (openPrTarget) {
+          await emitOpenPrGate(openPrTarget, context.config, state.planKey);
+        }
         const nextState = await openPullRequest(
           state,
           cwd,
@@ -1192,12 +1231,6 @@ export async function runDeliveryOrchestrator(
           cwd,
           eventsForOpenPrCommand(nextState, parsed.positionals[0]),
         );
-        await emitSoaEventForOpenPr(
-          nextState,
-          context.config,
-          eventRoot,
-          parsed.positionals[0],
-        );
         return 0;
       }
       case 'poll-review': {
@@ -1205,6 +1238,11 @@ export async function runDeliveryOrchestrator(
         const pollTarget = pollTicketId
           ? state.tickets.find((t) => t.id === pollTicketId)
           : state.tickets.find((t) => t.status === 'in_review');
+
+        // Emit poll_review gate before polling begins (emit-then-action)
+        if (pollTarget) {
+          await emitPollReviewGate(pollTarget, context.config, state.planKey);
+        }
 
         if (
           pollTarget &&
@@ -1243,10 +1281,10 @@ export async function runDeliveryOrchestrator(
             pollTicketId,
           );
           await emitNotificationWarnings(notifier, cwd, docOnlyEvents);
-          await maybeEmitReviewCleanRecorded(
+          await emitReviewCleanGate(
             docOnlyEvents,
             context.config,
-            eventRoot,
+            state.planKey,
           );
           return 0;
         }
@@ -1258,11 +1296,7 @@ export async function runDeliveryOrchestrator(
         );
         const pollEvents = eventsForPollReviewCommand(nextState, pollTicketId);
         await emitNotificationWarnings(notifier, cwd, pollEvents);
-        await maybeEmitReviewCleanRecorded(
-          pollEvents,
-          context.config,
-          eventRoot,
-        );
+        await emitReviewCleanGate(pollEvents, context.config, state.planKey);
         return 0;
       }
       case TICKET_TRIAGE_COMMAND: {
@@ -1287,11 +1321,7 @@ export async function runDeliveryOrchestrator(
           ticketId,
         );
         await emitNotificationWarnings(notifier, cwd, triageEvents);
-        await maybeEmitReviewCleanRecorded(
-          triageEvents,
-          context.config,
-          eventRoot,
-        );
+        await emitReviewCleanGate(triageEvents, context.config, state.planKey);
         return 0;
       }
       case 'record-review': {
@@ -1308,6 +1338,17 @@ export async function runDeliveryOrchestrator(
           );
         }
 
+        // Emit record_review gate before recording outcome (emit-then-action)
+        const recordTarget =
+          state.tickets.find((t) => t.id === ticketId) ?? undefined;
+        if (recordTarget) {
+          await emitRecordReviewGate(
+            recordTarget,
+            context.config,
+            state.planKey,
+          );
+        }
+
         const nextState = await recordReview(
           state,
           cwd,
@@ -1320,11 +1361,7 @@ export async function runDeliveryOrchestrator(
         console.log(formatStatus(nextState, context.config));
         const recordEvents = eventsForRecordReviewCommand(nextState, ticketId);
         await emitNotificationWarnings(notifier, cwd, recordEvents);
-        await maybeEmitReviewCleanRecorded(
-          recordEvents,
-          context.config,
-          eventRoot,
-        );
+        await emitReviewCleanGate(recordEvents, context.config, state.planKey);
         return 0;
       }
       case 'advance': {
@@ -1344,12 +1381,7 @@ export async function runDeliveryOrchestrator(
           findPrimaryWorktreePath(wt, context.config),
         );
         console.log(formatStatus(nextState, context.config));
-        await emitSoaEventsForTransitions(
-          state,
-          nextState,
-          context.config,
-          eventRoot,
-        );
+        await emitGateForTransitions(state, nextState, context.config);
         const boundaryGuidance = formatAdvanceBoundaryGuidance(
           state,
           advancedState,
@@ -2294,58 +2326,158 @@ export function derivePlanKey(planPath: string): string {
 }
 
 export async function emitSoaEventForOpenPr(
-  state: DeliveryState,
-  config: ResolvedOrchestratorConfig,
-  projectRoot: string,
-  ticketId?: string,
+  _state: DeliveryState,
+  _config: ResolvedOrchestratorConfig,
+  _projectRoot: string,
+  _ticketId?: string,
 ): Promise<void> {
-  const events = eventsForOpenPrCommand(state, ticketId);
-  const windowEvent = events.find((e) => e.kind === 'review_window_ready');
-  if (windowEvent) {
-    await appendSoaEvent(
-      config,
-      projectRoot,
-      buildSoaEventLine('pr_review_window_opened', {
-        plan_key: windowEvent.planKey,
-        ticket_id: windowEvent.ticketId,
-      }),
-    );
-  }
+  // pr_review_window_opened NDJSON emission retired in P17.03.
+  // open_pr gate now emits to gate.json via emitOpenPrGate before openPullRequest.
+  // This function is retained for backwards-compatible call sites and will be removed in P17.04.
 }
 
 export async function emitSoaEventsForTransitions(
+  _previousState: DeliveryState,
+  _nextState: DeliveryState,
+  _config: ResolvedOrchestratorConfig,
+  _projectRoot: string,
+): Promise<void> {
+  // ticket_started and ticket_completed now emit to gate.json via emitGateForTransitions.
+  // This function is retained for backwards-compatible call sites and will be removed in P17.04.
+}
+
+export async function emitGateForTransitions(
   previousState: DeliveryState,
   nextState: DeliveryState,
   config: ResolvedOrchestratorConfig,
-  projectRoot: string,
 ): Promise<void> {
+  // Two-pass emission: completions first, starts second.
+  // This makes ticket_started the resident last-write-wins value in cook mode
+  // regardless of ticket array order.
   for (const previousTicket of previousState.tickets) {
     const nextTicket = nextState.tickets.find(
       (t) => t.id === previousTicket.id,
     );
     if (previousTicket.status !== 'done' && nextTicket?.status === 'done') {
-      await appendSoaEvent(
-        config,
-        projectRoot,
-        buildSoaEventLine('ticket_completed', {
-          plan_key: nextState.planKey,
-          ticket_id: nextTicket.id,
-        }),
-      );
+      await writeGateEvent(config, {
+        gate: GATE_NAMES.TICKET_COMPLETED,
+        planKey: nextState.planKey,
+        ticketId: nextTicket.id,
+      });
     }
+  }
+  for (const previousTicket of previousState.tickets) {
+    const nextTicket = nextState.tickets.find(
+      (t) => t.id === previousTicket.id,
+    );
     if (
       previousTicket.status !== 'in_progress' &&
       nextTicket?.status === 'in_progress'
     ) {
-      await appendSoaEvent(
-        config,
-        projectRoot,
-        buildSoaEventLine('ticket_started', {
-          plan_key: nextState.planKey,
-          ticket_id: nextTicket.id,
-        }),
-      );
+      await writeGateEvent(config, {
+        gate: GATE_NAMES.TICKET_STARTED,
+        planKey: nextState.planKey,
+        ticketId: nextTicket.id,
+      });
     }
+  }
+}
+
+export async function emitStartExitGate(
+  ticket: TicketState,
+  config: ResolvedOrchestratorConfig,
+  planKey: string,
+): Promise<void> {
+  // Conservative fallback: unknown/undefined redPolicy defaults to red_tdd
+  // (stricter gate) rather than silently treating it as skipped.
+  const gate =
+    ticket.redPolicy === 'required'
+      ? GATE_NAMES.RED_TDD
+      : ticket.redPolicy === 'skip'
+        ? GATE_NAMES.GREEN_TDD
+        : GATE_NAMES.RED_TDD;
+  await writeGateEvent(config, {
+    gate,
+    planKey,
+    ticketId: ticket.id,
+  });
+}
+
+export async function emitPostRedGate(
+  ticket: TicketState,
+  config: ResolvedOrchestratorConfig,
+  planKey: string,
+): Promise<void> {
+  await writeGateEvent(config, {
+    gate: GATE_NAMES.GREEN_TDD,
+    planKey,
+    ticketId: ticket.id,
+  });
+}
+
+export async function emitAdversarialReviewGate(
+  ticket: TicketState,
+  config: ResolvedOrchestratorConfig,
+  planKey: string,
+): Promise<void> {
+  await writeGateEvent(config, {
+    gate: GATE_NAMES.ADVERSARIAL_REVIEW,
+    planKey,
+    ticketId: ticket.id,
+  });
+}
+
+export async function emitOpenPrGate(
+  ticket: TicketState,
+  config: ResolvedOrchestratorConfig,
+  planKey: string,
+): Promise<void> {
+  await writeGateEvent(config, {
+    gate: GATE_NAMES.OPEN_PR,
+    planKey,
+    ticketId: ticket.id,
+  });
+}
+
+export async function emitPollReviewGate(
+  ticket: TicketState,
+  config: ResolvedOrchestratorConfig,
+  planKey: string,
+): Promise<void> {
+  await writeGateEvent(config, {
+    gate: GATE_NAMES.POLL_REVIEW,
+    planKey,
+    ticketId: ticket.id,
+  });
+}
+
+export async function emitRecordReviewGate(
+  ticket: TicketState,
+  config: ResolvedOrchestratorConfig,
+  planKey: string,
+): Promise<void> {
+  await writeGateEvent(config, {
+    gate: GATE_NAMES.RECORD_REVIEW,
+    planKey,
+    ticketId: ticket.id,
+  });
+}
+
+export async function emitReviewCleanGate(
+  events: DeliveryNotificationEvent[],
+  config: ResolvedOrchestratorConfig,
+  planKey: string,
+): Promise<void> {
+  const reviewEvent = events.find(
+    (e): e is Extract<DeliveryNotificationEvent, { kind: 'review_recorded' }> =>
+      e.kind === 'review_recorded' && e.outcome === 'clean',
+  );
+  if (reviewEvent) {
+    await writeGateEvent(config, {
+      gate: GATE_NAMES.REVIEW_CLEAN,
+      planKey,
+      ticketId: reviewEvent.ticketId,
+    });
   }
 }
 

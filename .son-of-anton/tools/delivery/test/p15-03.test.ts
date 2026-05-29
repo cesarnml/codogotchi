@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'bun:test';
@@ -64,8 +63,12 @@ function makeState(planKey: string, tickets: TicketState[]): DeliveryState {
 const PLAN_KEY = 'phase-15';
 const VALID_PR_OPENED_AT = '2026-05-23T09:05:47.337Z';
 
-describe('P15.03 — emitSoaEventForOpenPr (gate enabled)', () => {
-  it('emits pr_review_window_opened when ticket has prUrl and prOpenedAt', async () => {
+// Phase 17 retired the pr_review_window_opened NDJSON emission from
+// emitSoaEventForOpenPr. The open_pr gate now emits to gate.json via
+// emitOpenPrGate in the open-pr handler. The function is a no-op stub
+// retained for backwards-compatible call sites and will be removed in P17.04.
+describe('P15.03 — emitSoaEventForOpenPr (retired NDJSON emission)', () => {
+  it('does not create .soa/events.ndjson even when ticket has prUrl and prOpenedAt', async () => {
     const root = makeTmpDir();
     const config = enabledConfig();
     const ticket = makeTicket('P15.03', {
@@ -76,29 +79,10 @@ describe('P15.03 — emitSoaEventForOpenPr (gate enabled)', () => {
 
     await emitSoaEventForOpenPr(state, config, root, 'P15.03');
 
-    const content = await readFile(join(root, '.soa', 'events.ndjson'), 'utf8');
-    const lines = content.trim().split('\n');
-    expect(lines).toHaveLength(1);
-    const parsed = JSON.parse(lines[0]!);
-    expect(parsed.name).toBe('pr_review_window_opened');
-    expect(parsed.plan_key).toBe(PLAN_KEY);
-    expect(parsed.ticket_id).toBe('P15.03');
-  });
-
-  it('does not emit when ticket has prUrl but missing prOpenedAt', async () => {
-    const root = makeTmpDir();
-    const config = enabledConfig();
-    const ticket = makeTicket('P15.03', {
-      prUrl: 'https://github.com/org/repo/pull/99',
-    });
-    const state = makeState(PLAN_KEY, [ticket]);
-
-    await emitSoaEventForOpenPr(state, config, root, 'P15.03');
-
     expect(existsSync(join(root, '.soa', 'events.ndjson'))).toBe(false);
   });
 
-  it('does not emit when ticket has neither prUrl nor prOpenedAt', async () => {
+  it('does not create .soa/ for any ticket configuration (retired behavior)', async () => {
     const root = makeTmpDir();
     const config = enabledConfig();
     const ticket = makeTicket('P15.03');
