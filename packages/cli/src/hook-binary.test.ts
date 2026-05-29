@@ -324,26 +324,26 @@ describe("classifyEvent", () => {
     expect(out.readRun).toBe(0);
   });
 
-  it("requires 3 consecutive Read tool-uses to classify as thinking (Read streak)", () => {
+  it("classifies Read ×1–2 as reading, ×3+ as cramming (§7 streak)", () => {
     const first = classifyEvent(
       { origin: "claude_code", kind: "tool_use", name: "Read" },
       { readRun: 0 },
     );
-    expect(first.state).toBe("idle");
+    expect(first.state).toBe("reading");
     expect(first.readRun).toBe(1);
 
     const second = classifyEvent(
       { origin: "claude_code", kind: "tool_use", name: "Read" },
       { readRun: first.readRun },
     );
-    expect(second.state).toBe("idle");
+    expect(second.state).toBe("reading");
     expect(second.readRun).toBe(2);
 
     const third = classifyEvent(
       { origin: "claude_code", kind: "tool_use", name: "Read" },
       { readRun: second.readRun },
     );
-    expect(third.state).toBe("thinking");
+    expect(third.state).toBe("cramming");
     expect(third.readRun).toBe(3);
   });
 
@@ -356,40 +356,15 @@ describe("classifyEvent", () => {
     expect(after_edit.readRun).toBe(0);
   });
 
-  it("classifies SoA ticket_started as ticket_started", () => {
+  it("classifies unknown SoA gate events as idle (hook no longer reads SoA)", () => {
+    // Pure classifier: gate events from origin=soa fall through to idle since
+    // the SoA reader was removed. No gate states are emitted by classifyEvent.
     expect(
       classifyEvent(
         { origin: "soa", kind: "gate", name: "ticket_started" },
         { readRun: 0 },
       ).state,
-    ).toBe("ticket_started");
-  });
-
-  it("classifies SoA verification_failed as errored", () => {
-    expect(
-      classifyEvent(
-        { origin: "soa", kind: "gate", name: "verification_failed" },
-        { readRun: 0 },
-      ).state,
-    ).toBe("errored");
-  });
-
-  it("classifies SoA ticket_completed as ticket_completed", () => {
-    expect(
-      classifyEvent(
-        { origin: "soa", kind: "gate", name: "ticket_completed" },
-        { readRun: 0 },
-      ).state,
-    ).toBe("ticket_completed");
-  });
-
-  it("classifies SoA review_clean_recorded as review_clean", () => {
-    expect(
-      classifyEvent(
-        { origin: "soa", kind: "gate", name: "review_clean_recorded" },
-        { readRun: 0 },
-      ).state,
-    ).toBe("review_clean");
+    ).toBe("idle");
   });
 
   it("classifies session_start with no prior activity as idle", () => {
@@ -525,36 +500,14 @@ describe("classifyEvent", () => {
 
 describe("runHook", () => {
   let home: string;
-  let originalClaudeProjectDir: string | undefined;
-  let originalCodexProjectDir: string | undefined;
 
   beforeEach(async () => {
     home = mkdtempSync(join(tmpdir(), "codogotchi-hook-"));
     await mkdir(home, { recursive: true });
-    // Isolate runHook's SoA-root resolution from the invoking process's real
-    // working directory. resolveSoaRoot() consults CLAUDE_PROJECT_DIR /
-    // CODEX_PROJECT_DIR / CWD; without redirection, a worktree that contains
-    // a real `.soa/events.ndjson` (e.g. when these tests run inside a
-    // delivery orchestrator worktree) reclassifies the activity state from
-    // whatever the test injected to whatever the last real SoA gate event
-    // was. Point CLAUDE_PROJECT_DIR at the fresh tmpdir so SoA root resolves
-    // to an empty location for the duration of the test.
-    originalClaudeProjectDir = process.env.CLAUDE_PROJECT_DIR;
-    originalCodexProjectDir = process.env.CODEX_PROJECT_DIR;
-    process.env.CLAUDE_PROJECT_DIR = home;
-    delete process.env.CODEX_PROJECT_DIR;
   });
 
   afterEach(() => {
     rmSync(home, { recursive: true, force: true });
-    if (originalClaudeProjectDir === undefined) {
-      delete process.env.CLAUDE_PROJECT_DIR;
-    } else {
-      process.env.CLAUDE_PROJECT_DIR = originalClaudeProjectDir;
-    }
-    if (originalCodexProjectDir !== undefined) {
-      process.env.CODEX_PROJECT_DIR = originalCodexProjectDir;
-    }
   });
 
   it("writes state.json on first event with default thriving overlay when no profile", async () => {
@@ -609,26 +562,28 @@ describe("runHook", () => {
     expect(state.hp_overlay).toBe("near_death");
   });
 
-  it("classifies SoA gate event as ticket_completed", async () => {
+  it("SoA gate events produce idle (hook no longer reads SoA events)", async () => {
     await runHook(
       { origin: "soa", kind: "gate", name: "ticket_completed" },
       { home, now: FIXED_NOW },
     );
-    expect(readState(home).activity_state).toBe("ticket_completed");
+    expect(readState(home).activity_state).toBe("idle");
   });
 
-  it("tracks consecutive Read runs across invocations and switches to thinking", async () => {
+  it("tracks consecutive Read runs across invocations: ×1–2 reading, ×3 cramming", async () => {
     const input: HookInput = {
       origin: "claude_code",
       kind: "tool_use",
       name: "Read",
     };
     await runHook(input, { home, now: FIXED_NOW });
-    await runHook(input, { home, now: FIXED_NOW });
-    expect(readState(home).activity_state).toBe("idle");
+    expect(readState(home).activity_state).toBe("reading");
 
     await runHook(input, { home, now: FIXED_NOW });
-    expect(readState(home).activity_state).toBe("thinking");
+    expect(readState(home).activity_state).toBe("reading");
+
+    await runHook(input, { home, now: FIXED_NOW });
+    expect(readState(home).activity_state).toBe("cramming");
   });
 
   it("serializes concurrent Read runs before updating counters", async () => {
@@ -644,7 +599,7 @@ describe("runHook", () => {
       runHook(input, { home, now: FIXED_NOW }),
     ]);
 
-    expect(readState(home).activity_state).toBe("thinking");
+    expect(readState(home).activity_state).toBe("cramming");
   });
 
   it("resets Read run when an Edit interrupts across invocations", async () => {
@@ -660,8 +615,8 @@ describe("runHook", () => {
       { home, now: FIXED_NOW },
     );
     await runHook(read, { home, now: FIXED_NOW });
-    // One Read after reset is not enough for thinking.
-    expect(readState(home).activity_state).toBe("idle");
+    // One Read after reset → reading (not idle; §7 Read ×1 = reading).
+    expect(readState(home).activity_state).toBe("reading");
   });
 
   it("writes STATE_JSON_SCHEMA_VERSION for a Stop event", async () => {
@@ -805,236 +760,15 @@ describe("runHook", () => {
     const state = readState(home);
     expect(state.tool_command).toBeUndefined();
   });
-
-  it("gate state persists through subsequent tool_use events until cleared", async () => {
-    // 1. ticket_started gate fires → state shows ticket_started
-    await runHook(
-      { origin: "soa", kind: "gate", name: "ticket_started" },
-      { home, now: FIXED_NOW },
-    );
-    expect(readState(home).activity_state).toBe("ticket_started");
-
-    // 2. Bash tool_use (heuristic idle) → state still shows ticket_started (sticky)
-    await runHook(
-      {
-        origin: "claude_code",
-        kind: "tool_use",
-        name: "Bash",
-        command: "ls -la",
-      },
-      { home, now: FIXED_NOW },
-    );
-    expect(readState(home).activity_state).toBe("ticket_started");
-
-    // 3. Stop event → state shows standby (gate cleared)
-    await runHook({ hook_event_name: "Stop" } as HookInput, {
-      home,
-      now: FIXED_NOW,
-    });
-    expect(readState(home).activity_state).toBe("standby");
-  });
-
-  it("a new gate event overwrites the sticky gate state", async () => {
-    // First gate: ticket_started → ticket_started (sticky)
-    await runHook(
-      { origin: "soa", kind: "gate", name: "ticket_started" },
-      { home, now: FIXED_NOW },
-    );
-    expect(readState(home).activity_state).toBe("ticket_started");
-
-    // tool_use confirms sticky gate is active
-    await runHook(
-      { origin: "claude_code", kind: "tool_use", name: "Bash", command: "ls" },
-      { home, now: FIXED_NOW },
-    );
-    expect(readState(home).activity_state).toBe("ticket_started");
-
-    // Second gate: subagent_invoked → adversarial_review (overwrites sticky)
-    await runHook(
-      { origin: "soa", kind: "gate", name: "subagent_invoked" },
-      { home, now: FIXED_NOW },
-    );
-    expect(readState(home).activity_state).toBe("adversarial_review");
-
-    // Subsequent tool_use now sticks to adversarial_review
-    await runHook(
-      { origin: "claude_code", kind: "tool_use", name: "Bash", command: "ls" },
-      { home, now: FIXED_NOW },
-    );
-    expect(readState(home).activity_state).toBe("adversarial_review");
-  });
-
-  // P6.05: workspace_roots fallback
-  it("Cursor afterFileEdit with workspace_roots uses workspace_roots[0] for SoA resolution", async () => {
-    const projectRoot = mkdtempSync(join(tmpdir(), "codogotchi-cursor-root-"));
-    try {
-      await mkdir(join(projectRoot, ".soa"), { recursive: true });
-      writeFileSync(
-        join(projectRoot, ".soa", "events.ndjson"),
-        `${JSON.stringify({ name: "ticket_started", ts: "2026-05-18T16:00:00Z" })}\n`,
-      );
-      // No CLAUDE_PROJECT_DIR or CODEX_PROJECT_DIR — workspace_roots[0] must be used
-      await runHook(
-        {
-          hook_event_name: "afterFileEdit",
-          workspace_roots: [projectRoot],
-        } as HookInput,
-        {
-          home,
-          now: FIXED_NOW,
-          env: {},
-          cwd: tmpdir(),
-        },
-      );
-      const state = readState(home);
-      // SoA ticket_started event resolved via workspace_roots[0]
-      expect(state.activity_state).toBe("ticket_started");
-      expect(state.source_event.origin).toBe("soa");
-    } finally {
-      rmSync(projectRoot, { recursive: true, force: true });
-    }
-  });
 });
 
-describe("runHook + SoA gate precedence", () => {
-  let home: string;
-  let projectRoot: string;
-
-  beforeEach(async () => {
-    home = mkdtempSync(join(tmpdir(), "codogotchi-hook-"));
-    projectRoot = mkdtempSync(join(tmpdir(), "codogotchi-soa-root-"));
-    await mkdir(home, { recursive: true });
-    await mkdir(join(projectRoot, ".soa"), { recursive: true });
-  });
-
-  afterEach(() => {
-    rmSync(home, { recursive: true, force: true });
-    rmSync(projectRoot, { recursive: true, force: true });
-  });
-
-  it("falls back to tool-call state when .soa/events.ndjson is absent", async () => {
-    // projectRoot has .soa/ but no events.ndjson — silent fall-through.
-    await runHook(
-      { origin: "claude_code", kind: "tool_use", name: "Edit" },
-      {
-        home,
-        now: FIXED_NOW,
-        env: { CLAUDE_PROJECT_DIR: projectRoot },
-        cwd: projectRoot,
-      },
-    );
-    const state = readState(home);
-    expect(state.activity_state).toBe("implementing");
-    expect(state.source_event.origin).toBe("claude_code");
-  });
-
-  it("uses the latest fresh SoA event activity state over tool-call state", async () => {
-    writeFileSync(
-      join(projectRoot, ".soa", "events.ndjson"),
-      `${JSON.stringify({
-        name: "ticket_started",
-        ts: "2026-05-18T16:00:00Z",
-      })}\n${JSON.stringify({
-        name: "verification_failed",
-        ts: "2026-05-18T16:00:01Z",
-      })}\n`,
-    );
-    await runHook(
-      { origin: "claude_code", kind: "tool_use", name: "Edit" },
-      {
-        home,
-        now: FIXED_NOW,
-        env: { CLAUDE_PROJECT_DIR: projectRoot },
-        cwd: projectRoot,
-      },
-    );
-    const state = readState(home);
-    // Latest mapped SoA event wins: verification_failed → errored.
-    expect(state.activity_state).toBe("errored");
-    expect(state.source_event.origin).toBe("soa");
-    expect(state.source_event.kind).toBe("gate");
-    expect(state.source_event.name).toBe("verification_failed");
-  });
-
-  it("does not re-consume SoA events on the next invocation (tail offset)", async () => {
-    writeFileSync(
-      join(projectRoot, ".soa", "events.ndjson"),
-      `${JSON.stringify({ name: "ticket_started", ts: "2026-05-18T16:00:00Z" })}\n`,
-    );
-    await runHook(
-      { origin: "claude_code", kind: "tool_use", name: "Edit" },
-      {
-        home,
-        now: FIXED_NOW,
-        env: { CLAUDE_PROJECT_DIR: projectRoot },
-        cwd: projectRoot,
-      },
-    );
-    // Same file, same content. Second invocation has no fresh SoA events
-    // because the tail offset is past the existing line.
-    // The sticky gate (ticket_started) persists and overrides the Write heuristic —
-    // the source_event stays claude_code, confirming no re-consumption.
-    await runHook(
-      { origin: "claude_code", kind: "tool_use", name: "Write" },
-      {
-        home,
-        now: FIXED_NOW,
-        env: { CLAUDE_PROJECT_DIR: projectRoot },
-        cwd: projectRoot,
-      },
-    );
-    const state = readState(home);
-    expect(state.activity_state).toBe("ticket_started");
-    expect(state.source_event.origin).toBe("claude_code");
-  });
-
-  it("fresh SoA ticket_started overrides Stop standby classification", async () => {
-    writeFileSync(
-      join(projectRoot, ".soa", "events.ndjson"),
-      `${JSON.stringify({ name: "ticket_started", ts: "2026-05-18T16:00:00Z" })}\n`,
-    );
-    await runHook({ hook_event_name: "Stop" } as HookInput, {
-      home,
-      now: FIXED_NOW,
-      env: { CLAUDE_PROJECT_DIR: projectRoot },
-      cwd: projectRoot,
-    });
-    const state = readState(home);
-    expect(state.activity_state).toBe("ticket_started");
-    expect(state.source_event.origin).toBe("soa");
-    expect(state.source_event.name).toBe("ticket_started");
-  });
-
-  it("ignores SoA events with unknown event names", async () => {
-    writeFileSync(
-      join(projectRoot, ".soa", "events.ndjson"),
-      `${JSON.stringify({
-        name: "some_unrecognized_event",
-        ts: "2026-05-18T16:00:00Z",
-      })}\n`,
-    );
-    await runHook(
-      { origin: "claude_code", kind: "tool_use", name: "Edit" },
-      {
-        home,
-        now: FIXED_NOW,
-        env: { CLAUDE_PROJECT_DIR: projectRoot },
-        cwd: projectRoot,
-      },
-    );
-    const state = readState(home);
-    expect(state.activity_state).toBe("implementing");
-    expect(state.source_event.origin).toBe("claude_code");
-  });
-});
-
-describe("P7.02 §7 pure classifier — [red]", () => {
+describe("P7.02 §7 pure classifier", () => {
   it("classifies single Read as reading (not idle)", () => {
     const out = classifyEvent(
       { origin: "claude_code", kind: "tool_use", name: "Read" },
       { readRun: 0 },
     );
-    // [red] Read ×1 must emit reading, not idle
+    // Read ×1 must emit reading, not idle
     expect(out.state).toBe("reading");
     expect(out.readRun).toBe(1);
   });
@@ -1048,7 +782,7 @@ describe("P7.02 §7 pure classifier — [red]", () => {
       { origin: "claude_code", kind: "tool_use", name: "Read" },
       { readRun: first.readRun },
     );
-    // [red] Read ×2 must still emit reading (streak threshold is ×3 for cramming)
+    // Read ×2 must still emit reading (streak threshold is ×3 for cramming)
     expect(second.state).toBe("reading");
     expect(second.readRun).toBe(2);
   });
@@ -1058,13 +792,13 @@ describe("P7.02 §7 pure classifier — [red]", () => {
       { origin: "claude_code", kind: "tool_use", name: "Read" },
       { readRun: 2 },
     );
-    // [red] Read ×3+ must emit cramming, not thinking
+    // Read ×3+ must emit cramming, not thinking
     expect(third.state).toBe("cramming");
     expect(third.readRun).toBe(3);
   });
 
   it("classifies Bash 'sed -i' as implementing (write command, not thinking)", () => {
-    // [red] sed -i is a write/mutate command; the thinking bucket covers read-only sed
+    // sed -i is a write/mutate command; sed is not in §7 thinking list
     const out = classifyEvent(
       {
         origin: "claude_code",
@@ -1078,7 +812,7 @@ describe("P7.02 §7 pure classifier — [red]", () => {
   });
 
   it("SoA events.ndjson does not override tool-use state after hook-binary drops the reader", async () => {
-    // [red] After P7.02 removes resolveSoaRoot/readSoaEventsSince, an Edit event
+    // After P7.02 removes resolveSoaRoot/readSoaEventsSince, an Edit event
     // must produce implementing even when a .soa/events.ndjson with ticket_started exists.
     const home = mkdtempSync(join(tmpdir(), "codogotchi-p702-red-"));
     const projectRoot = mkdtempSync(join(tmpdir(), "codogotchi-soa-p702-red-"));
@@ -1091,15 +825,10 @@ describe("P7.02 §7 pure classifier — [red]", () => {
       );
       await runHook(
         { origin: "claude_code", kind: "tool_use", name: "Edit" },
-        {
-          home,
-          now: FIXED_NOW,
-          env: { CLAUDE_PROJECT_DIR: projectRoot },
-          cwd: projectRoot,
-        },
+        { home, now: FIXED_NOW },
       );
       const state = readState(home);
-      // [red] pure classifier: Edit → implementing, SoA file is ignored
+      // pure classifier: Edit → implementing; .soa/events.ndjson is never read
       expect(state.activity_state).toBe("implementing");
       expect(state.source_event.origin).toBe("claude_code");
     } finally {
