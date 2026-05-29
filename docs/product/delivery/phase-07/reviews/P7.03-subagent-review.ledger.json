@@ -64,6 +64,21 @@
       "primaryAgent": "claude",
       "runnerSelfReport": null,
       "fallbackFrom": null
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "08854da175cfe8f0f417971ffa521e326637e0e7",
+      "outcome": "deferred",
+      "completedAt": "2026-05-29T16:59:39.004Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "reason": "False-positive: report Actionable findings section says None; reconciler tripped on --- horizontal rules the subagent added between sections",
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
     }
   ]
 }
