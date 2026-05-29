@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { ACTIVITY_STATES } from "./animation-state";
 import {
   parseStateJson,
   STATE_JSON_SCHEMA_VERSION,
@@ -167,6 +168,77 @@ describe("backward compatibility for v1 and v2 payloads", () => {
 describe("forward-compat refusal", () => {
   it("rejects schema_version 4 (one ahead of v3)", () => {
     const payload = { ...baseV1Payload, schema_version: 4 };
+    expect(() => parseStateJson(payload)).toThrow();
+  });
+});
+
+describe("schema v4 vocabulary — [red]", () => {
+  it("STATE_JSON_SCHEMA_VERSION is 4", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(4);
+  });
+
+  it("v4 hook states are members of ACTIVITY_STATES", () => {
+    const states = ACTIVITY_STATES as readonly string[];
+    expect(states).toContain("testing");
+    expect(states).toContain("thinking");
+    expect(states).toContain("reading");
+    expect(states).toContain("cramming");
+    expect(states).toContain("waiting_for_input");
+  });
+
+  it("v4 SoA gate states are members of ACTIVITY_STATES", () => {
+    const states = ACTIVITY_STATES as readonly string[];
+    expect(states).toContain("ticket_started");
+    expect(states).toContain("ticket_completed");
+    expect(states).toContain("review_clean");
+    expect(states).toContain("red_tdd");
+    expect(states).toContain("green_tdd");
+    expect(states).toContain("adversarial_review");
+    expect(states).toContain("open_pr");
+    expect(states).toContain("poll_review");
+    expect(states).toContain("record_review");
+    expect(states).toContain("advance");
+  });
+
+  it("deleted states are not members of ACTIVITY_STATES", () => {
+    const states = ACTIVITY_STATES as readonly string[];
+    expect(states).not.toContain("hyped");
+    expect(states).not.toContain("celebrating");
+    expect(states).not.toContain("running-tests");
+    expect(states).not.toContain("reviewing");
+    expect(states).not.toContain("pushing");
+    expect(states).not.toContain("focused");
+    expect(states).not.toContain("nervous");
+    expect(states).not.toContain("panicking");
+    expect(states).not.toContain("ascended");
+    expect(states).not.toContain("calling_for_backup");
+    expect(states).not.toContain("waiting");
+  });
+
+  it("parseStateJson accepts schema_version 4", () => {
+    const payload = {
+      ...baseV1Payload,
+      schema_version: 4,
+      activity_state: "idle",
+    };
+    expect(() => parseStateJson(payload)).not.toThrow();
+  });
+
+  it("parseStateJson rejects schema_version 5", () => {
+    const payload = {
+      ...baseV1Payload,
+      schema_version: 5,
+      activity_state: "idle",
+    };
+    expect(() => parseStateJson(payload)).toThrow();
+  });
+
+  it("payload with removed state hyped fails to parse under v4", () => {
+    const payload = {
+      ...baseV1Payload,
+      schema_version: 4,
+      activity_state: "hyped",
+    };
     expect(() => parseStateJson(payload)).toThrow();
   });
 });

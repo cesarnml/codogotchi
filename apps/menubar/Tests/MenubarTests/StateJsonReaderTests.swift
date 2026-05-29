@@ -272,4 +272,69 @@ final class StateJsonReaderTests: XCTestCase {
 		}
 		XCTAssertEqual(snapshot.activityState, .idle)
 	}
+
+	// MARK: - Schema v4 vocabulary (P7.01 — [red])
+
+	func testExpectedSchemaVersionIsV4() {
+		// [red] EXPECTED_STATE_SCHEMA_VERSION must be 4 after the v4 bump
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 4)
+	}
+
+	func testTicketStartedIsAValidV4State() {
+		// [red] ticket_started must be a first-class enum case in v4
+		XCTAssertNotNil(ActivityState(rawValue: "ticket_started"))
+	}
+
+	func testTestingIsAValidV4State() {
+		// [red] testing replaces running-tests in v4
+		XCTAssertNotNil(ActivityState(rawValue: "testing"))
+	}
+
+	func testHypedIsNotAV4State() {
+		// [red] hyped is removed from the closed enum in v4
+		XCTAssertNil(ActivityState(rawValue: "hyped"))
+	}
+
+	func testRunningTestsIsNotAV4State() {
+		// [red] running-tests is replaced by testing in v4
+		XCTAssertNil(ActivityState(rawValue: "running-tests"))
+	}
+
+	func testSchemaVersion4ParsesSuccessfully() throws {
+		// [red] a schema_version 4 payload must parse successfully after the v4 bump
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("schema-v4-ok-\(UUID().uuidString).json")
+		try #"{"schema_version": 4, "activity_state": "idle", "updated_at": "2026-05-29T00:00:00.000Z"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.schemaVersion, 4)
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	func testSchemaVersion5FailsWithSchemaNewer() throws {
+		// [red] v5 must be refused after the v4 bump (one ahead of expected)
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("schema-v5-\(UUID().uuidString).json")
+		try #"{"schema_version": 5, "activity_state": "idle", "updated_at": "x"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .failure(let error) = result else {
+			XCTFail("expected failure, got \(result)")
+			return
+		}
+		guard case .schemaNewer(let got, let expected) = error else {
+			XCTFail("expected schemaNewer, got \(error)")
+			return
+		}
+		XCTAssertEqual(got, 5)
+		XCTAssertEqual(expected, 4)
+	}
 }
