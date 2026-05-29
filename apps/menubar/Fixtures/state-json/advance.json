@@ -1,0 +1,12 @@
+{
+  "schema_version": 4,
+  "activity_state": "advance",
+  "hp_overlay": "thriving",
+  "hp": 90,
+  "updated_at": "2026-05-29T00:00:00.000Z",
+  "source_event": {
+    "origin": "soa",
+    "kind": "gate",
+    "name": "advance"
+  }
+}

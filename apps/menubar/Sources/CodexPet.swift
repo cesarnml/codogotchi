@@ -60,19 +60,17 @@ final class CodexPet {
 	///
 	/// - `.idle`           → row 0 (standing/idle chibi poses)
 	/// - `.implementing`   → row 7 (seated chibi with laptop + glasses)
-	/// - `.runningTests`   → row 8 (bottom-row pose variants)
-	/// - `.waiting`        → row 6 (Codex-sheet waiting poses — P3.03)
-	/// - `.standby`        → row 3 (Codex-sheet standby poses — renamed from requesting_input in P6.01)
-	/// - `.errored`        → row 5 (Codex-sheet errored poses — P3.03)
+	/// - `.testing`        → row 7 (shared running loop — visual compromise until lite sheet ships)
+	/// - `.thinking`       → row 8 (explore/review bucket — bottom-row pose variants)
+	/// - `.standby`        → row 3 (Codex-sheet standby poses)
+	/// - `.errored`        → row 5 (Codex-sheet errored poses)
 	///
-	/// `.celebrating` was row 4 in Phase 02 (Codex `jumping` row). It is
-	/// removed here — the codogotchi sheet owns it from P3.04 onward. Between
-	/// P3.03 and P3.04, `.celebrating` renders as `.idle` (honest intermediate).
+	/// Rows 6 (`waiting`) was retired with schema v4; removed from map.
 	static let rowMap: [ActivityState: RowSpec] = [
 		.idle: RowSpec(rowIndex: 0, frameCount: 8),
 		.implementing: RowSpec(rowIndex: 7, frameCount: 6),
-		.runningTests: RowSpec(rowIndex: 8, frameCount: 4),
-		.waiting: RowSpec(rowIndex: 6, frameCount: 8),
+		.testing: RowSpec(rowIndex: 7, frameCount: 6),
+		.thinking: RowSpec(rowIndex: 8, frameCount: 4),
 		.standby: RowSpec(rowIndex: 3, frameCount: 8),
 		.errored: RowSpec(rowIndex: 5, frameCount: 8),
 	]

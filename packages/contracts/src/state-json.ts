@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { activityStateSchema, hpOverlaySchema } from "./animation-state";
 
-export const STATE_JSON_SCHEMA_VERSION = 3;
+export const STATE_JSON_SCHEMA_VERSION = 4;
 
 // Forward-compat policy from docs/contracts/animation-state-vocabulary.md:
 // renderers accept any `schema_version` ≤ EXPECTED_VERSION (this constant),
@@ -55,7 +55,6 @@ export const stateJsonV1Schema = z.object({
     })
     .optional(),
   tool_command: z.string().optional(),
-  work_mode: z.enum(["thinking", "implementing", "testing"]).optional(),
 });
 export type StateJsonV1 = z.infer<typeof stateJsonV1Schema>;
 

@@ -5,8 +5,8 @@ import Foundation
 ///
 /// Reads `pet.json` + `codogotchi-spritesheet.webp` from `petDirectory`
 /// (default `~/.codogotchi/pets/maew/`) and exposes a hardcoded
-/// `ActivityState → RowSpec` table for the nine SoA-owned states on a
-/// **24 columns × 9 rows** grid per the Phase 03 contract.
+/// `ActivityState → RowSpec` table for the SoA gate states on a
+/// **24 columns × 9 rows** grid (v4 schema mapping).
 ///
 /// Missing spritesheet is a soft failure: `init` succeeds and `frames(for:)`
 /// returns an empty array for all states, letting the renderer fall back to
@@ -19,28 +19,27 @@ final class CodogotchiPet {
 	/// (soft degrade). Non-nil when the sheet loaded successfully.
 	let spritesheet: NSImage?
 
-	/// Codogotchi-sheet row map. All nine SoA-owned states map to 24-frame rows.
+	/// Codogotchi-sheet row map for v4 schema SoA gate states.
 	///
-	/// Row indices per the Phase 03 contract's Codogotchi Sheet table:
-	/// - `.celebrating`     → row 0 (24 frames)
-	/// - `.hyped`           → row 1 (24 frames)
-	/// - `.focused`         → row 2 (24 frames)
-	/// - `.nervous`         → row 3 (24 frames)
-	/// - `.ascended`        → row 4 (24 frames)
-	/// - `.callingForBackup`→ row 5 (24 frames)
-	/// - `.panicking`       → row 6 (24 frames)
-	/// - `.reviewing`       → row 7 (24 frames)
-	/// - `.pushing`         → row 8 (24 frames)
+	/// Permanent rows (art ships with this phase):
+	/// - `.reviewClean` / `.ticketCompleted` → row 0 (24 frames, shared)
+	/// - `.ticketStarted`    → row 1 (24 frames)
+	/// - `.adversarialReview`→ row 5 (24 frames)
+	///
+	/// Temporary placeholder rows (reuse existing art until codogotchi-soa-spritesheet.webp ships):
+	/// - `.greenTdd`    → row 2 (24 frames) — TEMPORARY: repurposes focused row
+	/// - `.redTdd`      → row 3 (24 frames) — TEMPORARY: repurposes nervous row
+	/// - `.openPr`      → row 4 (24 frames) — TEMPORARY: repurposes ascended row
+	/// - `.recordReview`→ row 8 (24 frames) — TEMPORARY: repurposes pushing row
 	static let rowMap: [ActivityState: RowSpec] = [
-		.celebrating: RowSpec(rowIndex: 0, frameCount: 24),
-		.hyped: RowSpec(rowIndex: 1, frameCount: 24),
-		.focused: RowSpec(rowIndex: 2, frameCount: 24),
-		.nervous: RowSpec(rowIndex: 3, frameCount: 24),
-		.ascended: RowSpec(rowIndex: 4, frameCount: 24),
-		.callingForBackup: RowSpec(rowIndex: 5, frameCount: 24),
-		.panicking: RowSpec(rowIndex: 6, frameCount: 24),
-		.reviewing: RowSpec(rowIndex: 7, frameCount: 24),
-		.pushing: RowSpec(rowIndex: 8, frameCount: 24),
+		.reviewClean: RowSpec(rowIndex: 0, frameCount: 24),
+		.ticketCompleted: RowSpec(rowIndex: 0, frameCount: 24),
+		.ticketStarted: RowSpec(rowIndex: 1, frameCount: 24),
+		.greenTdd: RowSpec(rowIndex: 2, frameCount: 24),  // TEMPORARY placeholder
+		.redTdd: RowSpec(rowIndex: 3, frameCount: 24),  // TEMPORARY placeholder
+		.openPr: RowSpec(rowIndex: 4, frameCount: 24),  // TEMPORARY placeholder
+		.adversarialReview: RowSpec(rowIndex: 5, frameCount: 24),
+		.recordReview: RowSpec(rowIndex: 8, frameCount: 24),  // TEMPORARY placeholder
 	]
 
 	/// Codogotchi-sheet grid dimensions: 24 columns × 9 rows.

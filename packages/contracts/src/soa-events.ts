@@ -44,15 +44,15 @@ export type SoaEventLine = z.infer<typeof soaEventLineSchema>;
  */
 export const SOA_EVENT_TO_ACTIVITY_STATE: Record<SoaEventName, ActivityState> =
   {
-    ticket_started: "hyped",
-    flow_state_entered: "focused",
-    risky_diff_detected: "nervous",
-    pr_review_window_opened: "waiting",
-    ticket_completed: "celebrating",
-    review_clean_recorded: "celebrating",
-    stage_advanced: "ascended",
-    subagent_invoked: "calling_for_backup",
-    verification_failed: "panicking",
+    ticket_started: "ticket_started",
+    flow_state_entered: "ticket_started",
+    risky_diff_detected: "errored",
+    pr_review_window_opened: "poll_review",
+    ticket_completed: "ticket_completed",
+    review_clean_recorded: "review_clean",
+    stage_advanced: "advance",
+    subagent_invoked: "adversarial_review",
+    verification_failed: "errored",
   };
 
 export function mapSoaEventToActivityState(

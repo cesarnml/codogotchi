@@ -1,21 +1,28 @@
 import { z } from "zod";
 
 export const ACTIVITY_STATES = [
+  // Floor / hook states
   "idle",
-  "implementing",
-  "running-tests",
-  "reviewing",
-  "pushing",
-  "hyped",
-  "focused",
-  "nervous",
-  "waiting",
-  "celebrating",
-  "ascended",
-  "calling_for_backup",
-  "panicking",
   "standby",
   "errored",
+  "waiting_for_input",
+  // Heuristic-tier hook states
+  "implementing",
+  "testing",
+  "thinking",
+  "reading",
+  "cramming",
+  // SoA gate states
+  "ticket_started",
+  "red_tdd",
+  "green_tdd",
+  "adversarial_review",
+  "open_pr",
+  "poll_review",
+  "record_review",
+  "advance",
+  "ticket_completed",
+  "review_clean",
 ] as const;
 
 export const activityStateSchema = z.enum(ACTIVITY_STATES);
@@ -31,25 +38,31 @@ export const HP_OVERLAY_STATES = [
 export const hpOverlaySchema = z.enum(HP_OVERLAY_STATES);
 export type HpOverlay = z.infer<typeof hpOverlaySchema>;
 
+// Reliable: hook or SoA-gate driven; no heuristic inference required.
 export const RELIABLE_ACTIVITY_STATES = [
   "idle",
-  "hyped",
-  "focused",
-  "nervous",
-  "waiting",
-  "celebrating",
-  "ascended",
-  "calling_for_backup",
-  "panicking",
   "standby",
   "errored",
+  "waiting_for_input",
+  "ticket_started",
+  "red_tdd",
+  "green_tdd",
+  "adversarial_review",
+  "open_pr",
+  "poll_review",
+  "record_review",
+  "advance",
+  "ticket_completed",
+  "review_clean",
 ] as const satisfies readonly ActivityState[];
 
+// Heuristic: inferred from tool-use patterns; may occasionally misclassify.
 export const HEURISTIC_ACTIVITY_STATES = [
   "implementing",
-  "running-tests",
-  "reviewing",
-  "pushing",
+  "testing",
+  "thinking",
+  "reading",
+  "cramming",
 ] as const satisfies readonly ActivityState[];
 
 export function hpToOverlay(hp: number): HpOverlay {

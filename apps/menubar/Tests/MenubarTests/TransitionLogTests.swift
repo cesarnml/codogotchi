@@ -98,7 +98,7 @@ final class TransitionLogTests: XCTestCase {
 		let log = TransitionLog(path: path, clock: { Date() })
 
 		log.recordTransition(
-			snapshot: makeSnapshot(.runningTests, sourceEvent: nil),
+			snapshot: makeSnapshot(.testing, sourceEvent: nil),
 			previousState: .implementing
 		)
 
@@ -213,7 +213,7 @@ final class TransitionLogTests: XCTestCase {
 		let preRotateSize = (try FileManager.default.attributesOfItem(atPath: path.path)[.size] as? Int) ?? 0
 		XCTAssertGreaterThan(preRotateSize, 10 * 1024 * 1024)
 
-		log.recordTransition(snapshot: makeSnapshot(.celebrating), previousState: .idle)
+		log.recordTransition(snapshot: makeSnapshot(.ticketCompleted), previousState: .idle)
 
 		XCTAssertTrue(
 			FileManager.default.fileExists(atPath: backup.path),
@@ -230,7 +230,7 @@ final class TransitionLogTests: XCTestCase {
 		// One more rotation must overwrite the existing backup, not create
 		// `.log.2`. Pad again and trigger.
 		try Data(seed.utf8).write(to: path)
-		log.recordTransition(snapshot: makeSnapshot(.idle), previousState: .celebrating)
+		log.recordTransition(snapshot: makeSnapshot(.idle), previousState: .ticketCompleted)
 		let secondBackup = dir.appendingPathComponent("state-transitions.log.2")
 		XCTAssertFalse(
 			FileManager.default.fileExists(atPath: secondBackup.path),

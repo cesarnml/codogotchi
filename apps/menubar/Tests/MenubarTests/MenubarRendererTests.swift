@@ -87,10 +87,10 @@ final class MenubarRendererTests: XCTestCase {
 			"renderer must hold the implementing row frame source"
 		)
 
-		// Second transition: .celebrating resolves from CodogotchiPet (24 frames),
+		// Second transition: .ticketCompleted resolves from CodogotchiPet (24 frames),
 		// so the hero index (3) is well within bounds.
-		renderer.update(state: .celebrating, visualMode: .normal)
-		XCTAssertEqual(renderer.currentStateForTesting, .celebrating)
+		renderer.update(state: .ticketCompleted, visualMode: .normal)
+		XCTAssertEqual(renderer.currentStateForTesting, .ticketCompleted)
 		XCTAssertEqual(
 			renderer.currentFrameIndexForTesting,
 			MenubarRenderer.heroFrameIndex,
@@ -98,8 +98,8 @@ final class MenubarRendererTests: XCTestCase {
 		)
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
-			codogotchiPet.frames(for: .celebrating).count,
-			"celebrating must resolve from the codogotchi sheet"
+			codogotchiPet.frames(for: .ticketCompleted).count,
+			"ticketCompleted must resolve from the codogotchi sheet"
 		)
 	}
 
@@ -126,7 +126,7 @@ final class MenubarRendererTests: XCTestCase {
 		)
 
 		// A real state change repaints exactly once.
-		renderer.update(state: .runningTests, visualMode: .normal)
+		renderer.update(state: .testing, visualMode: .normal)
 		XCTAssertEqual(
 			paintCount,
 			paintsAfterFirstChange + 1,
@@ -134,7 +134,7 @@ final class MenubarRendererTests: XCTestCase {
 		)
 
 		// A visual-mode change with the same state repaints exactly once.
-		renderer.update(state: .runningTests, visualMode: .desaturated)
+		renderer.update(state: .testing, visualMode: .desaturated)
 		XCTAssertEqual(
 			paintCount,
 			paintsAfterFirstChange + 2,
@@ -165,36 +165,36 @@ final class MenubarRendererTests: XCTestCase {
 
 	// MARK: - Composite resolution
 
-	func testCompositeResolutionWaitingUsesCodexSheet() throws {
+	func testCompositeResolutionThinkingUsesCodexSheet() throws {
 		let codexPet = try makeCodexPet()
 		let codogotchiPet = try makeCodogotchiPet()
 		let renderer = try MenubarRenderer(codexPet: codexPet, codogotchiPet: codogotchiPet, sink: { _ in })
 
-		renderer.update(state: .waiting, visualMode: .normal)
+		renderer.update(state: .thinking, visualMode: .normal)
 
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
-			codexPet.frames(for: .waiting).count,
-			".waiting is in CodexPet.rowMap — must resolve from Codex sheet first"
+			codexPet.frames(for: .thinking).count,
+			".thinking is in CodexPet.rowMap — must resolve from Codex sheet first"
 		)
 	}
 
-	func testCompositeResolutionPanickingUsesCodogotchiSheet() throws {
+	func testCompositeResolutionAdversarialReviewUsesCodogotchiSheet() throws {
 		let codexPet = try makeCodexPet()
 		let codogotchiPet = try makeCodogotchiPet()
 		let renderer = try MenubarRenderer(codexPet: codexPet, codogotchiPet: codogotchiPet, sink: { _ in })
 
-		renderer.update(state: .panicking, visualMode: .normal)
+		renderer.update(state: .adversarialReview, visualMode: .normal)
 
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
-			codogotchiPet.frames(for: .panicking).count,
-			".panicking is not in CodexPet.rowMap — must fall through to codogotchi sheet"
+			codogotchiPet.frames(for: .adversarialReview).count,
+			".adversarialReview is not in CodexPet.rowMap — must fall through to codogotchi sheet"
 		)
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
 			24,
-			"codogotchi sheet frames for .panicking must be 24"
+			"codogotchi sheet frames for .adversarialReview must be 24"
 		)
 	}
 

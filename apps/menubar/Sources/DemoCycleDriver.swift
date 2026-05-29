@@ -1,6 +1,6 @@
 import Foundation
 
-/// Drives the four-floor-state demo cycle when the app launches under
+/// Drives the demo cycle when the app launches under
 /// `CODOGOTCHI_DEMO=1` (or `--demo`).
 ///
 /// On each tick, the driver copies the next fixture from
@@ -10,7 +10,7 @@ import Foundation
 /// atomic write mirrors the Phase 01 hook's pattern so demo mode exercises the
 /// same race-free read semantics live polling (P2.07) will depend on.
 ///
-/// The cycle visits all 15 `ActivityState` cases in contract order;
+/// The cycle visits all 19 `ActivityState` v4 cases in contract order;
 /// see `Self.cycle` for the full sequence.
 ///
 /// Tests drive the cycle deterministically via `tickForTesting()` instead of
@@ -19,25 +19,28 @@ import Foundation
 final class DemoCycleDriver {
 	typealias StateApply = (ActivityState) -> Void
 
-	/// Canonical demo cycle order — all 15 `ActivityState` cases in the
-	/// contract's Activity States table top-to-bottom. The demo doubles as a
-	/// manual visual check that every state renders correctly.
+	/// Canonical demo cycle order — all 19 schema-v4 `ActivityState` cases.
+	/// The demo doubles as a manual visual check that every state renders correctly.
 	static let cycle: [(state: ActivityState, fixtureFilename: String)] = [
 		(.idle, "idle.json"),
 		(.implementing, "implementing.json"),
-		(.runningTests, "running-tests.json"),
-		(.reviewing, "reviewing.json"),
-		(.pushing, "pushing.json"),
-		(.hyped, "hyped.json"),
-		(.focused, "focused.json"),
-		(.nervous, "nervous.json"),
-		(.waiting, "waiting.json"),
-		(.celebrating, "celebrating.json"),
-		(.ascended, "ascended.json"),
-		(.callingForBackup, "calling-for-backup.json"),
-		(.panicking, "panicking.json"),
+		(.testing, "testing.json"),
+		(.thinking, "thinking.json"),
+		(.reading, "reading.json"),
+		(.cramming, "cramming.json"),
+		(.waitingForInput, "waiting_for_input.json"),
 		(.standby, "standby.json"),
 		(.errored, "errored.json"),
+		(.ticketStarted, "ticket_started.json"),
+		(.redTdd, "red_tdd.json"),
+		(.greenTdd, "green_tdd.json"),
+		(.adversarialReview, "adversarial_review.json"),
+		(.openPr, "open_pr.json"),
+		(.pollReview, "poll_review.json"),
+		(.recordReview, "record_review.json"),
+		(.advance, "advance.json"),
+		(.ticketCompleted, "ticket_completed.json"),
+		(.reviewClean, "review_clean.json"),
 	]
 
 	private let sandboxedPath: URL

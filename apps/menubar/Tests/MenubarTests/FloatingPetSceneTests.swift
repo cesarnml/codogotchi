@@ -84,16 +84,16 @@ final class FloatingPetSceneTests: XCTestCase {
 	func testResolvesCodogotchiSheetStateFrames() throws {
 		let scene = try makeScene()
 
-		scene.update(state: .panicking, visualMode: .normal)
+		scene.update(state: .adversarialReview, visualMode: .normal)
 
-		XCTAssertEqual(scene.currentStateForTesting, .panicking)
+		XCTAssertEqual(scene.currentStateForTesting, .adversarialReview)
 		XCTAssertEqual(scene.currentFramesForTesting.count, 24)
 	}
 
 	func testFloatingSceneUsesSourceResolutionCodogotchiTextures() throws {
 		let scene = try makeScene(size: CGSize(width: 180, height: 140))
 
-		scene.update(state: .panicking, visualMode: .normal)
+		scene.update(state: .adversarialReview, visualMode: .normal)
 
 		let firstFrame = try XCTUnwrap(scene.currentFramesForTesting.first)
 		let texture = try XCTUnwrap(scene.currentTextureForTesting)
@@ -109,7 +109,7 @@ final class FloatingPetSceneTests: XCTestCase {
 		scene.advanceFrameForTesting()
 		XCTAssertGreaterThan(scene.currentFrameIndexForTesting, 0)
 
-		scene.update(state: .runningTests, visualMode: .normal)
+		scene.update(state: .thinking, visualMode: .normal)
 
 		XCTAssertEqual(scene.currentFrameIndexForTesting, 0)
 		XCTAssertEqual(scene.currentFramesForTesting.count, 4)
@@ -165,9 +165,9 @@ final class FloatingPetSceneTests: XCTestCase {
 		let missingPet = try CodogotchiPet(petDirectory: missingCodogotchiPetDirectory())
 		let scene = try makeScene(codogotchiPet: missingPet)
 
-		scene.update(state: .panicking, visualMode: .normal)
+		scene.update(state: .adversarialReview, visualMode: .normal)
 
-		XCTAssertEqual(scene.currentStateForTesting, .panicking)
+		XCTAssertEqual(scene.currentStateForTesting, .adversarialReview)
 		XCTAssertFalse(scene.currentFramesForTesting.isEmpty)
 		XCTAssertLessThanOrEqual(
 			scene.currentFramesForTesting.count,

@@ -14,9 +14,7 @@
       "rationale": "Updated the stale four-state cycle description in the class docstring to 'The cycle visits all 15 ActivityState cases in contract order; see Self.cycle for the full sequence.' The cycle member docstring (line 22-24) already correctly described all 15 states; only the class-level comment was stale.",
       "patch": {
         "commitSha": "8728139",
-        "files": [
-          "apps/menubar/Sources/DemoCycleDriver.swift"
-        ]
+        "files": ["apps/menubar/Sources/DemoCycleDriver.swift"]
       },
       "source": {
         "reportPath": "docs/product/delivery/phase-06/reviews/P6.01-subagent-review.report.md",

@@ -59,7 +59,7 @@ describe("classifyEvent", () => {
     ).toBe("implementing");
   });
 
-  it("classifies Bash 'bun test' as running-tests", () => {
+  it("classifies Bash 'bun test' as testing", () => {
     const out = classifyEvent(
       {
         origin: "claude_code",
@@ -69,10 +69,10 @@ describe("classifyEvent", () => {
       },
       { readRun: 0 },
     );
-    expect(out.state).toBe("running-tests");
+    expect(out.state).toBe("testing");
   });
 
-  it("classifies Bash 'pytest' as running-tests", () => {
+  it("classifies Bash 'pytest' as testing", () => {
     expect(
       classifyEvent(
         {
@@ -83,10 +83,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("running-tests");
+    ).toBe("testing");
   });
 
-  it("classifies Bash 'git push' as pushing", () => {
+  it("classifies Bash 'git push' as implementing (git push)", () => {
     expect(
       classifyEvent(
         {
@@ -97,10 +97,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("pushing");
+    ).toBe("implementing");
   });
 
-  it("classifies Bash 'grep' as reviewing", () => {
+  it("classifies Bash 'grep' as thinking", () => {
     expect(
       classifyEvent(
         {
@@ -111,10 +111,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("reviewing");
+    ).toBe("thinking");
   });
 
-  it("classifies Bash 'find' as reviewing", () => {
+  it("classifies Bash 'find' as thinking", () => {
     expect(
       classifyEvent(
         {
@@ -125,10 +125,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("reviewing");
+    ).toBe("thinking");
   });
 
-  it("classifies Bash 'rg' as reviewing", () => {
+  it("classifies Bash 'rg' as thinking", () => {
     expect(
       classifyEvent(
         {
@@ -139,10 +139,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("reviewing");
+    ).toBe("thinking");
   });
 
-  it("classifies Bash 'ls' as reviewing", () => {
+  it("classifies Bash 'ls' as thinking", () => {
     expect(
       classifyEvent(
         {
@@ -153,10 +153,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("reviewing");
+    ).toBe("thinking");
   });
 
-  it("classifies Bash 'cat' as reviewing", () => {
+  it("classifies Bash 'cat' as thinking", () => {
     expect(
       classifyEvent(
         {
@@ -167,10 +167,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("reviewing");
+    ).toBe("thinking");
   });
 
-  it("classifies Bash 'jq' as reviewing", () => {
+  it("classifies Bash 'jq' as thinking", () => {
     expect(
       classifyEvent(
         {
@@ -181,7 +181,7 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("reviewing");
+    ).toBe("thinking");
   });
 
   it("classifies Bash 'npm install' as implementing", () => {
@@ -240,7 +240,7 @@ describe("classifyEvent", () => {
     ).toBe("implementing");
   });
 
-  it("classifies Cursor Shell 'grep' as reviewing", () => {
+  it("classifies Cursor Shell 'grep' as thinking", () => {
     expect(
       classifyEvent(
         {
@@ -251,7 +251,7 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("reviewing");
+    ).toBe("thinking");
   });
 
   it("classifies Cursor Shell 'npm install' as implementing", () => {
@@ -282,7 +282,7 @@ describe("classifyEvent", () => {
     ).toBe("implementing");
   });
 
-  it("does not false-positive 'catfish' as reviewing (word-boundary guard)", () => {
+  it("does not false-positive 'catfish' as thinking — word-boundary guard", () => {
     expect(
       classifyEvent(
         {
@@ -296,7 +296,7 @@ describe("classifyEvent", () => {
     ).toBe("implementing");
   });
 
-  it("does not false-positive 'lsblk' as reviewing (word-boundary guard)", () => {
+  it("does not false-positive 'lsblk' as thinking — word-boundary guard", () => {
     expect(
       classifyEvent(
         {
@@ -310,7 +310,7 @@ describe("classifyEvent", () => {
     ).toBe("implementing");
   });
 
-  it("reviewing bucket resets readRun to 0", () => {
+  it("thinking bucket resets readRun to 0", () => {
     const out = classifyEvent(
       {
         origin: "claude_code",
@@ -320,11 +320,11 @@ describe("classifyEvent", () => {
       },
       { readRun: 2 },
     );
-    expect(out.state).toBe("reviewing");
+    expect(out.state).toBe("thinking");
     expect(out.readRun).toBe(0);
   });
 
-  it("requires 3 consecutive Read tool-uses to classify as reviewing", () => {
+  it("requires 3 consecutive Read tool-uses to classify as thinking (Read streak)", () => {
     const first = classifyEvent(
       { origin: "claude_code", kind: "tool_use", name: "Read" },
       { readRun: 0 },
@@ -343,7 +343,7 @@ describe("classifyEvent", () => {
       { origin: "claude_code", kind: "tool_use", name: "Read" },
       { readRun: second.readRun },
     );
-    expect(third.state).toBe("reviewing");
+    expect(third.state).toBe("thinking");
     expect(third.readRun).toBe(3);
   });
 
@@ -356,40 +356,40 @@ describe("classifyEvent", () => {
     expect(after_edit.readRun).toBe(0);
   });
 
-  it("classifies SoA ticket_started as hyped", () => {
+  it("classifies SoA ticket_started as ticket_started", () => {
     expect(
       classifyEvent(
         { origin: "soa", kind: "gate", name: "ticket_started" },
         { readRun: 0 },
       ).state,
-    ).toBe("hyped");
+    ).toBe("ticket_started");
   });
 
-  it("classifies SoA verification_failed as panicking", () => {
+  it("classifies SoA verification_failed as errored", () => {
     expect(
       classifyEvent(
         { origin: "soa", kind: "gate", name: "verification_failed" },
         { readRun: 0 },
       ).state,
-    ).toBe("panicking");
+    ).toBe("errored");
   });
 
-  it("classifies SoA ticket_completed as celebrating", () => {
+  it("classifies SoA ticket_completed as ticket_completed", () => {
     expect(
       classifyEvent(
         { origin: "soa", kind: "gate", name: "ticket_completed" },
         { readRun: 0 },
       ).state,
-    ).toBe("celebrating");
+    ).toBe("ticket_completed");
   });
 
-  it("classifies SoA review_clean_recorded as celebrating", () => {
+  it("classifies SoA review_clean_recorded as review_clean", () => {
     expect(
       classifyEvent(
         { origin: "soa", kind: "gate", name: "review_clean_recorded" },
         { readRun: 0 },
       ).state,
-    ).toBe("celebrating");
+    ).toBe("review_clean");
   });
 
   it("classifies session_start with no prior activity as idle", () => {
@@ -484,7 +484,7 @@ describe("classifyEvent", () => {
     expect(out.sourceEvent.origin).toBe("cursor");
   });
 
-  it("Cursor beforeShellExecution 'grep' classifies as reviewing with cursor origin", () => {
+  it("Cursor beforeShellExecution 'grep' classifies as thinking with cursor origin", () => {
     const out = classifyEvent(
       {
         hook_event_name: "beforeShellExecution",
@@ -492,7 +492,7 @@ describe("classifyEvent", () => {
       } as HookInput,
       { readRun: 0 },
     );
-    expect(out.state).toBe("reviewing");
+    expect(out.state).toBe("thinking");
     expect(out.sourceEvent.origin).toBe("cursor");
   });
 
@@ -609,15 +609,15 @@ describe("runHook", () => {
     expect(state.hp_overlay).toBe("near_death");
   });
 
-  it("classifies SoA gate event as celebrating", async () => {
+  it("classifies SoA gate event as ticket_completed", async () => {
     await runHook(
       { origin: "soa", kind: "gate", name: "ticket_completed" },
       { home, now: FIXED_NOW },
     );
-    expect(readState(home).activity_state).toBe("celebrating");
+    expect(readState(home).activity_state).toBe("ticket_completed");
   });
 
-  it("tracks consecutive Read runs across invocations and switches to reviewing", async () => {
+  it("tracks consecutive Read runs across invocations and switches to thinking", async () => {
     const input: HookInput = {
       origin: "claude_code",
       kind: "tool_use",
@@ -628,7 +628,7 @@ describe("runHook", () => {
     expect(readState(home).activity_state).toBe("idle");
 
     await runHook(input, { home, now: FIXED_NOW });
-    expect(readState(home).activity_state).toBe("reviewing");
+    expect(readState(home).activity_state).toBe("thinking");
   });
 
   it("serializes concurrent Read runs before updating counters", async () => {
@@ -644,7 +644,7 @@ describe("runHook", () => {
       runHook(input, { home, now: FIXED_NOW }),
     ]);
 
-    expect(readState(home).activity_state).toBe("reviewing");
+    expect(readState(home).activity_state).toBe("thinking");
   });
 
   it("resets Read run when an Edit interrupts across invocations", async () => {
@@ -660,18 +660,18 @@ describe("runHook", () => {
       { home, now: FIXED_NOW },
     );
     await runHook(read, { home, now: FIXED_NOW });
-    // One Read after reset is not enough for reviewing.
+    // One Read after reset is not enough for thinking.
     expect(readState(home).activity_state).toBe("idle");
   });
 
-  it("writes schema_version 2 for a Stop event", async () => {
+  it("writes STATE_JSON_SCHEMA_VERSION for a Stop event", async () => {
     await runHook({ hook_event_name: "Stop" } as HookInput, {
       home,
       now: FIXED_NOW,
     });
     const state = readState(home);
     expect(state.schema_version).toBe(STATE_JSON_SCHEMA_VERSION);
-    expect(state.schema_version).toBe(3);
+    expect(state.schema_version).toBe(4);
     expect(state.activity_state).toBe("standby");
   });
 
@@ -807,14 +807,14 @@ describe("runHook", () => {
   });
 
   it("gate state persists through subsequent tool_use events until cleared", async () => {
-    // 1. ticket_started gate fires → state shows hyped
+    // 1. ticket_started gate fires → state shows ticket_started
     await runHook(
       { origin: "soa", kind: "gate", name: "ticket_started" },
       { home, now: FIXED_NOW },
     );
-    expect(readState(home).activity_state).toBe("hyped");
+    expect(readState(home).activity_state).toBe("ticket_started");
 
-    // 2. Bash tool_use (heuristic idle) → state still shows hyped (sticky)
+    // 2. Bash tool_use (heuristic idle) → state still shows ticket_started (sticky)
     await runHook(
       {
         origin: "claude_code",
@@ -824,7 +824,7 @@ describe("runHook", () => {
       },
       { home, now: FIXED_NOW },
     );
-    expect(readState(home).activity_state).toBe("hyped");
+    expect(readState(home).activity_state).toBe("ticket_started");
 
     // 3. Stop event → state shows standby (gate cleared)
     await runHook({ hook_event_name: "Stop" } as HookInput, {
@@ -835,33 +835,33 @@ describe("runHook", () => {
   });
 
   it("a new gate event overwrites the sticky gate state", async () => {
-    // First gate: ticket_started → hyped (sticky)
+    // First gate: ticket_started → ticket_started (sticky)
     await runHook(
       { origin: "soa", kind: "gate", name: "ticket_started" },
       { home, now: FIXED_NOW },
     );
-    expect(readState(home).activity_state).toBe("hyped");
+    expect(readState(home).activity_state).toBe("ticket_started");
 
-    // tool_use confirms sticky is active
+    // tool_use confirms sticky gate is active
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Bash", command: "ls" },
       { home, now: FIXED_NOW },
     );
-    expect(readState(home).activity_state).toBe("hyped");
+    expect(readState(home).activity_state).toBe("ticket_started");
 
-    // Second gate: subagent_invoked → calling_for_backup (overwrites sticky)
+    // Second gate: subagent_invoked → adversarial_review (overwrites sticky)
     await runHook(
       { origin: "soa", kind: "gate", name: "subagent_invoked" },
       { home, now: FIXED_NOW },
     );
-    expect(readState(home).activity_state).toBe("calling_for_backup");
+    expect(readState(home).activity_state).toBe("adversarial_review");
 
-    // Subsequent tool_use now sticks to calling_for_backup
+    // Subsequent tool_use now sticks to adversarial_review
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Bash", command: "ls" },
       { home, now: FIXED_NOW },
     );
-    expect(readState(home).activity_state).toBe("calling_for_backup");
+    expect(readState(home).activity_state).toBe("adversarial_review");
   });
 
   // P6.05: workspace_roots fallback
@@ -888,7 +888,7 @@ describe("runHook", () => {
       );
       const state = readState(home);
       // SoA ticket_started event resolved via workspace_roots[0]
-      expect(state.activity_state).toBe("hyped");
+      expect(state.activity_state).toBe("ticket_started");
       expect(state.source_event.origin).toBe("soa");
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
@@ -949,8 +949,8 @@ describe("runHook + SoA gate precedence", () => {
       },
     );
     const state = readState(home);
-    // Latest mapped SoA event wins: verification_failed → panicking.
-    expect(state.activity_state).toBe("panicking");
+    // Latest mapped SoA event wins: verification_failed → errored.
+    expect(state.activity_state).toBe("errored");
     expect(state.source_event.origin).toBe("soa");
     expect(state.source_event.kind).toBe("gate");
     expect(state.source_event.name).toBe("verification_failed");
@@ -972,7 +972,7 @@ describe("runHook + SoA gate precedence", () => {
     );
     // Same file, same content. Second invocation has no fresh SoA events
     // because the tail offset is past the existing line.
-    // The sticky gate (hyped) persists and overrides the Write heuristic —
+    // The sticky gate (ticket_started) persists and overrides the Write heuristic —
     // the source_event stays claude_code, confirming no re-consumption.
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Write" },
@@ -984,7 +984,7 @@ describe("runHook + SoA gate precedence", () => {
       },
     );
     const state = readState(home);
-    expect(state.activity_state).toBe("hyped");
+    expect(state.activity_state).toBe("ticket_started");
     expect(state.source_event.origin).toBe("claude_code");
   });
 
@@ -1000,7 +1000,7 @@ describe("runHook + SoA gate precedence", () => {
       cwd: projectRoot,
     });
     const state = readState(home);
-    expect(state.activity_state).toBe("hyped");
+    expect(state.activity_state).toBe("ticket_started");
     expect(state.source_event.origin).toBe("soa");
     expect(state.source_event.name).toBe("ticket_started");
   });

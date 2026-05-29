@@ -20,8 +20,8 @@ const baseV1Payload = {
 };
 
 describe("STATE_JSON_SCHEMA_VERSION", () => {
-  it("is 3 after the Phase 06 v3 bump", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(3);
+  it("is 4 after the Phase 07 v4 bump", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(4);
   });
 });
 
@@ -105,48 +105,16 @@ describe("attention field (P6.01)", () => {
   });
 });
 
-describe("work_mode field (P6.01 stub)", () => {
-  it("accepts work_mode: thinking", () => {
+describe("work_mode field — removed in v4", () => {
+  it("work_mode is silently stripped (unknown key, not rejected)", () => {
+    // Zod strips unknown keys by default; payloads that include work_mode remain parseable.
     const payload = {
       ...baseV1Payload,
-      schema_version: 3,
+      schema_version: 4,
       activity_state: "standby",
       work_mode: "thinking",
     };
     expect(() => parseStateJson(payload)).not.toThrow();
-    expect(parseStateJson(payload).work_mode).toBe("thinking");
-  });
-
-  it("accepts work_mode: implementing", () => {
-    const payload = {
-      ...baseV1Payload,
-      schema_version: 3,
-      activity_state: "standby",
-      work_mode: "implementing",
-    };
-    expect(() => parseStateJson(payload)).not.toThrow();
-    expect(parseStateJson(payload).work_mode).toBe("implementing");
-  });
-
-  it("accepts work_mode: testing", () => {
-    const payload = {
-      ...baseV1Payload,
-      schema_version: 3,
-      activity_state: "standby",
-      work_mode: "testing",
-    };
-    expect(() => parseStateJson(payload)).not.toThrow();
-    expect(parseStateJson(payload).work_mode).toBe("testing");
-  });
-
-  it("accepts absence of work_mode", () => {
-    const payload = {
-      ...baseV1Payload,
-      schema_version: 3,
-      activity_state: "standby",
-    };
-    expect(() => parseStateJson(payload)).not.toThrow();
-    expect(parseStateJson(payload).work_mode).toBeUndefined();
   });
 });
 
@@ -166,13 +134,13 @@ describe("backward compatibility for v1 and v2 payloads", () => {
 });
 
 describe("forward-compat refusal", () => {
-  it("rejects schema_version 4 (one ahead of v3)", () => {
-    const payload = { ...baseV1Payload, schema_version: 4 };
+  it("rejects schema_version 5 (one ahead of v4)", () => {
+    const payload = { ...baseV1Payload, schema_version: 5 };
     expect(() => parseStateJson(payload)).toThrow();
   });
 });
 
-describe("schema v4 vocabulary — [red]", () => {
+describe("schema v4 vocabulary", () => {
   it("STATE_JSON_SCHEMA_VERSION is 4", () => {
     expect(STATE_JSON_SCHEMA_VERSION).toBe(4);
   });

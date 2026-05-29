@@ -47,15 +47,15 @@ export type ClassifyResult = {
 };
 
 const SOA_GATE_TO_STATE: Record<string, ActivityState> = {
-  verification_failed: "panicking",
-  subagent_invoked: "calling_for_backup",
-  stage_advanced: "ascended",
-  ticket_completed: "celebrating",
-  review_clean_recorded: "celebrating",
-  pr_review_window_opened: "waiting",
-  risky_diff_detected: "nervous",
-  flow_state_entered: "focused",
-  ticket_started: "hyped",
+  verification_failed: "errored",
+  subagent_invoked: "adversarial_review",
+  stage_advanced: "advance",
+  ticket_completed: "ticket_completed",
+  review_clean_recorded: "review_clean",
+  pr_review_window_opened: "poll_review",
+  risky_diff_detected: "errored",
+  flow_state_entered: "ticket_started",
+  ticket_started: "ticket_started",
 };
 
 const GATE_STATES = new Set<ActivityState>(Object.values(SOA_GATE_TO_STATE));
@@ -228,20 +228,20 @@ export function classifyEvent(
         return { state: "implementing", sourceEvent, readRun: 0 };
       }
       if (command.trimStart().startsWith("git push")) {
-        return { state: "pushing", sourceEvent, readRun: 0, command };
+        return { state: "implementing", sourceEvent, readRun: 0, command };
       }
       if (matchesTestRunner(command)) {
-        return { state: "running-tests", sourceEvent, readRun: 0, command };
+        return { state: "testing", sourceEvent, readRun: 0, command };
       }
       if (matchesReviewingCommand(command)) {
-        return { state: "reviewing", sourceEvent, readRun: 0, command };
+        return { state: "thinking", sourceEvent, readRun: 0, command };
       }
       return { state: "implementing", sourceEvent, readRun: 0, command };
     }
     if (name === "Read") {
       const nextRun = prior.readRun + 1;
       const state: ActivityState =
-        nextRun >= READ_RUN_THRESHOLD ? "reviewing" : "idle";
+        nextRun >= READ_RUN_THRESHOLD ? "thinking" : "idle";
       return { state, sourceEvent, readRun: nextRun };
     }
   }
