@@ -51,4 +51,4 @@ Red first: [what test failed first]
 Why this path: Storing `last_gate` in `.hook-counters.json` avoids an extra `state.json` read per hook invocation. Both files are written inside `withHomeLock` so no race window exists.
 Alternative considered: Re-read `state.json` on every hook invocation to get current gate — rejected due to extra I/O on hot path and coupling stickiness to renderer output rather than hook intent.
 Deferred: Gate TTL (auto-expiry of stale `last_gate` after N hours) is Phase 07 — `fired_at` is present for that purpose.
-Contract note: [fill in during implementation]
+Contract note: `fired_at` is always `opts.now.toISOString()` (hook invocation time) regardless of gate source. The direct-hook-input case has no separate event timestamp in the hook payload shape, so the spec's intended "timestamp of the gate event itself" cannot be recovered for direct input — `now` is used universally. The approximation is not SoA-tail-specific as the spec draft implied; Phase 07 TTL consumers should treat `fired_at` as the invocation-time lower bound.

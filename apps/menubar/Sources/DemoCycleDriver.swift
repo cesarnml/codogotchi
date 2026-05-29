@@ -10,8 +10,8 @@ import Foundation
 /// atomic write mirrors the Phase 01 hook's pattern so demo mode exercises the
 /// same race-free read semantics live polling (P2.07) will depend on.
 ///
-/// The cycle is hardcoded:
-/// `.idle` → `.implementing` → `.runningTests` → `.celebrating` → loop.
+/// The cycle visits all 15 `ActivityState` cases in contract order;
+/// see `Self.cycle` for the full sequence.
 ///
 /// Tests drive the cycle deterministically via `tickForTesting()` instead of
 /// the production 3-second `Timer` so they do not stall `xcodebuild ... test`.
