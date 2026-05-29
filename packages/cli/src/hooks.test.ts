@@ -547,3 +547,59 @@ describe("cursor hooks", () => {
     expect(status.cursor.source_origin).toBe("bridge");
   });
 });
+
+describe("P7.03 StopFailure registration", () => {
+  let userRoot: string;
+
+  beforeEach(async () => {
+    userRoot = mkdtempSync(join(tmpdir(), "hooks-p703-"));
+    await mkdir(join(userRoot, ".claude"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(userRoot, { recursive: true, force: true });
+  });
+
+  it("Claude installer writes StopFailure hook slot", async () => {
+    // StopFailure must be in CODOGOTCHI_EVENTS and written to settings.json
+    await installHooks({
+      home: "/home/user/.codogotchi",
+      userRoot,
+    });
+    const raw = readFileSync(
+      join(userRoot, ".claude", "settings.json"),
+      "utf8",
+    );
+    expect(raw).toContain("StopFailure");
+  });
+
+  it("hooksStatus reports installed=false when StopFailure slot is absent", async () => {
+    // Install without StopFailure in the file, then check status.
+    // Create a settings.json that has PreToolUse and Stop but not StopFailure.
+    const partialSettings = JSON.stringify({
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: "",
+            hooks: [{ type: "command", command: "codogotchi-hook" }],
+          },
+        ],
+        Stop: [
+          {
+            matcher: "",
+            hooks: [{ type: "command", command: "codogotchi-hook" }],
+          },
+        ],
+      },
+    });
+    await mkdir(join(userRoot, ".claude"), { recursive: true });
+    const { writeFileSync: wfs } = await import("node:fs");
+    wfs(join(userRoot, ".claude", "settings.json"), partialSettings, "utf8");
+    const status = await hooksStatus({
+      home: "/home/user/.codogotchi",
+      userRoot,
+    });
+    // installed must be false because StopFailure slot is missing
+    expect(status.claude_code.installed).toBe(false);
+  });
+});
