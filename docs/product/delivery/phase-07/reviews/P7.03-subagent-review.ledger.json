@@ -49,6 +49,21 @@
       "outcome": "clean",
       "acknowledgment": "operator-confirmed-clean",
       "reason": "Report has no actionable findings; reconciler false-positive from subagent-added --- separators"
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "08854da175cfe8f0f417971ffa521e326637e0e7",
+      "outcome": "deferred",
+      "completedAt": "2026-05-29T16:59:30.587Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "reason": "Report says None under Actionable findings; reconciler Condition B is a false-positive caused by --- horizontal rules the subagent added between sections despite template prohibition, which the parser mistook as section separators shifting content into the findings block",
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
     }
   ]
 }
