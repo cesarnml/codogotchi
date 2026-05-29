@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "recordedAt": "2026-05-29T14:31:51.388Z",
+  "recordedAt": "2026-05-29T14:35:51.665Z",
   "summary": {
     "total": 35,
-    "patched": 2,
+    "patched": 3,
     "rejected": 25,
-    "already-covered": 6,
-    "requires-human-review": 2
+    "already-covered": 7,
+    "requires-human-review": 0
   },
   "dispositions": [
     {
@@ -14,7 +14,9 @@
       "rationale": "Updated the stale four-state cycle description in the class docstring to 'The cycle visits all 15 ActivityState cases in contract order; see Self.cycle for the full sequence.' The cycle member docstring (line 22-24) already correctly described all 15 states; only the class-level comment was stale.",
       "patch": {
         "commitSha": "8728139",
-        "files": ["apps/menubar/Sources/DemoCycleDriver.swift"]
+        "files": [
+          "apps/menubar/Sources/DemoCycleDriver.swift"
+        ]
       },
       "source": {
         "reportPath": "docs/product/delivery/phase-06/reviews/P6.01-subagent-review.report.md",
@@ -299,9 +301,8 @@
       "observation": "- **`performAction` uses deprecated `NSRunningApplication.activate(options:)`**: On macOS 14+, `NSRunningApplication.activate(options:)` is deprecated in favor of `NSRunningApplication.activate()`. Silent failure on deprecation removal in a future OS; worth noting for a future maintenance pass."
     },
     {
-      "disposition": "requires-human-review",
-      "rationale": "After user dismiss, attentionActive stays true. On next show(frame:) call in the same session, repositionAndShowBubble() fires and the bubble reappears. The spec says 'session-local dismiss... if user relaunches, bubble may reappear' but doesn't explicitly address intra-session re-show after floating-pet toggle. Developer must decide: should dismiss be truly session-local (reset attentionActive) or only hide the bubble until LivePollingDriver fires again?",
-      "followUpReference": "docs/product/delivery/phase-06/ticket-08-attention-bubble-ui.md",
+      "disposition": "already-covered",
+      "rationale": "The dismiss → idle patch (commit 2a3ae1a) sets attentionActive=false in handleBubbleDismiss(). show(frame:) guards repositionAndShowBubble() behind attentionActive, so re-showing the floating pet after dismiss no longer resurfaces the bubble. The re-show question is moot once attentionActive is cleared on dismiss.",
       "source": {
         "reportPath": "docs/product/delivery/phase-06/reviews/P6.08-subagent-review.report.md",
         "ticketId": "P6.08"
@@ -309,9 +310,15 @@
       "observation": "- **Dismiss does not reset `attentionActive`**: After the user dismisses the bubble via `×`, `attentionBubble` is hidden via `window?.orderOut(nil)`. But `attentionActive` in `FloatingPetPanelController` remains `true`. On the next `show(frame:)` call (e.g. the user hides then re-shows the floating pet), `repositionAndShowBubble()` will be called and the bubble will reappear without a new `applyAttention` call. This matches the spec (\"session-local dismiss… if user relaunches, bubble may reappear\"), but the same-session re-show behavior may surprise users who dismissed intentionally and then toggled the floating pet. The spec does not explicitly address intra-session re-show after dismiss."
     },
     {
-      "disposition": "requires-human-review",
-      "rationale": "The ticket Rationale says 'Dismiss (×) clears attention from the bubble view and causes the pet to return to idle pose.' The dismissBubble() implementation only calls window?.orderOut(nil) with no callback to FloatingPetPanelController. Whether returning to idle was intentionally dropped or is still a spec requirement is a product decision the developer must make. If required, the fix is a dismiss callback on the controller.",
-      "followUpReference": "docs/product/delivery/phase-06/ticket-08-attention-bubble-ui.md",
+      "disposition": "patched",
+      "rationale": "Developer confirmed: dismiss must return pet to idle pose. Added onDismiss callback to AttentionBubbleView/AttentionBubblePanel, wired in FloatingPetPanelController to call handleBubbleDismiss() which sets attentionActive=false and apply(state: .idle).",
+      "patch": {
+        "commitSha": "2a3ae1a",
+        "files": [
+          "apps/menubar/Sources/AttentionBubblePanel.swift",
+          "apps/menubar/Sources/FloatingPetPanel.swift"
+        ]
+      },
       "source": {
         "reportPath": "docs/product/delivery/phase-06/reviews/P6.08-subagent-review.report.md",
         "ticketId": "P6.08"
