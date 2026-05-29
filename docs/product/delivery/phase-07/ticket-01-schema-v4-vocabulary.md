@@ -41,10 +41,12 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Red first: TS tests failed on `STATE_JSON_SCHEMA_VERSION` (3 ≠ 4) and enum membership checks for new v4 states. Swift tests failed on `EXPECTED_STATE_SCHEMA_VERSION` (3 ≠ 4) and `ActivityState(rawValue: "ticket_started")` returning nil.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here.
+Why this path: Atomic rename — enum, schema version, and all fixtures changed together. Hook-binary vocabulary names (`running-tests`→`testing`, `reviewing`→`thinking`, `pushing`→`implementing`, SoA gate states→v4) updated to compile with the new enum without changing behavioral classification logic; full behavioral rewrite is P7.02.
+
+Alternative considered: Keeping old states as deprecated aliases alongside new states — rejected because the ticket spec explicitly calls for a closed 19-state enum with the 12 old states removed.
+
+Deferred: New behavioral classification rules (`reading`/`cramming` streak, `thinking` explore bucket) — P7.02. Multi-sheet loader and dedicated gate art — later phase. `waiting_for_input` hook wiring — platform-hooks phase.
+
+Contract note: CodexPet row 7 now maps to both `.implementing` and `.testing` (shared running loop — visual compromise until lite sheet ships). DemoCycleDriver cycle grew from 15 to 19 states to match the full v4 enum.
