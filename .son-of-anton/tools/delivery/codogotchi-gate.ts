@@ -21,7 +21,7 @@ export const GATE_NAMES = {
 } as const;
 
 export type GateEvent = {
-  gate: string;
+  gate: (typeof GATE_NAMES)[keyof typeof GATE_NAMES];
   planKey: string;
   ticketId: string;
 };

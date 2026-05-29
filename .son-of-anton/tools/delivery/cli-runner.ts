@@ -1229,6 +1229,7 @@ export async function runDeliveryOrchestrator(
         await emitNotificationWarnings(
           notifier,
           cwd,
+          // eventsForOpenPrCommand feeds the Telegram notifier — not the retired NDJSON pathway
           eventsForOpenPrCommand(nextState, parsed.positionals[0]),
         );
         return 0;
@@ -1284,7 +1285,7 @@ export async function runDeliveryOrchestrator(
           await emitReviewCleanGate(
             docOnlyEvents,
             context.config,
-            state.planKey,
+            docOnlyState.planKey,
           );
           return 0;
         }
@@ -2333,7 +2334,7 @@ export async function emitSoaEventForOpenPr(
 ): Promise<void> {
   // pr_review_window_opened NDJSON emission retired in P17.03.
   // open_pr gate now emits to gate.json via emitOpenPrGate before openPullRequest.
-  // This function is retained for backwards-compatible call sites and will be removed in P17.04.
+  // Retained as exported no-op: test files (p15-03, p17-03) import it to assert the retired NDJSON path is gone.
 }
 
 export async function emitSoaEventsForTransitions(
@@ -2343,7 +2344,7 @@ export async function emitSoaEventsForTransitions(
   _projectRoot: string,
 ): Promise<void> {
   // ticket_started and ticket_completed now emit to gate.json via emitGateForTransitions.
-  // This function is retained for backwards-compatible call sites and will be removed in P17.04.
+  // Retained as exported no-op: test files (p15-02, fix-worktree-event-routing) import it to assert the retired NDJSON path is gone.
 }
 
 export async function emitGateForTransitions(

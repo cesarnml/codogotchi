@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-05-29T14:56:25.301Z",
+  "summary": {
+    "total": 16,
+    "patched": 5,
+    "rejected": 11,
+    "already-covered": 0,
+    "requires-human-review": 0
+  },
+  "dispositions": [
+    {
+      "disposition": "rejected",
+      "rationale": "resolveOrchestratorConfig always fills codogotchi with `raw.codogotchi ?? { enabled: true }` (confirmed in P17.01 report Surface 1), so a fully resolved config never has codogotchi undefined in practice. The gap only exists if a caller manually constructs ResolvedOrchestratorConfig bypassing resolveOrchestratorConfig, which is not a supported use case.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.01-subagent-review.report.md",
+        "ticketId": "P17.01"
+      },
+      "observation": "- **No test for `codogotchi` absent from resolved config:** The `enabledConfig()` test helper always sets `codogotchi: { enabled: true }`. There is no test case where `codogotchi` is `undefined` on the config object. Given the `ResolvedOrchestratorConfig` type permits it (line 70 of config.ts), adding a test that omits `codogotchi` from the config object and confirms the write proceeds would close this gap in test coverage."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The catch block comment ('best-effort: write failures never abort a delivery command') already documents the intent. The codogotchi gate writer is intentionally silent to avoid polluting terminal output during delivery. The spec explicitly permits swallowing all errors; adding console.error would change the observable contract without clear benefit.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.01-subagent-review.report.md",
+        "ticketId": "P17.01"
+      },
+      "observation": "- **Silent swallowing of programming errors (D3):** The `catch {}` block has no logging. A `TypeError` from a hypothetical future circular payload, or a typo in the payload construction, would be completely invisible. The ticket spec explicitly permits best-effort swallowing, so this is not a finding — but adding even a single `console.error` or debug-level log line inside catch would make this a more observable failure in practice without violating the \"never throw\" contract."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Narrowed GateEvent.gate from `string` to `(typeof GATE_NAMES)[keyof typeof GATE_NAMES]` so passing an invalid gate name is a compile-time error. All call sites already use GATE_NAMES.* constants so no callers break.",
+      "patch": {
+        "commitSha": "bd029a2",
+        "files": ["tools/delivery/codogotchi-gate.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.01-subagent-review.report.md",
+        "ticketId": "P17.01"
+      },
+      "observation": "- **Unvalidated `gate` field against ActivityState enum (D4):** The `gate: string` type accepts any string. If the codogotchi Phase 07 consumer validates ActivityState enum membership, a caller passing a misspelled gate name (`\"ticket_sarted\"`) would produce a silently malformed `gate.json`. Narrowing `gate` to a string literal union of valid ActivityState values would make this a compile-time error. This is a design improvement for a future ticket, not a bug in the current spec."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Markdown horizontal rule parsed as an observation artifact — not a substantive advisory observation.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.01-subagent-review.report.md",
+        "ticketId": "P17.01"
+      },
+      "observation": "---"
+    },
+    {
+      "disposition": "patched",
+      "rationale": "P17.04 has landed and the stubs were not removed because test files (p15-02.test.ts, fix-worktree-event-routing.test.ts) still import emitSoaEventsForTransitions to assert the retired NDJSON path does nothing. Updated the stub comment to accurately reflect this: 'Retained as exported no-op: test files import it to assert the retired NDJSON path is gone.' Removes the stale 'will be removed in P17.04' promise.",
+      "patch": {
+        "commitSha": "bd029a2",
+        "files": ["tools/delivery/cli-runner.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.02-subagent-review.report.md",
+        "ticketId": "P17.02"
+      },
+      "observation": "- **`emitSoaEventsForTransitions` removal timeline:** The stub comment says \"will be removed in P17.04.\" If P17.04 lands but the removal is forgotten, dead code with `_`-prefixed parameters persists. A `// TODO(P17.04): delete this function` marker on the function signature would make the deferred removal visible to automated stale-TODO detection tools."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The `status` command already shows all tickets done when the plan is complete — that is the canonical signal. Adding console.warn for a no-op start on a finished plan goes against the orchestrator's terse output style. Operators who run start against a completed plan are expected to check status first.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.02-subagent-review.report.md",
+        "ticketId": "P17.02"
+      },
+      "observation": "- **Silent skip when `startTargetId` is undefined:** If `deliver start` is run against a plan where all tickets are already done (no in_progress, no pending), neither gate fires and there is no log line or warning. An operator would have no signal that the gate was not written. A single `console.warn` or debug-mode log in the `if (startTargetId)` guard's else branch would make the no-op explicit."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The TTL governs how long gate.json is considered fresh by the codogotchi renderer — a consumer concern, not a writer concern. The gate.json payload already includes both `since` and `expires_at` timestamps, giving any consumer full information to apply its own display policy. Appropriate TTLs for review-flow gates are a Phase 07 design decision, not a Phase 17 deliverable.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.02-subagent-review.report.md",
+        "ticketId": "P17.02"
+      },
+      "observation": "- **TTL constant shared across all gate types:** All nine gate types use the same 3-minute `GATE_TTL_MS`. Review-flow gates (`adversarial_review`, `poll_review`) may sit in their state far longer than 3 minutes in practice (especially `poll_review`, which waits for CI). A TTL mismatch would cause codogotchi to show a stale gate as expired while the delivery is legitimately in that state. This is outside P17.02 scope but worth flagging before the review-flow gates are wired up."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Markdown horizontal rule parsed as an observation artifact — not a substantive advisory observation.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.02-subagent-review.report.md",
+        "ticketId": "P17.02"
+      },
+      "observation": "---"
+    },
+    {
+      "disposition": "patched",
+      "rationale": "P17.04 has landed. emitSoaEventForOpenPr stub still exists because p15-03.test.ts and p17-03.test.ts import it to assert the retired NDJSON path writes nothing. Updated the stub comment to reflect this accurately: 'Retained as exported no-op: test files import it to assert the retired NDJSON path is gone.'",
+      "patch": {
+        "commitSha": "bd029a2",
+        "files": ["tools/delivery/cli-runner.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.03-subagent-review.report.md",
+        "ticketId": "P17.03"
+      },
+      "observation": "- **`emitSoaEventForOpenPr` signature retains `_projectRoot`** (the old NDJSON write root), now unused. The stub comment says it will be removed in P17.04. This is fine, but the unused parameter is a minor API smell worth noting for the P17.04 cleanup pass."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added a clarifying comment at the eventsForOpenPrCommand call site (cli-runner.ts:1232) stating it feeds the Telegram notifier, not the retired NDJSON pathway. Prevents a future reader from trying to retire this import as NDJSON cleanup.",
+      "patch": {
+        "commitSha": "bd029a2",
+        "files": ["tools/delivery/cli-runner.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.03-subagent-review.report.md",
+        "ticketId": "P17.03"
+      },
+      "observation": "- **`eventsForOpenPrCommand` name creates future confusion.** The function is still imported at line 76 for notification warnings, but its name evokes the retired NDJSON pathway. A future reader may try to retire this import as part of P17.04 cleanup without realizing it still serves the notifier. A brief inline comment at the call site (or a rename) would prevent a silent regression."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "This is a design property of the emit-then-action pattern, not a P17.03 bug. The gate.json semantics for consumers are a Phase 07 concern. No gate spec document exists yet in this repo; documenting 'attempted vs succeeded' semantics belongs in the Phase 07 codogotchi renderer design.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.03-subagent-review.report.md",
+        "ticketId": "P17.03"
+      },
+      "observation": "- **Partial-state atomicity is now the sole integrity model for the four gates.** There is no rollback or correlation between gate.json and the primary action outcome. For `open_pr` specifically, a GitHub API failure after gate emit results in `gate.json` showing `open_pr` claimed for a ticket that has no PR. Downstream consumers of `gate.json` (e.g., codogotchi renderer) should treat `open_pr` as \"attempted,\" not \"succeeded.\" If any consumer currently treats it as confirmation of PR existence, that assumption is now unsound. This is an architectural property, not a P17.03 bug, but worth documenting in the gate spec."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Markdown horizontal rule parsed as an observation artifact — not a substantive advisory observation.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.03-subagent-review.report.md",
+        "ticketId": "P17.03"
+      },
+      "observation": "---"
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Runner termination metadata parsed as an observation artifact — not a substantive advisory observation.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.03-subagent-review.report.md",
+        "ticketId": "P17.03"
+      },
+      "observation": "**runnerStatus:** `completed` **terminatedReason:** All invariants and attack surfaces probed; one actionable finding (gate skipped for `subagentReview=disabled` tickets); no blockers encountered."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Three observations were parsed as a single unit (consecutive lines, no blank separators). Items 1 and 2 (test parity for needs_patch and eventsForReconcileLateReviewCommand) are rejected — the single-filter implementation makes redundant negative tests unnecessary and the non-done guard is a trivial one-liner. Item 3 (docOnlyState.planKey asymmetry) was patched: changed state.planKey to docOnlyState.planKey at cli-runner.ts:1287 for consistency with the post-transition state idiom used elsewhere.",
+      "patch": {
+        "commitSha": "bd029a2",
+        "files": ["tools/delivery/cli-runner.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.04-subagent-review.report.md",
+        "ticketId": "P17.04"
+      },
+      "observation": "- The `needs_patch` non-clean case is tested only for the record-review path. The poll-review and triage paths lack equivalent negative tests (outcomes `needs_patch`, `patched`, `operator_input_needed`). Parity would strengthen the test contract but is not required — the single function under test makes path-specific negative tests redundant given the implementation is a single filter on the event list. - `eventsForReconcileLateReviewCommand` at notifications.ts:270 guards on `ticket.status !== 'done'` before building the event. A triage caller that passes a non-`done` ticket gets an empty events array and no gate write — correct behavior, but no test covers this edge. - The doc-only poll-review branch (`docOnlyState`) uses `state.planKey` (pre-transition) rather than `docOnlyState.planKey`. These are identical in practice (planKey is immutable on a state object), but the asymmetry with `nextState` usage on the regular poll path (line 1297 uses `nextState` for events, line 1299 uses `state.planKey` for the gate) is a minor inconsistency that could confuse a future reader."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Markdown horizontal rule parsed as an observation artifact — not a substantive advisory observation.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.04-subagent-review.report.md",
+        "ticketId": "P17.04"
+      },
+      "observation": "---"
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Runner termination metadata parsed as an observation artifact — not a substantive advisory observation.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.04-subagent-review.report.md",
+        "ticketId": "P17.04"
+      },
+      "observation": "**`runnerStatus`:** completed **`terminatedReason`:** All surfaces probed; one untested non-clean path on the poll-review skipped/doc-only fast path identified as low-severity finding."
+    }
+  ]
+}

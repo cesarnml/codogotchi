@@ -109,7 +109,10 @@ export function parseActionableFindings(markdown: string): boolean {
 export function parseAdvisoryObservations(markdown: string): string[] {
   const body = extractReportSection(markdown, 'Advisory Observations');
   if (body === undefined) return [];
-  const normalized = normalizeSectionBody(body);
+  // Strip horizontal rules — agents use `---` as cosmetic section dividers but
+  // they are not observations and their presence breaks the all-bullets check.
+  const strippedBody = body.replace(/^---+\s*$/gm, '');
+  const normalized = normalizeSectionBody(strippedBody);
   if (normalized === '') return [];
   if (/^none\.?$/i.test(normalized)) return [];
 
@@ -119,7 +122,7 @@ export function parseAdvisoryObservations(markdown: string): string[] {
     return bulletLines.map((line) => line.replace(/^[-*]\s+/, '').trim());
   }
 
-  return body
+  return strippedBody
     .trim()
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.replace(/\n/g, ' ').trim())
@@ -177,6 +180,11 @@ function extractReportSection(
     // observation prefixes (e.g. `**A1 — Title**`) are content, not section
     // boundaries, and must not silently truncate the section body.
     if (isCanonicalSectionHeadingLine(line, heading)) break;
+    // Also terminate on runner-termination key-value lines that agents write
+    // instead of the canonical `**Runner termination**` heading (common drift:
+    // `**runnerStatus:** completed` or `**\`runnerStatus\`:** completed`).
+    // No observation would ever start with these tokens.
+    if (/^\*\*`?(?:runnerStatus|terminatedReason)`?[:`]/i.test(line)) break;
     bodyLines.push(line);
   }
   return bodyLines.join('\n');
