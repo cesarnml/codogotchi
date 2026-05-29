@@ -58,11 +58,14 @@ final class LivePollingDriver {
 	typealias SetTooltip = (String?) -> Void
 	typealias ApplyAttention = (AttentionPayload?, String?) -> Void
 	typealias Reader = (String) -> Result<StateSnapshot, StateReadError>
+	typealias GateReader = (String) -> GateSnapshot?
 
 	private let pollingTargetPath: String
+	private let gatePath: String?
 	private let apply: Apply
 	private let setTooltip: SetTooltip
 	private let reader: Reader
+	private let gateReader: GateReader
 	private let tickInterval: TimeInterval
 	private let transitionLog: TransitionLog?
 
@@ -88,16 +91,20 @@ final class LivePollingDriver {
 
 	init(
 		pollingTargetPath: String,
+		gatePath: String? = nil,
 		apply: @escaping Apply,
 		setTooltip: @escaping SetTooltip,
 		reader: @escaping Reader = StateJsonReader.read(at:),
+		gateReader: @escaping GateReader = GateJsonReader.read(at:),
 		tickInterval: TimeInterval = 1.0,
 		transitionLog: TransitionLog? = nil
 	) {
 		self.pollingTargetPath = pollingTargetPath
+		self.gatePath = gatePath
 		self.apply = apply
 		self.setTooltip = setTooltip
 		self.reader = reader
+		self.gateReader = gateReader
 		self.tickInterval = tickInterval
 		self.transitionLog = transitionLog
 	}
@@ -165,8 +172,10 @@ final class LivePollingDriver {
 	private func decide(from result: Result<StateSnapshot, StateReadError>) -> Outcome {
 		switch result {
 		case .success(let snapshot):
+			let gate = gatePath.flatMap { gateReader($0) }
+			let state = resolveActivityState(gate: gate, hookState: snapshot.activityState)
 			return Outcome(
-				state: snapshot.activityState,
+				state: state,
 				mode: .normal,
 				tooltip: nil,
 				attention: snapshot.attention,

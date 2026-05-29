@@ -236,8 +236,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			// Live polling — read the hook's `~/.codogotchi/state.json` at 1Hz
 			// and route success/failure into renderer + status-item tooltip.
 			// Mutually exclusive with demo mode by construction (the `else` arm).
+			let gateJsonPath = config.pollingTarget
+				.deletingLastPathComponent()
+				.appendingPathComponent("gate.json")
+				.path
 			let driver = LivePollingDriver(
 				pollingTargetPath: config.pollingTarget.path,
+				gatePath: gateJsonPath,
 				apply: { state, mode in
 					stateFanout.apply(state: state, visualMode: mode)
 				},
