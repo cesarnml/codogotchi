@@ -87,8 +87,8 @@ final class CodexPetTests: XCTestCase {
 
 	func testEveryCodexSheetStateHasNonEmptyFrames() throws {
 		let pet = try CodexPet(petDirectory: fixtureDirectory())
-		// Phase 03 Codex-sheet states — celebrating is intentionally absent (wired in P3.04).
-		for state in [ActivityState.idle, .implementing, .runningTests, .waiting, .standby, .errored] {
+		// v4 Codex-sheet states — testing and thinking share rows 7 and 8.
+		for state in [ActivityState.idle, .implementing, .testing, .thinking, .standby, .errored] {
 			XCTAssertFalse(pet.frames(for: state).isEmpty, "\(state) must yield frames")
 		}
 	}
@@ -196,8 +196,8 @@ final class ActivityStateEnumTests: XCTestCase {
 		XCTAssertEqual(ActivityState(rawValue: "errored"), .errored)
 	}
 
-	func testAllCasesCountIs15() {
-		XCTAssertEqual(ActivityState.allCases.count, 15)
+	func testAllCasesCountIs19() {
+		XCTAssertEqual(ActivityState.allCases.count, 19)
 	}
 }
 
@@ -212,11 +212,15 @@ final class CodexPetRowMapExpansionTests: XCTestCase {
 			.path
 	}
 
-	func testRowMapWaitingRowIndex() {
-		XCTAssertEqual(CodexPet.rowMap[.waiting]?.rowIndex, 6)
+	func testRowMapThinkingRowIndex() {
+		XCTAssertEqual(CodexPet.rowMap[.thinking]?.rowIndex, 8)
 	}
 
-	func testRowMapRequestingInputRowIndex() {
+	func testRowMapTestingRowIndex() {
+		XCTAssertEqual(CodexPet.rowMap[.testing]?.rowIndex, 7)
+	}
+
+	func testRowMapStandbyRowIndex() {
 		XCTAssertEqual(CodexPet.rowMap[.standby]?.rowIndex, 3)
 	}
 
@@ -224,18 +228,19 @@ final class CodexPetRowMapExpansionTests: XCTestCase {
 		XCTAssertEqual(CodexPet.rowMap[.errored]?.rowIndex, 5)
 	}
 
-	func testCelebratingRemovedFromRowMap() {
-		XCTAssertNil(CodexPet.rowMap[.celebrating])
+	func testTicketStartedNotInCodexRowMap() {
+		// SoA gate states live only on the codogotchi sheet; Codex rowMap must not contain them
+		XCTAssertNil(CodexPet.rowMap[.ticketStarted])
 	}
 
-	func testWaitingFramesCountAndRow() throws {
+	func testThinkingFramesCountAndRow() throws {
 		let pet = try CodexPet(petDirectory: fixtureDirectory())
-		let frames = pet.frames(for: .waiting)
-		XCTAssertFalse(frames.isEmpty, ".waiting must yield at least one visible frame")
+		let frames = pet.frames(for: .thinking)
+		XCTAssertFalse(frames.isEmpty, ".thinking must yield at least one visible frame")
 		XCTAssertLessThanOrEqual(
 			frames.count,
-			CodexPet.rowMap[.waiting]?.frameCount ?? 8,
-			".waiting must not exceed declared frameCount"
+			CodexPet.rowMap[.thinking]?.frameCount ?? 4,
+			".thinking must not exceed declared frameCount"
 		)
 	}
 

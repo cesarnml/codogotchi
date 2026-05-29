@@ -45,8 +45,8 @@ final class DemoModeTests: XCTestCase {
 
 		XCTAssertEqual(
 			observed,
-			[.idle, .implementing, .runningTests, .reviewing, .pushing],
-			"demo cycle first five states: idle → implementing → running-tests → reviewing → pushing"
+			[.idle, .implementing, .testing, .thinking, .reading],
+			"demo cycle first five states: idle → implementing → testing → thinking → reading"
 		)
 	}
 
@@ -58,7 +58,7 @@ final class DemoModeTests: XCTestCase {
 			apply: { state in observed.append(state) }
 		)
 
-		for _ in 0..<17 {
+		for _ in 0..<21 {
 			try driver.tickForTesting()
 		}
 
@@ -66,10 +66,10 @@ final class DemoModeTests: XCTestCase {
 			observed.first, .idle, "cycle must start at .idle"
 		)
 		XCTAssertEqual(
-			observed[15], .idle, "cycle must loop back to .idle after all 15 states"
+			observed[19], .idle, "cycle must loop back to .idle after all 19 states"
 		)
 		XCTAssertEqual(
-			observed[16], .implementing, "second wrap must resume at .implementing"
+			observed[20], .implementing, "second wrap must resume at .implementing"
 		)
 	}
 
@@ -176,12 +176,12 @@ final class DemoModeTests: XCTestCase {
 		)
 	}
 
-	// MARK: - P3.06: 15-state cycle
+	// MARK: - P7.01: 19-state cycle
 
-	func testCycleDriverExposes15StatesInRotation() {
+	func testCycleDriverExposes19StatesInRotation() {
 		XCTAssertEqual(
-			DemoCycleDriver.cycle.count, 15,
-			"demo cycle must cover all 15 activity states"
+			DemoCycleDriver.cycle.count, 19,
+			"demo cycle must cover all 19 v4 activity states"
 		)
 	}
 
@@ -218,16 +218,18 @@ final class DemoModeTests: XCTestCase {
 			DemoConfig.demoFrameMs(from: ["CODOGOTCHI_DEMO_FRAME_MS": "0"]), 500)
 	}
 
-	// MARK: - P3.06: New fixture files
+	// MARK: - P7.01: v4 fixture files
 
-	func testNewFixtureFilesExistAndParse() {
-		let newFilenames = [
-			"reviewing.json", "pushing.json", "hyped.json", "focused.json",
-			"nervous.json", "waiting.json", "ascended.json", "calling-for-backup.json",
-			"panicking.json", "standby.json", "errored.json",
+	func testV4FixtureFilesExistAndParse() {
+		let v4Filenames = [
+			"testing.json", "thinking.json", "reading.json", "cramming.json",
+			"waiting_for_input.json", "ticket_started.json", "ticket_completed.json",
+			"review_clean.json", "adversarial_review.json", "open_pr.json",
+			"poll_review.json", "record_review.json", "advance.json",
+			"red_tdd.json", "green_tdd.json", "standby.json", "errored.json",
 		]
 		let dir = fixturesDirectory()
-		for filename in newFilenames {
+		for filename in v4Filenames {
 			let url = dir.appendingPathComponent(filename)
 			XCTAssertTrue(
 				FileManager.default.fileExists(atPath: url.path),

@@ -4,8 +4,8 @@ import XCTest
 @testable import Codogotchi
 
 /// Behavior contract for `CodogotchiPet` — the codogotchi-sheet loader for
-/// the nine SoA-owned states (celebrating, hyped, focused, nervous, ascended,
-/// callingForBackup, panicking, reviewing, pushing).
+/// v4 SoA gate states (reviewClean/ticketCompleted, ticketStarted, greenTdd,
+/// redTdd, openPr, adversarialReview, recordReview).
 ///
 /// Fixtures live at `apps/menubar/Fixtures/maew/` so tests run on machines
 /// without `~/.codogotchi/pets/maew/` populated.
@@ -30,68 +30,63 @@ final class CodogotchiPetTests: XCTestCase {
 		XCTAssertEqual(pet.displayName, "Maew")
 	}
 
-	// MARK: - rowMap coverage
+	// MARK: - rowMap coverage (v4)
 
-	func testRowMapPanicking() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.panicking]?.rowIndex, 6)
-		XCTAssertEqual(CodogotchiPet.rowMap[.panicking]?.frameCount, 24)
+	func testRowMapReviewClean() {
+		XCTAssertEqual(CodogotchiPet.rowMap[.reviewClean]?.rowIndex, 0)
+		XCTAssertEqual(CodogotchiPet.rowMap[.reviewClean]?.frameCount, 24)
 	}
 
-	func testRowMapCelebrating() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.celebrating]?.rowIndex, 0)
-		XCTAssertEqual(CodogotchiPet.rowMap[.celebrating]?.frameCount, 24)
+	func testRowMapTicketCompleted() {
+		XCTAssertEqual(CodogotchiPet.rowMap[.ticketCompleted]?.rowIndex, 0)
+		XCTAssertEqual(CodogotchiPet.rowMap[.ticketCompleted]?.frameCount, 24)
 	}
 
-	func testRowMapHyped() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.hyped]?.rowIndex, 1)
-		XCTAssertEqual(CodogotchiPet.rowMap[.hyped]?.frameCount, 24)
+	func testRowMapTicketStarted() {
+		XCTAssertEqual(CodogotchiPet.rowMap[.ticketStarted]?.rowIndex, 1)
+		XCTAssertEqual(CodogotchiPet.rowMap[.ticketStarted]?.frameCount, 24)
 	}
 
-	func testRowMapFocused() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.focused]?.rowIndex, 2)
-		XCTAssertEqual(CodogotchiPet.rowMap[.focused]?.frameCount, 24)
+	func testRowMapGreenTddPlaceholder() {
+		XCTAssertEqual(CodogotchiPet.rowMap[.greenTdd]?.rowIndex, 2)
+		XCTAssertEqual(CodogotchiPet.rowMap[.greenTdd]?.frameCount, 24)
 	}
 
-	func testRowMapNervous() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.nervous]?.rowIndex, 3)
-		XCTAssertEqual(CodogotchiPet.rowMap[.nervous]?.frameCount, 24)
+	func testRowMapRedTddPlaceholder() {
+		XCTAssertEqual(CodogotchiPet.rowMap[.redTdd]?.rowIndex, 3)
+		XCTAssertEqual(CodogotchiPet.rowMap[.redTdd]?.frameCount, 24)
 	}
 
-	func testRowMapAscended() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.ascended]?.rowIndex, 4)
-		XCTAssertEqual(CodogotchiPet.rowMap[.ascended]?.frameCount, 24)
+	func testRowMapOpenPrPlaceholder() {
+		XCTAssertEqual(CodogotchiPet.rowMap[.openPr]?.rowIndex, 4)
+		XCTAssertEqual(CodogotchiPet.rowMap[.openPr]?.frameCount, 24)
 	}
 
-	func testRowMapCallingForBackup() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.callingForBackup]?.rowIndex, 5)
-		XCTAssertEqual(CodogotchiPet.rowMap[.callingForBackup]?.frameCount, 24)
+	func testRowMapAdversarialReview() {
+		XCTAssertEqual(CodogotchiPet.rowMap[.adversarialReview]?.rowIndex, 5)
+		XCTAssertEqual(CodogotchiPet.rowMap[.adversarialReview]?.frameCount, 24)
 	}
 
-	func testRowMapReviewing() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.reviewing]?.rowIndex, 7)
-		XCTAssertEqual(CodogotchiPet.rowMap[.reviewing]?.frameCount, 24)
+	func testRowMapRecordReviewPlaceholder() {
+		XCTAssertEqual(CodogotchiPet.rowMap[.recordReview]?.rowIndex, 8)
+		XCTAssertEqual(CodogotchiPet.rowMap[.recordReview]?.frameCount, 24)
 	}
 
-	func testRowMapPushing() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.pushing]?.rowIndex, 8)
-		XCTAssertEqual(CodogotchiPet.rowMap[.pushing]?.frameCount, 24)
-	}
-
-	func testRowMapHasExactlyNineEntries() {
-		XCTAssertEqual(CodogotchiPet.rowMap.count, 9)
+	func testRowMapHasExactlyEightEntries() {
+		XCTAssertEqual(CodogotchiPet.rowMap.count, 8)
 	}
 
 	// MARK: - Frame extraction
 
-	func testFramesForPanickingReturns24Frames() throws {
+	func testFramesForAdversarialReviewReturns24Frames() throws {
 		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
-		let frames = pet.frames(for: .panicking)
-		XCTAssertEqual(frames.count, 24, ".panicking must yield 24 frames from row 6")
+		let frames = pet.frames(for: .adversarialReview)
+		XCTAssertEqual(frames.count, 24, ".adversarialReview must yield 24 frames from row 5")
 	}
 
-	func testFramesForPanickingHaveCorrectSourceRect() throws {
+	func testFramesForAdversarialReviewHaveCorrectSourceRect() throws {
 		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
-		let frames = pet.frames(for: .panicking)
+		let frames = pet.frames(for: .adversarialReview)
 		XCTAssertEqual(frames.count, 24)
 
 		// Frames must be scaled to menubar height and match the source cell aspect ratio.
@@ -108,22 +103,22 @@ final class CodogotchiPetTests: XCTestCase {
 			frameAspect, expectedAspect, accuracy: 0.05,
 			"frame aspect must match source cell aspect (24-col grid)")
 
-		// Verify panicking frames (row 6) differ in pixel content from celebrating
-		// frames (row 0). A bug that always slices from row 0 would still pass the
-		// aspect-ratio check above; this catches that class of bug.
-		let celebratingFrames = pet.frames(for: .celebrating)
-		XCTAssertEqual(celebratingFrames.count, 24)
-		let panickingFirst = first.cgImage
-		let celebratingFirst = try XCTUnwrap(celebratingFrames.first).cgImage
+		// Verify adversarialReview frames (row 5) differ in pixel content from
+		// reviewClean frames (row 0). A bug that always slices row 0 would still
+		// pass the aspect-ratio check above; this catches that class of bug.
+		let reviewCleanFrames = pet.frames(for: .reviewClean)
+		XCTAssertEqual(reviewCleanFrames.count, 24)
+		let adversarialFirst = first.cgImage
+		let reviewCleanFirst = try XCTUnwrap(reviewCleanFrames.first).cgImage
 		XCTAssertFalse(
-			cgImagesPixelEqual(panickingFirst, celebratingFirst),
-			"panicking (row 6) and celebrating (row 0) frames must differ in pixel content"
+			cgImagesPixelEqual(adversarialFirst, reviewCleanFirst),
+			"adversarialReview (row 5) and reviewClean (row 0) frames must differ in pixel content"
 		)
 	}
 
 	func testFloatingFramesUseSourceCellResolution() throws {
 		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
-		let frames = pet.floatingFrames(for: .panicking)
+		let frames = pet.floatingFrames(for: .adversarialReview)
 		let first = try XCTUnwrap(frames.first)
 
 		let sheet = try XCTUnwrap(pet.spritesheet, "fixture spritesheet must be loaded")

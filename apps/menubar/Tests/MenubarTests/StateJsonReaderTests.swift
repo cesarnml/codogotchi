@@ -42,22 +42,42 @@ final class StateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(snapshot.activityState, .implementing)
 	}
 
-	func testRunningTestsFixtureParsesToRunningTests() {
+	func testRunningTestsFixtureFallsBackToIdle() {
+		// running-tests is not a v4 state; the unknown-state fallback maps it to .idle
 		let result = StateJsonReader.read(at: fixtureURL("running-tests.json").path)
 		guard case .success(let snapshot) = result else {
 			XCTFail("expected success, got \(result)")
 			return
 		}
-		XCTAssertEqual(snapshot.activityState, .runningTests)
+		XCTAssertEqual(snapshot.activityState, .idle)
 	}
 
-	func testCelebratingFixtureParsesToCelebrating() {
+	func testTestingFixtureParsesToTesting() {
+		let result = StateJsonReader.read(at: fixtureURL("testing.json").path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.activityState, .testing)
+	}
+
+	func testTicketStartedFixtureParsesToTicketStarted() {
+		let result = StateJsonReader.read(at: fixtureURL("ticket_started.json").path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.activityState, .ticketStarted)
+	}
+
+	func testCelebratingFixtureFallsBackToIdle() {
+		// celebrating is not a v4 state; the unknown-state fallback maps it to .idle
 		let result = StateJsonReader.read(at: fixtureURL("celebrating.json").path)
 		guard case .success(let snapshot) = result else {
 			XCTFail("expected success, got \(result)")
 			return
 		}
-		XCTAssertEqual(snapshot.activityState, .celebrating)
+		XCTAssertEqual(snapshot.activityState, .idle)
 	}
 
 	// MARK: - Unknown-state fallback
@@ -84,36 +104,32 @@ final class StateJsonReaderTests: XCTestCase {
 			return
 		}
 		XCTAssertEqual(got, 99)
-		XCTAssertEqual(expected, 3)
+		XCTAssertEqual(expected, 4)
 	}
 
-	func testExpectedSchemaVersionIs3() {
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 3)
+	func testExpectedSchemaVersionIs4() {
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 4)
 	}
 
-	func testSchemaVersion4FailsWithSchemaNewer() throws {
-		// After the P6.01 v3 bump, a v4 payload must fail with schemaNewer(got: 4, expected: 3).
+	func testSchemaVersion4ParsesSuccessfullyAfterV4Bump() throws {
+		// After the P7.01 v4 bump, a v4 payload with a valid v4 state must parse cleanly.
 		let tmp = FileManager.default.temporaryDirectory
-			.appendingPathComponent("schema-v4-\(UUID().uuidString).json")
-		try #"{"schema_version": 4, "activity_state": "idle", "updated_at": "x"}"#
+			.appendingPathComponent("schema-v4-ok2-\(UUID().uuidString).json")
+		try #"{"schema_version": 4, "activity_state": "idle", "updated_at": "2026-05-29T00:00:00.000Z"}"#
 			.write(to: tmp, atomically: true, encoding: .utf8)
 		defer { try? FileManager.default.removeItem(at: tmp) }
 
 		let result = StateJsonReader.read(at: tmp.path)
-		guard case .failure(let error) = result else {
-			XCTFail("expected failure, got \(result)")
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
 			return
 		}
-		guard case .schemaNewer(let got, let expected) = error else {
-			XCTFail("expected schemaNewer, got \(error)")
-			return
-		}
-		XCTAssertEqual(got, 4)
-		XCTAssertEqual(expected, 3)
+		XCTAssertEqual(snapshot.schemaVersion, 4)
+		XCTAssertEqual(snapshot.activityState, .idle)
 	}
 
 	func testSchemaVersion3WithStandbyParsesSuccessfully() throws {
-		// After the P6.01 v3 bump, a v3 payload with standby must parse cleanly.
+		// v3 payloads remain parseable under v4 forward-compat (schema_version ≤ 4 accepted).
 		let tmp = FileManager.default.temporaryDirectory
 			.appendingPathComponent("schema-v3-standby-\(UUID().uuidString).json")
 		try #"{"schema_version": 3, "activity_state": "standby", "updated_at": "2026-05-29T00:00:00.000Z"}"#
@@ -271,5 +287,70 @@ final class StateJsonReaderTests: XCTestCase {
 			return
 		}
 		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	// MARK: - Schema v4 vocabulary (P7.01 — [red])
+
+	func testExpectedSchemaVersionIsV4() {
+		// [red] EXPECTED_STATE_SCHEMA_VERSION must be 4 after the v4 bump
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 4)
+	}
+
+	func testTicketStartedIsAValidV4State() {
+		// [red] ticket_started must be a first-class enum case in v4
+		XCTAssertNotNil(ActivityState(rawValue: "ticket_started"))
+	}
+
+	func testTestingIsAValidV4State() {
+		// [red] testing replaces running-tests in v4
+		XCTAssertNotNil(ActivityState(rawValue: "testing"))
+	}
+
+	func testHypedIsNotAV4State() {
+		// [red] hyped is removed from the closed enum in v4
+		XCTAssertNil(ActivityState(rawValue: "hyped"))
+	}
+
+	func testRunningTestsIsNotAV4State() {
+		// [red] running-tests is replaced by testing in v4
+		XCTAssertNil(ActivityState(rawValue: "running-tests"))
+	}
+
+	func testSchemaVersion4ParsesSuccessfully() throws {
+		// [red] a schema_version 4 payload must parse successfully after the v4 bump
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("schema-v4-ok-\(UUID().uuidString).json")
+		try #"{"schema_version": 4, "activity_state": "idle", "updated_at": "2026-05-29T00:00:00.000Z"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.schemaVersion, 4)
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	func testSchemaVersion5FailsWithSchemaNewer() throws {
+		// [red] v5 must be refused after the v4 bump (one ahead of expected)
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("schema-v5-\(UUID().uuidString).json")
+		try #"{"schema_version": 5, "activity_state": "idle", "updated_at": "x"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .failure(let error) = result else {
+			XCTFail("expected failure, got \(result)")
+			return
+		}
+		guard case .schemaNewer(let got, let expected) = error else {
+			XCTFail("expected schemaNewer, got \(error)")
+			return
+		}
+		XCTAssertEqual(got, 5)
+		XCTAssertEqual(expected, 4)
 	}
 }

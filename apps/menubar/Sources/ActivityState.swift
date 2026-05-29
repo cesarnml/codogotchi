@@ -1,36 +1,38 @@
 import Foundation
 
-/// All 15 states of the v3 animation-state-vocabulary closed enum.
+/// All 19 states of the v4 animation-state-vocabulary closed enum.
 ///
-/// Raw values match the hook's emitted strings exactly (snake_case; hyphenated
-/// for `running-tests` and `calling_for_backup`). Any string not in this enum
-/// — including future states the renderer has not yet painted — decodes as
-/// `.idle` via `init(from:)`. This is the "unknown-state → idle" fallback
-/// called out in P2.03's ticket spec and preserved through Phase 03.
+/// Raw values match the hook's emitted strings exactly (snake_case). Any string
+/// not in this enum — including future states the renderer has not yet painted —
+/// decodes as `.idle` via `init(from:)`. This is the "unknown-state → idle"
+/// fallback preserved through all phases.
 ///
-/// Closed-enum decoding (no `unknown(String)` case) is deliberate: the
-/// renderer must `switch` exhaustively without a `default:` and the contract
-/// doc forbids string escape hatches.
+/// Closed-enum decoding (no `unknown(String)` case) is deliberate: the renderer
+/// must `switch` exhaustively without a `default:` and the contract doc forbids
+/// string escape hatches.
 enum ActivityState: String, Equatable, Codable, CaseIterable {
-	// Floor states (Codex sheet — rendered since Phase 02)
+	// Floor / hook states
 	case idle = "idle"
-	case implementing = "implementing"
-	case runningTests = "running-tests"
-	// New Codex-sheet states (wired in P3.03, standby replaces requesting_input in P6.01)
-	case waiting = "waiting"
 	case standby = "standby"
 	case errored = "errored"
-	// SoA-gate states (reliable tier — rendered via codogotchi sheet in P3.04)
-	case hyped = "hyped"
-	case focused = "focused"
-	case nervous = "nervous"
-	case celebrating = "celebrating"
-	case ascended = "ascended"
-	case callingForBackup = "calling_for_backup"
-	case panicking = "panicking"
-	// Heuristic-tier states (rendered via codogotchi sheet in P3.04)
-	case reviewing = "reviewing"
-	case pushing = "pushing"
+	case waitingForInput = "waiting_for_input"
+	// Heuristic-tier hook states (Codex sheet rows 7–8)
+	case implementing = "implementing"
+	case testing = "testing"
+	case thinking = "thinking"
+	case reading = "reading"
+	case cramming = "cramming"
+	// SoA gate states (codogotchi sheet — reliable tier)
+	case ticketStarted = "ticket_started"
+	case redTdd = "red_tdd"
+	case greenTdd = "green_tdd"
+	case adversarialReview = "adversarial_review"
+	case openPr = "open_pr"
+	case pollReview = "poll_review"
+	case recordReview = "record_review"
+	case advance = "advance"
+	case ticketCompleted = "ticket_completed"
+	case reviewClean = "review_clean"
 
 	init(from decoder: Decoder) throws {
 		let raw = try decoder.singleValueContainer().decode(String.self)
