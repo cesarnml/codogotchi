@@ -47,10 +47,12 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Red first: `Read ×1 → reading` (was `idle`) and `Read ×3 → cramming` (was `thinking`) failed. Then `sed -i → implementing` (was `thinking` since `sed` was in the thinking bucket). Then SoA non-override test failed (SoA events still influenced state).
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here.
+Why this path: Full removal of SoA machinery in one pass. The `Counters` type shrank to `{ read_run: number }`, removing `soa_tail` and `last_gate`. `RunHookOptions` dropped `env`/`cwd` (only used for SoA root resolution). `REVIEWING_BASH_PREFIXES` renamed to `THINKING_BASH_PREFIXES`, `sed` removed (not in §7 spec), `git log`/`git diff` added.
+
+Alternative considered: Keeping `sed` in the thinking bucket — rejected because §7 spec lists the explicit thinking command set and `sed` is not in it; `sed -i` is a write command and `sed` without `-i` is an edge case best handled by implementing as default.
+
+Deferred: `waiting_for_input`/PermissionRequest wiring — platform-hooks phase. Lint/format runner exhaustive list (e.g. `tsc --noEmit`, `cargo clippy`) — §7 says TBD; current test-runner prefix list covers the documented cases.
+
+Contract note: `engine/src/sources/soa.ts` and its test were deleted. Engine `index.ts` no longer re-exports the soa source. `contracts/soa-events.ts` is retained (no hook imports it; the file may be useful to the SoA side that still writes `state.json`).

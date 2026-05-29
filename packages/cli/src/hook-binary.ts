@@ -6,9 +6,7 @@ import {
   type ActivityState,
   type HpOverlay,
   hpToOverlay,
-  mapSoaEventToActivityState,
   type ProfileResponse,
-  type SoaEventLine,
   type SourceEvent,
   type SourceEventKind,
   type SourceEventOrigin,
@@ -17,8 +15,6 @@ import {
   sourceEventSchema,
   stateJsonV1Schema,
 } from "@codogotchi/contracts";
-import type { SoaTailState } from "@codogotchi/engine";
-import { readSoaEventsSince, resolveSoaRoot } from "@codogotchi/engine";
 
 export type HookInput = {
   origin?: SourceEventOrigin;
@@ -46,20 +42,6 @@ export type ClassifyResult = {
   command?: string;
 };
 
-const SOA_GATE_TO_STATE: Record<string, ActivityState> = {
-  verification_failed: "errored",
-  subagent_invoked: "adversarial_review",
-  stage_advanced: "advance",
-  ticket_completed: "ticket_completed",
-  review_clean_recorded: "review_clean",
-  pr_review_window_opened: "poll_review",
-  risky_diff_detected: "errored",
-  flow_state_entered: "ticket_started",
-  ticket_started: "ticket_started",
-};
-
-const GATE_STATES = new Set<ActivityState>(Object.values(SOA_GATE_TO_STATE));
-
 const TEST_RUNNER_PREFIXES = [
   "bun test",
   "bun run test",
@@ -76,7 +58,8 @@ const TEST_RUNNER_PREFIXES = [
   "jest",
 ];
 
-const REVIEWING_BASH_PREFIXES = [
+// §7 read/search bucket: commands that explore the codebase without writing.
+const THINKING_BASH_PREFIXES = [
   "grep",
   "find",
   "rg",
@@ -86,11 +69,14 @@ const REVIEWING_BASH_PREFIXES = [
   "tail",
   "wc",
   "awk",
-  "sed",
   "jq",
+  "git log",
+  "git diff",
 ];
 
-const READ_RUN_THRESHOLD = 3;
+// Read ×1–2 → reading; Read ×3+ → cramming.
+const CRAMMING_THRESHOLD = 3;
+
 const LOCK_RETRY_DELAY_MS = 10;
 const LOCK_TIMEOUT_MS = 2000;
 
@@ -173,9 +159,9 @@ function matchesTestRunner(command: string): boolean {
   });
 }
 
-function matchesReviewingCommand(command: string): boolean {
+function matchesThinkingCommand(command: string): boolean {
   const trimmed = command.trimStart();
-  return REVIEWING_BASH_PREFIXES.some((prefix) => {
+  return THINKING_BASH_PREFIXES.some((prefix) => {
     if (!trimmed.startsWith(prefix)) return false;
     const next = trimmed.slice(prefix.length, prefix.length + 1);
     return next === "" || next === " " || next === "\t";
@@ -192,18 +178,12 @@ export function classifyEvent(
     name: "unknown",
     command: undefined,
   };
-  const { origin, kind, name, command } = normalized;
-  const sourceEvent: SourceEvent = { origin, kind, name };
-
-  // SoA gate events win over heuristics.
-  if (origin === "soa" && kind === "gate") {
-    const mapped = SOA_GATE_TO_STATE[name];
-    if (mapped !== undefined) {
-      return { state: mapped, sourceEvent, readRun: 0 };
-    }
-    // Unknown gate name: don't reset readRun — SoA gates are not tool-use events.
-    return { state: "idle", sourceEvent, readRun: prior.readRun };
-  }
+  const { kind, name, command } = normalized;
+  const sourceEvent: SourceEvent = {
+    origin: normalized.origin,
+    kind,
+    name,
+  };
 
   // Heuristic: Stop event — agent finished turn and is awaiting user input,
   // unless the stop reason or an explicit flag indicates a response failure.
@@ -227,21 +207,19 @@ export function classifyEvent(
       if (command === undefined) {
         return { state: "implementing", sourceEvent, readRun: 0 };
       }
-      if (command.trimStart().startsWith("git push")) {
-        return { state: "implementing", sourceEvent, readRun: 0, command };
-      }
       if (matchesTestRunner(command)) {
         return { state: "testing", sourceEvent, readRun: 0, command };
       }
-      if (matchesReviewingCommand(command)) {
+      if (matchesThinkingCommand(command)) {
         return { state: "thinking", sourceEvent, readRun: 0, command };
       }
+      // All other Bash/Shell commands (write, mutate, or unknown) → implementing.
       return { state: "implementing", sourceEvent, readRun: 0, command };
     }
     if (name === "Read") {
       const nextRun = prior.readRun + 1;
       const state: ActivityState =
-        nextRun >= READ_RUN_THRESHOLD ? "thinking" : "idle";
+        nextRun >= CRAMMING_THRESHOLD ? "cramming" : "reading";
       return { state, sourceEvent, readRun: nextRun };
     }
   }
@@ -249,48 +227,12 @@ export function classifyEvent(
   return { state: "idle", sourceEvent, readRun: 0 };
 }
 
-type LastGate = { state: ActivityState; fired_at: string };
-
 type Counters = {
   read_run: number;
-  soa_tail: SoaTailState | null;
-  last_gate: LastGate | null;
 };
 
 function countersPath(home: string): string {
   return join(home, ".hook-counters.json");
-}
-
-function parseSoaTail(value: unknown): SoaTailState | null {
-  if (value === null || typeof value !== "object") return null;
-  const candidate = value as Partial<SoaTailState>;
-  const offset =
-    typeof candidate.offset === "number" && Number.isFinite(candidate.offset)
-      ? Math.max(0, Math.trunc(candidate.offset))
-      : null;
-  if (offset === null) return null;
-  const inode =
-    typeof candidate.inode === "number" && Number.isFinite(candidate.inode)
-      ? candidate.inode
-      : null;
-  return { inode, offset };
-}
-
-function parseLastGate(value: unknown): LastGate | null {
-  if (value === null || typeof value !== "object") return null;
-  const candidate = value as Partial<LastGate>;
-  if (
-    typeof candidate.state !== "string" ||
-    typeof candidate.fired_at !== "string"
-  )
-    return null;
-  // Only gate-class states are valid for last_gate — reject anything else to
-  // prevent a corrupted counters file from locking the hook into a bad state.
-  if (!GATE_STATES.has(candidate.state as ActivityState)) return null;
-  return {
-    state: candidate.state as ActivityState,
-    fired_at: candidate.fired_at,
-  };
 }
 
 async function readCounters(home: string): Promise<Counters> {
@@ -301,14 +243,12 @@ async function readCounters(home: string): Promise<Counters> {
       typeof parsed.read_run === "number" && Number.isFinite(parsed.read_run)
         ? Math.max(0, Math.trunc(parsed.read_run))
         : 0;
-    const soaTail = parseSoaTail(parsed.soa_tail);
-    const lastGate = parseLastGate(parsed.last_gate);
-    return { read_run: readRun, soa_tail: soaTail, last_gate: lastGate };
+    return { read_run: readRun };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return { read_run: 0, soa_tail: null, last_gate: null };
+      return { read_run: 0 };
     }
-    return { read_run: 0, soa_tail: null, last_gate: null };
+    return { read_run: 0 };
   }
 }
 
@@ -421,23 +361,7 @@ function buildAttention(
 export type RunHookOptions = {
   home: string;
   now: Date;
-  /** Override env for SoA root resolution. Defaults to `process.env`. */
-  env?: NodeJS.ProcessEnv;
-  /** Override cwd for SoA root resolution. Defaults to `process.cwd()`. */
-  cwd?: string;
 };
-
-function pickLatestMappedSoaEvent(
-  events: readonly SoaEventLine[],
-): { event: SoaEventLine; state: ActivityState } | null {
-  for (let i = events.length - 1; i >= 0; i -= 1) {
-    const event = events[i];
-    if (event === undefined) continue;
-    const mapped = mapSoaEventToActivityState(event.name);
-    if (mapped !== undefined) return { event, state: mapped };
-  }
-  return null;
-}
 
 export async function runHook(
   input: HookInput,
@@ -448,42 +372,8 @@ export async function runHook(
     const counters = await readCounters(opts.home);
     const classified = classifyEvent(input, { readRun: counters.read_run });
 
-    const env = opts.env ?? process.env;
-    const cwd = opts.cwd ?? process.cwd();
-    const soaRoot = resolveSoaRoot({
-      CLAUDE_PROJECT_DIR: env.CLAUDE_PROJECT_DIR,
-      CODEX_PROJECT_DIR: env.CODEX_PROJECT_DIR,
-      CURSOR_WORKSPACE_ROOT: input.workspace_roots?.[0],
-      CWD: cwd,
-    });
-    let soaTail = counters.soa_tail;
-    let lastGate = counters.last_gate;
-    let activityState = classified.state;
-    let sourceEvent: SourceEvent = classified.sourceEvent;
-    if (soaRoot !== null) {
-      const soaResult = await readSoaEventsSince(soaRoot, soaTail);
-      soaTail = soaResult.tail;
-      const fresh = pickLatestMappedSoaEvent(soaResult.events);
-      if (fresh !== null) {
-        activityState = fresh.state;
-        sourceEvent = { origin: "soa", kind: "gate", name: fresh.event.name };
-      }
-    }
-
-    // Sticky gate: gate states persist through subsequent tool_use events.
-    // fired_at approximates current time when the gate comes from the SoA tail
-    // (no separate timestamp available there). Known approximation; Phase 07 TTL
-    // will use this field.
-    if (GATE_STATES.has(activityState)) {
-      lastGate = { state: activityState, fired_at: opts.now.toISOString() };
-    } else if (classified.sourceEvent.kind === "session_end") {
-      lastGate = null;
-    } else if (
-      lastGate !== null &&
-      classified.sourceEvent.kind === "tool_use"
-    ) {
-      activityState = lastGate.state;
-    }
+    const activityState = classified.state;
+    const sourceEvent: SourceEvent = classified.sourceEvent;
 
     const overlay = await readProfileOverlay(opts.home);
     const hp = overlay?.hp ?? 100;
@@ -513,8 +403,6 @@ export async function runHook(
     await writeStateAtomic(opts.home, state);
     await writeCounters(opts.home, {
       read_run: classified.readRun,
-      soa_tail: soaTail,
-      last_gate: lastGate,
     });
   });
 }
