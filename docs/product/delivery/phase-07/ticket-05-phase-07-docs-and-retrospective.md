@@ -35,10 +35,12 @@ Red: skip
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Red first: n/a (doc-only ticket, Red: skip)
 
-Red first: n/a (doc-only)
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here.
+Why this path: Updated `animation-state-vocabulary.md` in place (avoided a full rewrite by targeting only the v4-relevant sections: title, activity states table, schema section, mapping table, spritesheet tables, reliability caveats). Added the 6-tier model as a new section. `soa-event-feed.md` marked superseded at the top with a pointer to `gate-json.md` — retained for historical reference per the spec ("retired or marked superseded").
+
+Alternative considered: Full rewrite of `animation-state-vocabulary.md` — rejected because the forward-compat policy, HP overlay table, and manifest format are unchanged; targeted edits keep the doc smaller and easier to diff.
+
+Deferred: RPG overlay docs — later phase. `waiting_for_input` wiring note included in the 6-tier table as "deferred."
+
+Contract note: `xcodegen generate` is not run by `mac:test` — documented in retrospective as a follow-up item.
