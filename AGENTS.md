@@ -19,8 +19,10 @@ When invoking a review subagent during orchestrated delivery:
 
 ## Pre-Commit
 
-Before committing: run the repo's format and verify commands for touched files.
+Before committing: run `bun run format` **first**, then stage, then commit.
 Current commands: `bun run format`, `bun run verify`, `bun run verify:quiet`, `bun run ci`, `bun run ci:quiet`.
+
+**Orchestrator-written artifacts must be formatted before staging.** Files written by `bun run deliver` commands (review JSON, triage JSON, state files, handoffs) never pass through the editor and bypass format-on-save. If you stage and commit them before running format, the next CI run reformats them and leaves a trivially-dirty working tree. The fix is always: run format → stage → commit, in that order.
 
 ## Ticket Completion Checklist
 

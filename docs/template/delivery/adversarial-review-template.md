@@ -190,6 +190,17 @@ rules. Two rules that catch the most common drift bugs:
 - Use exactly these five top-level section headings, in this order:
   `Invariant results`, `Surface results`, `Actionable findings`,
   `Advisory Observations`, `Runner termination`.
+- **Do not use `---` horizontal rules anywhere in the report.** A `---`
+  inside the `Advisory Observations` body breaks the all-bullets parser
+  check, causes fallback to paragraph mode, and preserves `- ` prefixes
+  on every observation key — creating verbatim-match churn in the
+  downstream dispositions file and forcing `---` itself to be triaged as
+  a fake observation. Just omit `---`.
+- **`Runner termination` must be the section heading**, not `**runnerStatus:**
+  \`completed\`` or any other inline key-value variant. Write it as the bold
+  span `**Runner termination**` on its own line, then `runnerStatus:` and
+  `terminatedReason:` as plain-text lines below. Any other format leaves the
+  termination block inside the `Advisory Observations` body.
 - Inside `Advisory Observations`, write **one observation per bullet or one
   observation per paragraph**. Do NOT use a bold span (`**A1 — Title**`) on a
   line by itself before the observation body — that visually mimics a

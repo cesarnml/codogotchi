@@ -127,6 +127,20 @@ downstream tooling, not just style preference.
 for human review` are tolerated as legacy aliases, but the canonical names
   are preferred. New section names are silently ignored by the parser.
 
+- **Do not use `---` horizontal rules anywhere in the report.** Agents often
+  insert `---` as cosmetic section dividers, but the horizontal rule is not a
+  canonical heading, so it ends up inside the section body. Its presence
+  breaks the all-bullets detection in `parseAdvisoryObservations`, causing
+  the parser to fall back to paragraph mode and preserve `- ` prefixes on
+  every observation. The dispositions file then has to match those prefixes
+  verbatim, creating unnecessary churn. Just omit `---` entirely.
+
+- **`Runner termination` must be its own section heading**, written exactly
+  as `**Runner termination**` (bold span on its own line) or `## Runner
+termination` (ATX heading). Do NOT write `**runnerStatus:** \`completed\``on a line by itself — that looks like a key-value field, not the section
+heading the parser expects, so the section body of`Advisory Observations`
+  bleeds into the runner termination block.
+
 - **Do not place bold spans (`**...**`) on a line by themselves inside a
   section body.** Bold prefixes on standalone lines look like section
   headings to a naive reader and used to be treated as section terminators.

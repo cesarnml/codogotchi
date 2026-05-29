@@ -23,4 +23,6 @@ When invoking a review subagent during orchestrated delivery:
 
 **Prerequisite:** Son-of-Anton requires a global `bun` install. All CLI delivery commands run via `bun run deliver …`.
 
-Before every commit: run `bun run format`, then `bun run verify` (or `bun run verify:quiet`). Use `bun run ci:quiet` as the final publication gate before opening a PR.
+Before committing: run `bun run format` **first**, then stage, then commit. Use `bun run verify` (or `bun run verify:quiet`) and `bun run ci:quiet` as the final publication gate before opening a PR.
+
+**Orchestrator-written artifacts must be formatted before staging.** Files written by `bun run deliver` commands (review JSON, triage JSON, state files, handoffs) never pass through the editor and bypass format-on-save. Stage and commit them before running format and the next CI run will reformat them, leaving a trivially-dirty working tree. Always: format → stage → commit.
