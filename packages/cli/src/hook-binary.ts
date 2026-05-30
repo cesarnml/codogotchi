@@ -124,28 +124,6 @@ export function detectTerminalBundleId(
   return undefined;
 }
 
-/// DEBUG — writes terminal-relevant env vars to /tmp/codogotchi-terminal-debug.txt.
-/// Called from runHookFromEnv when CODOGOTCHI_DEBUG_TERMINAL is set.
-/// Remove after IDE embedded-terminal detection is validated for all platforms.
-function dumpTerminalEnv(env: NodeJS.ProcessEnv): void {
-  const keys = Object.keys(env)
-    .filter((k) =>
-      /TERM|GHOSTTY|WARP|ITERM|CURSOR|VSCODE|ZED|BUNDLE|__CF|ANTIGRAVITY|IDE|EDITOR|PROGRAM/i.test(
-        k,
-      ),
-    )
-    .sort();
-  const lines = [
-    `detected: ${detectTerminalBundleId(env) ?? "undefined"}`,
-    ...keys.map((k) => `${k}=${env[k]}`),
-  ];
-  require("node:fs").writeFileSync(
-    "/tmp/codogotchi-terminal-debug.txt",
-    lines.join("\n") + "\n",
-    "utf8",
-  );
-}
-
 function rawHookOrigin(input: HookInput): SourceEventOrigin {
   // Explicit env override — used by platform hook commands (e.g. Codex Desktop)
   // that share PascalCase event names with Claude Code and would otherwise be
@@ -456,7 +434,6 @@ export async function runHook(
     const counters = await readCounters(opts.home);
     const classified = classifyEvent(input, { readRun: counters.read_run });
 
-    if (process.env.CODOGOTCHI_DEBUG_TERMINAL) dumpTerminalEnv(process.env);
     const activityState = classified.state;
     const terminalBundleId = detectTerminalBundleId(process.env);
     const sourceEvent: SourceEvent = {
