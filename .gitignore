@@ -215,6 +215,11 @@ playground.xcworkspace
 .env.local
 *-subagent-review.trace.log
 
+# Compiled standalone CLI binaries (build artifacts; built by scripts/build-binaries.sh)
+apps/menubar/Generated/
+# bun build --compile temp artifacts left in the working dir
+*.bun-build
+
 # agy-cli
 **/*/.antigravitycli
 .antigravitycli

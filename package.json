@@ -10,6 +10,7 @@
     "sync": "bash .son-of-anton/scripts/soa-sync.sh",
     "deliver": "bun run .son-of-anton/scripts/deliver.ts",
     "closeout-stack": "bun run .son-of-anton/scripts/closeout-stack.ts",
+    "build:binaries": "bash scripts/build-binaries.sh",
     "format": "biome format --write .",
     "format:quiet": "biome format --write . --log-level=error",
     "lint": "biome lint --write .",
