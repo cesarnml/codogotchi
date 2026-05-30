@@ -1,6 +1,6 @@
 ---
 name: soa
-description: Son-of-Anton canonical entrypoint. Use for /soa plan, /soa decompose, /soa execute, /soa resume, /soa preflight, /soa triage-ticket, /soa triage-standalone, /soa triage-advisory-observations, /soa install, /soa update, /soa closeout, and /soa ideate. Manages installation, updates, and the full delivery lifecycle.
+description: Son-of-Anton canonical entrypoint. Use for /soa plan, /soa decompose, /soa execute, /soa resume, /soa preflight, /soa triage-ticket, /soa triage-standalone, /soa triage-advisory-observations (/soa tao), /soa install, /soa update, /soa closeout, and /soa ideate. Manages installation, updates, and the full delivery lifecycle.
 ---
 
 # Son-of-Anton Skill
@@ -243,9 +243,9 @@ bun run deliver triage-standalone --pr <number>
 
 ---
 
-### `triage-advisory-observations`
+### `triage-advisory-observations` (alias: `tao`)
 
-**Trigger:** `/soa triage-advisory-observations <phase-XX|epic-XX>`
+**Trigger:** `/soa triage-advisory-observations <phase-XX|epic-XX>` or `/soa tao <phase-XX|epic-XX>`
 
 Run the post-phase advisory-observation triage lane after the stacked phase has
 landed on `main` and before the next phase starts. This is for non-blocking
