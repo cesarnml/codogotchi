@@ -123,7 +123,23 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
 		frameChangeHandler = handler
-		(panel?.contentView as? FloatingPetInteractionView)?.frameChangeHandler = handler
+		(panel?.contentView as? FloatingPetInteractionView)?.frameChangeHandler = { [weak self] frame in
+			self?.handleFrameChange(frame)
+		}
+	}
+
+	/// Single sink for every panel frame change (drag translate, resize). Keeps
+	/// `lastPanelFrame` current and re-anchors the attention bubble so it stays
+	/// glued to the pet during a drag, then forwards to the external handler.
+	private func handleFrameChange(_ frame: CGRect) {
+		lastPanelFrame = frame
+		if attentionActive, isPanelShown {
+			attentionBubble?.reposition(
+				relativeTo: lastPanelFrame,
+				visibleFrame: visibleFrameProvider()
+			)
+		}
+		frameChangeHandler?(frame)
 	}
 
 	private func syncSceneSizeToPanel(_ panelSize: CGSize) {
@@ -168,7 +184,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 				self?.syncSceneSizeToPanel(size)
 			}
 		)
-		view.frameChangeHandler = frameChangeHandler
+		view.frameChangeHandler = { [weak self] frame in
+			self?.handleFrameChange(frame)
+		}
 		view.hideFloatingPetHandler = { [weak self] in
 			self?.onHideFloatingPet?()
 		}
