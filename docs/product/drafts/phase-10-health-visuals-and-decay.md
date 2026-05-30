@@ -47,11 +47,16 @@ Phase 03–04 render activity states; HP overlays were explicitly deferred. Hear
 
 ---
 
+### 6. Health settings tab (moved from Phase 08)
+
+- **Health** tab in the Settings window: `weekend_decay`, `grace_days`, death count (read-only), vacation status — moved out of Phase 08 (alive-tier; built alongside the health visuals it configures)
+- Knob writes route through the app install API (not raw JSON edits), consistent with the Phase 08 app-owns-writes boundary
+
 ## Defers
 
 - Cough / weary one-off animations
 - Public profile tombstone
-- Vacation UI (exists in CLI; surface in Settings Phase 08)
+- Vacation UI (exists in CLI; surfaced in the Health settings tab this phase — moved from Phase 08)
 
 ---
 
@@ -66,7 +71,7 @@ Phase 03–04 render activity states; HP overlays were explicitly deferred. Hear
 ## Dependencies
 
 - **Phase 09** hearts mapping (consistent bands)
-- **Phase 08** Health settings tab for knobs (`weekend_decay`, `grace_days`, death count read-only)
+- **Phase 08** Settings shell (the Health settings tab itself is **built in this phase**, moved out of Phase 08; see committed scope §6)
 
 ---
 

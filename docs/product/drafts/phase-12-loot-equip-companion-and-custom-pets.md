@@ -62,9 +62,10 @@ Runtime: when premium entitled + equipped, floating/menubar renderer prefers equ
 - May be manual/ops at first; automate in later epic
 - Not required for v1 equip of pre-authored assets
 
-### 7. Settings Loot tab upgrade
+### 7. Settings Loot tab (read-only gallery moved from Phase 08, then upgraded)
 
-- From Phase 08 read-only gallery → equip/unequip when entitled
+- **Read-only loot gallery** (WoW-style cards from `loot.log`) — moved out of Phase 08 and **built in this phase**; lite/teaser visibility per RPG gate
+- Then upgrade in-place: equip/unequip when premium-entitled
 
 ---
 
@@ -88,8 +89,7 @@ Runtime: when premium entitled + equipped, floating/menubar renderer prefers equ
 
 ## Dependencies
 
-- **Phase 08** Settings + Loot gallery
-- **Phase 08** pet import / `~/.codogotchi/pets/` canonical layout
+- **Phase 08** Settings shell + pet import / `~/.codogotchi/pets/` canonical layout (the read-only Loot gallery is **built in this phase**, moved out of Phase 08; see committed scope §7)
 - **Phase 11** optional (level-gated loot rarity can wait)
 - **Phase 06–07** recommended before loot tied to `source_origin` / platform-specific drops (Cursor vs Claude vs Codex)
 

@@ -22,6 +22,13 @@ HP and stage accrue in engine/Convex silently; Phase 04 deferred all overlay UI.
 
 ## Committed scope
 
+### 0. In-app RPG enroll wizard (moved from Phase 08)
+
+- **Turn on alive pet** CTA → in-app enroll wizard; sets `features.rpg_enabled: true` via the app install API (no public `codogotchi rpg` write command)
+- Collects **handle (+ optional GitHub / WakaTime identifiers) only**. **No `convex_url` prompt** — the Convex deployment is a single shared backend owned by the developer, baked into the app build as a compile-time constant; every enrolling client writes to that one deployment. Secrets (if any) in Keychain.
+- Unlocks the Health + Loot tabs and the progression HUD below
+- Public CLI `rpg` / `enroll` removal (deferred out of Phase 08) lands once this wizard ships
+
 ### 1. RPG gate
 
 - All HUD elements render only when `features.rpg_enabled === true` (read from config at app launch; refresh on config change if feasible)
@@ -79,7 +86,7 @@ Menubar: optional single “needs attention” dot only (defer if costly)
 ## Dependencies
 
 - **Phase 05** `rpg_enabled` flag
-- **Phase 08** enroll flow recommended so “alive” users have profile cache (may work with sync cron from enroll)
+- **Phase 08** Settings shell + install API (the in-app enroll wizard is **built in this phase**, moved out of Phase 08; see committed scope §0)
 
 ---
 
