@@ -24,6 +24,7 @@ targets:
       - path: Fixtures/maew
         type: folder
         buildPhase: resources
+      - path: Assets.xcassets
     info:
       path: Info.plist
       properties:
