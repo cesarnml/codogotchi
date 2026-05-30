@@ -96,9 +96,60 @@ const CURSOR_CODOGOTCHI_EVENTS = [
 
 type CursorHookEntry = { type: "command"; command: string };
 type CursorHookSlot = CursorHookEntry[];
-// Cursor hooks.json is a flat map from event name to array of hook entries —
-// no "hooks" wrapper key, unlike Codex hooks.json.
+// Cursor hooks.json is either a flat event map or Cursor's versioned envelope:
+// { "version": 1, "hooks": { "stop": [...] } }.
 type CursorHooksJson = Record<string, CursorHookSlot | unknown>;
+
+function isCursorNestedHooksFile(doc: CursorHooksJson): boolean {
+  const nested = doc.hooks;
+  return (
+    nested !== null && typeof nested === "object" && !Array.isArray(nested)
+  );
+}
+
+function cursorHookEventMap(doc: CursorHooksJson): Record<string, unknown> {
+  if (isCursorNestedHooksFile(doc)) {
+    return doc.hooks as Record<string, unknown>;
+  }
+  return doc as Record<string, unknown>;
+}
+
+function ensureCursorHookEventMap(
+  doc: CursorHooksJson,
+): Record<string, unknown> {
+  if (isCursorNestedHooksFile(doc)) {
+    return doc.hooks as Record<string, unknown>;
+  }
+  if (doc.version !== undefined || "hooks" in doc) {
+    if (!isCursorNestedHooksFile(doc)) {
+      doc.hooks = {};
+    }
+    if (doc.version === undefined) {
+      doc.version = 1;
+    }
+    return doc.hooks as Record<string, unknown>;
+  }
+  return doc as Record<string, unknown>;
+}
+
+function cleanupStaleCursorRootEvents(doc: CursorHooksJson): void {
+  if (!isCursorNestedHooksFile(doc)) return;
+  for (const event of CURSOR_CODOGOTCHI_EVENTS) {
+    delete doc[event];
+  }
+}
+
+function cursorEventSlot(
+  doc: CursorHooksJson,
+  event: (typeof CURSOR_CODOGOTCHI_EVENTS)[number],
+): unknown[] | undefined {
+  const nestedSlot = isCursorNestedHooksFile(doc)
+    ? (doc.hooks as Record<string, unknown>)[event]
+    : undefined;
+  const flatSlot = doc[event];
+  const slot = Array.isArray(nestedSlot) ? nestedSlot : flatSlot;
+  return Array.isArray(slot) ? slot : undefined;
+}
 
 function isCursorHookEntry(value: unknown): value is CursorHookEntry {
   if (!value || typeof value !== "object") return false;
@@ -114,8 +165,8 @@ function cursorHookCommand(ctx: InstallHooksContext): string {
 
 function cursorInstalled(hooks: CursorHooksJson): boolean {
   return CURSOR_CODOGOTCHI_EVENTS.every((event) => {
-    const slot = hooks[event];
-    if (!Array.isArray(slot)) return false;
+    const slot = cursorEventSlot(hooks, event);
+    if (!slot) return false;
     return slot.some(
       (e) => isCursorHookEntry(e) && isCodogotchiCommand(e.command),
     );
@@ -493,10 +544,11 @@ export async function installCursorHooks(
   const cursorPath = join(root, CURSOR_HOOKS_REL);
   await backupIfExists(cursorPath);
   const existing = await readJsonOrEmpty<CursorHooksJson>(cursorPath);
+  const eventMap = ensureCursorHookEventMap(existing);
 
   const cmd = cursorHookCommand(ctx);
   for (const event of CURSOR_CODOGOTCHI_EVENTS) {
-    const raw = existing[event];
+    const raw = eventMap[event];
     const slot = Array.isArray(raw) ? (raw as unknown[]) : [];
     // Preserve all non-Codogotchi entries regardless of type — Cursor may gain
     // new hook entry types (e.g. "stdin") that isCursorHookEntry does not match.
@@ -504,8 +556,9 @@ export async function installCursorHooks(
       (e) => !(isCursorHookEntry(e) && isCodogotchiCommand(e.command)),
     );
     others.push({ type: "command", command: cmd });
-    existing[event] = others as CursorHookSlot;
+    eventMap[event] = others as CursorHookSlot;
   }
+  cleanupStaleCursorRootEvents(existing);
 
   await writeText(cursorPath, `${JSON.stringify(existing, null, 2)}\n`);
 }
@@ -518,16 +571,19 @@ export async function uninstallCursorHooks(): Promise<void> {
   await backupIfExists(cursorPath);
 
   const existing = await readJsonOrEmpty<CursorHooksJson>(cursorPath);
-  for (const [event, raw] of Object.entries(existing)) {
+  const eventMap = cursorHookEventMap(existing);
+  for (const event of CURSOR_CODOGOTCHI_EVENTS) {
+    const raw = eventMap[event];
     if (!Array.isArray(raw)) continue;
     // Preserve all non-Codogotchi entries — including unknown-type entries
     // that isCursorHookEntry would not match — to avoid silent data loss.
     const cleaned = (raw as unknown[]).filter(
       (e) => !(isCursorHookEntry(e) && isCodogotchiCommand(e.command)),
     );
-    if (cleaned.length > 0) existing[event] = cleaned as CursorHookSlot;
-    else delete existing[event];
+    if (cleaned.length > 0) eventMap[event] = cleaned as CursorHookSlot;
+    else delete eventMap[event];
   }
+  cleanupStaleCursorRootEvents(existing);
 
   await writeText(cursorPath, `${JSON.stringify(existing, null, 2)}\n`);
 }

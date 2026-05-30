@@ -546,6 +546,35 @@ describe("cursor hooks", () => {
     expect(status.cursor.installable_in_phase).toBe(true);
     expect(status.cursor.source_origin).toBe("bridge");
   });
+
+  it("cursor install writes nested hooks envelope when versioned file exists", async () => {
+    mkdirSync(join(userRoot, ".cursor"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".cursor", "hooks.json"),
+      `${JSON.stringify({ version: 1, hooks: {} }, null, 2)}\n`,
+      "utf8",
+    );
+
+    await installCursorHooks({ home: "/home/user/.codogotchi" });
+
+    const cursor = JSON.parse(
+      readFileSync(join(userRoot, ".cursor", "hooks.json"), "utf8"),
+    ) as {
+      version: number;
+      hooks: Record<string, Array<{ command: string }>>;
+      afterFileEdit?: unknown;
+    };
+    expect(cursor.version).toBe(1);
+    expect(cursor.afterFileEdit).toBeUndefined();
+    expect(
+      cursor.hooks.afterFileEdit.some((e) =>
+        e.command.includes("codogotchi-hook"),
+      ),
+    ).toBe(true);
+    expect(
+      cursor.hooks.stop.some((e) => e.command.includes("codogotchi-hook")),
+    ).toBe(true);
+  });
 });
 
 describe("P7.03 StopFailure registration", () => {
