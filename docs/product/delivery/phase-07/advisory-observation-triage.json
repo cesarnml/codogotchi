@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-05-30T01:46:03.389Z",
+  "summary": {
+    "total": 10,
+    "patched": 1,
+    "rejected": 9,
+    "already-covered": 0,
+    "requires-human-review": 0
+  },
+  "dispositions": [
+    {
+      "disposition": "rejected",
+      "rationale": "Intentional placeholder design — the four SoA gate states are declared in RELIABLE_ACTIVITY_STATES as stubs for future art and event wiring. The ticket explicitly defers hook-event mapping to a later phase. The subagent confirmed no production pathway exists today, which is expected.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-07/reviews/P7.01-subagent-review.report.md",
+        "ticketId": "P7.01"
+      },
+      "observation": "Four v4 SoA gate states — `red_tdd`, `green_tdd`, `open_pr`, and `record_review` — appear in `ACTIVITY_STATES`, `RELIABLE_ACTIVITY_STATES`, and `CodogotchiPet.rowMap` but are not mapped in either `SOA_EVENT_TO_ACTIVITY_STATE` or `SOA_GATE_TO_STATE`. No current hook event produces them. The placeholder comment in `CodogotchiPet.rowMap` and the absence of corresponding `SOA_EVENT_NAMES` entries suggest this is intentional (art and event wiring deferred to a later phase), but these states are classified as `RELIABLE` while being unreachable in production. If a future phase adds the gate event names and forgets to update both maps, the states will silently fall through to `idle`. This is not a bug in P7.01 scope, but it is a latent wiring risk worth noting in the P7.02 ticket context."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "waiting_for_input is a cross-tool state intended for Codex/Cursor hook support in a future phase. The TS hook deliberately does not emit it — it is a placeholder in the shared ActivityState enum for cross-platform parity, not a TS hook responsibility. Not a bug.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-07/reviews/P7.01-subagent-review.report.md",
+        "ticketId": "P7.01"
+      },
+      "observation": "The `waiting_for_input` state is in `RELIABLE_ACTIVITY_STATES` but `classifyEvent` in `hook-binary.ts` has no branch that emits it. It appears to have no production pathway in the current TS hook. If Codex or Cursor hooks are expected to emit this state, that pathway is not visible in this file. Out of scope for P7.01, but worth verifying during P7.02 classifier work."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The behavior is correct per spec — sed is absent from THINKING_BASH_PREFIXES regardless of flags, so both read-only and write-mode sed fall to implementing. The test comment accurately conveys the write-command rationale. Adding a read-only sed test would be redundant with the spec-level decision that sed is not in the thinking list.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-07/reviews/P7.02-subagent-review.report.md",
+        "ticketId": "P7.02"
+      },
+      "observation": "**Read-only sed not tested.** The `sed -i` test (line 800) documents the rationale as \"write command,\" which is accurate. A read-only `sed 's/foo/bar/'` (no `-i`) also falls to implementing because `sed` is absent from `THINKING_BASH_PREFIXES` entirely. There is no test for the no-`-i` form. This is not a bug — the behavior is correct per spec — but the test gap leaves future maintainers with only the \"write command\" comment as guidance, which could invite adding `sed` back to the thinking list as a \"read-only optimization\" regression."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Stop/standby was preserving the prior readRun counter, causing a Read×2 → Stop → Read×1 sequence to immediately re-enter cramming state on session resume. Fixed: Stop now returns readRun: 0, breaking the read streak. New test added covering the exact scenario.",
+      "patch": {
+        "commitSha": "248b482ef764dd16f8aff72214a5c93585f99d67",
+        "files": [
+          "packages/cli/src/hook-binary.ts",
+          "packages/cli/src/hook-binary.test.ts"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-07/reviews/P7.02-subagent-review.report.md",
+        "ticketId": "P7.02"
+      },
+      "observation": "**Stop event preserves readRun across the standby boundary.** At `hook-binary.ts:195`, the Stop/standby branch returns `readRun: prior.readRun`. This means a sequence of Read×2 → Stop → Read×1 produces cramming (prior.readRun=2, nextRun=3 ≥ 3). No test covers this scenario. The invariant only mandates reset on write tools, so this is technically compliant, but the behavior could surprise: the gotchi enters cramming state immediately after a standby event if the session resumes with a single Read. If the intent is that Stop acts as a streak break, a `readRun: 0` return on the standby branch would need a spec change and a new test."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The code correctly handles the absent is_interrupt case (undefined !== true → errored). No production risk. The spec-referenced absent case is covered by the existing logic; a dedicated test would only add documentation value. Not actionable.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-07/reviews/P7.03-subagent-review.report.md",
+        "ticketId": "P7.03"
+      },
+      "observation": "`postToolUseFailure` with `is_interrupt` absent (undefined) is not directly tested. The code handles it correctly (`undefined !== true` → `errored`), but the spec explicitly calls out the \"absent\" case as a covered path. A test with `{ hook_event_name: \"postToolUseFailure\" }` (no `is_interrupt` field) would explicitly document that the absent case is covered, as the spec intends."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The current uninstallHooks implementation correctly deletes StopFailure when the cleaned array is empty (the only case today). The gap only matters if a future refactor adds a second codogotchi matcher to StopFailure — which would require changing withCodogotchiMatcher and should include an updated uninstall test at that time. Not actionable now.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-07/reviews/P7.03-subagent-review.report.md",
+        "ticketId": "P7.03"
+      },
+      "observation": "`uninstallHooks` at `hooks.ts:439–450` iterates `Object.entries(claudeHooks)` and strips codogotchi matchers from every event slot it finds, but it does not explicitly delete `StopFailure` from the resulting object if the cleaned array is empty. It does `delete claudeHooks[event]` when `cleaned.length === 0`. This is correct for `StopFailure` — after a fresh install, `StopFailure` has exactly one matcher (the codogotchi one), so after stripping it the slot is empty and gets deleted. The existing `uninstall removes codogotchi hook entries` test at line 389 does not verify that `StopFailure` is absent after uninstall. Not a bug in the current implementation, but the gap means a future refactor of `withCodogotchiMatcher` that adds a second matcher entry would silently leave a `StopFailure` ghost slot after uninstall."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The StopFailure branch at rawEventName === 'stopfailure' is unconditional — it fires regardless of whether input.error is present. The code is correct and the observation explicitly calls it low priority with no production risk. Adding a test without the error field is a marginal documentation improvement, not a defect fix.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-07/reviews/P7.03-subagent-review.report.md",
+        "ticketId": "P7.03"
+      },
+      "observation": "The `StopFailure`-without-`error` case (surface 1) has no dedicated test. The spec says \"any `error` value including absent/undefined.\" The code is unconditionally correct, but a test passing `{ hook_event_name: \"StopFailure\" }` with no `error` field would make the invariant verifiable by inspection and protect against a future accidental narrowing of the branch to `rawEventName === \"stopfailure\" && input.error !== undefined`. Low priority; no production risk today."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Coupling note for Phase 17 when .advance gains a rowMap entry. Not actionable in phase-07 scope — the free function placement in GateJsonReader.swift is a known trade-off accepted for now. The Phase 17 ticket should address co-locating resolveActivityState with rowMap.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-07/reviews/P7.04-subagent-review.report.md",
+        "ticketId": "P7.04"
+      },
+      "observation": "**`resolveActivityState` is a free function, not a method.** It has no natural home — it lives in `GateJsonReader.swift` despite depending on `CodogotchiPet.rowMap`. This is a coupling note for Phase 17 when `.advance` gains a row: the rowMap update, the test update, and this function are all in different files. Not a bug, but a future-confusion vector."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Informational compile-time safety note. The invariant (advance in ActivityState but not in rowMap) is preserved and visible in the test. No action needed; the observation is already self-documenting.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-07/reviews/P7.04-subagent-review.report.md",
+        "ticketId": "P7.04"
+      },
+      "observation": "**`testUnexpiredGateWithArtlessStateRendersHookState` tests `advance` by name in a comment, but `ActivityState.advance` must exist as an enum case for the test to compile.** If `.advance` is ever removed from `ActivityState`, the test will fail to compile rather than fail to run — good signal. Noted only because the comment says \"advance is in ActivityState but not in CodogotchiPet.rowMap\" and that invariant is worth keeping visible."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The one-tick skew is accepted by design per the ticket rationale — simplicity wins over atomic reads. The review itself says no fix is needed. Worth documenting for future debugging of one-frame flickers, which it now is.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-07/reviews/P7.04-subagent-review.report.md",
+        "ticketId": "P7.04"
+      },
+      "observation": "**One-tick gate/state skew is real but accepted.** `state.json` is read first in `runTick()`, then `gate.json` is read in `decide()`. On a fast-writing orchestrator, these two reads could see different epochs. A single-tick visual glitch (gate activates one tick early, or hook state appears one tick after gate file is written) is the worst case. The design explicitly accepts this in favor of simplicity; no fix needed, but worth calling out for future debugging if users report one-frame flickers on gate transitions."
+    }
+  ]
+}
