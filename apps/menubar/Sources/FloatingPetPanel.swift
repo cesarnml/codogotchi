@@ -123,22 +123,36 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
 		frameChangeHandler = handler
-		(panel?.contentView as? FloatingPetInteractionView)?.frameChangeHandler = { [weak self] frame in
-			self?.handleFrameChange(frame)
+		if let view = panel?.contentView as? FloatingPetInteractionView {
+			wireFrameHandlers(on: view)
 		}
 	}
 
-	/// Single sink for every panel frame change (drag translate, resize). Keeps
-	/// `lastPanelFrame` current and re-anchors the attention bubble so it stays
-	/// glued to the pet during a drag, then forwards to the external handler.
-	private func handleFrameChange(_ frame: CGRect) {
-		lastPanelFrame = frame
-		if attentionActive, isPanelShown {
-			attentionBubble?.reposition(
-				relativeTo: lastPanelFrame,
-				visibleFrame: visibleFrameProvider()
-			)
+	/// Wire both the live (per-drag-tick) and committed (mouseUp) frame sinks.
+	private func wireFrameHandlers(on view: FloatingPetInteractionView) {
+		view.liveFrameChangeHandler = { [weak self] frame in
+			self?.reanchorChrome(to: frame)
 		}
+		view.frameChangeHandler = { [weak self] frame in
+			self?.handleCommittedFrameChange(frame)
+		}
+	}
+
+	/// Live re-anchor: keep `lastPanelFrame` current and glue the attention
+	/// bubble to the pet on every drag/resize tick. No persistence — runs hot.
+	private func reanchorChrome(to frame: CGRect) {
+		lastPanelFrame = frame
+		guard attentionActive, isPanelShown else { return }
+		attentionBubble?.reposition(
+			relativeTo: lastPanelFrame,
+			visibleFrame: visibleFrameProvider()
+		)
+	}
+
+	/// Committed frame change (mouseUp): re-anchor once more, then forward to the
+	/// external persistence handler.
+	private func handleCommittedFrameChange(_ frame: CGRect) {
+		reanchorChrome(to: frame)
 		frameChangeHandler?(frame)
 	}
 
@@ -184,9 +198,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 				self?.syncSceneSizeToPanel(size)
 			}
 		)
-		view.frameChangeHandler = { [weak self] frame in
-			self?.handleFrameChange(frame)
-		}
+		wireFrameHandlers(on: view)
 		view.hideFloatingPetHandler = { [weak self] in
 			self?.onHideFloatingPet?()
 		}
@@ -426,6 +438,10 @@ private final class FloatingPetInteractionView: NSView {
 	private var affordanceHoverActive = false
 	private var hidePromptPanel: FloatingPetHidePromptPanel?
 	var frameChangeHandler: ((CGRect) -> Void)?
+	/// Fired on every in-flight drag/resize tick (not just mouseUp) so attached
+	/// chrome (the attention bubble) can re-anchor live. Must stay cheap — it
+	/// runs per `mouseDragged`; persistence stays on `frameChangeHandler`.
+	var liveFrameChangeHandler: ((CGRect) -> Void)?
 	var hideFloatingPetHandler: (() -> Void)?
 
 	init(
@@ -688,6 +704,9 @@ private final class FloatingPetInteractionView: NSView {
 			sceneSizeHandler(frame.size)
 		}
 
+		// Re-anchor attached chrome (attention bubble) live, every tick. Cheap
+		// in-memory reposition only; state persistence stays on mouseUp.
+		liveFrameChangeHandler?(frame)
 	}
 
 	private func elevateOverlayAboveSpriteKit() {
