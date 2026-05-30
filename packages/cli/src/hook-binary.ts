@@ -216,7 +216,7 @@ export function classifyEvent(
     ) {
       return { state: "errored", sourceEvent, readRun: 0 };
     }
-    return { state: "standby", sourceEvent, readRun: prior.readRun };
+    return { state: "standby", sourceEvent, readRun: 0 };
   }
   // Explicit failure signal for non-Stop events (rate limit, network error).
   if (input.is_error === true) {

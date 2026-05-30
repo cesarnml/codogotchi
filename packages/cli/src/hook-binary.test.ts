@@ -425,6 +425,25 @@ describe("classifyEvent", () => {
     expect(out.sourceEvent.kind).toBe("session_end");
   });
 
+  it("Stop resets readRun to 0 — Read×2 → Stop → Read×1 does not produce cramming", () => {
+    const read = {
+      origin: "claude_code" as const,
+      kind: "tool_use" as const,
+      name: "Read",
+    };
+    const stop = { hook_event_name: "Stop" } as HookInput;
+    const r1 = classifyEvent(read, { readRun: 0 });
+    expect(r1.state).toBe("reading");
+    const r2 = classifyEvent(read, { readRun: r1.readRun });
+    expect(r2.state).toBe("reading");
+    const s = classifyEvent(stop, { readRun: r2.readRun });
+    expect(s.state).toBe("standby");
+    expect(s.readRun).toBe(0);
+    const r3 = classifyEvent(read, { readRun: s.readRun });
+    expect(r3.state).toBe("reading");
+    expect(r3.readRun).toBe(1);
+  });
+
   it("classifies Stop event with stop_reason max_tokens as errored", () => {
     const out = classifyEvent(
       { hook_event_name: "Stop", stop_reason: "max_tokens" } as HookInput,
