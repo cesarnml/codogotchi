@@ -110,10 +110,40 @@ export function detectTerminalBundleId(
     return "com.mitchellh.ghostty";
   // Terminal.app (macOS built-in).
   if (env.TERM_PROGRAM === "Apple_Terminal") return "com.apple.Terminal";
-  // VS Code integrated terminal (also base for Cursor, but Cursor hooks are
-  // identified separately via camelCase event names → origin=cursor).
-  if (env.TERM_PROGRAM === "vscode") return "com.microsoft.VSCode";
+  // Zed: sets ZED_TERM=1 in its integrated terminal.
+  if (env.ZED_TERM || env.TERM_PROGRAM === "zed") return "dev.zed.Zed";
+  // VS Code-family (all forks set TERM_PROGRAM=vscode). Use __CFBundleIdentifier
+  // — set by macOS for app-bundle processes and inherited by directly-spawned
+  // embedded terminals (no login shell intermediary) — to distinguish forks.
+  if (env.TERM_PROGRAM === "vscode")
+    return env.__CFBundleIdentifier ?? "com.microsoft.VSCode";
+  // Catch-all for other IDEs with embedded terminals that don't set TERM_PROGRAM
+  // (e.g. Antigravity and future IDEs). __CFBundleIdentifier is inherited when
+  // the IDE spawns the shell directly without going through login(1).
+  if (env.__CFBundleIdentifier) return env.__CFBundleIdentifier;
   return undefined;
+}
+
+/// DEBUG — writes terminal-relevant env vars to /tmp/codogotchi-terminal-debug.txt.
+/// Called from runHookFromEnv when CODOGOTCHI_DEBUG_TERMINAL is set.
+/// Remove after IDE embedded-terminal detection is validated for all platforms.
+function dumpTerminalEnv(env: NodeJS.ProcessEnv): void {
+  const keys = Object.keys(env)
+    .filter((k) =>
+      /TERM|GHOSTTY|WARP|ITERM|CURSOR|VSCODE|ZED|BUNDLE|__CF|ANTIGRAVITY|IDE|EDITOR|PROGRAM/i.test(
+        k,
+      ),
+    )
+    .sort();
+  const lines = [
+    `detected: ${detectTerminalBundleId(env) ?? "undefined"}`,
+    ...keys.map((k) => `${k}=${env[k]}`),
+  ];
+  require("node:fs").writeFileSync(
+    "/tmp/codogotchi-terminal-debug.txt",
+    lines.join("\n") + "\n",
+    "utf8",
+  );
 }
 
 function rawHookOrigin(input: HookInput): SourceEventOrigin {
@@ -426,6 +456,7 @@ export async function runHook(
     const counters = await readCounters(opts.home);
     const classified = classifyEvent(input, { readRun: counters.read_run });
 
+    if (process.env.CODOGOTCHI_DEBUG_TERMINAL) dumpTerminalEnv(process.env);
     const activityState = classified.state;
     const terminalBundleId = detectTerminalBundleId(process.env);
     const sourceEvent: SourceEvent = {
