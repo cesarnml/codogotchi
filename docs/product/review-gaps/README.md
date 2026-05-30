@@ -35,6 +35,7 @@ sits in [`promotion-queue.md`](./promotion-queue.md) as evidence, not doctrine.
 | `phase` | phase the fix corrects (e.g. `"06"`, or `"04+06"` for an integration gap) | attribution |
 | `commit` | short SHA + subject of the `fix(...)`/`feat(...)` commit | provenance |
 | `kind` | `bug-patch` · `completeness-feature` · `polish-parity` | separates real defects from sanctioned mini-features and taste-tuning |
+| `rounds` | integer — how many propose→verify cycles before it landed | signal distinct from `reachability`: a 4-round fix was hard to get right, a 1-round fix was obvious-once-named |
 | `problem` | prose — what a human observed as wrong | the symptom |
 | `solution` | prose — what the patch did (+ any "do not reintroduce") | the fix |
 | `defect_class` | one of the 7 diff-derived classes from the adversarial-review template, **or** `NEW: <name>` | the empirical signal — recurring `NEW:` classes are promotion candidates |
@@ -70,6 +71,22 @@ These are backend/CLI-shaped. UI bugs in this repo have no word here yet — tag
 them `NEW: <name>` (e.g. `NEW: compound-widget-cohesion-under-transform`). The
 whole point is to discover which UI-family classes recur enough to deserve a
 permanent slot.
+
+## When to write a ledger line
+
+**At verified-commit time — never on attempt.** A fix is not a single event; it
+is a loop: propose → human verifies it landed → (often several rounds) → commit
+only once verified. The ledger line is the *last* step, written after the commit
+exists, capturing the SHA and the final `rounds` count. One *verified* fix = one
+commit = one ledger line. Do not write speculative entries for fixes still in
+flight.
+
+This is why the planned skill is invoked **per phase under QC**:
+`/soa quality-control phase-06: <problem + desired behavior>`. The explicit phase
+disambiguates concurrent QC (e.g. hardening phase-06/07/08 at once before a
+release gate) — each invocation self-labels its `phase` field. The skill's
+pipeline is `implement → human verifies → [loop] → commit → record`, so the
+ledger write and the commit are the same final beat.
 
 ## Routing on capture (suggestions, not gates)
 
