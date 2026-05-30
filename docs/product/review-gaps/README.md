@@ -88,6 +88,17 @@ release gate) — each invocation self-labels its `phase` field. The skill's
 pipeline is `implement → human verifies → [loop] → commit → record`, so the
 ledger write and the commit are the same final beat.
 
+### When a fix does not one-shot (the `[loop]`)
+
+If the first attempt fails verification, **do not keep guessing.** Instrument the
+critical paths with debug logging to learn the actual signal/control flow before
+the next attempt — drive methodically to the root cause instead of pattern-matching
+another guess. (codogotchi-01 round 1 failed precisely because the agent assumed
+`frameChangeHandler` fired during the drag; a single log line would have shown it
+fires only on `mouseUp`.) Remove all debug logging once the human validates the
+fix landed — the instrumentation is scaffolding, not a deliverable, and its
+removal is part of the same final commit. Capture the round count in `rounds`.
+
 ## Routing on capture (suggestions, not gates)
 
 When a QC item is larger than a small fix, **suggest** a path with one line of
