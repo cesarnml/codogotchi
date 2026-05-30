@@ -94,7 +94,8 @@ describe("installHooks", () => {
       expect(slot[0]?.matcher).toBe("*");
       expect(slot[0]?.hooks[0]).toEqual({
         type: "command",
-        command: "CODOGOTCHI_HOME='/home/user/.codogotchi' codogotchi-hook",
+        command:
+          "CODOGOTCHI_HOME='/home/user/.codogotchi' CODOGOTCHI_ORIGIN=codex codogotchi-hook",
       });
     }
 
@@ -278,7 +279,7 @@ describe("installHooks", () => {
     );
     expect(preCommands).toContain("custom-pre-hook");
     expect(preCommands).toContain(
-      "CODOGOTCHI_HOME='/home/user/.codogotchi' codogotchi-hook",
+      "CODOGOTCHI_HOME='/home/user/.codogotchi' CODOGOTCHI_ORIGIN=codex codogotchi-hook",
     );
     expect(preCommands.some((command) => command.includes("codevibe"))).toBe(
       false,

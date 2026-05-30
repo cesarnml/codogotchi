@@ -68,11 +68,11 @@ final class AttentionBubblePanel: NSPanel {
 		set { bubbleView.onDismiss = newValue }
 	}
 
-	func update(payload: AttentionPayload, sourceOrigin: String?) {
+	func update(payload: AttentionPayload, sourceEvent: SourceEvent?) {
 		bubbleView.configure(
 			summary: payload.summary ?? "",
 			reasonKind: payload.reasonKind ?? "",
-			sourceOrigin: sourceOrigin
+			sourceEvent: sourceEvent
 		)
 	}
 
@@ -104,7 +104,7 @@ private final class AttentionBubbleView: NSView {
 
 	private var trackingArea: NSTrackingArea?
 	private var isHovered = false
-	private var sourceOrigin: String?
+	private var sourceEvent: SourceEvent?
 	private var reasonKind: String = ""
 
 	override init(frame frameRect: NSRect) {
@@ -230,8 +230,8 @@ private final class AttentionBubbleView: NSView {
 		button.action = selector
 	}
 
-	func configure(summary: String, reasonKind: String, sourceOrigin: String?) {
-		self.sourceOrigin = sourceOrigin
+	func configure(summary: String, reasonKind: String, sourceEvent: SourceEvent?) {
+		self.sourceEvent = sourceEvent
 		self.reasonKind = reasonKind
 		summaryLabel.stringValue = summary.isEmpty ? "Waiting for input" : summary
 		subtitleLabel.stringValue = reasonKind
@@ -341,15 +341,37 @@ private final class AttentionBubbleView: NSView {
 	}
 
 	@objc private func performAction() {
-		guard let origin = sourceOrigin else { return }
-		let bundleIdMap: [String: String] = [
-			"claude_code": "com.anthropic.claudecode",
-			"cursor": "com.todesktop.230313mzl4w4u92",
-		]
-		guard let bundleId = bundleIdMap[origin] else { return }
+		let bundleId = focusBundleId(for: sourceEvent)
+		defer {
+			onDismiss?()
+			window?.orderOut(nil)
+		}
+		guard let bundleId else { return }
 		let match = NSWorkspace.shared.runningApplications.first {
 			$0.bundleIdentifier == bundleId
 		}
+		// activate forces the OS to foreground the app (handles Electron apps that
+		// ignore the reopen event); open(bundleURL) then handles un-minimise from dock.
 		match?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+		if let url = match?.bundleURL {
+			NSWorkspace.shared.open(url)
+		}
+	}
+
+	/// Resolves the bundle ID to focus when the user taps Focus.
+	///
+	/// Priority:
+	/// 1. `terminal_bundle_id` — the terminal that launched the hook process,
+	///    populated by `detectTerminalBundleId` in hook-binary.ts.
+	/// 2. IDE-native origin map — for IDE agents (cursor, codex Desktop) that fire
+	///    hooks directly without a terminal parent.
+	/// 3. nil — no reliable Focus target; bubble still dismisses, Focus is a no-op.
+	private func focusBundleId(for event: SourceEvent?) -> String? {
+		if let terminalId = event?.terminalBundleId { return terminalId }
+		let ideMap: [String: String] = [
+			"cursor": "com.todesktop.230313mzl4w4u92",
+			"codex": "com.openai.codex",
+		]
+		return ideMap[event?.origin ?? ""]
 	}
 }

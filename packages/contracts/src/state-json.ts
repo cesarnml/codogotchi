@@ -36,6 +36,7 @@ export const sourceEventSchema = z.object({
   origin: sourceEventOriginSchema,
   kind: sourceEventKindSchema,
   name: z.string().min(1),
+  terminal_bundle_id: z.string().optional(),
 });
 export type SourceEvent = z.infer<typeof sourceEventSchema>;
 

@@ -93,7 +93,37 @@ type NormalizedEvent = {
   command: string | undefined;
 };
 
+/// Returns the bundle ID of the terminal that launched this hook process,
+/// detected from environment variables injected by common macOS terminals.
+/// Used to populate `source_event.terminal_bundle_id` in state.json so the
+/// Focus button can bring the right app to front instead of guessing from origin.
+export function detectTerminalBundleId(
+  env: NodeJS.ProcessEnv,
+): string | undefined {
+  // Warp: sets WARP_IS_LOCAL_SHELL_SESSION=1 in every shell session.
+  if (env.WARP_IS_LOCAL_SHELL_SESSION) return "dev.warp.Warp-Stable";
+  // iTerm2: sets ITERM_SESSION_ID (UUID) in every session.
+  if (env.ITERM_SESSION_ID || env.TERM_PROGRAM === "iTerm.app")
+    return "com.googlecode.iterm2";
+  // Ghostty: sets TERM_PROGRAM=ghostty; GHOSTTY_RESOURCES_DIR as fallback.
+  if (env.TERM_PROGRAM === "ghostty" || env.GHOSTTY_RESOURCES_DIR)
+    return "com.mitchellh.ghostty";
+  // Terminal.app (macOS built-in).
+  if (env.TERM_PROGRAM === "Apple_Terminal") return "com.apple.Terminal";
+  // VS Code integrated terminal (also base for Cursor, but Cursor hooks are
+  // identified separately via camelCase event names → origin=cursor).
+  if (env.TERM_PROGRAM === "vscode") return "com.microsoft.VSCode";
+  return undefined;
+}
+
 function rawHookOrigin(input: HookInput): SourceEventOrigin {
+  // Explicit env override — used by platform hook commands (e.g. Codex Desktop)
+  // that share PascalCase event names with Claude Code and would otherwise be
+  // misclassified by the heuristic below.
+  const envOrigin = process.env.CODOGOTCHI_ORIGIN as
+    | SourceEventOrigin
+    | undefined;
+  if (envOrigin !== undefined) return envOrigin;
   if (input.origin !== undefined) return input.origin;
   const eventName = input.hook_event_name;
   if (!eventName) return "claude_code";
@@ -397,7 +427,13 @@ export async function runHook(
     const classified = classifyEvent(input, { readRun: counters.read_run });
 
     const activityState = classified.state;
-    const sourceEvent: SourceEvent = classified.sourceEvent;
+    const terminalBundleId = detectTerminalBundleId(process.env);
+    const sourceEvent: SourceEvent = {
+      ...classified.sourceEvent,
+      ...(terminalBundleId !== undefined && {
+        terminal_bundle_id: terminalBundleId,
+      }),
+    };
 
     const overlay = await readProfileOverlay(opts.home);
     const hp = overlay?.hp ?? 100;

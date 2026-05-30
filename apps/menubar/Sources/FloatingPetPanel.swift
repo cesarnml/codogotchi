@@ -78,7 +78,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		attentionBubble?.orderOut(nil)
 	}
 
-	func applyAttention(payload: AttentionPayload?, sourceOrigin: String?) {
+	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
 		guard let payload, !payload.isExpired() else {
 			attentionActive = false
 			attentionBubble?.orderOut(nil)
@@ -91,7 +91,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			attentionBubble = b
 			return b
 		}()
-		bubble.update(payload: payload, sourceOrigin: sourceOrigin)
+		bubble.update(payload: payload, sourceEvent: sourceEvent)
 		if isPanelShown {
 			repositionAndShowBubble()
 		}

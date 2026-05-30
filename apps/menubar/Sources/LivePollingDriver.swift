@@ -56,7 +56,7 @@ enum LivePollingTooltips {
 final class LivePollingDriver {
 	typealias Apply = (ActivityState, VisualMode) -> Void
 	typealias SetTooltip = (String?) -> Void
-	typealias ApplyAttention = (AttentionPayload?, String?) -> Void
+	typealias ApplyAttention = (AttentionPayload?, SourceEvent?) -> Void
 	typealias Reader = (String) -> Result<StateSnapshot, StateReadError>
 	typealias GateReader = (String) -> GateSnapshot?
 
@@ -81,7 +81,7 @@ final class LivePollingDriver {
 	/// Cached attention emission — nil means "never emitted". Outer Optional wraps
 	/// the inner `(AttentionPayload?, String?)` so we can distinguish "never
 	/// emitted" from "emitted (nil, nil)".
-	private var lastAttentionEmission: (AttentionPayload?, String?)? = nil
+	private var lastAttentionEmission: (AttentionPayload?, SourceEvent?)? = nil
 	/// Agent-reported state from the last successful read. The transition log
 	/// records changes against this value, not against the rendered visual
 	/// state, because failure visuals collapse to `.idle` regardless of what
@@ -166,7 +166,7 @@ final class LivePollingDriver {
 		let mode: VisualMode
 		let tooltip: String?
 		let attention: AttentionPayload?
-		let sourceOrigin: String?
+		let sourceEvent: SourceEvent?
 	}
 
 	private func decide(from result: Result<StateSnapshot, StateReadError>) -> Outcome {
@@ -179,26 +179,26 @@ final class LivePollingDriver {
 				mode: .normal,
 				tooltip: nil,
 				attention: snapshot.attention,
-				sourceOrigin: snapshot.sourceEvent?.origin
+				sourceEvent: snapshot.sourceEvent
 			)
 		case .failure(.fileNotFound):
 			return Outcome(
 				state: .idle, mode: .desaturated,
 				tooltip: LivePollingTooltips.noHookDetected,
-				attention: nil, sourceOrigin: nil
+				attention: nil, sourceEvent: nil
 			)
 		case .failure(.malformed), .failure(.schemaMissingOrInvalid):
 			return Outcome(
 				state: .idle, mode: .desaturated,
 				tooltip: LivePollingTooltips.schemaMissing,
-				attention: nil, sourceOrigin: nil
+				attention: nil, sourceEvent: nil
 			)
 		case .failure(.schemaNewer(let got, let expected)):
 			return Outcome(
 				state: .idle,
 				mode: .desaturated,
 				tooltip: LivePollingTooltips.schemaNewer(got: got, expected: expected),
-				attention: nil, sourceOrigin: nil
+				attention: nil, sourceEvent: nil
 			)
 		}
 	}
@@ -229,7 +229,7 @@ final class LivePollingDriver {
 
 		// Attention payload — emit when changed; suppress identical repeats.
 		if let sink = applyAttention {
-			let newAttention = (outcome.attention, outcome.sourceOrigin)
+			let newAttention = (outcome.attention, outcome.sourceEvent)
 			let attentionChanged: Bool
 			if let last = lastAttentionEmission {
 				attentionChanged = last.0 != newAttention.0 || last.1 != newAttention.1

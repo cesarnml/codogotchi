@@ -225,9 +225,14 @@ function shellQuote(value: string): string {
 }
 
 function codexHookCommand(ctx: InstallHooksContext): string {
-  return [`CODOGOTCHI_HOME=${shellQuote(ctx.home)}`, CODOGOTCHI_COMMAND].join(
-    " ",
-  );
+  // CODOGOTCHI_ORIGIN=codex overrides the PascalCase heuristic in rawHookOrigin,
+  // which would otherwise misidentify Codex Desktop hooks as claude_code (both
+  // use the same PascalCase event-name schema).
+  return [
+    `CODOGOTCHI_HOME=${shellQuote(ctx.home)}`,
+    `CODOGOTCHI_ORIGIN=codex`,
+    CODOGOTCHI_COMMAND,
+  ].join(" ");
 }
 
 /// Replace any existing codogotchi-hook matcher in `slot` with a canonical

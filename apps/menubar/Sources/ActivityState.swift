@@ -49,6 +49,18 @@ struct SourceEvent: Equatable, Decodable {
 	let origin: String?
 	let kind: String?
 	let name: String?
+	/// macOS bundle ID of the terminal that launched the hook process, populated
+	/// by `detectTerminalBundleId` in hook-binary.ts. Used by the Focus button
+	/// to bring the correct app to front for CLI-sourced hooks (claude_code, codex
+	/// CLI) where the target is the terminal, not a fixed IDE app.
+	let terminalBundleId: String?
+
+	init(origin: String?, kind: String?, name: String?, terminalBundleId: String? = nil) {
+		self.origin = origin
+		self.kind = kind
+		self.name = name
+		self.terminalBundleId = terminalBundleId
+	}
 }
 
 /// The `attention` object from the v3 schema. Present when `activity_state`
