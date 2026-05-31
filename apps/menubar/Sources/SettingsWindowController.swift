@@ -158,11 +158,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			vm.refresh()
 			DispatchQueue.main.async {
 				guard let self else { return }
+				self.generalTab?.applyViewModel(vm)
 				if let msg = error {
 					self.generalTab?.setHooksError(msg)
 				} else {
 					self.generalTab?.setHooksSuccess(message: "Installed.")
-					self.generalTab?.applyViewModel(vm)
 				}
 			}
 		}
@@ -177,11 +177,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			vm.refresh()
 			DispatchQueue.main.async {
 				guard let self else { return }
+				self.generalTab?.applyViewModel(vm)
 				if let msg = error {
 					self.generalTab?.setHooksError(msg)
 				} else {
 					self.generalTab?.setHooksSuccess(message: "Updated.")
-					self.generalTab?.applyViewModel(vm)
 				}
 			}
 		}
@@ -196,11 +196,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			vm.refresh()
 			DispatchQueue.main.async {
 				guard let self else { return }
+				self.generalTab?.applyViewModel(vm)
 				if let msg = error {
 					self.generalTab?.setHooksError(msg)
 				} else {
 					self.generalTab?.setHooksSuccess(message: "Uninstalled.")
-					self.generalTab?.applyViewModel(vm)
 				}
 			}
 		}
