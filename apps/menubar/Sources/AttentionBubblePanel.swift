@@ -12,7 +12,7 @@ private enum BubbleLayout {
 	static let vPad: CGFloat = 9
 	static let cornerRadius: CGFloat = 10
 	static let iconSize: CGFloat = 18
-	static let closeButtonSize: CGFloat = 20
+	static let closeButtonSize: CGFloat = 13
 	static let actionButtonHeight: CGFloat = 18
 	static let actionButtonWidth: CGFloat = 54
 
@@ -115,6 +115,10 @@ private final class AttentionBubbleView: NSView {
 			super.init(frame: frame)
 			wantsLayer = true
 			layer?.masksToBounds = true
+			bezelStyle = .regularSquare
+			imagePosition = .imageOnly
+			isBordered = false
+			focusRingType = .none
 			updateHoverStyle(isDirectlyHovered: false)
 		}
 
@@ -145,6 +149,7 @@ private final class AttentionBubbleView: NSView {
 		private func updateHoverStyle(isDirectlyHovered: Bool) {
 			let borderAlpha = isDirectlyHovered ? hoverBorderAlpha : normalBorderAlpha
 			let fillAlpha = isDirectlyHovered ? hoverFillAlpha : normalFillAlpha
+			layer?.cornerRadius = min(bounds.width, bounds.height) / 2
 			layer?.borderColor = borderBaseColor.withAlphaComponent(borderAlpha).cgColor
 			layer?.borderWidth = 1
 			layer?.backgroundColor = fillBaseColor.withAlphaComponent(fillAlpha).cgColor
@@ -232,8 +237,8 @@ private final class AttentionBubbleView: NSView {
 			accessibility: "Dismiss",
 			selector: #selector(dismissBubble)
 		)
-		dismissButton.layer?.cornerRadius = BubbleLayout.closeButtonSize / 2
 		dismissButton.contentTintColor = NSColor(calibratedWhite: 0.86, alpha: 1.0)
+		dismissButton.imageScaling = .scaleProportionallyDown
 		dismissButton.alphaValue = 0
 		dismissButton.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(dismissButton)
@@ -369,6 +374,10 @@ private final class AttentionBubbleView: NSView {
 	private func applyChromeStyle() {
 		effectView.layer?.cornerRadius = BubbleLayout.cornerRadius
 		effectView.layer?.masksToBounds = true
+		dismissButton.layer?.cornerRadius = min(
+			dismissButton.bounds.width,
+			dismissButton.bounds.height
+		) / 2
 		layer?.cornerRadius = BubbleLayout.cornerRadius
 		layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
 		layer?.borderWidth = 1
