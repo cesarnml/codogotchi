@@ -41,8 +41,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: reuse existing section content; only the container changes.
+Red first: `SettingsTabModelTests` (4 tabs in order, default General, observable selection) and `AboutViewModelTests` (injected + runner-sourced versions) failed against stub types; `router-version.test.ts` failed because `--version` was an unknown command.
+Why this path: reuse existing section content; only the container changes. Hooks→`GeneralTabView` and Pet→`PetTabView` carry the previous controls and state-setters verbatim; the window is promoted `NSPanel`→`NSWindow` hosting an `NSTabView`. Tab order/selection live in the AppKit-free `SettingsTabModel` so they are unit-testable; the controller keeps it in sync via `NSTabViewDelegate`.
 Alternative considered: keep the panel and add tabs in place — rejected; the plan calls for a standard window.
 Deferred: General/Pet/Developer richer wiring (P8.04/P8.07/P8.08).
-Contract note:
+Contract note: The About tab sources the bundled hook-binary version from `codogotchi --version` (newly added to the CLI router, backed by the `CLI_VERSION` constant in `packages/cli/src/version.ts`), never a hardcoded Swift string. P8.05 layers the installed-vs-bundled lockstep comparison on top of this reported value. The Developer tab is a real selectable placeholder (no dead-end); its observability content lands in P8.08.
