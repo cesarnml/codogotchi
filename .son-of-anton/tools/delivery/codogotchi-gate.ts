@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -34,6 +34,9 @@ export type GateJsonPayload = {
   ticket_id: string;
 };
 
+const GATE_JSON_FILENAME = 'gate.json';
+const GATE_TRANSITIONS_LOG_FILENAME = 'gate-transitions.log';
+
 export function resolveCodogotchiHome(): string {
   return process.env['CODOGOTCHI_HOME'] || join(homedir(), '.codogotchi');
 }
@@ -55,7 +58,9 @@ export async function writeGateEvent(
       ticket_id: event.ticketId,
     };
     mkdirSync(home, { recursive: true });
-    writeFileSync(join(home, 'gate.json'), JSON.stringify(payload), 'utf8');
+    const serialized = JSON.stringify(payload);
+    writeFileSync(join(home, GATE_JSON_FILENAME), serialized, 'utf8');
+    appendFileSync(join(home, GATE_TRANSITIONS_LOG_FILENAME), `${serialized}\n`, 'utf8');
   } catch {
     // best-effort: write failures never abort a delivery command
   }

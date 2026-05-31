@@ -30,7 +30,7 @@ Before committing: run `bun run format` **first**, then stage, then commit. Use 
 
 ## Codogotchi Gate Sidecar
 
-When `codogotchi.enabled` is not set to `false` in `orchestrator.config.json` (the default), SoA delivery commands write the current delivery gate to a global JSON sidecar at `$CODOGOTCHI_HOME/gate.json` (default `~/.codogotchi/gate.json`). The codogotchi renderer reads this file directly to drive Mali's animation state at recognized delivery gate points.
+When `codogotchi.enabled` is not set to `false` in `orchestrator.config.json` (the default), SoA delivery commands write the current delivery gate to a global JSON sidecar at `$CODOGOTCHI_HOME/gate.json` (default `~/.codogotchi/gate.json`). They also append each emitted gate payload to `$CODOGOTCHI_HOME/gate-transitions.log`. The codogotchi renderer reads `gate.json` directly to drive Mali's animation state at recognized delivery gate points; `gate-transitions.log` is append-only telemetry for reconstructing which gates fired for a ticket and the exact emitted TTL windows.
 
 **Gate JSON shape:**
 
@@ -50,6 +50,7 @@ When `codogotchi.enabled` is not set to `false` in `orchestrator.config.json` (t
 **Key behaviors:**
 
 - **Single global file.** `gate.json` is last-write-wins. One pet shows one current gate across all concurrent delivery runs.
+- **Append-only telemetry log.** `gate-transitions.log` records every emitted gate payload as one JSON line, preserving transition order and the exact `{ since, expires_at }` window written for that emission.
 - **Flat 3-minute TTL.** `expires_at = since + 3m`. The renderer uses this for animation expiry without an explicit clear mechanism.
 - **Emit-then-action.** Each gate is written before the delivery command's primary side effect (PR creation, polling, recording, etc.) to extend the visible animation window.
 - **Best-effort.** Write failures are silently swallowed — no delivery command aborts due to a gate write error.
