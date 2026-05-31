@@ -373,4 +373,29 @@ final class FloatingPetControllerTests: XCTestCase {
 		XCTAssertLessThanOrEqual(frame.maxX, visibleFrame.maxX - GateBadgeLayout.margin + 0.01)
 		XCTAssertLessThanOrEqual(frame.maxY, visibleFrame.maxY - GateBadgeLayout.margin + 0.01)
 	}
+
+	func testGateBadgeMetricsScaleUpWithLargerPet() {
+		let small = GateBadgeLayout.metrics(
+			for: CGRect(x: 0, y: 0, width: 140, height: 140)
+		)
+		let large = GateBadgeLayout.metrics(
+			for: CGRect(x: 0, y: 0, width: 320, height: 320)
+		)
+
+		XCTAssertGreaterThan(large.badgeHeight, small.badgeHeight)
+		XCTAssertGreaterThan(large.fontSize, small.fontSize)
+		XCTAssertGreaterThan(large.horizontalPadding, small.horizontalPadding)
+		XCTAssertGreaterThan(large.interBadgeSpacing, small.interBadgeSpacing)
+	}
+
+	func testGateBadgeMetricsClampAtMinimumScale() {
+		let tiny = GateBadgeLayout.metrics(
+			for: CGRect(x: 0, y: 0, width: 40, height: 40)
+		)
+		let clamped = GateBadgeLayout.metrics(
+			for: CGRect(x: 0, y: 0, width: 100, height: 100)
+		)
+
+		XCTAssertEqual(tiny, clamped, "very small pets clamp to the minimum badge scale")
+	}
 }

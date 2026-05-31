@@ -122,7 +122,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			gateBadgePanel = panel
 			return panel
 		}()
-		badge.update(content: content)
+		badge.update(content: content, relativeTo: lastPanelFrame)
 		if isPanelShown {
 			repositionAndShowGateBadge()
 		}
@@ -262,12 +262,29 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 }
 
 enum GateBadgeLayout {
-	static let horizontalPadding: CGFloat = 10
-	static let verticalPadding: CGFloat = 5
-	static let interBadgeSpacing: CGFloat = 6
 	static let margin: CGFloat = 4
-	static let cornerRadius: CGFloat = 8
-	static let badgeHeight: CGFloat = 24
+	static let baselinePetWidth: CGFloat = 220
+
+	struct Metrics: Equatable {
+		let horizontalPadding: CGFloat
+		let verticalPadding: CGFloat
+		let interBadgeSpacing: CGFloat
+		let cornerRadius: CGFloat
+		let badgeHeight: CGFloat
+		let fontSize: CGFloat
+	}
+
+	static func metrics(for petFrame: CGRect) -> Metrics {
+		let scale = max(0.75, min(1.5, petFrame.width / baselinePetWidth))
+		return Metrics(
+			horizontalPadding: round(10 * scale),
+			verticalPadding: round(5 * scale),
+			interBadgeSpacing: round(6 * scale),
+			cornerRadius: round(8 * scale),
+			badgeHeight: round(24 * scale),
+			fontSize: round(11 * scale * 10) / 10
+		)
+	}
 
 	static func frame(relativeTo petFrame: CGRect, badgeSize: CGSize, visibleFrame: CGRect) -> CGRect {
 		let rect = CGRect(
@@ -308,12 +325,12 @@ final class GateBadgePanel: NSPanel {
 	override var canBecomeKey: Bool { false }
 	override var canBecomeMain: Bool { false }
 
-	func update(content: GateBadgeContent) {
-		badgeView.configure(content: content)
+	func update(content: GateBadgeContent, relativeTo petFrame: CGRect) {
+		badgeView.configure(content: content, metrics: GateBadgeLayout.metrics(for: petFrame))
 	}
 
 	func reposition(content: GateBadgeContent, relativeTo petFrame: CGRect, visibleFrame: CGRect) {
-		badgeView.configure(content: content)
+		badgeView.configure(content: content, metrics: GateBadgeLayout.metrics(for: petFrame))
 		let size = badgeView.preferredSize
 		let frame = GateBadgeLayout.frame(
 			relativeTo: petFrame,
@@ -330,18 +347,17 @@ private final class GateBadgeView: NSView {
 	private let ticketBadge = GateBadgeTokenView(
 		backgroundColor: NSColor(calibratedRed: 0.22, green: 0.55, blue: 0.97, alpha: 1.0),
 		textColor: .white,
-		font: NSFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
+		weight: .semibold
 	)
 	private let gateBadge = GateBadgeTokenView(
 		backgroundColor: NSColor(calibratedWhite: 0.15, alpha: 0.96),
 		textColor: NSColor(calibratedWhite: 0.95, alpha: 1.0),
-		font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
+		weight: .medium
 	)
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
 		stackView.orientation = .horizontal
-		stackView.spacing = GateBadgeLayout.interBadgeSpacing
 		stackView.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(stackView)
 		stackView.addArrangedSubview(ticketBadge)
@@ -357,9 +373,10 @@ private final class GateBadgeView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	func configure(content: GateBadgeContent) {
-		ticketBadge.configure(text: content.ticketId)
-		gateBadge.configure(text: content.gate)
+	func configure(content: GateBadgeContent, metrics: GateBadgeLayout.Metrics) {
+		stackView.spacing = metrics.interBadgeSpacing
+		ticketBadge.configure(text: content.ticketId, metrics: metrics)
+		gateBadge.configure(text: content.gate, metrics: metrics)
 		layoutSubtreeIfNeeded()
 		invalidateIntrinsicContentSize()
 	}
@@ -372,46 +389,72 @@ private final class GateBadgeView: NSView {
 
 private final class GateBadgeTokenView: NSView {
 	private let label = NSTextField(labelWithString: "")
+	private let textColor: NSColor
+	private let weight: NSFont.Weight
+	private var metrics = GateBadgeLayout.metrics(
+		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
+	)
+	private var heightConstraint: NSLayoutConstraint?
+	private var leadingConstraint: NSLayoutConstraint?
+	private var trailingConstraint: NSLayoutConstraint?
 
-	init(backgroundColor: NSColor, textColor: NSColor, font: NSFont) {
+	init(backgroundColor: NSColor, textColor: NSColor, weight: NSFont.Weight) {
+		self.textColor = textColor
+		self.weight = weight
 		super.init(frame: .zero)
 		wantsLayer = true
 		layer?.backgroundColor = backgroundColor.cgColor
-		layer?.cornerRadius = GateBadgeLayout.cornerRadius
 		label.textColor = textColor
-		label.font = font
 		label.lineBreakMode = .byTruncatingTail
 		label.maximumNumberOfLines = 1
 		label.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(label)
+		let heightConstraint = heightAnchor.constraint(equalToConstant: metrics.badgeHeight)
+		let leadingConstraint = label.leadingAnchor.constraint(
+			equalTo: leadingAnchor,
+			constant: metrics.horizontalPadding
+		)
+		let trailingConstraint = label.trailingAnchor.constraint(
+			equalTo: trailingAnchor,
+			constant: -metrics.horizontalPadding
+		)
+		self.heightConstraint = heightConstraint
+		self.leadingConstraint = leadingConstraint
+		self.trailingConstraint = trailingConstraint
 		NSLayoutConstraint.activate([
-			heightAnchor.constraint(equalToConstant: GateBadgeLayout.badgeHeight),
-			label.leadingAnchor.constraint(
-				equalTo: leadingAnchor,
-				constant: GateBadgeLayout.horizontalPadding
-			),
-			label.trailingAnchor.constraint(
-				equalTo: trailingAnchor,
-				constant: -GateBadgeLayout.horizontalPadding
-			),
+			heightConstraint,
+			leadingConstraint,
+			trailingConstraint,
 			label.centerYAnchor.constraint(equalTo: centerYAnchor),
 		])
+		applyMetrics()
 	}
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	func configure(text: String) {
+	func configure(text: String, metrics: GateBadgeLayout.Metrics) {
 		label.stringValue = text
+		self.metrics = metrics
+		applyMetrics()
 		invalidateIntrinsicContentSize()
 	}
 
 	override var intrinsicContentSize: NSSize {
 		let textSize = label.intrinsicContentSize
 		return NSSize(
-			width: textSize.width + GateBadgeLayout.horizontalPadding * 2,
-			height: GateBadgeLayout.badgeHeight
+			width: textSize.width + metrics.horizontalPadding * 2,
+			height: metrics.badgeHeight
 		)
+	}
+
+	private func applyMetrics() {
+		layer?.cornerRadius = metrics.cornerRadius
+		label.font = NSFont.monospacedSystemFont(ofSize: metrics.fontSize, weight: weight)
+		label.textColor = textColor
+		heightConstraint?.constant = metrics.badgeHeight
+		leadingConstraint?.constant = metrics.horizontalPadding
+		trailingConstraint?.constant = -metrics.horizontalPadding
 	}
 }
 
