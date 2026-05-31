@@ -19,6 +19,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private var petTab: PetTabView?
 	private let tabModel = SettingsTabModel()
 	private let generalViewModel: GeneralTabViewModel
+	private let petTabViewModel: PetTabViewModel
 
 	private let settingsController: SettingsController
 	private let petImportHelper: PetImportHelper
@@ -26,9 +27,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private let appStateLoader: () -> FloatingAppState
 	private let appStateSaver: (FloatingAppState) throws -> Void
 
+	/// Called when the user activates a pet in the Pet tab. Receives the new pet ID.
+	/// Wire this in `MenubarApp` to reload pet loaders and push a fresh frame.
+	var onPetActivated: ((String) -> Void)?
+
 	init(
 		settingsController: SettingsController = SettingsController(),
 		petImportHelper: PetImportHelper = PetImportHelper(),
+		petTabViewModel: PetTabViewModel = PetTabViewModel(),
 		aboutViewModel: AboutViewModel = AboutViewModel(),
 		generalViewModel: GeneralTabViewModel = GeneralTabViewModel(),
 		appStateLoader: @escaping () -> FloatingAppState = {
@@ -38,6 +44,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	) {
 		self.settingsController = settingsController
 		self.petImportHelper = petImportHelper
+		self.petTabViewModel = petTabViewModel
 		self.aboutViewModel = aboutViewModel
 		self.generalViewModel = generalViewModel
 		self.appStateLoader = appStateLoader
@@ -108,9 +115,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			onUpdateHooks: { [weak self] in self?.handleUpdateHooks() },
 			onUninstallHooks: { [weak self] in self?.handleUninstallHooks() }
 		)
+		petTabViewModel.onActivePetChanged = { [weak self] petId in
+			self?.onPetActivated?(petId)
+		}
 		let pet = PetTabView(
-			availableCodexPets: petImportHelper.availableCodexPets(),
-			onImportPet: { [weak self] petId in self?.handleImportPet(id: petId) }
+			viewModel: petTabViewModel,
+			onImportPet: { [weak self] petId in self?.handleImportPet(id: petId) },
+			onSelectPet: { [weak self] petId in self?.handleSelectPet(id: petId) }
 		)
 		let developer = DeveloperTabView()
 		let about = AboutTabView(viewModel: aboutViewModel)
@@ -236,11 +247,17 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 
 	private func handleImportPet(id: String) {
 		do {
-			try petImportHelper.importPet(id: id)
+			try petTabViewModel.importPet(id: id)
 			petTab?.setPetImportSuccess(petId: id)
+			petTab?.refreshPetList(viewModel: petTabViewModel)
 		} catch {
 			petTab?.setPetImportError(String(describing: error))
 		}
+	}
+
+	private func handleSelectPet(id: String) {
+		petTabViewModel.selectPet(id: id)
+		petTab?.refreshPetList(viewModel: petTabViewModel)
 	}
 }
 
@@ -491,22 +508,24 @@ private final class UpdateBannerView: NSView {
 
 // MARK: - PetTabView
 
-/// Pet tab — list/import pets. Content preserved verbatim from the previous Pet
-/// section; richer enumerate/select wiring lands in P8.07.
+/// Pet tab — lists all pets from three sources (bundled Maew, Codex, canonical store),
+/// shows the active pet, and provides Select / Import actions per pet.
 private final class PetTabView: NSView {
-	private let petPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-	private let importButton = NSButton(title: "Import from Codex…", target: nil, action: nil)
-	private let petFeedbackLabel = NSTextField(wrappingLabelWithString: "")
-
+	private var viewModel: PetTabViewModel
 	private let onImportPet: (String) -> Void
-	private let codexPetIds: [String]
+	private let onSelectPet: (String) -> Void
+
+	private let petListStack = NSStackView()
+	private let feedbackLabel = NSTextField(wrappingLabelWithString: "")
 
 	init(
-		availableCodexPets: [String],
-		onImportPet: @escaping (String) -> Void
+		viewModel: PetTabViewModel,
+		onImportPet: @escaping (String) -> Void,
+		onSelectPet: @escaping (String) -> Void
 	) {
-		self.codexPetIds = availableCodexPets
+		self.viewModel = viewModel
 		self.onImportPet = onImportPet
+		self.onSelectPet = onSelectPet
 		super.init(frame: .zero)
 		setupViews()
 	}
@@ -515,48 +534,48 @@ private final class PetTabView: NSView {
 	required init?(coder: NSCoder) { nil }
 
 	func setPetImportSuccess(petId: String) {
-		petFeedbackLabel.stringValue = "Imported \(petId) to ~/.codogotchi/pets/."
-		petFeedbackLabel.textColor = .systemGreen
+		feedbackLabel.stringValue = "Imported \(petId) to ~/.codogotchi/pets/."
+		feedbackLabel.textColor = .systemGreen
 	}
 
 	func setPetImportError(_ message: String) {
-		petFeedbackLabel.stringValue = message
-		petFeedbackLabel.textColor = .systemRed
+		feedbackLabel.stringValue = message
+		feedbackLabel.textColor = .systemRed
+	}
+
+	/// Rebuild the pet list rows from the current ViewModel state.
+	func refreshPetList(viewModel: PetTabViewModel) {
+		self.viewModel = viewModel
+		for view in petListStack.arrangedSubviews { petListStack.removeArrangedSubview(view) }
+		buildPetRows()
 	}
 
 	private func setupViews() {
+		translatesAutoresizingMaskIntoConstraints = false
+
 		let title = settingsSectionTitle("Pet")
 		addSubview(title)
 
-		let storeNote = settingsBodyLabel("Pets are loaded from ~/.codogotchi/pets/.")
+		let storeNote = settingsBodyLabel(
+			"Pets are loaded from ~/.codogotchi/pets/. "
+				+ "Import from ~/.codex/pets/ to make them available here."
+		)
 		addSubview(storeNote)
 
-		let importRow = NSStackView(views: [importButton, petPopup])
-		importRow.orientation = .horizontal
-		importRow.spacing = 8
-		importRow.translatesAutoresizingMaskIntoConstraints = false
-		importButton.bezelStyle = .rounded
-		importButton.target = self
-		importButton.action = #selector(importPetTapped)
-		importButton.isEnabled = !codexPetIds.isEmpty
+		petListStack.orientation = .vertical
+		petListStack.alignment = .leading
+		petListStack.spacing = 6
+		petListStack.translatesAutoresizingMaskIntoConstraints = false
+		buildPetRows()
+		addSubview(petListStack)
 
-		petPopup.removeAllItems()
-		if codexPetIds.isEmpty {
-			petPopup.addItem(withTitle: "No Codex pets found")
-			petPopup.isEnabled = false
-		} else {
-			for id in codexPetIds { petPopup.addItem(withTitle: id) }
-			petPopup.isEnabled = true
-		}
-		addSubview(importRow)
-
-		petFeedbackLabel.isEditable = false
-		petFeedbackLabel.isBordered = false
-		petFeedbackLabel.backgroundColor = .clear
-		petFeedbackLabel.font = .systemFont(ofSize: 11)
-		petFeedbackLabel.textColor = .secondaryLabelColor
-		petFeedbackLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(petFeedbackLabel)
+		feedbackLabel.isEditable = false
+		feedbackLabel.isBordered = false
+		feedbackLabel.backgroundColor = .clear
+		feedbackLabel.font = .systemFont(ofSize: 11)
+		feedbackLabel.textColor = .secondaryLabelColor
+		feedbackLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(feedbackLabel)
 
 		NSLayoutConstraint.activate([
 			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
@@ -567,21 +586,78 @@ private final class PetTabView: NSView {
 			storeNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			storeNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			importRow.topAnchor.constraint(equalTo: storeNote.bottomAnchor, constant: 12),
-			importRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			petListStack.topAnchor.constraint(equalTo: storeNote.bottomAnchor, constant: 12),
+			petListStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			petListStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			petFeedbackLabel.topAnchor.constraint(equalTo: importRow.bottomAnchor, constant: 8),
-			petFeedbackLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			petFeedbackLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			feedbackLabel.topAnchor.constraint(equalTo: petListStack.bottomAnchor, constant: 8),
+			feedbackLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			feedbackLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 		])
 	}
 
-	@objc private func importPetTapped() {
-		let selected = petPopup.titleOfSelectedItem ?? ""
-		guard !selected.isEmpty, selected != "No Codex pets found" else { return }
-		onImportPet(selected)
+	private func buildPetRows() {
+		let fm = FileManager.default
+		let codexIds = Set(
+			(try? fm.contentsOfDirectory(
+				at: viewModel.codexPetsRoot,
+				includingPropertiesForKeys: [.isDirectoryKey], options: []
+			))?.compactMap { url -> String? in
+				let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+				return isDir ? url.lastPathComponent : nil
+			} ?? []
+		)
+
+		for petId in viewModel.allPetIds() {
+			let isActive = petId == viewModel.activePetId
+			let isInCodexOnly = codexIds.contains(petId) && !isCanonical(petId)
+
+			let nameLabel = NSTextField(labelWithString: isActive ? "\(petId) (active)" : petId)
+			nameLabel.font = isActive ? NSFont.boldSystemFont(ofSize: 13) : NSFont.systemFont(ofSize: 13)
+
+			let actionButton: NSButton
+			if isInCodexOnly {
+				actionButton = NSButton(title: "Import", target: nil, action: nil)
+				actionButton.bezelStyle = .rounded
+				actionButton.target = self
+				let capturedId = petId
+				actionButton.action = #selector(petRowAction(_:))
+				objc_setAssociatedObject(actionButton, &actionKey, ("import", capturedId), .OBJC_ASSOCIATION_RETAIN)
+			} else {
+				actionButton = NSButton(title: isActive ? "Active" : "Select", target: nil, action: nil)
+				actionButton.bezelStyle = .rounded
+				actionButton.isEnabled = !isActive
+				let capturedId = petId
+				actionButton.action = #selector(petRowAction(_:))
+				actionButton.target = self
+				objc_setAssociatedObject(actionButton, &actionKey, ("select", capturedId), .OBJC_ASSOCIATION_RETAIN)
+			}
+
+			let row = NSStackView(views: [nameLabel, actionButton])
+			row.orientation = .horizontal
+			row.spacing = 8
+			row.alignment = .centerY
+			petListStack.addArrangedSubview(row)
+		}
+	}
+
+	private func isCanonical(_ petId: String) -> Bool {
+		let url = viewModel.canonicalPetsRoot.appendingPathComponent(petId)
+		return FileManager.default.fileExists(atPath: url.path)
+	}
+
+	@objc private func petRowAction(_ sender: NSButton) {
+		guard let (action, petId) = objc_getAssociatedObject(sender, &actionKey) as? (String, String)
+		else { return }
+		switch action {
+		case "import": onImportPet(petId)
+		case "select": onSelectPet(petId)
+		default: break
+		}
 	}
 }
+
+private var actionKey: UInt8 = 0
 
 // MARK: - DeveloperTabView
 

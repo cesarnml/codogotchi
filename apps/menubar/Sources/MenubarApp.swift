@@ -172,6 +172,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		self.onboardingWindowController = onboardingController
 
 		let settingsController = SettingsWindowController()
+		settingsController.onPetActivated = { [weak self] _ in
+			self?.reloadActivePet()
+		}
 		self.settingsWindowController = settingsController
 
 		let menuBuilder = MenubarMenu(
@@ -283,6 +286,24 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			queue: .main
 		) { [weak self] _ in
 			self?.livePollingDriver?.pollNow()
+		}
+	}
+
+	/// Reload the active pet from the canonical store and repaint all renderers.
+	/// Called when the user selects a different pet in Settings.
+	@MainActor
+	func reloadActivePet() {
+		guard let renderer else { return }
+		do {
+			let newCodexPet = try CodexPet()
+			let newCodogotchiPet = try? CodogotchiPet()
+			self.codogotchiPet = newCodogotchiPet
+			renderer.replacePets(codexPet: newCodexPet, codogotchiPet: newCodogotchiPet)
+			floatingPetPanelController?.replacePets(
+				codexPet: newCodexPet, codogotchiPet: newCodogotchiPet)
+			livePollingDriver?.replaceCodogotchiPet(newCodogotchiPet)
+		} catch {
+			NSLog("MenubarApp: reloadActivePet failed — %@", error.localizedDescription)
 		}
 	}
 

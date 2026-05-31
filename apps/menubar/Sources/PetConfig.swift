@@ -27,8 +27,11 @@ enum PetConfig {
 			.appendingPathComponent("config.json")
 	}
 
-	/// Writes the pet name to config. Stub until P8.07 green.
+	/// Writes `{ "pet": petName }` to `url`, creating parent directories when absent.
 	static func write(petName: String, to url: URL) throws {
-		// Stub: no-op — tests will fail
+		let parent = url.deletingLastPathComponent()
+		try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+		let data = try JSONSerialization.data(withJSONObject: ["pet": petName])
+		try data.write(to: url, options: .atomic)
 	}
 }

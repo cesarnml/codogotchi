@@ -50,10 +50,9 @@ final class MenubarRenderer {
 	/// still resolve to the last available frame.
 	static let heroFrameIndex = 3
 
-	private let codexPet: CodexPet
-	/// Nil when the codogotchi sheet was not installed at launch (soft degrade).
-	/// The nine SoA-owned states fall back to idle rendering while nil.
-	private let codogotchiPet: CodogotchiPet?
+	private var codexPet: CodexPet
+	/// Nil when no codogotchi sheets are available (soft degrade).
+	private var codogotchiPet: CodogotchiPet?
 	private let sink: ImageSink
 	private let ciContext: CIContext
 
@@ -94,6 +93,14 @@ final class MenubarRenderer {
 		}
 
 		paintCurrent()
+	}
+
+	/// Swap in new pet loaders and immediately repaint the current state.
+	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
+		self.codexPet = codexPet
+		self.codogotchiPet = codogotchiPet
+		currentFrames = []  // force re-resolve on next update
+		update(state: currentState, visualMode: currentMode)
 	}
 
 	// MARK: - Test seam
