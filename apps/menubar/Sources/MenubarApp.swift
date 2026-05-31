@@ -23,6 +23,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// outside demo mode or when the renderer failed to load.
 	var demoDriver: DemoCycleDriver?
 
+	/// Held so `LivePollingDriver` can check sheet availability for gate elevation.
+	var codogotchiPet: CodogotchiPet?
+
 	/// Held strongly so the live polling driver's `Timer` is not deallocated.
 	/// Nil in demo mode or when the renderer failed to load. Live polling and
 	/// the demo cycle are mutually exclusive at launch — only one drives the
@@ -121,9 +124,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		do {
 			let codexPet = try CodexPet()
 			// Soft degrade: if the codogotchi pet directory is absent or its
-			// spritesheet is missing, pass nil — the nine SoA-owned states fall
-			// back to idle until the sheet is installed at the default path.
+			// sheets are missing, pass nil — states fall back to Codex or idle
+			// until the sheets are installed at the default path.
 			let codogotchiPet = try? CodogotchiPet()
+			self.codogotchiPet = codogotchiPet
 			if codogotchiPet == nil {
 				NSLog(
 					"MenubarApp: CodogotchiPet not available — codogotchi-owned states render as idle"
@@ -249,7 +253,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				setTooltip: { [weak item] tooltip in
 					item?.button?.toolTip = tooltip
 				},
-				transitionLog: self.transitionLog
+				transitionLog: self.transitionLog,
+				codogotchiPet: self.codogotchiPet
 			)
 			driver.applyAttention = { [weak floatingPetController = self.floatingPetController] payload, sourceEvent in
 				floatingPetController?.applyAttention(payload: payload, sourceEvent: sourceEvent)

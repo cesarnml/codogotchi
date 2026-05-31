@@ -117,6 +117,29 @@ final class GateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(result, .advance, "advance is in soaRowMap — unexpired gate renders as .advance")
 	}
 
+	func testUnexpiredGateWithSoaSheetAbsentFallsThroughToHookState() throws {
+		// When codogotchiPet is present but has no SoA sheet, gate must NOT elevate —
+		// falling to idle instead of hook animation violated the Phase 07 contract.
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("no-soa-sheet-\(UUID().uuidString)")
+		try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+		let petJson = """
+			{"id":"test","display_name":"Test","description":"","spritesheet_path":"spritesheet.webp"}
+			"""
+		try petJson.data(using: .utf8)!.write(to: tmp.appendingPathComponent("pet.json"))
+
+		let pet = try CodogotchiPet(petDirectory: tmp.path)
+		XCTAssertNil(pet.soaSheet, "fixture must have no SoA sheet for this test to be meaningful")
+
+		let gate = makeGate(gate: "ticket_started", expiresAt: futureDate())
+		let hookState = ActivityState.implementing
+		let result = resolveActivityState(gate: gate, hookState: hookState, codogotchiPet: pet, now: Date())
+		XCTAssertEqual(
+			result, .implementing,
+			"gate must fall through to hook state when SoA sheet is absent")
+	}
+
 	func testAbsentGateRendersHookState() {
 		// [red] absent gate.json → hook state only
 		let hookState = ActivityState.errored

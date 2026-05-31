@@ -68,6 +68,7 @@ final class LivePollingDriver {
 	private let gateReader: GateReader
 	private let tickInterval: TimeInterval
 	private let transitionLog: TransitionLog?
+	private let codogotchiPet: CodogotchiPet?
 
 	/// Optional sink for attention payload updates. Called when `attention`
 	/// or `sourceEvent.origin` changes between ticks. Second parameter is the
@@ -97,7 +98,8 @@ final class LivePollingDriver {
 		reader: @escaping Reader = StateJsonReader.read(at:),
 		gateReader: @escaping GateReader = GateJsonReader.read(at:),
 		tickInterval: TimeInterval = 1.0,
-		transitionLog: TransitionLog? = nil
+		transitionLog: TransitionLog? = nil,
+		codogotchiPet: CodogotchiPet? = nil
 	) {
 		self.pollingTargetPath = pollingTargetPath
 		self.gatePath = gatePath
@@ -107,6 +109,7 @@ final class LivePollingDriver {
 		self.gateReader = gateReader
 		self.tickInterval = tickInterval
 		self.transitionLog = transitionLog
+		self.codogotchiPet = codogotchiPet
 	}
 
 	deinit {
@@ -173,7 +176,8 @@ final class LivePollingDriver {
 		switch result {
 		case .success(let snapshot):
 			let gate = gatePath.flatMap { gateReader($0) }
-			let state = resolveActivityState(gate: gate, hookState: snapshot.activityState)
+			let state = resolveActivityState(
+				gate: gate, hookState: snapshot.activityState, codogotchiPet: codogotchiPet)
 			return Outcome(
 				state: state,
 				mode: .normal,
