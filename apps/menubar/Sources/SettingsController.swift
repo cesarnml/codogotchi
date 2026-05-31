@@ -23,6 +23,19 @@ struct SettingsController {
 		return nil
 	}
 
+	/// Idempotent re-install: re-runs `codogotchi hooks install` to rewrite the
+	/// platform JSON to the current bundle's absolute hook path.
+	/// Returns nil on success; returns an error description on non-zero exit.
+	func runHooksUpdate() -> String? {
+		let result = runner(["codogotchi", "hooks", "install"])
+		guard result.exitCode == 0 else {
+			return result.stderr.isEmpty
+				? "Update failed (exit \(result.exitCode))"
+				: result.stderr
+		}
+		return nil
+	}
+
 	/// Runs `codogotchi hooks uninstall` synchronously.
 	/// Returns nil on success; returns an error description on non-zero exit.
 	func runHooksUninstall() -> String? {
