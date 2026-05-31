@@ -535,6 +535,68 @@ describe("P8.02 bundle-first hook command path", () => {
       expect(codogotchiMatchers[0].hooks[0].command).toBe(hookPath);
     }
   });
+
+  it("shell-quotes a bundle path containing spaces in shell-executed surfaces", async () => {
+    // A .app installed under a path with spaces must still spawn as one token.
+    const spacedDir = join(bundleDir, "My Apps");
+    mkdirSync(spacedDir, { recursive: true });
+    const execPath = join(spacedDir, "codogotchi");
+    const hookPath = join(spacedDir, "codogotchi-hook");
+    writeFileSync(execPath, "#!/bin/sh\n", "utf8");
+    writeFileSync(hookPath, "#!/bin/sh\n", "utf8");
+
+    await installHooks({ home: "/home/user/.codogotchi", execPath });
+
+    const quoted = `'${hookPath}'`;
+    const claude = JSON.parse(
+      readFileSync(join(userRoot, ".claude", "settings.json"), "utf8"),
+    ) as { hooks: HooksMap };
+    expect(claudeCommands(claude.hooks.PreToolUse)).toContain(quoted);
+
+    const codexJson = JSON.parse(
+      readFileSync(join(userRoot, ".codex", "hooks.json"), "utf8"),
+    ) as { hooks: HooksMap };
+    const codexStop = (codexJson.hooks.Stop ?? []).flatMap((m) =>
+      m.hooks.map((h) => h.command),
+    );
+    expect(codexStop.some((c) => c.includes(quoted))).toBe(true);
+  });
+
+  it("does not delete unrelated user hooks whose path merely contains codogotchi-hook", async () => {
+    // A wrapper script whose name starts with codogotchi-hook must be preserved:
+    // the dedup must match the executable token, not a loose substring.
+    const wrapper = "/Users/me/bin/codogotchi-hook-wrapper";
+    mkdirSync(join(userRoot, ".claude"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".claude", "settings.json"),
+      JSON.stringify(
+        {
+          hooks: {
+            PreToolUse: [
+              {
+                matcher: "Write",
+                hooks: [{ type: "command", command: wrapper }],
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    await installHooks({ home: "/home/user/.codogotchi" });
+
+    const claude = JSON.parse(
+      readFileSync(join(userRoot, ".claude", "settings.json"), "utf8"),
+    ) as { hooks: HooksMap };
+    expect(claudeCommands(claude.hooks.PreToolUse)).toContain(wrapper);
+    // The real codogotchi-hook matcher is still installed alongside it.
+    expect(claudeCommands(claude.hooks.PreToolUse)).toContain(
+      "codogotchi-hook",
+    );
+  });
 });
 
 describe("cursor hooks", () => {
