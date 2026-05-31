@@ -58,9 +58,6 @@ Usage:
   codogotchi <command> [flags]
 
 Commands:
-  setup            Lite first-time setup. Writes ~/.codogotchi/config.json
-                   (profile_id, pet: maew, rpg_enabled: false) and installs
-                   Claude Code + Codex hook entries. No network required.
   rpg              Interactive Alive enrollment. Upgrades a Lite install to full
                    RPG mode: prompts for handle, Convex URL, optional GitHub/
                    Wakatime credentials, registers profile, and writes
@@ -79,16 +76,14 @@ Commands:
                    Pause HP decay until the given date (defaults to 30 days).
   vacation off     Clear vacation_until.
   vacation status  Show current vacation state.
-  hooks install [--platform <claude_code|cursor>]
-                   Install Codogotchi hooks. Defaults to Claude Code + Codex.
-                   Pass --platform cursor to write ~/.cursor/hooks.json instead.
-  hooks uninstall [--platform <claude_code|cursor>]
-                   Remove hooks. Defaults to Claude Code + Codex.
-                   Pass --platform cursor to remove Cursor hook entries only.
   hooks status     Print hook installation status per platform.
   help, --help     Show this message.
 
-Flags (setup, rpg):
+  Note: setup, hooks install, and hooks uninstall are app-managed commands.
+  Use Codogotchi.app → Settings → General to install or remove hooks.
+  These commands remain callable for internal use.
+
+Flags (rpg):
   --force          Overwrite an existing ~/.codogotchi/config.json.
 
 Flags (loot):
