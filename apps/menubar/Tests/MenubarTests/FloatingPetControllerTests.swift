@@ -399,7 +399,7 @@ final class FloatingPetControllerTests: XCTestCase {
 		XCTAssertEqual(tiny, clamped, "very small pets clamp to the minimum badge scale")
 	}
 
-	func testAnimationBadgeLayoutAnchorsBottomLeftInsidePetFrame() {
+	func testAnimationBadgeLayoutAnchorsCenteredBottomInsidePetFrame() {
 		let petFrame = CGRect(x: 120, y: 160, width: 220, height: 180)
 		let badgeSize = CGSize(width: 90, height: 24)
 		let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
@@ -410,9 +410,9 @@ final class FloatingPetControllerTests: XCTestCase {
 			visibleFrame: visibleFrame
 		)
 
-		// Left edge just inside the pet's left border; bottom edge just inside the
-		// pet's bottom border (offset by the layout inset).
-		XCTAssertEqual(frame.minX, petFrame.minX + AnimationBadgeLayout.inset, accuracy: 0.01)
+		// Badge is horizontally centered on the pet frame.
+		XCTAssertEqual(frame.midX, petFrame.midX, accuracy: 0.01)
+		// Bottom edge sits inset above the pet's bottom border (inside the frame).
 		XCTAssertEqual(frame.minY, petFrame.minY + AnimationBadgeLayout.inset, accuracy: 0.01)
 		// Stays inside the frame vertically (badge top below the pet's top).
 		XCTAssertLessThan(frame.maxY, petFrame.maxY)

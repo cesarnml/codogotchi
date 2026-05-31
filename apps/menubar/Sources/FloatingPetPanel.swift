@@ -497,12 +497,12 @@ enum AnimationBadgeLayout {
 		GateBadgeLayout.metrics(for: petFrame)
 	}
 
-	/// Bottom-left, *inside* the pet frame: the badge's bottom edge sits `inset`
-	/// above the frame's bottom border, its left edge `inset` right of the frame's
-	/// left border. Then clamps to the visible display so it never spills offscreen.
+	/// Bottom-center, *inside* the pet frame: the badge is horizontally centered
+	/// on the pet and its bottom edge sits `inset` above the frame's bottom border.
+	/// Then clamps to the visible display so it never spills offscreen.
 	static func frame(relativeTo petFrame: CGRect, badgeSize: CGSize, visibleFrame: CGRect) -> CGRect {
 		let rect = CGRect(
-			x: petFrame.minX + inset,
+			x: petFrame.midX - badgeSize.width / 2,
 			y: petFrame.minY + inset,
 			width: badgeSize.width,
 			height: badgeSize.height
