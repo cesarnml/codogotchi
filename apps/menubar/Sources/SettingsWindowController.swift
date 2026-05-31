@@ -18,6 +18,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private var generalTab: GeneralTabView?
 	private var petTab: PetTabView?
 	private let tabModel = SettingsTabModel()
+	private let generalViewModel: GeneralTabViewModel
 
 	private let settingsController: SettingsController
 	private let petImportHelper: PetImportHelper
@@ -29,6 +30,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		settingsController: SettingsController = SettingsController(),
 		petImportHelper: PetImportHelper = PetImportHelper(),
 		aboutViewModel: AboutViewModel = AboutViewModel(),
+		generalViewModel: GeneralTabViewModel = GeneralTabViewModel(),
 		appStateLoader: @escaping () -> FloatingAppState = {
 			AppStateStore.load(visibleFrame: NSScreen.main?.visibleFrame ?? .zero)
 		},
@@ -37,6 +39,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		self.settingsController = settingsController
 		self.petImportHelper = petImportHelper
 		self.aboutViewModel = aboutViewModel
+		self.generalViewModel = generalViewModel
 		self.appStateLoader = appStateLoader
 		self.appStateSaver = appStateSaver
 	}
@@ -53,7 +56,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 
 	/// Refreshes the General tab with a fresh hook-status snapshot.
 	func updateHookStatus(_ snapshot: HooksStatusSnapshot) {
-		generalTab?.updateHookStatus(snapshot)
+		generalViewModel.applySnapshot(snapshot)
+		generalTab?.applyViewModel(generalViewModel)
 	}
 
 	// MARK: - NSWindowDelegate
@@ -91,10 +95,16 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		w.center()
 
 		let snapshot = appStateLoader().hooksStatus
+		if let snap = snapshot {
+			generalViewModel.applySnapshot(snap)
+		} else {
+			generalViewModel.refresh()
+		}
 
 		let general = GeneralTabView(
-			initialHooksStatus: snapshot,
+			viewModel: generalViewModel,
 			onInstallHooks: { [weak self] in self?.handleInstallHooks() },
+			onUpdateHooks: { [weak self] in self?.handleUpdateHooks() },
 			onUninstallHooks: { [weak self] in self?.handleUninstallHooks() }
 		)
 		let pet = PetTabView(
@@ -142,14 +152,36 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private func handleInstallHooks() {
 		generalTab?.setHooksWorking(message: "Installing…")
 		let controller = settingsController
+		let vm = generalViewModel
 		DispatchQueue.global(qos: .userInitiated).async { [weak self] in
 			let error = controller.runHooksInstall()
+			vm.refresh()
 			DispatchQueue.main.async {
 				guard let self else { return }
 				if let msg = error {
 					self.generalTab?.setHooksError(msg)
 				} else {
 					self.generalTab?.setHooksSuccess(message: "Installed.")
+					self.generalTab?.applyViewModel(vm)
+				}
+			}
+		}
+	}
+
+	private func handleUpdateHooks() {
+		generalTab?.setHooksWorking(message: "Updating…")
+		let controller = settingsController
+		let vm = generalViewModel
+		DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+			let error = controller.runHooksUpdate()
+			vm.refresh()
+			DispatchQueue.main.async {
+				guard let self else { return }
+				if let msg = error {
+					self.generalTab?.setHooksError(msg)
+				} else {
+					self.generalTab?.setHooksSuccess(message: "Updated.")
+					self.generalTab?.applyViewModel(vm)
 				}
 			}
 		}
@@ -158,14 +190,17 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private func handleUninstallHooks() {
 		generalTab?.setHooksWorking(message: "Uninstalling…")
 		let controller = settingsController
+		let vm = generalViewModel
 		DispatchQueue.global(qos: .userInitiated).async { [weak self] in
 			let error = controller.runHooksUninstall()
+			vm.refresh()
 			DispatchQueue.main.async {
 				guard let self else { return }
 				if let msg = error {
 					self.generalTab?.setHooksError(msg)
 				} else {
 					self.generalTab?.setHooksSuccess(message: "Uninstalled.")
+					self.generalTab?.applyViewModel(vm)
 				}
 			}
 		}
@@ -204,56 +239,59 @@ private func settingsBodyLabel(_ text: String) -> NSTextField {
 
 // MARK: - GeneralTabView (Hooks)
 
-/// General tab — hook install/uninstall/status. Content preserved verbatim from
-/// the previous Hooks section; only the hosting container changed (P8.04 adds
-/// the richer app-owned façade wiring).
+/// General tab — Install / Update / Remove hooks + per-platform status + Copy diagnostics.
 private final class GeneralTabView: NSView {
 	private let hooksStatusLabel = NSTextField(wrappingLabelWithString: "")
-	private let installButton = NSButton(title: "Install", target: nil, action: nil)
-	private let uninstallButton = NSButton(title: "Uninstall", target: nil, action: nil)
+	private let installButton = NSButton(title: "Install hooks", target: nil, action: nil)
+	private let updateButton = NSButton(title: "Update hooks", target: nil, action: nil)
+	private let removeButton = NSButton(title: "Remove hooks", target: nil, action: nil)
+	private let copyDiagnosticsButton = NSButton(
+		title: "Copy diagnostics", target: nil, action: nil
+	)
 	private let hooksFeedbackLabel = NSTextField(wrappingLabelWithString: "")
 
 	private let onInstallHooks: () -> Void
+	private let onUpdateHooks: () -> Void
 	private let onUninstallHooks: () -> Void
+	private var viewModel: GeneralTabViewModel
 
 	init(
-		initialHooksStatus: HooksStatusSnapshot?,
+		viewModel: GeneralTabViewModel,
 		onInstallHooks: @escaping () -> Void,
+		onUpdateHooks: @escaping () -> Void,
 		onUninstallHooks: @escaping () -> Void
 	) {
+		self.viewModel = viewModel
 		self.onInstallHooks = onInstallHooks
+		self.onUpdateHooks = onUpdateHooks
 		self.onUninstallHooks = onUninstallHooks
 		super.init(frame: .zero)
 		setupViews()
-		if let snap = initialHooksStatus {
-			applyHooksStatus(snap)
-		}
+		applyViewModel(viewModel)
 	}
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	func updateHookStatus(_ snapshot: HooksStatusSnapshot) {
-		applyHooksStatus(snapshot)
+	func applyViewModel(_ vm: GeneralTabViewModel) {
+		viewModel = vm
+		hooksStatusLabel.stringValue = vm.rows.map { platformLine($0) }.joined(separator: "\n")
 	}
 
 	func setHooksWorking(message: String) {
-		installButton.isEnabled = false
-		uninstallButton.isEnabled = false
+		[installButton, updateButton, removeButton].forEach { $0.isEnabled = false }
 		hooksFeedbackLabel.stringValue = message
 		hooksFeedbackLabel.textColor = .secondaryLabelColor
 	}
 
 	func setHooksSuccess(message: String) {
-		installButton.isEnabled = true
-		uninstallButton.isEnabled = true
+		[installButton, updateButton, removeButton].forEach { $0.isEnabled = true }
 		hooksFeedbackLabel.stringValue = message
 		hooksFeedbackLabel.textColor = .systemGreen
 	}
 
 	func setHooksError(_ message: String) {
-		installButton.isEnabled = true
-		uninstallButton.isEnabled = true
+		[installButton, updateButton, removeButton].forEach { $0.isEnabled = true }
 		hooksFeedbackLabel.stringValue = message
 		hooksFeedbackLabel.textColor = .systemRed
 	}
@@ -271,17 +309,28 @@ private final class GeneralTabView: NSView {
 		hooksStatusLabel.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(hooksStatusLabel)
 
-		let buttonRow = NSStackView(views: [installButton, uninstallButton])
-		buttonRow.orientation = .horizontal
-		buttonRow.spacing = 8
-		buttonRow.translatesAutoresizingMaskIntoConstraints = false
-		installButton.bezelStyle = .rounded
+		for btn in [installButton, updateButton, removeButton, copyDiagnosticsButton] {
+			btn.bezelStyle = .rounded
+		}
 		installButton.target = self
 		installButton.action = #selector(installTapped)
-		uninstallButton.bezelStyle = .rounded
-		uninstallButton.target = self
-		uninstallButton.action = #selector(uninstallTapped)
-		addSubview(buttonRow)
+		updateButton.target = self
+		updateButton.action = #selector(updateTapped)
+		removeButton.target = self
+		removeButton.action = #selector(removeTapped)
+		copyDiagnosticsButton.target = self
+		copyDiagnosticsButton.action = #selector(copyDiagnosticsTapped)
+
+		let actionRow = NSStackView(views: [installButton, updateButton, removeButton])
+		actionRow.orientation = .horizontal
+		actionRow.spacing = 8
+		actionRow.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(actionRow)
+
+		let diagRow = NSStackView(views: [copyDiagnosticsButton])
+		diagRow.orientation = .horizontal
+		diagRow.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(diagRow)
 
 		hooksFeedbackLabel.isEditable = false
 		hooksFeedbackLabel.isBordered = false
@@ -305,10 +354,13 @@ private final class GeneralTabView: NSView {
 			hooksStatusLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			hooksStatusLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			buttonRow.topAnchor.constraint(equalTo: hooksStatusLabel.bottomAnchor, constant: 12),
-			buttonRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			actionRow.topAnchor.constraint(equalTo: hooksStatusLabel.bottomAnchor, constant: 12),
+			actionRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 
-			hooksFeedbackLabel.topAnchor.constraint(equalTo: buttonRow.bottomAnchor, constant: 8),
+			diagRow.topAnchor.constraint(equalTo: actionRow.bottomAnchor, constant: 8),
+			diagRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+
+			hooksFeedbackLabel.topAnchor.constraint(equalTo: diagRow.bottomAnchor, constant: 8),
 			hooksFeedbackLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			hooksFeedbackLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
@@ -318,32 +370,30 @@ private final class GeneralTabView: NSView {
 		])
 	}
 
-	private func applyHooksStatus(_ snap: HooksStatusSnapshot) {
-		func platformLine(_ name: String, _ p: HooksStatusSnapshot.Platform) -> String {
-			var parts: [String] = [name]
-			if p.installableInPhase {
-				parts.append(p.installed ? "installed" : "not installed")
-				if p.firingRecently { parts.append("firing") }
-				if let t = p.lastEventAt { parts.append("last: \(t)") }
-				if let o = p.sourceOrigin { parts.append("via \(o)") }
-			} else {
-				parts.append("bridge (not directly installable)")
-			}
-			return parts.joined(separator: " · ")
+	private func platformLine(_ row: GeneralTabViewModel.PlatformRow) -> String {
+		var parts: [String] = [row.name]
+		if row.installable {
+			parts.append(row.installed ? "installed" : "not installed")
+			if row.firingRecently { parts.append("firing") }
+			if let t = row.lastEventAt { parts.append("last: \(t)") }
+			if let o = row.sourceOrigin { parts.append("via \(o)") }
+		} else {
+			parts.append("bridge (not directly installable)")
 		}
-
-		let lines = [
-			platformLine("Codex", snap.codex),
-			platformLine("Claude Code", snap.claudeCode),
-			platformLine("Cursor", snap.cursor),
-			platformLine("VS Code", snap.vscode),
-			platformLine("Antigravity", snap.antigravity),
-		]
-		hooksStatusLabel.stringValue = lines.joined(separator: "\n")
+		return parts.joined(separator: " · ")
 	}
 
 	@objc private func installTapped() { onInstallHooks() }
-	@objc private func uninstallTapped() { onUninstallHooks() }
+	@objc private func updateTapped() { onUpdateHooks() }
+	@objc private func removeTapped() { onUninstallHooks() }
+
+	@objc private func copyDiagnosticsTapped() {
+		let json = viewModel.diagnosticsJSON()
+		NSPasteboard.general.clearContents()
+		NSPasteboard.general.setString(json, forType: .string)
+		hooksFeedbackLabel.stringValue = "Diagnostics copied to clipboard."
+		hooksFeedbackLabel.textColor = .secondaryLabelColor
+	}
 }
 
 // MARK: - PetTabView
