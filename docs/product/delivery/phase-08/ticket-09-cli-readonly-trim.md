@@ -37,8 +37,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: testUsageDoesNotListSetup, testUsageDoesNotListHooksInstall (USAGE still contained those strings).
 Why this path: the install API still needs the subcommands; only the public surface (help) is trimmed.
 Alternative considered: delete the subcommands — rejected; would break the app's own install path.
+Implementation: USAGE string rewritten to omit setup, hooks install, hooks uninstall; adds a note directing users to Settings → General. Flags section updated (removed "setup" from "Flags (setup, rpg)"). Dispatch for all hidden commands unchanged.
 Deferred: `rpg`/`enroll` removal (Phase 09); standalone-CLI-package `--help` trim (follow-up).
-Contract note:

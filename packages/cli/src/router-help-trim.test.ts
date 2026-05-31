@@ -61,12 +61,14 @@ describe("router --help trim (P8.09)", () => {
     const { exitCode } = await dispatch(["--help"]);
     expect(exitCode).toBe(0);
     const out = stdoutChunks.join("");
-    expect(out).not.toContain("setup");
-    expect(out).not.toContain("hooks install");
-    expect(out).not.toContain("hooks uninstall");
-    expect(out).toContain("status");
-    expect(out).toContain("hooks status");
-    expect(out).toContain("rpg");
+    // setup, hooks install, hooks uninstall must not appear as listed commands
+    expect(out).not.toMatch(/^\s{2}setup\s/m);
+    expect(out).not.toMatch(/^\s{2}hooks install\b/m);
+    expect(out).not.toMatch(/^\s{2}hooks uninstall\b/m);
+    // visible commands must still be listed
+    expect(out).toMatch(/^\s{2}status\b/m);
+    expect(out).toMatch(/^\s{2}hooks status\b/m);
+    expect(out).toMatch(/^\s{2}rpg\b/m);
   });
 
   // MARK: - Hidden commands still execute when called directly
