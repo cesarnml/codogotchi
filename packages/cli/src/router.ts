@@ -77,6 +77,8 @@ Commands:
   vacation off     Clear vacation_until.
   vacation status  Show current vacation state.
   hooks status     Print hook installation status per platform.
+  version, --version, -v
+                   Print the codogotchi CLI version.
   help, --help     Show this message.
 
   Note: setup, hooks install, and hooks uninstall are app-managed commands.
