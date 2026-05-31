@@ -21,17 +21,20 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 	private let onboardingController: OnboardingController
 	private let appStateLoader: () -> FloatingAppState
 	private let appStateSaver: (FloatingAppState) throws -> Void
+	private let bundledHookVersionSource: () -> String
 
 	init(
 		onboardingController: OnboardingController = OnboardingController(),
 		appStateLoader: @escaping () -> FloatingAppState = {
 			AppStateStore.load(visibleFrame: NSScreen.main?.visibleFrame ?? .zero)
 		},
-		appStateSaver: @escaping (FloatingAppState) throws -> Void = AppStateStore.save
+		appStateSaver: @escaping (FloatingAppState) throws -> Void = AppStateStore.save,
+		bundledHookVersionSource: @escaping () -> String = { AboutViewModel.bundledHookVersion() }
 	) {
 		self.onboardingController = onboardingController
 		self.appStateLoader = appStateLoader
 		self.appStateSaver = appStateSaver
+		self.bundledHookVersionSource = bundledHookVersionSource
 	}
 
 	/// Shows the onboarding panel when `onboardingCompletedAt` is absent. No-ops otherwise.
@@ -109,12 +112,15 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 		installSucceeded = true
 		let current = appStateLoader()
 		let iso = ISO8601DateFormatter().string(from: Date())
+		let hookVersion = bundledHookVersionSource()
+		let recordedVersion = hookVersion == "unknown" ? current.installedHookVersion : hookVersion
 		let next = FloatingAppState(
 			isFloatingPetVisible: current.isFloatingPetVisible,
 			frame: current.frame,
 			onboardingCompletedAt: iso,
 			lastHookActivityAt: current.lastHookActivityAt,
-			hooksStatus: current.hooksStatus
+			hooksStatus: current.hooksStatus,
+			installedHookVersion: recordedVersion
 		)
 		try? appStateSaver(next)
 		contentView?.setInstalledWaiting()

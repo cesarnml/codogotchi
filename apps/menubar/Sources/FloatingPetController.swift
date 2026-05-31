@@ -75,7 +75,8 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 			frame: FloatingFramePolicy.clamp(state.frame, to: visibleFrame),
 			onboardingCompletedAt: state.onboardingCompletedAt,
 			lastHookActivityAt: state.lastHookActivityAt,
-			hooksStatus: state.hooksStatus
+			hooksStatus: state.hooksStatus,
+			installedHookVersion: state.installedHookVersion
 		)
 		do {
 			try saveState(nextState)
@@ -124,7 +125,8 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 			frame: FloatingFramePolicy.clamp(frame, to: visibleFrame),
 			onboardingCompletedAt: state.onboardingCompletedAt,
 			lastHookActivityAt: state.lastHookActivityAt,
-			hooksStatus: state.hooksStatus
+			hooksStatus: state.hooksStatus,
+			installedHookVersion: state.installedHookVersion
 		)
 		do {
 			try saveState(nextState)
