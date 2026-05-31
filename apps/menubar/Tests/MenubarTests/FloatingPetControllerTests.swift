@@ -399,7 +399,7 @@ final class FloatingPetControllerTests: XCTestCase {
 		XCTAssertEqual(tiny, clamped, "very small pets clamp to the minimum badge scale")
 	}
 
-	func testAnimationBadgeLayoutAnchorsCenteredBottomInsidePetFrame() {
+	func testAnimationBadgeLayoutAnchorsCenteredBelowPetFeet() {
 		let petFrame = CGRect(x: 120, y: 160, width: 220, height: 180)
 		let badgeSize = CGSize(width: 90, height: 24)
 		let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
@@ -412,10 +412,17 @@ final class FloatingPetControllerTests: XCTestCase {
 
 		// Badge is horizontally centered on the pet frame.
 		XCTAssertEqual(frame.midX, petFrame.midX, accuracy: 0.01)
-		// Bottom edge sits inset above the pet's bottom border (inside the frame).
-		XCTAssertEqual(frame.minY, petFrame.minY + AnimationBadgeLayout.inset, accuracy: 0.01)
-		// Stays inside the frame vertically (badge top below the pet's top).
-		XCTAssertLessThan(frame.maxY, petFrame.maxY)
+		// Badge TOP edge sits inset above the pet's bottom border; the body hangs
+		// below the feet so the sprite appears to stand on it.
+		XCTAssertEqual(frame.maxY, petFrame.minY + AnimationBadgeLayout.inset, accuracy: 0.01)
+		XCTAssertLessThan(frame.minY, petFrame.minY)
+	}
+
+	func testAnimationBadgeHiddenWhileAttentionBubbleActive() {
+		// Suppressed when the bubble is up (standby/errored) — 1:1 redundant and
+		// collides with the same below-pet slot.
+		XCTAssertFalse(AnimationBadgeLayout.isVisible(attentionActive: true))
+		XCTAssertTrue(AnimationBadgeLayout.isVisible(attentionActive: false))
 	}
 
 	func testAnimationBadgeLayoutClampsWithinVisibleFrame() {

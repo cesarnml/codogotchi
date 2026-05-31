@@ -101,9 +101,13 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		guard let payload, !payload.isExpired() else {
 			attentionActive = false
 			attentionBubble?.orderOut(nil)
+			// Bubble cleared — the animation badge can take the below-pet slot again.
+			repositionAndShowAnimationBadge()
 			return
 		}
 		attentionActive = true
+		// Bubble is taking over the below-pet slot — hide the redundant badge.
+		repositionAndShowAnimationBadge()
 		let bubble = attentionBubble ?? {
 			let b = AttentionBubblePanel()
 			b.onDismiss = { [weak self] in self?.handleBubbleDismiss() }
@@ -164,6 +168,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	private func repositionAndShowAnimationBadge() {
 		guard isPanelShown else { return }
+		guard AnimationBadgeLayout.isVisible(attentionActive: attentionActive) else {
+			animationBadgePanel?.orderOut(nil)
+			return
+		}
 		let badge = animationBadgePanel ?? {
 			let panel = AnimationBadgePanel()
 			animationBadgePanel = panel
@@ -497,13 +505,14 @@ enum AnimationBadgeLayout {
 		GateBadgeLayout.metrics(for: petFrame)
 	}
 
-	/// Bottom-center, *inside* the pet frame: the badge is horizontally centered
-	/// on the pet and its bottom edge sits `inset` above the frame's bottom border.
-	/// Then clamps to the visible display so it never spills offscreen.
+	/// Below-center of the pet: horizontally centered on the pet, with the badge's
+	/// *top* edge sitting `inset` above the frame's bottom border so the sprite
+	/// appears to stand on the badge (the badge body hangs below the feet rather
+	/// than overlapping the character). Then clamps to the visible display.
 	static func frame(relativeTo petFrame: CGRect, badgeSize: CGSize, visibleFrame: CGRect) -> CGRect {
 		let rect = CGRect(
 			x: petFrame.midX - badgeSize.width / 2,
-			y: petFrame.minY + inset,
+			y: petFrame.minY + inset - badgeSize.height,
 			width: badgeSize.width,
 			height: badgeSize.height
 		)
@@ -511,6 +520,14 @@ enum AnimationBadgeLayout {
 		let x = max(safe.minX, min(safe.maxX - rect.width, rect.minX))
 		let y = max(safe.minY, min(safe.maxY - rect.height, rect.minY))
 		return CGRect(x: x, y: y, width: rect.width, height: rect.height)
+	}
+
+	/// The animation badge is suppressed while the attention bubble is visible:
+	/// the bubble is the 1:1 signal for standby/errored and occupies the same
+	/// below-pet region the badge anchors to, so showing both is redundant and
+	/// would collide.
+	static func isVisible(attentionActive: Bool) -> Bool {
+		!attentionActive
 	}
 }
 
@@ -552,39 +569,87 @@ final class AnimationBadgePanel: NSPanel {
 	}
 }
 
-/// Single dark token reusing the gate badge's token styling so the animation
-/// badge matches the gate badge visually.
+/// Frosted badge reusing the attention bubble's background styling: a dark
+/// `hudWindow` visual-effect material with a hairline white border and a soft
+/// drop shadow. Sizing/scaling still follows the gate badge metrics.
 private final class AnimationBadgeView: NSView {
-	private let token = GateBadgeTokenView(
-		backgroundColor: NSColor(calibratedWhite: 0.15, alpha: 0.96),
-		textColor: NSColor(calibratedWhite: 0.95, alpha: 1.0),
-		weight: .medium
+	private let effectView = NSVisualEffectView(frame: .zero)
+	private let label = NSTextField(labelWithString: "")
+	private var metrics = GateBadgeLayout.metrics(
+		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
 	)
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
-		token.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(token)
+		wantsLayer = true
+		layer?.masksToBounds = false
+
+		// Match AttentionBubbleView's background chrome.
+		effectView.material = .hudWindow
+		effectView.blendingMode = .behindWindow
+		effectView.state = .active
+		effectView.appearance = NSAppearance(named: .darkAqua)
+		effectView.wantsLayer = true
+		effectView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(effectView)
+
+		label.lineBreakMode = .byTruncatingTail
+		label.maximumNumberOfLines = 1
+		label.alignment = .center
+		label.textColor = NSColor(calibratedWhite: 0.95, alpha: 1.0)
+		label.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(label)
+
 		NSLayoutConstraint.activate([
-			token.leadingAnchor.constraint(equalTo: leadingAnchor),
-			token.trailingAnchor.constraint(equalTo: trailingAnchor),
-			token.topAnchor.constraint(equalTo: topAnchor),
-			token.bottomAnchor.constraint(equalTo: bottomAnchor),
+			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			effectView.topAnchor.constraint(equalTo: topAnchor),
+			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			label.centerXAnchor.constraint(equalTo: centerXAnchor),
+			label.centerYAnchor.constraint(equalTo: centerYAnchor),
 		])
+		applyChromeStyle()
 	}
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
 	func configure(text: String, metrics: GateBadgeLayout.Metrics) {
-		token.configure(text: text, metrics: metrics)
-		layoutSubtreeIfNeeded()
+		self.metrics = metrics
+		label.stringValue = text
+		label.font = NSFont.monospacedSystemFont(ofSize: metrics.fontSize, weight: .medium)
+		applyChromeStyle()
 		invalidateIntrinsicContentSize()
+		layoutSubtreeIfNeeded()
+	}
+
+	override var intrinsicContentSize: NSSize {
+		NSSize(
+			width: label.intrinsicContentSize.width + metrics.horizontalPadding * 2,
+			height: metrics.badgeHeight
+		)
 	}
 
 	var preferredSize: CGSize {
 		layoutSubtreeIfNeeded()
-		return token.intrinsicContentSize
+		return intrinsicContentSize
+	}
+
+	override func layout() {
+		super.layout()
+		applyChromeStyle()
+	}
+
+	private func applyChromeStyle() {
+		effectView.layer?.cornerRadius = metrics.cornerRadius
+		effectView.layer?.masksToBounds = true
+		layer?.cornerRadius = metrics.cornerRadius
+		layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
+		layer?.borderWidth = 1
+		layer?.shadowColor = NSColor.black.cgColor
+		layer?.shadowOpacity = 0.32
+		layer?.shadowRadius = 8
+		layer?.shadowOffset = CGSize(width: 0, height: -2)
 	}
 }
 
