@@ -163,6 +163,17 @@ final class DeveloperTabViewModelTests: XCTestCase {
 			"differing schema versions must flag a mismatch")
 	}
 
+	func testSchemaMismatchFlaggedWhenSchemaVersionIsNonInteger() throws {
+		let url = tmp.appendingPathComponent("state.json")
+		// schema_version is a string, not an integer — must flag mismatch, not silently pass
+		try """
+			{"schema_version":"4","activity_state":"idle","updated_at":"2026-01-01T00:00:00Z"}
+			""".write(to: url, atomically: true, encoding: .utf8)
+		let vm = makeVM(stateJsonURL: url)
+		XCTAssertTrue(vm.schemaVersionMismatch,
+			"non-integer schema_version must trigger mismatch, not silently return false")
+	}
+
 	func testRendererSchemaVersionMatchesExpectedConstant() {
 		let vm = makeVM()
 		XCTAssertEqual(vm.rendererSchemaVersion, EXPECTED_STATE_SCHEMA_VERSION)
