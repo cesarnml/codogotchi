@@ -123,6 +123,43 @@ final class GeneralTabViewModelTests: XCTestCase {
 		XCTAssertTrue(json.contains("installed"), "diagnostics JSON must contain 'installed' field")
 	}
 
+	// MARK: - needsBannerUpdate
+
+	func testNeedsBannerUpdateWhenInstalledVersionDiffers() {
+		let vm = GeneralTabViewModel(hookVersion: "1.2.0")
+		vm.applySnapshot(makeSnapshot(codexInstalled: true))
+		vm.installedHookVersion = "1.1.0"
+		XCTAssertTrue(vm.needsBannerUpdate)
+	}
+
+	func testNoBannerUpdateWhenVersionsMatch() {
+		let vm = GeneralTabViewModel(hookVersion: "1.2.0")
+		vm.applySnapshot(makeSnapshot(codexInstalled: true))
+		vm.installedHookVersion = "1.2.0"
+		XCTAssertFalse(vm.needsBannerUpdate)
+	}
+
+	func testNoBannerUpdateWhenNoHooksInstalled() {
+		let vm = GeneralTabViewModel(hookVersion: "1.2.0")
+		vm.applySnapshot(makeSnapshot(codexInstalled: false))
+		vm.installedHookVersion = nil
+		XCTAssertFalse(vm.needsBannerUpdate)
+	}
+
+	func testNeedsBannerUpdateWhenInstalledAndNoRecordedVersion() {
+		let vm = GeneralTabViewModel(hookVersion: "1.2.0")
+		vm.applySnapshot(makeSnapshot(codexInstalled: true))
+		vm.installedHookVersion = nil
+		XCTAssertTrue(vm.needsBannerUpdate)
+	}
+
+	func testNeedsBannerUpdateReturnsFalseWhenBundledVersionUnknown() {
+		let vm = GeneralTabViewModel(hookVersion: "unknown")
+		vm.applySnapshot(makeSnapshot(codexInstalled: true))
+		vm.installedHookVersion = nil
+		XCTAssertFalse(vm.needsBannerUpdate)
+	}
+
 	func testDiagnosticsJSONIsValidJSON() {
 		let vm = GeneralTabViewModel(appVersion: "1.0.0", hookVersion: "0.1.0")
 		vm.applySnapshot(makeSnapshot())
