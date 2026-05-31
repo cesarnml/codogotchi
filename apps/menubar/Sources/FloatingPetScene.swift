@@ -146,7 +146,7 @@ final class FloatingPetScene: SKScene {
 		guard let interaction else {
 			guard currentInteraction != nil else { return }
 			currentInteraction = nil
-			let resolved = resolveFrames(for: currentState)
+			let resolved = currentFramesForState()
 			currentFrames = resolved.frames
 			currentSource = resolved.source
 			frameIndex = 0
@@ -166,7 +166,7 @@ final class FloatingPetScene: SKScene {
 			// reserved row.
 			if currentInteraction != nil {
 				currentInteraction = nil
-				let resolved = resolveFrames(for: currentState)
+				let resolved = currentFramesForState()
 				currentFrames = resolved.frames
 				currentSource = resolved.source
 				frameIndex = 0
@@ -228,7 +228,7 @@ final class FloatingPetScene: SKScene {
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
 		self.codexPet = codexPet
 		self.codogotchiPet = codogotchiPet
-		let resolved = resolveFrames(for: currentState)
+		let resolved = currentFramesForState()
 		currentFrames = resolved.frames
 		currentSource = resolved.source
 		frameIndex = 0
@@ -326,6 +326,10 @@ final class FloatingPetScene: SKScene {
 			if !escalated.isEmpty { return (escalated, .codogotchi) }
 		}
 		return resolveFrames(for: currentState)
+	}
+
+	private func currentFramesForState() -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {
+		currentState == .idle ? currentIdleFrames() : resolveFrames(for: currentState)
 	}
 
 	private func resolveFrames(for state: ActivityState) -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {

@@ -282,4 +282,48 @@ final class FloatingPetSceneTests: XCTestCase {
 
 		XCTAssertEqual(emitted, [.impatient, .frustrated])
 	}
+
+	func testClearingInteractionRestoresEscalatedIdleFrames() throws {
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let codogotchiPet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		let scene = try FloatingPetScene(
+			size: CGSize(width: 180, height: 140),
+			codexPet: CodexPet(petDirectory: maliFixtureDirectory()),
+			codogotchiPet: codogotchiPet,
+			idleEscalationConfig: IdleEscalationConfig(
+				impatientAfter: 60,
+				frustratedAfter: 120
+			),
+			clock: { now }
+		)
+		scene.update(state: .idle, visualMode: .normal)
+		now = now.addingTimeInterval(61)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+
+		let impatientFirstFrame = try XCTUnwrap(
+			codogotchiPet.floatingFrames(forIdleEscalation: .impatient).first?.image
+				.tiffRepresentation
+		)
+		let plainIdleFirstFrame = try XCTUnwrap(
+			codogotchiPet.floatingFrames(for: .idle).first?.image.tiffRepresentation
+		)
+		XCTAssertNotEqual(
+			impatientFirstFrame,
+			plainIdleFirstFrame,
+			"fixture must distinguish plain and escalated idle rows for this regression test"
+		)
+
+		scene.setInteraction(.jumping)
+		XCTAssertEqual(scene.currentInteractionForTesting, .jumping)
+		scene.setInteraction(nil)
+
+		XCTAssertNil(scene.currentInteractionForTesting)
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+		XCTAssertEqual(
+			try XCTUnwrap(scene.currentFramesForTesting.first?.tiffRepresentation),
+			impatientFirstFrame,
+			"ending drag/resize must restore the rendered idle-escalation row, not plain idle"
+		)
+	}
 }
