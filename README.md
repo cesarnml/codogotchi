@@ -6,21 +6,16 @@ Convex; a macOS **Codogotchi** app renders agent animation state locally from
 `~/.codogotchi/state.json` on the menu bar (static hero frame per state) and an
 optional transparent floating desktop pet (full animation while visible).
 
-**Status:** Phase 06 — Platform parity and attention UX (private). Phase 01 CLI + Convex pipeline
-is shipped; Phase 02 added the menu bar `NSStatusItem`; Phase 03 extended to
-all 15 activity states with a second spritesheet (`codogotchi-spritesheet.webp`)
-and per-pet config; Phase 04 renamed the app to **Codogotchi**, added a
-float-on-top SpriteKit surface (show/hide, drag, resize, persistence in
-`~/.codogotchi/app-state.json`), shared live/demo state fanout, and mouse-
-reactive reserved Codex rows; Phase 05 introduced Lite vs Alive modes, a
-mandatory first-run onboarding sheet with hook consent and backup, a minimal
-Settings window, and the canonical pet store (`~/.codogotchi/pets/`) with
-Maew bundle-seeded by the app; Phase 06 added the attention bubble UI, TTL
-decay for `standby`, sticky SoA gate mechanic, Bash 3-bucket signal heuristic,
-Cursor platform adapter (native hooks + bridge), and `requesting_input` →
-`standby` rename across the full contract stack. HP overlays, focus-aware
-visibility, catalog UI, and distribution polish remain deferred. See the
-[`phase-05 Lite install runbook`](docs/runbooks/phase-05-lite-install.md).
+**Status:** Phase 08 shipped — Lite-and-SoA v1 release gate (private). The `.app` is now
+self-contained: it bundles the `codogotchi` binary so no PATH prerequisite exists. Settings
+(General / Pet / Developer / About) is the control plane for hooks and pet selection. Hook
+install/update/remove live only in Settings → General. The two real 8-frame Maew spritesheets
+(`codogotchi-lite-spritesheet.webp` + `codogotchi-soa-spritesheet.webp`) ship, making Lite and
+SoA visualization work end to end. Earlier phases: 01 CLI + Convex pipeline; 02 menu bar NSStatusItem;
+03 all 19 activity states + codogotchi spritesheet; 04 floating pet + Codogotchi rename; 05 Lite vs
+Alive modes + mandatory onboarding + canonical pet store; 06 attention bubble + sticky SoA gate +
+Cursor platform adapter; 07 schema v4 + gate.json sidecar + renderer merge. See the
+[`phase-08 install runbook`](docs/runbooks/phase-08-lite-install.md).
 
 ## What ships in Phase 01
 
@@ -64,7 +59,11 @@ docs/
 
 ## Install (private, source build)
 
-There is no npm publish yet. See the [`phase-05 Lite install runbook`](docs/runbooks/phase-05-lite-install.md) for the full walk-through (Xcode Release build → `/Applications` → first-run onboarding).
+There is no App Store or notarized DMG yet. See the
+[`phase-08 Lite install runbook`](docs/runbooks/phase-08-lite-install.md) for the full walk-through.
+
+**No PATH prerequisite.** The `.app` bundles its own `codogotchi` binary (Phase 08). Install the app
+and use Settings → General to enable hooks — no Terminal commands required.
 
 Quick path via debug build:
 
@@ -74,34 +73,33 @@ bun run mac:build
 open "$(find ~/Library/Developer/Xcode/DerivedData -name 'Codogotchi.app' -path '*/Build/Products/*' | head -1)"
 ```
 
-The app shows a first-run onboarding sheet on launch that installs hooks. No CLI step needed before opening the app.
-
-Both CLI binaries (`codogotchi`, `codogotchi-hook`) live under `packages/cli/bin/`. Wire them into your `PATH` (or symlink into `~/.local/bin/`) before opening the app so the onboarding sheet can run `codogotchi hooks install`.
+On first launch the app presents a **Welcome to Codogotchi** consent sheet. Approve to install
+hooks. After closing the sheet, open **Settings → General** at any time to install, update, or
+remove hooks, and **Settings → Pet** to switch pets.
 
 ## Lite vs Alive
 
-Phase 05 splits the CLI into two modes:
+Codogotchi has two modes:
 
 | Mode | How to enter | Convex sync | XP / Loot |
 |---|---|---|---|
-| **Lite** | `codogotchi setup` (or first app launch) | No | No |
-| **Alive (RPG)** | `codogotchi rpg` after Lite setup | Yes | Yes |
+| **Lite** | First app launch (onboarding consent sheet) | No | No |
+| **Alive (RPG)** | `codogotchi rpg` (CLI enrollment until Phase 09 ships in-app) | Yes | Yes |
 
 Lite writes `{ "features": { "rpg_enabled": false } }` to `~/.codogotchi/config.json`. RPG commands (`sync`, `status`, `loot`, `vacation`) refuse when `rpg_enabled` is `false`. Run `codogotchi rpg` to enroll and enable them.
 
 ## CLI surface
 
+Phase 08 trimmed the public CLI to read/diagnostic commands. Hook management and onboarding live in
+**Settings → General** (app-owned). `setup`, `hooks install`, and `hooks uninstall` are still callable
+internally (the app spawns them as subprocesses) but are hidden from `--help`.
+
 ```
-codogotchi setup                              Lite first-run: write minimal config + install hooks
 codogotchi rpg                                Alive enrollment: prompts for handle, GitHub, Convex URL
-codogotchi hooks install                      Install hooks for Claude Code and Codex
-codogotchi hooks install --platform cursor    Write ~/.cursor/hooks.json (native Cursor hooks)
-codogotchi hooks uninstall                    Remove hooks from Claude Code and Codex
-codogotchi hooks uninstall --platform cursor  Remove Codogotchi entries from ~/.cursor/hooks.json
 codogotchi hooks status [--json]              Print per-platform hook install + firing status
+codogotchi status                             Cached profile, HP, recent loot — requires rpg_enabled: true
 
 codogotchi sync                               One sync cycle — requires rpg_enabled: true
-codogotchi status                             Cached profile, HP, recent loot — requires rpg_enabled: true
 codogotchi loot [--limit N] [--tier T]        Loot history — requires rpg_enabled: true
 codogotchi config get <key>                   Read a dotted config key
 codogotchi config set <key> <value>           Write a typed value
@@ -120,44 +118,28 @@ Environment overrides:
 
 ## Cursor install paths
 
-Codogotchi supports two install modes for Cursor users.
+Codogotchi supports two install modes for Cursor users. Both are managed via **Settings → General**.
 
 ### Bridge (simpler, no Cursor restart required)
 
-If you already have Claude Code hooks installed, Cursor's **Third-party skills**
-feature can route Cursor tool calls through Claude Code hooks automatically. No
-extra install step needed.
+If Claude Code hooks are installed, Cursor's **Third-party skills** feature routes Cursor tool calls
+through the Claude Code hooks automatically. No extra step needed.
 
-```bash
-codogotchi hooks install   # installs Claude Code + Codex hooks
-```
-
-Limitation: events fire with `source_origin: "claude_code"` instead of
-`"cursor"`. `codogotchi hooks status` reports `cursor: bridge` for
-this mode.
+Events fire with `source_origin: "claude_code"`. Use `codogotchi hooks status` to confirm.
 
 ### Native (correct `source_origin`, direct shell classification)
 
-Native Cursor hooks write `~/.cursor/hooks.json` and give Codogotchi direct
-access to Cursor's hook events (`afterFileEdit`, `beforeShellExecution`,
-`afterShellExecution`, `stop`, `sessionEnd`). Events fire with
-`source_origin: "cursor"`.
+Native Cursor hooks write `~/.cursor/hooks.json` and give Codogotchi direct access to Cursor's hook
+events. Events fire with `source_origin: "cursor"`.
+
+Use **Settings → General → Install hooks** and select the Cursor platform, or:
 
 ```bash
-codogotchi hooks install --platform cursor
+codogotchi hooks install --platform cursor   # app-managed; prefer Settings
 ```
 
-Restart Cursor after installing so it picks up the new `~/.cursor/hooks.json`.
-
-To remove native Cursor hooks without touching Claude Code or Codex:
-
-```bash
-codogotchi hooks uninstall --platform cursor
-```
-
-`codogotchi hooks status` reports `cursor: native` when `~/.cursor/hooks.json`
-contains Codogotchi entries, and `cursor: bridge` when Claude Code
-hooks are installed but no native Cursor hooks file is present.
+Restart Cursor after installing. `codogotchi hooks status` reports `cursor: native` when
+`~/.cursor/hooks.json` contains Codogotchi entries, `cursor: bridge` otherwise.
 
 ## Where data lives
 
@@ -172,7 +154,7 @@ hooks are installed but no native Cursor hooks file is present.
 | `~/.codogotchi/sync.log` | `sync` | Per-source success / failure (rotated) |
 | `~/.codogotchi/loot.log` | `sync` (via Convex) | Loot history (for `loot`) |
 | `~/.codogotchi/scorePR.log` | `sync` | `scorePR` heuristic decisions |
-| `~/.codogotchi/pets/<name>/` | app / user | Canonical pet assets — Maew seeded from bundle on first launch (`pet.json`, `spritesheet.webp`, `codogotchi-spritesheet.webp`) |
+| `~/.codogotchi/pets/<name>/` | app / user | Canonical pet assets — Maew seeded from bundle on first launch (`pet.json`, `spritesheet.webp`, `codogotchi-lite-spritesheet.webp`, `codogotchi-soa-spritesheet.webp`) |
 | Convex `profiles`, `loot_events`, `users` | server | Canonical state |
 
 ## Health semantics
@@ -185,22 +167,26 @@ Three knobs in `~/.codogotchi/config.json`:
 - `health.vacation_until` — ISO date through which HP decay is suspended; set
   via `codogotchi vacation on`.
 
-## macOS app (Phase 05+)
+## macOS app (Phase 08)
 
-The **Codogotchi** app (`apps/menubar/`) is an `LSUIElement` menu bar agent with
-an optional float-on-top desktop pet and a minimal Settings window. On first
-launch it bootstraps a Lite `~/.codogotchi/config.json` (if absent), seeds Maew
-from the bundle into `~/.codogotchi/pets/maew/`, and presents a mandatory
-first-run onboarding sheet. The onboarding sheet requires **Approve & install
-hooks** — there is no skip. The sheet stays open (showing **Hooks not active**)
-until install succeeds and a real tool event fires. Build and validate:
+The **Codogotchi** app (`apps/menubar/`) is an `LSUIElement` menu bar agent with an optional
+float-on-top desktop pet and a Settings window (General / Pet / Developer / About tabs). The `.app`
+bundles its own `codogotchi` binary — no PATH prerequisite.
+
+On first launch the app seeds Maew from the bundle (`~/.codogotchi/pets/maew/`), presents a
+**Welcome to Codogotchi** consent sheet, and installs hooks on approval. After onboarding,
+**Settings → General** is the only user-facing surface for Install / Update / Remove hooks.
+**Settings → Pet** enumerates and switches pets. **Settings → Developer** shows live `state.json`,
+`gate.json`, last-5 transitions, schema version, and the Cursor-bridge explainer (read-only).
+
+Build:
 
 ```bash
 bun run mac:build
-# For install validation, see docs/runbooks/phase-05-lite-install.md
+# For validation, see docs/runbooks/phase-08-lite-install.md
 ```
 
-Menu items include **Show/Hide Floating Pet**, **Open log folder**, **Reveal pet
+Menu items include **Settings…**, **Show/Hide Floating Pet**, **Open log folder**, **Reveal pet
 folder** (opens `~/.codogotchi/pets/` in Finder), and **Quit Codogotchi**.
 
 **Demo mode** (`CODOGOTCHI_DEMO=1` or `--demo` launch argument) cycles activity

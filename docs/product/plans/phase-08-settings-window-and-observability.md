@@ -1,6 +1,6 @@
 # Phase 08: Settings Window and Observability
 
-**Delivery status:** Product plan — pending approval. Not yet decomposed. Update this line when decomposition starts or completes so it matches repo reality.
+**Delivery status:** Shipped — Phase 08 complete. All 10 tickets delivered. Stack awaiting closeout.
 
 ## TL;DR
 
@@ -52,7 +52,14 @@ This phase should leave the product in a state where:
 
 ### First-run onboarding
 
-- On first launch the app **auto-opens Settings → General** with a prominent **Install hooks** CTA and a nudge toward the Pet tab. No separate welcome-wizard surface (reuses the tabs); **no silent config writes** — hook install is an explicit user action, consistent with the lockstep consent stance.
+**Delivered decision (P8.10 reconcile):** The app keeps the existing **blocking welcome consent
+sheet** from Phase 05 (re-pointed at the bundled binary). On first launch the sheet presents
+**Approve & install hooks** — there is no skip. Settings → General is the *ongoing* control plane for
+hook management after onboarding; it does not auto-open on first launch. This matches what shipped
+and avoids the confusion of auto-opening a multi-tab settings window as the first user experience.
+The "auto-open Settings" wording in earlier drafts of this plan was aspirational; the blocking
+consent sheet was confirmed as the right call during implementation review.
+
 - **Maew is the default pet**: if the user does not import one of their existing Codex pets, the bundled Maew is active out of the box, so the pet renders immediately after hook install.
 
 ### General tab — hooks write surface (app-owned)
