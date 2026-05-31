@@ -45,15 +45,41 @@ struct HookStatusClient {
 		}
 	}
 
-	/// Default runner used in app code: spawns `/usr/bin/env <argv...>` so the
-	/// CLI is resolved through PATH (consistent with Phase 05 Q1 decision).
-	static func defaultRunner(_ argv: [String]) -> RunResult {
+	/// Resolve the executable + arguments for an `argv` invocation, preferring
+	/// the `codogotchi` binary embedded in the app bundle's `Resources/` over a
+	/// PATH lookup. When the bundled binary exists it is launched directly (the
+	/// `codogotchi` head is consumed by the launch path); otherwise we fall back
+	/// to `/usr/bin/env <argv...>` so `bun` dev builds still resolve via PATH.
+	/// `resourceURL` / `fileExists` are injectable for testing.
+	static func resolveRunnerLaunch(
+		argv: [String],
+		resourceURL: URL? = Bundle.main.resourceURL,
+		fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+	) -> (launchPath: String, arguments: [String]) {
 		guard let head = argv.first else {
+			return (launchPath: "/usr/bin/env", arguments: [])
+		}
+		let rest = Array(argv.dropFirst())
+		if let resourceURL {
+			let bundled = resourceURL.appendingPathComponent(head)
+			if fileExists(bundled.path) {
+				return (launchPath: bundled.path, arguments: rest)
+			}
+		}
+		return (launchPath: "/usr/bin/env", arguments: argv)
+	}
+
+	/// Default runner used in app code: launches the bundled `codogotchi` binary
+	/// when present (no PATH dependency for the shipped `.app`), else spawns
+	/// `/usr/bin/env <argv...>` so dev builds resolve through PATH.
+	static func defaultRunner(_ argv: [String]) -> RunResult {
+		guard argv.first != nil else {
 			return RunResult(exitCode: 127, stdout: "", stderr: "empty argv")
 		}
+		let launch = resolveRunnerLaunch(argv: argv)
 		let process = Process()
-		process.launchPath = "/usr/bin/env"
-		process.arguments = [head] + Array(argv.dropFirst())
+		process.launchPath = launch.launchPath
+		process.arguments = launch.arguments
 
 		let stdoutPipe = Pipe()
 		let stderrPipe = Pipe()

@@ -39,8 +39,11 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: binary self-location via `process.execPath` keeps the app from having to pass the path in, and works because both binaries sit in the same Resources dir.
+Red first: `installHooks` wrote the bare `codogotchi-hook` name into the Claude/Codex surfaces even when given a bundled `execPath` whose sibling binary existed; the idempotency-convergence assertion also failed because the Claude dedup filter matched on exact `=== "codogotchi-hook"` rather than the substring.
+Why this path: binary self-location via `process.execPath` keeps the app from having to pass the path in, and works because both binaries sit in the same Resources dir. Bundle-vs-dev is discriminated by an on-disk check for the sibling `codogotchi-hook` (present only in the compiled `.app`), so callers pass `process.execPath` unconditionally and dev `bun` runs fall back to the bare name + PATH automatically.
+Resolution centralized in one `resolveHookCommand(execPath?)` helper; the three writers (Claude matcher, Codex TOML, Codex hooks.json) each receive the resolved string. Claude dedup now matches on the `codogotchi-hook` substring (via `isCodogotchiCommand`) so a prior bare-name install converges onto the absolute path with exactly one matcher per event.
+Swift: added `HookStatusClient.resolveRunnerLaunch(argv:resourceURL:fileExists:)` (injectable for tests) that prefers `Bundle.main.resourceURL/codogotchi` when it exists on disk (launched directly, head consumed) and falls back to `/usr/bin/env <argv...>` otherwise; `defaultRunner` delegates to it.
 Alternative considered: app passes `--hook-path <abs>` to `hooks install` — more surface, rejected in favor of self-location.
-Deferred: orphaned-path recovery UX (lockstep banner, P8.05).
-Contract note:
+Scope note: Cursor (`installCursorHooks`) still writes the bare name — the ticket Outcome enumerates only the three Claude/Codex surfaces, so cursor bundle-path threading is intentionally out of scope here.
+Deferred: orphaned-path recovery UX (moving/deleting the `.app` orphans the absolute path; the hook command then goes missing and the agent-side failure is silent/graceful — no crash, the event just isn't recorded). Update-hooks re-write + the lockstep banner (P8.04/P8.05) is where that path gets re-healed.
+Contract note: any resolved absolute hook path still ends in `codogotchi-hook`, so `isCodogotchiCommand` substring detection (used for dedup and `hooksStatus` installed-detection) keeps working for both bare and absolute forms.
