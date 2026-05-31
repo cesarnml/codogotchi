@@ -43,8 +43,10 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: testGridColumnsIs8, testFrameIntervalIs1Point5Per8Frames, testLiteRowMapHasExactly9HookStates, testSoaRowMapHasExactly10GateStates — all failed immediately on the P7 single-sheet stubs.
 Why this path: Phase 07 deferred the multi-sheet loader; this is the explicit follow-up that makes "SoA supported" real.
 Alternative considered: keep one combined sheet — rejected; the tier model and premium 24-frame split need separate sheets.
-Deferred: 24-frame premium pack (Phase 13); rpg sheet (tier 4).
-Contract note:
+Row order source: `notes/private/codogotchi-8frame-lite-soa-sheet-prompts.md` — prompt order defines exact row indices for both sheets (11 rows lite, 10 rows SoA).
+Resolution order change: CodogotchiPet is checked BEFORE CodexPet in both MenubarRenderer and FloatingPetScene. The lite sheet now self-contains all 9 hook states, making "Codex first" wrong for hook states. Codex remains the fallback for unknown/artless states (Phase 07 contract preserved).
+GateJsonReader: switched from rowMap to soaRowMap for gate-renderability predicate. All 10 SoA gate states (including .advance and .pollReview, which were artless in P7) now have art.
+Deferred: 24-frame premium pack (Phase 13); rpg sheet (tier 4); idle escalation thresholds (renderer selects idle-impatient row 1 / idle-frustrated row 2 after elapsed-idle timers, not implemented this phase).

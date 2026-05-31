@@ -87,7 +87,7 @@ final class FloatingPetSceneTests: XCTestCase {
 		scene.update(state: .adversarialReview, visualMode: .normal)
 
 		XCTAssertEqual(scene.currentStateForTesting, .adversarialReview)
-		XCTAssertEqual(scene.currentFramesForTesting.count, 24)
+		XCTAssertEqual(scene.currentFramesForTesting.count, 8)
 	}
 
 	func testFloatingSceneUsesSourceResolutionCodogotchiTextures() throws {
@@ -112,7 +112,8 @@ final class FloatingPetSceneTests: XCTestCase {
 		scene.update(state: .thinking, visualMode: .normal)
 
 		XCTAssertEqual(scene.currentFrameIndexForTesting, 0)
-		XCTAssertEqual(scene.currentFramesForTesting.count, 4)
+		// .thinking resolves from the lite sheet (CodogotchiPet first) — 8 frames
+		XCTAssertEqual(scene.currentFramesForTesting.count, 8)
 	}
 
 	func testAnimationTimerAdvancesFrames() throws {

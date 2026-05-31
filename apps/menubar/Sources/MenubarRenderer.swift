@@ -15,12 +15,12 @@ enum VisualMode: Equatable {
 	case desaturated
 }
 
-/// Composites Codex-sheet and codogotchi-sheet frames into the menu-bar
+/// Composites CodogotchiPet two-sheet and Codex-sheet frames into the menu-bar
 /// `NSStatusItem`, painting a single static hero frame per active state.
 ///
 /// Resolution order for any `ActivityState`:
-/// 1. `CodexPet` (Codex sheet) — checked first via `CodexPet.rowMap`.
-/// 2. `CodogotchiPet` (codogotchi sheet) — checked second.
+/// 1. `CodogotchiPet` (SoA sheet → lite sheet) — checked first.
+/// 2. `CodexPet` (Codex sheet) — fallback when CodogotchiPet returns empty.
 /// 3. Idle fallback — `.idle` frames from the Codex sheet when both return empty.
 ///
 /// The renderer is driven by external `update(state:visualMode:)` calls — it
@@ -116,17 +116,19 @@ final class MenubarRenderer {
 
 	/// Populate `currentFrames` via composite resolution.
 	private func resolveFrames(for state: ActivityState) {
-		let codexFrames = codexPet.frames(for: state)
-		if !codexFrames.isEmpty {
-			currentFrames = codexFrames
-			return
-		}
+		// CodogotchiPet covers SoA gate states (soaRowMap) and hook/lite states (liteRowMap).
 		let codogotchiFrames = codogotchiPet?.frames(for: state) ?? []
 		if !codogotchiFrames.isEmpty {
 			currentFrames = codogotchiFrames
 			return
 		}
-		// Neither sheet maps this state — fall back to Codex idle.
+		// Codex sheet: hook-animation fallback for unknown/artless states.
+		let codexFrames = codexPet.frames(for: state)
+		if !codexFrames.isEmpty {
+			currentFrames = codexFrames
+			return
+		}
+		// Final fallback: Codex idle.
 		currentFrames = codexPet.frames(for: .idle)
 	}
 

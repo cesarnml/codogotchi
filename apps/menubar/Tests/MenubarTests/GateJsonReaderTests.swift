@@ -101,13 +101,20 @@ final class GateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(result, .thinking, "gate with unknown state must fall through to hook state")
 	}
 
-	func testUnexpiredGateWithArtlessStateRendersHookState() {
-		// [red] unexpired gate for a v4 state that has no sprite row → fall through
-		// advance is in ActivityState but not in CodogotchiPet.rowMap
-		let gate = makeGate(gate: "advance", expiresAt: futureDate())
+	func testUnexpiredGateWithHookStateAsGateRendersHookState() {
+		// A gate that fires a hook/lite state (not in soaRowMap) falls through —
+		// the gate contract only elevates SoA gate states.
+		let gate = makeGate(gate: "implementing", expiresAt: futureDate())
 		let hookState = ActivityState.idle
 		let result = resolveActivityState(gate: gate, hookState: hookState, now: Date())
-		XCTAssertEqual(result, .idle, "gate with no sprite row must fall through to hook state")
+		XCTAssertEqual(result, .idle, "gate with a hook state (not in soaRowMap) must fall through")
+	}
+
+	func testUnexpiredGateWithAdvanceRendersAdvanceState() {
+		// P8.06: .advance is now in soaRowMap — unexpired gate must render as .advance.
+		let gate = makeGate(gate: "advance", expiresAt: futureDate())
+		let result = resolveActivityState(gate: gate, hookState: .idle, now: Date())
+		XCTAssertEqual(result, .advance, "advance is in soaRowMap — unexpired gate renders as .advance")
 	}
 
 	func testAbsentGateRendersHookState() {

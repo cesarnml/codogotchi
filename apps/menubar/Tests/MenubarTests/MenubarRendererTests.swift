@@ -51,8 +51,9 @@ final class MenubarRendererTests: XCTestCase {
 
 	func testNormalModeImplementingSelectsImplementingFrameSource() throws {
 		let codexPet = try makeCodexPet()
+		let codogotchiPet = try makeCodogotchiPet()
 		var lastImage: NSImage?
-		let renderer = try MenubarRenderer(codexPet: codexPet, codogotchiPet: makeCodogotchiPet()) { image in
+		let renderer = try MenubarRenderer(codexPet: codexPet, codogotchiPet: codogotchiPet) { image in
 			lastImage = image
 		}
 
@@ -60,11 +61,13 @@ final class MenubarRendererTests: XCTestCase {
 
 		XCTAssertEqual(renderer.currentStateForTesting, .implementing)
 		XCTAssertEqual(renderer.currentVisualModeForTesting, .normal)
+		// P8.06: .implementing resolves from the lite sheet (CodogotchiPet first) — 8 frames
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
-			codexPet.frames(for: .implementing).count,
-			"renderer must hold the implementing row's frame source"
+			codogotchiPet.frames(for: .implementing).count,
+			"renderer must resolve .implementing from lite sheet (CodogotchiPet first)"
 		)
+		XCTAssertEqual(renderer.currentFramesForTesting.count, 8)
 		XCTAssertNotNil(lastImage, "renderer must push at least one frame to the sink on state change")
 	}
 
@@ -75,7 +78,8 @@ final class MenubarRendererTests: XCTestCase {
 
 		renderer.update(state: .implementing, visualMode: .normal)
 
-		let implementingFrames = codexPet.frames(for: .implementing)
+		// P8.06: .implementing resolves from the lite sheet (8 frames) via CodogotchiPet first.
+		let implementingFrames = codogotchiPet.frames(for: .implementing)
 		XCTAssertEqual(
 			renderer.currentFrameIndexForTesting,
 			min(MenubarRenderer.heroFrameIndex, max(implementingFrames.count - 1, 0)),
@@ -87,8 +91,8 @@ final class MenubarRendererTests: XCTestCase {
 			"renderer must hold the implementing row frame source"
 		)
 
-		// Second transition: .ticketCompleted resolves from CodogotchiPet (24 frames),
-		// so the hero index (3) is well within bounds.
+		// Second transition: .ticketCompleted resolves from CodogotchiPet SoA sheet (8 frames),
+		// hero index (3) is well within bounds.
 		renderer.update(state: .ticketCompleted, visualMode: .normal)
 		XCTAssertEqual(renderer.currentStateForTesting, .ticketCompleted)
 		XCTAssertEqual(
@@ -163,9 +167,9 @@ final class MenubarRendererTests: XCTestCase {
 		)
 	}
 
-	// MARK: - Composite resolution
+	// MARK: - Composite resolution (P8.06: CodogotchiPet first, Codex fallback)
 
-	func testCompositeResolutionThinkingUsesCodexSheet() throws {
+	func testCompositeResolutionThinkingUsesLiteSheet() throws {
 		let codexPet = try makeCodexPet()
 		let codogotchiPet = try makeCodogotchiPet()
 		let renderer = try MenubarRenderer(codexPet: codexPet, codogotchiPet: codogotchiPet, sink: { _ in })
@@ -174,12 +178,16 @@ final class MenubarRendererTests: XCTestCase {
 
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
-			codexPet.frames(for: .thinking).count,
-			".thinking is in CodexPet.rowMap — must resolve from Codex sheet first"
+			codogotchiPet.frames(for: .thinking).count,
+			".thinking is in liteRowMap — must resolve from lite sheet (CodogotchiPet first)"
+		)
+		XCTAssertEqual(
+			renderer.currentFramesForTesting.count, 8,
+			".thinking lite sheet must return 8 frames"
 		)
 	}
 
-	func testCompositeResolutionAdversarialReviewUsesCodogotchiSheet() throws {
+	func testCompositeResolutionAdversarialReviewUsesSoaSheet() throws {
 		let codexPet = try makeCodexPet()
 		let codogotchiPet = try makeCodogotchiPet()
 		let renderer = try MenubarRenderer(codexPet: codexPet, codogotchiPet: codogotchiPet, sink: { _ in })
@@ -189,12 +197,11 @@ final class MenubarRendererTests: XCTestCase {
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
 			codogotchiPet.frames(for: .adversarialReview).count,
-			".adversarialReview is not in CodexPet.rowMap — must fall through to codogotchi sheet"
+			".adversarialReview is in soaRowMap — must resolve from SoA sheet"
 		)
 		XCTAssertEqual(
-			renderer.currentFramesForTesting.count,
-			24,
-			"codogotchi sheet frames for .adversarialReview must be 24"
+			renderer.currentFramesForTesting.count, 8,
+			"SoA sheet frames for .adversarialReview must be 8"
 		)
 	}
 
