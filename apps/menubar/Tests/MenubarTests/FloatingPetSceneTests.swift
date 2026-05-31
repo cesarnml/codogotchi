@@ -210,4 +210,76 @@ final class FloatingPetSceneTests: XCTestCase {
 
 		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 0)
 	}
+
+	// MARK: - Idle escalation
+
+	private func makeEscalationScene(
+		clock: @escaping () -> Date,
+		impatientAfter: TimeInterval = 60,
+		frustratedAfter: TimeInterval = 120
+	) throws -> FloatingPetScene {
+		try FloatingPetScene(
+			size: CGSize(width: 180, height: 140),
+			codexPet: CodexPet(petDirectory: maliFixtureDirectory()),
+			codogotchiPet: CodogotchiPet(petDirectory: maewFixtureDirectory()),
+			idleEscalationConfig: IdleEscalationConfig(
+				impatientAfter: impatientAfter,
+				frustratedAfter: frustratedAfter
+			),
+			clock: clock
+		)
+	}
+
+	func testIdleEscalatesImpatientThenFrustratedByElapsedTime() throws {
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let scene = try makeEscalationScene(clock: { now })
+
+		scene.update(state: .idle, visualMode: .normal)
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+
+		now = now.addingTimeInterval(61)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+
+		now = now.addingTimeInterval(60) // 121s total idle
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
+	}
+
+	func testTransitionResetsIdleEscalationAndReArmsOnReturnToIdle() throws {
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let scene = try makeEscalationScene(clock: { now })
+
+		scene.update(state: .idle, visualMode: .normal)
+		now = now.addingTimeInterval(130)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
+
+		// Any real transition clears escalation immediately (last_until_next_transition).
+		scene.update(state: .implementing, visualMode: .normal)
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+
+		// Returning to idle re-arms the clock from zero rather than reusing stale elapsed.
+		now = now.addingTimeInterval(10_000)
+		scene.update(state: .idle, visualMode: .normal)
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+		now = now.addingTimeInterval(61)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+	}
+
+	func testIdleEscalationEmitsLevelChangesToObserver() throws {
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let scene = try makeEscalationScene(clock: { now })
+		var emitted: [IdleEscalation] = []
+		scene.onIdleEscalationChange = { emitted.append($0) }
+
+		scene.update(state: .idle, visualMode: .normal)
+		now = now.addingTimeInterval(61)
+		scene.advanceFrameForTesting()
+		now = now.addingTimeInterval(60)
+		scene.advanceFrameForTesting()
+
+		XCTAssertEqual(emitted, [.impatient, .frustrated])
+	}
 }

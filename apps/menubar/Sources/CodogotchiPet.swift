@@ -218,6 +218,22 @@ final class CodogotchiPet {
 		return []
 	}
 
+	/// Source-cell frames for a time-based idle-escalation row (lite sheet only).
+	/// Returns `[]` for `.none` or when the lite sheet is absent, so the renderer
+	/// falls back to the plain idle animation (e.g. the Codex-only pet).
+	func floatingFrames(forIdleEscalation level: IdleEscalation) -> [CodexPet.Frame] {
+		let spec: RowSpec
+		switch level {
+		case .none: return []
+		case .impatient: spec = CodogotchiPet.idleImpatientLiteRow
+		case .frustrated: spec = CodogotchiPet.idleFrustratedLiteRow
+		}
+		guard let cg = cgLiteSheet else { return [] }
+		return sliceFrames(
+			spec: spec, cgSheet: cg, fw: liteFrameWidth, fh: liteFrameHeight,
+			output: .sourceCell)
+	}
+
 	// MARK: - Private slicing
 
 	private enum FrameOutput {

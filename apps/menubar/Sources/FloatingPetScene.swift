@@ -29,16 +29,30 @@ final class FloatingPetScene: SKScene {
 	/// When set, overrides sheet-specific frame intervals (demo mode).
 	private let demoFrameInterval: TimeInterval?
 
+	// Idle escalation: while the agent stays continuously idle, the sprite walks
+	// idle → impatient → frustrated by elapsed time. Resets on any transition.
+	private let idleEscalationConfig: IdleEscalationConfig
+	private let clock: () -> Date
+	private var idleSince: Date?
+	private var currentEscalation: IdleEscalation = .none
+	/// Fired when the escalation level changes so the controller can re-label the
+	/// animation badge ("Idle" → "Impatient" → "Frustrated") between transitions.
+	var onIdleEscalationChange: ((IdleEscalation) -> Void)?
+
 	init(
 		size: CGSize,
 		codexPet: CodexPet,
 		codogotchiPet: CodogotchiPet?,
 		demoFrameInterval: TimeInterval? = nil,
+		idleEscalationConfig: IdleEscalationConfig = .production,
+		clock: @escaping () -> Date = Date.init,
 		desaturateFrame: ((CodexPet.Frame) -> CGImage?)? = nil,
 		interactionFramesProvider: ((FloatingInteraction) -> [CodexPet.Frame])? = nil
 	) {
 		self.codexPet = codexPet
 		self.codogotchiPet = codogotchiPet
+		self.idleEscalationConfig = idleEscalationConfig
+		self.clock = clock
 		let context = CIContext(options: nil)
 		self.ciContext = context
 		self.desaturateFrame = desaturateFrame ?? { frame in
@@ -48,6 +62,10 @@ final class FloatingPetScene: SKScene {
 			codexPet.floatingFrames(forInteraction: interaction)
 		}
 		self.demoFrameInterval = demoFrameInterval
+		// Scene starts in idle, so begin the idle clock immediately — the first
+		// `update(state:.idle)` won't be a transition and would otherwise never
+		// arm escalation.
+		self.idleSince = clock()
 		super.init(size: size)
 
 		backgroundColor = .clear
@@ -97,7 +115,14 @@ final class FloatingPetScene: SKScene {
 		}
 
 		if stateChanged {
-			let resolved = resolveFrames(for: state)
+			// A real transition resets idle escalation. Re-arm the idle clock when
+			// entering idle; clear it otherwise.
+			idleSince = (state == .idle) ? clock() : nil
+			if currentEscalation != .none {
+				currentEscalation = .none
+				onIdleEscalationChange?(.none)
+			}
+			let resolved = currentIdleFrames()
 			currentFrames = resolved.frames
 			currentSource = resolved.source
 			frameIndex = 0
@@ -188,6 +213,7 @@ final class FloatingPetScene: SKScene {
 	// MARK: - Test access
 
 	var currentStateForTesting: ActivityState { currentState }
+	var currentIdleEscalationForTesting: IdleEscalation { currentEscalation }
 	var currentInteractionForTesting: FloatingInteraction? { currentInteraction }
 	var currentFrameIndexForTesting: Int { frameIndex }
 	var currentFramesForTesting: [NSImage] { currentFrames.map(\.image) }
@@ -259,11 +285,47 @@ final class FloatingPetScene: SKScene {
 	}
 
 	private func tick() {
+		maybeEscalateIdle()
 		guard !currentFrames.isEmpty else {
 			return
 		}
 		frameIndex = (frameIndex + 1) % currentFrames.count
 		paintCurrentFrame()
+	}
+
+	/// Recompute idle escalation from elapsed time. Runs on the frame timer
+	/// (idle always animates, so this fires regularly while idle). No-op unless
+	/// the agent is continuously idle and not mid-interaction.
+	private func maybeEscalateIdle() {
+		guard currentState == .idle, currentInteraction == nil, let since = idleSince else {
+			return
+		}
+		let level = idleEscalationConfig.escalation(forElapsed: clock().timeIntervalSince(since))
+		applyIdleEscalation(level)
+	}
+
+	private func applyIdleEscalation(_ level: IdleEscalation) {
+		guard level != currentEscalation else { return }
+		currentEscalation = level
+		onIdleEscalationChange?(level)
+		guard currentState == .idle, currentInteraction == nil else { return }
+		let resolved = currentIdleFrames()
+		currentFrames = resolved.frames
+		currentSource = resolved.source
+		frameIndex = 0
+		paintCurrentFrame()
+		restartTimer()
+	}
+
+	/// Idle frame selection that honors the current escalation level: the
+	/// impatient/frustrated lite rows when escalated and available, else the
+	/// plain idle resolution (which also covers non-idle states).
+	private func currentIdleFrames() -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {
+		if currentState == .idle, currentEscalation != .none {
+			let escalated = codogotchiPet?.floatingFrames(forIdleEscalation: currentEscalation) ?? []
+			if !escalated.isEmpty { return (escalated, .codogotchi) }
+		}
+		return resolveFrames(for: currentState)
 	}
 
 	private func resolveFrames(for state: ActivityState) -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {

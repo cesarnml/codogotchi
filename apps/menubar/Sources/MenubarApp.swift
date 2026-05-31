@@ -148,7 +148,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			let floatingPanel = FloatingPetPanelController(
 				codexPet: codexPet,
 				codogotchiPet: codogotchiPet,
-				demoFrameInterval: demoInterval
+				demoFrameInterval: demoInterval,
+				idleEscalationConfig: IdleEscalationConfig.resolve()
 			)
 			self.floatingPetPanelController = floatingPanel
 			let floatingPetController = FloatingPetController(

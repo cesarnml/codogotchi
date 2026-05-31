@@ -425,6 +425,44 @@ final class FloatingPetControllerTests: XCTestCase {
 		XCTAssertTrue(AnimationBadgeLayout.isVisible(attentionActive: false))
 	}
 
+	func testIdleEscalationConfigThresholds() {
+		let config = IdleEscalationConfig(impatientAfter: 60, frustratedAfter: 120)
+		XCTAssertEqual(config.escalation(forElapsed: 0), .none)
+		XCTAssertEqual(config.escalation(forElapsed: 59), .none)
+		XCTAssertEqual(config.escalation(forElapsed: 60), .impatient)
+		XCTAssertEqual(config.escalation(forElapsed: 119), .impatient)
+		XCTAssertEqual(config.escalation(forElapsed: 120), .frustrated)
+		XCTAssertEqual(config.escalation(forElapsed: 100_000), .frustrated)
+	}
+
+	func testIdleEscalationConfigProductionDefaultsAreFiveAndTenMinutes() {
+		XCTAssertEqual(IdleEscalationConfig.production.impatientAfter, 5 * 60, accuracy: 0.001)
+		XCTAssertEqual(IdleEscalationConfig.production.frustratedAfter, 10 * 60, accuracy: 0.001)
+	}
+
+	func testIdleEscalationConfigResolvesEnvOverridesInMilliseconds() {
+		let config = IdleEscalationConfig.resolve(environment: [
+			"CODOGOTCHI_IDLE_IMPATIENT_MS": "60000",
+			"CODOGOTCHI_IDLE_FRUSTRATED_MS": "120000",
+		])
+		XCTAssertEqual(config.impatientAfter, 60, accuracy: 0.001)
+		XCTAssertEqual(config.frustratedAfter, 120, accuracy: 0.001)
+	}
+
+	func testIdleEscalationConfigIgnoresInvalidEnvAndKeepsProductionDefaults() {
+		let config = IdleEscalationConfig.resolve(environment: [
+			"CODOGOTCHI_IDLE_IMPATIENT_MS": "0",
+			"CODOGOTCHI_IDLE_FRUSTRATED_MS": "not-a-number",
+		])
+		XCTAssertEqual(config, .production)
+	}
+
+	func testIdleEscalationBadgeLabels() {
+		XCTAssertNil(IdleEscalation.none.badgeLabel)
+		XCTAssertEqual(IdleEscalation.impatient.badgeLabel, "Impatient")
+		XCTAssertEqual(IdleEscalation.frustrated.badgeLabel, "Frustrated")
+	}
+
 	func testAnimationBadgeLayoutClampsWithinVisibleFrame() {
 		let petFrame = CGRect(x: 460, y: 380, width: 80, height: 40)
 		let badgeSize = CGSize(width: 120, height: 24)

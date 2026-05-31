@@ -6,6 +6,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var codexPet: CodexPet
 	private var codogotchiPet: CodogotchiPet?
 	private let demoFrameInterval: TimeInterval?
+	private let idleEscalationConfig: IdleEscalationConfig
+	private let clock: () -> Date
 	private let visibleFrameProvider: () -> CGRect
 	private var panel: NSPanel?
 	private var scene: FloatingPetScene?
@@ -24,11 +26,15 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var isPanelShown = false
 	private var attentionActive = false
 	private var gateBadgeContent: GateBadgeContent?
+	/// Mirror of the scene's idle-escalation level, used for the badge label.
+	private var currentEscalation: IdleEscalation = .none
 
 	init(
 		codexPet: CodexPet,
 		codogotchiPet: CodogotchiPet?,
 		demoFrameInterval: TimeInterval? = nil,
+		idleEscalationConfig: IdleEscalationConfig = .production,
+		clock: @escaping () -> Date = Date.init,
 		visibleFrameProvider: @escaping () -> CGRect = {
 			NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
 		}
@@ -36,6 +42,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		self.codexPet = codexPet
 		self.codogotchiPet = codogotchiPet
 		self.demoFrameInterval = demoFrameInterval
+		self.idleEscalationConfig = idleEscalationConfig
+		self.clock = clock
 		self.visibleFrameProvider = visibleFrameProvider
 	}
 
@@ -48,8 +56,15 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 				size: frame.size,
 				codexPet: codexPet,
 				codogotchiPet: codogotchiPet,
-				demoFrameInterval: demoFrameInterval
+				demoFrameInterval: demoFrameInterval,
+				idleEscalationConfig: idleEscalationConfig,
+				clock: clock
 			)
+			scene.onIdleEscalationChange = { [weak self] level in
+				guard let self else { return }
+				self.currentEscalation = level
+				self.repositionAndShowAnimationBadge()
+			}
 			scene.update(state: currentState, visualMode: currentMode)
 			self.scene = scene
 			(panel.contentView as? FloatingPetInteractionView)?.presentScene(scene)
@@ -178,11 +193,20 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			return panel
 		}()
 		badge.reposition(
-			label: currentState.displayLabel,
+			label: animationBadgeLabel,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
 		badge.orderFrontRegardless()
+	}
+
+	/// Badge copy: the escalated idle label ("Impatient"/"Frustrated") when the
+	/// agent is idle and has escalated, otherwise the current state's label.
+	private var animationBadgeLabel: String {
+		if currentState == .idle, let escalated = currentEscalation.badgeLabel {
+			return escalated
+		}
+		return currentState.displayLabel
 	}
 
 	func apply(state: ActivityState, visualMode: VisualMode) {
@@ -233,7 +257,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			)
 		}
 		animationBadgePanel?.reposition(
-			label: currentState.displayLabel,
+			label: animationBadgeLabel,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)

@@ -153,3 +153,62 @@ struct StateSnapshot: Equatable {
 		self.toolCommand = toolCommand
 	}
 }
+
+/// Renderer-internal escalation of the `idle` state by elapsed-idle time.
+/// These are NOT `ActivityState` cases (the wire enum never leaves `idle`);
+/// they select alternate lite-sheet rows and an escalated badge label while the
+/// agent stays continuously idle, and reset on the next state transition.
+enum IdleEscalation: Equatable {
+	case none
+	case impatient
+	case frustrated
+
+	/// Badge copy while escalated. `nil` at `.none` so the badge falls back to
+	/// the underlying state's `displayLabel` ("Idle").
+	var badgeLabel: String? {
+		switch self {
+		case .none: return nil
+		case .impatient: return "Impatient"
+		case .frustrated: return "Frustrated"
+		}
+	}
+}
+
+/// Elapsed-idle thresholds that drive `IdleEscalation`. Production defaults are
+/// 5 minutes → impatient, 10 minutes → frustrated. Both are overridable from the
+/// environment for fast manual testing (values in milliseconds):
+///   `CODOGOTCHI_IDLE_IMPATIENT_MS` / `CODOGOTCHI_IDLE_FRUSTRATED_MS`.
+struct IdleEscalationConfig: Equatable {
+	var impatientAfter: TimeInterval
+	var frustratedAfter: TimeInterval
+
+	static let production = IdleEscalationConfig(
+		impatientAfter: 5 * 60,
+		frustratedAfter: 10 * 60
+	)
+
+	static func resolve(
+		environment: [String: String] = ProcessInfo.processInfo.environment
+	) -> IdleEscalationConfig {
+		var config = production
+		if let seconds = positiveSeconds(environment["CODOGOTCHI_IDLE_IMPATIENT_MS"]) {
+			config.impatientAfter = seconds
+		}
+		if let seconds = positiveSeconds(environment["CODOGOTCHI_IDLE_FRUSTRATED_MS"]) {
+			config.frustratedAfter = seconds
+		}
+		return config
+	}
+
+	/// Escalation level for a continuous-idle `elapsed` duration (seconds).
+	func escalation(forElapsed elapsed: TimeInterval) -> IdleEscalation {
+		if elapsed >= frustratedAfter { return .frustrated }
+		if elapsed >= impatientAfter { return .impatient }
+		return .none
+	}
+
+	private static func positiveSeconds(_ raw: String?) -> TimeInterval? {
+		guard let raw, let ms = Double(raw), ms > 0 else { return nil }
+		return ms / 1000.0
+	}
+}
