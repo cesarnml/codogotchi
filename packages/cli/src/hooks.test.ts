@@ -429,6 +429,114 @@ describe("installHooks", () => {
   });
 });
 
+describe("P8.02 bundle-first hook command path", () => {
+  let userRoot: string;
+  let bundleDir: string;
+  let prevUserRoot: string | undefined;
+
+  beforeEach(() => {
+    userRoot = mkdtempSync(join(tmpdir(), "codogotchi-p802-root-"));
+    bundleDir = mkdtempSync(join(tmpdir(), "codogotchi-p802-bundle-"));
+    prevUserRoot = process.env.CODOGOTCHI_USER_ROOT;
+    process.env.CODOGOTCHI_USER_ROOT = userRoot;
+    mkdirSync(join(userRoot, ".codogotchi"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".codogotchi", "config.json"),
+      `${JSON.stringify({ profile_id: "p", pet: "maew", features: { rpg_enabled: false } })}\n`,
+      "utf8",
+    );
+  });
+
+  afterEach(() => {
+    rmSync(userRoot, { recursive: true, force: true });
+    rmSync(bundleDir, { recursive: true, force: true });
+    if (prevUserRoot === undefined) delete process.env.CODOGOTCHI_USER_ROOT;
+    else process.env.CODOGOTCHI_USER_ROOT = prevUserRoot;
+  });
+
+  type HookEntry = { type: string; command: string };
+  type HookMatcher = { matcher: string; hooks: HookEntry[] };
+  type HooksMap = Record<string, HookMatcher[]>;
+
+  function claudeCommands(slot: HookMatcher[] | undefined): string[] {
+    return (slot ?? []).flatMap((m) => m.hooks.map((h) => h.command));
+  }
+
+  // execPath points at the bundled `codogotchi` binary; its sibling
+  // `codogotchi-hook` is what the absolute command must resolve to.
+  function makeBundle(): { execPath: string; hookPath: string } {
+    const execPath = join(bundleDir, "codogotchi");
+    const hookPath = join(bundleDir, "codogotchi-hook");
+    writeFileSync(execPath, "#!/bin/sh\n", "utf8");
+    writeFileSync(hookPath, "#!/bin/sh\n", "utf8");
+    return { execPath, hookPath };
+  }
+
+  it("writes the absolute sibling codogotchi-hook path across all surfaces when running bundled", async () => {
+    const { execPath, hookPath } = makeBundle();
+
+    await installHooks({ home: "/home/user/.codogotchi", execPath });
+
+    const claude = JSON.parse(
+      readFileSync(join(userRoot, ".claude", "settings.json"), "utf8"),
+    ) as { hooks: HooksMap };
+    for (const event of ["PreToolUse", "Stop", "StopFailure"]) {
+      expect(claudeCommands(claude.hooks[event])).toContain(hookPath);
+    }
+
+    const codexToml = readFileSync(
+      join(userRoot, ".codex", "hooks", "codogotchi.toml"),
+      "utf8",
+    );
+    expect(codexToml).toContain(`command = ${JSON.stringify(hookPath)}`);
+
+    const codexJson = JSON.parse(
+      readFileSync(join(userRoot, ".codex", "hooks.json"), "utf8"),
+    ) as { hooks: HooksMap };
+    const codexCommands = (codexJson.hooks.Stop ?? []).flatMap((m) =>
+      m.hooks.map((h) => h.command),
+    );
+    expect(codexCommands.some((c) => c.includes(hookPath))).toBe(true);
+  });
+
+  it("falls back to the bare codogotchi-hook name in dev when no sibling binary exists", async () => {
+    // execPath points at a directory with no sibling codogotchi-hook (dev: bun).
+    const execPath = join(bundleDir, "bun");
+    writeFileSync(execPath, "#!/bin/sh\n", "utf8");
+
+    await installHooks({ home: "/home/user/.codogotchi", execPath });
+
+    const claude = JSON.parse(
+      readFileSync(join(userRoot, ".claude", "settings.json"), "utf8"),
+    ) as { hooks: HooksMap };
+    expect(claudeCommands(claude.hooks.PreToolUse)).toContain(
+      "codogotchi-hook",
+    );
+    expect(
+      claudeCommands(claude.hooks.PreToolUse).some((c) => c.startsWith("/")),
+    ).toBe(false);
+  });
+
+  it("idempotently converges a prior bare-name install onto the absolute path", async () => {
+    // First install in dev mode (bare name), then re-install bundled.
+    await installHooks({ home: "/home/user/.codogotchi" });
+    const { execPath, hookPath } = makeBundle();
+    await installHooks({ home: "/home/user/.codogotchi", execPath });
+
+    const claude = JSON.parse(
+      readFileSync(join(userRoot, ".claude", "settings.json"), "utf8"),
+    ) as { hooks: HooksMap };
+    for (const event of ["PreToolUse", "Stop", "StopFailure"]) {
+      const codogotchiMatchers = (claude.hooks[event] ?? []).filter((m) =>
+        m.hooks.some((h) => h.command.includes("codogotchi-hook")),
+      );
+      // Exactly one codogotchi matcher per event, carrying the latest path.
+      expect(codogotchiMatchers).toHaveLength(1);
+      expect(codogotchiMatchers[0].hooks[0].command).toBe(hookPath);
+    }
+  });
+});
+
 describe("cursor hooks", () => {
   type CursorHookEntry = { type: string; command: string };
   type CursorHooksJson = Record<string, CursorHookEntry[]>;
