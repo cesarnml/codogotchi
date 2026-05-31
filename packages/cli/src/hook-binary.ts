@@ -62,6 +62,14 @@ const TEST_RUNNER_PREFIXES = [
   "go test",
   "vitest",
   "jest",
+  // CI scripts bundle the test suite (plus lint/typecheck) and read as
+  // testing intent, not the generic "implementing" fallback. The word-boundary
+  // match treats `:` as a boundary stop, so `ci:quiet` needs its own entry.
+  "bun run ci",
+  "bun run ci:quiet",
+  "npm run ci",
+  "pnpm run ci",
+  "yarn run ci",
 ];
 
 // §7 read/search bucket: commands that explore the codebase without writing.
