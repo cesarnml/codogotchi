@@ -94,8 +94,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		w.delegate = self
 		w.center()
 
-		let snapshot = appStateLoader().hooksStatus
-		if let snap = snapshot {
+		let savedState = appStateLoader()
+		generalViewModel.installedHookVersion = savedState.installedHookVersion
+		if let snap = savedState.hooksStatus {
 			generalViewModel.applySnapshot(snap)
 		} else {
 			generalViewModel.refresh()
@@ -153,9 +154,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		generalTab?.setHooksWorking(message: "Installing…")
 		let controller = settingsController
 		let vm = generalViewModel
+		let hookVersion = aboutViewModel.hookVersion
 		DispatchQueue.global(qos: .userInitiated).async { [weak self] in
 			let error = controller.runHooksInstall()
 			vm.refresh()
+			if error == nil {
+				self?.recordInstalledHookVersion(hookVersion, into: vm)
+			}
 			DispatchQueue.main.async {
 				guard let self else { return }
 				self.generalTab?.applyViewModel(vm)
@@ -172,9 +177,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		generalTab?.setHooksWorking(message: "Updating…")
 		let controller = settingsController
 		let vm = generalViewModel
+		let hookVersion = aboutViewModel.hookVersion
 		DispatchQueue.global(qos: .userInitiated).async { [weak self] in
 			let error = controller.runHooksUpdate()
 			vm.refresh()
+			if error == nil {
+				self?.recordInstalledHookVersion(hookVersion, into: vm)
+			}
 			DispatchQueue.main.async {
 				guard let self else { return }
 				self.generalTab?.applyViewModel(vm)
@@ -185,6 +194,21 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 				}
 			}
 		}
+	}
+
+	private func recordInstalledHookVersion(_ version: String, into vm: GeneralTabViewModel) {
+		guard version != "unknown" else { return }
+		vm.installedHookVersion = version
+		let current = appStateLoader()
+		let updated = FloatingAppState(
+			isFloatingPetVisible: current.isFloatingPetVisible,
+			frame: current.frame,
+			onboardingCompletedAt: current.onboardingCompletedAt,
+			lastHookActivityAt: current.lastHookActivityAt,
+			hooksStatus: current.hooksStatus,
+			installedHookVersion: version
+		)
+		try? appStateSaver(updated)
 	}
 
 	private func handleUninstallHooks() {
@@ -249,6 +273,7 @@ private final class GeneralTabView: NSView {
 		title: "Copy diagnostics", target: nil, action: nil
 	)
 	private let hooksFeedbackLabel = NSTextField(wrappingLabelWithString: "")
+	private let bannerView = UpdateBannerView()
 
 	private let onInstallHooks: () -> Void
 	private let onUpdateHooks: () -> Void
@@ -267,6 +292,7 @@ private final class GeneralTabView: NSView {
 		self.onUninstallHooks = onUninstallHooks
 		super.init(frame: .zero)
 		setupViews()
+		bannerView.onUpdate = onUpdateHooks
 		applyViewModel(viewModel)
 	}
 
@@ -276,6 +302,7 @@ private final class GeneralTabView: NSView {
 	func applyViewModel(_ vm: GeneralTabViewModel) {
 		viewModel = vm
 		hooksStatusLabel.stringValue = vm.rows.map { platformLine($0) }.joined(separator: "\n")
+		bannerView.isHidden = !vm.needsBannerUpdate
 	}
 
 	func setHooksWorking(message: String) {
@@ -345,6 +372,10 @@ private final class GeneralTabView: NSView {
 		)
 		addSubview(bridgeNote)
 
+		bannerView.translatesAutoresizingMaskIntoConstraints = false
+		bannerView.isHidden = true
+		addSubview(bannerView)
+
 		NSLayoutConstraint.activate([
 			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
 			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
@@ -367,6 +398,10 @@ private final class GeneralTabView: NSView {
 			bridgeNote.topAnchor.constraint(equalTo: hooksFeedbackLabel.bottomAnchor, constant: 8),
 			bridgeNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			bridgeNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			bannerView.topAnchor.constraint(equalTo: bridgeNote.bottomAnchor, constant: 12),
+			bannerView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			bannerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 		])
 	}
 
@@ -394,6 +429,60 @@ private final class GeneralTabView: NSView {
 		hooksFeedbackLabel.stringValue = "Diagnostics copied to clipboard."
 		hooksFeedbackLabel.textColor = .secondaryLabelColor
 	}
+}
+
+// MARK: - UpdateBannerView
+
+/// Persistent non-blocking banner shown when the bundled hook binary is newer
+/// than the last-recorded installed version. Cleared after a successful update.
+private final class UpdateBannerView: NSView {
+	var onUpdate: (() -> Void)?
+
+	private let messageLabel = NSTextField(
+		labelWithString: "Hooks are out of date — click Update to apply the bundled version."
+	)
+	private let updateButton = NSButton(title: "Update Hooks", target: nil, action: nil)
+
+	init() {
+		super.init(frame: .zero)
+		setupViews()
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	private func setupViews() {
+		wantsLayer = true
+		layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.15).cgColor
+		layer?.cornerRadius = 6
+
+		messageLabel.font = .systemFont(ofSize: 12)
+		messageLabel.textColor = .labelColor
+		messageLabel.lineBreakMode = .byWordWrapping
+		messageLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(messageLabel)
+
+		updateButton.bezelStyle = .rounded
+		updateButton.target = self
+		updateButton.action = #selector(updateTapped)
+		updateButton.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(updateButton)
+
+		NSLayoutConstraint.activate([
+			messageLabel.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+			messageLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+			messageLabel.trailingAnchor.constraint(
+				equalTo: updateButton.leadingAnchor, constant: -8
+			),
+
+			updateButton.centerYAnchor.constraint(equalTo: messageLabel.centerYAnchor),
+			updateButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+
+			bottomAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 10),
+		])
+	}
+
+	@objc private func updateTapped() { onUpdate?() }
 }
 
 // MARK: - PetTabView

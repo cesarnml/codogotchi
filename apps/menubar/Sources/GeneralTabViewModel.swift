@@ -22,6 +22,19 @@ final class GeneralTabViewModel {
 	/// Most recent snapshot retained for diagnostics JSON assembly.
 	private(set) var lastSnapshot: HooksStatusSnapshot?
 
+	/// Version last recorded in `app-state.json` after a successful install/update.
+	/// Set by `SettingsWindowController` after a successful hook operation.
+	var installedHookVersion: String?
+
+	/// True when the bundled binary is newer than the last-recorded installed version.
+	var needsBannerUpdate: Bool {
+		LockstepPolicy.needsUpdate(
+			hooksInstalled: rows.contains { $0.installed },
+			bundledVersion: hookVersion,
+			installedVersion: installedHookVersion
+		)
+	}
+
 	private let statusClient: HookStatusClient
 	private let appVersion: String
 	private let hookVersion: String
