@@ -56,22 +56,16 @@ final class GeneralTabViewModel {
 	}
 
 	/// Returns a JSON string suitable for clipboard diagnostics support.
-	/// Shape: `{ "codogotchi": "<version>", "hookBinary": "<version>", "hooksStatus": { ... } }`
+	/// Shape matches `codogotchi hooks status --json`: all optional fields are
+	/// emitted as `null` (never omitted) so support tooling sees the same schema
+	/// as the CLI regardless of which platforms have fired recently.
 	func diagnosticsJSON() -> String {
-		var dict: [String: Any] = [
+		let snap = lastSnapshot
+		let dict: [String: Any] = [
 			"codogotchi": appVersion,
 			"hookBinary": hookVersion,
+			"hooksStatus": snap.map { statusDict($0) } ?? ([String: Any]() as Any),
 		]
-		if let snap = lastSnapshot {
-			let encoder = JSONEncoder()
-			encoder.keyEncodingStrategy = .convertToSnakeCase
-			encoder.outputFormatting = .sortedKeys
-			if let data = try? encoder.encode(snap),
-				let obj = try? JSONSerialization.jsonObject(with: data)
-			{
-				dict["hooksStatus"] = obj
-			}
-		}
 		let data = (try? JSONSerialization.data(
 			withJSONObject: dict,
 			options: [.prettyPrinted, .sortedKeys]
@@ -80,6 +74,30 @@ final class GeneralTabViewModel {
 	}
 
 	// MARK: - Private
+
+	/// Builds the `hooksStatus` dict matching the `hooks status --json` contract.
+	/// All optional fields are explicit `NSNull()` when absent so consumers see
+	/// a stable schema rather than key-absent JSON.
+	private func statusDict(_ snap: HooksStatusSnapshot) -> [String: Any] {
+		return [
+			"codex": platformDict(snap.codex),
+			"claude_code": platformDict(snap.claudeCode),
+			"cursor": platformDict(snap.cursor),
+			"vscode": platformDict(snap.vscode),
+			"antigravity": platformDict(snap.antigravity),
+		]
+	}
+
+	private func platformDict(_ p: HooksStatusSnapshot.Platform) -> [String: Any] {
+		return [
+			"present_on_disk": p.presentOnDisk,
+			"installable_in_phase": p.installableInPhase,
+			"installed": p.installed,
+			"firing_recently": p.firingRecently,
+			"last_event_at": p.lastEventAt.map { $0 as Any } ?? (NSNull() as Any),
+			"source_origin": p.sourceOrigin.map { $0 as Any } ?? (NSNull() as Any),
+		]
+	}
 
 	private func row(_ name: String, _ p: HooksStatusSnapshot.Platform) -> PlatformRow {
 		PlatformRow(
