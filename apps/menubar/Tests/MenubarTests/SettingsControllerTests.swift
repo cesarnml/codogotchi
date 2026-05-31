@@ -56,6 +56,39 @@ final class SettingsControllerTests: XCTestCase {
 		XCTAssertEqual(controller.runHooksUninstall(), "no hook found")
 	}
 
+	// MARK: - Hook update
+
+	func testRunHooksUpdateInvokesInstallArgs() {
+		var capturedArgs: [String] = []
+		let controller = SettingsController(runner: { args in
+			capturedArgs = args
+			return HookStatusClient.RunResult(exitCode: 0, stdout: "", stderr: "")
+		})
+		_ = controller.runHooksUpdate()
+		XCTAssertEqual(capturedArgs, ["codogotchi", "hooks", "install"])
+	}
+
+	func testRunHooksUpdateReturnsNilOnSuccess() {
+		let controller = SettingsController(runner: { _ in
+			HookStatusClient.RunResult(exitCode: 0, stdout: "", stderr: "")
+		})
+		XCTAssertNil(controller.runHooksUpdate())
+	}
+
+	func testRunHooksUpdateReturnsErrorMessageOnFailure() {
+		let controller = SettingsController(runner: { _ in
+			HookStatusClient.RunResult(exitCode: 1, stdout: "", stderr: "path mismatch")
+		})
+		XCTAssertEqual(controller.runHooksUpdate(), "path mismatch")
+	}
+
+	func testRunHooksUpdateReturnsFallbackErrorWhenStderrEmpty() {
+		let controller = SettingsController(runner: { _ in
+			HookStatusClient.RunResult(exitCode: 2, stdout: "", stderr: "")
+		})
+		XCTAssertNotNil(controller.runHooksUpdate())
+	}
+
 	// MARK: - RPG config independence
 
 	func testSettingsControllerDoesNotRequireRPGConfig() {
