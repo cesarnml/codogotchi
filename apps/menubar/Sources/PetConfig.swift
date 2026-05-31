@@ -26,4 +26,9 @@ enum PetConfig {
 			.appendingPathComponent(".codogotchi")
 			.appendingPathComponent("config.json")
 	}
+
+	/// Writes the pet name to config. Stub until P8.07 green.
+	static func write(petName: String, to url: URL) throws {
+		// Stub: no-op — tests will fail
+	}
 }
