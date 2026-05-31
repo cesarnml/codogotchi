@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-05-31T16:52:50.686Z",
+  "summary": {
+    "total": 17,
+    "patched": 1,
+    "rejected": 15,
+    "already-covered": 1,
+    "requires-human-review": 0
+  },
+  "dispositions": [
+    {
+      "disposition": "rejected",
+      "rationale": "Out of lite-v1 scope. Silent NSWorkspace.open failure for About links is an acceptable best-effort path for a single-user local app; a user-visible link-open failure surface is non-essential and outside the ticket invariants.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.03-subagent-review.report.md",
+        "ticketId": "P8.03"
+      },
+      "observation": "[apps/menubar/Sources/SettingsWindowController.swift](/Users/cesar/code/codogotchi_p8_03/apps/menubar/Sources/SettingsWindowController.swift:531): `AboutTabView.openLink` silently ignores `NSWorkspace.shared.open(url)` failure. That is outside the ticket invariants, but if product links matter operationally, there is currently no user-visible failure path."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Aspirational, not a contract break. version.ts intentionally pins 0.0.0 for lite v1; the binary-reported build/generation token and cross-release lockstep discipline are post-lite-v1 work. The doc narrative describes future intent and is out of lite-v1 scope.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.03-subagent-review.report.md",
+        "ticketId": "P8.03"
+      },
+      "observation": "[docs/product/delivery/phase-08/implementation-plan.md](/Users/cesar/code/codogotchi_p8_03/docs/product/delivery/phase-08/implementation-plan.md:1), [docs/product/delivery/phase-08/ticket-03-settings-four-tab-shell.md](/Users/cesar/code/codogotchi_p8_03/docs/product/delivery/phase-08/ticket-03-settings-four-tab-shell.md:1), and [packages/cli/src/version.ts](/Users/cesar/code/codogotchi_p8_03/packages/cli/src/version.ts:1): the docs talk about a binary-reported build/generation token that future lockstep logic can compare across releases, but the implementation is a fixed `0.0.0` constant mirrored from package metadata. P8.03 still satisfies its own contract because About is sourcing from the binary rather than Swift, but the doc narrative is ahead of the actual version-bumping discipline."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added a `version, --version, -v` entry to the CLI USAGE block so the already-dispatched version surface is discoverable from `codogotchi --help`.",
+      "patch": {
+        "commitSha": "57a7d4b0ea46dc2f895d2dbc8f524e59ded18387",
+        "files": ["packages/cli/src/router.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.03-subagent-review.report.md",
+        "ticketId": "P8.03"
+      },
+      "observation": "[packages/cli/src/router.ts](/Users/cesar/code/codogotchi_p8_03/packages/cli/src/router.ts:55): the new version surface is absent from `USAGE`, so `codogotchi --help` does not advertise `--version`/`-v`/`version` even though dispatch supports them. That is a discoverability gap, not an invariant break."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Non-blocking test-hardening (structural hooksStatus-shape assertions and a failure-no-op refresh test). The underlying diagnostics correctness bugs were already resolved through the P8.04 actionable-findings reconciliation lane; tightening the assertions is post-launch test debt, out of lite-v1 scope.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.04-subagent-review.report.md",
+        "ticketId": "P8.04"
+      },
+      "observation": "The targeted tests I ran with `xcodebuild -project apps/menubar/Codogotchi.xcodeproj -scheme Codogotchi -destination 'platform=macOS' -only-testing:CodogotchiTests/GeneralTabViewModelTests -only-testing:CodogotchiTests/SettingsControllerTests test` passed, but they currently assert only substrings and basic validity for diagnostics JSON. Adding structural assertions on `hooksStatus` shape and a failure-no-op refresh test would materially tighten the contract around the two exposed behaviors above."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Informational only; the observation itself states this is \"not a new regression in this ticket.\" Pre-bump downgrade/round-trip compatibility is not a lite-v1 concern. No action needed.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.05-subagent-review.report.md",
+        "ticketId": "P8.05"
+      },
+      "observation": "Pre-bump downgrade behavior is fallback, not compatibility: because schema version was bumped to 2, an older build would ignore the additive field at the `Codable` layer but still reject the file at the schema gate and load defaults on read. That is not a new regression in this ticket, but it is worth remembering if downgrade workflows matter."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Non-blocking test-coverage gap. The installedHookVersion field-erasure correctness bugs were fixed in the P8.05 actionable-findings lane; adding controller-level persistence/survival coverage is post-launch test debt, out of lite-v1 scope.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.05-subagent-review.report.md",
+        "ticketId": "P8.05"
+      },
+      "observation": "The reviewed tests are strong on pure decode/predicate coverage, but there is no controller-level coverage for “successful install/update/onboarding persists `installedHookVersion` and it survives later unrelated app-state writes.” That gap is why the field-erasure regressions slipped through."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "The outdated \"the nine SoA-owned states fall back to idle\" comment is no longer present in apps/menubar/Sources/MenubarApp.swift on main (grep confirms no SoA/idle comment remains); the drift was already resolved.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.06-subagent-review.report.md",
+        "ticketId": "P8.06"
+      },
+      "observation": "[apps/menubar/Sources/MenubarApp.swift](/Users/cesar/code/codogotchi_p8_06/apps/menubar/Sources/MenubarApp.swift:123) has an outdated comment saying “the nine SoA-owned states fall back to idle.” The current split is 10 SoA gate states and 9 lite hook states; the comment no longer matches the code shape."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Non-blocking test-tightening. FloatingPetSceneTests still asserts non-empty frames and would not break behavior; rewriting it to pin the Codogotchi-first idle path is test debt, out of lite-v1 scope.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.06-subagent-review.report.md",
+        "ticketId": "P8.06"
+      },
+      "observation": "[apps/menubar/Tests/MenubarTests/FloatingPetSceneTests.swift](/Users/cesar/code/codogotchi_p8_06/apps/menubar/Tests/MenubarTests/FloatingPetSceneTests.swift:56) is stale after the resolution-order inversion. Its name says `.idle` resolves from Codex, but the assertion only checks for non-empty frames with count `<= 8`, so it would pass whether `.idle` came from lite or Codex and no longer protects the P8.06 behavior."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "notes/public/codogotchi-lite-and-soa-spritesheet-contact-sheets.md is a historical design/contact-sheet note, not a maintained contract; shipped code (8 frames/row, current row map) is authoritative. A full 24-frame-to-8-frame rewrite of the note is out of lite-v1 scope.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.06-subagent-review.report.md",
+        "ticketId": "P8.06"
+      },
+      "observation": "[notes/public/codogotchi-lite-and-soa-spritesheet-contact-sheets.md](/Users/cesar/code/codogotchi_p8_06/notes/public/codogotchi-lite-and-soa-spritesheet-contact-sheets.md:86) has drifted from the current implementation. It still documents 24-frame rows and lists SoA row 6 as `record_review` and row 7 as `review_clean`, while the shipped implementation is 8 frames/row and maps row 6 to `reviewClean` and row 7 to `recordReview`."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Out of lite-v1 scope. Accepting symlinked pet directories is a minor trust-boundary expansion in a single-user local app; path-hardening of the pet stores is not a lite-v1 requirement and the ticket is about enumerate/select/import behavior.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.07-subagent-review.report.md",
+        "ticketId": "P8.07"
+      },
+      "observation": "`allPetIds()` will accept symlinked directories as pets because it trusts `isDirectoryKey`; that broadens the trust boundary to assets outside the rooted pet stores. I did not count this as a ticket-scoped finding because the ticket is about enumerate/select/import behavior, not path-hardening, but it is a real boundary expansion."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Parser artifact, not a substantive observation: the P8.07 report omits a bold `**Runner termination**` heading, so the parser pulled the runnerStatus/terminatedReason prose into the Advisory Observations section.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.07-subagent-review.report.md",
+        "ticketId": "P8.07"
+      },
+      "observation": "`runnerStatus`: `completed`   `terminatedReason`: Completed the scoped adversarial review and found two ticket-relevant correctness gaps."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Non-blocking test-hardening. testImportPetAddsToCanonicalAndRefreshesEntries pre-populating the canonical dir is a weak-coverage nit; strengthening the import integration test is post-launch test debt, out of lite-v1 scope.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.07-subagent-review.report.md",
+        "ticketId": "P8.07"
+      },
+      "observation": "`testImportPetAddsToCanonicalAndRefreshesEntries` is too weak for the ticket’s import path. It pre-populates the canonical destination before invoking `vm.importPet(id:)`, so it does not verify that a real import changes enumeration state."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Parser artifact, not a substantive observation: the P8.08 report omits a bold `**Runner termination**` heading, so the parser pulled the runnerStatus/terminatedReason prose into the Advisory Observations section.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.08-subagent-review.report.md",
+        "ticketId": "P8.08"
+      },
+      "observation": "`runnerStatus`: `completed` `terminatedReason`: Static adversarial review completed; dynamic test execution was attempted but blocked by the current Xcode scheme/test-plan configuration."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Non-blocking test-infra/coverage debt. MenubarTests not being in the Codogotchi scheme/test-plan and the two missing edge tests (invalid schema_version, stale source metadata) are post-launch test debt; the corresponding correctness gaps are tracked in the P8.08 actionable-findings lane. Out of lite-v1 scope.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.08-subagent-review.report.md",
+        "ticketId": "P8.08"
+      },
+      "observation": "The targeted test run could not be executed with `xcodebuild test -only-testing:MenubarTests/DeveloperTabViewModelTests` because the `Codogotchi` scheme/test plan does not include `MenubarTests`; that leaves this review dependent on static inspection. Separately, the new tests miss two important contract edges: invalid `schema_version` input and the “latest source metadata older than the last five displayed transitions” case."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Deliberate, ticket-consistent UX tradeoff: `setup --help` intentionally shows the trimmed global help after P8.09 removed setup/hooks from the command list. No action intended.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.09-subagent-review.report.md",
+        "ticketId": "P8.09"
+      },
+      "observation": "`setup --help` intentionally shows the global trimmed help, so users asking for setup help no longer see setup listed as a command. That is ticket-consistent, but it is a deliberate UX tradeoff rather than command-specific help."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Non-blocking. The hidden-command dispatch-coverage gap was already raised and handled as the P8.09 actionable finding; the duplicate weaker help-path checks are cosmetic test redundancy, out of lite-v1 scope.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.09-subagent-review.report.md",
+        "ticketId": "P8.09"
+      },
+      "observation": "Existing coverage in [packages/cli/src/router-hooks.test.ts](/Users/cesar/code/codogotchi_p8_09/packages/cli/src/router-hooks.test.ts:65) already proves `hooks install` and `hooks uninstall` work on non-help paths in a configured environment; the new file duplicates weaker help-path checks instead of extending coverage where the ticket asked."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Cosmetic nit: a misleading `--force` mention in a test comment. Harmless, non-blocking, out of lite-v1 scope.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-08/reviews/P8.09-subagent-review.report.md",
+        "ticketId": "P8.09"
+      },
+      "observation": "The comments in the new `setup still dispatches` test mention `--force` even though the test does not pass `--force`, which is harmless but misleading."
+    }
+  ]
+}
