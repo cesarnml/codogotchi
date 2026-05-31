@@ -205,6 +205,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
           home: getCodogotchiHome(),
           randomUUID: () => randomUUID(),
           installHooks,
+          execPath: process.execPath,
         },
         { force },
       );
@@ -466,7 +467,10 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       if (platform === "cursor") {
         await installCursorHooks({ home: getCodogotchiHome() });
       } else {
-        await installHooks({ home: getCodogotchiHome() });
+        await installHooks({
+          home: getCodogotchiHome(),
+          execPath: process.execPath,
+        });
       }
       process.stdout.write("hooks install: ok\n");
       return { exitCode: 0 };

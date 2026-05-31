@@ -19,6 +19,12 @@ export class ConfigExistsError extends Error {
 
 export type InstallHooksContext = {
   home: string;
+  // Absolute path of the running process (typically `process.execPath`). When
+  // running as a compiled bundled binary, its sibling `codogotchi-hook` is
+  // written into the platform hook configs as an absolute path. Omitted (or
+  // with no sibling on disk) the installer falls back to the bare name for
+  // `bun` development. See packages/cli/src/hooks.ts:resolveHookCommand.
+  execPath?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -29,6 +35,9 @@ export type LiteSetupDeps = {
   home: string;
   randomUUID: () => string;
   installHooks: (ctx: InstallHooksContext) => Promise<void>;
+  // Forwarded to installHooks so a bundled `codogotchi setup` writes the
+  // absolute sibling hook path; omitted in dev for the bare-name fallback.
+  execPath?: string;
 };
 
 export type SetupOptions = {
@@ -63,7 +72,7 @@ export async function runSetup(
   // Write config first so installHooks can verify it exists
   await writeConfig(deps.home, config);
   try {
-    await deps.installHooks({ home: deps.home });
+    await deps.installHooks({ home: deps.home, execPath: deps.execPath });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     throw new Error(
