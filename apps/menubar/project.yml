@@ -39,6 +39,20 @@ targets:
         PRODUCT_NAME: Codogotchi
         PRODUCT_BUNDLE_IDENTIFIER: com.codogotchi.app
         GENERATE_INFOPLIST_FILE: NO
+        # The embed-binaries phase shells out to bun and reads the workspace;
+        # user script sandboxing would block those reads. Scoped to this target
+        # only so the test target keeps the default sandboxing.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    postBuildScripts:
+      # Compile the standalone arm64 CLI binaries and embed them directly into
+      # Codogotchi.app/Contents/Resources/. Runs every build (idempotent) so the
+      # app is self-contained with no PATH or workspace-runtime prerequisite.
+      - name: Embed codogotchi binaries
+        shell: /bin/bash
+        basedOnDependencyAnalysis: false
+        script: |
+          "$PROJECT_DIR/../../scripts/build-binaries.sh" \
+            "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
   CodogotchiTests:
     type: bundle.unit-test
     platform: macOS
