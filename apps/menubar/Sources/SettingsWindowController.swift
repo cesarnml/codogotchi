@@ -123,7 +123,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			onImportPet: { [weak self] petId in self?.handleImportPet(id: petId) },
 			onSelectPet: { [weak self] petId in self?.handleSelectPet(id: petId) }
 		)
-		let developer = DeveloperTabView()
+		let developerViewModel = makeDeveloperTabViewModel()
+		let developer = DeveloperTabView(viewModel: developerViewModel)
 		let about = AboutTabView(viewModel: aboutViewModel)
 
 		let tabView = NSTabView()
@@ -258,6 +259,21 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private func handleSelectPet(id: String) {
 		petTabViewModel.selectPet(id: id)
 		petTab?.refreshPetList(viewModel: petTabViewModel)
+	}
+
+	private func makeDeveloperTabViewModel() -> DeveloperTabViewModel {
+		let home = FileManager.default.homeDirectoryForCurrentUser
+			.appendingPathComponent(".codogotchi")
+		let stateJsonPath = home.appendingPathComponent("state.json").path
+		let gateJsonPath = home.appendingPathComponent("gate.json").path
+		let logPath = TransitionLog.defaultPath().path
+		let snapshot = appStateLoader().hooksStatus
+		return DeveloperTabViewModel(
+			stateJsonPath: stateJsonPath,
+			gateJsonPath: gateJsonPath,
+			transitionLogPath: logPath,
+			hooksSnapshot: snapshot
+		)
 	}
 }
 
@@ -665,37 +681,130 @@ private var actionKey: UInt8 = 0
 
 // MARK: - DeveloperTabView
 
-/// Developer tab — read-only observability placeholder. Live `state.json` /
-/// `gate.json`, the last transitions, and the schema-vs-renderer version land in
-/// P8.08; this ticket establishes the selectable tab so there is no dead-end.
+/// Developer tab — read-only observability. Shows state.json, gate.json,
+/// last 5 transitions, schema version, hooks summary, and Cursor-bridge explainer.
 private final class DeveloperTabView: NSView {
-	init() {
+	private var viewModel: DeveloperTabViewModel
+	private let scrollView = NSScrollView()
+	private let textView = NSTextView()
+	private let refreshButton = NSButton(title: "Refresh", target: nil, action: nil)
+
+	init(viewModel: DeveloperTabViewModel) {
+		self.viewModel = viewModel
 		super.init(frame: .zero)
 		setupViews()
+		renderContent()
 	}
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
 	private func setupViews() {
+		translatesAutoresizingMaskIntoConstraints = false
+
 		let title = settingsSectionTitle("Developer")
 		addSubview(title)
 
-		let note = settingsBodyLabel(
-			"Read-only observability — live state, recent transitions, and the "
-				+ "schema-vs-renderer version — arrives in a later update."
-		)
-		addSubview(note)
+		refreshButton.bezelStyle = .rounded
+		refreshButton.target = self
+		refreshButton.action = #selector(refresh)
+		refreshButton.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(refreshButton)
+
+		textView.isEditable = false
+		textView.isSelectable = true
+		textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+		textView.backgroundColor = NSColor.textBackgroundColor
+		textView.textContainerInset = NSSize(width: 8, height: 8)
+		scrollView.documentView = textView
+		scrollView.hasVerticalScroller = true
+		scrollView.borderType = .bezelBorder
+		scrollView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(scrollView)
 
 		NSLayoutConstraint.activate([
-			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+			title.topAnchor.constraint(equalTo: topAnchor, constant: 16),
 			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			note.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
-			note.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			note.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			refreshButton.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+			refreshButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			scrollView.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 10),
+			scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			scrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -20),
 		])
+	}
+
+	private func renderContent() {
+		var lines: [String] = []
+
+		// Schema version
+		let sv = viewModel.stateSchemaVersion
+		let rv = viewModel.rendererSchemaVersion
+		let mismatch = viewModel.schemaVersionMismatch
+		lines.append("=== Schema ===")
+		lines.append("state.json: v\(sv == 0 ? "?" : "\(sv)")   renderer: v\(rv)")
+		if mismatch {
+			lines.append("⚠️ VERSION MISMATCH — schema v\(sv) is not v\(rv). Update the app or reinstall the hook.")
+		}
+		lines.append("")
+
+		// Hooks summary
+		if let summary = viewModel.hooksPresentSummary {
+			lines.append("=== Hooks ===")
+			lines.append(summary)
+			lines.append("")
+		}
+
+		// Last 5 transitions
+		lines.append("=== Last 5 Transitions ===")
+		let transitions = viewModel.last5Transitions
+		if transitions.isEmpty {
+			lines.append("(no transitions recorded)")
+		} else {
+			for t in transitions {
+				var parts = [t.ts, "→ \(t.state)"]
+				if let p = t.prev { parts.append("(was: \(p))") }
+				if let o = t.sourceOrigin { parts.append("via: \(o)") }
+				if let k = t.sourceKind { parts.append("[\(k)]") }
+				if let n = t.sourceName { parts.append(n) }
+				lines.append(parts.joined(separator: "  "))
+			}
+		}
+		lines.append("")
+
+		// Cursor-bridge explainer
+		if let origin = viewModel.lastSeenSourceOrigin {
+			lines.append("=== Cursor Bridge ===")
+			let name = viewModel.lastSeenSourceName ?? "(unknown tool)"
+			if origin == "cursor" || origin.contains("cursor") {
+				lines.append("Last seen from cursor (\(name)).")
+				lines.append(
+					"If ~/.cursor/hooks.json is empty, Codogotchi is running via the Claude bridge (MCP), not a native Cursor hook."
+				)
+			} else {
+				lines.append("Last seen from \(origin) (\(name)).")
+			}
+			lines.append("")
+		}
+
+		// state.json
+		lines.append("=== state.json ===")
+		lines.append(viewModel.stateJsonPretty)
+		lines.append("")
+
+		// gate.json
+		if let gatePretty = viewModel.gateJsonPretty {
+			lines.append("=== gate.json ===")
+			lines.append(gatePretty)
+		}
+
+		textView.string = lines.joined(separator: "\n")
+	}
+
+	@objc private func refresh() {
+		renderContent()
 	}
 }
 
