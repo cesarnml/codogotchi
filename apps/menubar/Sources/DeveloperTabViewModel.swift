@@ -1,7 +1,7 @@
 import Foundation
 
 /// One parsed entry from the `state-transitions.log` NDJSON file.
-struct TransitionEntry {
+struct TransitionEntry: Equatable {
 	let ts: String
 	let state: String
 	let prev: String?
@@ -11,8 +11,11 @@ struct TransitionEntry {
 	let isHeartbeat: Bool
 }
 
-/// Read-only observability aggregation for the Developer settings tab.
-/// Stubs until P8.08 green.
+/// Read-only observability aggregation for the Developer settings tab (P8.08).
+///
+/// Reads state.json, gate.json, and the last 5 transition log entries at call
+/// time (no polling — call `refresh()` to update). All properties are computed
+/// lazily from the injected paths.
 final class DeveloperTabViewModel {
 	let stateJsonPath: String
 	let gateJsonPath: String?
@@ -31,30 +34,127 @@ final class DeveloperTabViewModel {
 		self.hooksSnapshot = hooksSnapshot
 	}
 
-	/// Last 5 non-heartbeat transition log entries. Stub until green.
-	var last5Transitions: [TransitionEntry] { [] }
+	// MARK: - Transition log
 
-	/// Pretty-printed state.json content. Stub until green.
-	var stateJsonPretty: String { "" }
+	/// Last 5 non-heartbeat entries from the transition log, in file order (oldest first).
+	var last5Transitions: [TransitionEntry] {
+		Self.readLastNTransitions(5, from: transitionLogPath)
+	}
 
-	/// Pretty-printed gate.json content, or nil when no path is configured. Stub until green.
-	var gateJsonPretty: String? { nil }
+	// MARK: - State JSON
 
-	/// Schema version reported by state.json. Stub until green.
-	var stateSchemaVersion: Int { 0 }
+	/// Pretty-printed content of state.json, or a short absence message.
+	var stateJsonPretty: String {
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: stateJsonPath)),
+			let obj = (try? JSONSerialization.jsonObject(with: data)),
+			let pretty = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
+			let str = String(data: pretty, encoding: .utf8)
+		else {
+			return "(state.json absent or unreadable)"
+		}
+		return str
+	}
+
+	/// Pretty-printed content of gate.json, or nil when no gate path is configured.
+	var gateJsonPretty: String? {
+		guard let path = gateJsonPath else { return nil }
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+			let obj = (try? JSONSerialization.jsonObject(with: data)),
+			let pretty = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
+			let str = String(data: pretty, encoding: .utf8)
+		else {
+			return "(gate.json absent or unreadable)"
+		}
+		return str
+	}
+
+	// MARK: - Schema version
 
 	/// Schema version this renderer understands.
 	var rendererSchemaVersion: Int { EXPECTED_STATE_SCHEMA_VERSION }
 
-	/// True when state.json schema version != renderer schema version. Stub until green.
-	var schemaVersionMismatch: Bool { false }
+	/// Schema version reported by state.json, or 0 when unreadable.
+	var stateSchemaVersion: Int {
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: stateJsonPath)),
+			let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+			let v = obj["schema_version"] as? Int
+		else { return 0 }
+		return v
+	}
 
-	/// Last-seen source_origin from the transition log. Stub until green.
-	var lastSeenSourceOrigin: String? { nil }
+	/// True when state.json schema version differs from the renderer's expected version.
+	var schemaVersionMismatch: Bool {
+		let sv = stateSchemaVersion
+		return sv != 0 && sv != rendererSchemaVersion
+	}
 
-	/// Last-seen source_name from the transition log. Stub until green.
-	var lastSeenSourceName: String? { nil }
+	// MARK: - Cursor-bridge explainer
 
-	/// Human-readable hooks-present summary, or nil when no snapshot. Stub until green.
-	var hooksPresentSummary: String? { nil }
+	/// Last-seen `source_origin` from the transition log, or nil when absent.
+	var lastSeenSourceOrigin: String? {
+		last5Transitions.last { $0.sourceOrigin != nil }?.sourceOrigin
+	}
+
+	/// Last-seen `source_name` from the transition log, or nil when absent.
+	var lastSeenSourceName: String? {
+		last5Transitions.last { $0.sourceName != nil }?.sourceName
+	}
+
+	// MARK: - Hooks-present summary
+
+	/// Human-readable hooks-present summary, or nil when no snapshot is available.
+	var hooksPresentSummary: String? {
+		guard let snap = hooksSnapshot else { return nil }
+		let platforms: [(String, HooksStatusSnapshot.Platform)] = [
+			("codex", snap.codex),
+			("claude_code", snap.claudeCode),
+			("cursor", snap.cursor),
+			("vscode", snap.vscode),
+		]
+		let lines = platforms.compactMap { (name, platform) -> String? in
+			guard platform.installableInPhase else { return nil }
+			let mark = platform.installed ? "✓" : "✗"
+			let firing = platform.firingRecently ? " (firing)" : ""
+			return "\(name): \(mark)\(firing)"
+		}
+		return lines.joined(separator: "\n")
+	}
+
+	// MARK: - Internal: transition log reader
+
+	/// Read the last `n` non-heartbeat NDJSON entries from `path`.
+	static func readLastNTransitions(_ n: Int, from path: String) -> [TransitionEntry] {
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+			let text = String(data: data, encoding: .utf8)
+		else { return [] }
+
+		let lines = text.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+
+		var entries: [TransitionEntry] = []
+		for line in lines {
+			guard let lineData = line.data(using: .utf8),
+				let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any]
+			else { continue }
+
+			let isHeartbeat = (obj["heartbeat"] as? Bool) == true
+			let state = obj["state"] as? String ?? ""
+			let prev = obj["prev"] as? String
+			let sourceKind = obj["source_kind"] as? String
+			let sourceName = obj["source_name"] as? String
+			let sourceOrigin = obj["source_origin"] as? String
+			let ts = obj["ts"] as? String ?? ""
+
+			let entry = TransitionEntry(
+				ts: ts, state: state, prev: prev,
+				sourceKind: sourceKind, sourceName: sourceName, sourceOrigin: sourceOrigin,
+				isHeartbeat: isHeartbeat
+			)
+			if !isHeartbeat {
+				entries.append(entry)
+			}
+		}
+
+		if entries.count <= n { return entries }
+		return Array(entries.suffix(n))
+	}
 }

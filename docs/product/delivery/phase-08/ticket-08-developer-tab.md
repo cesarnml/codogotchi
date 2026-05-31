@@ -40,8 +40,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: testLast5TailReturnsAtMost5Entries, testSchemaMismatchFlaggedWhenVersionsDiffer (all stubs returned empty/false/nil).
 Why this path: the readers already exist (Phase 02/06/07); this is aggregation + presentation.
+TransitionLogReader: implemented as `DeveloperTabViewModel.readLastNTransitions(_:from:)` (static) — reads NDJSON, skips heartbeat lines, returns last N in file order.
 Alternative considered: full log pagination + verbosity toggle — deferred (write surface / scope).
-Deferred: log-verbosity write toggle; full pagination.
-Contract note:
+Deferred: log-verbosity write toggle; full pagination; live polling (view refreshes on button press only for v1).
