@@ -4,8 +4,10 @@ import { join } from 'node:path';
 
 import type { ResolvedOrchestratorConfig } from './config';
 
-/** Flat TTL for all gate events: 3 minutes */
-const GATE_TTL_MS = 180_000;
+/** Flat TTL for all gate events: 30 seconds. The persistent UI gate badges are
+ *  now the durable signal for which gate is active, so the animation only needs
+ *  to mark the transition briefly rather than hold for minutes. */
+const GATE_TTL_MS = 30_000;
 
 /** Canonical gate-name strings matching the codogotchi schema-v4 ActivityState contract */
 export const GATE_NAMES = {

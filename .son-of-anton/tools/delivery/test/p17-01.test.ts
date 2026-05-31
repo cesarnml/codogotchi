@@ -87,7 +87,7 @@ describe('P17.01 — writeGateEvent produces gate.json with correct shape', () =
     }
   });
 
-  it('sets expires_at to since + 180_000 ms (flat 3-minute TTL)', async () => {
+  it('sets expires_at to since + 30_000 ms (flat 30-second TTL)', async () => {
     const home = makeTmpDir();
     process.env['CODOGOTCHI_HOME'] = home;
     try {
@@ -101,7 +101,7 @@ describe('P17.01 — writeGateEvent produces gate.json with correct shape', () =
       const parsed = JSON.parse(raw);
       const since = Date.parse(parsed.since);
       const expiresAt = Date.parse(parsed.expires_at);
-      expect(expiresAt - since).toBe(180_000);
+      expect(expiresAt - since).toBe(30_000);
     } finally {
       delete process.env['CODOGOTCHI_HOME'];
     }

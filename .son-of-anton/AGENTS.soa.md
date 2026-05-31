@@ -51,7 +51,7 @@ When `codogotchi.enabled` is not set to `false` in `orchestrator.config.json` (t
 
 - **Single global file.** `gate.json` is last-write-wins. One pet shows one current gate across all concurrent delivery runs.
 - **Append-only telemetry log.** `gate-transitions.log` records every emitted gate payload as one JSON line, preserving transition order and the exact `{ since, expires_at }` window written for that emission.
-- **Flat 3-minute TTL.** `expires_at = since + 3m`. The renderer uses this for animation expiry without an explicit clear mechanism.
+- **Flat 30-second TTL.** `expires_at = since + 30s`. The renderer uses this for animation expiry without an explicit clear mechanism; the persistent UI gate badges carry the durable "which gate is active" signal, so the animation only marks the transition briefly.
 - **Emit-then-action.** Each gate is written before the delivery command's primary side effect (PR creation, polling, recording, etc.) to extend the visible animation window.
 - **Best-effort.** Write failures are silently swallowed — no delivery command aborts due to a gate write error.
 - **Config gate.** Setting `codogotchi.enabled: false` in `orchestrator.config.json` suppresses all writes; no `~/.codogotchi/` directory is created.
