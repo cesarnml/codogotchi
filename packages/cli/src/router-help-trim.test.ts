@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { dispatch, USAGE } from "./router";
 
 describe("router --help trim (P8.09)", () => {
@@ -93,27 +96,62 @@ describe("router --help trim (P8.09)", () => {
 
   // Bare dispatch tests: confirm real handler reachability (not just --help stubs)
 
-  it("bare setup dispatch reaches setup handler (exits 2, not unknown-command)", async () => {
-    // setup without --force and with a pre-existing config.json exits 2 via ConfigExistsError.
-    // If setup were removed it would exit 1 with "Unknown command: setup" on stderr.
-    // Use a non-existent home so it exits 2 with missing-config, not unknown-command.
+  // Both bare-dispatch tests below reach handlers that, on a fresh home, would
+  // run a full `setup`/hooks install. That install resolves IDE-config paths via
+  // CODOGOTCHI_USER_ROOT → homedir(), NOT CODOGOTCHI_HOME — so isolating only the
+  // home (as this file used to) let `setup` clobber the real ~/.codex/hooks.json
+  // and ~/.cursor/hooks.json, baking the sandbox home into the hook command and
+  // silently routing Codex/Cursor telemetry to a throwaway /tmp dir. Sandbox
+  // BOTH env vars so the install can never escape into the developer's real
+  // config. `seedConfig` pre-writes config.json so `setup` short-circuits on
+  // ConfigExistsError (exit 2) and never reaches the install step at all. See
+  // ledger codogotchi-06.
+  const withSandboxEnv = async (
+    opts: { seedConfig: boolean },
+    run: () => Promise<void>,
+  ): Promise<void> => {
     const origHome = process.env.CODOGOTCHI_HOME;
-    process.env.CODOGOTCHI_HOME = `/tmp/nonexistent-${Date.now()}`;
-    const { exitCode } = await dispatch(["setup"]);
-    process.env.CODOGOTCHI_HOME = origHome;
-    // exitCode may be 0 (fresh home, setup runs) or 2 (error); it must not be 1 (unknown command)
-    expect(exitCode).not.toBe(1);
-    expect(stderrChunks.join("")).not.toContain("Unknown command");
+    const origUserRoot = process.env.CODOGOTCHI_USER_ROOT;
+    const home = mkdtempSync(join(tmpdir(), "codogotchi-help-trim-home-"));
+    const userRoot = mkdtempSync(join(tmpdir(), "codogotchi-help-trim-user-"));
+    if (opts.seedConfig) {
+      writeFileSync(
+        join(home, "config.json"),
+        JSON.stringify({ profile_id: "test", pet: "maew" }),
+      );
+    }
+    process.env.CODOGOTCHI_HOME = home;
+    process.env.CODOGOTCHI_USER_ROOT = userRoot;
+    try {
+      await run();
+    } finally {
+      if (origHome === undefined) delete process.env.CODOGOTCHI_HOME;
+      else process.env.CODOGOTCHI_HOME = origHome;
+      if (origUserRoot === undefined) delete process.env.CODOGOTCHI_USER_ROOT;
+      else process.env.CODOGOTCHI_USER_ROOT = origUserRoot;
+      rmSync(home, { recursive: true, force: true });
+      rmSync(userRoot, { recursive: true, force: true });
+    }
+  };
+
+  it("bare setup dispatch reaches setup handler (exits 2, not unknown-command)", async () => {
+    // With a pre-existing config.json and no --force, setup exits 2 via
+    // ConfigExistsError before any hook install. If setup were removed it would
+    // exit 1 with "Unknown command: setup" on stderr.
+    await withSandboxEnv({ seedConfig: true }, async () => {
+      const { exitCode } = await dispatch(["setup"]);
+      expect(exitCode).toBe(2);
+      expect(stderrChunks.join("")).not.toContain("Unknown command");
+    });
   });
 
   it("bare hooks install dispatch reaches install handler (not unknown-command)", async () => {
     // Without a config.json the install handler exits 2 with a missing-config message.
-    const origHome = process.env.CODOGOTCHI_HOME;
-    process.env.CODOGOTCHI_HOME = `/tmp/nonexistent-${Date.now()}`;
-    const { exitCode } = await dispatch(["hooks", "install"]);
-    process.env.CODOGOTCHI_HOME = origHome;
-    expect(exitCode).toBe(2);
-    expect(stderrChunks.join("")).not.toContain("Unknown command");
-    expect(stderrChunks.join("")).toContain("config");
+    await withSandboxEnv({ seedConfig: false }, async () => {
+      const { exitCode } = await dispatch(["hooks", "install"]);
+      expect(exitCode).toBe(2);
+      expect(stderrChunks.join("")).not.toContain("Unknown command");
+      expect(stderrChunks.join("")).toContain("config");
+    });
   });
 });
