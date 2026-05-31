@@ -56,7 +56,7 @@ final class AppStateTests: XCTestCase {
 			try writeAppState(
 				#"""
 				{
-				  "schema_version": 2,
+				  "schema_version": 3,
 				  "floating_pet": {
 				    "visible": false,
 				    "frame": { "x": 120, "y": 160, "width": 220, "height": 180 }
@@ -159,6 +159,82 @@ final class AppStateTests: XCTestCase {
 			XCTAssertNil(state.onboardingCompletedAt)
 			XCTAssertNil(state.lastHookActivityAt)
 			XCTAssertNil(state.hooksStatus)
+		}
+	}
+
+	// MARK: - Schema v2 / installedHookVersion
+
+	func testV1FileDefaultsInstalledHookVersionToNil() throws {
+		try withTempHome { dir in
+			try writeAppState(
+				#"""
+				{
+				  "schema_version": 1,
+				  "floating_pet": {
+				    "visible": true,
+				    "frame": { "x": 12, "y": 34, "width": 180, "height": 180 }
+				  }
+				}
+				"""#,
+				in: dir
+			)
+			let state = AppStateStore.load(visibleFrame: visibleFrame)
+			XCTAssertNil(state.installedHookVersion)
+		}
+	}
+
+	func testInstalledHookVersionRoundTrips() throws {
+		try withTempHome { _ in
+			let original = FloatingAppState(
+				isFloatingPetVisible: true,
+				frame: CGRect(x: 10, y: 20, width: 180, height: 180),
+				installedHookVersion: "1.2.3"
+			)
+			try AppStateStore.save(original)
+			let loaded = AppStateStore.load(visibleFrame: visibleFrame)
+			XCTAssertEqual(loaded.installedHookVersion, "1.2.3")
+		}
+	}
+
+	func testMigrationPreservesExistingFieldsForV1File() throws {
+		try withTempHome { dir in
+			try writeAppState(
+				#"""
+				{
+				  "schema_version": 1,
+				  "floating_pet": {
+				    "visible": false,
+				    "frame": { "x": 10, "y": 20, "width": 180, "height": 180 }
+				  },
+				  "onboarding_completed_at": "2026-01-01T00:00:00Z"
+				}
+				"""#,
+				in: dir
+			)
+			let state = AppStateStore.load(visibleFrame: visibleFrame)
+			XCTAssertFalse(state.isFloatingPetVisible)
+			XCTAssertEqual(state.onboardingCompletedAt, "2026-01-01T00:00:00Z")
+			XCTAssertNil(state.installedHookVersion)
+		}
+	}
+
+	func testV2FileWithInstalledHookVersionLoadsCorrectly() throws {
+		try withTempHome { dir in
+			try writeAppState(
+				#"""
+				{
+				  "schema_version": 2,
+				  "floating_pet": {
+				    "visible": true,
+				    "frame": { "x": 10, "y": 20, "width": 180, "height": 180 }
+				  },
+				  "installed_hook_version": "2.0.0"
+				}
+				"""#,
+				in: dir
+			)
+			let state = AppStateStore.load(visibleFrame: visibleFrame)
+			XCTAssertEqual(state.installedHookVersion, "2.0.0")
 		}
 	}
 
