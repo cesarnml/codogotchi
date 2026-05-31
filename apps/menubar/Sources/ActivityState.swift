@@ -38,6 +38,34 @@ enum ActivityState: String, Equatable, Codable, CaseIterable {
 		let raw = try decoder.singleValueContainer().decode(String.self)
 		self = ActivityState(rawValue: raw) ?? .idle
 	}
+
+	/// Short, human-readable label for the floating-pet animation badge.
+	/// Distinct from `rawValue` (the snake_case wire string): concise title-case
+	/// copy a user reads at a glance. The three review-family gate states are
+	/// disambiguated (`Adv Review` / `Polling` / `Recording` / `Review Clean`).
+	var displayLabel: String {
+		switch self {
+		case .idle: return "Idle"
+		case .standby: return "Standby"
+		case .errored: return "Error"
+		case .waitingForInput: return "Waiting"
+		case .implementing: return "Coding"
+		case .testing: return "Testing"
+		case .thinking: return "Thinking"
+		case .reading: return "Reading"
+		case .cramming: return "Cramming"
+		case .ticketStarted: return "Ticket Start"
+		case .redTdd: return "Red TDD"
+		case .greenTdd: return "Green TDD"
+		case .adversarialReview: return "Adv Review"
+		case .openPr: return "Open PR"
+		case .pollReview: return "Polling"
+		case .recordReview: return "Recording"
+		case .advance: return "Advancing"
+		case .ticketCompleted: return "Ticket Done"
+		case .reviewClean: return "Review Clean"
+		}
+	}
 }
 
 /// Subset of the hook's `source_event` payload that the transition log

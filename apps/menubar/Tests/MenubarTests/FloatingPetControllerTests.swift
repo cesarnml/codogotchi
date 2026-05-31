@@ -398,4 +398,68 @@ final class FloatingPetControllerTests: XCTestCase {
 
 		XCTAssertEqual(tiny, clamped, "very small pets clamp to the minimum badge scale")
 	}
+
+	func testAnimationBadgeLayoutAnchorsBottomLeftInsidePetFrame() {
+		let petFrame = CGRect(x: 120, y: 160, width: 220, height: 180)
+		let badgeSize = CGSize(width: 90, height: 24)
+		let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
+
+		let frame = AnimationBadgeLayout.frame(
+			relativeTo: petFrame,
+			badgeSize: badgeSize,
+			visibleFrame: visibleFrame
+		)
+
+		// Left edge just inside the pet's left border; bottom edge just inside the
+		// pet's bottom border (offset by the layout inset).
+		XCTAssertEqual(frame.minX, petFrame.minX + AnimationBadgeLayout.inset, accuracy: 0.01)
+		XCTAssertEqual(frame.minY, petFrame.minY + AnimationBadgeLayout.inset, accuracy: 0.01)
+		// Stays inside the frame vertically (badge top below the pet's top).
+		XCTAssertLessThan(frame.maxY, petFrame.maxY)
+	}
+
+	func testAnimationBadgeLayoutClampsWithinVisibleFrame() {
+		let petFrame = CGRect(x: 460, y: 380, width: 80, height: 40)
+		let badgeSize = CGSize(width: 120, height: 24)
+		let visibleFrame = CGRect(x: 0, y: 0, width: 500, height: 400)
+
+		let frame = AnimationBadgeLayout.frame(
+			relativeTo: petFrame,
+			badgeSize: badgeSize,
+			visibleFrame: visibleFrame
+		)
+
+		XCTAssertGreaterThanOrEqual(frame.minX, visibleFrame.minX + GateBadgeLayout.margin - 0.01)
+		XCTAssertLessThanOrEqual(frame.maxX, visibleFrame.maxX - GateBadgeLayout.margin + 0.01)
+		XCTAssertLessThanOrEqual(frame.maxY, visibleFrame.maxY - GateBadgeLayout.margin + 0.01)
+	}
+
+	func testAnimationBadgeMetricsScaleWithPetLikeGateBadge() {
+		let small = AnimationBadgeLayout.metrics(for: CGRect(x: 0, y: 0, width: 140, height: 140))
+		let large = AnimationBadgeLayout.metrics(for: CGRect(x: 0, y: 0, width: 320, height: 320))
+
+		XCTAssertGreaterThan(large.badgeHeight, small.badgeHeight)
+		XCTAssertGreaterThan(large.fontSize, small.fontSize)
+		// Shares the gate badge's scaling source of truth.
+		XCTAssertEqual(
+			small,
+			GateBadgeLayout.metrics(for: CGRect(x: 0, y: 0, width: 140, height: 140))
+		)
+	}
+
+	func testActivityStateDisplayLabelsAreUniqueNonEmptyAndConcise() {
+		var seen = Set<String>()
+		for state in ActivityState.allCases {
+			let label = state.displayLabel
+			XCTAssertFalse(label.isEmpty, "\(state.rawValue) must have a non-empty label")
+			XCTAssertLessThanOrEqual(
+				label.count, 14,
+				"\(state.rawValue) label '\(label)' should stay concise"
+			)
+			XCTAssertTrue(
+				seen.insert(label).inserted,
+				"label '\(label)' is duplicated across states"
+			)
+		}
+	}
 }

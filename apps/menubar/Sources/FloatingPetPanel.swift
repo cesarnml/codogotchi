@@ -17,6 +17,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	// Attention bubble — shown below the pet when a non-expired attention payload is active.
 	private var attentionBubble: AttentionBubblePanel?
 	private var gateBadgePanel: GateBadgePanel?
+	// Animation badge — always shown while the pet is visible; labels the current
+	// activity-state animation, anchored bottom-left inside the pet frame.
+	private var animationBadgePanel: AnimationBadgePanel?
 	private var lastPanelFrame: CGRect = .zero
 	private var isPanelShown = false
 	private var attentionActive = false
@@ -72,6 +75,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		if gateBadgeContent != nil {
 			repositionAndShowGateBadge()
 		}
+		repositionAndShowAnimationBadge()
 	}
 
 	func hide() {
@@ -82,6 +86,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		isPanelShown = false
 		attentionBubble?.orderOut(nil)
 		gateBadgePanel?.orderOut(nil)
+		animationBadgePanel?.orderOut(nil)
 	}
 
 	/// Swap in new pet loaders and immediately repaint the current state.
@@ -157,10 +162,27 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		badge.orderFrontRegardless()
 	}
 
+	private func repositionAndShowAnimationBadge() {
+		guard isPanelShown else { return }
+		let badge = animationBadgePanel ?? {
+			let panel = AnimationBadgePanel()
+			animationBadgePanel = panel
+			return panel
+		}()
+		badge.reposition(
+			label: currentState.displayLabel,
+			relativeTo: lastPanelFrame,
+			visibleFrame: visibleFrameProvider()
+		)
+		badge.orderFrontRegardless()
+	}
+
 	func apply(state: ActivityState, visualMode: VisualMode) {
 		currentState = state
 		currentMode = visualMode
 		scene?.update(state: state, visualMode: visualMode)
+		// Refresh the animation badge label; no-op while the pet is hidden.
+		repositionAndShowAnimationBadge()
 	}
 
 	func setInteraction(_ interaction: FloatingInteraction?) {
@@ -202,6 +224,11 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 				visibleFrame: visibleFrameProvider()
 			)
 		}
+		animationBadgePanel?.reposition(
+			label: currentState.displayLabel,
+			relativeTo: lastPanelFrame,
+			visibleFrame: visibleFrameProvider()
+		)
 	}
 
 	/// Committed frame change (mouseUp): re-anchor once more, then forward to the
@@ -455,6 +482,109 @@ private final class GateBadgeTokenView: NSView {
 		heightConstraint?.constant = metrics.badgeHeight
 		leadingConstraint?.constant = metrics.horizontalPadding
 		trailingConstraint?.constant = -metrics.horizontalPadding
+	}
+}
+
+enum AnimationBadgeLayout {
+	/// Gap between the badge and the pet frame's bottom-left corner so the badge
+	/// sits *just inside* the border rather than flush against it. Matches the
+	/// gate badge's fixed `margin` so both chrome elements share one spacing feel.
+	static let inset: CGFloat = GateBadgeLayout.margin
+
+	/// Reuse the gate badge metrics verbatim so the animation badge scales with
+	/// the pet frame identically (single source of scaling truth).
+	static func metrics(for petFrame: CGRect) -> GateBadgeLayout.Metrics {
+		GateBadgeLayout.metrics(for: petFrame)
+	}
+
+	/// Bottom-left, *inside* the pet frame: the badge's bottom edge sits `inset`
+	/// above the frame's bottom border, its left edge `inset` right of the frame's
+	/// left border. Then clamps to the visible display so it never spills offscreen.
+	static func frame(relativeTo petFrame: CGRect, badgeSize: CGSize, visibleFrame: CGRect) -> CGRect {
+		let rect = CGRect(
+			x: petFrame.minX + inset,
+			y: petFrame.minY + inset,
+			width: badgeSize.width,
+			height: badgeSize.height
+		)
+		let safe = visibleFrame.insetBy(dx: GateBadgeLayout.margin, dy: GateBadgeLayout.margin)
+		let x = max(safe.minX, min(safe.maxX - rect.width, rect.minX))
+		let y = max(safe.minY, min(safe.maxY - rect.height, rect.minY))
+		return CGRect(x: x, y: y, width: rect.width, height: rect.height)
+	}
+}
+
+@MainActor
+final class AnimationBadgePanel: NSPanel {
+	private let badgeView = AnimationBadgeView(frame: .zero)
+
+	init() {
+		super.init(
+			contentRect: .zero,
+			styleMask: [.borderless, .nonactivatingPanel],
+			backing: .buffered,
+			defer: false
+		)
+		backgroundColor = .clear
+		isOpaque = false
+		hasShadow = false
+		level = .floating
+		collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+		hidesOnDeactivate = false
+		isReleasedWhenClosed = false
+		ignoresMouseEvents = true
+		contentView = badgeView
+	}
+
+	override var canBecomeKey: Bool { false }
+	override var canBecomeMain: Bool { false }
+
+	func reposition(label: String, relativeTo petFrame: CGRect, visibleFrame: CGRect) {
+		badgeView.configure(text: label, metrics: AnimationBadgeLayout.metrics(for: petFrame))
+		let size = badgeView.preferredSize
+		let frame = AnimationBadgeLayout.frame(
+			relativeTo: petFrame,
+			badgeSize: size,
+			visibleFrame: visibleFrame
+		)
+		setFrame(frame, display: true)
+		badgeView.frame = NSRect(origin: .zero, size: frame.size)
+	}
+}
+
+/// Single dark token reusing the gate badge's token styling so the animation
+/// badge matches the gate badge visually.
+private final class AnimationBadgeView: NSView {
+	private let token = GateBadgeTokenView(
+		backgroundColor: NSColor(calibratedWhite: 0.15, alpha: 0.96),
+		textColor: NSColor(calibratedWhite: 0.95, alpha: 1.0),
+		weight: .medium
+	)
+
+	override init(frame frameRect: NSRect) {
+		super.init(frame: frameRect)
+		token.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(token)
+		NSLayoutConstraint.activate([
+			token.leadingAnchor.constraint(equalTo: leadingAnchor),
+			token.trailingAnchor.constraint(equalTo: trailingAnchor),
+			token.topAnchor.constraint(equalTo: topAnchor),
+			token.bottomAnchor.constraint(equalTo: bottomAnchor),
+		])
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func configure(text: String, metrics: GateBadgeLayout.Metrics) {
+		token.configure(text: text, metrics: metrics)
+		layoutSubtreeIfNeeded()
+		invalidateIntrinsicContentSize()
+	}
+
+	var preferredSize: CGSize {
+		layoutSubtreeIfNeeded()
+		return token.intrinsicContentSize
 	}
 }
 
