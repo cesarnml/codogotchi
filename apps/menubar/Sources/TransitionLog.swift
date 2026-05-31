@@ -7,8 +7,15 @@ import Foundation
 ///   observed state change. Field shape:
 ///   ```
 ///   {"ts":"...","state":"...","prev":"...","schema_version":1,
-///    "source_origin":"...","source_kind":"...","source_name":"..."}
+///    "source_origin":"...","source_kind":"...","source_name":"...",
+///    "tool_command":"...","reason_kind":"..."}
 ///   ```
+///   `tool_command` (the raw Bash/Shell command that drove the change) and
+///   `reason_kind` (the `attention` reason, e.g. `error_blocked`) are emitted
+///   only when present in `state.json` — both are omitted otherwise so the
+///   log stays diff-friendly. They exist so the producer-side bucketing
+///   heuristic and the attention path can be audited from the durable log
+///   rather than only from the live last-write-wins `state.json` snapshot.
 /// - A heartbeat NDJSON line is appended once per `heartbeatInterval` (60
 ///   minutes by default) when no transition has occurred in that window.
 ///   Any real transition resets the heartbeat window. Heartbeat shape:
@@ -106,7 +113,9 @@ final class TransitionLog {
 			heartbeat: nil,
 			sourceOrigin: snapshot.sourceEvent?.origin,
 			sourceKind: snapshot.sourceEvent?.kind,
-			sourceName: snapshot.sourceEvent?.name
+			sourceName: snapshot.sourceEvent?.name,
+			toolCommand: snapshot.toolCommand,
+			reasonKind: snapshot.attention?.reasonKind
 		)
 		write(payload)
 		lastObservedState = snapshot.activityState
@@ -163,7 +172,9 @@ final class TransitionLog {
 			heartbeat: true,
 			sourceOrigin: nil,
 			sourceKind: nil,
-			sourceName: nil
+			sourceName: nil,
+			toolCommand: nil,
+			reasonKind: nil
 		)
 		write(payload)
 		lastActivityAt = now
@@ -232,6 +243,14 @@ private struct LinePayload: Encodable {
 	let sourceOrigin: String?
 	let sourceKind: String?
 	let sourceName: String?
+	/// Raw command string that drove this transition, for Bash/Shell events.
+	/// Nil (and omitted) for non-shell transitions and heartbeats. This is the
+	/// durable signal for auditing the producer-side bucketing heuristic.
+	let toolCommand: String?
+	/// `attention.reason_kind` (e.g. `input_requested`, `error_blocked`) when
+	/// the transition lands in a state that carries an attention payload.
+	/// Nil/omitted otherwise so quiet lines stay lean.
+	let reasonKind: String?
 
 	enum CodingKeys: String, CodingKey {
 		case ts
@@ -242,5 +261,7 @@ private struct LinePayload: Encodable {
 		case sourceOrigin = "source_origin"
 		case sourceKind = "source_kind"
 		case sourceName = "source_name"
+		case toolCommand = "tool_command"
+		case reasonKind = "reason_kind"
 	}
 }

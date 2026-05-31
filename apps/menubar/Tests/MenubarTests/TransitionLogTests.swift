@@ -121,6 +121,58 @@ final class TransitionLogTests: XCTestCase {
 		)
 	}
 
+	func testRecordTransitionEmitsToolCommandAndReasonKindWhenPresent() throws {
+		let dir = makeSandboxDirectory()
+		let path = dir.appendingPathComponent("state-transitions.log")
+		let log = TransitionLog(path: path, clock: { Date() })
+
+		let snapshot = StateSnapshot(
+			schemaVersion: 1,
+			activityState: .errored,
+			updatedAt: "2026-05-20T14:32:11.123Z",
+			sourceEvent: SourceEvent(origin: "claude_code", kind: "tool_use", name: "Bash"),
+			attention: AttentionPayload(
+				expiresAt: nil,
+				summary: "Something went wrong — agent stopped",
+				reasonKind: "error_blocked"
+			),
+			toolCommand: "bun run ci"
+		)
+		log.recordTransition(snapshot: snapshot, previousState: .implementing)
+
+		let obj = try decodeJSONObject(try readLines(path)[0])
+		XCTAssertEqual(
+			obj["tool_command"] as? String, "bun run ci",
+			"tool_command must be logged so the producer heuristic can be audited"
+		)
+		XCTAssertEqual(
+			obj["reason_kind"] as? String, "error_blocked",
+			"reason_kind must be logged to confirm which attention path fired"
+		)
+	}
+
+	func testRecordTransitionOmitsToolCommandAndReasonKindWhenAbsent() throws {
+		let dir = makeSandboxDirectory()
+		let path = dir.appendingPathComponent("state-transitions.log")
+		let log = TransitionLog(path: path, clock: { Date() })
+
+		// A plain non-shell transition with no attention payload.
+		log.recordTransition(
+			snapshot: makeSnapshot(.implementing),
+			previousState: .idle
+		)
+
+		let obj = try decodeJSONObject(try readLines(path)[0])
+		XCTAssertTrue(
+			obj["tool_command"] is NSNull || obj["tool_command"] == nil,
+			"tool_command must be omitted/null when no command drove the transition"
+		)
+		XCTAssertTrue(
+			obj["reason_kind"] is NSNull || obj["reason_kind"] == nil,
+			"reason_kind must be omitted/null when there is no attention payload"
+		)
+	}
+
 	// MARK: - Heartbeats
 
 	func testNoTransitionsForOverAnHourEmitsHeartbeatLine() throws {

@@ -103,4 +103,25 @@ struct StateSnapshot: Equatable {
 	let updatedAt: String
 	let sourceEvent: SourceEvent?
 	let attention: AttentionPayload?
+	/// Raw Bash/Shell command string the producer classified, when the event
+	/// was a shell tool use. Carried through so the transition log can record
+	/// which command drove a state change — the signal needed to audit the
+	/// producer-side bucketing heuristic after the fact.
+	let toolCommand: String?
+
+	init(
+		schemaVersion: Int,
+		activityState: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?,
+		toolCommand: String? = nil
+	) {
+		self.schemaVersion = schemaVersion
+		self.activityState = activityState
+		self.updatedAt = updatedAt
+		self.sourceEvent = sourceEvent
+		self.attention = attention
+		self.toolCommand = toolCommand
+	}
 }

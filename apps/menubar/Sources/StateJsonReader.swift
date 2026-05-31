@@ -75,7 +75,8 @@ enum StateJsonReader {
 				activityState: payload.activityState,
 				updatedAt: payload.updatedAt,
 				sourceEvent: payload.sourceEvent,
-				attention: payload.attention
+				attention: payload.attention,
+				toolCommand: payload.toolCommand
 			)
 			return .success(
 				StateSnapshot(
@@ -83,7 +84,8 @@ enum StateJsonReader {
 					activityState: resolveActivityState(raw),
 					updatedAt: raw.updatedAt,
 					sourceEvent: raw.sourceEvent,
-					attention: raw.attention
+					attention: raw.attention,
+					toolCommand: raw.toolCommand
 				)
 			)
 		} catch {
@@ -129,4 +131,8 @@ private struct StatePayload: Decodable {
 	let updatedAt: String
 	let sourceEvent: SourceEvent?
 	let attention: AttentionPayload?
+	/// `tool_command` (snake-case in the wire payload) carries the raw shell
+	/// command string for Bash/Shell tool events. Decoded so the transition
+	/// log can record it; absence is normal for non-shell events.
+	let toolCommand: String?
 }
