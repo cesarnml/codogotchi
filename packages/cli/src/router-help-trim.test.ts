@@ -97,10 +97,10 @@ describe("router --help trim (P8.09)", () => {
     // setup without --force and with a pre-existing config.json exits 2 via ConfigExistsError.
     // If setup were removed it would exit 1 with "Unknown command: setup" on stderr.
     // Use a non-existent home so it exits 2 with missing-config, not unknown-command.
-    const origHome = process.env["CODOGOTCHI_HOME"];
-    process.env["CODOGOTCHI_HOME"] = `/tmp/nonexistent-${Date.now()}`;
+    const origHome = process.env.CODOGOTCHI_HOME;
+    process.env.CODOGOTCHI_HOME = `/tmp/nonexistent-${Date.now()}`;
     const { exitCode } = await dispatch(["setup"]);
-    process.env["CODOGOTCHI_HOME"] = origHome;
+    process.env.CODOGOTCHI_HOME = origHome;
     // exitCode may be 0 (fresh home, setup runs) or 2 (error); it must not be 1 (unknown command)
     expect(exitCode).not.toBe(1);
     expect(stderrChunks.join("")).not.toContain("Unknown command");
@@ -108,10 +108,10 @@ describe("router --help trim (P8.09)", () => {
 
   it("bare hooks install dispatch reaches install handler (not unknown-command)", async () => {
     // Without a config.json the install handler exits 2 with a missing-config message.
-    const origHome = process.env["CODOGOTCHI_HOME"];
-    process.env["CODOGOTCHI_HOME"] = `/tmp/nonexistent-${Date.now()}`;
+    const origHome = process.env.CODOGOTCHI_HOME;
+    process.env.CODOGOTCHI_HOME = `/tmp/nonexistent-${Date.now()}`;
     const { exitCode } = await dispatch(["hooks", "install"]);
-    process.env["CODOGOTCHI_HOME"] = origHome;
+    process.env.CODOGOTCHI_HOME = origHome;
     expect(exitCode).toBe(2);
     expect(stderrChunks.join("")).not.toContain("Unknown command");
     expect(stderrChunks.join("")).toContain("config");
