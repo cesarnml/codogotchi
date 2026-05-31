@@ -255,11 +255,13 @@ final class FloatingPetScene: SKScene {
 	}
 
 	private func resolveFrames(for state: ActivityState) -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {
-		let codexFrames = codexPet.floatingFrames(for: state)
-		if !codexFrames.isEmpty { return (codexFrames, .codex) }
-
+		// CodogotchiPet covers SoA gate states (soaRowMap) and hook/lite states (liteRowMap).
 		let codogotchiFrames = codogotchiPet?.floatingFrames(for: state) ?? []
 		if !codogotchiFrames.isEmpty { return (codogotchiFrames, .codogotchi) }
+
+		// Codex sheet: hook-animation fallback for unknown/artless states.
+		let codexFrames = codexPet.floatingFrames(for: state)
+		if !codexFrames.isEmpty { return (codexFrames, .codex) }
 
 		return (codexPet.floatingFrames(for: .idle), .idleFallback)
 	}

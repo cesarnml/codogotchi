@@ -60,21 +60,23 @@ enum GateJsonReader {
 /// gate snapshot and the hook's current `state.json` activity state.
 ///
 /// Precedence (highest to lowest):
-/// 1. Unexpired gate with a sprite row in `CodogotchiPet.rowMap` → gate state.
-/// 2. Gate expired, gate artless/unknown, or no gate → hook state.
+/// 1. Unexpired gate with a SoA sprite row AND a loaded SoA sheet → gate state.
+/// 2. Gate expired, gate artless/unknown, SoA sheet absent, or no gate → hook state.
 ///
-/// The "has a sprite row" check is the single gate-renderability predicate —
-/// it covers both unknown-skew gates (unknown ActivityState rawValue) and
-/// artless gates (known v4 state but not yet in the row map).
+/// The SoA-sheet presence check prevents gate elevation when the sheet is absent
+/// at runtime — without it a gate state would silently resolve to idle instead of
+/// falling through to the hook animation (Phase 07 contract preserved).
 func resolveActivityState(
 	gate: GateSnapshot?,
 	hookState: ActivityState,
+	codogotchiPet: CodogotchiPet? = nil,
 	now: Date = Date()
 ) -> ActivityState {
 	guard let gate = gate,
 		!gate.isExpired(now: now),
 		let gateState = ActivityState(rawValue: gate.gate),
-		CodogotchiPet.rowMap[gateState] != nil
+		CodogotchiPet.soaRowMap[gateState] != nil,
+		codogotchiPet == nil || codogotchiPet?.soaSheet != nil
 	else {
 		return hookState
 	}

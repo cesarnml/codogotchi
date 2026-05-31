@@ -3,9 +3,11 @@ import XCTest
 
 @testable import Codogotchi
 
-/// Behavior contract for `CodogotchiPet` — the codogotchi-sheet loader for
-/// v4 SoA gate states (reviewClean/ticketCompleted, ticketStarted, greenTdd,
-/// redTdd, openPr, adversarialReview, recordReview).
+/// Behavior contract for `CodogotchiPet` — the two-sheet loader for all 19 v4
+/// ActivityState values. P8.06 replaces the P7 single-sheet (24 cols × 9 rows)
+/// with two 8-frame sheets:
+///   - `codogotchi-lite-spritesheet.webp` (1536×2288, 11 rows) — 9 hook states
+///   - `codogotchi-soa-spritesheet.webp`  (1536×2080, 10 rows) — 10 SoA gate states
 ///
 /// Fixtures live at `apps/menubar/Fixtures/maew/` so tests run on machines
 /// without `~/.codogotchi/pets/maew/` populated.
@@ -30,111 +32,294 @@ final class CodogotchiPetTests: XCTestCase {
 		XCTAssertEqual(pet.displayName, "Maew")
 	}
 
-	// MARK: - rowMap coverage (v4)
+	// MARK: - Grid constants (P8.06 — 8-frame two-sheet contract)
 
-	func testRowMapReviewClean() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.reviewClean]?.rowIndex, 0)
-		XCTAssertEqual(CodogotchiPet.rowMap[.reviewClean]?.frameCount, 24)
+	func testGridColumnsIs8() {
+		XCTAssertEqual(CodogotchiPet.gridColumns, 8,
+			"P8.06: each sheet uses 8 columns per row (1.5s / 8-frame loop)")
 	}
 
-	func testRowMapTicketCompleted() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.ticketCompleted]?.rowIndex, 0)
-		XCTAssertEqual(CodogotchiPet.rowMap[.ticketCompleted]?.frameCount, 24)
+	func testFrameIntervalIs1Point5Per8Frames() {
+		XCTAssertEqual(CodogotchiPet.frameInterval, 1.5 / 8.0, accuracy: 0.0001,
+			"P8.06: 8 frames at 1.5s loop = 187.5ms per frame")
 	}
 
-	func testRowMapTicketStarted() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.ticketStarted]?.rowIndex, 1)
-		XCTAssertEqual(CodogotchiPet.rowMap[.ticketStarted]?.frameCount, 24)
+	// MARK: - liteRowMap coverage (9 hook states)
+
+	func testLiteRowMapHasExactly9HookStates() {
+		XCTAssertEqual(CodogotchiPet.liteRowMap.count, 9)
 	}
 
-	func testRowMapGreenTddPlaceholder() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.greenTdd]?.rowIndex, 2)
-		XCTAssertEqual(CodogotchiPet.rowMap[.greenTdd]?.frameCount, 24)
+	func testLiteRowMapCoversAllHookStates() {
+		let expected: Set<ActivityState> = [
+			.idle, .standby, .errored, .waitingForInput,
+			.implementing, .testing, .thinking, .reading, .cramming,
+		]
+		XCTAssertEqual(Set(CodogotchiPet.liteRowMap.keys), expected)
 	}
 
-	func testRowMapRedTddPlaceholder() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.redTdd]?.rowIndex, 3)
-		XCTAssertEqual(CodogotchiPet.rowMap[.redTdd]?.frameCount, 24)
+	func testAllLiteRowsHave8Frames() {
+		for (state, spec) in CodogotchiPet.liteRowMap {
+			XCTAssertEqual(spec.frameCount, 8, "\(state) lite row must have 8 frames")
+		}
 	}
 
-	func testRowMapOpenPrPlaceholder() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.openPr]?.rowIndex, 4)
-		XCTAssertEqual(CodogotchiPet.rowMap[.openPr]?.frameCount, 24)
+	// Row indices per codogotchi-8frame-lite-soa-sheet-prompts.md (order in prompt)
+	func testLiteRowIdleIsRow0() { XCTAssertEqual(CodogotchiPet.liteRowMap[.idle]?.rowIndex, 0) }
+	func testLiteRowStandbyIsRow3() { XCTAssertEqual(CodogotchiPet.liteRowMap[.standby]?.rowIndex, 3) }
+	func testLiteRowThinkingIsRow4() {
+		XCTAssertEqual(CodogotchiPet.liteRowMap[.thinking]?.rowIndex, 4)
+	}
+	func testLiteRowReadingIsRow5() { XCTAssertEqual(CodogotchiPet.liteRowMap[.reading]?.rowIndex, 5) }
+	func testLiteRowImplementingIsRow6() {
+		XCTAssertEqual(CodogotchiPet.liteRowMap[.implementing]?.rowIndex, 6)
+	}
+	func testLiteRowTestingIsRow7() {
+		XCTAssertEqual(CodogotchiPet.liteRowMap[.testing]?.rowIndex, 7)
+	}
+	func testLiteRowCrammingIsRow8() {
+		XCTAssertEqual(CodogotchiPet.liteRowMap[.cramming]?.rowIndex, 8)
+	}
+	func testLiteRowErroredIsRow9() {
+		XCTAssertEqual(CodogotchiPet.liteRowMap[.errored]?.rowIndex, 9)
+	}
+	func testLiteRowWaitingForInputIsRow10() {
+		XCTAssertEqual(CodogotchiPet.liteRowMap[.waitingForInput]?.rowIndex, 10)
 	}
 
-	func testRowMapAdversarialReview() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.adversarialReview]?.rowIndex, 5)
-		XCTAssertEqual(CodogotchiPet.rowMap[.adversarialReview]?.frameCount, 24)
+	// MARK: - soaRowMap coverage (10 SoA gate states)
+
+	func testSoaRowMapHasExactly10GateStates() {
+		XCTAssertEqual(CodogotchiPet.soaRowMap.count, 10)
 	}
 
-	func testRowMapRecordReviewPlaceholder() {
-		XCTAssertEqual(CodogotchiPet.rowMap[.recordReview]?.rowIndex, 8)
-		XCTAssertEqual(CodogotchiPet.rowMap[.recordReview]?.frameCount, 24)
+	func testSoaRowMapCoversAllGateStates() {
+		let expected: Set<ActivityState> = [
+			.ticketStarted, .redTdd, .greenTdd, .adversarialReview,
+			.openPr, .pollReview, .reviewClean, .recordReview, .advance, .ticketCompleted,
+		]
+		XCTAssertEqual(Set(CodogotchiPet.soaRowMap.keys), expected)
 	}
 
-	func testRowMapHasExactlyEightEntries() {
-		XCTAssertEqual(CodogotchiPet.rowMap.count, 8)
+	func testAllSoaRowsHave8Frames() {
+		for (state, spec) in CodogotchiPet.soaRowMap {
+			XCTAssertEqual(spec.frameCount, 8, "\(state) SoA row must have 8 frames")
+		}
 	}
 
-	// MARK: - Frame extraction
+	// Row indices per codogotchi-8frame-lite-soa-sheet-prompts.md (chronological lifecycle order)
+	func testSoaRowTicketStartedIsRow0() {
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.ticketStarted]?.rowIndex, 0)
+	}
+	func testSoaRowRedTddIsRow1() { XCTAssertEqual(CodogotchiPet.soaRowMap[.redTdd]?.rowIndex, 1) }
+	func testSoaRowGreenTddIsRow2() {
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.greenTdd]?.rowIndex, 2)
+	}
+	func testSoaRowAdversarialReviewIsRow3() {
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.adversarialReview]?.rowIndex, 3)
+	}
+	func testSoaRowOpenPrIsRow4() { XCTAssertEqual(CodogotchiPet.soaRowMap[.openPr]?.rowIndex, 4) }
+	func testSoaRowPollReviewIsRow5() {
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.pollReview]?.rowIndex, 5)
+	}
+	func testSoaRowReviewCleanIsRow6() {
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.reviewClean]?.rowIndex, 6)
+	}
+	func testSoaRowRecordReviewIsRow7() {
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.recordReview]?.rowIndex, 7)
+	}
+	func testSoaRowAdvanceIsRow8() {
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.advance]?.rowIndex, 8)
+	}
+	func testSoaRowTicketCompletedIsRow9() {
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.ticketCompleted]?.rowIndex, 9)
+	}
 
-	func testFramesForAdversarialReviewReturns24Frames() throws {
+	// MARK: - Complete schema-v4 coverage (all 19 states)
+
+	func testAllSchemaV4StatesCoveredByMaps() {
+		let covered = Set(CodogotchiPet.liteRowMap.keys).union(Set(CodogotchiPet.soaRowMap.keys))
+		for state in ActivityState.allCases {
+			XCTAssertTrue(
+				covered.contains(state),
+				"ActivityState.\(state) is not in liteRowMap or soaRowMap — every v4 state must map"
+			)
+		}
+	}
+
+	func testLiteAndSoaMapsAreDisjoint() {
+		let overlap = Set(CodogotchiPet.liteRowMap.keys).intersection(
+			Set(CodogotchiPet.soaRowMap.keys))
+		XCTAssertTrue(overlap.isEmpty, "liteRowMap and soaRowMap must not share states: \(overlap)")
+	}
+
+	// MARK: - No placeholder rows (P7 placeholders removed)
+
+	func testOldPlaceholderStatesNowHaveRealSoaRows() {
+		// P7 temporary placeholders: greenTdd→2, redTdd→3, openPr→4, recordReview→8
+		// These must now have REAL rows on the SoA sheet.
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.greenTdd]?.rowIndex, 2)
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.redTdd]?.rowIndex, 1)
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.openPr]?.rowIndex, 4)
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.recordReview]?.rowIndex, 7)
+		// reviewClean is at row 6 on the SoA sheet (not row 0 as in the old single-sheet)
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.reviewClean]?.rowIndex, 6)
+	}
+
+	// MARK: - Loader: both sheets present from fixture
+
+	func testLoaderLoadsBothSheetsFromFixture() throws {
 		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
-		let frames = pet.frames(for: .adversarialReview)
-		XCTAssertEqual(frames.count, 24, ".adversarialReview must yield 24 frames from row 5")
+		XCTAssertNotNil(pet.liteSheet, "codogotchi-lite-spritesheet.webp must load from fixture")
+		XCTAssertNotNil(pet.soaSheet, "codogotchi-soa-spritesheet.webp must load from fixture")
 	}
 
-	func testFramesForAdversarialReviewHaveCorrectSourceRect() throws {
-		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
-		let frames = pet.frames(for: .adversarialReview)
-		XCTAssertEqual(frames.count, 24)
+	// MARK: - Cell dimension validation
 
-		// Frames must be scaled to menubar height and match the source cell aspect ratio.
-		let first = try XCTUnwrap(frames.first)
-		XCTAssertEqual(first.image.size.height, 22, accuracy: 0.001)
-		// Codogotchi sheet is 24 columns wide; confirm pixel aspect matches.
-		let sheet = try XCTUnwrap(pet.spritesheet, "fixture spritesheet must be loaded")
-		let sheetCG = try XCTUnwrap(sheet.cgImage(forProposedRect: nil, context: nil, hints: nil))
-		let sourceCellWidth = sheetCG.width / 24
-		let sourceCellHeight = sheetCG.height / 9
-		let expectedAspect = Double(sourceCellWidth) / Double(sourceCellHeight)
-		let frameAspect = Double(first.cgImage.width) / Double(first.cgImage.height)
+	func testLiteSheetWidthIsDivisibleBy8() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		guard let sheet = pet.liteSheet,
+			let cg = sheet.cgImage(forProposedRect: nil, context: nil, hints: nil)
+		else {
+			XCTFail("lite sheet must be loaded from fixture")
+			return
+		}
 		XCTAssertEqual(
-			frameAspect, expectedAspect, accuracy: 0.05,
-			"frame aspect must match source cell aspect (24-col grid)")
-
-		// Verify adversarialReview frames (row 5) differ in pixel content from
-		// reviewClean frames (row 0). A bug that always slices row 0 would still
-		// pass the aspect-ratio check above; this catches that class of bug.
-		let reviewCleanFrames = pet.frames(for: .reviewClean)
-		XCTAssertEqual(reviewCleanFrames.count, 24)
-		let adversarialFirst = first.cgImage
-		let reviewCleanFirst = try XCTUnwrap(reviewCleanFrames.first).cgImage
-		XCTAssertFalse(
-			cgImagesPixelEqual(adversarialFirst, reviewCleanFirst),
-			"adversarialReview (row 5) and reviewClean (row 0) frames must differ in pixel content"
+			cg.width % CodogotchiPet.gridColumns, 0,
+			"Lite sheet width (\(cg.width)) must be divisible by \(CodogotchiPet.gridColumns)"
 		)
 	}
 
-	func testFloatingFramesUseSourceCellResolution() throws {
+	func testSoaSheetWidthIsDivisibleBy8() throws {
 		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
-		let frames = pet.floatingFrames(for: .adversarialReview)
+		guard let sheet = pet.soaSheet,
+			let cg = sheet.cgImage(forProposedRect: nil, context: nil, hints: nil)
+		else {
+			XCTFail("SoA sheet must be loaded from fixture")
+			return
+		}
+		XCTAssertEqual(
+			cg.width % CodogotchiPet.gridColumns, 0,
+			"SoA sheet width (\(cg.width)) must be divisible by \(CodogotchiPet.gridColumns)"
+		)
+	}
+
+	// MARK: - Frame extraction: 8 frames, correct sheets
+
+	func testIdleReturns8FramesFromLiteSheet() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		XCTAssertEqual(
+			pet.frames(for: .idle).count, 8, ".idle must return 8 frames from the lite sheet")
+	}
+
+	func testTicketStartedReturns8FramesFromSoaSheet() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		XCTAssertEqual(
+			pet.frames(for: .ticketStarted).count, 8,
+			".ticketStarted must return 8 frames from the SoA sheet")
+	}
+
+	func testAllLiteStatesReturn8MenubarFrames() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		for state in CodogotchiPet.liteRowMap.keys {
+			let frames = pet.frames(for: state)
+			XCTAssertEqual(frames.count, 8, "\(state) must return 8 menubar frames from lite sheet")
+		}
+	}
+
+	func testAllSoaStatesReturn8MenubarFrames() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		for state in CodogotchiPet.soaRowMap.keys {
+			let frames = pet.frames(for: state)
+			XCTAssertEqual(frames.count, 8, "\(state) must return 8 menubar frames from SoA sheet")
+		}
+	}
+
+	func testMenubarFrameHeightIs22pt() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		let frames = pet.frames(for: .idle)
+		let first = try XCTUnwrap(frames.first)
+		XCTAssertEqual(first.image.size.height, 22, accuracy: 0.001)
+	}
+
+	func testSoaSheetFramesDifferFromLiteSheetFrames() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		let idleFrames = pet.frames(for: .idle)
+		let ticketStartedFrames = pet.frames(for: .ticketStarted)
+		let idleFirst = try XCTUnwrap(idleFrames.first)
+		let tsFirst = try XCTUnwrap(ticketStartedFrames.first)
+		XCTAssertFalse(
+			cgImagesPixelEqual(idleFirst.cgImage, tsFirst.cgImage),
+			".idle (lite row 0) and .ticketStarted (SoA row 0) must differ in pixel content"
+		)
+	}
+
+	// MARK: - Fall-through: unknown/artless state returns empty
+
+	func testMissingSheetSoftDegrades() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("codogotchi-no-sheet-\(UUID().uuidString)")
+		try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+		let petJson = """
+			{"id":"test","display_name":"Test","description":"","spritesheet_path":"spritesheet.webp"}
+			"""
+		try petJson.data(using: .utf8)!.write(to: tmp.appendingPathComponent("pet.json"))
+
+		let pet = try CodogotchiPet(petDirectory: tmp.path)
+
+		// All states must return empty frames when both sheets are absent (no crash)
+		for state in ActivityState.allCases {
+			XCTAssertTrue(
+				pet.frames(for: state).isEmpty,
+				"\(state) must degrade to empty frames when sheets are missing"
+			)
+		}
+	}
+
+	func testIncompatibleLiteSheetGridThrows() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("codogotchi-bad-lite-\(UUID().uuidString)")
+		try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let petJson = """
+			{"id":"test","display_name":"Test","description":"","spritesheet_path":"spritesheet.webp"}
+			"""
+		try petJson.data(using: .utf8)!.write(to: tmp.appendingPathComponent("pet.json"))
+
+		let stubPng = makeSinglePixelPNG()
+		try stubPng.write(to: tmp.appendingPathComponent("codogotchi-lite-spritesheet.webp"))
+
+		XCTAssertThrowsError(try CodogotchiPet(petDirectory: tmp.path)) { error in
+			guard let loadError = error as? CodexPetLoadError else {
+				XCTFail("expected CodexPetLoadError, got \(error)")
+				return
+			}
+			XCTAssertEqual(loadError, .spritesheetIncompatibleGrid)
+		}
+	}
+
+	// MARK: - Floating frames use source-cell resolution
+
+	func testFloatingFramesForIdleUseSourceCellResolution() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		let frames = pet.floatingFrames(for: .idle)
+		XCTAssertEqual(frames.count, 8, ".idle floating frames must be 8")
 		let first = try XCTUnwrap(frames.first)
 
-		let sheet = try XCTUnwrap(pet.spritesheet, "fixture spritesheet must be loaded")
+		let sheet = try XCTUnwrap(pet.liteSheet, "lite sheet must be loaded")
 		let sheetCG = try XCTUnwrap(sheet.cgImage(forProposedRect: nil, context: nil, hints: nil))
-		let sourceCellWidth = sheetCG.width / 24
-		let sourceCellHeight = sheetCG.height / 9
+		let cellW = sheetCG.width / CodogotchiPet.gridColumns
+		let cellH = sheetCG.height / 11  // 11 rows in lite sheet
 
-		XCTAssertEqual(first.cgImage.width, sourceCellWidth)
-		XCTAssertEqual(first.cgImage.height, sourceCellHeight)
-		XCTAssertEqual(first.image.size.width, CGFloat(sourceCellWidth), accuracy: 0.001)
-		XCTAssertEqual(first.image.size.height, CGFloat(sourceCellHeight), accuracy: 0.001)
+		XCTAssertEqual(first.cgImage.width, cellW)
+		XCTAssertEqual(first.cgImage.height, cellH)
 		XCTAssertGreaterThan(first.cgImage.height, 44)
 	}
 
-	/// Pixel-equality check: render both images into equal-sized RGBA buffers and
-	/// compare. Returns `true` only when every sampled pixel matches exactly.
+	// MARK: - Helpers
+
 	private func cgImagesPixelEqual(_ a: CGImage, _ b: CGImage) -> Bool {
 		guard a.width == b.width, a.height == b.height else { return false }
 		let w = a.width, h = a.height
@@ -143,7 +328,7 @@ final class CodogotchiPetTests: XCTestCase {
 		var bufB = [UInt8](repeating: 0, count: n)
 		let cs = CGColorSpaceCreateDeviceRGB()
 		let bi = CGImageAlphaInfo.premultipliedLast.rawValue
-		func draw(_ img: CGImage, into buf: inout [UInt8]) -> Bool {
+		func draw(_ img: CGImage, into buf: inout [UInt8]) {
 			buf.withUnsafeMutableBytes { raw in
 				guard let base = raw.baseAddress,
 					let ctx = CGContext(
@@ -152,97 +337,36 @@ final class CodogotchiPetTests: XCTestCase {
 				else { return }
 				ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
 			}
-			return true
 		}
-		guard draw(a, into: &bufA), draw(b, into: &bufB) else { return false }
+		draw(a, into: &bufA)
+		draw(b, into: &bufB)
 		return bufA == bufB
 	}
 
-	// MARK: - Soft degrade: missing sheet
-
-	func testMissingSheetSoftDegrades() throws {
-		// A directory with pet.json but no spritesheet must not throw on init
-		// and must return empty frames for all codogotchi-owned states.
-		let tmp = FileManager.default.temporaryDirectory
-			.appendingPathComponent("codogotchi-no-sheet-\(UUID().uuidString)")
-		try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-		defer { try? FileManager.default.removeItem(at: tmp) }
-		let petJson = """
-			{"id":"test","display_name":"Test","description":"","spritesheet_path":"codogotchi-spritesheet.webp"}
-			"""
-		try petJson.data(using: .utf8)!.write(to: tmp.appendingPathComponent("pet.json"))
-
-		// init must succeed (no throw)
-		let pet = try CodogotchiPet(petDirectory: tmp.path)
-
-		// All codogotchi states must return empty frames (not crash)
-		for state in CodogotchiPet.rowMap.keys {
-			XCTAssertTrue(
-				pet.frames(for: state).isEmpty,
-				"\(state) must degrade to empty frames when spritesheet is missing"
-			)
-		}
-	}
-
-	// MARK: - Hard fail: incompatible grid
-
-	func testIncompatibleGridThrows() throws {
-		// A spritesheet that is not divisible by 24 cols × 9 rows must throw
-		// spritesheetIncompatibleGrid — same hard-fail policy as CodexPet.
-		let tmp = FileManager.default.temporaryDirectory
-			.appendingPathComponent("codogotchi-bad-sheet-\(UUID().uuidString)")
-		try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-		defer { try? FileManager.default.removeItem(at: tmp) }
-
-		let petJson = """
-			{"id":"test","display_name":"Test","description":"","spritesheet_path":"codogotchi-spritesheet.webp"}
-			"""
-		try petJson.data(using: .utf8)!.write(to: tmp.appendingPathComponent("pet.json"))
-
-		// 1×1 RGBA PNG — pixel dimensions are not divisible by 24×9.
-		let stubPng = makeSinglePixelPNG()
-		try stubPng.write(to: tmp.appendingPathComponent("codogotchi-spritesheet.webp"))
-
-		XCTAssertThrowsError(try CodogotchiPet(petDirectory: tmp.path)) { error in
-			guard let loadError = error as? CodexPetLoadError else {
-				XCTFail("expected CodexPetLoadError, got \(error)")
-				return
-			}
-			XCTAssertEqual(
-				loadError, .spritesheetIncompatibleGrid,
-				"incompatible grid must throw spritesheetIncompatibleGrid"
-			)
-		}
-	}
-
-	// MARK: - Helpers
-
-	/// Build a minimal 1×1 RGBA PNG in memory without external tooling.
 	private func makeSinglePixelPNG() -> Data {
 		let bitmapRep = NSBitmapImageRep(
-			bitmapDataPlanes: nil,
-			pixelsWide: 1,
-			pixelsHigh: 1,
-			bitsPerSample: 8,
-			samplesPerPixel: 4,
-			hasAlpha: true,
-			isPlanar: false,
-			colorSpaceName: .deviceRGB,
-			bytesPerRow: 0,
-			bitsPerPixel: 0
-		)!
+			bitmapDataPlanes: nil, pixelsWide: 1, pixelsHigh: 1,
+			bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+			colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
 		return bitmapRep.representation(using: .png, properties: [:])!
 	}
 }
 
-// MARK: - Cross-loader disjointness
+// MARK: - Cross-loader disjointness (P8.06: Codex is fallback-only)
 
 final class CrossLoaderRowMapTests: XCTestCase {
-	func testCodexPetAndCodogotchiRowMapsAreDisjoint() {
-		let overlap = Set(CodexPet.rowMap.keys).intersection(Set(CodogotchiPet.rowMap.keys))
+	func testCodexPetAndCodogotchiMapsAreDisjointFromSoaMap() {
+		// SoA gate states must not appear in CodexPet.rowMap — they are
+		// exclusively served by CodogotchiPet.soaRowMap.
+		let soaOverlap = Set(CodexPet.rowMap.keys).intersection(Set(CodogotchiPet.soaRowMap.keys))
 		XCTAssertTrue(
-			overlap.isEmpty,
-			"CodexPet and CodogotchiPet row maps must not share states — resolution order would silently shadow codogotchi: \(overlap)"
-		)
+			soaOverlap.isEmpty,
+			"CodexPet.rowMap must not contain SoA gate states: \(soaOverlap)")
+	}
+
+	func testCodogotchiLiteAndSoaMapsAreTogether19States() {
+		let all = Set(CodogotchiPet.liteRowMap.keys).union(Set(CodogotchiPet.soaRowMap.keys))
+		XCTAssertEqual(all.count, ActivityState.allCases.count,
+			"lite + soa maps together must cover all \(ActivityState.allCases.count) v4 states")
 	}
 }

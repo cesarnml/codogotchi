@@ -24,6 +24,26 @@ final class PetStoreSeederTests: XCTestCase {
 		return tmp
 	}
 
+	// MARK: - requiredAssets (P8.06: two-sheet contract)
+
+	func testRequiredAssetsContainsLiteSpritesheet() {
+		XCTAssertTrue(
+			PetStoreSeeder.requiredAssets.contains("codogotchi-lite-spritesheet.webp"),
+			"requiredAssets must include codogotchi-lite-spritesheet.webp")
+	}
+
+	func testRequiredAssetsContainsSoaSpritesheet() {
+		XCTAssertTrue(
+			PetStoreSeeder.requiredAssets.contains("codogotchi-soa-spritesheet.webp"),
+			"requiredAssets must include codogotchi-soa-spritesheet.webp")
+	}
+
+	func testRequiredAssetsDoesNotContainOldSingleSheet() {
+		XCTAssertFalse(
+			PetStoreSeeder.requiredAssets.contains("codogotchi-spritesheet.webp"),
+			"requiredAssets must not include old placeholder codogotchi-spritesheet.webp")
+	}
+
 	// MARK: - isCanonicalStoreComplete
 
 	func testStoreCompleteReturnsFalseWhenDirectoryMissing() {

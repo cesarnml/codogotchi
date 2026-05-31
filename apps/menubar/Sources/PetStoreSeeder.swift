@@ -11,7 +11,8 @@ enum PetStoreSeeder {
 	static let requiredAssets: [String] = [
 		"pet.json",
 		"spritesheet.webp",
-		"codogotchi-spritesheet.webp",
+		"codogotchi-lite-spritesheet.webp",
+		"codogotchi-soa-spritesheet.webp",
 	]
 
 	/// Returns `true` when every required asset exists inside `petDirectory`.
