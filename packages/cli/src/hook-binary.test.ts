@@ -844,6 +844,132 @@ describe("P7.02 §7 pure classifier", () => {
     expect(out.state).toBe("implementing");
   });
 
+  it("classifies Bash 'sed -n' as thinking (read-only slice)", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command:
+            "sed -n '220,360p' /Users/cesar/code/codogotchi/apps/menubar/Sources/AttentionBubblePanel.swift",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("thinking");
+  });
+
+  it("classifies Bash 'git status' as thinking", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command: "git status --short",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("thinking");
+  });
+
+  it("classifies Bash 'pgrep' as thinking", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command: "pgrep -fl Codogotchi || true",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("thinking");
+  });
+
+  it("classifies Bash 'xcodebuild -list' as thinking", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command:
+            "xcodebuild -list -project /Users/cesar/code/codogotchi/apps/menubar/Menubar.xcodeproj",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("thinking");
+  });
+
+  it("classifies Bash 'swift test' as testing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command: "swift test --filter TransitionLogTests",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("testing");
+  });
+
+  it("classifies Bash 'xcodebuild test' as testing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command:
+            "xcodebuild test -project /Users/cesar/code/codogotchi/apps/menubar/Codogotchi.xcodeproj -scheme Codogotchi -destination 'platform=macOS'",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("testing");
+  });
+
+  it("classifies Codex apply_patch as implementing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "apply_patch",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("implementing");
+  });
+
+  it("classifies Cursor Grep tool as thinking", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "cursor",
+          kind: "tool_use",
+          name: "Grep",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("thinking");
+  });
+
+  it("classifies Cursor Glob tool as thinking", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "cursor",
+          kind: "tool_use",
+          name: "Glob",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("thinking");
+  });
+
   it("SoA events.ndjson does not override tool-use state after hook-binary drops the reader", async () => {
     // After P7.02 removes resolveSoaRoot/readSoaEventsSince, an Edit event
     // must produce implementing even when a .soa/events.ndjson with ticket_started exists.

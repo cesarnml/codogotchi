@@ -60,6 +60,8 @@ const TEST_RUNNER_PREFIXES = [
   "pytest",
   "cargo test",
   "go test",
+  "swift test",
+  "xcodebuild test",
   "vitest",
   "jest",
   // CI scripts bundle the test suite (plus lint/typecheck) and read as
@@ -86,6 +88,10 @@ const THINKING_BASH_PREFIXES = [
   "jq",
   "git log",
   "git diff",
+  "git status",
+  "pgrep",
+  "nl",
+  "xcodebuild -list",
 ];
 
 // Read ×1–2 → reading; Read ×3+ → cramming.
@@ -224,7 +230,18 @@ function matchesTestRunner(command: string): boolean {
   });
 }
 
+function matchesSedReadOnly(command: string): boolean {
+  const trimmed = command.trimStart();
+  if (!trimmed.startsWith("sed")) return false;
+  const next = trimmed.slice(3, 4);
+  if (next !== "" && next !== " " && next !== "\t") return false;
+  // In-place edit flags (-i, -i'', -i.bak) mutate files → implementing.
+  if (/\s-i(\S|\s|$)/.test(trimmed)) return false;
+  return true;
+}
+
 function matchesThinkingCommand(command: string): boolean {
+  if (matchesSedReadOnly(command)) return true;
   const trimmed = command.trimStart();
   return THINKING_BASH_PREFIXES.some((prefix) => {
     if (!trimmed.startsWith(prefix)) return false;
@@ -277,8 +294,16 @@ export function classifyEvent(
   }
 
   if (kind === "tool_use") {
-    if (name === "Edit" || name === "Write" || name === "MultiEdit") {
+    if (
+      name === "Edit" ||
+      name === "Write" ||
+      name === "MultiEdit" ||
+      name === "apply_patch"
+    ) {
       return { state: "implementing", sourceEvent, readRun: 0 };
+    }
+    if (name === "Grep" || name === "Glob") {
+      return { state: "thinking", sourceEvent, readRun: 0 };
     }
     if (name === "Bash" || name === "Shell") {
       if (command === undefined) {
