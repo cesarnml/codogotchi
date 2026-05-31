@@ -108,6 +108,44 @@ final class AppBootstrapTests: XCTestCase {
 		}
 	}
 
+	// MARK: - bundled runner resolution (P8.02)
+
+	func testResolveRunnerLaunchPrefersBundledBinaryWhenPresent() {
+		let resources = URL(fileURLWithPath: "/Apps/Codogotchi.app/Contents/Resources")
+		let launch = HookStatusClient.resolveRunnerLaunch(
+			argv: ["codogotchi", "hooks", "status", "--json"],
+			resourceURL: resources,
+			fileExists: { _ in true }
+		)
+		XCTAssertEqual(
+			launch.launchPath,
+			"/Apps/Codogotchi.app/Contents/Resources/codogotchi"
+		)
+		// The bundled binary is invoked directly, so the "codogotchi" head is dropped.
+		XCTAssertEqual(launch.arguments, ["hooks", "status", "--json"])
+	}
+
+	func testResolveRunnerLaunchFallsBackToPathWhenBundledAbsent() {
+		let resources = URL(fileURLWithPath: "/Apps/Codogotchi.app/Contents/Resources")
+		let launch = HookStatusClient.resolveRunnerLaunch(
+			argv: ["codogotchi", "hooks", "status", "--json"],
+			resourceURL: resources,
+			fileExists: { _ in false }
+		)
+		XCTAssertEqual(launch.launchPath, "/usr/bin/env")
+		XCTAssertEqual(launch.arguments, ["codogotchi", "hooks", "status", "--json"])
+	}
+
+	func testResolveRunnerLaunchFallsBackToPathWhenNoResourceURL() {
+		let launch = HookStatusClient.resolveRunnerLaunch(
+			argv: ["codogotchi", "hooks", "status", "--json"],
+			resourceURL: nil,
+			fileExists: { _ in true }
+		)
+		XCTAssertEqual(launch.launchPath, "/usr/bin/env")
+		XCTAssertEqual(launch.arguments, ["codogotchi", "hooks", "status", "--json"])
+	}
+
 	// MARK: - hooks-not-active predicate
 
 	func testHooksNotActiveTrueWhenNeitherPlatformInstalled() {
