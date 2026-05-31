@@ -41,8 +41,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: compile errors on LockstepPolicy (missing type), FloatingAppState.installedHookVersion (missing field), GeneralTabViewModel.needsBannerUpdate (missing computed property).
 Why this path: launch-detect + banner delivers lockstep with consent; cheap delta over the existing button.
 Alternative considered: silent auto-upgrade on launch — rejected (invasive writes without consent); post-v1 escalation.
 Deferred: silent auto-upgrade; Sparkle.
-Contract note:
+Contract note: LockstepPolicy guards on bundledVersion == "unknown" — no banner if the binary can't be queried, preventing a false-positive nag on broken installs. recordInstalledHookVersion skips the write for the same reason.
