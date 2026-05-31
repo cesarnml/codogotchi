@@ -198,7 +198,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 
 	private func recordInstalledHookVersion(_ version: String, into vm: GeneralTabViewModel) {
 		guard version != "unknown" else { return }
-		vm.installedHookVersion = version
 		let current = appStateLoader()
 		let updated = FloatingAppState(
 			isFloatingPetVisible: current.isFloatingPetVisible,
@@ -208,7 +207,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			hooksStatus: current.hooksStatus,
 			installedHookVersion: version
 		)
-		try? appStateSaver(updated)
+		do {
+			try appStateSaver(updated)
+			vm.installedHookVersion = version
+		} catch {
+			NSLog("SettingsWindowController: failed to persist installedHookVersion — %@", error.localizedDescription)
+		}
 	}
 
 	private func handleUninstallHooks() {

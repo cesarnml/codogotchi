@@ -360,7 +360,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			frame: current.frame,
 			onboardingCompletedAt: current.onboardingCompletedAt,
 			lastHookActivityAt: lastActivity,
-			hooksStatus: snapshot
+			hooksStatus: snapshot,
+			installedHookVersion: current.installedHookVersion
 		)
 		do {
 			try AppStateStore.save(next)
