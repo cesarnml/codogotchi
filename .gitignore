@@ -212,9 +212,27 @@ playground.xcworkspace
 .soa/
 .convex/
 .codogotchi-test-home/
+tmp/
 .env.local
 *-subagent-review.trace.log
 
 # agy-cli
 **/*/.antigravitycli
 .antigravitycli
+
+# Python bytecode (sprite-generation tooling under scripts/)
+__pycache__/
+*.pyc
+
+# Sprite-generation Python tooling (codex-generated, user-path-hardcoded, throwaway).
+# NOT committed: generate_pet_spritesheet.py is the documented fake-motion anti-pattern
+# (per-frame affine layer transforms = Failure Mode #1 in the sheet-generation prompts);
+# both scripts hardcode absolute /Users paths and are not reproducible elsewhere.
+/Pipfile
+/scripts/*.py
+
+# Sprite-generation staging outputs at repo root — final sheets live in
+# apps/menubar/Fixtures/<pet>/ and are committed there (P8.06), not at root.
+/codogotchi-*-spritesheet.png
+/codogotchi-*-spritesheet.webp
+output
