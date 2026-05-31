@@ -129,6 +129,27 @@ final class PetTabViewModelTests: XCTestCase {
 		XCTAssertEqual(fired, "ruby", "onActivePetChanged must fire with the new pet id")
 	}
 
+	func testSelectPetDoesNotUpdateInMemoryStateWhenWriteFails() {
+		// configURL points to an unwritable path — write must fail.
+		let roots = makePets(canonical: ["ruby"])
+		// Use a read-only directory as parent so the write throws
+		let unwritableDir = URL(fileURLWithPath: "/dev/null/nonexistent")
+		let badConfigURL = unwritableDir.appendingPathComponent("config.json")
+		let vm = PetTabViewModel(
+			codexPetsRoot: roots.codexRoot,
+			canonicalPetsRoot: roots.canonicalRoot,
+			configURL: badConfigURL,
+			initialActivePetId: DEFAULT_PET_NAME
+		)
+		var callbackFired = false
+		vm.onActivePetChanged = { _ in callbackFired = true }
+		vm.selectPet(id: "ruby")
+		// activePetId must NOT change and callback must NOT fire when write fails
+		XCTAssertEqual(vm.activePetId, DEFAULT_PET_NAME,
+			"activePetId must not change when config write fails")
+		XCTAssertFalse(callbackFired, "onActivePetChanged must not fire when config write fails")
+	}
+
 	func testSelectPetNoOpWhenAlreadyActive() {
 		let (vm, _) = makeViewModel()
 		var callCount = 0

@@ -57,11 +57,17 @@ final class PetTabViewModel {
 	}
 
 	/// Sets the active pet, persists to `configURL`, and fires `onActivePetChanged`.
-	/// No-op when `id` is already active.
+	/// No-op when `id` is already active. Aborts without updating in-memory state or
+	/// firing the callback if the config write fails, so the user can retry.
 	func selectPet(id: String) {
 		guard id != activePetId else { return }
+		do {
+			try PetConfig.write(petName: id, to: configURL)
+		} catch {
+			NSLog("PetTabViewModel: failed to persist pet selection for '%@' — %@", id, error.localizedDescription)
+			return
+		}
 		activePetId = id
-		try? PetConfig.write(petName: id, to: configURL)
 		onActivePetChanged?(id)
 	}
 

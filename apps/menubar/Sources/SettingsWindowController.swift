@@ -642,8 +642,12 @@ private final class PetTabView: NSView {
 	}
 
 	private func isCanonical(_ petId: String) -> Bool {
-		let url = viewModel.canonicalPetsRoot.appendingPathComponent(petId)
-		return FileManager.default.fileExists(atPath: url.path)
+		let petDir = viewModel.canonicalPetsRoot.appendingPathComponent(petId)
+		var isDir: ObjCBool = false
+		guard FileManager.default.fileExists(atPath: petDir.path, isDirectory: &isDir), isDir.boolValue
+		else { return false }
+		return FileManager.default.fileExists(
+			atPath: petDir.appendingPathComponent("pet.json").path)
 	}
 
 	@objc private func petRowAction(_ sender: NSButton) {
