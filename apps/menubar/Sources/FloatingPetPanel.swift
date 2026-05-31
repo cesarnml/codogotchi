@@ -3,8 +3,8 @@ import SpriteKit
 
 @MainActor
 final class FloatingPetPanelController: FloatingPetPanelManaging {
-	private let codexPet: CodexPet
-	private let codogotchiPet: CodogotchiPet?
+	private var codexPet: CodexPet
+	private var codogotchiPet: CodogotchiPet?
 	private let demoFrameInterval: TimeInterval?
 	private let visibleFrameProvider: () -> CGRect
 	private var panel: NSPanel?
@@ -76,6 +76,14 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		panel?.orderOut(nil)
 		isPanelShown = false
 		attentionBubble?.orderOut(nil)
+	}
+
+	/// Swap in new pet loaders and immediately repaint the current state.
+	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
+		self.codexPet = codexPet
+		self.codogotchiPet = codogotchiPet
+		// Rebuild the scene with new pets when it's already visible.
+		scene?.replacePets(codexPet: codexPet, codogotchiPet: codogotchiPet)
 	}
 
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {

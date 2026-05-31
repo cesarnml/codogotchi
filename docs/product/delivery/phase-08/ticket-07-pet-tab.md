@@ -38,8 +38,9 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: testEnumerationAlwaysIncludesBundledMaew, testDefaultSelectionIsMaewWhenNothingElseConfigured (PetTabViewModel.allPetIds() stub returned empty).
 Why this path: extend the existing pet section + helpers rather than rebuild import.
 Alternative considered: versioned-copy import — rejected; canonical store is a copy, overwrite-with-backup is sufficient.
+Live renderer update: added replacePets(codexPet:codogotchiPet:) to MenubarRenderer, FloatingPetScene, FloatingPetPanelController, and LivePollingDriver.replaceCodogotchiPet. MenubarApp.reloadActivePet() reconstructs both loaders from the new PetConfig.resolvedPetName() and pushes to all renderers. codexPet/codogotchiPet changed from let to var in renderer types.
+PetConfig.write(petName:to:) added — persists {"pet": id} to the config URL atomically.
 Deferred: BYOP full validation (Phase 12); multiple bundled pets (post-launch).
-Contract note:

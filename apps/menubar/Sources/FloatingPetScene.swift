@@ -6,8 +6,8 @@ import SpriteKit
 
 @MainActor
 final class FloatingPetScene: SKScene {
-	private let codexPet: CodexPet
-	private let codogotchiPet: CodogotchiPet?
+	private var codexPet: CodexPet
+	private var codogotchiPet: CodogotchiPet?
 	private let ciContext: CIContext
 	private let desaturateFrame: (CodexPet.Frame) -> CGImage?
 	private let interactionFrames: (FloatingInteraction) -> [CodexPet.Frame]
@@ -197,6 +197,18 @@ final class FloatingPetScene: SKScene {
 	var currentTextureForTesting: SKTexture? { spriteNode.texture }
 	var currentColorForTesting: NSColor { spriteNode.color }
 	var currentColorBlendFactorForTesting: CGFloat { spriteNode.colorBlendFactor }
+
+	/// Swap in new pet loaders and immediately repaint the current state.
+	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
+		self.codexPet = codexPet
+		self.codogotchiPet = codogotchiPet
+		let resolved = resolveFrames(for: currentState)
+		currentFrames = resolved.frames
+		currentSource = resolved.source
+		frameIndex = 0
+		paintCurrentFrame()
+		restartTimer()
+	}
 
 	func advanceFrameForTesting() {
 		tick()

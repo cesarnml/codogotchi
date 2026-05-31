@@ -68,7 +68,7 @@ final class LivePollingDriver {
 	private let gateReader: GateReader
 	private let tickInterval: TimeInterval
 	private let transitionLog: TransitionLog?
-	private let codogotchiPet: CodogotchiPet?
+	private var codogotchiPet: CodogotchiPet?
 
 	/// Optional sink for attention payload updates. Called when `attention`
 	/// or `sourceEvent.origin` changes between ticks. Second parameter is the
@@ -131,6 +131,12 @@ final class LivePollingDriver {
 	func stop() {
 		timer?.invalidate()
 		timer = nil
+	}
+
+	/// Update the stored CodogotchiPet reference so the gate resolver
+	/// uses the newly loaded SoA sheet on the next tick.
+	func replaceCodogotchiPet(_ pet: CodogotchiPet?) {
+		codogotchiPet = pet
 	}
 
 	/// Advance one poll synchronously. Used by tests so they can assert
