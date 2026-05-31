@@ -39,8 +39,9 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
+Red first: SettingsControllerTests called runHooksUpdate() (non-existent) + GeneralTabViewModelTests referenced GeneralTabViewModel (non-existent) — both compile errors confirmed red.
 Why this path: Update = idempotent re-install reuses shipped, tested install logic.
 Alternative considered: a distinct `hooks update` CLI verb — unnecessary; install already rewrites.
 Deferred: the launch-time mismatch banner (P8.05).
-Contract note:
+Contract note: diagnosticsJSON builds hooksStatus dict explicitly (not via Codable) to preserve last_event_at/source_origin as null rather than omitting the keys — matches the hooks status --json shape exactly.
+Post-subagent patch: applyViewModel(vm) now runs on both success and error branches so status rows refresh after any action outcome, not only on success.
