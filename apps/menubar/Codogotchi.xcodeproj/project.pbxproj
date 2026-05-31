@@ -13,6 +13,8 @@
 		146969BDD756A5353704E961 /* MenubarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E496AEDA38E70CA0C7D4E4F /* MenubarTests.swift */; };
 		17A4A67B836C574013DB2CDA /* ConfigBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDA2FD41708D0AEB3230327 /* ConfigBootstrap.swift */; };
 		1A65C0547AD500DEEBCF50DB /* PetConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C648B3B6E8C5F97123E808D /* PetConfigTests.swift */; };
+		ABA9FCB9CB6344FA9CE8A3FE /* PetTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48503FAD32B64FC187B720C6 /* PetTabViewModel.swift */; };
+		D7EC570D7C444E11A1D3E4D7 /* PetTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ED8DF31CE3141828804E06F /* PetTabViewModelTests.swift */; };
 		1D5FF0E195806DF51AF25AEF /* MenubarRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3280C616774866918681AF0C /* MenubarRenderer.swift */; };
 		2224FF2568198C777B9A666D /* maew in Resources */ = {isa = PBXBuildFile; fileRef = 7AC107DCBD46F0F6DBA5B3B6 /* maew */; };
 		2C985DFC0C4B11F3C3BF69F9 /* AppBootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */; };
@@ -84,6 +86,8 @@
 		079E19BBF7A258650F759E72 /* PetStateFanoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStateFanoutTests.swift; sourceTree = "<group>"; };
 		09112F189EA04FABD5D4833E /* DemoConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoConfig.swift; sourceTree = "<group>"; };
 		0C648B3B6E8C5F97123E808D /* PetConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfigTests.swift; sourceTree = "<group>"; };
+		48503FAD32B64FC187B720C6 /* PetTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetTabViewModel.swift; sourceTree = "<group>"; };
+		2ED8DF31CE3141828804E06F /* PetTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetTabViewModelTests.swift; sourceTree = "<group>"; };
 		0D359A7765F7ACDDA24C16CB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetImportHelper.swift; sourceTree = "<group>"; };
 		2E496AEDA38E70CA0C7D4E4F /* MenubarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarTests.swift; sourceTree = "<group>"; };
@@ -168,6 +172,7 @@
 				AE6F4B753185486F7E7FCCC6 /* OnboardingControllerTests.swift */,
 				0C648B3B6E8C5F97123E808D /* PetConfigTests.swift */,
 				6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */,
+				2ED8DF31CE3141828804E06F /* PetTabViewModelTests.swift */,
 				079E19BBF7A258650F759E72 /* PetStateFanoutTests.swift */,
 				DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */,
 				A1B2C3D4E5F600000000A003 /* SettingsTabModelTests.swift */,
@@ -214,6 +219,7 @@
 				6C36708DADAAEA372DF03A2A /* OnboardingWindowController.swift */,
 				9646F68B64C22ABAE0FE52EA /* PetConfig.swift */,
 				16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */,
+				48503FAD32B64FC187B720C6 /* PetTabViewModel.swift */,
 				49C42121B54C0F2313BB1114 /* PetStateFanout.swift */,
 				E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */,
 				A1B2C3D4E5F600000000A002 /* AboutViewModel.swift */,
@@ -398,6 +404,7 @@
 				CBB4A3FDFAA87B468B862419 /* OnboardingWindowController.swift in Sources */,
 				BBAE72D92861A7901C3EBB73 /* PetConfig.swift in Sources */,
 				4C800549CEEB194A42237701 /* PetImportHelper.swift in Sources */,
+				ABA9FCB9CB6344FA9CE8A3FE /* PetTabViewModel.swift in Sources */,
 				D48C3FDB43E1FA8E01113439 /* PetStateFanout.swift in Sources */,
 				36D30A2BA8D14CA1D7D62D1C /* PetStoreSeeder.swift in Sources */,
 				A1B2C3D4E5F600000000B002 /* AboutViewModel.swift in Sources */,
@@ -433,6 +440,7 @@
 				E28014AC2F3B192E3A1BAE57 /* OnboardingControllerTests.swift in Sources */,
 				1A65C0547AD500DEEBCF50DB /* PetConfigTests.swift in Sources */,
 				B20913FC5559EE95F7E4E2BA /* PetImportHelperTests.swift in Sources */,
+				D7EC570D7C444E11A1D3E4D7 /* PetTabViewModelTests.swift in Sources */,
 				FBE36F71D1F69299A13DDADA /* PetStateFanoutTests.swift in Sources */,
 				49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */,
 				A1B2C3D4E5F600000000B003 /* SettingsTabModelTests.swift in Sources */,
