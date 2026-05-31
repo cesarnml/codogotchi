@@ -19,36 +19,37 @@ final class CodogotchiPet {
 	/// (soft degrade). Non-nil when the sheet loaded successfully.
 	let spritesheet: NSImage?
 
-	/// Codogotchi-sheet row map for v4 schema SoA gate states.
-	///
-	/// Permanent rows (art ships with this phase):
-	/// - `.reviewClean` / `.ticketCompleted` → row 0 (24 frames, shared)
-	/// - `.ticketStarted`    → row 1 (24 frames)
-	/// - `.adversarialReview`→ row 5 (24 frames)
-	///
-	/// Temporary placeholder rows (reuse existing art until codogotchi-soa-spritesheet.webp ships):
-	/// - `.greenTdd`    → row 2 (24 frames) — TEMPORARY: repurposes focused row
-	/// - `.redTdd`      → row 3 (24 frames) — TEMPORARY: repurposes nervous row
-	/// - `.openPr`      → row 4 (24 frames) — TEMPORARY: repurposes ascended row
-	/// - `.recordReview`→ row 8 (24 frames) — TEMPORARY: repurposes pushing row
+	/// Lite-sheet row map: 9 hook/lite states. Stubs until P8.06 green.
+	static let liteRowMap: [ActivityState: RowSpec] = [:]
+
+	/// SoA-sheet row map: 10 gate states. Stubs until P8.06 green.
+	static let soaRowMap: [ActivityState: RowSpec] = [:]
+
+	/// Codogotchi-sheet row map for v4 schema SoA gate states (P7 single-sheet — kept for
+	/// GateJsonReader compatibility until P8.06 green replaces this with soaRowMap).
 	static let rowMap: [ActivityState: RowSpec] = [
 		.reviewClean: RowSpec(rowIndex: 0, frameCount: 24),
 		.ticketCompleted: RowSpec(rowIndex: 0, frameCount: 24),
 		.ticketStarted: RowSpec(rowIndex: 1, frameCount: 24),
-		.greenTdd: RowSpec(rowIndex: 2, frameCount: 24),  // TEMPORARY placeholder
-		.redTdd: RowSpec(rowIndex: 3, frameCount: 24),  // TEMPORARY placeholder
-		.openPr: RowSpec(rowIndex: 4, frameCount: 24),  // TEMPORARY placeholder
+		.greenTdd: RowSpec(rowIndex: 2, frameCount: 24),
+		.redTdd: RowSpec(rowIndex: 3, frameCount: 24),
+		.openPr: RowSpec(rowIndex: 4, frameCount: 24),
 		.adversarialReview: RowSpec(rowIndex: 5, frameCount: 24),
-		.recordReview: RowSpec(rowIndex: 8, frameCount: 24),  // TEMPORARY placeholder
+		.recordReview: RowSpec(rowIndex: 8, frameCount: 24),
 	]
 
-	/// Codogotchi-sheet grid dimensions: 24 columns × 9 rows.
+	/// Grid columns per sheet: 8 (1.5s / 8-frame loop). Stub until P8.06 green.
 	static let gridColumns = 24
 	static let gridRows = 9
 
-	/// Per-frame display interval for codogotchi-sheet animations (~167 ms/frame).
-	/// Codex-sheet frames use `CodexPet.frameInterval` (~188 ms/frame for 8-frame rows).
+	/// Per-frame display interval: 1.5s / 8 frames = 187.5ms. Stub until P8.06 green.
 	static let frameInterval: TimeInterval = 167.0 / 1000.0
+
+	/// Loaded lite spritesheet. Stub until P8.06 green.
+	var liteSheet: NSImage? { nil }
+
+	/// Loaded SoA spritesheet. Stub until P8.06 green.
+	var soaSheet: NSImage? { nil }
 
 	private let cgSheet: CGImage?
 	private let frameWidth: Int
