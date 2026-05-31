@@ -147,6 +147,40 @@ final class GateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(result, .errored, "absent gate must render hook state unchanged")
 	}
 
+	// MARK: - Persistent gate badge
+
+	func testExpiredGateStillProducesPersistentBadgeContent() {
+		let gate = makeGate(gate: "review_clean", expiresAt: pastDate())
+		let badge = resolveGateBadgeContent(gate: gate)
+		XCTAssertEqual(
+			badge,
+			GateBadgeContent(ticketId: "P7.01", gate: "review_clean"),
+			"expired gates still drive the persistent badge; expiry only affects animation precedence"
+		)
+	}
+
+	func testTicketCompletedClearsPersistentBadgeContent() {
+		let gate = makeGate(gate: "ticket_completed", expiresAt: futureDate())
+		XCTAssertNil(
+			resolveGateBadgeContent(gate: gate),
+			"ticket_completed clears the badge lane instead of rendering a stale completed ticket badge"
+		)
+	}
+
+	func testGateWithoutTicketIdDoesNotProducePartialBadge() {
+		let gate = GateSnapshot(
+			gate: "open_pr",
+			since: "2026-05-29T12:00:00.000Z",
+			expiresAt: futureDate(),
+			planKey: "phase-07",
+			ticketId: nil
+		)
+		XCTAssertNil(
+			resolveGateBadgeContent(gate: gate),
+			"badge widget requires both the ticket_id and gate pills; partial gate payloads must not render half a badge"
+		)
+	}
+
 	// MARK: - Helpers
 
 	private func writeTemp(_ content: String) -> URL {

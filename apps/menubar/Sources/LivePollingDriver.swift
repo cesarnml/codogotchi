@@ -57,6 +57,7 @@ final class LivePollingDriver {
 	typealias Apply = (ActivityState, VisualMode) -> Void
 	typealias SetTooltip = (String?) -> Void
 	typealias ApplyAttention = (AttentionPayload?, SourceEvent?) -> Void
+	typealias ApplyGateBadge = (GateBadgeContent?) -> Void
 	typealias Reader = (String) -> Result<StateSnapshot, StateReadError>
 	typealias GateReader = (String) -> GateSnapshot?
 
@@ -74,6 +75,10 @@ final class LivePollingDriver {
 	/// or `sourceEvent.origin` changes between ticks. Second parameter is the
 	/// source origin from `source_event.origin` (e.g. `"claude_code"`, `"cursor"`).
 	var applyAttention: ApplyAttention?
+	/// Optional sink for persistent gate badge updates. Unlike animation
+	/// precedence, badge content does not expire when `expires_at` passes; it
+	/// only changes when the sidecar's ticket/gate payload changes.
+	var applyGateBadge: ApplyGateBadge?
 
 	private var timer: Timer?
 	private var lastRendered: (state: ActivityState, mode: VisualMode)?
@@ -83,6 +88,8 @@ final class LivePollingDriver {
 	/// the inner `(AttentionPayload?, String?)` so we can distinguish "never
 	/// emitted" from "emitted (nil, nil)".
 	private var lastAttentionEmission: (AttentionPayload?, SourceEvent?)? = nil
+	private var lastGateBadge: GateBadgeContent?
+	private var hasEmittedGateBadge = false
 	/// Agent-reported state from the last successful read. The transition log
 	/// records changes against this value, not against the rendered visual
 	/// state, because failure visuals collapse to `.idle` regardless of what
@@ -176,12 +183,14 @@ final class LivePollingDriver {
 		let tooltip: String?
 		let attention: AttentionPayload?
 		let sourceEvent: SourceEvent?
+		let gateBadge: GateBadgeContent?
 	}
 
 	private func decide(from result: Result<StateSnapshot, StateReadError>) -> Outcome {
+		let gate = gatePath.flatMap { gateReader($0) }
+		let gateBadge = resolveGateBadgeContent(gate: gate)
 		switch result {
 		case .success(let snapshot):
-			let gate = gatePath.flatMap { gateReader($0) }
 			let state = resolveActivityState(
 				gate: gate, hookState: snapshot.activityState, codogotchiPet: codogotchiPet)
 			return Outcome(
@@ -189,26 +198,27 @@ final class LivePollingDriver {
 				mode: .normal,
 				tooltip: nil,
 				attention: snapshot.attention,
-				sourceEvent: snapshot.sourceEvent
+				sourceEvent: snapshot.sourceEvent,
+				gateBadge: gateBadge
 			)
 		case .failure(.fileNotFound):
 			return Outcome(
 				state: .idle, mode: .desaturated,
 				tooltip: LivePollingTooltips.noHookDetected,
-				attention: nil, sourceEvent: nil
+				attention: nil, sourceEvent: nil, gateBadge: gateBadge
 			)
 		case .failure(.malformed), .failure(.schemaMissingOrInvalid):
 			return Outcome(
 				state: .idle, mode: .desaturated,
 				tooltip: LivePollingTooltips.schemaMissing,
-				attention: nil, sourceEvent: nil
+				attention: nil, sourceEvent: nil, gateBadge: gateBadge
 			)
 		case .failure(.schemaNewer(let got, let expected)):
 			return Outcome(
 				state: .idle,
 				mode: .desaturated,
 				tooltip: LivePollingTooltips.schemaNewer(got: got, expected: expected),
-				attention: nil, sourceEvent: nil
+				attention: nil, sourceEvent: nil, gateBadge: gateBadge
 			)
 		}
 	}
@@ -249,6 +259,15 @@ final class LivePollingDriver {
 			if attentionChanged {
 				sink(newAttention.0, newAttention.1)
 				lastAttentionEmission = newAttention
+			}
+		}
+
+		if let sink = applyGateBadge {
+			let badgeChanged = !hasEmittedGateBadge || outcome.gateBadge != lastGateBadge
+			if badgeChanged {
+				sink(outcome.gateBadge)
+				lastGateBadge = outcome.gateBadge
+				hasEmittedGateBadge = true
 			}
 		}
 	}

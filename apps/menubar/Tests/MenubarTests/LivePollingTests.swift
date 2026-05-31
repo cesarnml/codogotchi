@@ -31,6 +31,10 @@ final class LivePollingTests: XCTestCase {
 		return dir.appendingPathComponent("state.json")
 	}
 
+	private func makeSiblingGatePath(for statePath: URL) -> URL {
+		statePath.deletingLastPathComponent().appendingPathComponent("gate.json")
+	}
+
 	private func copyFixture(_ name: String, to target: URL) throws {
 		let src = fixturesDirectory().appendingPathComponent(name)
 		let data = try Data(contentsOf: src)
@@ -42,14 +46,29 @@ final class LivePollingTests: XCTestCase {
 	private final class Recorder {
 		var renders: [(ActivityState, VisualMode)] = []
 		var tooltips: [String?] = []
+		var gateBadges: [GateBadgeContent?] = []
 	}
 
-	private func makeDriver(target: URL, recorder: Recorder) -> LivePollingDriver {
-		return LivePollingDriver(
+	private func makeDriver(target: URL, recorder: Recorder, gatePath: URL? = nil) -> LivePollingDriver {
+		let driver = LivePollingDriver(
 			pollingTargetPath: target.path,
+			gatePath: gatePath?.path,
 			apply: { state, mode in recorder.renders.append((state, mode)) },
 			setTooltip: { tip in recorder.tooltips.append(tip) }
 		)
+		driver.applyGateBadge = { recorder.gateBadges.append($0) }
+		return driver
+	}
+
+	private func writeGateJson(
+		_ target: URL,
+		gate: String,
+		expiresAt: String,
+		ticketId: String = "P7.01"
+	) throws {
+		try """
+			{"gate":"\(gate)","since":"2026-01-01T00:00:00Z","expires_at":"\(expiresAt)","plan_key":"phase-07","ticket_id":"\(ticketId)"}
+			""".write(to: target, atomically: true, encoding: .utf8)
 	}
 
 	// MARK: - Three failure visuals
@@ -154,6 +173,51 @@ final class LivePollingTests: XCTestCase {
 			recorder.tooltips,
 			[nil],
 			"normal-mode renders must clear the tooltip (no failure copy to surface)"
+		)
+		XCTAssertEqual(recorder.gateBadges, [nil], "first tick still emits an explicit nil gate badge")
+	}
+
+	func testExpiredGateFallsThroughToHookStateButBadgePersists() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		let gatePath = makeSiblingGatePath(for: target)
+		try copyFixture("implementing.json", to: target)
+		try writeGateJson(
+			gatePath,
+			gate: "review_clean",
+			expiresAt: "2020-01-01T00:00:00.000Z"
+		)
+		let driver = makeDriver(target: target, recorder: recorder, gatePath: gatePath)
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(recorder.renders.map { $0.0 }, [.implementing])
+		XCTAssertEqual(
+			recorder.gateBadges,
+			[GateBadgeContent(ticketId: "P7.01", gate: "review_clean")],
+			"badge survives past expires_at even though render precedence falls through to the hook state"
+		)
+	}
+
+	func testTicketCompletedGateClearsBadgeWhileStillDrivingAnimation() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		let gatePath = makeSiblingGatePath(for: target)
+		try copyFixture("implementing.json", to: target)
+		try writeGateJson(
+			gatePath,
+			gate: "ticket_completed",
+			expiresAt: "2099-01-01T00:00:00.000Z"
+		)
+		let driver = makeDriver(target: target, recorder: recorder, gatePath: gatePath)
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(recorder.renders.map { $0.0 }, [.ticketCompleted])
+		XCTAssertEqual(
+			recorder.gateBadges,
+			[nil],
+			"ticket_completed clears the persistent badge lane instead of leaving a stale completed-ticket chip"
 		)
 	}
 

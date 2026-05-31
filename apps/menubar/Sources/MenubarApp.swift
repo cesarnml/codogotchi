@@ -262,6 +262,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			driver.applyAttention = { [weak floatingPetController = self.floatingPetController] payload, sourceEvent in
 				floatingPetController?.applyAttention(payload: payload, sourceEvent: sourceEvent)
 			}
+			driver.applyGateBadge = { [weak floatingPetController = self.floatingPetController] content in
+				floatingPetController?.applyGateBadge(content: content)
+			}
 			driver.start()
 			self.livePollingDriver = driver
 		}

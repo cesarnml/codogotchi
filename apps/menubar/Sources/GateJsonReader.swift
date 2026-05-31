@@ -27,6 +27,16 @@ struct GateSnapshot {
 	}
 }
 
+/// Persistent floating-pet badge content derived from the raw gate sidecar.
+///
+/// This is intentionally independent of `expires_at`: gate animation TTL only
+/// controls render precedence, not whether the operator can still see which
+/// ticket/gate pair most recently fired.
+struct GateBadgeContent: Equatable {
+	let ticketId: String
+	let gate: String
+}
+
 /// Reads `gate.json` from disk and returns either a decoded `GateSnapshot`
 /// or nil when the file is absent or malformed.
 ///
@@ -81,4 +91,22 @@ func resolveActivityState(
 		return hookState
 	}
 	return gateState
+}
+
+/// Persistent gate badge policy for the floating pet.
+///
+/// Rules:
+/// - expired gates still yield a badge; TTL only affects animation precedence
+/// - `ticket_completed` clears the badge lane
+/// - missing/empty `ticket_id` yields no badge because Phase 08 requires a
+///   two-badge pair (`ticket_id`, `gate`) rather than a partial widget
+func resolveGateBadgeContent(gate: GateSnapshot?) -> GateBadgeContent? {
+	guard let gate,
+		gate.gate != "ticket_completed",
+		let ticketId = gate.ticketId?.trimmingCharacters(in: .whitespacesAndNewlines),
+		!ticketId.isEmpty
+	else {
+		return nil
+	}
+	return GateBadgeContent(ticketId: ticketId, gate: gate.gate)
 }

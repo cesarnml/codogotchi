@@ -16,9 +16,11 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	// Attention bubble — shown below the pet when a non-expired attention payload is active.
 	private var attentionBubble: AttentionBubblePanel?
+	private var gateBadgePanel: GateBadgePanel?
 	private var lastPanelFrame: CGRect = .zero
 	private var isPanelShown = false
 	private var attentionActive = false
+	private var gateBadgeContent: GateBadgeContent?
 
 	init(
 		codexPet: CodexPet,
@@ -67,6 +69,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		if attentionActive {
 			repositionAndShowBubble()
 		}
+		if gateBadgeContent != nil {
+			repositionAndShowGateBadge()
+		}
 	}
 
 	func hide() {
@@ -76,6 +81,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		panel?.orderOut(nil)
 		isPanelShown = false
 		attentionBubble?.orderOut(nil)
+		gateBadgePanel?.orderOut(nil)
 	}
 
 	/// Swap in new pet loaders and immediately repaint the current state.
@@ -105,6 +111,23 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 	}
 
+	func applyGateBadge(content: GateBadgeContent?) {
+		gateBadgeContent = content
+		guard let content else {
+			gateBadgePanel?.orderOut(nil)
+			return
+		}
+		let badge = gateBadgePanel ?? {
+			let panel = GateBadgePanel()
+			gateBadgePanel = panel
+			return panel
+		}()
+		badge.update(content: content)
+		if isPanelShown {
+			repositionAndShowGateBadge()
+		}
+	}
+
 	private func handleBubbleDismiss() {
 		attentionActive = false
 		apply(state: .idle, visualMode: currentMode)
@@ -117,6 +140,21 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			visibleFrame: visibleFrameProvider()
 		)
 		bubble.orderFrontRegardless()
+	}
+
+	private func repositionAndShowGateBadge() {
+		guard let content = gateBadgeContent else { return }
+		let badge = gateBadgePanel ?? {
+			let panel = GateBadgePanel()
+			gateBadgePanel = panel
+			return panel
+		}()
+		badge.reposition(
+			content: content,
+			relativeTo: lastPanelFrame,
+			visibleFrame: visibleFrameProvider()
+		)
+		badge.orderFrontRegardless()
 	}
 
 	func apply(state: ActivityState, visualMode: VisualMode) {
@@ -150,11 +188,20 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// bubble to the pet on every drag/resize tick. No persistence — runs hot.
 	private func reanchorChrome(to frame: CGRect) {
 		lastPanelFrame = frame
-		guard attentionActive, isPanelShown else { return }
-		attentionBubble?.reposition(
-			relativeTo: lastPanelFrame,
-			visibleFrame: visibleFrameProvider()
-		)
+		guard isPanelShown else { return }
+		if attentionActive {
+			attentionBubble?.reposition(
+				relativeTo: lastPanelFrame,
+				visibleFrame: visibleFrameProvider()
+			)
+		}
+		if let content = gateBadgeContent {
+			gateBadgePanel?.reposition(
+				content: content,
+				relativeTo: lastPanelFrame,
+				visibleFrame: visibleFrameProvider()
+			)
+		}
 	}
 
 	/// Committed frame change (mouseUp): re-anchor once more, then forward to the
@@ -211,6 +258,160 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			self?.onHideFloatingPet?()
 		}
 		return view
+	}
+}
+
+enum GateBadgeLayout {
+	static let horizontalPadding: CGFloat = 10
+	static let verticalPadding: CGFloat = 5
+	static let interBadgeSpacing: CGFloat = 6
+	static let margin: CGFloat = 4
+	static let cornerRadius: CGFloat = 8
+	static let badgeHeight: CGFloat = 24
+
+	static func frame(relativeTo petFrame: CGRect, badgeSize: CGSize, visibleFrame: CGRect) -> CGRect {
+		let rect = CGRect(
+			x: petFrame.minX,
+			y: petFrame.maxY,
+			width: badgeSize.width,
+			height: badgeSize.height
+		)
+		let safe = visibleFrame.insetBy(dx: margin, dy: margin)
+		let x = max(safe.minX, min(safe.maxX - rect.width, rect.minX))
+		let y = max(safe.minY, min(safe.maxY - rect.height, rect.minY))
+		return CGRect(x: x, y: y, width: rect.width, height: rect.height)
+	}
+}
+
+@MainActor
+final class GateBadgePanel: NSPanel {
+	private let badgeView = GateBadgeView(frame: .zero)
+
+	init() {
+		super.init(
+			contentRect: .zero,
+			styleMask: [.borderless, .nonactivatingPanel],
+			backing: .buffered,
+			defer: false
+		)
+		backgroundColor = .clear
+		isOpaque = false
+		hasShadow = false
+		level = .floating
+		collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+		hidesOnDeactivate = false
+		isReleasedWhenClosed = false
+		ignoresMouseEvents = true
+		contentView = badgeView
+	}
+
+	override var canBecomeKey: Bool { false }
+	override var canBecomeMain: Bool { false }
+
+	func update(content: GateBadgeContent) {
+		badgeView.configure(content: content)
+	}
+
+	func reposition(content: GateBadgeContent, relativeTo petFrame: CGRect, visibleFrame: CGRect) {
+		badgeView.configure(content: content)
+		let size = badgeView.preferredSize
+		let frame = GateBadgeLayout.frame(
+			relativeTo: petFrame,
+			badgeSize: size,
+			visibleFrame: visibleFrame
+		)
+		setFrame(frame, display: true)
+		badgeView.frame = NSRect(origin: .zero, size: frame.size)
+	}
+}
+
+private final class GateBadgeView: NSView {
+	private let stackView = NSStackView()
+	private let ticketBadge = GateBadgeTokenView(
+		backgroundColor: NSColor(calibratedRed: 0.22, green: 0.55, blue: 0.97, alpha: 1.0),
+		textColor: .white,
+		font: NSFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
+	)
+	private let gateBadge = GateBadgeTokenView(
+		backgroundColor: NSColor(calibratedWhite: 0.15, alpha: 0.96),
+		textColor: NSColor(calibratedWhite: 0.95, alpha: 1.0),
+		font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
+	)
+
+	override init(frame frameRect: NSRect) {
+		super.init(frame: frameRect)
+		stackView.orientation = .horizontal
+		stackView.spacing = GateBadgeLayout.interBadgeSpacing
+		stackView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(stackView)
+		stackView.addArrangedSubview(ticketBadge)
+		stackView.addArrangedSubview(gateBadge)
+		NSLayoutConstraint.activate([
+			stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			stackView.topAnchor.constraint(equalTo: topAnchor),
+			stackView.bottomAnchor.constraint(equalTo: bottomAnchor),
+		])
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func configure(content: GateBadgeContent) {
+		ticketBadge.configure(text: content.ticketId)
+		gateBadge.configure(text: content.gate)
+		layoutSubtreeIfNeeded()
+		invalidateIntrinsicContentSize()
+	}
+
+	var preferredSize: CGSize {
+		layoutSubtreeIfNeeded()
+		return stackView.fittingSize
+	}
+}
+
+private final class GateBadgeTokenView: NSView {
+	private let label = NSTextField(labelWithString: "")
+
+	init(backgroundColor: NSColor, textColor: NSColor, font: NSFont) {
+		super.init(frame: .zero)
+		wantsLayer = true
+		layer?.backgroundColor = backgroundColor.cgColor
+		layer?.cornerRadius = GateBadgeLayout.cornerRadius
+		label.textColor = textColor
+		label.font = font
+		label.lineBreakMode = .byTruncatingTail
+		label.maximumNumberOfLines = 1
+		label.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(label)
+		NSLayoutConstraint.activate([
+			heightAnchor.constraint(equalToConstant: GateBadgeLayout.badgeHeight),
+			label.leadingAnchor.constraint(
+				equalTo: leadingAnchor,
+				constant: GateBadgeLayout.horizontalPadding
+			),
+			label.trailingAnchor.constraint(
+				equalTo: trailingAnchor,
+				constant: -GateBadgeLayout.horizontalPadding
+			),
+			label.centerYAnchor.constraint(equalTo: centerYAnchor),
+		])
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func configure(text: String) {
+		label.stringValue = text
+		invalidateIntrinsicContentSize()
+	}
+
+	override var intrinsicContentSize: NSSize {
+		let textSize = label.intrinsicContentSize
+		return NSSize(
+			width: textSize.width + GateBadgeLayout.horizontalPadding * 2,
+			height: GateBadgeLayout.badgeHeight
+		)
 	}
 }
 

@@ -14,12 +14,14 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func hide()
 	func apply(state: ActivityState, visualMode: VisualMode)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
+	func applyGateBadge(content: GateBadgeContent?)
 	func setInteraction(_ interaction: FloatingInteraction?)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 }
 
 extension FloatingPetPanelManaging {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
+	func applyGateBadge(content: GateBadgeContent?) {}
 }
 
 @MainActor
@@ -101,6 +103,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
 		panel.applyAttention(payload: payload, sourceEvent: sourceEvent)
+	}
+
+	func applyGateBadge(content: GateBadgeContent?) {
+		panel.applyGateBadge(content: content)
 	}
 
 	func persistFrameChange(_ frame: CGRect) {

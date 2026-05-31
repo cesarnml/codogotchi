@@ -9,6 +9,7 @@ final class FloatingPetControllerTests: XCTestCase {
 		var shownFrames: [CGRect] = []
 		var hideCount = 0
 		var appliedStates: [(ActivityState, VisualMode)] = []
+		var appliedGateBadges: [GateBadgeContent?] = []
 		var frameChangeHandler: ((CGRect) -> Void)?
 
 		func show(frame: CGRect) {
@@ -21,6 +22,10 @@ final class FloatingPetControllerTests: XCTestCase {
 
 		func apply(state: ActivityState, visualMode: VisualMode) {
 			appliedStates.append((state, visualMode))
+		}
+
+		func applyGateBadge(content: GateBadgeContent?) {
+			appliedGateBadges.append(content)
 		}
 
 		func setInteraction(_ interaction: FloatingInteraction?) {
@@ -145,6 +150,24 @@ final class FloatingPetControllerTests: XCTestCase {
 			XCTAssertEqual(panel.appliedStates.count, 1)
 			XCTAssertEqual(panel.appliedStates[0].0, .errored)
 			XCTAssertEqual(panel.appliedStates[0].1, .desaturated)
+			XCTAssertEqual(panel.shownFrames, [])
+		}
+	}
+
+	func testApplyGateBadgeWhileHiddenReachesPanelChromeSink() throws {
+		try withTempHome { _ in
+			let initial = FloatingAppState(
+				isFloatingPetVisible: false,
+				frame: CGRect(x: 120, y: 160, width: 220, height: 180)
+			)
+			try AppStateStore.save(initial)
+			let panel = FloatingPetPanelSpy()
+			let controller = FloatingPetController(panel: panel, visibleFrameProvider: { self.visibleFrame })
+			let badge = GateBadgeContent(ticketId: "P8.01", gate: "open_pr")
+
+			controller.applyGateBadge(content: badge)
+
+			XCTAssertEqual(panel.appliedGateBadges, [badge])
 			XCTAssertEqual(panel.shownFrames, [])
 		}
 	}
@@ -318,5 +341,36 @@ final class FloatingPetControllerTests: XCTestCase {
 			XCTAssertEqual(panel.shownFrames.last, expectedFrame)
 			XCTAssertEqual(AppStateStore.load(visibleFrame: currentVisibleFrame).frame, expectedFrame)
 		}
+	}
+
+	func testGateBadgeLayoutAnchorsToPetTopLeftAboveFrame() {
+		let petFrame = CGRect(x: 120, y: 160, width: 220, height: 180)
+		let badgeSize = CGSize(width: 180, height: 24)
+		let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
+
+		let frame = GateBadgeLayout.frame(
+			relativeTo: petFrame,
+			badgeSize: badgeSize,
+			visibleFrame: visibleFrame
+		)
+
+		XCTAssertEqual(frame.minX, petFrame.minX, accuracy: 0.01)
+		XCTAssertEqual(frame.minY, petFrame.maxY, accuracy: 0.01)
+	}
+
+	func testGateBadgeLayoutClampsWithinVisibleFrame() {
+		let petFrame = CGRect(x: 460, y: 390, width: 80, height: 40)
+		let badgeSize = CGSize(width: 180, height: 24)
+		let visibleFrame = CGRect(x: 0, y: 0, width: 500, height: 400)
+
+		let frame = GateBadgeLayout.frame(
+			relativeTo: petFrame,
+			badgeSize: badgeSize,
+			visibleFrame: visibleFrame
+		)
+
+		XCTAssertGreaterThanOrEqual(frame.minX, visibleFrame.minX + GateBadgeLayout.margin - 0.01)
+		XCTAssertLessThanOrEqual(frame.maxX, visibleFrame.maxX - GateBadgeLayout.margin + 0.01)
+		XCTAssertLessThanOrEqual(frame.maxY, visibleFrame.maxY - GateBadgeLayout.margin + 0.01)
 	}
 }
