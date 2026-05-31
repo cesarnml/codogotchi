@@ -237,13 +237,13 @@ private final class AttentionBubbleView: NSView {
 		subtitleLabel.stringValue = reasonKind
 		infoButton.toolTip = reasonKind
 
-		// Configure action button label; "review_ready" is reserved — hide it.
+		// Action button always does the same thing: focus the source app
+		// (`performAction`). Both standby (input_requested) and error (error_blocked)
+		// therefore use "Focus" — "Reply" was a false promise (no app layer can send
+		// a prompt to the errored thread). "review_ready" is reserved — hide it.
 		switch reasonKind {
-		case "input_requested":
+		case "input_requested", "error_blocked":
 			actionButton.title = "Focus"
-			actionButton.isHidden = false
-		case "error_blocked":
-			actionButton.title = "Reply"
 			actionButton.isHidden = false
 		default:
 			actionButton.isHidden = true
