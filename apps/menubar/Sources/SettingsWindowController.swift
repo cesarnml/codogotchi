@@ -266,11 +266,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			.appendingPathComponent(".codogotchi")
 		let stateJsonPath = home.appendingPathComponent("state.json").path
 		let gateJsonPath = home.appendingPathComponent("gate.json").path
+		let deliveryContextPath = home.appendingPathComponent("delivery-context.json").path
 		let logPath = TransitionLog.defaultPath().path
 		let snapshot = appStateLoader().hooksStatus
 		return DeveloperTabViewModel(
 			stateJsonPath: stateJsonPath,
 			gateJsonPath: gateJsonPath,
+			deliveryContextPath: deliveryContextPath,
 			transitionLogPath: logPath,
 			hooksSnapshot: snapshot
 		)
@@ -798,6 +800,13 @@ private final class DeveloperTabView: NSView {
 		if let gatePretty = viewModel.gateJsonPretty {
 			lines.append("=== gate.json ===")
 			lines.append(gatePretty)
+			lines.append("")
+		}
+
+		// delivery-context.json
+		if let deliveryContextPretty = viewModel.deliveryContextPretty {
+			lines.append("=== delivery-context.json ===")
+			lines.append(deliveryContextPretty)
 		}
 
 		textView.string = lines.joined(separator: "\n")

@@ -133,7 +133,7 @@ final class TransitionLogTests: XCTestCase {
 			sourceEvent: SourceEvent(origin: "claude_code", kind: "tool_use", name: "Bash"),
 			attention: AttentionPayload(
 				expiresAt: nil,
-				summary: "Something went wrong — agent stopped",
+				summary: "Something went wrong",
 				reasonKind: "error_blocked"
 			),
 			toolCommand: "bun run ci"

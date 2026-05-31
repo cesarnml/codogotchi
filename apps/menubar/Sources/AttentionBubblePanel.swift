@@ -12,6 +12,8 @@ private enum BubbleLayout {
 	static let vPad: CGFloat = 9
 	static let cornerRadius: CGFloat = 10
 	static let iconSize: CGFloat = 18
+	static let closeButtonSize: CGFloat = 20
+	static let actionButtonHeight: CGFloat = 18
 	static let actionButtonWidth: CGFloat = 54
 
 	static func frame(relativeTo petFrame: CGRect, visibleFrame: CGRect) -> CGRect {
@@ -86,6 +88,69 @@ final class AttentionBubblePanel: NSPanel {
 // MARK: - View
 
 private final class AttentionBubbleView: NSView {
+	private final class HoverButton: NSButton {
+		private let normalBorderAlpha: CGFloat
+		private let hoverBorderAlpha: CGFloat
+		private let normalFillAlpha: CGFloat
+		private let hoverFillAlpha: CGFloat
+		private let borderBaseColor: NSColor
+		private let fillBaseColor: NSColor
+		private var trackingArea: NSTrackingArea?
+
+		init(
+			frame: NSRect = .zero,
+			normalBorderAlpha: CGFloat = 0.18,
+			hoverBorderAlpha: CGFloat = 0.44,
+			normalFillAlpha: CGFloat = 0.04,
+			hoverFillAlpha: CGFloat = 0.16,
+			borderBaseColor: NSColor = .white,
+			fillBaseColor: NSColor = .white
+		) {
+			self.normalBorderAlpha = normalBorderAlpha
+			self.hoverBorderAlpha = hoverBorderAlpha
+			self.normalFillAlpha = normalFillAlpha
+			self.hoverFillAlpha = hoverFillAlpha
+			self.borderBaseColor = borderBaseColor
+			self.fillBaseColor = fillBaseColor
+			super.init(frame: frame)
+			wantsLayer = true
+			layer?.masksToBounds = true
+			updateHoverStyle(isDirectlyHovered: false)
+		}
+
+		@available(*, unavailable)
+		required init?(coder: NSCoder) { nil }
+
+		override func updateTrackingAreas() {
+			super.updateTrackingAreas()
+			if let old = trackingArea { removeTrackingArea(old) }
+			let area = NSTrackingArea(
+				rect: bounds,
+				options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+				owner: self,
+				userInfo: nil
+			)
+			addTrackingArea(area)
+			trackingArea = area
+		}
+
+		override func mouseEntered(with event: NSEvent) {
+			updateHoverStyle(isDirectlyHovered: true)
+		}
+
+		override func mouseExited(with event: NSEvent) {
+			updateHoverStyle(isDirectlyHovered: false)
+		}
+
+		private func updateHoverStyle(isDirectlyHovered: Bool) {
+			let borderAlpha = isDirectlyHovered ? hoverBorderAlpha : normalBorderAlpha
+			let fillAlpha = isDirectlyHovered ? hoverFillAlpha : normalFillAlpha
+			layer?.borderColor = borderBaseColor.withAlphaComponent(borderAlpha).cgColor
+			layer?.borderWidth = 1
+			layer?.backgroundColor = fillBaseColor.withAlphaComponent(fillAlpha).cgColor
+		}
+	}
+
 	// Background
 	private let effectView = NSVisualEffectView(frame: .zero)
 
@@ -97,8 +162,20 @@ private final class AttentionBubbleView: NSView {
 	private let infoButton = NSButton(frame: .zero)
 
 	// Hover-revealed
-	private let dismissButton = NSButton(frame: .zero)
-	private let actionButton = NSButton(frame: .zero)
+	private let dismissButton = HoverButton(
+		normalBorderAlpha: 0.9,
+		hoverBorderAlpha: 1.0,
+		normalFillAlpha: 0.62,
+		hoverFillAlpha: 0.8,
+		borderBaseColor: NSColor(calibratedRed: 0.33, green: 0.35, blue: 0.42, alpha: 1.0),
+		fillBaseColor: NSColor(calibratedRed: 0.18, green: 0.19, blue: 0.24, alpha: 1.0)
+	)
+	private let actionButton = HoverButton(
+		normalBorderAlpha: 0.22,
+		hoverBorderAlpha: 0.52,
+		normalFillAlpha: 0.04,
+		hoverFillAlpha: 0.14
+	)
 
 	var onDismiss: (() -> Void)?
 
@@ -155,6 +232,8 @@ private final class AttentionBubbleView: NSView {
 			accessibility: "Dismiss",
 			selector: #selector(dismissBubble)
 		)
+		dismissButton.layer?.cornerRadius = BubbleLayout.closeButtonSize / 2
+		dismissButton.contentTintColor = NSColor(calibratedWhite: 0.86, alpha: 1.0)
 		dismissButton.alphaValue = 0
 		dismissButton.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(dismissButton)
@@ -165,6 +244,7 @@ private final class AttentionBubbleView: NSView {
 		actionButton.contentTintColor = NSColor(calibratedRed: 0.42, green: 0.72, blue: 1.0, alpha: 1.0)
 		actionButton.target = self
 		actionButton.action = #selector(performAction)
+		actionButton.layer?.cornerRadius = BubbleLayout.actionButtonHeight / 2
 		actionButton.alphaValue = 0
 		actionButton.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(actionButton)
@@ -180,37 +260,34 @@ private final class AttentionBubbleView: NSView {
 			effectView.topAnchor.constraint(equalTo: topAnchor),
 			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
-			// dismiss button — left edge, vertically centered
-			dismissButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: hPad - 2),
-			dismissButton.centerYAnchor.constraint(equalTo: centerYAnchor),
-			dismissButton.widthAnchor.constraint(equalToConstant: icon),
-			dismissButton.heightAnchor.constraint(equalToConstant: icon),
-
 			// info button — right edge, top row
 			infoButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -(hPad - 2)),
 			infoButton.topAnchor.constraint(equalTo: topAnchor, constant: vPad),
 			infoButton.widthAnchor.constraint(equalToConstant: icon),
 			infoButton.heightAnchor.constraint(equalToConstant: icon),
 
-			// summary — between dismiss and info, top row
-			summaryLabel.leadingAnchor.constraint(
-				equalTo: dismissButton.trailingAnchor, constant: 5),
+			// summary — uses the full left side; hover controls float above it.
+			summaryLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: hPad + 2),
 			summaryLabel.trailingAnchor.constraint(
 				equalTo: infoButton.leadingAnchor, constant: -4),
 			summaryLabel.topAnchor.constraint(equalTo: topAnchor, constant: vPad),
 
-			// action button — right edge, bottom row
-			actionButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -(hPad - 2)),
+			// subtitle — full-width by default; Focus overlays on hover.
+			subtitleLabel.leadingAnchor.constraint(equalTo: summaryLabel.leadingAnchor),
+			subtitleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -hPad),
+			subtitleLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -vPad),
+
+			// close button — hover-only circle, floating over the bubble chrome.
+			dismissButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: hPad - 1),
+			dismissButton.centerYAnchor.constraint(equalTo: summaryLabel.centerYAnchor),
+			dismissButton.widthAnchor.constraint(equalToConstant: BubbleLayout.closeButtonSize),
+			dismissButton.heightAnchor.constraint(equalToConstant: BubbleLayout.closeButtonSize),
+
+			// action button — hover-only pill right-aligned with the info icon.
+			actionButton.trailingAnchor.constraint(equalTo: infoButton.trailingAnchor),
 			actionButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -vPad),
 			actionButton.widthAnchor.constraint(equalToConstant: BubbleLayout.actionButtonWidth),
-			actionButton.heightAnchor.constraint(equalToConstant: 16),
-
-			// subtitle — bottom row, left side
-			subtitleLabel.leadingAnchor.constraint(
-				equalTo: dismissButton.trailingAnchor, constant: 5),
-			subtitleLabel.trailingAnchor.constraint(
-				equalTo: actionButton.leadingAnchor, constant: -4),
-			subtitleLabel.centerYAnchor.constraint(equalTo: actionButton.centerYAnchor),
+			actionButton.heightAnchor.constraint(equalToConstant: BubbleLayout.actionButtonHeight),
 		])
 
 		applyChromeStyle()

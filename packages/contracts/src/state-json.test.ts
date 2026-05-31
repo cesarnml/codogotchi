@@ -118,6 +118,21 @@ describe("work_mode field — removed in v4", () => {
   });
 });
 
+describe("source_event repo identity", () => {
+  it("accepts optional repo_root for workspace-aware badge clearing", () => {
+    const payload = {
+      ...baseV1Payload,
+      schema_version: 4,
+      source_event: {
+        ...baseV1Payload.source_event,
+        repo_root: "/repo/non-soa",
+      },
+    };
+    const parsed = parseStateJson(payload);
+    expect(parsed.source_event.repo_root).toBe("/repo/non-soa");
+  });
+});
+
 describe("backward compatibility for v1 and v2 payloads", () => {
   it("still parses a schema_version 1 payload as valid", () => {
     expect(() => stateJsonV1Schema.parse(baseV1Payload)).not.toThrow();

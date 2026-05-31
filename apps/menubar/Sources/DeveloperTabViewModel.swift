@@ -13,23 +13,26 @@ struct TransitionEntry: Equatable {
 
 /// Read-only observability aggregation for the Developer settings tab (P8.08).
 ///
-/// Reads state.json, gate.json, and the last 5 transition log entries at call
-/// time (no polling — call `refresh()` to update). All properties are computed
-/// lazily from the injected paths.
+/// Reads state.json, gate.json, delivery-context.json, and the last 5 transition
+/// log entries at call time (no polling — call `refresh()` to update). All
+/// properties are computed lazily from the injected paths.
 final class DeveloperTabViewModel {
 	let stateJsonPath: String
 	let gateJsonPath: String?
+	let deliveryContextPath: String?
 	let transitionLogPath: String
 	let hooksSnapshot: HooksStatusSnapshot?
 
 	init(
 		stateJsonPath: String,
 		gateJsonPath: String?,
+		deliveryContextPath: String? = nil,
 		transitionLogPath: String,
 		hooksSnapshot: HooksStatusSnapshot? = nil
 	) {
 		self.stateJsonPath = stateJsonPath
 		self.gateJsonPath = gateJsonPath
+		self.deliveryContextPath = deliveryContextPath
 		self.transitionLogPath = transitionLogPath
 		self.hooksSnapshot = hooksSnapshot
 	}
@@ -64,6 +67,19 @@ final class DeveloperTabViewModel {
 			let str = String(data: pretty, encoding: .utf8)
 		else {
 			return "(gate.json absent or unreadable)"
+		}
+		return str
+	}
+
+	/// Pretty-printed content of delivery-context.json, or nil when no path is configured.
+	var deliveryContextPretty: String? {
+		guard let path = deliveryContextPath else { return nil }
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+			let obj = (try? JSONSerialization.jsonObject(with: data)),
+			let pretty = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
+			let str = String(data: pretty, encoding: .utf8)
+		else {
+			return "(delivery-context.json absent or unreadable)"
 		}
 		return str
 	}

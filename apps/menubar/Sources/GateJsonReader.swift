@@ -37,6 +37,25 @@ struct GateBadgeContent: Equatable {
 	let gate: String
 }
 
+/// Durable SoA delivery context. Unlike `gate.json`, this file owns the
+/// persistent ticket/gate badges and is explicitly leased so stale context
+/// eventually clears even if a delivery run exits without a final gate.
+struct DeliveryContextSnapshot {
+	let owner: String
+	let status: String
+	let repoRoot: String?
+	let planKey: String?
+	let ticketId: String?
+	let lastGate: String?
+	let updatedAt: String?
+	let leaseExpiresAt: String?
+
+	func isExpired(now: Date = Date()) -> Bool {
+		guard let leaseExpiresAt else { return true }
+		return parseISO8601Date(leaseExpiresAt).map { $0 < now } ?? true
+	}
+}
+
 /// Reads `gate.json` from disk and returns either a decoded `GateSnapshot`
 /// or nil when the file is absent or malformed.
 ///
@@ -62,6 +81,28 @@ enum GateJsonReader {
 			expiresAt: expiresAt,
 			planKey: planKey,
 			ticketId: ticketId
+		)
+	}
+}
+
+enum DeliveryContextReader {
+	static func read(at path: String) -> DeliveryContextSnapshot? {
+		let url = URL(fileURLWithPath: path)
+		guard let data = try? Data(contentsOf: url) else { return nil }
+		guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+		else { return nil }
+		guard let owner = root["owner"] as? String,
+			let status = root["status"] as? String
+		else { return nil }
+		return DeliveryContextSnapshot(
+			owner: owner,
+			status: status,
+			repoRoot: root["repo_root"] as? String,
+			planKey: root["plan_key"] as? String,
+			ticketId: root["ticket_id"] as? String,
+			lastGate: root["last_gate"] as? String,
+			updatedAt: root["updated_at"] as? String,
+			leaseExpiresAt: root["lease_expires_at"] as? String
 		)
 	}
 }
@@ -93,20 +134,37 @@ func resolveActivityState(
 	return gateState
 }
 
-/// Persistent gate badge policy for the floating pet.
-///
-/// Rules:
-/// - expired gates still yield a badge; TTL only affects animation precedence
-/// - `ticket_completed` clears the badge lane
-/// - missing/empty `ticket_id` yields no badge because Phase 08 requires a
-///   two-badge pair (`ticket_id`, `gate`) rather than a partial widget
-func resolveGateBadgeContent(gate: GateSnapshot?) -> GateBadgeContent? {
-	guard let gate,
-		gate.gate != "ticket_completed",
-		let ticketId = gate.ticketId?.trimmingCharacters(in: .whitespacesAndNewlines),
-		!ticketId.isEmpty
+func resolveGateBadgeContent(
+	deliveryContext: DeliveryContextSnapshot?,
+	sourceEvent: SourceEvent?,
+	now: Date = Date()
+) -> GateBadgeContent? {
+	guard let deliveryContext,
+		deliveryContext.owner == "soa",
+		deliveryContext.status == "active",
+		!deliveryContext.isExpired(now: now),
+		let ticketId = deliveryContext.ticketId?.trimmingCharacters(in: .whitespacesAndNewlines),
+		!ticketId.isEmpty,
+		let gate = deliveryContext.lastGate?.trimmingCharacters(in: .whitespacesAndNewlines),
+		!gate.isEmpty
 	else {
 		return nil
 	}
-	return GateBadgeContent(ticketId: ticketId, gate: gate.gate)
+
+	if let activeRepo = sourceEvent?.repoRoot,
+		let contextRepo = deliveryContext.repoRoot,
+		activeRepo != contextRepo
+	{
+		return nil
+	}
+
+	return GateBadgeContent(ticketId: ticketId, gate: gate)
+}
+
+private func parseISO8601Date(_ string: String) -> Date? {
+	let formatter = ISO8601DateFormatter()
+	formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+	if let date = formatter.date(from: string) { return date }
+	formatter.formatOptions = [.withInternetDateTime]
+	return formatter.date(from: string)
 }

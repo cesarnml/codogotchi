@@ -149,35 +149,66 @@ final class GateJsonReaderTests: XCTestCase {
 
 	// MARK: - Persistent gate badge
 
-	func testExpiredGateStillProducesPersistentBadgeContent() {
-		let gate = makeGate(gate: "review_clean", expiresAt: pastDate())
-		let badge = resolveGateBadgeContent(gate: gate)
+	func testGateWithoutTicketIdDoesNotProducePartialBadge() {
+		let context = makeDeliveryContext(ticketId: nil)
+		XCTAssertNil(
+			resolveGateBadgeContent(deliveryContext: context, sourceEvent: nil),
+			"badge widget requires both the ticket_id and gate pills; partial gate payloads must not render half a badge"
+		)
+	}
+
+	func testActiveDeliveryContextProducesBadgeContent() {
+		let context = makeDeliveryContext()
+		let badge = resolveGateBadgeContent(deliveryContext: context, sourceEvent: nil)
 		XCTAssertEqual(
 			badge,
 			GateBadgeContent(ticketId: "P7.01", gate: "review_clean"),
-			"expired gates still drive the persistent badge; expiry only affects animation precedence"
+			"active delivery context owns the persistent badge lane"
 		)
 	}
 
-	func testTicketCompletedClearsPersistentBadgeContent() {
-		let gate = makeGate(gate: "ticket_completed", expiresAt: futureDate())
+	func testClearedDeliveryContextProducesNoBadge() {
+		let context = makeDeliveryContext(status: "cleared")
 		XCTAssertNil(
-			resolveGateBadgeContent(gate: gate),
-			"ticket_completed clears the badge lane instead of rendering a stale completed ticket badge"
+			resolveGateBadgeContent(deliveryContext: context, sourceEvent: nil),
+			"cleared delivery context must remove stale SoA badges"
 		)
 	}
 
-	func testGateWithoutTicketIdDoesNotProducePartialBadge() {
-		let gate = GateSnapshot(
-			gate: "open_pr",
-			since: "2026-05-29T12:00:00.000Z",
-			expiresAt: futureDate(),
-			planKey: "phase-07",
-			ticketId: nil
+	func testExpiredDeliveryContextLeaseProducesNoBadge() {
+		let context = makeDeliveryContext(leaseExpiresAt: pastDate())
+		XCTAssertNil(
+			resolveGateBadgeContent(deliveryContext: context, sourceEvent: nil),
+			"delivery context lease expiry clears stranded badge state"
+		)
+	}
+
+	func testDifferentHookRepoSuppressesDeliveryContextBadge() {
+		let context = makeDeliveryContext(repoRoot: "/repo/soa")
+		let sourceEvent = SourceEvent(
+			origin: "codex",
+			kind: "tool_use",
+			name: "Bash",
+			repoRoot: "/repo/non-soa"
 		)
 		XCTAssertNil(
-			resolveGateBadgeContent(gate: gate),
-			"badge widget requires both the ticket_id and gate pills; partial gate payloads must not render half a badge"
+			resolveGateBadgeContent(deliveryContext: context, sourceEvent: sourceEvent),
+			"newer hook activity from another repo must suppress stale SoA context"
+		)
+	}
+
+	func testSameHookRepoKeepsDeliveryContextBadge() {
+		let context = makeDeliveryContext(repoRoot: "/repo/soa")
+		let sourceEvent = SourceEvent(
+			origin: "codex",
+			kind: "tool_use",
+			name: "Bash",
+			repoRoot: "/repo/soa"
+		)
+		XCTAssertEqual(
+			resolveGateBadgeContent(deliveryContext: context, sourceEvent: sourceEvent),
+			GateBadgeContent(ticketId: "P7.01", gate: "review_clean"),
+			"same-repo hook activity may continue showing the active SoA context"
 		)
 	}
 
@@ -205,6 +236,25 @@ final class GateJsonReaderTests: XCTestCase {
 			expiresAt: expiresAt,
 			planKey: "phase-07",
 			ticketId: "P7.01"
+		)
+	}
+
+	private func makeDeliveryContext(
+		status: String = "active",
+		repoRoot: String? = "/repo/soa",
+		ticketId: String? = "P7.01",
+		lastGate: String? = "review_clean",
+		leaseExpiresAt: String? = "2099-01-01T00:00:00.000Z"
+	) -> DeliveryContextSnapshot {
+		DeliveryContextSnapshot(
+			owner: "soa",
+			status: status,
+			repoRoot: repoRoot,
+			planKey: "phase-07",
+			ticketId: ticketId,
+			lastGate: lastGate,
+			updatedAt: "2026-05-29T12:00:00.000Z",
+			leaseExpiresAt: leaseExpiresAt
 		)
 	}
 }

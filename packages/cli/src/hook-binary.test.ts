@@ -541,6 +541,22 @@ describe("runHook", () => {
     expect(state.hp_overlay).toBe("thriving");
     expect(state.updated_at).toBe(FIXED_NOW.toISOString());
     expect(state.source_event.name).toBe("Edit");
+    expect(state.source_event.repo_root).toBe(process.cwd());
+  });
+
+  it("writes source_event.repo_root from Cursor workspace_roots when present", async () => {
+    const repoRoot = join(tmpdir(), "codogotchi-workspace-root");
+    await runHook(
+      {
+        hook_event_name: "beforeShellExecution",
+        tool_input: { command: "bun test" },
+        workspace_roots: [repoRoot],
+      },
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.source_event.origin).toBe("cursor");
+    expect(state.source_event.repo_root).toBe(repoRoot);
   });
 
   it("layers HP from profile.json when present", async () => {
@@ -711,9 +727,7 @@ describe("runHook", () => {
     expect(state.activity_state).toBe("errored");
     expect(state.attention).toBeDefined();
     expect(state.attention?.reason_kind).toBe("error_blocked");
-    expect(state.attention?.summary).toBe(
-      "Something went wrong — agent stopped",
-    );
+    expect(state.attention?.summary).toBe("Something went wrong");
     expect(state.attention?.created_at).toBe(FIXED_NOW.toISOString());
     const expectedExpiry = new Date(
       FIXED_NOW.getTime() + 30 * 60 * 1000,

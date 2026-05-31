@@ -60,13 +60,16 @@ final class LivePollingDriver {
 	typealias ApplyGateBadge = (GateBadgeContent?) -> Void
 	typealias Reader = (String) -> Result<StateSnapshot, StateReadError>
 	typealias GateReader = (String) -> GateSnapshot?
+	typealias DeliveryContextReaderFn = (String) -> DeliveryContextSnapshot?
 
 	private let pollingTargetPath: String
 	private let gatePath: String?
+	private let deliveryContextPath: String?
 	private let apply: Apply
 	private let setTooltip: SetTooltip
 	private let reader: Reader
 	private let gateReader: GateReader
+	private let deliveryContextReader: DeliveryContextReaderFn
 	private let tickInterval: TimeInterval
 	private let transitionLog: TransitionLog?
 	private var codogotchiPet: CodogotchiPet?
@@ -75,9 +78,8 @@ final class LivePollingDriver {
 	/// or `sourceEvent.origin` changes between ticks. Second parameter is the
 	/// source origin from `source_event.origin` (e.g. `"claude_code"`, `"cursor"`).
 	var applyAttention: ApplyAttention?
-	/// Optional sink for persistent gate badge updates. Unlike animation
-	/// precedence, badge content does not expire when `expires_at` passes; it
-	/// only changes when the sidecar's ticket/gate payload changes.
+	/// Optional sink for persistent gate badge updates. Badge content comes from
+	/// `delivery-context.json`; `gate.json` remains only the animation pulse.
 	var applyGateBadge: ApplyGateBadge?
 
 	private var timer: Timer?
@@ -100,20 +102,24 @@ final class LivePollingDriver {
 	init(
 		pollingTargetPath: String,
 		gatePath: String? = nil,
+		deliveryContextPath: String? = nil,
 		apply: @escaping Apply,
 		setTooltip: @escaping SetTooltip,
 		reader: @escaping Reader = StateJsonReader.read(at:),
 		gateReader: @escaping GateReader = GateJsonReader.read(at:),
+		deliveryContextReader: @escaping DeliveryContextReaderFn = DeliveryContextReader.read(at:),
 		tickInterval: TimeInterval = 1.0,
 		transitionLog: TransitionLog? = nil,
 		codogotchiPet: CodogotchiPet? = nil
 	) {
 		self.pollingTargetPath = pollingTargetPath
 		self.gatePath = gatePath
+		self.deliveryContextPath = deliveryContextPath
 		self.apply = apply
 		self.setTooltip = setTooltip
 		self.reader = reader
 		self.gateReader = gateReader
+		self.deliveryContextReader = deliveryContextReader
 		self.tickInterval = tickInterval
 		self.transitionLog = transitionLog
 		self.codogotchiPet = codogotchiPet
@@ -188,11 +194,15 @@ final class LivePollingDriver {
 
 	private func decide(from result: Result<StateSnapshot, StateReadError>) -> Outcome {
 		let gate = gatePath.flatMap { gateReader($0) }
-		let gateBadge = resolveGateBadgeContent(gate: gate)
+		let deliveryContext = deliveryContextPath.flatMap { deliveryContextReader($0) }
 		switch result {
 		case .success(let snapshot):
 			let state = resolveActivityState(
 				gate: gate, hookState: snapshot.activityState, codogotchiPet: codogotchiPet)
+			let gateBadge = resolveGateBadgeContent(
+				deliveryContext: deliveryContext,
+				sourceEvent: snapshot.sourceEvent
+			)
 			return Outcome(
 				state: state,
 				mode: .normal,
@@ -202,18 +212,21 @@ final class LivePollingDriver {
 				gateBadge: gateBadge
 			)
 		case .failure(.fileNotFound):
+			let gateBadge = resolveGateBadgeContent(deliveryContext: deliveryContext, sourceEvent: nil)
 			return Outcome(
 				state: .idle, mode: .desaturated,
 				tooltip: LivePollingTooltips.noHookDetected,
 				attention: nil, sourceEvent: nil, gateBadge: gateBadge
 			)
 		case .failure(.malformed), .failure(.schemaMissingOrInvalid):
+			let gateBadge = resolveGateBadgeContent(deliveryContext: deliveryContext, sourceEvent: nil)
 			return Outcome(
 				state: .idle, mode: .desaturated,
 				tooltip: LivePollingTooltips.schemaMissing,
 				attention: nil, sourceEvent: nil, gateBadge: gateBadge
 			)
 		case .failure(.schemaNewer(let got, let expected)):
+			let gateBadge = resolveGateBadgeContent(deliveryContext: deliveryContext, sourceEvent: nil)
 			return Outcome(
 				state: .idle,
 				mode: .desaturated,

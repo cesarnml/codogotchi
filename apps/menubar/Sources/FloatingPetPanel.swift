@@ -335,19 +335,24 @@ enum GateBadgeLayout {
 
 	static func metrics(for petFrame: CGRect) -> Metrics {
 		let scale = max(0.75, min(1.5, petFrame.width / baselinePetWidth))
+		// Base 8.7 → max font 13.05 at the 1.5 cap, i.e. just a hair above the
+		// attention bubble's 12pt summary. Padding/height reduced to match the
+		// smaller type.
 		return Metrics(
-			horizontalPadding: round(10 * scale),
-			verticalPadding: round(5 * scale),
-			interBadgeSpacing: round(6 * scale),
-			cornerRadius: round(8 * scale),
-			badgeHeight: round(24 * scale),
-			fontSize: round(11 * scale * 10) / 10
+			horizontalPadding: round(8 * scale),
+			verticalPadding: round(4 * scale),
+			interBadgeSpacing: round(5 * scale),
+			cornerRadius: round(7 * scale),
+			badgeHeight: round(20 * scale),
+			fontSize: round(8.7 * scale * 10) / 10
 		)
 	}
 
 	static func frame(relativeTo petFrame: CGRect, badgeSize: CGSize, visibleFrame: CGRect) -> CGRect {
+		// Centered on the pet's horizontal midpoint, just above the top border —
+		// vertically symmetric with the bottom-centered animation badge.
 		let rect = CGRect(
-			x: petFrame.minX,
+			x: petFrame.midX - badgeSize.width / 2,
 			y: petFrame.maxY,
 			width: badgeSize.width,
 			height: badgeSize.height
@@ -390,6 +395,7 @@ final class GateBadgePanel: NSPanel {
 
 	func reposition(content: GateBadgeContent, relativeTo petFrame: CGRect, visibleFrame: CGRect) {
 		badgeView.configure(content: content, metrics: GateBadgeLayout.metrics(for: petFrame))
+		// Hug the stacked tokens (ticket over gate, both left-aligned).
 		let size = badgeView.preferredSize
 		let frame = GateBadgeLayout.frame(
 			relativeTo: petFrame,
@@ -402,21 +408,28 @@ final class GateBadgePanel: NSPanel {
 }
 
 private final class GateBadgeView: NSView {
+	/// Dark-navy tint for the ticket token — keeps a blue hue but much darker
+	/// than the old bright blue, layered over the frosted material.
+	private static let ticketTint = NSColor(calibratedRed: 0.10, green: 0.18, blue: 0.33, alpha: 0.90)
+
 	private let stackView = NSStackView()
 	private let ticketBadge = GateBadgeTokenView(
-		backgroundColor: NSColor(calibratedRed: 0.22, green: 0.55, blue: 0.97, alpha: 1.0),
+		tintColor: GateBadgeView.ticketTint,
 		textColor: .white,
 		weight: .semibold
 	)
 	private let gateBadge = GateBadgeTokenView(
-		backgroundColor: NSColor(calibratedWhite: 0.15, alpha: 0.96),
+		tintColor: nil,
 		textColor: NSColor(calibratedWhite: 0.95, alpha: 1.0),
 		weight: .medium
 	)
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
-		stackView.orientation = .horizontal
+		// Vertical, centered: ticket token on top, gate token below, each centered
+		// on the stack's midline (and the stack is centered on the pet).
+		stackView.orientation = .vertical
+		stackView.alignment = .centerX
 		stackView.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(stackView)
 		stackView.addArrangedSubview(ticketBadge)
@@ -435,21 +448,34 @@ private final class GateBadgeView: NSView {
 	func configure(content: GateBadgeContent, metrics: GateBadgeLayout.Metrics) {
 		stackView.spacing = metrics.interBadgeSpacing
 		ticketBadge.configure(text: content.ticketId, metrics: metrics)
-		gateBadge.configure(text: content.gate, metrics: metrics)
+		gateBadge.configure(text: GateBadgeView.gateLabel(content.gate), metrics: metrics)
 		layoutSubtreeIfNeeded()
-		invalidateIntrinsicContentSize()
 	}
 
 	var preferredSize: CGSize {
 		layoutSubtreeIfNeeded()
 		return stackView.fittingSize
 	}
+
+	/// Human-readable, concise gate label. Reuses `ActivityState.displayLabel`
+	/// (the gate states map 1:1 to activity states), falling back to the raw
+	/// string for any unknown gate.
+	static func gateLabel(_ rawGate: String) -> String {
+		ActivityState(rawValue: rawGate)?.displayLabel ?? rawGate
+	}
 }
 
+/// Frosted badge token matching the attention bubble / animation badge chrome:
+/// a `hudWindow` visual-effect material, hairline white border, soft shadow.
+/// `tintColor` layers a translucent hue over the material (used for the ticket
+/// token's dark navy); pass `nil` for the neutral dark gate token.
 private final class GateBadgeTokenView: NSView {
+	private let effectView = NSVisualEffectView(frame: .zero)
+	private let tintView = NSView(frame: .zero)
 	private let label = NSTextField(labelWithString: "")
 	private let textColor: NSColor
 	private let weight: NSFont.Weight
+	private let tintColor: NSColor?
 	private var metrics = GateBadgeLayout.metrics(
 		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
 	)
@@ -457,17 +483,33 @@ private final class GateBadgeTokenView: NSView {
 	private var leadingConstraint: NSLayoutConstraint?
 	private var trailingConstraint: NSLayoutConstraint?
 
-	init(backgroundColor: NSColor, textColor: NSColor, weight: NSFont.Weight) {
+	init(tintColor: NSColor?, textColor: NSColor, weight: NSFont.Weight) {
+		self.tintColor = tintColor
 		self.textColor = textColor
 		self.weight = weight
 		super.init(frame: .zero)
 		wantsLayer = true
-		layer?.backgroundColor = backgroundColor.cgColor
+		layer?.masksToBounds = false
+
+		effectView.material = .hudWindow
+		effectView.blendingMode = .behindWindow
+		effectView.state = .active
+		effectView.appearance = NSAppearance(named: .darkAqua)
+		effectView.wantsLayer = true
+		effectView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(effectView)
+
+		tintView.wantsLayer = true
+		tintView.layer?.backgroundColor = (tintColor ?? .clear).cgColor
+		tintView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(tintView)
+
 		label.textColor = textColor
 		label.lineBreakMode = .byTruncatingTail
 		label.maximumNumberOfLines = 1
 		label.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(label)
+
 		let heightConstraint = heightAnchor.constraint(equalToConstant: metrics.badgeHeight)
 		let leadingConstraint = label.leadingAnchor.constraint(
 			equalTo: leadingAnchor,
@@ -481,6 +523,14 @@ private final class GateBadgeTokenView: NSView {
 		self.leadingConstraint = leadingConstraint
 		self.trailingConstraint = trailingConstraint
 		NSLayoutConstraint.activate([
+			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			effectView.topAnchor.constraint(equalTo: topAnchor),
+			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			tintView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			tintView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			tintView.topAnchor.constraint(equalTo: topAnchor),
+			tintView.bottomAnchor.constraint(equalTo: bottomAnchor),
 			heightConstraint,
 			leadingConstraint,
 			trailingConstraint,
@@ -499,6 +549,11 @@ private final class GateBadgeTokenView: NSView {
 		invalidateIntrinsicContentSize()
 	}
 
+	override func layout() {
+		super.layout()
+		applyMetrics()
+	}
+
 	override var intrinsicContentSize: NSSize {
 		let textSize = label.intrinsicContentSize
 		return NSSize(
@@ -508,7 +563,17 @@ private final class GateBadgeTokenView: NSView {
 	}
 
 	private func applyMetrics() {
+		effectView.layer?.cornerRadius = metrics.cornerRadius
+		effectView.layer?.masksToBounds = true
+		tintView.layer?.cornerRadius = metrics.cornerRadius
+		tintView.layer?.masksToBounds = true
 		layer?.cornerRadius = metrics.cornerRadius
+		layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
+		layer?.borderWidth = 1
+		layer?.shadowColor = NSColor.black.cgColor
+		layer?.shadowOpacity = 0.32
+		layer?.shadowRadius = 8
+		layer?.shadowOffset = CGSize(width: 0, height: -2)
 		label.font = NSFont.monospacedSystemFont(ofSize: metrics.fontSize, weight: weight)
 		label.textColor = textColor
 		heightConstraint?.constant = metrics.badgeHeight

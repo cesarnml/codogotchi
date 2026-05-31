@@ -248,9 +248,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				.deletingLastPathComponent()
 				.appendingPathComponent("gate.json")
 				.path
+			let deliveryContextPath = config.pollingTarget
+				.deletingLastPathComponent()
+				.appendingPathComponent("delivery-context.json")
+				.path
 			let driver = LivePollingDriver(
 				pollingTargetPath: config.pollingTarget.path,
 				gatePath: gateJsonPath,
+				deliveryContextPath: deliveryContextPath,
 				apply: { state, mode in
 					stateFanout.apply(state: state, visualMode: mode)
 				},

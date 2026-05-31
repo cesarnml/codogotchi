@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import type { ResolvedOrchestratorConfig } from './config';
 
@@ -8,6 +8,7 @@ import type { ResolvedOrchestratorConfig } from './config';
  *  now the durable signal for which gate is active, so the animation only needs
  *  to mark the transition briefly rather than hold for minutes. */
 const GATE_TTL_MS = 30_000;
+const DELIVERY_CONTEXT_LEASE_MS = 6 * 60 * 60 * 1000;
 
 /** Canonical gate-name strings matching the codogotchi schema-v4 ActivityState contract */
 export const GATE_NAMES = {
@@ -26,6 +27,7 @@ export type GateEvent = {
   gate: (typeof GATE_NAMES)[keyof typeof GATE_NAMES];
   planKey: string;
   ticketId: string;
+  repoRoot?: string;
 };
 
 export type GateJsonPayload = {
@@ -38,6 +40,18 @@ export type GateJsonPayload = {
 
 const GATE_JSON_FILENAME = 'gate.json';
 const GATE_TRANSITIONS_LOG_FILENAME = 'gate-transitions.log';
+const DELIVERY_CONTEXT_JSON_FILENAME = 'delivery-context.json';
+
+export type DeliveryContextJsonPayload = {
+  owner: 'soa';
+  status: 'active' | 'cleared';
+  repo_root: string;
+  plan_key: string;
+  ticket_id: string;
+  last_gate: string;
+  updated_at: string;
+  lease_expires_at: string;
+};
 
 export function resolveCodogotchiHome(): string {
   return process.env['CODOGOTCHI_HOME'] || join(homedir(), '.codogotchi');
@@ -52,6 +66,7 @@ export async function writeGateEvent(
     const home = resolveCodogotchiHome();
     const since = new Date();
     const expiresAt = new Date(since.getTime() + GATE_TTL_MS);
+    const repoRoot = resolve(event.repoRoot ?? process.cwd());
     const payload: GateJsonPayload = {
       gate: event.gate,
       since: since.toISOString(),
@@ -63,6 +78,25 @@ export async function writeGateEvent(
     const serialized = JSON.stringify(payload);
     writeFileSync(join(home, GATE_JSON_FILENAME), serialized, 'utf8');
     appendFileSync(join(home, GATE_TRANSITIONS_LOG_FILENAME), `${serialized}\n`, 'utf8');
+
+    const contextPayload: DeliveryContextJsonPayload = {
+      owner: 'soa',
+      status:
+        event.gate === GATE_NAMES.TICKET_COMPLETED ? 'cleared' : 'active',
+      repo_root: repoRoot,
+      plan_key: event.planKey,
+      ticket_id: event.ticketId,
+      last_gate: event.gate,
+      updated_at: since.toISOString(),
+      lease_expires_at: new Date(
+        since.getTime() + DELIVERY_CONTEXT_LEASE_MS,
+      ).toISOString(),
+    };
+    writeFileSync(
+      join(home, DELIVERY_CONTEXT_JSON_FILENAME),
+      JSON.stringify(contextPayload),
+      'utf8',
+    );
   } catch {
     // best-effort: write failures never abort a delivery command
   }

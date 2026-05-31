@@ -343,7 +343,7 @@ final class FloatingPetControllerTests: XCTestCase {
 		}
 	}
 
-	func testGateBadgeLayoutAnchorsToPetTopLeftAboveFrame() {
+	func testGateBadgeLayoutCentersAbovePetFrame() {
 		let petFrame = CGRect(x: 120, y: 160, width: 220, height: 180)
 		let badgeSize = CGSize(width: 180, height: 24)
 		let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
@@ -354,7 +354,9 @@ final class FloatingPetControllerTests: XCTestCase {
 			visibleFrame: visibleFrame
 		)
 
-		XCTAssertEqual(frame.minX, petFrame.minX, accuracy: 0.01)
+		// Centered on the pet (symmetric with the bottom-centered animation badge),
+		// sitting just above the top border.
+		XCTAssertEqual(frame.midX, petFrame.midX, accuracy: 0.01)
 		XCTAssertEqual(frame.minY, petFrame.maxY, accuracy: 0.01)
 	}
 

@@ -30,7 +30,7 @@ Before committing: run `bun run format` **first**, then stage, then commit. Use 
 
 ## Codogotchi Gate Sidecar
 
-When `codogotchi.enabled` is not set to `false` in `orchestrator.config.json` (the default), SoA delivery commands write the current delivery gate to a global JSON sidecar at `$CODOGOTCHI_HOME/gate.json` (default `~/.codogotchi/gate.json`). They also append each emitted gate payload to `$CODOGOTCHI_HOME/gate-transitions.log`. The codogotchi renderer reads `gate.json` directly to drive Mali's animation state at recognized delivery gate points; `gate-transitions.log` is append-only telemetry for reconstructing which gates fired for a ticket and the exact emitted TTL windows.
+When `codogotchi.enabled` is not set to `false` in `orchestrator.config.json` (the default), SoA delivery commands write the current delivery gate to a global JSON sidecar at `$CODOGOTCHI_HOME/gate.json` (default `~/.codogotchi/gate.json`). They also append each emitted gate payload to `$CODOGOTCHI_HOME/gate-transitions.log` and write durable badge context to `$CODOGOTCHI_HOME/delivery-context.json`. The codogotchi renderer reads `gate.json` to drive short-lived animation state and reads `delivery-context.json` to drive the persistent ticket/gate badges.
 
 **Gate JSON shape:**
 
@@ -44,6 +44,21 @@ When `codogotchi.enabled` is not set to `false` in `orchestrator.config.json` (t
 }
 ```
 
+**Delivery context JSON shape:**
+
+```json
+{
+  "owner": "soa",
+  "status": "active | cleared",
+  "repo_root": "<absolute-repo-root>",
+  "plan_key": "<plan-key>",
+  "ticket_id": "<ticket-id>",
+  "last_gate": "<gate-name>",
+  "updated_at": "<ISO timestamp>",
+  "lease_expires_at": "<ISO timestamp>"
+}
+```
+
 **Recognized gate names** (codogotchi schema-v4 ActivityState contract):
 `ticket_started`, `ticket_completed`, `red_tdd`, `green_tdd`, `adversarial_review`, `open_pr`, `poll_review`, `record_review`, `review_clean`
 
@@ -51,11 +66,12 @@ When `codogotchi.enabled` is not set to `false` in `orchestrator.config.json` (t
 
 - **Single global file.** `gate.json` is last-write-wins. One pet shows one current gate across all concurrent delivery runs.
 - **Append-only telemetry log.** `gate-transitions.log` records every emitted gate payload as one JSON line, preserving transition order and the exact `{ since, expires_at }` window written for that emission.
-- **Flat 30-second TTL.** `expires_at = since + 30s`. The renderer uses this for animation expiry without an explicit clear mechanism; the persistent UI gate badges carry the durable "which gate is active" signal, so the animation only marks the transition briefly.
+- **Flat 30-second gate TTL.** `expires_at = since + 30s`. The renderer uses this only for animation expiry; persistent badges come from `delivery-context.json`.
+- **Leased durable badges.** `delivery-context.json` uses `status: "active"` plus `lease_expires_at` for badge visibility. `ticket_completed` writes `status: "cleared"`, and newer hook activity from a different `source_event.repo_root` suppresses the badge immediately.
 - **Emit-then-action.** Each gate is written before the delivery command's primary side effect (PR creation, polling, recording, etc.) to extend the visible animation window.
 - **Best-effort.** Write failures are silently swallowed — no delivery command aborts due to a gate write error.
 - **Config gate.** Setting `codogotchi.enabled: false` in `orchestrator.config.json` suppresses all writes; no `~/.codogotchi/` directory is created.
-- **No explicit clear.** The renderer relies on `expires_at` and next-gate overwrites. There is no `deliver complete` or session-end clear.
+- **Explicit clear for badges.** Gate animation still expires by TTL, but persistent badges clear on `ticket_completed`, delivery-context lease expiry, or cross-repo hook activity.
 
 **The `~/.codogotchi/` directory is global and user-scoped** — not consumer-repo-local. No `.gitignore` entry is needed.
 

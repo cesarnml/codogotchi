@@ -35,6 +35,10 @@ final class LivePollingTests: XCTestCase {
 		statePath.deletingLastPathComponent().appendingPathComponent("gate.json")
 	}
 
+	private func makeSiblingDeliveryContextPath(for statePath: URL) -> URL {
+		statePath.deletingLastPathComponent().appendingPathComponent("delivery-context.json")
+	}
+
 	private func copyFixture(_ name: String, to target: URL) throws {
 		let src = fixturesDirectory().appendingPathComponent(name)
 		let data = try Data(contentsOf: src)
@@ -49,10 +53,16 @@ final class LivePollingTests: XCTestCase {
 		var gateBadges: [GateBadgeContent?] = []
 	}
 
-	private func makeDriver(target: URL, recorder: Recorder, gatePath: URL? = nil) -> LivePollingDriver {
+	private func makeDriver(
+		target: URL,
+		recorder: Recorder,
+		gatePath: URL? = nil,
+		deliveryContextPath: URL? = nil
+	) -> LivePollingDriver {
 		let driver = LivePollingDriver(
 			pollingTargetPath: target.path,
 			gatePath: gatePath?.path,
+			deliveryContextPath: deliveryContextPath?.path,
 			apply: { state, mode in recorder.renders.append((state, mode)) },
 			setTooltip: { tip in recorder.tooltips.append(tip) }
 		)
@@ -68,6 +78,19 @@ final class LivePollingTests: XCTestCase {
 	) throws {
 		try """
 			{"gate":"\(gate)","since":"2026-01-01T00:00:00Z","expires_at":"\(expiresAt)","plan_key":"phase-07","ticket_id":"\(ticketId)"}
+			""".write(to: target, atomically: true, encoding: .utf8)
+	}
+
+	private func writeDeliveryContextJson(
+		_ target: URL,
+		status: String = "active",
+		repoRoot: String = "/repo/soa",
+		gate: String = "review_clean",
+		ticketId: String = "P7.01",
+		leaseExpiresAt: String = "2099-01-01T00:00:00.000Z"
+	) throws {
+		try """
+			{"owner":"soa","status":"\(status)","repo_root":"\(repoRoot)","plan_key":"phase-07","ticket_id":"\(ticketId)","last_gate":"\(gate)","updated_at":"2026-01-01T00:00:00Z","lease_expires_at":"\(leaseExpiresAt)"}
 			""".write(to: target, atomically: true, encoding: .utf8)
 	}
 
@@ -181,13 +204,20 @@ final class LivePollingTests: XCTestCase {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
 		let gatePath = makeSiblingGatePath(for: target)
+		let deliveryContextPath = makeSiblingDeliveryContextPath(for: target)
 		try copyFixture("implementing.json", to: target)
 		try writeGateJson(
 			gatePath,
 			gate: "review_clean",
 			expiresAt: "2020-01-01T00:00:00.000Z"
 		)
-		let driver = makeDriver(target: target, recorder: recorder, gatePath: gatePath)
+		try writeDeliveryContextJson(deliveryContextPath)
+		let driver = makeDriver(
+			target: target,
+			recorder: recorder,
+			gatePath: gatePath,
+			deliveryContextPath: deliveryContextPath
+		)
 
 		driver.tickForTesting()
 
@@ -195,7 +225,7 @@ final class LivePollingTests: XCTestCase {
 		XCTAssertEqual(
 			recorder.gateBadges,
 			[GateBadgeContent(ticketId: "P7.01", gate: "review_clean")],
-			"badge survives past expires_at even though render precedence falls through to the hook state"
+			"delivery-context.json, not expired gate.json, owns the persistent badge"
 		)
 	}
 
@@ -203,13 +233,20 @@ final class LivePollingTests: XCTestCase {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
 		let gatePath = makeSiblingGatePath(for: target)
+		let deliveryContextPath = makeSiblingDeliveryContextPath(for: target)
 		try copyFixture("implementing.json", to: target)
 		try writeGateJson(
 			gatePath,
 			gate: "ticket_completed",
 			expiresAt: "2099-01-01T00:00:00.000Z"
 		)
-		let driver = makeDriver(target: target, recorder: recorder, gatePath: gatePath)
+		try writeDeliveryContextJson(deliveryContextPath, status: "cleared", gate: "ticket_completed")
+		let driver = makeDriver(
+			target: target,
+			recorder: recorder,
+			gatePath: gatePath,
+			deliveryContextPath: deliveryContextPath
+		)
 
 		driver.tickForTesting()
 
@@ -219,6 +256,37 @@ final class LivePollingTests: XCTestCase {
 			[nil],
 			"ticket_completed clears the persistent badge lane instead of leaving a stale completed-ticket chip"
 		)
+	}
+
+	func testDifferentRepoHookActivitySuppressesDeliveryContextBadge() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		let deliveryContextPath = makeSiblingDeliveryContextPath(for: target)
+		try #"""
+		{
+		  "schema_version": 1,
+		  "activity_state": "implementing",
+		  "hp_overlay": "thriving",
+		  "hp": 90,
+		  "updated_at": "2026-05-29T00:00:00.000Z",
+		  "source_event": {
+		    "origin": "codex",
+		    "kind": "tool_use",
+		    "name": "Bash",
+		    "repo_root": "/repo/non-soa"
+		  }
+		}
+		"""#.write(to: target, atomically: true, encoding: .utf8)
+		try writeDeliveryContextJson(deliveryContextPath, repoRoot: "/repo/soa")
+		let driver = makeDriver(
+			target: target,
+			recorder: recorder,
+			deliveryContextPath: deliveryContextPath
+		)
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(recorder.gateBadges, [nil])
 	}
 
 	// MARK: - Transition

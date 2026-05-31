@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rmdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { resolve, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import {
   type ActivityState,
@@ -130,6 +130,13 @@ export function detectTerminalBundleId(
   // the IDE spawns the shell directly without going through login(1).
   if (env.__CFBundleIdentifier) return env.__CFBundleIdentifier;
   return undefined;
+}
+
+function detectRepoRoot(input: HookInput, env: NodeJS.ProcessEnv): string {
+  const cursorRoot = input.workspace_roots?.find(
+    (root) => typeof root === "string" && root.trim().length > 0,
+  );
+  return resolve(cursorRoot ?? env.PWD ?? process.cwd());
 }
 
 function rawHookOrigin(input: HookInput): SourceEventOrigin {
@@ -420,7 +427,7 @@ function buildAttention(
   if (state === "errored") {
     return {
       reason_kind: "error_blocked",
-      summary: "Something went wrong — agent stopped",
+      summary: "Something went wrong",
       created_at: now.toISOString(),
       expires_at: new Date(now.getTime() + ERRORED_TTL_MS).toISOString(),
     };
@@ -444,8 +451,10 @@ export async function runHook(
 
     const activityState = classified.state;
     const terminalBundleId = detectTerminalBundleId(process.env);
+    const repoRoot = detectRepoRoot(input, process.env);
     const sourceEvent: SourceEvent = {
       ...classified.sourceEvent,
+      repo_root: repoRoot,
       ...(terminalBundleId !== undefined && {
         terminal_bundle_id: terminalBundleId,
       }),
