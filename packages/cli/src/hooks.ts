@@ -234,12 +234,30 @@ function isCodeVibeCommand(command: string): boolean {
   return command.includes("@quantiya/codevibe");
 }
 
+// Match the `codogotchi-hook` executable token precisely — preceded by a
+// start, whitespace, quote, or path separator and followed by an end, whitespace,
+// or quote. A raw substring match would over-match unrelated user hooks such as
+// `/x/codogotchi-hook-wrapper` and silently delete them on install/uninstall or
+// report them as installed in `hooksStatus`. This still matches the bare name,
+// an absolute `/abs/codogotchi-hook`, and a shell-quoted `'/abs/codogotchi-hook'`.
+const CODOGOTCHI_COMMAND_TOKEN = /(?:^|[\s'"/])codogotchi-hook(?=$|[\s'"])/;
+
 function isCodogotchiCommand(command: string): boolean {
-  return command.includes(CODOGOTCHI_COMMAND);
+  return CODOGOTCHI_COMMAND_TOKEN.test(command);
 }
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+// Characters safe to leave unquoted in a `/bin/sh -c` command word. Quoting is
+// applied only when the resolved command contains anything outside this set, so
+// the bare dev-fallback name and a no-space bundle path stay byte-identical to
+// prior behavior while a bundle path containing spaces becomes shell-safe.
+const SHELL_SAFE = /^[A-Za-z0-9_@%+=:,./-]+$/;
+
+function shellQuoteIfNeeded(value: string): string {
+  return SHELL_SAFE.test(value) ? value : shellQuote(value);
 }
 
 function codexHookCommand(ctx: InstallHooksContext, command: string): string {
@@ -249,7 +267,7 @@ function codexHookCommand(ctx: InstallHooksContext, command: string): string {
   return [
     `CODOGOTCHI_HOME=${shellQuote(ctx.home)}`,
     `CODOGOTCHI_ORIGIN=codex`,
-    command,
+    shellQuoteIfNeeded(command),
   ].join(" ");
 }
 
@@ -268,7 +286,9 @@ function withCodogotchiMatcher(
   );
   others.push({
     matcher: "",
-    hooks: [{ type: "command", command }],
+    // Claude Code runs the command through a shell, so an absolute bundle path
+    // containing spaces must be quoted to spawn as a single token.
+    hooks: [{ type: "command", command: shellQuoteIfNeeded(command) }],
   });
   return others;
 }
