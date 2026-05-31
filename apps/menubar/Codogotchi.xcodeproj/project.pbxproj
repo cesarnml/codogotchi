@@ -33,6 +33,10 @@
 		98EBA9B7E29244B21755C4F5 /* FloatingPetControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CE9EFEFECAFAC8156F61DF7 /* FloatingPetControllerTests.swift */; };
 		99C8B80FE0466C9BB1B58C51 /* BundledMaewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E7256729C3F274DFB3A5204 /* BundledMaewTests.swift */; };
 		9B062BB29847EA8ABCE06338 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F03E85F706D8680019622FDC /* SettingsWindowController.swift */; };
+		A1B2C3D4E5F600000000B001 /* SettingsTabModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000A001 /* SettingsTabModel.swift */; };
+		A1B2C3D4E5F600000000B002 /* AboutViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000A002 /* AboutViewModel.swift */; };
+		A1B2C3D4E5F600000000B003 /* SettingsTabModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000A003 /* SettingsTabModelTests.swift */; };
+		A1B2C3D4E5F600000000B004 /* AboutViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000A004 /* AboutViewModelTests.swift */; };
 		A28BAB9D5F23FFBE6C429720 /* CodogotchiPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */; };
 		A691496525517AB5789BB108 /* MenubarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21EFB1B7FE8C49C6377A2B2 /* MenubarApp.swift */; };
 		A867342EFD852FB363D4DD7C /* FloatingPetPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C473FDED57B163FBBB6F3CF1 /* FloatingPetPanel.swift */; };
@@ -125,6 +129,10 @@
 		E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStoreSeeder.swift; sourceTree = "<group>"; };
 		EA899400094213B8A814D114 /* FloatingPetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetController.swift; sourceTree = "<group>"; };
 		F03E85F706D8680019622FDC /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000A001 /* SettingsTabModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabModel.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000A002 /* AboutViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModel.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000A003 /* SettingsTabModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabModelTests.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000A004 /* AboutViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModelTests.swift; sourceTree = "<group>"; };
 		F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRendererTests.swift; sourceTree = "<group>"; };
 		F60153C0C8806DC3EB2137C9 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		FB013AD16C8FDB083F522012 /* ActivityState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityState.swift; sourceTree = "<group>"; };
@@ -134,6 +142,7 @@
 		54B43C94653838124A5E18F5 /* MenubarTests */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F600000000A004 /* AboutViewModelTests.swift */,
 				5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */,
 				B8F15B1B99434EA9F9005052 /* AppStateTests.swift */,
 				9E7256729C3F274DFB3A5204 /* BundledMaewTests.swift */,
@@ -153,6 +162,7 @@
 				6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */,
 				079E19BBF7A258650F759E72 /* PetStateFanoutTests.swift */,
 				DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */,
+				A1B2C3D4E5F600000000A003 /* SettingsTabModelTests.swift */,
 				9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */,
 				5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */,
 			);
@@ -196,7 +206,9 @@
 				16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */,
 				49C42121B54C0F2313BB1114 /* PetStateFanout.swift */,
 				E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */,
+				A1B2C3D4E5F600000000A002 /* AboutViewModel.swift */,
 				73B325A85B9C3A8AFB02C5BA /* SettingsController.swift */,
+				A1B2C3D4E5F600000000A001 /* SettingsTabModel.swift */,
 				F03E85F706D8680019622FDC /* SettingsWindowController.swift */,
 				8BC14DBFFFD8DF9F8C3DDA8F /* StateJsonReader.swift */,
 				DABEF68EEC70787763CE3E3D /* TransitionLog.swift */,
@@ -376,7 +388,9 @@
 				4C800549CEEB194A42237701 /* PetImportHelper.swift in Sources */,
 				D48C3FDB43E1FA8E01113439 /* PetStateFanout.swift in Sources */,
 				36D30A2BA8D14CA1D7D62D1C /* PetStoreSeeder.swift in Sources */,
+				A1B2C3D4E5F600000000B002 /* AboutViewModel.swift in Sources */,
 				71AFF145FBC55826CFD98324 /* SettingsController.swift in Sources */,
+				A1B2C3D4E5F600000000B001 /* SettingsTabModel.swift in Sources */,
 				9B062BB29847EA8ABCE06338 /* SettingsWindowController.swift in Sources */,
 				DB71B313809B37E9F1F2EA32 /* StateJsonReader.swift in Sources */,
 				CAB640A6BB3B62D88C3DC0FC /* TransitionLog.swift in Sources */,
@@ -387,6 +401,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D4E5F600000000B004 /* AboutViewModelTests.swift in Sources */,
 				2C985DFC0C4B11F3C3BF69F9 /* AppBootstrapTests.swift in Sources */,
 				BA3F2EF6D3F5E093C9DFFBE9 /* AppStateTests.swift in Sources */,
 				99C8B80FE0466C9BB1B58C51 /* BundledMaewTests.swift in Sources */,
@@ -406,6 +421,7 @@
 				B20913FC5559EE95F7E4E2BA /* PetImportHelperTests.swift in Sources */,
 				FBE36F71D1F69299A13DDADA /* PetStateFanoutTests.swift in Sources */,
 				49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */,
+				A1B2C3D4E5F600000000B003 /* SettingsTabModelTests.swift in Sources */,
 				C4F4151A25F6ED0D587172FD /* StateJsonReaderTests.swift in Sources */,
 				E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */,
 			);

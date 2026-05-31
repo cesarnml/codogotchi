@@ -20,6 +20,7 @@ import { ConfigExistsError, runRpg, runSetup } from "./setup";
 import { runStatus } from "./status";
 import { runSync } from "./sync";
 import { vacationOff, vacationOn, vacationStatus } from "./vacation";
+import { CLI_VERSION } from "./version";
 
 export type DispatchResult = {
   exitCode: number;
@@ -191,6 +192,11 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
   ) {
     process.stdout.write(USAGE);
     return { exitCode: command ? 0 : 1 };
+  }
+
+  if (command === "--version" || command === "-v" || command === "version") {
+    process.stdout.write(`${CLI_VERSION}\n`);
+    return { exitCode: 0 };
   }
 
   if (command === "setup") {
