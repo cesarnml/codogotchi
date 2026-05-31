@@ -39,6 +39,8 @@
 		A1B2C3D4E5F600000000B004 /* AboutViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000A004 /* AboutViewModelTests.swift */; };
 		A1B2C3D4E5F600000000B006 /* GeneralTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000A006 /* GeneralTabViewModel.swift */; };
 		A1B2C3D4E5F600000000B008 /* GeneralTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000A008 /* GeneralTabViewModelTests.swift */; };
+		A1B2C3D4E5F600000000B00A /* LockstepPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000A00A /* LockstepPolicy.swift */; };
+		A1B2C3D4E5F600000000B00B /* LockstepPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000A00B /* LockstepPolicyTests.swift */; };
 		A28BAB9D5F23FFBE6C429720 /* CodogotchiPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */; };
 		A691496525517AB5789BB108 /* MenubarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21EFB1B7FE8C49C6377A2B2 /* MenubarApp.swift */; };
 		A867342EFD852FB363D4DD7C /* FloatingPetPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C473FDED57B163FBBB6F3CF1 /* FloatingPetPanel.swift */; };
@@ -137,6 +139,8 @@
 		A1B2C3D4E5F600000000A004 /* AboutViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModelTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F600000000A006 /* GeneralTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTabViewModel.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F600000000A008 /* GeneralTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTabViewModelTests.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000A00A /* LockstepPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockstepPolicy.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000A00B /* LockstepPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockstepPolicyTests.swift; sourceTree = "<group>"; };
 		F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRendererTests.swift; sourceTree = "<group>"; };
 		F60153C0C8806DC3EB2137C9 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		FB013AD16C8FDB083F522012 /* ActivityState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityState.swift; sourceTree = "<group>"; };
@@ -168,6 +172,7 @@
 				DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */,
 				A1B2C3D4E5F600000000A003 /* SettingsTabModelTests.swift */,
 				A1B2C3D4E5F600000000A008 /* GeneralTabViewModelTests.swift */,
+				A1B2C3D4E5F600000000A00B /* LockstepPolicyTests.swift */,
 				9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */,
 				5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */,
 			);
@@ -213,6 +218,7 @@
 				E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */,
 				A1B2C3D4E5F600000000A002 /* AboutViewModel.swift */,
 				A1B2C3D4E5F600000000A006 /* GeneralTabViewModel.swift */,
+				A1B2C3D4E5F600000000A00A /* LockstepPolicy.swift */,
 				73B325A85B9C3A8AFB02C5BA /* SettingsController.swift */,
 				A1B2C3D4E5F600000000A001 /* SettingsTabModel.swift */,
 				F03E85F706D8680019622FDC /* SettingsWindowController.swift */,
@@ -396,6 +402,7 @@
 				36D30A2BA8D14CA1D7D62D1C /* PetStoreSeeder.swift in Sources */,
 				A1B2C3D4E5F600000000B002 /* AboutViewModel.swift in Sources */,
 				A1B2C3D4E5F600000000B006 /* GeneralTabViewModel.swift in Sources */,
+				A1B2C3D4E5F600000000B00A /* LockstepPolicy.swift in Sources */,
 				71AFF145FBC55826CFD98324 /* SettingsController.swift in Sources */,
 				A1B2C3D4E5F600000000B001 /* SettingsTabModel.swift in Sources */,
 				9B062BB29847EA8ABCE06338 /* SettingsWindowController.swift in Sources */,
@@ -430,6 +437,7 @@
 				49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */,
 				A1B2C3D4E5F600000000B003 /* SettingsTabModelTests.swift in Sources */,
 				A1B2C3D4E5F600000000B008 /* GeneralTabViewModelTests.swift in Sources */,
+				A1B2C3D4E5F600000000B00B /* LockstepPolicyTests.swift in Sources */,
 				C4F4151A25F6ED0D587172FD /* StateJsonReaderTests.swift in Sources */,
 				E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */,
 			);

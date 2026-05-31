@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let APP_STATE_SCHEMA_VERSION = 1
+let APP_STATE_SCHEMA_VERSION = 2
 
 struct FloatingAppState: Codable, Equatable {
 	let isFloatingPetVisible: Bool
@@ -9,19 +9,24 @@ struct FloatingAppState: Codable, Equatable {
 	let onboardingCompletedAt: String?
 	let lastHookActivityAt: String?
 	let hooksStatus: HooksStatusSnapshot?
+	/// Version token recorded after hooks install/update. Nil means hooks were
+	/// never installed via the app, or the state file predates schema v2.
+	let installedHookVersion: String?
 
 	init(
 		isFloatingPetVisible: Bool,
 		frame: CGRect,
 		onboardingCompletedAt: String? = nil,
 		lastHookActivityAt: String? = nil,
-		hooksStatus: HooksStatusSnapshot? = nil
+		hooksStatus: HooksStatusSnapshot? = nil,
+		installedHookVersion: String? = nil
 	) {
 		self.isFloatingPetVisible = isFloatingPetVisible
 		self.frame = frame
 		self.onboardingCompletedAt = onboardingCompletedAt
 		self.lastHookActivityAt = lastHookActivityAt
 		self.hooksStatus = hooksStatus
+		self.installedHookVersion = installedHookVersion
 	}
 }
 
@@ -102,7 +107,8 @@ enum AppStateStore {
 			frame: FloatingFramePolicy.clamp(payload.floatingPet.frame.cgRect, to: visibleFrame),
 			onboardingCompletedAt: payload.onboardingCompletedAt,
 			lastHookActivityAt: payload.lastHookActivityAt,
-			hooksStatus: payload.hooksStatus
+			hooksStatus: payload.hooksStatus,
+			installedHookVersion: payload.installedHookVersion
 		)
 	}
 
@@ -121,7 +127,8 @@ enum AppStateStore {
 			),
 			onboardingCompletedAt: state.onboardingCompletedAt,
 			lastHookActivityAt: state.lastHookActivityAt,
-			hooksStatus: state.hooksStatus
+			hooksStatus: state.hooksStatus,
+			installedHookVersion: state.installedHookVersion
 		)
 		let encoder = JSONEncoder()
 		encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -144,6 +151,7 @@ private struct AppStatePayload: Codable {
 	let onboardingCompletedAt: String?
 	let lastHookActivityAt: String?
 	let hooksStatus: HooksStatusSnapshot?
+	let installedHookVersion: String?
 }
 
 private struct FloatingPetPayload: Codable {
