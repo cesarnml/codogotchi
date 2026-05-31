@@ -73,31 +73,45 @@ final class DeveloperTabViewModel {
 	/// Schema version this renderer understands.
 	var rendererSchemaVersion: Int { EXPECTED_STATE_SCHEMA_VERSION }
 
-	/// Schema version reported by state.json, or 0 when unreadable.
+	/// Schema version reported by state.json.
+	/// Returns 0 when the file is absent, or -1 when present but `schema_version` is
+	/// missing or not a valid integer (e.g. a string value). -1 triggers a mismatch
+	/// warning so an invalid schema does not silently pass the mismatch check.
 	var stateSchemaVersion: Int {
-		guard let data = try? Data(contentsOf: URL(fileURLWithPath: stateJsonPath)),
-			let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-			let v = obj["schema_version"] as? Int
-		else { return 0 }
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: stateJsonPath)) else {
+			return 0  // absent file — not a mismatch
+		}
+		guard let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+			return -1  // present but unparseable JSON — flag as problematic
+		}
+		guard let v = obj["schema_version"] as? Int else {
+			return -1  // present but schema_version is missing or non-integer
+		}
 		return v
 	}
 
-	/// True when state.json schema version differs from the renderer's expected version.
+	/// True when state.json is present but its schema version differs from the renderer's.
+	/// A file that is absent (sv == 0) does not trigger a mismatch.
 	var schemaVersionMismatch: Bool {
 		let sv = stateSchemaVersion
-		return sv != 0 && sv != rendererSchemaVersion
+		guard sv != 0 else { return false }
+		return sv != rendererSchemaVersion
 	}
 
 	// MARK: - Cursor-bridge explainer
 
-	/// Last-seen `source_origin` from the transition log, or nil when absent.
+	/// Last-seen `source_origin` from the transition log.
+	/// Scans the last 50 entries so that a source origin older than the 5 displayed
+	/// transitions still surfaces in the Cursor-bridge explainer.
 	var lastSeenSourceOrigin: String? {
-		last5Transitions.last { $0.sourceOrigin != nil }?.sourceOrigin
+		Self.readLastNTransitions(50, from: transitionLogPath)
+			.last { $0.sourceOrigin != nil }?.sourceOrigin
 	}
 
-	/// Last-seen `source_name` from the transition log, or nil when absent.
+	/// Last-seen `source_name` from the transition log (same 50-entry window).
 	var lastSeenSourceName: String? {
-		last5Transitions.last { $0.sourceName != nil }?.sourceName
+		Self.readLastNTransitions(50, from: transitionLogPath)
+			.last { $0.sourceName != nil }?.sourceName
 	}
 
 	// MARK: - Hooks-present summary
