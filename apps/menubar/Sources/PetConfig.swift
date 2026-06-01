@@ -27,11 +27,36 @@ enum PetConfig {
 			.appendingPathComponent("config.json")
 	}
 
-	/// Writes `{ "pet": petName }` to `url`, creating parent directories when absent.
+	/// Updates the `pet` key in `~/.codogotchi/config.json`, preserving every
+	/// other field (`profile_id`, `features.rpg_enabled`, RPG-tier keys, …).
+	///
+	/// Read-merge-write rather than clobber: writing a bare `{ "pet": petName }`
+	/// would strip `profile_id` and `features.rpg_enabled`, which the CLI's
+	/// Lite/RPG config schema requires — that invalidates the config and breaks
+	/// `codogotchi hooks install/update` ("expected Lite/RPG schema with explicit
+	/// features.rpg_enabled"). When no parseable config exists yet, fall back to a
+	/// minimal valid Lite config so we never emit a schema-invalid file.
 	static func write(petName: String, to url: URL) throws {
 		let parent = url.deletingLastPathComponent()
 		try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
-		let data = try JSONSerialization.data(withJSONObject: ["pet": petName])
+
+		var obj: [String: Any]
+		if let data = try? Data(contentsOf: url),
+			let existing = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+		{
+			obj = existing
+		} else {
+			// No valid config on disk — synthesize a minimal Lite config so the
+			// result still satisfies the CLI schema.
+			obj = [
+				"profile_id": UUID().uuidString,
+				"features": ["rpg_enabled": false],
+			]
+		}
+		obj["pet"] = petName
+
+		let data = try JSONSerialization.data(
+			withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])
 		try data.write(to: url, options: .atomic)
 	}
 }
