@@ -241,3 +241,5 @@ __pycache__/
 /codogotchi-*-spritesheet.png
 /codogotchi-*-spritesheet.webp
 output
+
+.cursor
