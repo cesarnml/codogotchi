@@ -72,6 +72,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// SpriteKit frame timer. Nil when the float is hidden (menubar-only).
 	var activity: NSObjectProtocol?
 
+	/// Low-frequency timer that re-runs `refreshHookStatusCache()` so the menu
+	/// item, onboarding panel, and Settings tabs reflect the current install
+	/// state instead of freezing at the single launch-time snapshot. Without it
+	/// a fresh install (or a Cursor bridge that only resolves once Claude Code
+	/// is detected) never propagated to the UI until the next app launch.
+	var hookStatusRefreshTimer: Timer?
+
 	static func main() {
 		let app = NSApplication.shared
 		let delegate = MenubarApp()
@@ -283,6 +290,18 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		// non-fatal — P5.06 onboarding surfaces this to the user.
 		refreshHookStatusCache()
 
+		// Re-run the status refresh on a low-frequency cadence so the cached
+		// snapshot doesn't freeze at launch. The status subprocess is cheap but
+		// not free, so this runs every 30s — far below the live-poll 1Hz cadence
+		// — which is plenty for install-state changes (an install, or a Cursor
+		// bridge resolving once Claude Code is detected) to reach the UI.
+		hookStatusRefreshTimer = Timer.scheduledTimer(
+			withTimeInterval: 30.0,
+			repeats: true
+		) { [weak self] _ in
+			Task { @MainActor in self?.refreshHookStatusCache() }
+		}
+
 		// Show first-run onboarding sheet when onboardingCompletedAt is absent.
 		// Must run after hook status refresh so the sheet has fresh snapshot context.
 		onboardingController.showIfNeeded()
@@ -342,6 +361,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			ProcessInfo.processInfo.endActivity(activity)
 			self.activity = nil
 		}
+		hookStatusRefreshTimer?.invalidate()
+		hookStatusRefreshTimer = nil
 		demoDriver?.stop()
 		livePollingDriver?.stop()
 		transitionLog?.stop()

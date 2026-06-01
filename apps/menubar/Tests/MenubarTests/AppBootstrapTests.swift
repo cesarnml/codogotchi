@@ -153,10 +153,20 @@ final class AppBootstrapTests: XCTestCase {
 		XCTAssertTrue(snap.isHooksNotActive())
 	}
 
-	func testHooksNotActiveTrueWhenInstalledButNotFiringRecently() {
+	func testHooksNotActiveFalseWhenInstalledButNotFiringRecently() {
+		// Installation alone is the health signal — a correctly-installed hook
+		// that simply hasn't fired yet must NOT surface the "Retry install" CTA.
 		var snap = HooksStatusSnapshot.fixtureNotInstalled()
+		snap.codex.installableInPhase = true
 		snap.codex.installed = true
 		snap.codex.firingRecently = false
+		XCTAssertFalse(snap.isHooksNotActive())
+	}
+
+	func testHooksNotActiveTrueWhenInstallableButNotInstalled() {
+		var snap = HooksStatusSnapshot.fixtureNotInstalled()
+		snap.codex.installableInPhase = true
+		snap.codex.installed = false
 		XCTAssertTrue(snap.isHooksNotActive())
 	}
 

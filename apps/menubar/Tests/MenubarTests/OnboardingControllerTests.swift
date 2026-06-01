@@ -106,8 +106,21 @@ final class OnboardingControllerTests: XCTestCase {
 		XCTAssertFalse(controller.isHooksActive(HooksStatusSnapshot.fixtureNotInstalled()))
 	}
 
-	func testIsHooksActiveReturnsFalseWhenInstalledButNotFiringRecently() {
+	func testIsHooksActiveReturnsTrueWhenInstalledButNotFiringRecently() {
+		// Installation is the health signal: an installed-but-quiet hook is
+		// active. Requiring a recent fire produced false "Retry install" CTAs.
 		var snap = HooksStatusSnapshot.fixtureNotInstalled()
+		snap.codex.installableInPhase = true
+		snap.codex.installed = true
+		snap.codex.firingRecently = false
+		let controller = OnboardingController()
+		XCTAssertTrue(controller.isHooksActive(snap))
+	}
+
+	func testIsHooksActiveReturnsFalseWhenInstalledOnlyForPhaseDeferredPlatform() {
+		// installed=true on a non-installable platform must not flip to active.
+		var snap = HooksStatusSnapshot.fixtureNotInstalled()
+		snap.codex.installableInPhase = false
 		snap.codex.installed = true
 		snap.codex.firingRecently = false
 		let controller = OnboardingController()

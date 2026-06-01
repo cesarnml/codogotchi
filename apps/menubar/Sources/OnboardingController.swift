@@ -35,7 +35,8 @@ struct OnboardingController {
 		return nil
 	}
 
-	/// Returns true when at least one hook platform is both installed and firing recently.
+	/// Returns true when at least one installable hook platform has hooks
+	/// installed. Recent firing is not required — see `isHooksNotActive`.
 	func isHooksActive(_ snapshot: HooksStatusSnapshot) -> Bool {
 		return !snapshot.isHooksNotActive()
 	}

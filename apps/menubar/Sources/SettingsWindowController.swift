@@ -449,10 +449,18 @@ private final class GeneralTabView: NSView {
 	private func platformLine(_ row: GeneralTabViewModel.PlatformRow) -> String {
 		var parts: [String] = [row.name]
 		if row.installable {
-			parts.append(row.installed ? "installed" : "not installed")
+			// A bridged platform (e.g. Cursor routing through Claude Code hooks)
+			// has no file of its own, so "not installed" reads as broken even
+			// while events flow through it. Report the routing instead, and
+			// never print the contradictory "not installed · firing".
+			if row.sourceOrigin == "bridge" {
+				parts.append("active via Claude Code (bridge)")
+			} else {
+				parts.append(row.installed ? "installed" : "not installed")
+			}
 			if row.firingRecently { parts.append("firing") }
 			if let t = row.lastEventAt { parts.append("last: \(t)") }
-			if let o = row.sourceOrigin { parts.append("via \(o)") }
+			if let o = row.sourceOrigin, o != "bridge" { parts.append("via \(o)") }
 		} else {
 			parts.append("bridge (not directly installable)")
 		}

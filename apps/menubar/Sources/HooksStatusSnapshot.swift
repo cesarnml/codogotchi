@@ -28,17 +28,24 @@ struct HooksStatusSnapshot: Codable, Equatable {
 			.contains { $0.installed }
 	}
 
-	/// Hooks are "not active" when there is no installed-and-firing platform.
-	/// Onboarding shows the CTA until at least one platform is both installed
-	/// and has reported a recent hook-driven event (per CLI status contract).
-	/// Only platforms that are installable in the current phase are considered,
-	/// so phase-deferred platforms (cursor, vscode, antigravity) can never
-	/// suppress the CTA via a stale or hand-edited snapshot.
+	/// Hooks are "not active" when no installable platform has hooks installed
+	/// on disk. Recent firing is intentionally NOT part of this predicate.
+	///
+	/// `firingRecently` is a decaying, single-origin signal — only the platform
+	/// that produced the most recent state event is ever marked firing, and it
+	/// flips back to false once the 5-minute window elapses. Gating "active" on
+	/// it conflated "did the user happen to drive this tool in the last few
+	/// minutes" with "are the hooks wired correctly", so a correctly-installed
+	/// hook that simply hadn't fired yet surfaced a misleading "Hooks not active
+	/// — Retry install" CTA and pushed users to reinstall hooks that were fine.
+	///
+	/// Installation is the right health signal: it is stable, doesn't decay, and
+	/// is what a "Retry install" CTA can actually fix. Only platforms installable
+	/// in the current phase are considered, so phase-deferred platforms can never
+	/// suppress the CTA via a stale or hand-edited snapshot. This now matches
+	/// `anyInstalled()` exactly.
 	func isHooksNotActive() -> Bool {
-		let active = [codex, claudeCode, cursor, vscode, antigravity]
-			.filter { $0.installableInPhase }
-			.contains { $0.installed && $0.firingRecently }
-		return !active
+		return !anyInstalled()
 	}
 }
 
