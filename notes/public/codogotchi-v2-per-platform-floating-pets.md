@@ -4,6 +4,8 @@ Date: 2026-05-31
 
 Status: **idea / exploration — explicitly post-v1, targeted at v2.** Not for the current Lite+SoA v1 release gate (Phase 08). Captured here so the design is not lost.
 
+Product context (v1 assumption, v3 per-project): [codogotchi-visibility-granularity-roadmap.md](./codogotchi-visibility-granularity-roadmap.md).
+
 ## The idea
 
 Today Codogotchi renders **one** floating pet for the aggregate "what is the agent doing right now" signal. v2 explores spawning **one floating pet per active agent platform** (Claude Code, Codex, Cursor) so you can see all your running agents at a glance instead of one clobbered aggregate.

@@ -793,7 +793,9 @@ describe("runHook", () => {
     );
     const state = readState(home);
     expect(state.attention?.reason_kind).toBe("input_requested");
-    expect(state.attention?.summary).toBe("Refactor the auth module to us...");
+    expect(state.attention?.summary).toBe(
+      "Refactor the auth module to use the new token store immediately",
+    );
   });
 
   it("Stop event with is_error:true writes attention with reason_kind error_blocked and 30m expiry", async () => {

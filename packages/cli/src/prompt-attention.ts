@@ -7,8 +7,11 @@ export type PromptAttentionHookFields = {
   prompt?: string;
 };
 
-/** Visible subtitle budget for `attention.summary` (ellipsis excluded from count). */
-export const ATTENTION_PROMPT_SUMMARY_MAX_CHARS = 30;
+/**
+ * Max characters stored in the prompt-attention sidecar / `attention.summary`.
+ * Menubar applies `Re: ` and width-based truncation per floating-pet size.
+ */
+export const PROMPT_ATTENTION_STORE_MAX_CHARS = 120;
 
 const STANDBY_TTL_MS = 2 * 60 * 60 * 1000;
 
@@ -49,17 +52,19 @@ export function sessionAttentionKey(
   return `${origin}:${sessionId}`;
 }
 
-/** Collapse whitespace and truncate with "..." when over the line budget. */
-export function formatAttentionPromptSummary(
+/** Collapse whitespace; cap length without ellipsis (UI truncates per bubble width). */
+export function normalizePromptExcerpt(
   prompt: string,
-  maxChars: number = ATTENTION_PROMPT_SUMMARY_MAX_CHARS,
+  maxChars: number = PROMPT_ATTENTION_STORE_MAX_CHARS,
 ): string {
   const collapsed = prompt.replace(/\s+/g, " ").trim();
   if (collapsed.length === 0) return "";
   if (collapsed.length <= maxChars) return collapsed;
-  const slice = collapsed.slice(0, maxChars).trimEnd();
-  return `${slice}...`;
+  return collapsed.slice(0, maxChars).trimEnd();
 }
+
+/** @deprecated Use {@link normalizePromptExcerpt}; kept for tests importing the old name. */
+export const formatAttentionPromptSummary = normalizePromptExcerpt;
 
 function tempName(target: string): string {
   return `${target}.tmp-${process.pid}-${Date.now()}`;
@@ -114,7 +119,7 @@ export async function recordPromptAttention(
   prompt: string,
   now: Date,
 ): Promise<void> {
-  const summary = formatAttentionPromptSummary(prompt);
+  const summary = normalizePromptExcerpt(prompt);
   if (summary.length === 0) return;
 
   const store = pruneStaleEntries(await readStore(home), now);

@@ -17,7 +17,7 @@ private enum BubbleLayout {
 	static let actionButtonWidth: CGFloat = 54
 
 	static func frame(relativeTo petFrame: CGRect, visibleFrame: CGRect) -> CGRect {
-		let width = max(minWidth, min(maxWidth, petFrame.width + 40))
+		let width = AttentionBubbleLayoutMetrics.bubbleWidth(forPetWidth: petFrame.width)
 		let x = petFrame.midX - width / 2
 		let y = petFrame.minY - gapBelowPet - height
 		let rect = CGRect(x: x, y: y, width: width, height: height)
@@ -217,6 +217,8 @@ private final class AttentionBubbleView: NSView {
 	private var isHovered = false
 	private var sourceEvent: SourceEvent?
 	private var reasonKind: String = ""
+	/// Raw prompt excerpt from `attention.summary` (display adds `Re:` in layout).
+	private var promptExcerpt: String = ""
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -326,6 +328,17 @@ private final class AttentionBubbleView: NSView {
 		applyChromeStyle()
 	}
 
+	private func applyPromptSubtitle() {
+		guard reasonKind == "input_requested" else { return }
+		let contentWidth = AttentionBubbleLayoutMetrics.subtitleContentWidth(
+			forBubbleWidth: bounds.width
+		)
+		subtitleLabel.stringValue = AttentionSubtitleFormatting.truncatedReplyLine(
+			excerpt: promptExcerpt,
+			fittingWidth: contentWidth
+		)
+	}
+
 	private func configureButton(
 		_ button: NSButton,
 		symbol: String,
@@ -348,16 +361,19 @@ private final class AttentionBubbleView: NSView {
 		switch reasonKind {
 		case "input_requested":
 			summaryLabel.stringValue = "Waiting for your input"
-			// `attention.summary` carries a truncated prompt excerpt (not reason_kind).
-			subtitleLabel.stringValue =
+			promptExcerpt =
 				summary == "Waiting for your input" || summary.isEmpty ? "" : summary
 		case "error_blocked":
+			promptExcerpt = ""
 			summaryLabel.stringValue = "Something went wrong"
 			subtitleLabel.stringValue = ""
 		default:
+			promptExcerpt = ""
 			summaryLabel.stringValue = summary.isEmpty ? "Waiting for input" : summary
 			subtitleLabel.stringValue = ""
 		}
+
+		applyPromptSubtitle()
 
 		let platform = PlatformAttribution(origin: sourceEvent?.origin)
 		platformChip.configure(platform: platform)
@@ -421,6 +437,7 @@ private final class AttentionBubbleView: NSView {
 	override func layout() {
 		super.layout()
 		applyChromeStyle()
+		applyPromptSubtitle()
 	}
 
 	private func applyChromeStyle() {

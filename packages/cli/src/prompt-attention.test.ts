@@ -3,27 +3,23 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  ATTENTION_PROMPT_SUMMARY_MAX_CHARS,
-  formatAttentionPromptSummary,
   lookupPromptAttentionSummary,
+  normalizePromptExcerpt,
+  PROMPT_ATTENTION_STORE_MAX_CHARS,
   recordPromptAttention,
   sessionAttentionKey,
 } from "./prompt-attention.js";
 
-describe("formatAttentionPromptSummary", () => {
+describe("normalizePromptExcerpt", () => {
   it("collapses whitespace and leaves short prompts intact", () => {
-    expect(formatAttentionPromptSummary("  hello\nworld  ")).toBe(
-      "hello world",
-    );
+    expect(normalizePromptExcerpt("  hello\nworld  ")).toBe("hello world");
   });
 
-  it("truncates at 30 chars with ellipsis", () => {
-    const long =
-      "Refactor the auth module to use the new token store immediately";
-    const out = formatAttentionPromptSummary(long);
-    expect(out.length).toBe(ATTENTION_PROMPT_SUMMARY_MAX_CHARS + 3);
-    expect(out.endsWith("...")).toBe(true);
-    expect(out.startsWith("Refactor the auth module to us")).toBe(true);
+  it("caps stored length without ellipsis", () => {
+    const long = "x".repeat(PROMPT_ATTENTION_STORE_MAX_CHARS + 40);
+    const out = normalizePromptExcerpt(long);
+    expect(out.length).toBe(PROMPT_ATTENTION_STORE_MAX_CHARS);
+    expect(out.endsWith("...")).toBe(false);
   });
 });
 
@@ -50,7 +46,7 @@ describe("prompt attention store", () => {
       "conv-1",
       "Waiting for your input",
     );
-    expect(summary).toBe("Fix the flaky test in hook-bin...");
+    expect(summary).toBe("Fix the flaky test in hook-binary");
     expect(sessionAttentionKey("cursor", "conv-1")).toBe("cursor:conv-1");
   });
 });
