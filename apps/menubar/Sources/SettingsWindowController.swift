@@ -2,7 +2,7 @@ import AppKit
 
 /// Shows the Settings window — a standard macOS window (not an `NSPanel`) with
 /// four selectable tabs:
-/// - **General**: per-platform hook install/uninstall/status; bridge note for Cursor.
+/// - **General**: per-platform hook install/uninstall/status; Cursor native-hook note.
 /// - **Pet**: list + select pets from `~/.codogotchi/pets/`; import from `~/.codex/pets/`.
 /// - **Developer**: read-only observability (richer wiring lands in P8.08).
 /// - **About**: app version, bundled hook-binary version, and product links.
@@ -406,10 +406,12 @@ private final class GeneralTabView: NSView {
 		hooksFeedbackLabel.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(hooksFeedbackLabel)
 
-		let bridgeNote = settingsBodyLabel(
-			"Cursor support routes via Claude Code hooks. See README for details."
+		let cursorNote = settingsBodyLabel(
+			"Install hooks writes Codex, Claude Code, and native Cursor (~/.cursor/hooks.json). "
+				+ "Restart Cursor after installing. Without native Cursor hooks, Claude Code "
+				+ "third-party skills can still bridge activity (source_origin: claude_code)."
 		)
-		addSubview(bridgeNote)
+		addSubview(cursorNote)
 
 		bannerView.translatesAutoresizingMaskIntoConstraints = false
 		bannerView.isHidden = true
@@ -434,11 +436,11 @@ private final class GeneralTabView: NSView {
 			hooksFeedbackLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			hooksFeedbackLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			bridgeNote.topAnchor.constraint(equalTo: hooksFeedbackLabel.bottomAnchor, constant: 8),
-			bridgeNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			bridgeNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			cursorNote.topAnchor.constraint(equalTo: hooksFeedbackLabel.bottomAnchor, constant: 8),
+			cursorNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			cursorNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			bannerView.topAnchor.constraint(equalTo: bridgeNote.bottomAnchor, constant: 12),
+			bannerView.topAnchor.constraint(equalTo: cursorNote.bottomAnchor, constant: 12),
 			bannerView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			bannerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 		])
@@ -682,7 +684,7 @@ private var actionKey: UInt8 = 0
 // MARK: - DeveloperTabView
 
 /// Developer tab — read-only observability. Shows state.json, gate.json,
-/// last 5 transitions, schema version, hooks summary, and Cursor-bridge explainer.
+/// last 5 transitions, schema version, hooks summary, and platform attribution note.
 private final class DeveloperTabView: NSView {
 	private var viewModel: DeveloperTabViewModel
 	private let scrollView = NSScrollView()
@@ -772,14 +774,16 @@ private final class DeveloperTabView: NSView {
 		}
 		lines.append("")
 
-		// Cursor-bridge explainer
+		// Cursor attribution (native hooks vs Claude third-party bridge)
 		if let origin = viewModel.lastSeenSourceOrigin {
-			lines.append("=== Cursor Bridge ===")
+			lines.append("=== Platform attribution ===")
 			let name = viewModel.lastSeenSourceName ?? "(unknown tool)"
-			if origin == "cursor" || origin.contains("cursor") {
-				lines.append("Last seen from cursor (\(name)).")
+			if origin == "cursor" {
+				lines.append("Last seen from native Cursor hooks (\(name)).")
+			} else if origin == "claude_code" {
+				lines.append("Last seen from Claude Code (\(name)).")
 				lines.append(
-					"If ~/.cursor/hooks.json is empty, Codogotchi is running via the Claude bridge (MCP), not a native Cursor hook."
+					"In Cursor without native hooks, enable Third-party skills so Claude Code hooks bridge activity (source_origin stays claude_code)."
 				)
 			} else {
 				lines.append("Last seen from \(origin) (\(name)).")

@@ -118,28 +118,23 @@ Environment overrides:
 
 ## Cursor install paths
 
-Codogotchi supports two install modes for Cursor users. Both are managed via **Settings → General**.
+Codogotchi has **first-class native Cursor hooks** (`~/.cursor/hooks.json`). Install via
+**Settings → General → Install hooks** (writes Codex, Claude Code, and Cursor), then **restart Cursor**.
 
-### Bridge (simpler, no Cursor restart required)
+Events fire with `source_origin: "cursor"`. `codogotchi hooks status` reports `cursor: native` when
+`~/.cursor/hooks.json` contains Codogotchi entries.
 
-If Claude Code hooks are installed, Cursor's **Third-party skills** feature routes Cursor tool calls
-through the Claude Code hooks automatically. No extra step needed.
-
-Events fire with `source_origin: "claude_code"`. Use `codogotchi hooks status` to confirm.
-
-### Native (correct `source_origin`, direct shell classification)
-
-Native Cursor hooks write `~/.cursor/hooks.json` and give Codogotchi direct access to Cursor's hook
-events. Events fire with `source_origin: "cursor"`.
-
-Use **Settings → General → Install hooks** and select the Cursor platform, or:
+CLI-only install:
 
 ```bash
-codogotchi hooks install --platform cursor   # app-managed; prefer Settings
+codogotchi hooks install --platform cursor
 ```
 
-Restart Cursor after installing. `codogotchi hooks status` reports `cursor: native` when
-`~/.cursor/hooks.json` contains Codogotchi entries, `cursor: bridge` otherwise.
+### Bridge fallback (optional)
+
+If native Cursor hooks are not installed but Claude Code hooks are, Cursor's **Third-party skills**
+feature can route tool calls through Claude Code hooks. Events then show `source_origin: "claude_code"`.
+`codogotchi hooks status` reports `cursor: bridge` in that case.
 
 ## Where data lives
 

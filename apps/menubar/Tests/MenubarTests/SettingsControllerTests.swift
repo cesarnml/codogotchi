@@ -7,13 +7,19 @@ final class SettingsControllerTests: XCTestCase {
 	// MARK: - Hook install
 
 	func testRunHooksInstallInvokesRunnerWithCorrectArgs() {
-		var capturedArgs: [String] = []
+		var captured: [[String]] = []
 		let controller = SettingsController(runner: { args in
-			capturedArgs = args
+			captured.append(args)
 			return HookStatusClient.RunResult(exitCode: 0, stdout: "", stderr: "")
 		})
 		_ = controller.runHooksInstall()
-		XCTAssertEqual(capturedArgs, ["codogotchi", "hooks", "install"])
+		XCTAssertEqual(
+			captured,
+			[
+				["codogotchi", "hooks", "install"],
+				["codogotchi", "hooks", "install", "--platform", "cursor"],
+			]
+		)
 	}
 
 	func testRunHooksInstallReturnsNilOnSuccess() {
@@ -33,13 +39,19 @@ final class SettingsControllerTests: XCTestCase {
 	// MARK: - Hook uninstall
 
 	func testRunHooksUninstallInvokesRunnerWithCorrectArgs() {
-		var capturedArgs: [String] = []
+		var captured: [[String]] = []
 		let controller = SettingsController(runner: { args in
-			capturedArgs = args
+			captured.append(args)
 			return HookStatusClient.RunResult(exitCode: 0, stdout: "", stderr: "")
 		})
 		_ = controller.runHooksUninstall()
-		XCTAssertEqual(capturedArgs, ["codogotchi", "hooks", "uninstall"])
+		XCTAssertEqual(
+			captured,
+			[
+				["codogotchi", "hooks", "uninstall", "--platform", "cursor"],
+				["codogotchi", "hooks", "uninstall"],
+			]
+		)
 	}
 
 	func testRunHooksUninstallReturnsNilOnSuccess() {
@@ -59,13 +71,14 @@ final class SettingsControllerTests: XCTestCase {
 	// MARK: - Hook update
 
 	func testRunHooksUpdateInvokesInstallArgs() {
-		var capturedArgs: [String] = []
+		var captured: [[String]] = []
 		let controller = SettingsController(runner: { args in
-			capturedArgs = args
+			captured.append(args)
 			return HookStatusClient.RunResult(exitCode: 0, stdout: "", stderr: "")
 		})
 		_ = controller.runHooksUpdate()
-		XCTAssertEqual(capturedArgs, ["codogotchi", "hooks", "install"])
+		XCTAssertEqual(captured.count, 2)
+		XCTAssertEqual(captured[0], ["codogotchi", "hooks", "install"])
 	}
 
 	func testRunHooksUpdateReturnsNilOnSuccess() {

@@ -51,13 +51,19 @@ final class OnboardingControllerTests: XCTestCase {
 	// MARK: - runHooksInstall
 
 	func testRunHooksInstallInvokesRunnerWithCorrectArgs() {
-		var capturedArgs: [String] = []
+		var captured: [[String]] = []
 		let controller = OnboardingController(installRunner: { args in
-			capturedArgs = args
+			captured.append(args)
 			return HookStatusClient.RunResult(exitCode: 0, stdout: "", stderr: "")
 		})
 		_ = controller.runHooksInstall()
-		XCTAssertEqual(capturedArgs, ["codogotchi", "hooks", "install"])
+		XCTAssertEqual(
+			captured,
+			[
+				["codogotchi", "hooks", "install"],
+				["codogotchi", "hooks", "install", "--platform", "cursor"],
+			]
+		)
 	}
 
 	func testRunHooksInstallReturnsNilOnSuccess() {

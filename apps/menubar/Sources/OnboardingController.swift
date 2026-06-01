@@ -18,14 +18,19 @@ struct OnboardingController {
 		return !(appState.hooksStatus?.anyInstalled() ?? false)
 	}
 
-	/// Runs `codogotchi hooks install` synchronously via the injected runner.
+	/// Runs `codogotchi hooks install` for Claude Code, Codex, and native Cursor.
 	/// Returns nil on success; returns an error description on non-zero exit.
 	func runHooksInstall() -> String? {
-		let result = installRunner(["codogotchi", "hooks", "install"])
-		guard result.exitCode == 0 else {
-			return result.stderr.isEmpty
-				? "Install failed (exit \(result.exitCode))"
-				: result.stderr
+		for argv in [
+			["codogotchi", "hooks", "install"],
+			["codogotchi", "hooks", "install", "--platform", "cursor"],
+		] {
+			let result = installRunner(argv)
+			guard result.exitCode == 0 else {
+				return result.stderr.isEmpty
+					? "Install failed (exit \(result.exitCode))"
+					: result.stderr
+			}
 		}
 		return nil
 	}

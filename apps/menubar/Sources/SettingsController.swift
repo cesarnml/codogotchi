@@ -11,40 +11,47 @@ struct SettingsController {
 		self.runner = runner
 	}
 
-	/// Runs `codogotchi hooks install` synchronously.
+	private static let installArgv: [[String]] = [
+		["codogotchi", "hooks", "install"],
+		["codogotchi", "hooks", "install", "--platform", "cursor"],
+	]
+
+	private static let uninstallArgv: [[String]] = [
+		["codogotchi", "hooks", "uninstall", "--platform", "cursor"],
+		["codogotchi", "hooks", "uninstall"],
+	]
+
+	private func runHookArgvSequence(
+		_ sequences: [[String]],
+		failureLabel: String
+	) -> String? {
+		for argv in sequences {
+			let result = runner(argv)
+			guard result.exitCode == 0 else {
+				return result.stderr.isEmpty
+					? "\(failureLabel) (exit \(result.exitCode))"
+					: result.stderr
+			}
+		}
+		return nil
+	}
+
+	/// Runs `codogotchi hooks install` for Claude Code, Codex, and native Cursor.
 	/// Returns nil on success; returns an error description on non-zero exit.
 	func runHooksInstall() -> String? {
-		let result = runner(["codogotchi", "hooks", "install"])
-		guard result.exitCode == 0 else {
-			return result.stderr.isEmpty
-				? "Install failed (exit \(result.exitCode))"
-				: result.stderr
-		}
-		return nil
+		runHookArgvSequence(Self.installArgv, failureLabel: "Install failed")
 	}
 
-	/// Idempotent re-install: re-runs `codogotchi hooks install` to rewrite the
-	/// platform JSON to the current bundle's absolute hook path.
+	/// Idempotent re-install: re-runs install for all platforms so hook JSON points
+	/// at the current bundle's absolute hook path.
 	/// Returns nil on success; returns an error description on non-zero exit.
 	func runHooksUpdate() -> String? {
-		let result = runner(["codogotchi", "hooks", "install"])
-		guard result.exitCode == 0 else {
-			return result.stderr.isEmpty
-				? "Update failed (exit \(result.exitCode))"
-				: result.stderr
-		}
-		return nil
+		runHookArgvSequence(Self.installArgv, failureLabel: "Update failed")
 	}
 
-	/// Runs `codogotchi hooks uninstall` synchronously.
+	/// Runs `codogotchi hooks uninstall` for Cursor, Claude Code, and Codex.
 	/// Returns nil on success; returns an error description on non-zero exit.
 	func runHooksUninstall() -> String? {
-		let result = runner(["codogotchi", "hooks", "uninstall"])
-		guard result.exitCode == 0 else {
-			return result.stderr.isEmpty
-				? "Uninstall failed (exit \(result.exitCode))"
-				: result.stderr
-		}
-		return nil
+		runHookArgvSequence(Self.uninstallArgv, failureLabel: "Uninstall failed")
 	}
 }
