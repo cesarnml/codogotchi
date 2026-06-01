@@ -15,6 +15,7 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func apply(state: ActivityState, visualMode: VisualMode)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
+	func applyPlatform(origin: String?)
 	func setInteraction(_ interaction: FloatingInteraction?)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 }
@@ -22,6 +23,7 @@ protocol FloatingPetPanelManaging: AnyObject {
 extension FloatingPetPanelManaging {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 	func applyGateBadge(content: GateBadgeContent?) {}
+	func applyPlatform(origin: String?) {}
 }
 
 @MainActor
@@ -107,6 +109,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 
 	func applyGateBadge(content: GateBadgeContent?) {
 		panel.applyGateBadge(content: content)
+	}
+
+	func applyPlatform(origin: String?) {
+		panel.applyPlatform(origin: origin)
 	}
 
 	func persistFrameChange(_ frame: CGRect) {

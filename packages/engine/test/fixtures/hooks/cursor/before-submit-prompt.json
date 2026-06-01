@@ -1,0 +1,11 @@
+{
+  "hook_event_name": "beforeSubmitPrompt",
+  "prompt": "Refactor the auth module to use the new token store",
+  "workspace_roots": ["/redacted/workspace"],
+  "attachments": [
+    {
+      "type": "file",
+      "file_path": "/redacted/workspace/src/auth.ts"
+    }
+  ]
+}

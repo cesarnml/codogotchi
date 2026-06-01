@@ -284,7 +284,17 @@ describe("installHooks", () => {
     expect(preCommands.some((command) => command.includes("codevibe"))).toBe(
       false,
     );
-    expect(codexJson.hooks.UserPromptSubmit).toBeUndefined();
+    // The codevibe UserPromptSubmit entry is stripped and replaced with the
+    // codogotchi prompt-submit hook (UserPromptSubmit is now a registered event).
+    const promptCommands = codexJson.hooks.UserPromptSubmit.flatMap((m) =>
+      m.hooks.map((h) => h.command),
+    );
+    expect(promptCommands).toContain(
+      "CODOGOTCHI_HOME='/home/user/.codogotchi' CODOGOTCHI_ORIGIN=codex codogotchi-hook",
+    );
+    expect(promptCommands.some((command) => command.includes("codevibe"))).toBe(
+      false,
+    );
 
     const codexConfig = readFileSync(
       join(userRoot, ".codex", "config.toml"),

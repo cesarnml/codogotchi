@@ -24,6 +24,7 @@ export type SourceEventOrigin = z.infer<typeof sourceEventOriginSchema>;
 
 export const sourceEventKindSchema = z.enum([
   "tool_use",
+  "prompt_submit",
   "session_start",
   "session_end",
   "gate",

@@ -28,6 +28,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var gateBadgeContent: GateBadgeContent?
 	/// Mirror of the scene's idle-escalation level, used for the badge label.
 	private var currentEscalation: IdleEscalation = .none
+	/// Platform attribution from the latest `source_event.origin`, resolved to a
+	/// logo chip shown immediately left of the animation badge. `nil` when the
+	/// origin is absent or non-platform, in which case no chip is drawn.
+	private var currentPlatform: PlatformAttribution?
 
 	init(
 		codexPet: CodexPet,
@@ -152,6 +156,16 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 	}
 
+	func applyPlatform(origin: String?) {
+		let platform = PlatformAttribution(origin: origin)
+		guard platform != currentPlatform else { return }
+		currentPlatform = platform
+		// Origin can change without the activity state changing (e.g. claude_code
+		// idle → cursor idle), so refresh the badge directly here rather than
+		// relying on an `apply(state:)` tick.
+		repositionAndShowAnimationBadge()
+	}
+
 	private func handleBubbleDismiss() {
 		attentionActive = false
 		apply(state: .idle, visualMode: currentMode)
@@ -194,6 +208,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}()
 		badge.reposition(
 			label: animationBadgeLabel,
+			platform: currentPlatform,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
@@ -258,6 +273,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 		animationBadgePanel?.reposition(
 			label: animationBadgeLabel,
+			platform: currentPlatform,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
@@ -594,13 +610,20 @@ enum AnimationBadgeLayout {
 		GateBadgeLayout.metrics(for: petFrame)
 	}
 
-	/// Below-center of the pet: horizontally centered on the pet, with the badge's
-	/// *top* edge sitting `inset` above the frame's bottom border so the sprite
-	/// appears to stand on the badge (the badge body hangs below the feet rather
-	/// than overlapping the character). Then clamps to the visible display.
-	static func frame(relativeTo petFrame: CGRect, badgeSize: CGSize, visibleFrame: CGRect) -> CGRect {
+	/// Below the pet, with the badge's *top* edge sitting `inset` above the
+	/// frame's bottom border so the sprite appears to stand on the badge (the
+	/// badge body hangs below the feet rather than overlapping the character).
+	/// `anchorX` is the badge-local x that lands on the pet's midX — the label
+	/// pill's center, so the pill owns the dead-center position and the platform
+	/// chip extends to its left. Then clamps to the visible display.
+	static func frame(
+		relativeTo petFrame: CGRect,
+		badgeSize: CGSize,
+		anchorX: CGFloat,
+		visibleFrame: CGRect
+	) -> CGRect {
 		let rect = CGRect(
-			x: petFrame.midX - badgeSize.width / 2,
+			x: petFrame.midX - anchorX,
 			y: petFrame.minY + inset - badgeSize.height,
 			width: badgeSize.width,
 			height: badgeSize.height
@@ -645,12 +668,22 @@ final class AnimationBadgePanel: NSPanel {
 	override var canBecomeKey: Bool { false }
 	override var canBecomeMain: Bool { false }
 
-	func reposition(label: String, relativeTo petFrame: CGRect, visibleFrame: CGRect) {
-		badgeView.configure(text: label, metrics: AnimationBadgeLayout.metrics(for: petFrame))
+	func reposition(
+		label: String,
+		platform: PlatformAttribution?,
+		relativeTo petFrame: CGRect,
+		visibleFrame: CGRect
+	) {
+		badgeView.configure(
+			text: label,
+			platform: platform,
+			metrics: AnimationBadgeLayout.metrics(for: petFrame)
+		)
 		let size = badgeView.preferredSize
 		let frame = AnimationBadgeLayout.frame(
 			relativeTo: petFrame,
 			badgeSize: size,
+			anchorX: badgeView.pillCenterX,
 			visibleFrame: visibleFrame
 		)
 		setFrame(frame, display: true)
@@ -658,11 +691,112 @@ final class AnimationBadgePanel: NSPanel {
 	}
 }
 
-/// Frosted badge reusing the attention bubble's background styling: a dark
-/// `hudWindow` visual-effect material with a hairline white border and a soft
-/// drop shadow. Sizing/scaling still follows the gate badge metrics.
-private final class AnimationBadgeView: NSView {
-	private let effectView = NSVisualEffectView(frame: .zero)
+/// Frosted chrome shared by the animation badge's label pill and platform chip:
+/// a dark `hudWindow` material matching the attention bubble, with a hairline
+/// white border and soft drop shadow. The frosted body doubles as the contrast
+/// backdrop that lets a single white glyph / mono label read over any window
+/// behind the transparent pet frame.
+enum AnimationBadgeChrome {
+	static let textColor = NSColor(calibratedWhite: 0.95, alpha: 1.0)
+
+	static func makeEffectView() -> NSVisualEffectView {
+		let view = NSVisualEffectView(frame: .zero)
+		view.material = .hudWindow
+		view.blendingMode = .behindWindow
+		view.state = .active
+		view.appearance = NSAppearance(named: .darkAqua)
+		view.wantsLayer = true
+		view.translatesAutoresizingMaskIntoConstraints = false
+		return view
+	}
+
+	static func apply(to host: NSView, effect: NSVisualEffectView, cornerRadius: CGFloat) {
+		effect.layer?.cornerRadius = cornerRadius
+		effect.layer?.masksToBounds = true
+		host.layer?.cornerRadius = cornerRadius
+		host.layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
+		host.layer?.borderWidth = 1
+		host.layer?.shadowColor = NSColor.black.cgColor
+		host.layer?.shadowOpacity = 0.32
+		host.layer?.shadowRadius = 8
+		host.layer?.shadowOffset = CGSize(width: 0, height: -2)
+	}
+}
+
+/// Square frosted chip carrying the driving platform's logo, shown immediately
+/// left of the animation badge. The logo is a template (monochrome) asset tinted
+/// to the badge text color so it reads on both light and dark backdrops.
+private final class PlatformChipView: NSView {
+	private let effectView = AnimationBadgeChrome.makeEffectView()
+	private let imageView = NSImageView()
+	private var metrics = GateBadgeLayout.metrics(
+		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
+	)
+	private var sideConstraint: NSLayoutConstraint?
+	private var glyphInsetConstraints: [NSLayoutConstraint] = []
+
+	override init(frame frameRect: NSRect) {
+		super.init(frame: frameRect)
+		wantsLayer = true
+		layer?.masksToBounds = false
+
+		addSubview(effectView)
+
+		imageView.imageScaling = .scaleProportionallyUpOrDown
+		imageView.contentTintColor = AnimationBadgeChrome.textColor
+		imageView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(imageView)
+
+		let side = widthAnchor.constraint(equalToConstant: metrics.badgeHeight)
+		let height = heightAnchor.constraint(equalTo: widthAnchor)
+		let inset = metrics.verticalPadding
+		glyphInsetConstraints = [
+			imageView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: inset),
+			imageView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -inset),
+			imageView.topAnchor.constraint(equalTo: topAnchor, constant: inset),
+			imageView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -inset),
+		]
+		sideConstraint = side
+		NSLayoutConstraint.activate([
+			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			effectView.topAnchor.constraint(equalTo: topAnchor),
+			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			side,
+			height,
+		] + glyphInsetConstraints)
+		applyMetrics()
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func configure(platform: PlatformAttribution, metrics: GateBadgeLayout.Metrics) {
+		self.metrics = metrics
+		let image = NSImage(named: platform.assetName)
+		image?.isTemplate = true
+		imageView.image = image
+		applyMetrics()
+	}
+
+	override func layout() {
+		super.layout()
+		applyMetrics()
+	}
+
+	private func applyMetrics() {
+		sideConstraint?.constant = metrics.badgeHeight
+		for constraint in glyphInsetConstraints {
+			constraint.constant = (constraint.constant < 0 ? -1 : 1) * metrics.verticalPadding
+		}
+		AnimationBadgeChrome.apply(to: self, effect: effectView, cornerRadius: metrics.cornerRadius)
+	}
+}
+
+/// Frosted label pill: the activity-state name on the same chrome as the
+/// platform chip. Sizing/scaling follows the gate badge metrics.
+private final class AnimationLabelPillView: NSView {
+	private let effectView = AnimationBadgeChrome.makeEffectView()
 	private let label = NSTextField(labelWithString: "")
 	private var metrics = GateBadgeLayout.metrics(
 		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
@@ -673,19 +807,12 @@ private final class AnimationBadgeView: NSView {
 		wantsLayer = true
 		layer?.masksToBounds = false
 
-		// Match AttentionBubbleView's background chrome.
-		effectView.material = .hudWindow
-		effectView.blendingMode = .behindWindow
-		effectView.state = .active
-		effectView.appearance = NSAppearance(named: .darkAqua)
-		effectView.wantsLayer = true
-		effectView.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(effectView)
 
 		label.lineBreakMode = .byTruncatingTail
 		label.maximumNumberOfLines = 1
 		label.alignment = .center
-		label.textColor = NSColor(calibratedWhite: 0.95, alpha: 1.0)
+		label.textColor = AnimationBadgeChrome.textColor
 		label.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(label)
 
@@ -697,7 +824,7 @@ private final class AnimationBadgeView: NSView {
 			label.centerXAnchor.constraint(equalTo: centerXAnchor),
 			label.centerYAnchor.constraint(equalTo: centerYAnchor),
 		])
-		applyChromeStyle()
+		applyMetrics()
 	}
 
 	@available(*, unavailable)
@@ -707,9 +834,8 @@ private final class AnimationBadgeView: NSView {
 		self.metrics = metrics
 		label.stringValue = text
 		label.font = NSFont.monospacedSystemFont(ofSize: metrics.fontSize, weight: .medium)
-		applyChromeStyle()
+		applyMetrics()
 		invalidateIntrinsicContentSize()
-		layoutSubtreeIfNeeded()
 	}
 
 	override var intrinsicContentSize: NSSize {
@@ -719,26 +845,77 @@ private final class AnimationBadgeView: NSView {
 		)
 	}
 
-	var preferredSize: CGSize {
-		layoutSubtreeIfNeeded()
-		return intrinsicContentSize
-	}
-
 	override func layout() {
 		super.layout()
-		applyChromeStyle()
+		applyMetrics()
 	}
 
-	private func applyChromeStyle() {
-		effectView.layer?.cornerRadius = metrics.cornerRadius
-		effectView.layer?.masksToBounds = true
-		layer?.cornerRadius = metrics.cornerRadius
-		layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
-		layer?.borderWidth = 1
-		layer?.shadowColor = NSColor.black.cgColor
-		layer?.shadowOpacity = 0.32
-		layer?.shadowRadius = 8
-		layer?.shadowOffset = CGSize(width: 0, height: -2)
+	private func applyMetrics() {
+		AnimationBadgeChrome.apply(to: self, effect: effectView, cornerRadius: metrics.cornerRadius)
+	}
+}
+
+/// Transparent container laying out an optional platform chip immediately left
+/// of the activity-state label pill. When no platform is attributed the chip is
+/// detached and the pill stands alone, preserving the prior single-pill look.
+private final class AnimationBadgeView: NSView {
+	private let chipView = PlatformChipView(frame: .zero)
+	private let pillView = AnimationLabelPillView(frame: .zero)
+	private let stackView = NSStackView()
+	private var metrics = GateBadgeLayout.metrics(
+		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
+	)
+
+	override init(frame frameRect: NSRect) {
+		super.init(frame: frameRect)
+		wantsLayer = true
+		layer?.masksToBounds = false
+
+		stackView.orientation = .horizontal
+		stackView.alignment = .centerY
+		stackView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(stackView)
+		stackView.addArrangedSubview(pillView)
+		NSLayoutConstraint.activate([
+			stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			stackView.topAnchor.constraint(equalTo: topAnchor),
+			stackView.bottomAnchor.constraint(equalTo: bottomAnchor),
+		])
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func configure(text: String, platform: PlatformAttribution?, metrics: GateBadgeLayout.Metrics) {
+		self.metrics = metrics
+		stackView.spacing = metrics.interBadgeSpacing
+		pillView.configure(text: text, metrics: metrics)
+		if let platform {
+			chipView.configure(platform: platform, metrics: metrics)
+			if chipView.superview == nil {
+				stackView.insertArrangedSubview(chipView, at: 0)
+			}
+		} else if chipView.superview != nil {
+			stackView.removeArrangedSubview(chipView)
+			chipView.removeFromSuperview()
+		}
+		layoutSubtreeIfNeeded()
+	}
+
+	var preferredSize: CGSize {
+		layoutSubtreeIfNeeded()
+		return stackView.fittingSize
+	}
+
+	/// X-coordinate (in badge-local space) of the label pill's horizontal center.
+	/// The pill is the rightmost element, so its center sits `pillWidth / 2` in
+	/// from the trailing edge. The panel anchors *this* point on the pet's midX so
+	/// the pill owns the dead-center position and the chip hangs off to its left;
+	/// with no chip it collapses to `width / 2` (centered, as before).
+	var pillCenterX: CGFloat {
+		layoutSubtreeIfNeeded()
+		return stackView.fittingSize.width - pillView.intrinsicContentSize.width / 2
 	}
 }
 

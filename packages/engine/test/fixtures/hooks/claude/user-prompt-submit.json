@@ -1,0 +1,8 @@
+{
+  "session_id": "0000-claude-fixture-session",
+  "transcript_path": "/redacted/transcript.jsonl",
+  "cwd": "/redacted/workspace",
+  "permission_mode": "default",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "Refactor the auth module to use the new token store"
+}

@@ -51,23 +51,51 @@ final class LivePollingTests: XCTestCase {
 		var renders: [(ActivityState, VisualMode)] = []
 		var tooltips: [String?] = []
 		var gateBadges: [GateBadgeContent?] = []
+		var platforms: [String?] = []
 	}
 
 	private func makeDriver(
 		target: URL,
 		recorder: Recorder,
 		gatePath: URL? = nil,
-		deliveryContextPath: URL? = nil
+		deliveryContextPath: URL? = nil,
+		previewStatePath: URL? = nil,
+		previewGatePath: URL? = nil,
+		transitionLog: TransitionLog? = nil
 	) -> LivePollingDriver {
 		let driver = LivePollingDriver(
 			pollingTargetPath: target.path,
 			gatePath: gatePath?.path,
 			deliveryContextPath: deliveryContextPath?.path,
+			previewStatePath: previewStatePath?.path,
+			previewGatePath: previewGatePath?.path,
 			apply: { state, mode in recorder.renders.append((state, mode)) },
-			setTooltip: { tip in recorder.tooltips.append(tip) }
+			setTooltip: { tip in recorder.tooltips.append(tip) },
+			transitionLog: transitionLog
 		)
 		driver.applyGateBadge = { recorder.gateBadges.append($0) }
+		driver.applyPlatform = { recorder.platforms.append($0) }
 		return driver
+	}
+
+	private func writePreviewStateJson(
+		_ target: URL,
+		state: String,
+		expiresAt: String = "2099-01-01T00:00:00.000Z"
+	) throws {
+		try """
+			{"activity_state":"\(state)","since":"2026-01-01T00:00:00Z","expires_at":"\(expiresAt)"}
+			""".write(to: target, atomically: true, encoding: .utf8)
+	}
+
+	private func writePreviewGateJson(
+		_ target: URL,
+		gate: String,
+		expiresAt: String = "2099-01-01T00:00:00.000Z"
+	) throws {
+		try """
+			{"gate":"\(gate)","since":"2026-01-01T00:00:00Z","expires_at":"\(expiresAt)"}
+			""".write(to: target, atomically: true, encoding: .utf8)
 	}
 
 	private func writeGateJson(
@@ -198,6 +226,60 @@ final class LivePollingTests: XCTestCase {
 			"normal-mode renders must clear the tooltip (no failure copy to surface)"
 		)
 		XCTAssertEqual(recorder.gateBadges, [nil], "first tick still emits an explicit nil gate badge")
+	}
+
+	func testPreviewStateOverrideWinsWithoutTelemetryOrTooltip() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		let previewStatePath = target.deletingLastPathComponent().appendingPathComponent(
+			"preview-state.json")
+		let transitionLogPath = target.deletingLastPathComponent().appendingPathComponent(
+			"state-transitions.log")
+		try copyFixture("implementing.json", to: target)
+		try writePreviewStateJson(previewStatePath, state: "thinking")
+		let transitionLog = TransitionLog(path: transitionLogPath)
+		let driver = makeDriver(
+			target: target,
+			recorder: recorder,
+			previewStatePath: previewStatePath,
+			transitionLog: transitionLog
+		)
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(recorder.renders.map { $0.0 }, [.thinking])
+		XCTAssertEqual(recorder.renders.map { $0.1 }, [.normal])
+		XCTAssertEqual(recorder.tooltips, [nil])
+		XCTAssertEqual(
+			recorder.gateBadges,
+			[nil],
+			"preview mode clears the persistent badge lane so live delivery context does not bleed into animation testing"
+		)
+		XCTAssertFalse(
+			FileManager.default.fileExists(atPath: transitionLogPath.path),
+			"preview overrides must not append to the durable transition log"
+		)
+	}
+
+	func testPreviewGateOverrideWinsOverLiveStateWithoutBadge() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		let previewGatePath = target.deletingLastPathComponent().appendingPathComponent(
+			"preview-gate.json")
+		try copyFixture("implementing.json", to: target)
+		try writePreviewGateJson(previewGatePath, gate: "ticket_started")
+		let driver = makeDriver(
+			target: target,
+			recorder: recorder,
+			previewGatePath: previewGatePath
+		)
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(recorder.renders.map { $0.0 }, [.ticketStarted])
+		XCTAssertEqual(recorder.renders.map { $0.1 }, [.normal])
+		XCTAssertEqual(recorder.tooltips, [nil])
+		XCTAssertEqual(recorder.gateBadges, [nil])
 	}
 
 	func testExpiredGateFallsThroughToHookStateButBadgePersists() throws {
@@ -358,6 +440,57 @@ final class LivePollingTests: XCTestCase {
 			recorder.renders.count,
 			1,
 			"identical (state, visualMode) across ticks must collapse to a single apply call"
+		)
+	}
+
+	// MARK: - Platform attribution
+
+	func testPlatformOriginEmittedFromSourceEvent() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		try copyFixture("implementing.json", to: target)
+		let driver = makeDriver(target: target, recorder: recorder)
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(
+			recorder.platforms,
+			["claude_code"],
+			"source_event.origin must be forwarded to the platform sink"
+		)
+	}
+
+	func testPlatformOriginSuppressesUnchangedRepeats() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		try copyFixture("implementing.json", to: target)
+		let driver = makeDriver(target: target, recorder: recorder)
+
+		driver.tickForTesting()
+		driver.tickForTesting()
+		driver.tickForTesting()
+
+		XCTAssertEqual(
+			recorder.platforms,
+			["claude_code"],
+			"an unchanged origin across ticks must emit only once"
+		)
+	}
+
+	func testPlatformOriginClearsToNilOnReadFailure() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		try copyFixture("implementing.json", to: target)
+		let driver = makeDriver(target: target, recorder: recorder)
+
+		driver.tickForTesting()
+		try FileManager.default.removeItem(at: target)
+		driver.tickForTesting()
+
+		XCTAssertEqual(
+			recorder.platforms,
+			["claude_code", nil],
+			"a read failure must clear the attributed platform so no stale chip lingers"
 		)
 	}
 }

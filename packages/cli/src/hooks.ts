@@ -92,19 +92,29 @@ async function resolveHookCommand(execPath?: string): Promise<string> {
   return CODOGOTCHI_COMMAND;
 }
 
-/// Claude Code event slots the hook is registered against. `PreToolUse` fires
-/// on every tool invocation; `Stop` fires when Claude finishes a turn;
-/// `StopFailure` fires instead of `Stop` on API errors (rate-limit,
-/// authentication, billing, server errors). Together they give the hook
-/// full lifecycle coverage for success and terminal failure paths.
-const CODOGOTCHI_EVENTS = ["PreToolUse", "Stop", "StopFailure"] as const;
+/// Claude Code event slots the hook is registered against. `UserPromptSubmit`
+/// fires when the user submits a prompt, before the model emits its first tool
+/// call — the earliest "agent is working" edge, so the pet starts `thinking`
+/// without waiting for `PreToolUse`. `PreToolUse` fires on every tool
+/// invocation; `Stop` fires when Claude finishes a turn; `StopFailure` fires
+/// instead of `Stop` on API errors (rate-limit, authentication, billing, server
+/// errors). Together they give the hook full lifecycle coverage for success and
+/// terminal failure paths.
+const CODOGOTCHI_EVENTS = [
+  "UserPromptSubmit",
+  "PreToolUse",
+  "Stop",
+  "StopFailure",
+] as const;
 const CODEX_CODOGOTCHI_EVENTS = [
+  "UserPromptSubmit",
   "PreToolUse",
   "PostToolUse",
   "SessionStart",
   "Stop",
 ] as const;
 const CURSOR_CODOGOTCHI_EVENTS = [
+  "beforeSubmitPrompt",
   "afterFileEdit",
   "beforeShellExecution",
   "afterShellExecution",

@@ -416,6 +416,63 @@ describe("classifyEvent", () => {
     expect(out.sourceEvent.kind).toBe("session_end");
   });
 
+  it("classifies Claude UserPromptSubmit as thinking", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "UserPromptSubmit",
+        prompt: "do the thing",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("thinking");
+    expect(out.sourceEvent.origin).toBe("claude_code");
+    expect(out.sourceEvent.kind).toBe("prompt_submit");
+  });
+
+  it("classifies Codex user_prompt_submit as thinking", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "user_prompt_submit",
+        prompt: "do the thing",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("thinking");
+    expect(out.sourceEvent.origin).toBe("codex");
+    expect(out.sourceEvent.kind).toBe("prompt_submit");
+  });
+
+  it("classifies Cursor beforeSubmitPrompt as thinking", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "beforeSubmitPrompt",
+        prompt: "do the thing",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("thinking");
+    expect(out.sourceEvent.origin).toBe("cursor");
+    expect(out.sourceEvent.kind).toBe("prompt_submit");
+  });
+
+  it("prompt submit resets readRun — Read×2 → UserPromptSubmit → Read×1 is not cramming", () => {
+    const read = {
+      origin: "claude_code" as const,
+      kind: "tool_use" as const,
+      name: "Read",
+    };
+    const submit = { hook_event_name: "UserPromptSubmit" } as HookInput;
+    const r1 = classifyEvent(read, { readRun: 0 });
+    const r2 = classifyEvent(read, { readRun: r1.readRun });
+    expect(r2.state).toBe("reading");
+    const s = classifyEvent(submit, { readRun: r2.readRun });
+    expect(s.state).toBe("thinking");
+    expect(s.readRun).toBe(0);
+    const r3 = classifyEvent(read, { readRun: s.readRun });
+    expect(r3.state).toBe("reading");
+    expect(r3.readRun).toBe(1);
+  });
+
   it("classifies Stop event as standby", () => {
     const out = classifyEvent({ hook_event_name: "Stop" } as HookInput, {
       readRun: 0,

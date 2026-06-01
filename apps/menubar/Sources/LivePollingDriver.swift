@@ -58,6 +58,7 @@ final class LivePollingDriver {
 	typealias SetTooltip = (String?) -> Void
 	typealias ApplyAttention = (AttentionPayload?, SourceEvent?) -> Void
 	typealias ApplyGateBadge = (GateBadgeContent?) -> Void
+	typealias ApplyPlatform = (String?) -> Void
 	typealias Reader = (String) -> Result<StateSnapshot, StateReadError>
 	typealias GateReader = (String) -> GateSnapshot?
 	typealias DeliveryContextReaderFn = (String) -> DeliveryContextSnapshot?
@@ -65,6 +66,8 @@ final class LivePollingDriver {
 	private let pollingTargetPath: String
 	private let gatePath: String?
 	private let deliveryContextPath: String?
+	private let previewStatePath: String?
+	private let previewGatePath: String?
 	private let apply: Apply
 	private let setTooltip: SetTooltip
 	private let reader: Reader
@@ -81,6 +84,11 @@ final class LivePollingDriver {
 	/// Optional sink for persistent gate badge updates. Badge content comes from
 	/// `delivery-context.json`; `gate.json` remains only the animation pulse.
 	var applyGateBadge: ApplyGateBadge?
+	/// Optional sink for the driving platform. Emits `source_event.origin` (e.g.
+	/// `"claude_code"`, `"cursor"`) whenever it changes so the animation badge's
+	/// platform chip can track who last drove the pet. `nil` on read failures and
+	/// when the payload omits an origin.
+	var applyPlatform: ApplyPlatform?
 
 	private var timer: Timer?
 	private var lastRendered: (state: ActivityState, mode: VisualMode)?
@@ -92,6 +100,10 @@ final class LivePollingDriver {
 	private var lastAttentionEmission: (AttentionPayload?, SourceEvent?)? = nil
 	private var lastGateBadge: GateBadgeContent?
 	private var hasEmittedGateBadge = false
+	/// Cached platform origin. `hasEmittedPlatform` distinguishes "never emitted"
+	/// so the first `nil` origin still clears any inherited chip.
+	private var lastPlatformOrigin: String?
+	private var hasEmittedPlatform = false
 	/// Agent-reported state from the last successful read. The transition log
 	/// records changes against this value, not against the rendered visual
 	/// state, because failure visuals collapse to `.idle` regardless of what
@@ -103,6 +115,8 @@ final class LivePollingDriver {
 		pollingTargetPath: String,
 		gatePath: String? = nil,
 		deliveryContextPath: String? = nil,
+		previewStatePath: String? = PreviewOverrideReader.defaultStatePath().path,
+		previewGatePath: String? = PreviewOverrideReader.defaultGatePath().path,
 		apply: @escaping Apply,
 		setTooltip: @escaping SetTooltip,
 		reader: @escaping Reader = StateJsonReader.read(at:),
@@ -115,6 +129,8 @@ final class LivePollingDriver {
 		self.pollingTargetPath = pollingTargetPath
 		self.gatePath = gatePath
 		self.deliveryContextPath = deliveryContextPath
+		self.previewStatePath = previewStatePath
+		self.previewGatePath = previewGatePath
 		self.apply = apply
 		self.setTooltip = setTooltip
 		self.reader = reader
@@ -168,8 +184,11 @@ final class LivePollingDriver {
 	}
 
 	private func runTick() {
+		let previewState = previewStatePath.flatMap { PreviewOverrideReader.readState(at: $0) }
+		let previewGate = previewGatePath.flatMap { PreviewOverrideReader.readGate(at: $0) }
+		let previewActive = previewState != nil || previewGate != nil
 		let result = reader(pollingTargetPath)
-		if case .success(let snapshot) = result {
+		if !previewActive, case .success(let snapshot) = result {
 			let prev = lastAgentState
 			if prev != snapshot.activityState {
 				transitionLog?.recordTransition(
@@ -179,7 +198,7 @@ final class LivePollingDriver {
 			}
 			lastAgentState = snapshot.activityState
 		}
-		let outcome = decide(from: result)
+		let outcome = decide(from: result, previewState: previewState, previewGate: previewGate)
 		emit(outcome)
 	}
 
@@ -192,7 +211,16 @@ final class LivePollingDriver {
 		let gateBadge: GateBadgeContent?
 	}
 
-	private func decide(from result: Result<StateSnapshot, StateReadError>) -> Outcome {
+	private func decide(
+		from result: Result<StateSnapshot, StateReadError>,
+		previewState: PreviewStateOverride?,
+		previewGate: PreviewGateOverride?
+	) -> Outcome {
+		if let previewOutcome = previewOutcome(
+			from: result, previewState: previewState, previewGate: previewGate)
+		{
+			return previewOutcome
+		}
 		let gate = gatePath.flatMap { gateReader($0) }
 		let deliveryContext = deliveryContextPath.flatMap { deliveryContextReader($0) }
 		switch result {
@@ -234,6 +262,45 @@ final class LivePollingDriver {
 				attention: nil, sourceEvent: nil, gateBadge: gateBadge
 			)
 		}
+	}
+
+	private func previewOutcome(
+		from result: Result<StateSnapshot, StateReadError>,
+		previewState: PreviewStateOverride?,
+		previewGate: PreviewGateOverride?
+	) -> Outcome? {
+		guard previewState != nil || previewGate != nil else { return nil }
+		let hookState: ActivityState = {
+			if let previewState {
+				return previewState.activityState
+			}
+			if case .success(let snapshot) = result {
+				return snapshot.activityState
+			}
+			return .idle
+		}()
+		let gateSnapshot = previewGate.map {
+			GateSnapshot(
+				gate: $0.activityState.rawValue,
+				since: $0.since,
+				expiresAt: $0.expiresAt,
+				planKey: nil,
+				ticketId: nil
+			)
+		}
+		let state = resolveActivityState(
+			gate: gateSnapshot,
+			hookState: hookState,
+			codogotchiPet: codogotchiPet
+		)
+		return Outcome(
+			state: state,
+			mode: .normal,
+			tooltip: nil,
+			attention: nil,
+			sourceEvent: nil,
+			gateBadge: nil
+		)
 	}
 
 	private func emit(_ outcome: Outcome) {
@@ -283,5 +350,105 @@ final class LivePollingDriver {
 				hasEmittedGateBadge = true
 			}
 		}
+
+		if let sink = applyPlatform {
+			let origin = outcome.sourceEvent?.origin
+			let platformChanged = !hasEmittedPlatform || origin != lastPlatformOrigin
+			if platformChanged {
+				sink(origin)
+				lastPlatformOrigin = origin
+				hasEmittedPlatform = true
+			}
+		}
 	}
+}
+
+struct PreviewStateOverride {
+	let activityState: ActivityState
+	let expiresAt: String
+	let since: String
+
+	func isExpired(now: Date = Date()) -> Bool {
+		parsePreviewISO8601Date(expiresAt).map { $0 < now } ?? true
+	}
+}
+
+struct PreviewGateOverride {
+	let activityState: ActivityState
+	let expiresAt: String
+	let since: String
+
+	func isExpired(now: Date = Date()) -> Bool {
+		parsePreviewISO8601Date(expiresAt).map { $0 < now } ?? true
+	}
+}
+
+enum PreviewOverrideReader {
+	static let directoryName = "codogotchi-preview"
+	static let stateFilename = "state-override.json"
+	static let gateFilename = "gate-override.json"
+
+	static func defaultRoot(
+		environment: [String: String] = ProcessInfo.processInfo.environment
+	) -> URL {
+		let tmpRoot: URL =
+			environment["TMPDIR"].map { URL(fileURLWithPath: $0) }
+			?? URL(fileURLWithPath: NSTemporaryDirectory())
+		return tmpRoot.appendingPathComponent(directoryName, isDirectory: true)
+	}
+
+	static func defaultStatePath(
+		environment: [String: String] = ProcessInfo.processInfo.environment
+	) -> URL {
+		defaultRoot(environment: environment).appendingPathComponent(stateFilename)
+	}
+
+	static func defaultGatePath(
+		environment: [String: String] = ProcessInfo.processInfo.environment
+	) -> URL {
+		defaultRoot(environment: environment).appendingPathComponent(gateFilename)
+	}
+
+	static func readState(at path: String, now: Date = Date()) -> PreviewStateOverride? {
+		let url = URL(fileURLWithPath: path)
+		guard let data = try? Data(contentsOf: url) else { return nil }
+		guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+			let rawState = root["activity_state"] as? String,
+			let activityState = ActivityState(rawValue: rawState),
+			let expiresAt = root["expires_at"] as? String,
+			let since = root["since"] as? String
+		else { return nil }
+		let override = PreviewStateOverride(
+			activityState: activityState,
+			expiresAt: expiresAt,
+			since: since
+		)
+		return override.isExpired(now: now) ? nil : override
+	}
+
+	static func readGate(at path: String, now: Date = Date()) -> PreviewGateOverride? {
+		let url = URL(fileURLWithPath: path)
+		guard let data = try? Data(contentsOf: url) else { return nil }
+		guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+			let rawState = root["gate"] as? String,
+			let activityState = ActivityState(rawValue: rawState),
+			CodogotchiPet.soaRowMap[activityState] != nil,
+			let expiresAt = root["expires_at"] as? String,
+			let since = root["since"] as? String
+		else { return nil }
+		let override = PreviewGateOverride(
+			activityState: activityState,
+			expiresAt: expiresAt,
+			since: since
+		)
+		return override.isExpired(now: now) ? nil : override
+	}
+}
+
+private func parsePreviewISO8601Date(_ string: String) -> Date? {
+	let formatter = ISO8601DateFormatter()
+	formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+	if let date = formatter.date(from: string) { return date }
+	formatter.formatOptions = [.withInternetDateTime]
+	return formatter.date(from: string)
 }

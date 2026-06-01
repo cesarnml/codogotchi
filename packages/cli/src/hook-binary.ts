@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rmdir, writeFile } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import {
   type ActivityState,
@@ -166,8 +166,27 @@ function rawHookOrigin(input: HookInput): SourceEventOrigin {
   return "claude_code"; // PascalCase
 }
 
+/// Collapse a platform's prompt-submit event name to a single token so the
+/// three dialects compare equal: Claude `UserPromptSubmit`, Codex
+/// `user_prompt_submit`, and Cursor `beforeSubmitPrompt`.
+function normalizedEventToken(eventName: string | undefined): string {
+  return eventName?.toLowerCase().replaceAll("_", "") ?? "";
+}
+
+const PROMPT_SUBMIT_TOKENS = new Set([
+  "userpromptsubmit",
+  "beforesubmitprompt",
+]);
+
+function isPromptSubmitEvent(eventName: string | undefined): boolean {
+  return PROMPT_SUBMIT_TOKENS.has(normalizedEventToken(eventName));
+}
+
 function rawHookKind(input: HookInput): SourceEventKind {
   if (input.kind !== undefined) return input.kind;
+  // Prompt-submit fires before any tool call and carries no tool_name; check it
+  // before the tool_name fallthrough so it is never misread as tool_use.
+  if (isPromptSubmitEvent(input.hook_event_name)) return "prompt_submit";
   if (input.tool_name) return "tool_use";
   const hookName = input.hook_event_name;
   if (
@@ -291,6 +310,14 @@ export function classifyEvent(
   // Explicit failure signal for non-Stop events (rate limit, network error).
   if (input.is_error === true) {
     return { state: "errored", sourceEvent, readRun: 0 };
+  }
+
+  // Prompt submit is the earliest "agent is working" edge — it fires before the
+  // model emits its first tool call, so map it to `thinking` to close the gap
+  // where the pet would otherwise linger on its prior state until PreToolUse.
+  // It is a turn boundary, so reset the cramming read-run streak.
+  if (kind === "prompt_submit") {
+    return { state: "thinking", sourceEvent, readRun: 0 };
   }
 
   if (kind === "tool_use") {

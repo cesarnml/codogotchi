@@ -18,6 +18,7 @@
 		2224FF2568198C777B9A666D /* maew in Resources */ = {isa = PBXBuildFile; fileRef = 7AC107DCBD46F0F6DBA5B3B6 /* maew */; };
 		2428DB31DC98CF0BB7C651F2 /* AboutViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4B2DA7902212941A3DBFFE0 /* AboutViewModelTests.swift */; };
 		2C985DFC0C4B11F3C3BF69F9 /* AppBootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */; };
+		316AA2C6A8C406E70790A264 /* PlatformAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D23A5CD119A7DB5B530305 /* PlatformAttribution.swift */; };
 		3278D5B8A5BF524A956FECEC /* FloatingInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */; };
 		36D30A2BA8D14CA1D7D62D1C /* PetStoreSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */; };
 		36F25B978082DFFA568C39DC /* MenubarMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 379B33D9319DAC49A3CCC39C /* MenubarMenu.swift */; };
@@ -67,7 +68,9 @@
 		E404CD73DA9AE54A6860F17D /* DeveloperTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B22EF406588604AA7D68817 /* DeveloperTabViewModel.swift */; };
 		E8712303792CE42D957E76EA /* AttentionBubblePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8503B3E0903814CC7FC6DF40 /* AttentionBubblePanel.swift */; };
 		E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */; };
+		E93167AF2416BE06B2BAA308 /* PlatformAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EB23CFF7BEBC442A06A8B1 /* PlatformAttributionTests.swift */; };
 		EA37D54D592388A3D881C2B2 /* DemoCycleDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B49E0C3473A936DCB90AFE2A /* DemoCycleDriver.swift */; };
+		EDE94984953A0853B0FE255B /* AttentionFocusTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F38C436FB78D4B7E7895A7EA /* AttentionFocusTargetTests.swift */; };
 		EDFFAD8F83BE0E484D996FCB /* SettingsTabModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05EB20E9AD12E7E2765C3217 /* SettingsTabModelTests.swift */; };
 		F0D2A72E1931F49257F1C2A4 /* FloatingPetScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50592CBB8ED4543FDCF95E79 /* FloatingPetScene.swift */; };
 		F7D1881F6D3DB1D5BFC19B63 /* CodexPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6829E3A0570398A50A596E4 /* CodexPet.swift */; };
@@ -91,8 +94,10 @@
 		0B22EF406588604AA7D68817 /* DeveloperTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperTabViewModel.swift; sourceTree = "<group>"; };
 		0C648B3B6E8C5F97123E808D /* PetConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfigTests.swift; sourceTree = "<group>"; };
 		0D359A7765F7ACDDA24C16CB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		15EB23CFF7BEBC442A06A8B1 /* PlatformAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformAttributionTests.swift; sourceTree = "<group>"; };
 		15F8B7A0E0B770D28C7486B7 /* LockstepPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockstepPolicyTests.swift; sourceTree = "<group>"; };
 		16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetImportHelper.swift; sourceTree = "<group>"; };
+		19D23A5CD119A7DB5B530305 /* PlatformAttribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformAttribution.swift; sourceTree = "<group>"; };
 		2E496AEDA38E70CA0C7D4E4F /* MenubarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarTests.swift; sourceTree = "<group>"; };
 		31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiPet.swift; sourceTree = "<group>"; };
 		3280C616774866918681AF0C /* MenubarRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRenderer.swift; sourceTree = "<group>"; };
@@ -148,6 +153,7 @@
 		EA899400094213B8A814D114 /* FloatingPetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetController.swift; sourceTree = "<group>"; };
 		F03E85F706D8680019622FDC /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRendererTests.swift; sourceTree = "<group>"; };
+		F38C436FB78D4B7E7895A7EA /* AttentionFocusTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttentionFocusTargetTests.swift; sourceTree = "<group>"; };
 		F4B2DA7902212941A3DBFFE0 /* AboutViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModelTests.swift; sourceTree = "<group>"; };
 		F4D4D8341FA731AE0AE8723E /* AboutViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModel.swift; sourceTree = "<group>"; };
 		F60153C0C8806DC3EB2137C9 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
@@ -161,6 +167,7 @@
 				F4B2DA7902212941A3DBFFE0 /* AboutViewModelTests.swift */,
 				5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */,
 				B8F15B1B99434EA9F9005052 /* AppStateTests.swift */,
+				F38C436FB78D4B7E7895A7EA /* AttentionFocusTargetTests.swift */,
 				9E7256729C3F274DFB3A5204 /* BundledMaewTests.swift */,
 				4610C19ADA41987592CEE748 /* CodexPetTests.swift */,
 				E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */,
@@ -181,6 +188,7 @@
 				6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */,
 				079E19BBF7A258650F759E72 /* PetStateFanoutTests.swift */,
 				E0A9EA8AA7530DED8536C384 /* PetTabViewModelTests.swift */,
+				15EB23CFF7BEBC442A06A8B1 /* PlatformAttributionTests.swift */,
 				DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */,
 				05EB20E9AD12E7E2765C3217 /* SettingsTabModelTests.swift */,
 				9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */,
@@ -231,6 +239,7 @@
 				49C42121B54C0F2313BB1114 /* PetStateFanout.swift */,
 				E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */,
 				DEC685626D14E1B7F1A468CC /* PetTabViewModel.swift */,
+				19D23A5CD119A7DB5B530305 /* PlatformAttribution.swift */,
 				73B325A85B9C3A8AFB02C5BA /* SettingsController.swift */,
 				8376E8D645FB7A0F189A4BF7 /* SettingsTabModel.swift */,
 				F03E85F706D8680019622FDC /* SettingsWindowController.swift */,
@@ -417,6 +426,7 @@
 				D48C3FDB43E1FA8E01113439 /* PetStateFanout.swift in Sources */,
 				36D30A2BA8D14CA1D7D62D1C /* PetStoreSeeder.swift in Sources */,
 				00F9608A6921A6D7A6FD6454 /* PetTabViewModel.swift in Sources */,
+				316AA2C6A8C406E70790A264 /* PlatformAttribution.swift in Sources */,
 				71AFF145FBC55826CFD98324 /* SettingsController.swift in Sources */,
 				5BCBBEDB079EFB169F7D3314 /* SettingsTabModel.swift in Sources */,
 				9B062BB29847EA8ABCE06338 /* SettingsWindowController.swift in Sources */,
@@ -432,6 +442,7 @@
 				2428DB31DC98CF0BB7C651F2 /* AboutViewModelTests.swift in Sources */,
 				2C985DFC0C4B11F3C3BF69F9 /* AppBootstrapTests.swift in Sources */,
 				BA3F2EF6D3F5E093C9DFFBE9 /* AppStateTests.swift in Sources */,
+				EDE94984953A0853B0FE255B /* AttentionFocusTargetTests.swift in Sources */,
 				99C8B80FE0466C9BB1B58C51 /* BundledMaewTests.swift in Sources */,
 				C81091A2187453263DAF99B7 /* CodexPetTests.swift in Sources */,
 				38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */,
@@ -452,6 +463,7 @@
 				B20913FC5559EE95F7E4E2BA /* PetImportHelperTests.swift in Sources */,
 				FBE36F71D1F69299A13DDADA /* PetStateFanoutTests.swift in Sources */,
 				7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */,
+				E93167AF2416BE06B2BAA308 /* PlatformAttributionTests.swift in Sources */,
 				49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */,
 				EDFFAD8F83BE0E484D996FCB /* SettingsTabModelTests.swift in Sources */,
 				C4F4151A25F6ED0D587172FD /* StateJsonReaderTests.swift in Sources */,

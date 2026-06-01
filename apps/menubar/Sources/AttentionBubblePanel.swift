@@ -41,6 +41,27 @@ private enum BubblePalette {
 
 // MARK: - Panel
 
+/// Resolves which app the Focus button should foreground for a given
+/// `source_event`. Pure mapping, factored out of the (private) bubble view so it
+/// can be unit-tested without constructing AppKit panels.
+///
+/// Priority:
+/// 1. `terminalBundleId` — the terminal that launched the hook process,
+///    populated by `detectTerminalBundleId` in hook-binary.ts.
+/// 2. IDE-native origin map — for IDE agents (cursor, codex Desktop) that fire
+///    hooks directly without a terminal parent.
+/// 3. `nil` — no reliable Focus target; the bubble still dismisses, Focus no-ops.
+enum AttentionFocusTarget {
+	static func bundleId(for event: SourceEvent?) -> String? {
+		if let terminalId = event?.terminalBundleId { return terminalId }
+		let ideMap: [String: String] = [
+			"cursor": "com.todesktop.230313mzl4w4u92",
+			"codex": "com.openai.codex",
+		]
+		return ideMap[event?.origin ?? ""]
+	}
+}
+
 /// Floating attention bubble shown below the pet panel when `state.json`
 /// carries an unexpired `attention` object. Session-local dismiss — never
 /// writes back to `state.json`.
@@ -438,37 +459,32 @@ private final class AttentionBubbleView: NSView {
 	}
 
 	@objc private func performAction() {
-		let bundleId = focusBundleId(for: sourceEvent)
+		let bundleId = AttentionFocusTarget.bundleId(for: sourceEvent)
 		defer {
 			onDismiss?()
 			window?.orderOut(nil)
 		}
 		guard let bundleId else { return }
-		let match = NSWorkspace.shared.runningApplications.first {
+		let running = NSWorkspace.shared.runningApplications.first {
 			$0.bundleIdentifier == bundleId
 		}
 		// activate forces the OS to foreground the app (handles Electron apps that
-		// ignore the reopen event); open(bundleURL) then handles un-minimise from dock.
-		match?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-		if let url = match?.bundleURL {
-			NSWorkspace.shared.open(url)
-		}
+		// ignore the reopen event).
+		running?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+		// Resolve the bundle URL (running instance first, else a LaunchServices
+		// lookup for a not-running target) and reopen it via `openApplication`.
+		// This deliberately replaces the deprecated `NSWorkspace.open(bundleURL)`:
+		// opening another app's bundle URL trips macOS App Management ("…prevented
+		// from modifying apps"), which re-prompts on every unsigned rebuild.
+		// `openApplication(at:configuration:)` is the sanctioned launch/reopen path
+		// — it un-minimises from the Dock without touching the bundle.
+		guard
+			let url = running?.bundleURL
+				?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId)
+		else { return }
+		let configuration = NSWorkspace.OpenConfiguration()
+		configuration.activates = true
+		NSWorkspace.shared.openApplication(at: url, configuration: configuration)
 	}
 
-	/// Resolves the bundle ID to focus when the user taps Focus.
-	///
-	/// Priority:
-	/// 1. `terminal_bundle_id` — the terminal that launched the hook process,
-	///    populated by `detectTerminalBundleId` in hook-binary.ts.
-	/// 2. IDE-native origin map — for IDE agents (cursor, codex Desktop) that fire
-	///    hooks directly without a terminal parent.
-	/// 3. nil — no reliable Focus target; bubble still dismisses, Focus is a no-op.
-	private func focusBundleId(for event: SourceEvent?) -> String? {
-		if let terminalId = event?.terminalBundleId { return terminalId }
-		let ideMap: [String: String] = [
-			"cursor": "com.todesktop.230313mzl4w4u92",
-			"codex": "com.openai.codex",
-		]
-		return ideMap[event?.origin ?? ""]
-	}
 }

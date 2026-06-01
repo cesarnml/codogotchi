@@ -406,9 +406,11 @@ final class FloatingPetControllerTests: XCTestCase {
 		let badgeSize = CGSize(width: 90, height: 24)
 		let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
 
+		// No chip: the anchor is the badge's own center, so the whole badge centers.
 		let frame = AnimationBadgeLayout.frame(
 			relativeTo: petFrame,
 			badgeSize: badgeSize,
+			anchorX: badgeSize.width / 2,
 			visibleFrame: visibleFrame
 		)
 
@@ -418,6 +420,28 @@ final class FloatingPetControllerTests: XCTestCase {
 		// below the feet so the sprite appears to stand on it.
 		XCTAssertEqual(frame.maxY, petFrame.minY + AnimationBadgeLayout.inset, accuracy: 0.01)
 		XCTAssertLessThan(frame.minY, petFrame.minY)
+	}
+
+	func testAnimationBadgeAnchorPlacesPillCenterOnPetMidXWithChipToLeft() {
+		// With a platform chip present, `anchorX` is the label pill's center (not
+		// the badge's). The pill must land on the pet's midX and the chip hangs to
+		// its left — the badge frame extends left of center, not symmetric.
+		let petFrame = CGRect(x: 120, y: 160, width: 220, height: 180)
+		let badgeSize = CGSize(width: 120, height: 24)
+		let pillCenterX: CGFloat = 96  // chip(24) + spacing(?) + pill: pill center 96 from left
+		let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
+
+		let frame = AnimationBadgeLayout.frame(
+			relativeTo: petFrame,
+			badgeSize: badgeSize,
+			anchorX: pillCenterX,
+			visibleFrame: visibleFrame
+		)
+
+		// The pill's center (anchorX within the badge) lands exactly on the pet midX.
+		XCTAssertEqual(frame.minX + pillCenterX, petFrame.midX, accuracy: 0.01)
+		// And the badge is *not* centered — it extends further left of the midline.
+		XCTAssertLessThan(frame.midX, petFrame.midX)
 	}
 
 	func testAnimationBadgeHiddenWhileAttentionBubbleActive() {
@@ -473,6 +497,7 @@ final class FloatingPetControllerTests: XCTestCase {
 		let frame = AnimationBadgeLayout.frame(
 			relativeTo: petFrame,
 			badgeSize: badgeSize,
+			anchorX: badgeSize.width / 2,
 			visibleFrame: visibleFrame
 		)
 
