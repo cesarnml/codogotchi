@@ -2,7 +2,7 @@
 
 _Drafted: 2026-05-27_
 _Status: Draft input — product plan at `docs/product/plans/phase-05-lite-install-and-onboarding.md` (grill-me complete, awaiting approval)_
-_Source: [codogotchi-ideation-storm-roadmap-draft.md](../../notes/public/codogotchi-ideation-storm-roadmap-draft.md), lite-vs-alive product model_
+_Source: `notes/private/codogotchi-ideation-storm-roadmap-draft.md`, lite-vs-alive product model (operator-local)_
 
 ---
 

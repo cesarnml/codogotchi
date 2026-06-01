@@ -1,58 +1,39 @@
-# Convex Deployment Contract
+# Convex deployment contract
 
-> **Private — do not link from public docs.** Limited circulation: project owner + buddy. The dashboard link is fine to share informally; the HTTP action URL gates writes to the production data, so treat it like a publish endpoint.
+> **Operator setup.** Deployment URLs and dashboard links are **not** committed to this repo. Copy the live values from your local operator notes or Convex dashboard.
 
-## Active deployment
+## What belongs where
 
-| Field | Value |
+| Item | Location |
 | --- | --- |
-| Deployment ID | `dev:careful-bat-587` |
-| Client URL (`CONVEX_URL`) | `https://careful-bat-587.convex.cloud` |
-| HTTP action base (`CONVEX_SITE_URL`) | `https://careful-bat-587.convex.site` |
-| `/sync` endpoint | `https://careful-bat-587.convex.site/sync` |
-| Dashboard | <https://dashboard.convex.dev/d/careful-bat-587> |
-| Owner / admin | `cmejia` |
+| Deployment ID, `CONVEX_URL`, `CONVEX_SITE_URL`, `/sync` URL, dashboard | Local: `notes/private/convex-deployment.md` (gitignored) |
+| `CONVEX_DEPLOY_KEY` | Gitignored `.env` / CI secrets only — never commit |
+| Per-machine enroll URL | `~/.codogotchi/config.json` → `convex_http_url` (written by `codogotchi rpg` today) |
 
-> The deployment was provisioned with a `dev:`-prefixed deploy key during P1.08. A `prod:` deployment will be cut from the same Convex project before public launch (Phase 04). Until then this dev deployment carries the Phase 01 validation data.
+## Config shape
 
-## Phase 01 reservation
-
-`~/.codogotchi/config.json` (introduced in P1.12) reserves the field `convex_http_url`. For Phase 01, the owner and buddy populate it manually:
+`~/.codogotchi/config.json` (Alive / RPG) includes:
 
 ```json
 {
-  "convex_http_url": "https://careful-bat-587.convex.site"
+  "convex_http_url": "https://<your-deployment>.convex.site"
 }
 ```
 
-P1.12's `codogotchi setup` command reads this value at sync time.
+Lite installs do not require this field. Sync uses `POST {convex_http_url}/sync` with the payload defined in `@codogotchi/contracts` (`syncProfileRequestSchema`).
 
 ## Smoke test
 
-`scripts/convex-smoke.ts` is the durable post-deploy assertion artifact. Re-run it any time deploy health is in question — not just during P1.08.
-
 ```bash
-CODOGOTCHI_CONVEX_URL=https://careful-bat-587.convex.site bun scripts/convex-smoke.ts
+CODOGOTCHI_CONVEX_URL=https://<your-deployment>.convex.site bun scripts/convex-smoke.ts
 # or
-bun scripts/convex-smoke.ts --url https://careful-bat-587.convex.site
+bun scripts/convex-smoke.ts --url https://<your-deployment>.convex.site
 ```
 
-The script POSTs two synthetic payloads with distinct profile UUIDs and asserts:
+Asserts two-profile isolation and `{ profile, new_loot_events }` envelope shape. Exit non-zero on failure.
 
-- both responses are HTTP 200 with the `{ profile, new_loot_events }` envelope
-- per-source XP totals come back independently for each profile (no bleed)
-- every `new_loot_events` entry carries the correct `profile_id`
+## Before open-sourcing
 
-Exit code is `0` on success and non-zero on any assertion failure.
-
-### Two-profile validation log
-
-| Date | Operator | Profile A | Profile B | Result |
-| --- | --- | --- | --- | --- |
-| 2026-05-18 | cmejia (owner) | `smoke-a-<ts>` | `smoke-b-<ts>` | pass — see PR description for output |
-| _pending_ | buddy | _tbd_ | _tbd_ | run after merge |
-
-## Secret hygiene
-
-- The `CONVEX_DEPLOY_KEY` lives only in operator `.env` files (gitignored) and the GitHub Actions secret store. Never paste it into a PR, commit, or chat transcript.
-- The HTTP action URL is not technically a secret (Convex routes it on a guessable domain) but is treated as need-to-know to keep ad-hoc test traffic off the prod data while Phase 01 validation runs.
+1. Add authentication on the `/sync` HTTP action (see `convex/http.ts`).
+2. Keep real deployment identifiers out of git; rotate deployment if URLs were ever published.
+3. See local `notes/private/secrets-and-public-repo-hygiene.md` for the full checklist.

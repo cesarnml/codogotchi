@@ -17,7 +17,7 @@ _Prior shipped: Phase 01–04 ([phase-04-floating-pet.md](../plans/phase-04-floa
 | **`brew install --cask`** | Optional alongside GitHub Releases |
 | **Mac App Store** | Not v1 — revisit only if non-developer discovery becomes a strategic priority |
 
-**Distribution milestone:** Phase 08 (CLI bundling inside `Contents/MacOS/`) closes the DMG story. After that the `.app` is a fully self-contained drag-and-drop artifact with no PATH prerequisite. See [distribution and monetization stance](../../notes/public/codogotchi-distribution-and-monetization-stance.md).
+**Distribution milestone:** Phase 08 (CLI bundling inside `Contents/MacOS/`) closes the DMG story. After that the `.app` is a fully self-contained drag-and-drop artifact with no PATH prerequisite. See local operator notes: `notes/private/codogotchi-distribution-and-monetization-stance.md` (not in public repo).
 
 ---
 
@@ -92,7 +92,7 @@ Three-tier model. See [phase-06-animation-and-signal-research.md](../../notes/pu
 
 ## Research links
 
-- [Ideation storm](../../notes/public/codogotchi-ideation-storm-roadmap-draft.md)
+- Ideation storm — `notes/private/codogotchi-ideation-storm-roadmap-draft.md` (operator-local)
 - [Native Codex parity](../../notes/public/codogotchi-native-codex-pet-feature-parity-roadmap.md)
 - [Platform / signal pipeline](../../notes/public/codogotchi-platform-extension-and-signal-pipeline-research.md)
 - [SoA alignment](../../.son-of-anton/notes/public/codogotchi-alignment-draft.md)

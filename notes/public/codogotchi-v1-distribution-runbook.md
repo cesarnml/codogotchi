@@ -2,7 +2,7 @@
 
 Date: 2026-06-01  
 Status: **Work-in-progress checklist** — packaging track after Phase 08 (product gate is done)  
-Related: [codogotchi-distribution-and-monetization-stance.md](./codogotchi-distribution-and-monetization-stance.md), [phase-08-lite-install.md](../../docs/runbooks/phase-08-lite-install.md), [phase-08 ticket P8.01](../../docs/product/delivery/phase-08/ticket-01-compile-bundle-binaries.md)
+Related: [phase-08-lite-install.md](../../docs/runbooks/phase-08-lite-install.md), [phase-08 ticket P8.01](../../docs/product/delivery/phase-08/ticket-01-compile-bundle-binaries.md). Monetization and distribution stance: local `notes/private/codogotchi-distribution-and-monetization-stance.md` (not in repo).
 
 ---
 

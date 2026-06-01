@@ -2,7 +2,7 @@
 
 _Drafted: 2026-05-27_
 _Status: Pre-planning draft — not yet through `/soa plan`_
-_Source: [codogotchi-ideation-storm-roadmap-draft.md](../../notes/public/codogotchi-ideation-storm-roadmap-draft.md) §2.1_
+_Source: `notes/private/codogotchi-ideation-storm-roadmap-draft.md` §2.1 (operator-local)_
 
 ---
 
