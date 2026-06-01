@@ -65,7 +65,6 @@ export type HookPlatformStatus = {
   partially_installed: boolean;
   firing_recently: boolean;
   last_event_at: string | null;
-  source_origin?: string;
 };
 export type HooksStatus = {
   codex: HookPlatformStatus;
@@ -729,30 +728,19 @@ export async function hooksStatus(): Promise<HooksStatus> {
 
   const codexFullyInstalled = codexInstalled(codexHooks);
   const claudeCodeInstalled = claudeInstalled(claudeHooks);
+  // Cursor is a first-class platform, installed and detected exactly like Claude
+  // Code and Codex via its own ~/.cursor/hooks.json. `hooks install` wires all
+  // three together when each tool is present — there is no Claude-Code "bridge"
+  // fallback for Cursor.
   const cursorNativeInstalled = cursorInstalled(cursorJson);
   const cursorNativeAnyWired = cursorAnyWired(cursorJson);
-  // Bridge: Cursor Third-party skills route events through Claude Code hooks —
-  // inferred when Claude Code hooks are wired and no ~/.cursor/hooks.json exists at all.
-  // Use !cursorNativePresent (not !cursorNativeInstalled) so a cursor file with
-  // only third-party entries does not falsely report "bridge".
-  const cursorBridgeInstalled = !cursorNativePresent && claudeCodeInstalled;
-  // Native takes precedence: if the cursor file carries any codogotchi hooks
-  // (full or partial), the origin is native — even when incompletely wired.
-  const cursorSourceOrigin = cursorNativeAnyWired
-    ? "native"
-    : cursorBridgeInstalled
-      ? "bridge"
-      : undefined;
 
   // "Partially installed": codogotchi hooks are present but not fully wired for
   // the current expected event set. The integration is real and firing, so this
-  // must read as installed-with-update, never "not installed". A bridge is fully
-  // wired by definition (it rides Claude Code's complete install), so it is
-  // never partial.
+  // must read as installed-with-update, never "not installed".
   const codexPartial = !codexFullyInstalled && codexAnyWired(codexHooks);
   const claudePartial = !claudeCodeInstalled && claudeAnyWired(claudeHooks);
-  const cursorInstalledAny = cursorNativeInstalled || cursorBridgeInstalled;
-  const cursorPartial = !cursorInstalledAny && cursorNativeAnyWired;
+  const cursorPartial = !cursorNativeInstalled && cursorNativeAnyWired;
 
   return {
     codex: {
@@ -774,11 +762,10 @@ export async function hooksStatus(): Promise<HooksStatus> {
     cursor: {
       present_on_disk: cursorNativePresent,
       installable_in_phase: true,
-      installed: cursorInstalledAny,
+      installed: cursorNativeInstalled,
       partially_installed: cursorPartial,
       firing_recently: firingRecently && origin === "cursor",
       last_event_at: origin === "cursor" ? lastEventAt : null,
-      source_origin: cursorSourceOrigin,
     },
     vscode: {
       present_on_disk: false,

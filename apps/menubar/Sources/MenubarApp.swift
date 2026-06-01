@@ -75,8 +75,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// Low-frequency timer that re-runs `refreshHookStatusCache()` so the menu
 	/// item, onboarding panel, and Settings tabs reflect the current install
 	/// state instead of freezing at the single launch-time snapshot. Without it
-	/// a fresh install (or a Cursor bridge that only resolves once Claude Code
-	/// is detected) never propagated to the UI until the next app launch.
+	/// a fresh install never propagated to the UI until the next app launch.
 	var hookStatusRefreshTimer: Timer?
 
 	static func main() {
@@ -293,8 +292,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		// Re-run the status refresh on a low-frequency cadence so the cached
 		// snapshot doesn't freeze at launch. The status subprocess is cheap but
 		// not free, so this runs every 30s — far below the live-poll 1Hz cadence
-		// — which is plenty for install-state changes (an install, or a Cursor
-		// bridge resolving once Claude Code is detected) to reach the UI.
+		// — which is plenty for install-state changes to reach the UI.
 		hookStatusRefreshTimer = Timer.scheduledTimer(
 			withTimeInterval: 30.0,
 			repeats: true

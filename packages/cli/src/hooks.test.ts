@@ -712,12 +712,11 @@ describe("cursor hooks", () => {
     expect(existsSync(join(userRoot, ".cursor", "hooks.json"))).toBe(false);
   });
 
-  it("hooksStatus reports cursor: native when ~/.cursor/hooks.json has Codogotchi entries", async () => {
+  it("hooksStatus reports cursor installed when ~/.cursor/hooks.json has Codogotchi entries", async () => {
     await installCursorHooks({ home: "/home/user/.codogotchi" });
     const status = await hooksStatus();
     expect(status.cursor.installed).toBe(true);
     expect(status.cursor.installable_in_phase).toBe(true);
-    expect(status.cursor.source_origin).toBe("native");
   });
 
   it("hooksStatus reports cursor partially_installed when an event slot pre-dates a newly-added event", async () => {
@@ -744,15 +743,17 @@ describe("cursor hooks", () => {
     expect(status.cursor.installed).toBe(false);
     // ... but present and firing, so it must read as partially installed, not absent.
     expect(status.cursor.partially_installed).toBe(true);
-    expect(status.cursor.source_origin).toBe("native");
   });
 
-  it("hooksStatus reports cursor: bridge when claude settings has codogotchi-hook but no cursor hooks.json", async () => {
+  it("hooksStatus does not infer cursor from Claude Code — Cursor is first-class with its own hooks", async () => {
+    // Installing only Claude Code + Codex must NOT mark Cursor installed: there
+    // is no Claude-Code bridge fallback. Cursor needs its own ~/.cursor/hooks.json
+    // (which `hooks install --platform cursor` writes alongside the others).
     await installHooks({ home: "/home/user/.codogotchi" });
     const status = await hooksStatus();
-    expect(status.cursor.installed).toBe(true);
+    expect(status.cursor.installed).toBe(false);
+    expect(status.cursor.partially_installed).toBe(false);
     expect(status.cursor.installable_in_phase).toBe(true);
-    expect(status.cursor.source_origin).toBe("bridge");
   });
 
   it("cursor install writes nested hooks envelope when versioned file exists", async () => {

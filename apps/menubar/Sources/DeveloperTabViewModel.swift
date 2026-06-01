@@ -114,11 +114,11 @@ final class DeveloperTabViewModel {
 		return sv != rendererSchemaVersion
 	}
 
-	// MARK: - Cursor-bridge explainer
+	// MARK: - Platform attribution
 
 	/// Last-seen `source_origin` from the transition log.
 	/// Scans the last 50 entries so that a source origin older than the 5 displayed
-	/// transitions still surfaces in the Cursor-bridge explainer.
+	/// transitions still surfaces in the platform-attribution line.
 	var lastSeenSourceOrigin: String? {
 		Self.readLastNTransitions(50, from: transitionLogPath)
 			.last { $0.sourceOrigin != nil }?.sourceOrigin
@@ -143,14 +143,13 @@ final class DeveloperTabViewModel {
 		]
 		let lines = platforms.compactMap { (name, platform) -> String? in
 			guard platform.installableInPhase else { return nil }
-			// `present` folds in bridge routing (Cursor via Claude Code) and
-			// partial installs, so a real, firing integration reads ✓ — not a
-			// misleading ✗ just because one newly-added event isn't wired yet.
+			// `present` folds in partial installs, so a real, firing integration
+			// reads ✓ — not a misleading ✗ just because one newly-added event
+			// isn't wired yet.
 			let mark = platform.present ? "✓" : "✗"
 			let firing = platform.firingRecently ? " (firing)" : ""
-			let bridge = platform.sourceOrigin == "bridge" ? " (bridge)" : ""
 			let partial = platform.partiallyInstalled ? " (update available)" : ""
-			return "\(name): \(mark)\(firing)\(bridge)\(partial)"
+			return "\(name): \(mark)\(firing)\(partial)"
 		}
 		return lines.joined(separator: "\n")
 	}

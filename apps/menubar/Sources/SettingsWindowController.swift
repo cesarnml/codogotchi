@@ -341,7 +341,8 @@ private final class GeneralTabView: NSView {
 	func applyViewModel(_ vm: GeneralTabViewModel) {
 		viewModel = vm
 		hooksStatusLabel.stringValue = vm.rows.map { platformLine($0) }.joined(separator: "\n")
-		bannerView.isHidden = !vm.needsBannerUpdate
+		bannerView.message = vm.updateBannerMessage
+		bannerView.isHidden = !vm.shouldShowUpdateBanner
 	}
 
 	func setHooksWorking(message: String) {
@@ -407,9 +408,9 @@ private final class GeneralTabView: NSView {
 		addSubview(hooksFeedbackLabel)
 
 		let cursorNote = settingsBodyLabel(
-			"Install hooks writes Codex, Claude Code, and native Cursor (~/.cursor/hooks.json). "
-				+ "Restart Cursor after installing. Without native Cursor hooks, Claude Code "
-				+ "third-party skills can still bridge activity (source_origin: claude_code)."
+			"Install hooks wires Codex, Claude Code, and Cursor together for every "
+				+ "tool you have installed. Re-run it any time to update. Restart Cursor "
+				+ "after installing so it reloads ~/.cursor/hooks.json."
 		)
 		addSubview(cursorNote)
 
@@ -449,13 +450,7 @@ private final class GeneralTabView: NSView {
 	private func platformLine(_ row: GeneralTabViewModel.PlatformRow) -> String {
 		var parts: [String] = [row.name]
 		if row.installable {
-			// A bridged platform (e.g. Cursor routing through Claude Code hooks)
-			// has no file of its own, so "not installed" reads as broken even
-			// while events flow through it. Report the routing instead, and
-			// never print the contradictory "not installed · firing".
-			if row.sourceOrigin == "bridge" {
-				parts.append("active via Claude Code (bridge)")
-			} else if row.installed {
+			if row.installed {
 				parts.append("installed")
 			} else if row.partiallyInstalled {
 				// Present and firing, just missing a newly-added event. Don't
@@ -466,9 +461,8 @@ private final class GeneralTabView: NSView {
 			}
 			if row.firingRecently { parts.append("firing") }
 			if let t = row.lastEventAt { parts.append("last: \(t)") }
-			if let o = row.sourceOrigin, o != "bridge" { parts.append("via \(o)") }
 		} else {
-			parts.append("bridge (not directly installable)")
+			parts.append("not yet supported")
 		}
 		return parts.joined(separator: " · ")
 	}
@@ -492,6 +486,13 @@ private final class GeneralTabView: NSView {
 /// than the last-recorded installed version. Cleared after a successful update.
 private final class UpdateBannerView: NSView {
 	var onUpdate: (() -> Void)?
+
+	/// The banner copy. Set per-reason by the controller (binary out of date vs
+	/// incomplete wiring) so a single banner serves both update prompts.
+	var message: String {
+		get { messageLabel.stringValue }
+		set { messageLabel.stringValue = newValue }
+	}
 
 	private let messageLabel = NSTextField(
 		labelWithString: "Hooks are out of date — click Update to apply the bundled version."
@@ -788,17 +789,14 @@ private final class DeveloperTabView: NSView {
 		}
 		lines.append("")
 
-		// Cursor attribution (native hooks vs Claude third-party bridge)
+		// Which platform last drove the pet.
 		if let origin = viewModel.lastSeenSourceOrigin {
 			lines.append("=== Platform attribution ===")
 			let name = viewModel.lastSeenSourceName ?? "(unknown tool)"
 			if origin == "cursor" {
-				lines.append("Last seen from native Cursor hooks (\(name)).")
+				lines.append("Last seen from Cursor (\(name)).")
 			} else if origin == "claude_code" {
 				lines.append("Last seen from Claude Code (\(name)).")
-				lines.append(
-					"In Cursor without native hooks, enable Third-party skills so Claude Code hooks bridge activity (source_origin stays claude_code)."
-				)
 			} else {
 				lines.append("Last seen from \(origin) (\(name)).")
 			}

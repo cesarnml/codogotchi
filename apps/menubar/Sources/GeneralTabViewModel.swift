@@ -36,6 +36,29 @@ final class GeneralTabViewModel {
 		)
 	}
 
+	/// True when an installable platform has codogotchi hooks present but not
+	/// fully wired for the current expected event set. Re-running Install/Update
+	/// hooks adds the missing events (idempotently).
+	var hasIncompleteInstall: Bool {
+		rows.contains { $0.installable && $0.partiallyInstalled }
+	}
+
+	/// Whether to show the update banner at all: a newer bundled binary OR a
+	/// present-but-incomplete install that needs its wiring finished.
+	var shouldShowUpdateBanner: Bool {
+		needsBannerUpdate || hasIncompleteInstall
+	}
+
+	/// Banner copy reflecting why an update is offered. A stale binary takes
+	/// precedence (updating it re-wires everything anyway); otherwise call out
+	/// the incomplete wiring explicitly.
+	var updateBannerMessage: String {
+		if needsBannerUpdate {
+			return "Hooks are out of date — click Update to apply the bundled version."
+		}
+		return "Some hooks aren't fully wired — click Update to finish installing them."
+	}
+
 	private let statusClient: HookStatusClient
 	private let appVersion: String
 	private let hookVersion: String
