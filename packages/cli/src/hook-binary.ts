@@ -69,10 +69,22 @@ const TEST_RUNNER_PREFIXES = [
   // match treats `:` as a boundary stop, so `ci:quiet` needs its own entry.
   "bun run ci",
   "bun run ci:quiet",
+  "bun run verify",
+  "bun run verify:quiet",
+  "bun run mac:test",
   "npm run ci",
   "pnpm run ci",
   "yarn run ci",
 ];
+
+// Tool-use names that load docs, skills, or MCP reference material (not code edits).
+const READING_TOOL_NAMES = new Set([
+  "ToolSearch",
+  "Skill",
+  "SemanticSearch",
+  "WebSearch",
+  "WebFetch",
+]);
 
 // §7 read/search bucket: commands that explore the codebase without writing.
 const THINKING_BASH_PREFIXES = [
@@ -182,6 +194,11 @@ function isPromptSubmitEvent(eventName: string | undefined): boolean {
   return PROMPT_SUBMIT_TOKENS.has(normalizedEventToken(eventName));
 }
 
+function isToolBoundaryHook(hookName: string | undefined): boolean {
+  const token = normalizedEventToken(hookName);
+  return token === "pretooluse" || token === "posttooluse";
+}
+
 function rawHookKind(input: HookInput): SourceEventKind {
   if (input.kind !== undefined) return input.kind;
   // Prompt-submit fires before any tool call and carries no tool_name; check it
@@ -195,6 +212,10 @@ function rawHookKind(input: HookInput): SourceEventKind {
     hookName === "afterShellExecution"
   )
     return "tool_use";
+  // Codex/Cursor postToolUse often omits tool_name but still carries name.
+  if (isToolBoundaryHook(hookName) && (input.tool_name ?? input.name)) {
+    return "tool_use";
+  }
   const eventName = hookName?.toLowerCase();
   if (eventName === "session_start") return "session_start";
   if (
@@ -240,13 +261,26 @@ function isFailureStopReason(reason: string | undefined): boolean {
   return reason !== undefined && FAILURE_STOP_REASONS.has(reason);
 }
 
-function matchesTestRunner(command: string): boolean {
-  const trimmed = command.trimStart();
+function shellCommandSegments(command: string): string[] {
+  const segments = command
+    .split(/\s*(?:&&|\|\||;)\s*/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+  return segments.length > 0 ? segments : [command.trim()];
+}
+
+function matchesTestRunnerSegment(trimmed: string): boolean {
   return TEST_RUNNER_PREFIXES.some((prefix) => {
     if (!trimmed.startsWith(prefix)) return false;
     const next = trimmed.slice(prefix.length, prefix.length + 1);
     return next === "" || next === " " || next === "\t";
   });
+}
+
+function matchesTestRunner(command: string): boolean {
+  return shellCommandSegments(command).some((segment) =>
+    matchesTestRunnerSegment(segment.trimStart()),
+  );
 }
 
 function matchesSedReadOnly(command: string): boolean {
@@ -259,14 +293,24 @@ function matchesSedReadOnly(command: string): boolean {
   return true;
 }
 
-function matchesThinkingCommand(command: string): boolean {
-  if (matchesSedReadOnly(command)) return true;
-  const trimmed = command.trimStart();
+function matchesThinkingCommandSegment(trimmed: string): boolean {
+  if (matchesSedReadOnly(trimmed)) return true;
   return THINKING_BASH_PREFIXES.some((prefix) => {
     if (!trimmed.startsWith(prefix)) return false;
     const next = trimmed.slice(prefix.length, prefix.length + 1);
     return next === "" || next === " " || next === "\t";
   });
+}
+
+function matchesThinkingCommand(command: string): boolean {
+  return shellCommandSegments(command).some((segment) =>
+    matchesThinkingCommandSegment(segment.trimStart()),
+  );
+}
+
+function isReadingTool(name: string): boolean {
+  if (READING_TOOL_NAMES.has(name)) return true;
+  return name.startsWith("mcp__");
 }
 
 export function classifyEvent(
@@ -295,6 +339,10 @@ export function classifyEvent(
   // Cursor postToolUseFailure: errored only when the failure was not user-initiated.
   if (rawEventName === "posttoolusefailure" && input.is_interrupt !== true) {
     return { state: "errored", sourceEvent, readRun: 0 };
+  }
+  // User-interrupted tool calls are not failures; avoid Bash/Shell implementing fallback.
+  if (rawEventName === "posttoolusefailure" && input.is_interrupt === true) {
+    return { state: "thinking", sourceEvent, readRun: 0 };
   }
   // Stop: success → standby; failure (is_error, stop_reason, or Cursor status:error) → errored.
   if (rawEventName === "stop") {
@@ -332,6 +380,9 @@ export function classifyEvent(
     if (name === "Grep" || name === "Glob") {
       return { state: "thinking", sourceEvent, readRun: 0 };
     }
+    if (isReadingTool(name)) {
+      return { state: "reading", sourceEvent, readRun: 0 };
+    }
     if (name === "Bash" || name === "Shell") {
       if (command === undefined) {
         return { state: "implementing", sourceEvent, readRun: 0 };
@@ -353,7 +404,7 @@ export function classifyEvent(
     }
   }
 
-  return { state: "idle", sourceEvent, readRun: 0 };
+  return { state: "thinking", sourceEvent, readRun: 0 };
 }
 
 type Counters = {

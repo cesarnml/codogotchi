@@ -356,33 +356,33 @@ describe("classifyEvent", () => {
     expect(after_edit.readRun).toBe(0);
   });
 
-  it("classifies unknown SoA gate events as idle (hook no longer reads SoA)", () => {
-    // Pure classifier: gate events from origin=soa fall through to idle since
-    // the SoA reader was removed. No gate states are emitted by classifyEvent.
+  it("classifies unknown SoA gate events as thinking (hook no longer reads SoA)", () => {
+    // Pure classifier: gate events from origin=soa fall through to thinking since
+    // the SoA reader was removed. Gate art is merged from gate.json in the renderer.
     expect(
       classifyEvent(
         { origin: "soa", kind: "gate", name: "ticket_started" },
         { readRun: 0 },
       ).state,
-    ).toBe("idle");
+    ).toBe("thinking");
   });
 
-  it("classifies session_start with no prior activity as idle", () => {
+  it("classifies session_start with no prior activity as thinking", () => {
     expect(
       classifyEvent(
         { origin: "claude_code", kind: "session_start", name: "start" },
         { readRun: 0 },
       ).state,
-    ).toBe("idle");
+    ).toBe("thinking");
   });
 
-  it("classifies session_end as idle", () => {
+  it("classifies session_end as thinking", () => {
     expect(
       classifyEvent(
         { origin: "claude_code", kind: "session_end", name: "end" },
         { readRun: 0 },
       ).state,
-    ).toBe("idle");
+    ).toBe("thinking");
   });
 
   it("classifies Claude Code raw stdin {tool_name:'Edit'} as implementing", () => {
@@ -411,7 +411,7 @@ describe("classifyEvent", () => {
     const out = classifyEvent({ hook_event_name: "session_end" } as HookInput, {
       readRun: 0,
     });
-    expect(out.state).toBe("idle");
+    expect(out.state).toBe("thinking");
     expect(out.sourceEvent.origin).toBe("codex");
     expect(out.sourceEvent.kind).toBe("session_end");
   });
@@ -654,12 +654,12 @@ describe("runHook", () => {
     expect(state.hp_overlay).toBe("near_death");
   });
 
-  it("SoA gate events produce idle (hook no longer reads SoA events)", async () => {
+  it("SoA gate events produce thinking (hook no longer reads SoA events)", async () => {
     await runHook(
       { origin: "soa", kind: "gate", name: "ticket_completed" },
       { home, now: FIXED_NOW },
     );
-    expect(readState(home).activity_state).toBe("idle");
+    expect(readState(home).activity_state).toBe("thinking");
   });
 
   it("tracks consecutive Read runs across invocations: ×1–2 reading, ×3 cramming", async () => {
@@ -1027,6 +1027,113 @@ describe("P7.02 §7 pure classifier", () => {
     ).toBe("thinking");
   });
 
+  it("classifies ToolSearch as reading", () => {
+    expect(
+      classifyEvent(
+        { origin: "claude_code", kind: "tool_use", name: "ToolSearch" },
+        { readRun: 0 },
+      ).state,
+    ).toBe("reading");
+  });
+
+  it("classifies Skill as reading", () => {
+    expect(
+      classifyEvent(
+        { origin: "claude_code", kind: "tool_use", name: "Skill" },
+        { readRun: 0 },
+      ).state,
+    ).toBe("reading");
+  });
+
+  it("classifies MCP tools (mcp__ prefix) as reading", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "mcp__plugin_context7_context7__query-docs",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("reading");
+  });
+
+  it("classifies compound shell with git status as thinking", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command:
+            "git branch --show-current && git status --short && git remote -v",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("thinking");
+  });
+
+  it("classifies compound shell with rg after cd as thinking", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "cursor",
+          kind: "tool_use",
+          name: "Shell",
+          command: "cd /repo && rg -n 'classifyEvent' packages/cli",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("thinking");
+  });
+
+  it("classifies Codex postToolUse apply_patch (name only) as implementing", () => {
+    const out = classifyEvent(
+      { name: "apply_patch", hook_event_name: "postToolUse" } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("implementing");
+    expect(out.sourceEvent.kind).toBe("tool_use");
+    expect(out.sourceEvent.name).toBe("apply_patch");
+  });
+
+  it("classifies bun run mac:test as testing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command: "bun run mac:test",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("testing");
+  });
+
+  it("classifies bun run verify:quiet as testing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command: "bun run verify:quiet",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("testing");
+  });
+
+  it("classifies unknown tool_use as thinking (global fallback)", () => {
+    expect(
+      classifyEvent(
+        { origin: "claude_code", kind: "tool_use", name: "SomeFutureTool" },
+        { readRun: 0 },
+      ).state,
+    ).toBe("thinking");
+  });
+
   it("SoA events.ndjson does not override tool-use state after hook-binary drops the reader", async () => {
     // After P7.02 removes resolveSoaRoot/readSoaEventsSince, an Edit event
     // must produce implementing even when a .soa/events.ndjson with ticket_started exists.
@@ -1093,7 +1200,7 @@ describe("P7.03 terminal failure parity", () => {
     expect(out.state).toBe("errored");
   });
 
-  it("classifies Cursor postToolUseFailure (is_interrupt:true) as idle (user-initiated)", () => {
+  it("classifies Cursor postToolUseFailure (is_interrupt:true) as thinking", () => {
     const out = classifyEvent(
       {
         hook_event_name: "postToolUseFailure",
@@ -1101,7 +1208,21 @@ describe("P7.03 terminal failure parity", () => {
       } as HookInput,
       { readRun: 0 },
     );
+    expect(out.state).toBe("thinking");
     expect(out.state).not.toBe("errored");
+  });
+
+  it("classifies Cursor postToolUseFailure (is_interrupt:true, tool_name Bash) as thinking", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "postToolUseFailure",
+        is_interrupt: true,
+        tool_name: "Bash",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("thinking");
+    expect(out.state).not.toBe("implementing");
   });
 
   it("normal Stop success still produces standby (no regression)", () => {

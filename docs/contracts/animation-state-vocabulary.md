@@ -106,14 +106,14 @@ decodes them as `idle`.
 
 | State             | Ver | Meaning                                                      | Source signal class                                                                    | Reliability |
 | ----------------- | --- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ----------- |
-| `idle`            | v1  | No active session or no recent activity.                     | Session start/end; unrecognized events. Baseline.                                      | reliable    |
+| `idle`            | v1  | No active session or no recent activity.                     | Missing `state.json` baseline; renderer quiet default.                               | reliable    |
 | `standby`         | v3  | Pet is waiting for the developer.                            | `Stop` (success) / Cursor `stop` (no error) / Codex `SessionEnd`.                     | reliable    |
 | `errored`         | v2  | Pet is distressed — agent failed.                            | `StopFailure`; `Stop` + `stop_reason: max_tokens`; Cursor `stop` + `status: error`; Cursor `postToolUseFailure` (non-interrupt). | reliable    |
 | `waiting_for_input` | v4 | Pet is awaiting a permission prompt.                         | `PermissionRequest` — wiring deferred to platform-hooks phase. Reserved enum entry.   | reliable    |
-| `implementing`    | v1  | Pet is writing code.                                         | `Edit`, `Write`, `MultiEdit` tool-use; unknown/write Bash commands.                    | heuristic   |
-| `testing`         | v4  | Pet is running tests / lint / format.                        | Bash commands matching test-runner prefixes (bun test, pytest, vitest, …).             | heuristic   |
-| `thinking`        | v4  | Pet is exploring/searching the codebase.                     | Bash read/search commands (grep, rg, find, ls, cat, head, tail, wc, awk, jq, git log, git diff). | heuristic   |
-| `reading`         | v4  | Pet is reading source files (light streak).                  | `Read` tool-use ×1–2 in a row without an intervening write.                            | heuristic   |
+| `implementing`    | v1  | Pet is writing code.                                         | `Edit`, `Write`, `MultiEdit`, `apply_patch`; unknown/write Bash/Shell commands.        | heuristic   |
+| `testing`         | v4  | Pet is running tests / lint / format.                        | Bash/Shell commands matching test-runner prefixes (incl. `bun run ci`, `verify:quiet`, `mac:test`). | heuristic   |
+| `thinking`        | v4  | Pet is exploring/searching the codebase.                     | `Grep`/`Glob`; Bash/Shell read/search commands (incl. compound `&&`/`;` chains); `prompt_submit`; unrecognized hook events. | heuristic   |
+| `reading`         | v4  | Pet is reading source files (light streak).                  | `Read` tool-use ×1–2; `ToolSearch`, `Skill`, `WebSearch`/`WebFetch`/`SemanticSearch`; `mcp__*` tools. | heuristic   |
 | `cramming`        | v4  | Pet is deep-reading (heavy streak).                          | `Read` tool-use ×3+ in a row without an intervening write.                             | heuristic   |
 
 ### SoA gate states (rendered via `gate.json` sidecar, written by son-of-anton Phase 17)
@@ -233,30 +233,36 @@ could apply, the earlier row wins.
 | ------------------------------------------------------------------------------------------- | ------------------ |
 | `StopFailure` hook event (any error value)                                                  | `errored`          |
 | Cursor `postToolUseFailure` with `is_interrupt: false` (or absent)                          | `errored`          |
+| Cursor `postToolUseFailure` with `is_interrupt: true`                                       | `thinking`         |
 | `Stop` / Cursor `stop` with `is_error: true`, `stop_reason: max_tokens`, or `status: error`| `errored`          |
 | `Stop` (success) / Cursor `stop` (success)                                                  | `standby`          |
-| Edit / Write / MultiEdit tool-use                                                           | `implementing`     |
-| Bash/Shell command matching a test/lint/format runner                                       | `testing`          |
-| Bash/Shell read/search command (grep, rg, find, ls, cat, head, tail, wc, awk, jq, git log, git diff) | `thinking` |
+| `UserPromptSubmit` / Cursor `beforeSubmitPrompt` / Codex `user_prompt_submit`               | `thinking`         |
+| Edit / Write / MultiEdit / `apply_patch` tool-use (incl. Codex `postToolUse` + `name`)      | `implementing`     |
+| `Grep` / `Glob` tool-use                                                                    | `thinking`         |
+| `ToolSearch`, `Skill`, `WebSearch`, `WebFetch`, `SemanticSearch`, `mcp__*` tool-use       | `reading`          |
+| Bash/Shell command matching a test/lint/format runner (any `&&` / `;` segment)              | `testing`          |
+| Bash/Shell read/search command (prefix or segment: grep, rg, find, ls, cat, sed -n, git status, git log, git diff, …) | `thinking` |
 | `Read` tool-use ×1 or ×2 (streak, no intervening write)                                    | `reading`          |
 | `Read` tool-use ×3+ (streak, no intervening write)                                         | `cramming`         |
 | Bash/Shell — all other commands (write/mutate/unknown)                                      | `implementing`     |
-| All other tool-use / session-start events                                                   | `idle`             |
+| All other unrecognized hook events (session start/end, unknown tools, …)                    | `thinking`         |
 
 Note: SoA gate states (`ticket_started`, `ticket_completed`, etc.) are delivered via
 `gate.json` and merged by the renderer — the hook binary does not emit them.
 
 ### Known test-runner prefixes (v4)
 
-The `testing` heuristic matches Bash/Shell commands beginning with any of:
-`bun test`, `bun run test`, `npm test`, `npm run test`, `pnpm test`, `pnpm run test`,
-`yarn test`, `yarn run test`, `pytest`, `cargo test`, `go test`, `vitest`, `jest`.
+The `testing` heuristic matches any `&&` / `;` / `||` segment beginning with:
+`bun test`, `bun run test`, `bun run ci`, `bun run ci:quiet`, `bun run verify`,
+`bun run verify:quiet`, `bun run mac:test`, `npm test`, `npm run test`, `pnpm test`,
+`pnpm run test`, `yarn test`, `yarn run test`, `pytest`, `cargo test`, `go test`,
+`swift test`, `xcodebuild test`, `vitest`, `jest`.
 
 ### Known thinking (explore) prefixes (v4)
 
-The `thinking` heuristic matches Bash/Shell commands beginning with any of:
-`grep`, `find`, `rg`, `ls`, `cat`, `head`, `tail`, `wc`, `awk`, `jq`,
-`git log`, `git diff`.
+The `thinking` heuristic matches any segment (same splitting as testing) beginning with:
+`grep`, `find`, `rg`, `ls`, `cat`, `head`, `tail`, `wc`, `awk`, `jq`, `nl`, `pgrep`,
+`git log`, `git diff`, `git status`, `xcodebuild -list`, or read-only `sed` (no `-i`).
 
 ## 6-Tier User Model
 
