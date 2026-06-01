@@ -23,6 +23,19 @@ final class OnboardingControllerTests: XCTestCase {
 		XCTAssertFalse(controller.needsOnboarding(appState: state))
 	}
 
+	func testDoesNotNeedOnboardingWhenHooksAreAlreadyInstalled() {
+		var hooksStatus = HooksStatusSnapshot.fixtureNotInstalled()
+		hooksStatus.cursor.installableInPhase = true
+		hooksStatus.cursor.installed = true
+		let state = FloatingAppState(
+			isFloatingPetVisible: true,
+			frame: .zero,
+			hooksStatus: hooksStatus
+		)
+		let controller = OnboardingController()
+		XCTAssertFalse(controller.needsOnboarding(appState: state))
+	}
+
 	func testNeedsOnboardingIgnoresLastHookActivityAt() {
 		// lastHookActivityAt alone does not satisfy onboarding completion
 		let state = FloatingAppState(
@@ -105,8 +118,8 @@ final class OnboardingControllerTests: XCTestCase {
 	}
 
 	func testIsHooksActiveReturnsFalseForPhaseDeferredPlatform() {
-		// Cursor is phase-deferred (installableInPhase: false); even if the snapshot
-		// marks it installed+firing it must not flip the onboarding CTA to active.
+		// Platforms outside the current onboarding install surface must not flip the
+		// onboarding state to active, even if a snapshot marks them firing.
 		var snap = HooksStatusSnapshot.fixtureNotInstalled()
 		snap.cursor.installed = true
 		snap.cursor.firingRecently = true

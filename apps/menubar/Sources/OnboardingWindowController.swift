@@ -3,14 +3,17 @@ import AppKit
 /// Shows a blocking first-run consent sheet when `onboardingCompletedAt` is absent.
 ///
 /// The panel has no dismiss path before the user approves and the install subprocess
-/// succeeds. On success it writes `onboardingCompletedAt` to `app-state.json` and
-/// closes. Subsequent launches skip the sheet because the flag is present.
+/// succeeds. On success it writes `onboardingCompletedAt` to `app-state.json`, then
+/// offers an explicit dismiss path while waiting for hook activity. Subsequent launches
+/// skip the sheet because the flag is present.
 @MainActor
 final class OnboardingWindowController: NSObject, NSWindowDelegate {
 	static let windowTitle = "Welcome to Codogotchi"
 	static let ctaTitle = "Approve & install hooks"
-	static let hooksNotActiveTitle = "Hooks not active"
-	static let hooksInstalledWaitingTitle = "Hooks installed — use Claude Code or Codex to activate"
+	static let hooksNotActiveTitle = "Hooks installed — waiting for recent activity"
+	static let hooksInstalledWaitingTitle =
+		"Hooks installed — dismiss this window or launch Codex, Claude Code, or Cursor to verify activity"
+	static let dismissTitle = "Dismiss"
 	static let retryTitle = "Retry install"
 	static let installingText = "Installing hooks…"
 
@@ -82,7 +85,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 		let content = OnboardingContentView(
 			frame: CGRect(origin: .zero, size: frame.size),
 			onApprove: { [weak self] in self?.runInstall() },
-			onRetry: { [weak self] in self?.runInstall() }
+			onRetry: { [weak self] in self?.runInstall() },
+			onDismiss: { [weak self] in self?.panel?.close() }
 		)
 		content.autoresizingMask = [.width, .height]
 		p.contentView = content
@@ -135,13 +139,21 @@ private final class OnboardingContentView: NSView {
 	private let ctaButton = NSButton(title: "", target: nil, action: nil)
 	private let statusLabel = NSTextField(wrappingLabelWithString: "")
 	private let retryButton = NSButton(title: "", target: nil, action: nil)
+	private let dismissButton = NSButton(title: "", target: nil, action: nil)
 
 	private let onApprove: () -> Void
 	private let onRetry: () -> Void
+	private let onDismiss: () -> Void
 
-	init(frame: CGRect, onApprove: @escaping () -> Void, onRetry: @escaping () -> Void) {
+	init(
+		frame: CGRect,
+		onApprove: @escaping () -> Void,
+		onRetry: @escaping () -> Void,
+		onDismiss: @escaping () -> Void
+	) {
 		self.onApprove = onApprove
 		self.onRetry = onRetry
+		self.onDismiss = onDismiss
 		super.init(frame: frame)
 		setupViews()
 	}
@@ -156,6 +168,7 @@ private final class OnboardingContentView: NSView {
 		ctaButton.title = OnboardingWindowController.installingText
 		statusLabel.stringValue = ""
 		retryButton.isHidden = true
+		dismissButton.isHidden = true
 	}
 
 	func setFailed(_ message: String) {
@@ -164,6 +177,7 @@ private final class OnboardingContentView: NSView {
 		statusLabel.stringValue = message
 		statusLabel.textColor = .systemRed
 		retryButton.isHidden = true
+		dismissButton.isHidden = true
 	}
 
 	func setInstalledWaiting() {
@@ -171,6 +185,7 @@ private final class OnboardingContentView: NSView {
 		statusLabel.stringValue = OnboardingWindowController.hooksInstalledWaitingTitle
 		statusLabel.textColor = .secondaryLabelColor
 		retryButton.isHidden = true
+		dismissButton.isHidden = false
 	}
 
 	func setHooksNotActive() {
@@ -178,6 +193,7 @@ private final class OnboardingContentView: NSView {
 		statusLabel.stringValue = OnboardingWindowController.hooksNotActiveTitle
 		statusLabel.textColor = .secondaryLabelColor
 		retryButton.isHidden = false
+		dismissButton.isHidden = false
 	}
 
 	// MARK: - Layout
@@ -193,8 +209,9 @@ private final class OnboardingContentView: NSView {
 
 		bodyLabel.stringValue =
 			"Codogotchi animates when your AI coding tools are active. "
-			+ "Installing hooks lets Codex and Claude Code notify the pet.\n\n"
-			+ "Cursor, VS Code, and Antigravity support is coming in a future release."
+			+ "Installing hooks lets Codex, Claude Code, and Cursor notify the pet.\n\n"
+			+ "Once hooks are installed, you can dismiss this window immediately. "
+			+ "Tool activity will animate the pet whenever you use a supported platform."
 		bodyLabel.isEditable = false
 		bodyLabel.isBordered = false
 		bodyLabel.backgroundColor = .clear
@@ -231,6 +248,14 @@ private final class OnboardingContentView: NSView {
 		retryButton.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(retryButton)
 
+		dismissButton.title = OnboardingWindowController.dismissTitle
+		dismissButton.bezelStyle = .rounded
+		dismissButton.isHidden = true
+		dismissButton.target = self
+		dismissButton.action = #selector(dismissTapped)
+		dismissButton.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(dismissButton)
+
 		NSLayoutConstraint.activate([
 			iconLabel.topAnchor.constraint(equalTo: topAnchor, constant: 28),
 			iconLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
@@ -248,7 +273,10 @@ private final class OnboardingContentView: NSView {
 			statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
 
 			retryButton.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 8),
-			retryButton.centerXAnchor.constraint(equalTo: centerXAnchor),
+			retryButton.centerXAnchor.constraint(equalTo: centerXAnchor, constant: -56),
+
+			dismissButton.centerYAnchor.constraint(equalTo: retryButton.centerYAnchor),
+			dismissButton.centerXAnchor.constraint(equalTo: centerXAnchor, constant: 56),
 		])
 	}
 
@@ -258,5 +286,9 @@ private final class OnboardingContentView: NSView {
 
 	@objc private func retryTapped() {
 		onRetry()
+	}
+
+	@objc private func dismissTapped() {
+		onDismiss()
 	}
 }
