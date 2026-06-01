@@ -30,4 +30,10 @@ final class PlatformAttributionTests: XCTestCase {
 		XCTAssertEqual(PlatformAttribution.codex.assetName, "PlatformCodex")
 		XCTAssertEqual(PlatformAttribution.cursor.assetName, "PlatformCursor")
 	}
+
+	func testDisplayName() {
+		XCTAssertEqual(PlatformAttribution.claudeCode.displayName, "Claude Code")
+		XCTAssertEqual(PlatformAttribution.codex.displayName, "Codex")
+		XCTAssertEqual(PlatformAttribution.cursor.displayName, "Cursor")
+	}
 }

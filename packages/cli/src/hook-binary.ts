@@ -15,6 +15,12 @@ import {
   sourceEventSchema,
   stateJsonV1Schema,
 } from "@codogotchi/contracts";
+import {
+  extractPromptText,
+  extractSessionId,
+  lookupPromptAttentionSummary,
+  recordPromptAttention,
+} from "./prompt-attention.js";
 
 export type HookInput = {
   origin?: SourceEventOrigin;
@@ -37,6 +43,11 @@ export type HookInput = {
   is_interrupt?: boolean;
   // Cursor hook payload: project directories passed by the Cursor runtime.
   workspace_roots?: string[];
+  // Stable thread id (Claude/Codex `session_id`, Cursor `conversation_id`).
+  session_id?: string;
+  conversation_id?: string;
+  // User prompt on submit hooks (`UserPromptSubmit`, `beforeSubmitPrompt`, …).
+  prompt?: string;
 };
 
 export type ClassifyState = { readRun: number };
@@ -515,14 +526,25 @@ type AttentionPayload = NonNullable<StateJsonV1["attention"]>;
 const STANDBY_TTL_MS = 2 * 60 * 60 * 1000;
 const ERRORED_TTL_MS = 30 * 60 * 1000;
 
-function buildAttention(
+const ATTENTION_STANDBY_FALLBACK = "Waiting for your input";
+
+async function buildAttention(
   state: ActivityState,
+  home: string,
+  origin: SourceEventOrigin,
+  sessionId: string | undefined,
   now: Date,
-): AttentionPayload | undefined {
+): Promise<AttentionPayload | undefined> {
   if (state === "standby") {
+    const summary = await lookupPromptAttentionSummary(
+      home,
+      origin,
+      sessionId,
+      ATTENTION_STANDBY_FALLBACK,
+    );
     return {
       reason_kind: "input_requested",
-      summary: "Waiting for your input",
+      summary,
       created_at: now.toISOString(),
       expires_at: new Date(now.getTime() + STANDBY_TTL_MS).toISOString(),
     };
@@ -550,6 +572,23 @@ export async function runHook(
   await mkdir(opts.home, { recursive: true });
   await withHomeLock(opts.home, async () => {
     const counters = await readCounters(opts.home);
+    const origin = rawHookOrigin(input);
+    const sessionId = extractSessionId(input);
+    const promptText = extractPromptText(input);
+    if (
+      isPromptSubmitEvent(input.hook_event_name) &&
+      sessionId !== undefined &&
+      promptText !== undefined
+    ) {
+      await recordPromptAttention(
+        opts.home,
+        origin,
+        sessionId,
+        promptText,
+        opts.now,
+      );
+    }
+
     const classified = classifyEvent(input, { readRun: counters.read_run });
 
     const activityState = classified.state;
@@ -567,7 +606,13 @@ export async function runHook(
     const hp = overlay?.hp ?? 100;
     const hp_overlay = overlay?.hpOverlay ?? "thriving";
 
-    const attention = buildAttention(activityState, opts.now);
+    const attention = await buildAttention(
+      activityState,
+      opts.home,
+      classified.sourceEvent.origin,
+      sessionId,
+      opts.now,
+    );
     const isBashOrShell =
       classified.sourceEvent.kind === "tool_use" &&
       (classified.sourceEvent.name === "Bash" ||

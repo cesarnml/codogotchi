@@ -775,6 +775,27 @@ describe("runHook", () => {
     expect(state.attention?.expires_at).toBe(expectedExpiry);
   });
 
+  it("Stop after UserPromptSubmit uses truncated prompt as attention.summary", async () => {
+    const sessionId = "session-abc";
+    const prompt =
+      "Refactor the auth module to use the new token store immediately";
+    await runHook(
+      {
+        hook_event_name: "UserPromptSubmit",
+        session_id: sessionId,
+        prompt,
+      } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+    await runHook(
+      { hook_event_name: "Stop", session_id: sessionId } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.attention?.reason_kind).toBe("input_requested");
+    expect(state.attention?.summary).toBe("Refactor the auth module to us...");
+  });
+
   it("Stop event with is_error:true writes attention with reason_kind error_blocked and 30m expiry", async () => {
     await runHook({ hook_event_name: "Stop", is_error: true } as HookInput, {
       home,

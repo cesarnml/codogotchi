@@ -27,4 +27,13 @@ enum PlatformAttribution: String {
 
 	/// Asset-catalog imageset name for the platform's template logo.
 	var assetName: String { rawValue }
+
+	/// Human-readable name for tooltips and accessibility.
+	var displayName: String {
+		switch self {
+		case .claudeCode: "Claude Code"
+		case .codex: "Codex"
+		case .cursor: "Cursor"
+		}
+	}
 }

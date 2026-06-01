@@ -191,8 +191,9 @@ private final class AttentionBubbleView: NSView {
 	private let summaryLabel = NSTextField(labelWithString: "")
 	private let subtitleLabel = NSTextField(labelWithString: "")
 
-	// Always visible
-	private let infoButton = NSButton(frame: .zero)
+	// Always visible when `source_event.origin` maps to a platform logo.
+	private let platformChip = AttentionBubblePlatformChip(frame: .zero)
+	private var platformChipWidthConstraint: NSLayoutConstraint?
 
 	// Hover-revealed
 	private let dismissButton = HoverButton(
@@ -250,14 +251,8 @@ private final class AttentionBubbleView: NSView {
 		subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(subtitleLabel)
 
-		configureButton(
-			infoButton,
-			symbol: "info.circle",
-			accessibility: "More info",
-			selector: #selector(showInfo)
-		)
-		infoButton.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(infoButton)
+		platformChip.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(platformChip)
 
 		configureButton(
 			dismissButton,
@@ -296,16 +291,15 @@ private final class AttentionBubbleView: NSView {
 			effectView.topAnchor.constraint(equalTo: topAnchor),
 			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
-			// info button — right edge, top row
-			infoButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -(hPad - 2)),
-			infoButton.topAnchor.constraint(equalTo: topAnchor, constant: vPad),
-			infoButton.widthAnchor.constraint(equalToConstant: icon),
-			infoButton.heightAnchor.constraint(equalToConstant: icon),
+			// platform chip — right edge, top row (same slot as the old info icon)
+			platformChip.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -(hPad - 2)),
+			platformChip.topAnchor.constraint(equalTo: topAnchor, constant: vPad),
+			platformChip.heightAnchor.constraint(equalToConstant: icon),
 
 			// summary — uses the full left side; hover controls float above it.
 			summaryLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: hPad + 2),
 			summaryLabel.trailingAnchor.constraint(
-				equalTo: infoButton.leadingAnchor, constant: -4),
+				equalTo: platformChip.leadingAnchor, constant: -4),
 			summaryLabel.topAnchor.constraint(equalTo: topAnchor, constant: vPad),
 
 			// subtitle — full-width by default; Focus overlays on hover.
@@ -319,12 +313,15 @@ private final class AttentionBubbleView: NSView {
 			dismissButton.widthAnchor.constraint(equalToConstant: BubbleLayout.closeButtonSize),
 			dismissButton.heightAnchor.constraint(equalToConstant: BubbleLayout.closeButtonSize),
 
-			// action button — hover-only pill right-aligned with the info icon.
-			actionButton.trailingAnchor.constraint(equalTo: infoButton.trailingAnchor),
+			// action button — hover-only pill right-aligned with the platform chip.
+			actionButton.trailingAnchor.constraint(equalTo: platformChip.trailingAnchor),
 			actionButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -vPad),
 			actionButton.widthAnchor.constraint(equalToConstant: BubbleLayout.actionButtonWidth),
 			actionButton.heightAnchor.constraint(equalToConstant: BubbleLayout.actionButtonHeight),
 		])
+		let chipWidth = platformChip.widthAnchor.constraint(equalToConstant: icon)
+		platformChipWidthConstraint = chipWidth
+		chipWidth.isActive = true
 
 		applyChromeStyle()
 	}
@@ -347,9 +344,32 @@ private final class AttentionBubbleView: NSView {
 	func configure(summary: String, reasonKind: String, sourceEvent: SourceEvent?) {
 		self.sourceEvent = sourceEvent
 		self.reasonKind = reasonKind
-		summaryLabel.stringValue = summary.isEmpty ? "Waiting for input" : summary
-		subtitleLabel.stringValue = reasonKind
-		infoButton.toolTip = reasonKind
+
+		switch reasonKind {
+		case "input_requested":
+			summaryLabel.stringValue = "Waiting for your input"
+			// `attention.summary` carries a truncated prompt excerpt (not reason_kind).
+			subtitleLabel.stringValue =
+				summary == "Waiting for your input" || summary.isEmpty ? "" : summary
+		case "error_blocked":
+			summaryLabel.stringValue = "Something went wrong"
+			subtitleLabel.stringValue = ""
+		default:
+			summaryLabel.stringValue = summary.isEmpty ? "Waiting for input" : summary
+			subtitleLabel.stringValue = ""
+		}
+
+		let platform = PlatformAttribution(origin: sourceEvent?.origin)
+		platformChip.configure(platform: platform)
+		if let platform {
+			platformChip.toolTip = "Focus opens \(platform.displayName)"
+			platformChipWidthConstraint?.constant = BubbleLayout.iconSize
+			platformChip.isHidden = false
+		} else {
+			platformChip.toolTip = nil
+			platformChipWidthConstraint?.constant = 0
+			platformChip.isHidden = true
+		}
 
 		// Action button always does the same thing: focus the source app
 		// (`performAction`). Both standby (input_requested) and error (error_blocked)
@@ -425,34 +445,6 @@ private final class AttentionBubbleView: NSView {
 
 	// MARK: - Actions
 
-	@objc private func showInfo() {
-		guard !reasonKind.isEmpty else { return }
-		let popover = NSPopover()
-		popover.behavior = .transient
-		let vc = NSViewController()
-		let view = NSView()
-		view.translatesAutoresizingMaskIntoConstraints = false
-		let label = NSTextField(labelWithString: reasonKind)
-		label.font = NSFont.systemFont(ofSize: 12)
-		label.textColor = .labelColor
-		label.translatesAutoresizingMaskIntoConstraints = false
-		view.addSubview(label)
-		NSLayoutConstraint.activate([
-			label.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-			label.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-			label.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
-			label.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8),
-		])
-		vc.view = view
-		popover.contentViewController = vc
-		label.sizeToFit()
-		popover.contentSize = CGSize(
-			width: label.frame.width + 20,
-			height: label.frame.height + 16
-		)
-		popover.show(relativeTo: infoButton.bounds, of: infoButton, preferredEdge: .minY)
-	}
-
 	@objc private func dismissBubble() {
 		onDismiss?()
 		window?.orderOut(nil)
@@ -487,4 +479,74 @@ private final class AttentionBubbleView: NSView {
 		NSWorkspace.shared.openApplication(at: url, configuration: configuration)
 	}
 
+}
+
+// MARK: - Platform chip
+
+/// Small frosted square showing which app Focus will foreground — mirrors the
+/// animation badge's platform chip so the logo survives when the badge is hidden.
+private final class AttentionBubblePlatformChip: NSView {
+	private static let glyphColor = NSColor(calibratedWhite: 0.95, alpha: 1.0)
+
+	private let effectView: NSVisualEffectView
+	private let imageView = NSImageView()
+
+	override init(frame frameRect: NSRect) {
+		effectView = NSVisualEffectView(frame: .zero)
+		effectView.material = .hudWindow
+		effectView.blendingMode = .behindWindow
+		effectView.state = .active
+		effectView.appearance = NSAppearance(named: .darkAqua)
+		effectView.wantsLayer = true
+		super.init(frame: frameRect)
+		wantsLayer = true
+		layer?.masksToBounds = false
+
+		effectView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(effectView)
+
+		imageView.imageScaling = .scaleProportionallyUpOrDown
+		imageView.contentTintColor = Self.glyphColor
+		imageView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(imageView)
+
+		let inset: CGFloat = 3
+		NSLayoutConstraint.activate([
+			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			effectView.topAnchor.constraint(equalTo: topAnchor),
+			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			imageView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: inset),
+			imageView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -inset),
+			imageView.topAnchor.constraint(equalTo: topAnchor, constant: inset),
+			imageView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -inset),
+		])
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func configure(platform: PlatformAttribution?) {
+		if let platform {
+			let image = NSImage(named: platform.assetName)
+			image?.isTemplate = true
+			imageView.image = image
+		} else {
+			imageView.image = nil
+		}
+	}
+
+	override func layout() {
+		super.layout()
+		let radius = min(bounds.width, bounds.height) * 0.22
+		effectView.layer?.cornerRadius = radius
+		effectView.layer?.masksToBounds = true
+		layer?.cornerRadius = radius
+		layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
+		layer?.borderWidth = 1
+		layer?.shadowColor = NSColor.black.cgColor
+		layer?.shadowOpacity = 0.32
+		layer?.shadowRadius = 8
+		layer?.shadowOffset = CGSize(width: 0, height: -2)
+	}
 }
