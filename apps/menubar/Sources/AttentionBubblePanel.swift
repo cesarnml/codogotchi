@@ -33,6 +33,12 @@ private enum BubbleLayout {
 	}
 }
 
+private enum BubblePalette {
+	static let focusBlue = NSColor(calibratedRed: 0.42, green: 0.72, blue: 1.0, alpha: 1.0)
+	static let dismissFill = NSColor(calibratedRed: 0.16, green: 0.17, blue: 0.22, alpha: 1.0)
+	static let dismissBorder = NSColor(calibratedRed: 0.34, green: 0.37, blue: 0.46, alpha: 1.0)
+}
+
 // MARK: - Panel
 
 /// Floating attention bubble shown below the pet panel when `state.json`
@@ -150,6 +156,7 @@ private final class AttentionBubbleView: NSView {
 			let borderAlpha = isDirectlyHovered ? hoverBorderAlpha : normalBorderAlpha
 			let fillAlpha = isDirectlyHovered ? hoverFillAlpha : normalFillAlpha
 			layer?.cornerRadius = min(bounds.width, bounds.height) / 2
+			layer?.masksToBounds = true
 			layer?.borderColor = borderBaseColor.withAlphaComponent(borderAlpha).cgColor
 			layer?.borderWidth = 1
 			layer?.backgroundColor = fillBaseColor.withAlphaComponent(fillAlpha).cgColor
@@ -170,10 +177,10 @@ private final class AttentionBubbleView: NSView {
 	private let dismissButton = HoverButton(
 		normalBorderAlpha: 0.9,
 		hoverBorderAlpha: 1.0,
-		normalFillAlpha: 0.62,
-		hoverFillAlpha: 0.8,
-		borderBaseColor: NSColor(calibratedRed: 0.33, green: 0.35, blue: 0.42, alpha: 1.0),
-		fillBaseColor: NSColor(calibratedRed: 0.18, green: 0.19, blue: 0.24, alpha: 1.0)
+		normalFillAlpha: 0.96,
+		hoverFillAlpha: 1.0,
+		borderBaseColor: BubblePalette.dismissBorder,
+		fillBaseColor: BubblePalette.dismissFill
 	)
 	private let actionButton = HoverButton(
 		normalBorderAlpha: 0.22,
@@ -237,8 +244,11 @@ private final class AttentionBubbleView: NSView {
 			accessibility: "Dismiss",
 			selector: #selector(dismissBubble)
 		)
-		dismissButton.contentTintColor = NSColor(calibratedWhite: 0.86, alpha: 1.0)
-		dismissButton.imageScaling = .scaleProportionallyDown
+		dismissButton.contentTintColor = BubblePalette.focusBlue
+		dismissButton.image = dismissButton.image?.withSymbolConfiguration(
+			NSImage.SymbolConfiguration(pointSize: 8, weight: .bold)
+		)
+		dismissButton.imageScaling = .scaleNone
 		dismissButton.alphaValue = 0
 		dismissButton.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(dismissButton)
@@ -246,7 +256,7 @@ private final class AttentionBubbleView: NSView {
 		actionButton.bezelStyle = .rounded
 		actionButton.isBordered = false
 		actionButton.font = NSFont.systemFont(ofSize: 10, weight: .medium)
-		actionButton.contentTintColor = NSColor(calibratedRed: 0.42, green: 0.72, blue: 1.0, alpha: 1.0)
+		actionButton.contentTintColor = BubblePalette.focusBlue
 		actionButton.target = self
 		actionButton.action = #selector(performAction)
 		actionButton.layer?.cornerRadius = BubbleLayout.actionButtonHeight / 2
@@ -306,6 +316,7 @@ private final class AttentionBubbleView: NSView {
 	) {
 		button.bezelStyle = .circular
 		button.isBordered = false
+		button.setButtonType(.momentaryChange)
 		button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: accessibility)
 		button.contentTintColor = NSColor.white.withAlphaComponent(0.65)
 		button.target = self

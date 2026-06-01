@@ -569,8 +569,6 @@ private final class PetTabView: NSView {
 	}
 
 	private func setupViews() {
-		translatesAutoresizingMaskIntoConstraints = false
-
 		let title = settingsSectionTitle("Pet")
 		addSubview(title)
 
@@ -702,8 +700,6 @@ private final class DeveloperTabView: NSView {
 	required init?(coder: NSCoder) { nil }
 
 	private func setupViews() {
-		translatesAutoresizingMaskIntoConstraints = false
-
 		let title = settingsSectionTitle("Developer")
 		addSubview(title)
 
