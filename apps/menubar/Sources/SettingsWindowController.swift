@@ -581,7 +581,14 @@ private final class PetTabView: NSView {
 	/// Rebuild the pet list rows from the current ViewModel state.
 	func refreshPetList(viewModel: PetTabViewModel) {
 		self.viewModel = viewModel
-		for view in petListStack.arrangedSubviews { petListStack.removeArrangedSubview(view) }
+		// `removeArrangedSubview` only unmanages the layout; the view stays in the
+		// hierarchy at its old frame and the rebuilt rows paint on top of it
+		// (Import/Select and "(active)"/Active overlap). Tear the row out of the
+		// hierarchy too.
+		for view in petListStack.arrangedSubviews {
+			petListStack.removeArrangedSubview(view)
+			view.removeFromSuperview()
+		}
 		buildPetRows()
 	}
 

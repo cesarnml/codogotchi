@@ -114,13 +114,20 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			NSLog("MenubarApp: ConfigBootstrap.ensureLiteConfig failed — \(error)")
 		}
 
-		// Seed Maew from the app bundle when the canonical store is absent or incomplete.
-		// Runs before pet loading so a clean machine has assets available at first launch.
+		// Seed Maew from the app bundle when Maew's canonical store is absent or
+		// incomplete. Runs before pet loading so a clean machine has assets
+		// available at first launch.
+		//
+		// Always target Maew's own directory — never `CodexPet.defaultPetDirectoryPath()`,
+		// which resolves to the *active* pet. Seeding into the active pet's directory
+		// pollutes Codex-tier custom pets (e.g. an imported `mali` that ships only
+		// `spritesheet.webp`) with Maew's lite/SoA sheets, making them falsely render
+		// codogotchi-tier animations.
 		if let bundledMaewDir = Self.bundledMaewDirectory() {
-			let canonicalPath = CodexPet.defaultPetDirectoryPath()
-			if !PetStoreSeeder.isCanonicalStoreComplete(at: canonicalPath) {
+			let maewPath = Self.canonicalMaewDirectoryPath()
+			if !PetStoreSeeder.isCanonicalStoreComplete(at: maewPath) {
 				do {
-					try PetStoreSeeder.seed(from: bundledMaewDir, into: canonicalPath)
+					try PetStoreSeeder.seed(from: bundledMaewDir, into: maewPath)
 				} catch {
 					NSLog("MenubarApp: bundle seed failed — \(error)")
 				}
@@ -364,6 +371,24 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		demoDriver?.stop()
 		livePollingDriver?.stop()
 		transitionLog?.stop()
+	}
+
+	/// Canonical on-disk directory for the bundled Maew pet
+	/// (`$CODOGOTCHI_HOME/pets/maew/` or `~/.codogotchi/pets/maew/`). Mirrors
+	/// `CodexPet.defaultPetDirectoryPath()` but pins the pet name to `maew`
+	/// instead of the active pet so seeding never touches another pet's store.
+	private static func canonicalMaewDirectoryPath() -> String {
+		let base: URL
+		if let cStr = getenv("CODOGOTCHI_HOME"), let home = String(validatingUTF8: cStr) {
+			base = URL(fileURLWithPath: home)
+		} else {
+			base = FileManager.default.homeDirectoryForCurrentUser
+				.appendingPathComponent(".codogotchi")
+		}
+		return base
+			.appendingPathComponent("pets")
+			.appendingPathComponent(DEFAULT_PET_NAME)
+			.path
 	}
 
 	/// Locate the bundled Maew pet directory at `Resources/maew/`.

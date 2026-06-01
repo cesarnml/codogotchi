@@ -10,7 +10,9 @@ final class FloatingPetScene: SKScene {
 	private var codogotchiPet: CodogotchiPet?
 	private let ciContext: CIContext
 	private let desaturateFrame: (CodexPet.Frame) -> CGImage?
-	private let interactionFrames: (FloatingInteraction) -> [CodexPet.Frame]
+	/// Test-injected interaction frame override. When nil, interaction frames are
+	/// resolved live from `codexPet` so they track `replacePets` pet swaps.
+	private let interactionFramesOverride: ((FloatingInteraction) -> [CodexPet.Frame])?
 
 	private let petLayer = SKNode()
 	private let overlayLayer = SKNode()
@@ -58,9 +60,7 @@ final class FloatingPetScene: SKScene {
 		self.desaturateFrame = desaturateFrame ?? { frame in
 			Self.desaturate(frame, ciContext: context)
 		}
-		self.interactionFrames = interactionFramesProvider ?? { interaction in
-			codexPet.floatingFrames(forInteraction: interaction)
-		}
+		self.interactionFramesOverride = interactionFramesProvider
 		self.demoFrameInterval = demoFrameInterval
 		// Scene starts in idle, so begin the idle clock immediately — the first
 		// `update(state:.idle)` won't be a transition and would otherwise never
@@ -160,6 +160,9 @@ final class FloatingPetScene: SKScene {
 		}
 
 		let frames = interactionFrames(interaction)
+		// `interactionFrames` resolves from the *current* `codexPet`, so a pet
+		// swapped in via `replacePets` (e.g. selecting a different pet in Settings)
+		// supplies its own reserved rows — never the launch-time pet's.
 		guard !frames.isEmpty else {
 			// Missing reserved row: keep current activity frames running so the
 			// floating pet does not blank out on a pet whose sheet lacks the
@@ -204,6 +207,15 @@ final class FloatingPetScene: SKScene {
 				restartTimer()
 			}
 		}
+	}
+
+	/// Resolve reserved-row interaction frames from the current `codexPet`, or the
+	/// test override when one was injected.
+	private func interactionFrames(_ interaction: FloatingInteraction) -> [CodexPet.Frame] {
+		if let override = interactionFramesOverride {
+			return override(interaction)
+		}
+		return codexPet.floatingFrames(forInteraction: interaction)
 	}
 
 	private static func isRunningInteraction(_ interaction: FloatingInteraction?) -> Bool {
