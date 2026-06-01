@@ -409,8 +409,8 @@ private final class GeneralTabView: NSView {
 
 		let cursorNote = settingsBodyLabel(
 			"Install hooks wires Codex, Claude Code, and Cursor together for every "
-				+ "tool you have installed. Re-run it any time to update. Restart Cursor "
-				+ "after installing so it reloads ~/.cursor/hooks.json."
+				+ "tool you have installed — re-run any time to update. Cursor only reads "
+				+ "hooks at launch, so restart it after installing."
 		)
 		addSubview(cursorNote)
 
