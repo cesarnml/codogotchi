@@ -550,6 +550,7 @@ private final class PetTabView: NSView {
 	private let onImportPet: (String) -> Void
 	private let onSelectPet: (String) -> Void
 
+	private let petListScrollView = NSScrollView()
 	private let petListStack = NSStackView()
 	private let feedbackLabel = NSTextField(wrappingLabelWithString: "")
 
@@ -590,6 +591,7 @@ private final class PetTabView: NSView {
 			view.removeFromSuperview()
 		}
 		buildPetRows()
+		refreshPetListScrollContentSize()
 	}
 
 	private func setupViews() {
@@ -607,7 +609,19 @@ private final class PetTabView: NSView {
 		petListStack.spacing = 6
 		petListStack.translatesAutoresizingMaskIntoConstraints = false
 		buildPetRows()
-		addSubview(petListStack)
+
+		petListScrollView.hasVerticalScroller = true
+		petListScrollView.hasHorizontalScroller = false
+		petListScrollView.autohidesScrollers = true
+		petListScrollView.borderType = .noBorder
+		petListScrollView.drawsBackground = false
+		petListScrollView.translatesAutoresizingMaskIntoConstraints = false
+		petListScrollView.documentView = petListStack
+		addSubview(petListScrollView)
+
+		NSLayoutConstraint.activate([
+			petListStack.widthAnchor.constraint(equalTo: petListScrollView.contentView.widthAnchor),
+		])
 
 		feedbackLabel.isEditable = false
 		feedbackLabel.isBordered = false
@@ -626,14 +640,31 @@ private final class PetTabView: NSView {
 			storeNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			storeNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			petListStack.topAnchor.constraint(equalTo: storeNote.bottomAnchor, constant: 12),
-			petListStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			petListStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			petListScrollView.topAnchor.constraint(equalTo: storeNote.bottomAnchor, constant: 12),
+			petListScrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			petListScrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			feedbackLabel.topAnchor.constraint(equalTo: petListStack.bottomAnchor, constant: 8),
+			feedbackLabel.topAnchor.constraint(equalTo: petListScrollView.bottomAnchor, constant: 8),
 			feedbackLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			feedbackLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			feedbackLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -16),
 		])
+	}
+
+	override func layout() {
+		super.layout()
+		refreshPetListScrollContentSize()
+	}
+
+	private func refreshPetListScrollContentSize() {
+		petListStack.layoutSubtreeIfNeeded()
+		let fitting = petListStack.fittingSize
+		var frame = petListStack.frame
+		frame.size = CGSize(
+			width: max(fitting.width, petListScrollView.contentView.bounds.width),
+			height: fitting.height
+		)
+		petListStack.frame = frame
 	}
 
 	private func buildPetRows() {
