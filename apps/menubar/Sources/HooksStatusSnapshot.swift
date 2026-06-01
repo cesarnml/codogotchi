@@ -14,18 +14,29 @@ struct HooksStatusSnapshot: Codable, Equatable {
 		var presentOnDisk: Bool
 		var installableInPhase: Bool
 		var installed: Bool
+		/// codogotchi hooks are present but not fully wired for the current
+		/// expected event set (e.g. an install predating a newly-added event).
+		/// The integration is real and firing, so it counts as present.
+		var partiallyInstalled: Bool = false
 		var firingRecently: Bool
 		var lastEventAt: String?
 		var sourceOrigin: String?
+
+		/// True when codogotchi hooks are present at all — fully wired OR partial.
+		/// This is the honest "is the integration here" signal; `installed` alone
+		/// is the stricter "fully wired / up to date" signal.
+		var present: Bool { installed || partiallyInstalled }
 	}
 
-	/// Returns true when at least one installable platform has hooks installed on disk,
-	/// regardless of whether any hook has fired recently. Used to suppress the onboarding
-	/// sheet when the user configured hooks outside the in-app install flow.
+	/// Returns true when at least one installable platform has codogotchi hooks
+	/// present on disk (fully wired or partial), regardless of whether any hook
+	/// has fired recently. Used to suppress the onboarding sheet when the user
+	/// configured hooks outside the in-app install flow, and as the basis for the
+	/// "Hooks not active" predicate.
 	func anyInstalled() -> Bool {
 		[codex, claudeCode, cursor, vscode, antigravity]
 			.filter { $0.installableInPhase }
-			.contains { $0.installed }
+			.contains { $0.present }
 	}
 
 	/// Hooks are "not active" when no installable platform has hooks installed
@@ -46,6 +57,29 @@ struct HooksStatusSnapshot: Codable, Equatable {
 	/// `anyInstalled()` exactly.
 	func isHooksNotActive() -> Bool {
 		return !anyInstalled()
+	}
+}
+
+extension HooksStatusSnapshot.Platform {
+	private enum CodingKeys: String, CodingKey {
+		case presentOnDisk, installableInPhase, installed, partiallyInstalled
+		case firingRecently, lastEventAt, sourceOrigin
+	}
+
+	/// Custom decode so a snapshot written by an older build — or a cached
+	/// `app-state.json` from before `partiallyInstalled` existed — still decodes
+	/// instead of failing the whole load. The synthesized decoder would require
+	/// the key; here it defaults to false when absent.
+	init(from decoder: Decoder) throws {
+		let c = try decoder.container(keyedBy: CodingKeys.self)
+		presentOnDisk = try c.decode(Bool.self, forKey: .presentOnDisk)
+		installableInPhase = try c.decode(Bool.self, forKey: .installableInPhase)
+		installed = try c.decode(Bool.self, forKey: .installed)
+		partiallyInstalled =
+			try c.decodeIfPresent(Bool.self, forKey: .partiallyInstalled) ?? false
+		firingRecently = try c.decode(Bool.self, forKey: .firingRecently)
+		lastEventAt = try c.decodeIfPresent(String.self, forKey: .lastEventAt)
+		sourceOrigin = try c.decodeIfPresent(String.self, forKey: .sourceOrigin)
 	}
 }
 

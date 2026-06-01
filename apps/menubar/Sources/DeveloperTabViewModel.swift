@@ -143,13 +143,14 @@ final class DeveloperTabViewModel {
 		]
 		let lines = platforms.compactMap { (name, platform) -> String? in
 			guard platform.installableInPhase else { return nil }
-			// `installed` already folds in bridge routing (e.g. Cursor via Claude
-			// Code), so a recently-fired bridged platform reads ✓, not a
-			// misleading ✗. Annotate the bridge so the checkmark is explained.
-			let mark = platform.installed ? "✓" : "✗"
+			// `present` folds in bridge routing (Cursor via Claude Code) and
+			// partial installs, so a real, firing integration reads ✓ — not a
+			// misleading ✗ just because one newly-added event isn't wired yet.
+			let mark = platform.present ? "✓" : "✗"
 			let firing = platform.firingRecently ? " (firing)" : ""
 			let bridge = platform.sourceOrigin == "bridge" ? " (bridge)" : ""
-			return "\(name): \(mark)\(firing)\(bridge)"
+			let partial = platform.partiallyInstalled ? " (update available)" : ""
+			return "\(name): \(mark)\(firing)\(bridge)\(partial)"
 		}
 		return lines.joined(separator: "\n")
 	}

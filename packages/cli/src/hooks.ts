@@ -58,6 +58,11 @@ export type HookPlatformStatus = {
   present_on_disk: boolean;
   installable_in_phase: boolean;
   installed: boolean;
+  // True when codogotchi hooks are present but not fully wired for the current
+  // expected event set (e.g. an install that pre-dates a newly-added event).
+  // The integration is real and firing; the UI shows it as installed with an
+  // update available rather than the misleading "not installed".
+  partially_installed: boolean;
   firing_recently: boolean;
   last_event_at: string | null;
   source_origin?: string;
@@ -191,14 +196,33 @@ function cursorHookCommand(ctx: InstallHooksContext): string {
   );
 }
 
+function cursorEventWired(
+  hooks: CursorHooksJson,
+  event: (typeof CURSOR_CODOGOTCHI_EVENTS)[number],
+): boolean {
+  const slot = cursorEventSlot(hooks, event);
+  if (!slot) return false;
+  return slot.some(
+    (e) => isCursorHookEntry(e) && isCodogotchiCommand(e.command),
+  );
+}
+
+// "Fully wired": every expected event carries the codogotchi command. Used to
+// detect installs that pre-date a newly-added event so the UI can nudge a
+// re-install to complete the wiring.
 function cursorInstalled(hooks: CursorHooksJson): boolean {
-  return CURSOR_CODOGOTCHI_EVENTS.every((event) => {
-    const slot = cursorEventSlot(hooks, event);
-    if (!slot) return false;
-    return slot.some(
-      (e) => isCursorHookEntry(e) && isCodogotchiCommand(e.command),
-    );
-  });
+  return CURSOR_CODOGOTCHI_EVENTS.every((event) =>
+    cursorEventWired(hooks, event),
+  );
+}
+
+// "Present": at least one expected event carries the codogotchi command. A
+// present-but-not-fully-wired install is real and firing, so it must not read
+// as "not installed" — it reads as installed with an update available.
+function cursorAnyWired(hooks: CursorHooksJson): boolean {
+  return CURSOR_CODOGOTCHI_EVENTS.some((event) =>
+    cursorEventWired(hooks, event),
+  );
 }
 
 async function readJsonOrEmpty<T extends object>(path: string): Promise<T> {
@@ -411,28 +435,48 @@ async function backupIfExists(path: string): Promise<void> {
   await copyFile(path, backupPath(path));
 }
 
+function codexEventWired(
+  hooks: CodexHooks,
+  event: (typeof CODEX_CODOGOTCHI_EVENTS)[number],
+): boolean {
+  const slot = hooks[event];
+  if (!Array.isArray(slot)) return false;
+  return slot.some(
+    (matcher) =>
+      isCodexHookMatcher(matcher) &&
+      matcher.hooks.some((h) => isCodogotchiCommand(h.command)),
+  );
+}
+
 function codexInstalled(hooks: CodexHooks): boolean {
-  return CODEX_CODOGOTCHI_EVENTS.every((event) => {
-    const slot = hooks[event];
-    if (!Array.isArray(slot)) return false;
-    return slot.some(
-      (matcher) =>
-        isCodexHookMatcher(matcher) &&
-        matcher.hooks.some((h) => isCodogotchiCommand(h.command)),
-    );
-  });
+  return CODEX_CODOGOTCHI_EVENTS.every((event) =>
+    codexEventWired(hooks, event),
+  );
+}
+
+function codexAnyWired(hooks: CodexHooks): boolean {
+  return CODEX_CODOGOTCHI_EVENTS.some((event) => codexEventWired(hooks, event));
+}
+
+function claudeEventWired(
+  hooks: ClaudeHooks,
+  event: (typeof CODOGOTCHI_EVENTS)[number],
+): boolean {
+  const slot = hooks[event];
+  if (!Array.isArray(slot)) return false;
+  return slot.some(
+    (matcher) =>
+      isHookMatcher(matcher) &&
+      matcher.hooks.some((h) => isCodogotchiCommand(h.command)),
+  );
 }
 
 function claudeInstalled(hooks: ClaudeHooks): boolean {
-  return CODOGOTCHI_EVENTS.every((event) => {
-    const slot = hooks[event];
-    if (!Array.isArray(slot)) return false;
-    return slot.some(
-      (matcher) =>
-        isHookMatcher(matcher) &&
-        matcher.hooks.some((h) => isCodogotchiCommand(h.command)),
-    );
-  });
+  return CODOGOTCHI_EVENTS.every((event) => claudeEventWired(hooks, event));
+}
+
+function claudeAnyWired(hooks: ClaudeHooks): boolean {
+  return CODOGOTCHI_EVENTS.some((event) => claudeEventWired(hooks, event));
 }
 
 // installHooks writes the hook config entries that invoke the
@@ -680,26 +724,42 @@ export async function hooksStatus(): Promise<HooksStatus> {
     lastEventAt !== null &&
     Date.now() - new Date(lastEventAt).getTime() < FIRING_RECENTLY_WINDOW_MS;
 
-  const claudeCodeInstalled = claudeInstalled(
-    (claude.hooks ?? {}) as ClaudeHooks,
-  );
+  const codexHooks = (codex.hooks ?? {}) as CodexHooks;
+  const claudeHooks = (claude.hooks ?? {}) as ClaudeHooks;
+
+  const codexFullyInstalled = codexInstalled(codexHooks);
+  const claudeCodeInstalled = claudeInstalled(claudeHooks);
   const cursorNativeInstalled = cursorInstalled(cursorJson);
+  const cursorNativeAnyWired = cursorAnyWired(cursorJson);
   // Bridge: Cursor Third-party skills route events through Claude Code hooks —
   // inferred when Claude Code hooks are wired and no ~/.cursor/hooks.json exists at all.
   // Use !cursorNativePresent (not !cursorNativeInstalled) so a cursor file with
   // only third-party entries does not falsely report "bridge".
   const cursorBridgeInstalled = !cursorNativePresent && claudeCodeInstalled;
-  const cursorSourceOrigin = cursorNativeInstalled
+  // Native takes precedence: if the cursor file carries any codogotchi hooks
+  // (full or partial), the origin is native — even when incompletely wired.
+  const cursorSourceOrigin = cursorNativeAnyWired
     ? "native"
     : cursorBridgeInstalled
       ? "bridge"
       : undefined;
 
+  // "Partially installed": codogotchi hooks are present but not fully wired for
+  // the current expected event set. The integration is real and firing, so this
+  // must read as installed-with-update, never "not installed". A bridge is fully
+  // wired by definition (it rides Claude Code's complete install), so it is
+  // never partial.
+  const codexPartial = !codexFullyInstalled && codexAnyWired(codexHooks);
+  const claudePartial = !claudeCodeInstalled && claudeAnyWired(claudeHooks);
+  const cursorInstalledAny = cursorNativeInstalled || cursorBridgeInstalled;
+  const cursorPartial = !cursorInstalledAny && cursorNativeAnyWired;
+
   return {
     codex: {
       present_on_disk: codexPresent,
       installable_in_phase: true,
-      installed: codexInstalled((codex.hooks ?? {}) as CodexHooks),
+      installed: codexFullyInstalled,
+      partially_installed: codexPartial,
       firing_recently: firingRecently && origin === "codex",
       last_event_at: origin === "codex" ? lastEventAt : null,
     },
@@ -707,13 +767,15 @@ export async function hooksStatus(): Promise<HooksStatus> {
       present_on_disk: claudePresent,
       installable_in_phase: true,
       installed: claudeCodeInstalled,
+      partially_installed: claudePartial,
       firing_recently: firingRecently && origin === "claude_code",
       last_event_at: origin === "claude_code" ? lastEventAt : null,
     },
     cursor: {
       present_on_disk: cursorNativePresent,
       installable_in_phase: true,
-      installed: cursorNativeInstalled || cursorBridgeInstalled,
+      installed: cursorInstalledAny,
+      partially_installed: cursorPartial,
       firing_recently: firingRecently && origin === "cursor",
       last_event_at: origin === "cursor" ? lastEventAt : null,
       source_origin: cursorSourceOrigin,
@@ -722,6 +784,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
       present_on_disk: false,
       installable_in_phase: false,
       installed: false,
+      partially_installed: false,
       firing_recently: false,
       last_event_at: null,
     },
@@ -729,6 +792,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
       present_on_disk: false,
       installable_in_phase: false,
       installed: false,
+      partially_installed: false,
       firing_recently: false,
       last_event_at: null,
     },

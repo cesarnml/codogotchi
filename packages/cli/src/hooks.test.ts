@@ -720,6 +720,33 @@ describe("cursor hooks", () => {
     expect(status.cursor.source_origin).toBe("native");
   });
 
+  it("hooksStatus reports cursor partially_installed when an event slot pre-dates a newly-added event", async () => {
+    // Simulate an install written before `beforeSubmitPrompt` was added: a
+    // nested-envelope file wired for the other events but missing that one.
+    mkdirSync(join(userRoot, ".cursor"), { recursive: true });
+    const cmd = "CODOGOTCHI_HOME='/home/user/.codogotchi' codogotchi-hook";
+    writeFileSync(
+      join(userRoot, ".cursor", "hooks.json"),
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          afterFileEdit: [{ type: "command", command: cmd }],
+          beforeShellExecution: [{ type: "command", command: cmd }],
+          afterShellExecution: [{ type: "command", command: cmd }],
+          stop: [{ type: "command", command: cmd }],
+          sessionEnd: [{ type: "command", command: cmd }],
+        },
+      }),
+      "utf8",
+    );
+    const status = await hooksStatus();
+    // Not "fully wired" (missing beforeSubmitPrompt) ...
+    expect(status.cursor.installed).toBe(false);
+    // ... but present and firing, so it must read as partially installed, not absent.
+    expect(status.cursor.partially_installed).toBe(true);
+    expect(status.cursor.source_origin).toBe("native");
+  });
+
   it("hooksStatus reports cursor: bridge when claude settings has codogotchi-hook but no cursor hooks.json", async () => {
     await installHooks({ home: "/home/user/.codogotchi" });
     const status = await hooksStatus();

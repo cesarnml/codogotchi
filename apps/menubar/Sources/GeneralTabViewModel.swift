@@ -10,6 +10,7 @@ final class GeneralTabViewModel {
 	struct PlatformRow: Equatable {
 		let name: String
 		let installed: Bool
+		let partiallyInstalled: Bool
 		let firingRecently: Bool
 		let lastEventAt: String?
 		let sourceOrigin: String?
@@ -106,6 +107,7 @@ final class GeneralTabViewModel {
 			"present_on_disk": p.presentOnDisk,
 			"installable_in_phase": p.installableInPhase,
 			"installed": p.installed,
+			"partially_installed": p.partiallyInstalled,
 			"firing_recently": p.firingRecently,
 			"last_event_at": p.lastEventAt.map { $0 as Any } ?? (NSNull() as Any),
 			"source_origin": p.sourceOrigin.map { $0 as Any } ?? (NSNull() as Any),
@@ -116,6 +118,7 @@ final class GeneralTabViewModel {
 		PlatformRow(
 			name: name,
 			installed: p.installed,
+			partiallyInstalled: p.partiallyInstalled,
 			firingRecently: p.firingRecently,
 			lastEventAt: p.lastEventAt,
 			sourceOrigin: p.sourceOrigin,

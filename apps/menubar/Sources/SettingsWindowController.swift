@@ -455,8 +455,14 @@ private final class GeneralTabView: NSView {
 			// never print the contradictory "not installed · firing".
 			if row.sourceOrigin == "bridge" {
 				parts.append("active via Claude Code (bridge)")
+			} else if row.installed {
+				parts.append("installed")
+			} else if row.partiallyInstalled {
+				// Present and firing, just missing a newly-added event. Don't
+				// read as "not installed" — nudge a re-install to complete it.
+				parts.append("installed (update available — re-run Install hooks)")
 			} else {
-				parts.append(row.installed ? "installed" : "not installed")
+				parts.append("not installed")
 			}
 			if row.firingRecently { parts.append("firing") }
 			if let t = row.lastEventAt { parts.append("last: \(t)") }
