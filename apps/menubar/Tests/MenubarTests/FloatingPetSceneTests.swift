@@ -268,6 +268,32 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
 	}
 
+	func testCodexOnlyPetWithoutLiteSheetDoesNotEscalateIdle() throws {
+		let mali = maliFixtureDirectory()
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let codogotchiPet = try CodogotchiPet(petDirectory: mali)
+		XCTAssertFalse(codogotchiPet.hasLiteSheet)
+		let scene = try FloatingPetScene(
+			size: CGSize(width: 180, height: 140),
+			codexPet: CodexPet(petDirectory: mali),
+			codogotchiPet: codogotchiPet,
+			idleEscalationConfig: IdleEscalationConfig(
+				impatientAfter: 60,
+				frustratedAfter: 120
+			),
+			clock: { now }
+		)
+		var emitted: [IdleEscalation] = []
+		scene.onIdleEscalationChange = { emitted.append($0) }
+
+		scene.update(state: .idle, visualMode: .normal)
+		now = now.addingTimeInterval(200)
+		scene.advanceFrameForTesting()
+
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+		XCTAssertTrue(emitted.isEmpty)
+	}
+
 	func testIdleEscalationEmitsLevelChangesToObserver() throws {
 		var now = Date(timeIntervalSince1970: 1_000_000)
 		let scene = try makeEscalationScene(clock: { now })

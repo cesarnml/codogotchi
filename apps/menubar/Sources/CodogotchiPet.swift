@@ -184,6 +184,9 @@ final class CodogotchiPet {
 		}
 	}
 
+	/// Whether `codogotchi-lite-spritesheet.webp` loaded — required for idle escalation rows.
+	var hasLiteSheet: Bool { cgLiteSheet != nil }
+
 	// MARK: - Frame access
 
 	/// Return menubar-scaled animation frames for `state`.

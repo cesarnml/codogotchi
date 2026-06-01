@@ -240,6 +240,10 @@ final class FloatingPetScene: SKScene {
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
 		self.codexPet = codexPet
 		self.codogotchiPet = codogotchiPet
+		if !supportsIdleEscalation, currentEscalation != .none {
+			currentEscalation = .none
+			onIdleEscalationChange?(.none)
+		}
 		let resolved = currentFramesForState()
 		currentFrames = resolved.frames
 		currentSource = resolved.source
@@ -305,11 +309,20 @@ final class FloatingPetScene: SKScene {
 		paintCurrentFrame()
 	}
 
+	/// Lite sheet only — Codex-only pets stay on row-0 idle without Impatient/Frustrated.
+	private var supportsIdleEscalation: Bool {
+		codogotchiPet?.hasLiteSheet == true
+	}
+
 	/// Recompute idle escalation from elapsed time. Runs on the frame timer
 	/// (idle always animates, so this fires regularly while idle). No-op unless
 	/// the agent is continuously idle and not mid-interaction.
 	private func maybeEscalateIdle() {
-		guard currentState == .idle, currentInteraction == nil, let since = idleSince else {
+		guard currentState == .idle, currentInteraction == nil else {
+			return
+		}
+		guard supportsIdleEscalation, let since = idleSince else {
+			applyIdleEscalation(.none)
 			return
 		}
 		let level = idleEscalationConfig.escalation(forElapsed: clock().timeIntervalSince(since))
