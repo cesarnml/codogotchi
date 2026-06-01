@@ -37,6 +37,8 @@ private enum BubblePalette {
 	static let focusBlue = NSColor(calibratedRed: 0.42, green: 0.72, blue: 1.0, alpha: 1.0)
 	static let dismissFill = NSColor(calibratedRed: 0.16, green: 0.17, blue: 0.22, alpha: 1.0)
 	static let dismissBorder = NSColor(calibratedRed: 0.34, green: 0.37, blue: 0.46, alpha: 1.0)
+	/// Opaque chrome for hover controls so subtitle text does not show through.
+	static let controlFill = NSColor(calibratedRed: 0.12, green: 0.13, blue: 0.18, alpha: 1.0)
 }
 
 // MARK: - Panel
@@ -109,13 +111,22 @@ final class AttentionBubblePanel: NSPanel {
 		let f = BubbleLayout.frame(relativeTo: petFrame, visibleFrame: visibleFrame)
 		setFrame(f, display: true)
 		bubbleView.frame = NSRect(origin: .zero, size: f.size)
+		// Pet drag/resize moves this panel under the cursor without a matching
+		// mouseExited when the grab ends elsewhere — re-sync from screen location.
+		bubbleView.syncPointerHover()
 	}
 }
 
 // MARK: - View
 
 private final class AttentionBubbleView: NSView {
+	private enum HoverButtonShape {
+		case circle
+		case capsule
+	}
+
 	private final class HoverButton: NSButton {
+		private let shape: HoverButtonShape
 		private let normalBorderAlpha: CGFloat
 		private let hoverBorderAlpha: CGFloat
 		private let normalFillAlpha: CGFloat
@@ -123,9 +134,11 @@ private final class AttentionBubbleView: NSView {
 		private let borderBaseColor: NSColor
 		private let fillBaseColor: NSColor
 		private var trackingArea: NSTrackingArea?
+		private var isDirectlyHovered = false
 
 		init(
 			frame: NSRect = .zero,
+			shape: HoverButtonShape = .circle,
 			normalBorderAlpha: CGFloat = 0.18,
 			hoverBorderAlpha: CGFloat = 0.44,
 			normalFillAlpha: CGFloat = 0.04,
@@ -133,6 +146,7 @@ private final class AttentionBubbleView: NSView {
 			borderBaseColor: NSColor = .white,
 			fillBaseColor: NSColor = .white
 		) {
+			self.shape = shape
 			self.normalBorderAlpha = normalBorderAlpha
 			self.hoverBorderAlpha = hoverBorderAlpha
 			self.normalFillAlpha = normalFillAlpha
@@ -166,17 +180,30 @@ private final class AttentionBubbleView: NSView {
 		}
 
 		override func mouseEntered(with event: NSEvent) {
+			isDirectlyHovered = true
 			updateHoverStyle(isDirectlyHovered: true)
 		}
 
 		override func mouseExited(with event: NSEvent) {
+			isDirectlyHovered = false
 			updateHoverStyle(isDirectlyHovered: false)
+		}
+
+		override func layout() {
+			super.layout()
+			updateHoverStyle(isDirectlyHovered: isDirectlyHovered)
 		}
 
 		private func updateHoverStyle(isDirectlyHovered: Bool) {
 			let borderAlpha = isDirectlyHovered ? hoverBorderAlpha : normalBorderAlpha
 			let fillAlpha = isDirectlyHovered ? hoverFillAlpha : normalFillAlpha
-			layer?.cornerRadius = min(bounds.width, bounds.height) / 2
+			switch shape {
+			case .circle:
+				let side = min(bounds.width, bounds.height)
+				layer?.cornerRadius = side / 2
+			case .capsule:
+				layer?.cornerRadius = bounds.height / 2
+			}
 			layer?.masksToBounds = true
 			layer?.borderColor = borderBaseColor.withAlphaComponent(borderAlpha).cgColor
 			layer?.borderWidth = 1
@@ -197,18 +224,22 @@ private final class AttentionBubbleView: NSView {
 
 	// Hover-revealed
 	private let dismissButton = HoverButton(
+		shape: .circle,
 		normalBorderAlpha: 0.9,
 		hoverBorderAlpha: 1.0,
-		normalFillAlpha: 0.96,
+		normalFillAlpha: 1.0,
 		hoverFillAlpha: 1.0,
 		borderBaseColor: BubblePalette.dismissBorder,
 		fillBaseColor: BubblePalette.dismissFill
 	)
 	private let actionButton = HoverButton(
-		normalBorderAlpha: 0.22,
-		hoverBorderAlpha: 0.52,
-		normalFillAlpha: 0.04,
-		hoverFillAlpha: 0.14
+		shape: .capsule,
+		normalBorderAlpha: 0.45,
+		hoverBorderAlpha: 0.65,
+		normalFillAlpha: 1.0,
+		hoverFillAlpha: 1.0,
+		borderBaseColor: BubblePalette.dismissBorder,
+		fillBaseColor: BubblePalette.controlFill
 	)
 
 	var onDismiss: (() -> Void)?
@@ -277,7 +308,7 @@ private final class AttentionBubbleView: NSView {
 		actionButton.contentTintColor = BubblePalette.focusBlue
 		actionButton.target = self
 		actionButton.action = #selector(performAction)
-		actionButton.layer?.cornerRadius = BubbleLayout.actionButtonHeight / 2
+		actionButton.imagePosition = .noImage
 		actionButton.alphaValue = 0
 		actionButton.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(actionButton)
@@ -313,7 +344,7 @@ private final class AttentionBubbleView: NSView {
 			dismissButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: hPad - 1),
 			dismissButton.centerYAnchor.constraint(equalTo: summaryLabel.centerYAnchor),
 			dismissButton.widthAnchor.constraint(equalToConstant: BubbleLayout.closeButtonSize),
-			dismissButton.heightAnchor.constraint(equalToConstant: BubbleLayout.closeButtonSize),
+			dismissButton.heightAnchor.constraint(equalTo: dismissButton.widthAnchor),
 
 			// action button — hover-only pill right-aligned with the platform chip.
 			actionButton.trailingAnchor.constraint(equalTo: platformChip.trailingAnchor),
@@ -422,6 +453,16 @@ private final class AttentionBubbleView: NSView {
 	override func mouseEntered(with event: NSEvent) { setHovered(true) }
 	override func mouseExited(with event: NSEvent) { setHovered(false) }
 
+	/// Align hover chrome with whether the pointer is actually over this panel.
+	fileprivate func syncPointerHover() {
+		guard let window else {
+			setHovered(false)
+			return
+		}
+		let mouse = NSEvent.mouseLocation
+		setHovered(window.frame.contains(mouse))
+	}
+
 	private func setHovered(_ hovered: Bool) {
 		guard isHovered != hovered else { return }
 		isHovered = hovered
@@ -443,10 +484,6 @@ private final class AttentionBubbleView: NSView {
 	private func applyChromeStyle() {
 		effectView.layer?.cornerRadius = BubbleLayout.cornerRadius
 		effectView.layer?.masksToBounds = true
-		dismissButton.layer?.cornerRadius = min(
-			dismissButton.bounds.width,
-			dismissButton.bounds.height
-		) / 2
 		layer?.cornerRadius = BubbleLayout.cornerRadius
 		layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
 		layer?.borderWidth = 1
