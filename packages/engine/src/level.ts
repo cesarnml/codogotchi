@@ -56,6 +56,11 @@ export function levelForXp(totalXp: number): number {
  * `into` is XP accumulated since the level's threshold;
  * `span` is the total XP distance of this level;
  * `fraction` = into / span, clamped 0..1 (always 1 at level 100).
+ *
+ * At level 100, `fraction` is always 1 and `span` is the width of the last
+ * level interval. `into` reflects raw excess XP beyond LEVEL_T and may exceed
+ * `span` when xp > LEVEL_T — callers should use `fraction`, not `into`, to
+ * drive visual fill at the cap.
  */
 export function levelProgress(totalXp: number): LevelProgress {
   const xp = safeXp(totalXp);

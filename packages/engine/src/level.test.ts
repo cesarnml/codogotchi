@@ -85,10 +85,12 @@ describe("levelProgress", () => {
     expect(p.into).toBe(0);
   });
 
-  it("at T XP: level 100, fraction is 1", () => {
+  it("at T XP: level 100, fraction is 1, into is 0, span is positive", () => {
     const p = levelProgress(T);
     expect(p.level).toBe(100);
     expect(p.fraction).toBe(1);
+    expect(p.into).toBe(0);
+    expect(p.span).toBeGreaterThan(0);
   });
 
   it("beyond T: level 100, fraction clamped to 1", () => {
