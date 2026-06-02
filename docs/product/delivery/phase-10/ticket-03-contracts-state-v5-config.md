@@ -34,10 +34,14 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Red first: `STATE_JSON_SCHEMA_VERSION is 5` failed immediately; `parseStateJson` rejected schema_version: 5 with the old max-4 bound.
 
-Red first: [what test failed first]
-Why this path: [smallest acceptable]
-Alternative considered: [separate local-rpg config variant vs optional fields]
-Deferred: [removal of cloud fields entirely — sync rebuild]
-Contract note: [record any metadata deviation]
+Why this path: `superRefine` on `stateJsonV1Schema` enforces v5 field presence conditionally — keeps one canonical schema, one parse function, backward compat untouched.
+
+Alternative considered: Separate `stateJsonV4Schema`/`stateJsonV5Schema` union — rejected; adds duplicate field lists and complicates the `StateJsonV1` type consumed everywhere.
+
+Deferred: Conditional "all-or-none" cloud-field validation for the sync path — acceptable because sync is fully disabled in Phase 10 and no code reads those cloud fields. Added `.optional()` to all cloud fields; any future sync rebuild should add a refinement to rpgConfigSchema that requires them together.
+
+Contract note: CLI writer explicitly pins to `schema_version: 4` until P10.05 ships the full v5 writer (level + half_hearts fields). `STATE_JSON_SCHEMA_VERSION = 5` is the reader's forward-compat bound, not the current writer version.
+
+Decay constants: moved from `engine/hearts.ts` to `contracts/decay-constants.ts`; engine imports and re-exports them for backward compat. Swift will import from contracts directly in P10.06.
