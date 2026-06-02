@@ -267,10 +267,15 @@ function rawHookKind(input: HookInput): SourceEventKind {
   )
     return "tool_use";
   // Codex/Cursor/Copilot postToolUse often omits tool_name but still carries name.
-  // Antigravity PreToolUse uses toolCall.name instead of tool_name/toolName.
+  // Antigravity toolCall.name is scoped to PreToolUse only — PostToolUse must not
+  // inherit a tool name from toolCall.name (the ticket spec forbids Pre/Post correlation).
+  const toolCallNameForPreOnly =
+    hookName && normalizedEventToken(hookName) === "pretooluse"
+      ? input.toolCall?.name
+      : undefined;
   if (
     isToolBoundaryHook(hookName) &&
-    (input.tool_name ?? input.toolName ?? input.name ?? input.toolCall?.name)
+    (input.tool_name ?? input.toolName ?? input.name ?? toolCallNameForPreOnly)
   ) {
     return "tool_use";
   }
