@@ -202,4 +202,31 @@ describe("edge cases", () => {
       ),
     ).toBe(0);
   });
+
+  it("malformed ISO string → no decay, result is still in [0,6]", () => {
+    const result = resolveHalfHearts(
+      { lastActivityAt: "not-a-date", activeMinutes: 0, currentHalfHearts: 4 },
+      NOW,
+    );
+    expect(result).toBe(4);
+    expect(Number.isFinite(result)).toBe(true);
+  });
+
+  it("NaN activeMinutes → treated as 0, no heal", () => {
+    const result = resolveHalfHearts(
+      { lastActivityAt: hoursAgo(0), activeMinutes: NaN, currentHalfHearts: 3 },
+      NOW,
+    );
+    expect(result).toBe(3);
+    expect(Number.isFinite(result)).toBe(true);
+  });
+
+  it("NaN currentHalfHearts → treated as 0, result still in [0,6]", () => {
+    const result = resolveHalfHearts(
+      { lastActivityAt: hoursAgo(0), activeMinutes: 0, currentHalfHearts: NaN },
+      NOW,
+    );
+    expect(result).toBe(0);
+    expect(Number.isFinite(result)).toBe(true);
+  });
 });
