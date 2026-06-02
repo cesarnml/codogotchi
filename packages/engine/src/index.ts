@@ -1,4 +1,5 @@
 export * from "./health";
+export * from "./hearts";
 export * from "./level";
 export * from "./loot";
 export * from "./sources/github";

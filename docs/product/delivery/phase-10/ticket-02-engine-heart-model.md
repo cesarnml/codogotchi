@@ -36,8 +36,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [smallest acceptable]
-Alternative considered: [reusing/retuning tickHealth vs fresh model]
-Deferred: [removal of dormant health model — Phase: sync rebuild]
-Contract note: [record any metadata deviation]
+Red first: ghost + 60 active minutes → expected 1, got 0 (clamping order wrong on first pass).
+Why this path: fresh `hearts.ts` with three exported constants and one pure function; smallest acceptable — no touch to `tickHealth`/`HealthConfig`.
+Alternative considered: reusing `tickHealth` — rejected because the per-day / weekend / vacation / grace model is orthogonal and would require stripping most of it; a new file keeps the two models isolated.
+Deferred: removal of dormant health model — Phase: sync rebuild (per grill-me ruling).
+Contract note: clamping order is decay-floor-first then heal, so a ghost at 0 half-hearts recovers by coding without a separate revive threshold. This is intentionally different from `tickHealth`'s `revive_threshold` gate.
