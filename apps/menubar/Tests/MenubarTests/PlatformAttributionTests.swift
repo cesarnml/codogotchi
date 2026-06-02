@@ -3,7 +3,7 @@ import XCTest
 @testable import Codogotchi
 
 /// `PlatformAttribution` maps `source_event.origin` strings to the platform logo
-/// the animation badge surfaces. Only the three coding platforms that drive the
+/// the animation badge surfaces. Only the five coding platforms that drive the
 /// pet get a chip; orchestration/bookkeeping origins and unknown/absent values
 /// resolve to `nil` so no chip is drawn.
 final class PlatformAttributionTests: XCTestCase {
@@ -22,7 +22,28 @@ final class PlatformAttributionTests: XCTestCase {
 	func testAbsentOrUnknownOriginResolvesToNil() {
 		XCTAssertNil(PlatformAttribution(origin: nil))
 		XCTAssertNil(PlatformAttribution(origin: ""))
-		XCTAssertNil(PlatformAttribution(origin: "vscode"))
+	}
+
+	// P9.01 — vscode / antigravity platform origins
+	func testVSCodeOriginResolvesToVSCodePlatform() {
+		XCTAssertEqual(PlatformAttribution(origin: "vscode")?.assetName, "PlatformVSCode")
+	}
+
+	func testAntigravityOriginResolvesToAntigravityPlatform() {
+		XCTAssertEqual(PlatformAttribution(origin: "antigravity")?.assetName, "PlatformAntigravity")
+	}
+
+	func testVSCodeDisplayName() {
+		XCTAssertEqual(PlatformAttribution(origin: "vscode")?.displayName, "VS Code")
+	}
+
+	func testAntigravityDisplayName() {
+		XCTAssertEqual(PlatformAttribution(origin: "antigravity")?.displayName, "Antigravity")
+	}
+
+	func testNonPlatformOriginsStillResolveToNilAfterP9() {
+		XCTAssertNil(PlatformAttribution(origin: "soa"))
+		XCTAssertNil(PlatformAttribution(origin: nil))
 	}
 
 	func testAssetNameMatchesImagesetName() {
