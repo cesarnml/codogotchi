@@ -149,6 +149,82 @@ describe("backward compatibility for v1 and v2 payloads", () => {
   });
 });
 
+describe("schema v5 — RPG progression fields (P10.03)", () => {
+  const baseV5Payload = {
+    schema_version: 5 as number,
+    activity_state: "idle",
+    hp_overlay: "thriving",
+    hp: 100,
+    updated_at: "2026-06-03T00:00:00.000Z",
+    source_event: {
+      origin: "manual",
+      kind: "cli",
+      name: "manual-poke",
+    },
+    level: 1,
+    level_fraction: 0,
+    half_hearts: 6,
+    last_activity_at: "2026-06-03T00:00:00.000Z",
+  };
+
+  it("STATE_JSON_SCHEMA_VERSION is 5", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(5);
+  });
+
+  it("parseStateJson accepts a v5 payload with all four new fields", () => {
+    expect(() => parseStateJson(baseV5Payload)).not.toThrow();
+  });
+
+  it("parseStateJson accepts a v5 payload with last_activity_at: null", () => {
+    expect(() =>
+      parseStateJson({ ...baseV5Payload, last_activity_at: null }),
+    ).not.toThrow();
+  });
+
+  it("parseStateJson rejects v5 payload missing level", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { level: _level, ...rest } = baseV5Payload;
+    expect(() => parseStateJson(rest)).toThrow();
+  });
+
+  it("parseStateJson rejects half_hearts = 7 (above max 6)", () => {
+    expect(() =>
+      parseStateJson({ ...baseV5Payload, half_hearts: 7 }),
+    ).toThrow();
+  });
+
+  it("parseStateJson rejects half_hearts = -1 (below min 0)", () => {
+    expect(() =>
+      parseStateJson({ ...baseV5Payload, half_hearts: -1 }),
+    ).toThrow();
+  });
+
+  it("parseStateJson rejects level = 0 (below min 1)", () => {
+    expect(() => parseStateJson({ ...baseV5Payload, level: 0 })).toThrow();
+  });
+
+  it("parseStateJson rejects level = 101 (above max 100)", () => {
+    expect(() => parseStateJson({ ...baseV5Payload, level: 101 })).toThrow();
+  });
+
+  it("parseStateJson accepts level_fraction = 0 (minimum)", () => {
+    expect(() =>
+      parseStateJson({ ...baseV5Payload, level_fraction: 0 }),
+    ).not.toThrow();
+  });
+
+  it("parseStateJson accepts level_fraction = 1 (maximum)", () => {
+    expect(() =>
+      parseStateJson({ ...baseV5Payload, level_fraction: 1 }),
+    ).not.toThrow();
+  });
+
+  it("parseStateJson still accepts a v4 payload (backward compat)", () => {
+    const v4Payload = { ...baseV5Payload, schema_version: 4 as number };
+    expect(() => parseStateJson(v4Payload)).not.toThrow();
+  });
+});
+
 describe("sourceEventOriginSchema — P9.01 vscode/antigravity origins", () => {
   it("accepts vscode as a valid source_event origin", () => {
     expect(sourceEventOriginSchema.safeParse("vscode").success).toBe(true);
