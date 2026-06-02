@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-06-02T09:59:18.797Z",
+  "summary": {
+    "total": 12,
+    "patched": 5,
+    "rejected": 3,
+    "already-covered": 3,
+    "requires-human-review": 1
+  },
+  "dispositions": [
+    {
+      "disposition": "already-covered",
+      "rationale": "Full nil-path coverage already exists in the same suite via testNonPlatformOriginsResolveToNil (\"soa\"/\"sync\"/\"manual\") and testAbsentOrUnknownOriginResolvesToNil (nil/\"\"). The observation itself states there is \"no gap today\"; the concern is a hypothetical future refactor that removes those sibling tests.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.01-subagent-review.report.md",
+        "ticketId": "P9.01"
+      },
+      "observation": "**P9 regression test is thin by itself:** `testNonPlatformOriginsStillResolveToNilAfterP9` checks `\"soa\"` and `nil` only. Full nil-path coverage exists via the pre-existing suite, so there is no gap today. If the older tests are ever consolidated or removed as \"redundant,\" the dedicated regression test would no longer cover `\"sync\"`, `\"manual\"`, `\"\"`, or novel unknown strings. Worth noting if the test file is ever refactored."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Intentional and already documented in ticket-01's Rationale \"Contract note\": the PlatformVSCode imageset backs the `vscode` origin, which is driven by GitHub Copilot events, so the Copilot glyph is the correct product association. Contents.json reference is exact and the file exists — no runtime failure. Renaming would be cosmetic churn against a deliberate design decision.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.01-subagent-review.report.md",
+        "ticketId": "P9.01"
+      },
+      "observation": "**SVG asset naming anomaly — `githubcopilot.svg` in `PlatformVSCode.imageset`:** The imageset represents the VS Code origin (`vscode`), but the backing SVG is the GitHub Copilot glyph and is named `githubcopilot.svg`. This is presumably intentional — the pet is driven by GitHub Copilot events that arrive with origin `vscode`, and the Copilot logo is the correct product association — but the imageset folder name (`PlatformVSCode`) and SVG filename (`githubcopilot.svg`) name two different products. The `Contents.json` filename reference is exact and the on-disk file exists, so there is no runtime failure. Future maintainers searching for \"VS Code logo\" assets would find a Copilot glyph, which may cause confusion."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "The comment on main already reads \"Only the five coding platforms that drive the pet get a chip\" (PlatformAttributionTests.swift:6). It was corrected before the phase landed; the report reviewed a pre-fix worktree state. No action needed.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.01-subagent-review.report.md",
+        "ticketId": "P9.01"
+      },
+      "observation": "**Test file class-comment stale:** `PlatformAttributionTests.swift:6` still says \"Only the three coding platforms that drive the pet get a chip\" — a copy of pre-P9 text. The implementation doc comment was correctly updated to \"five\" as required by the Refactor step, but the test class comment was not. No invariant is broken; the mismatch will mislead a future reader who opens the test file to understand what the test class covers."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "The ticket-01 Rationale section is filled in on main (Red first / Why this path / Alternative considered / Deferred / Contract note, lines 46-54). It was completed before the phase landed; the report reviewed a pre-fill worktree state.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.01-subagent-review.report.md",
+        "ticketId": "P9.01"
+      },
+      "observation": "**Ticket Rationale section left as placeholder:** The `## Rationale` section in `ticket-01-platform-foundation-enum-badges.md` contains only the unfilled template prompts (\"Red first: [what test failed first]\", \"Why this path: [...]\", etc.). This is not a code finding but means the implementation decisions are unrecorded. If this ticket is referenced during a future retrospective or architectural review, the rationale context is absent."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Out-of-current-scope forward-looking note; no bug exists today with the single-event Copilot set. The missing partially_installed transition only becomes observable when COPILOT_CODOGOTCHI_EVENTS gains a second event, which is a future ticket's concern. Adding the transition now would be speculative complexity. Revisit at the next vscode platform-event expansion.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.02-subagent-review.report.md",
+        "ticketId": "P9.02"
+      },
+      "observation": "`partially_installed: false` is hardcoded for vscode. If `COPILOT_CODOGOTCHI_EVENTS` gains a new event in a future ticket, existing installs will flip to `installed: false` with no `partially_installed: true` transition, which is asymmetric with the cursor/claude_code/codex upgrade path. Not a bug in this ticket's scope; worth noting before the next platform event expansion."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added a test that seeds an unrelated entry, installs, uninstalls, then asserts the file still exists, no codogotchi-hook entry remains, and the unrelated entry is preserved — closing the delete-vs-clean ambiguity the empty-string read path left open.",
+      "patch": {
+        "commitSha": "815783059f3d8c01b1934da3ebeaeec0b131c579",
+        "files": ["packages/cli/src/hooks.test.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.02-subagent-review.report.md",
+        "ticketId": "P9.02"
+      },
+      "observation": "`uninstallVscodeHooks` test coverage is narrow. The test at `hooks.test.ts:1005–1011` checks `raw.not.toContain(\"codogotchi-hook\")` but reads from the file if it exists (`existsSync(hooksPath) ? readFileSync(...) : \"\"`). If uninstall had deleted the file instead of cleaning it, the empty-string path would also pass. The code correctly writes a cleaned file rather than deleting it, but the test does not assert the file still exists with valid JSON."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added a paired test asserting `tool_name: \"edit\"` (snake) and `toolName: \"edit\"` (camel) classify identically to `implementing`, closing the field-path symmetry gap the differing-tool fixtures left open.",
+      "patch": {
+        "commitSha": "815783059f3d8c01b1934da3ebeaeec0b131c579",
+        "files": ["packages/cli/src/hook-binary.test.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.02-subagent-review.report.md",
+        "ticketId": "P9.02"
+      },
+      "observation": "Cross-dialect fixture symmetry gap. The two camelCase/snake_case fixture files (`pre-tool-use-camel.json`, `pre-tool-use-snake.json`) test different tool names (`\"edit\"` vs `\"view\"`), so they don't verify that the same tool name produces the same state via both field paths. The Review Focus says \"confirm a snake_case payload and a camelCase payload classify identically.\" A test pairing `{ tool_name: \"edit\", hook_event_name: \"PreToolUse\" }` and `{ toolName: \"edit\", hook_event_name: \"preToolUse\" }` both asserting `implementing` would close this gap explicitly."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added a Copilot `sessionEnd` -> standby test in the \"Copilot (vscode) native hook classifier\" block, mirroring the existing agentStop test. Locks the documented behavior the code already handles via the agentstop||sessionend guard.",
+      "patch": {
+        "commitSha": "815783059f3d8c01b1934da3ebeaeec0b131c579",
+        "files": ["packages/cli/src/hook-binary.test.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.02-subagent-review.report.md",
+        "ticketId": "P9.02"
+      },
+      "observation": "Missing test for Copilot `sessionEnd → standby`. The `describe(\"Copilot (vscode) native hook classifier\")` block covers `agentStop → standby` but has no corresponding case for `hook_event_name: \"sessionEnd\"`. The Outcome explicitly lists both; the code correctly handles both via the `rawEventName === \"agentstop\" || rawEventName === \"sessionend\"` guard. The gap is in test coverage, not code."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Not a documentation defect. The Outcome bullet states the net end-state mapping (web_fetch -> reading), matching the style of every other entry in that line (e.g. view -> reading). The alias-table indirection (web_fetch -> WebFetch -> READING_TOOL_NAMES) is an implementation detail; the observation confirms \"the final state is correct.\" Spelling out internal alias hops in the Outcome bullet would add noise, not clarity.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.02-subagent-review.report.md",
+        "ticketId": "P9.02"
+      },
+      "observation": "Outcome description of `web_fetch` is slightly misleading. The Outcome says `web_fetch → reading` implying a direct mapping; the code routes `web_fetch → \"WebFetch\"` (alias table), then `WebFetch` is in `READING_TOOL_NAMES` → `reading`. The final state is correct; the description skips the intermediate alias and may mislead a future reviewer who searches for a direct `web_fetch` → `reading` entry."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "Genuinely ambiguous and product-facing. The shared codogotchi-hook binary emits nothing on stdout for ALL five platforms (claude_code/codex/cursor/vscode/antigravity), and they work in production. Reconciling \"in one place\" forks between (a) correcting ticket-03 line 17 to describe the actual observational-by-omission behavior, or (b) making the shared binary emit `{}` across every platform — a cross-platform change with regression risk. The developer must decide whether Antigravity/Gemini hooks actually require JSON on stdout before either path is taken. Tied to P9.03 actionable finding #1, which the reconciliation ledger recorded as patched (fe4ceea) though the only post-review hook-binary commit (9ed68e2) addressed the toolCall.name finding.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.03-subagent-review.report.md",
+        "ticketId": "P9.03"
+      },
+      "observation": "[docs/product/delivery/phase-09/ticket-03-antigravity-hooks.md](/Users/cesar/code/codogotchi_p9_03/docs/product/delivery/phase-09/ticket-03-antigravity-hooks.md:17) says the hook may emit `{}` or `decision: \"allow\"` for `PreToolUse`, while this review brief requires `{}` only, and the current implementation emits nothing. The intended stdout contract should be reconciled in one place."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added a regression test asserting an Antigravity PostToolUse payload carrying toolCall.name stays neutral (state thinking, sourceEvent.kind not tool_use), guarding the 9ed68e2 fix that scoped toolCall.name to PreToolUse only.",
+      "patch": {
+        "commitSha": "815783059f3d8c01b1934da3ebeaeec0b131c579",
+        "files": ["packages/cli/src/hook-binary.test.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.03-subagent-review.report.md",
+        "ticketId": "P9.03"
+      },
+      "observation": "[packages/cli/src/hook-binary.test.ts](/Users/cesar/code/codogotchi_p9_03/packages/cli/src/hook-binary.test.ts:727) locks the state outcomes well, but there is no test for malformed/future `PostToolUse` payloads that include `toolCall.name`, which is how the metadata-correlation bug above slips through."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added an Antigravity test that seeds an unrelated named hook, installs, uninstalls, then asserts the file still exists, the codogotchi named hook is gone, and the unrelated named hook is preserved — locking the preservation behavior the subagent verified at review time.",
+      "patch": {
+        "commitSha": "815783059f3d8c01b1934da3ebeaeec0b131c579",
+        "files": ["packages/cli/src/hooks.test.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-09/reviews/P9.03-subagent-review.report.md",
+        "ticketId": "P9.03"
+      },
+      "observation": "[packages/cli/src/hooks.test.ts](/Users/cesar/code/codogotchi_p9_03/packages/cli/src/hooks.test.ts:1038) covers install/idempotency/status/uninstall-removes-entries, but there is no Antigravity test asserting that uninstall preserves unrelated named hooks. The code currently does preserve them; the gap is test coverage, not observed behavior."
+    }
+  ]
+}
