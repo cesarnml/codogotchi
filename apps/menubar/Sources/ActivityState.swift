@@ -105,6 +105,7 @@ struct SourceEvent: Equatable, Decodable {
 /// state as `idle` regardless of the written `activity_state`. `summary` and
 /// `reasonKind` are the user-facing copy shown in the attention bubble (P6.08).
 struct AttentionPayload: Equatable, Decodable {
+	let createdAt: String?
 	let expiresAt: String?
 	let summary: String?
 	let reasonKind: String?

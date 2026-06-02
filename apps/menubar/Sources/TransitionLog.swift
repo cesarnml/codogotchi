@@ -7,8 +7,11 @@ import Foundation
 ///   observed state change. Field shape:
 ///   ```
 ///   {"ts":"...","state":"...","prev":"...","schema_version":1,
-///    "source_origin":"...","source_kind":"...","source_name":"...",
-///    "tool_command":"...","reason_kind":"..."}
+///    "state_schema_version":4,"updated_at":"...","source_origin":"...",
+///    "source_kind":"...","source_name":"...","source_repo_root":"...",
+///    "source_terminal_bundle_id":"...","tool_command":"...",
+///    "reason_kind":"...","attention_created_at":"...",
+///    "attention_expires_at":"..."}
 ///   ```
 ///   `tool_command` (the raw Bash/Shell command that drove the change) and
 ///   `reason_kind` (the `attention` reason, e.g. `error_blocked`) are emitted
@@ -110,12 +113,18 @@ final class TransitionLog {
 			state: snapshot.activityState.rawValue,
 			prev: previousState.rawValue,
 			schemaVersion: 1,
+			stateSchemaVersion: snapshot.schemaVersion,
 			heartbeat: nil,
+			updatedAt: snapshot.updatedAt,
 			sourceOrigin: snapshot.sourceEvent?.origin,
 			sourceKind: snapshot.sourceEvent?.kind,
 			sourceName: snapshot.sourceEvent?.name,
+			sourceRepoRoot: snapshot.sourceEvent?.repoRoot,
+			sourceTerminalBundleId: snapshot.sourceEvent?.terminalBundleId,
 			toolCommand: snapshot.toolCommand,
-			reasonKind: snapshot.attention?.reasonKind
+			reasonKind: snapshot.attention?.reasonKind,
+			attentionCreatedAt: snapshot.attention?.createdAt,
+			attentionExpiresAt: snapshot.attention?.expiresAt
 		)
 		write(payload)
 		lastObservedState = snapshot.activityState
@@ -169,12 +178,18 @@ final class TransitionLog {
 			state: lastObservedState.rawValue,
 			prev: nil,
 			schemaVersion: 1,
+			stateSchemaVersion: nil,
 			heartbeat: true,
+			updatedAt: nil,
 			sourceOrigin: nil,
 			sourceKind: nil,
 			sourceName: nil,
+			sourceRepoRoot: nil,
+			sourceTerminalBundleId: nil,
 			toolCommand: nil,
-			reasonKind: nil
+			reasonKind: nil,
+			attentionCreatedAt: nil,
+			attentionExpiresAt: nil
 		)
 		write(payload)
 		lastActivityAt = now
@@ -239,10 +254,16 @@ private struct LinePayload: Encodable {
 	let state: String
 	let prev: String?
 	let schemaVersion: Int
+	/// `schema_version` from the observed `state.json` snapshot. Distinct from the
+	/// NDJSON line schema so heuristics can be audited across hook payload revisions.
+	let stateSchemaVersion: Int?
 	let heartbeat: Bool?
+	let updatedAt: String?
 	let sourceOrigin: String?
 	let sourceKind: String?
 	let sourceName: String?
+	let sourceRepoRoot: String?
+	let sourceTerminalBundleId: String?
 	/// Raw command string that drove this transition, for Bash/Shell events.
 	/// Nil (and omitted) for non-shell transitions and heartbeats. This is the
 	/// durable signal for auditing the producer-side bucketing heuristic.
@@ -251,17 +272,25 @@ private struct LinePayload: Encodable {
 	/// the transition lands in a state that carries an attention payload.
 	/// Nil/omitted otherwise so quiet lines stay lean.
 	let reasonKind: String?
+	let attentionCreatedAt: String?
+	let attentionExpiresAt: String?
 
 	enum CodingKeys: String, CodingKey {
 		case ts
 		case state
 		case prev
 		case schemaVersion = "schema_version"
+		case stateSchemaVersion = "state_schema_version"
 		case heartbeat
+		case updatedAt = "updated_at"
 		case sourceOrigin = "source_origin"
 		case sourceKind = "source_kind"
 		case sourceName = "source_name"
+		case sourceRepoRoot = "source_repo_root"
+		case sourceTerminalBundleId = "source_terminal_bundle_id"
 		case toolCommand = "tool_command"
 		case reasonKind = "reason_kind"
+		case attentionCreatedAt = "attention_created_at"
+		case attentionExpiresAt = "attention_expires_at"
 	}
 }

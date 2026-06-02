@@ -60,7 +60,9 @@ final class TransitionLogTests: XCTestCase {
 			sourceEvent: SourceEvent(
 				origin: "claude_code",
 				kind: "tool_use",
-				name: "Edit"
+				name: "Edit",
+				repoRoot: "/Users/cesar/code/codogotchi",
+				terminalBundleId: "com.openai.codex"
 			)
 		)
 		log.recordTransition(snapshot: snapshot, previousState: .idle)
@@ -71,9 +73,19 @@ final class TransitionLogTests: XCTestCase {
 		XCTAssertEqual(obj["state"] as? String, "implementing")
 		XCTAssertEqual(obj["prev"] as? String, "idle")
 		XCTAssertEqual(obj["schema_version"] as? Int, 1)
+		XCTAssertEqual(obj["state_schema_version"] as? Int, 1)
+		XCTAssertEqual(obj["updated_at"] as? String, "2026-05-20T14:32:11.123Z")
 		XCTAssertEqual(obj["source_origin"] as? String, "claude_code")
 		XCTAssertEqual(obj["source_kind"] as? String, "tool_use")
 		XCTAssertEqual(obj["source_name"] as? String, "Edit")
+		XCTAssertEqual(
+			obj["source_repo_root"] as? String,
+			"/Users/cesar/code/codogotchi"
+		)
+		XCTAssertEqual(
+			obj["source_terminal_bundle_id"] as? String,
+			"com.openai.codex"
+		)
 		let ts = obj["ts"] as? String ?? ""
 		// Shape check, not a value check. Fixed-clock fixture is enough to
 		// prove the formatter is wired in; the exact year/month encoded by
@@ -119,6 +131,14 @@ final class TransitionLogTests: XCTestCase {
 			obj["source_name"] is NSNull || obj["source_name"] == nil,
 			"source_name must be null/absent when sourceEvent is nil"
 		)
+		XCTAssertTrue(
+			obj["source_repo_root"] is NSNull || obj["source_repo_root"] == nil,
+			"source_repo_root must be null/absent when sourceEvent is nil"
+		)
+		XCTAssertTrue(
+			obj["source_terminal_bundle_id"] is NSNull || obj["source_terminal_bundle_id"] == nil,
+			"source_terminal_bundle_id must be null/absent when sourceEvent is nil"
+		)
 	}
 
 	func testRecordTransitionEmitsToolCommandAndReasonKindWhenPresent() throws {
@@ -132,6 +152,7 @@ final class TransitionLogTests: XCTestCase {
 			updatedAt: "2026-05-20T14:32:11.123Z",
 			sourceEvent: SourceEvent(origin: "claude_code", kind: "tool_use", name: "Bash"),
 			attention: AttentionPayload(
+				createdAt: "2026-05-20T14:31:11.123Z",
 				expiresAt: nil,
 				summary: "Something went wrong",
 				reasonKind: "error_blocked"
@@ -148,6 +169,14 @@ final class TransitionLogTests: XCTestCase {
 		XCTAssertEqual(
 			obj["reason_kind"] as? String, "error_blocked",
 			"reason_kind must be logged to confirm which attention path fired"
+		)
+		XCTAssertEqual(
+			obj["attention_created_at"] as? String, "2026-05-20T14:31:11.123Z",
+			"attention_created_at must be logged for TTL auditing"
+		)
+		XCTAssertTrue(
+			obj["attention_expires_at"] is NSNull || obj["attention_expires_at"] == nil,
+			"attention_expires_at must remain null/absent when the payload omits it"
 		)
 	}
 
@@ -170,6 +199,14 @@ final class TransitionLogTests: XCTestCase {
 		XCTAssertTrue(
 			obj["reason_kind"] is NSNull || obj["reason_kind"] == nil,
 			"reason_kind must be omitted/null when there is no attention payload"
+		)
+		XCTAssertTrue(
+			obj["attention_created_at"] is NSNull || obj["attention_created_at"] == nil,
+			"attention_created_at must be omitted/null when there is no attention payload"
+		)
+		XCTAssertTrue(
+			obj["attention_expires_at"] is NSNull || obj["attention_expires_at"] == nil,
+			"attention_expires_at must be omitted/null when there is no attention payload"
 		)
 	}
 
@@ -205,6 +242,10 @@ final class TransitionLogTests: XCTestCase {
 		XCTAssertEqual(hb["heartbeat"] as? Bool, true)
 		XCTAssertEqual(hb["state"] as? String, "idle")
 		XCTAssertEqual(hb["schema_version"] as? Int, 1)
+		XCTAssertTrue(
+			hb["state_schema_version"] is NSNull || hb["state_schema_version"] == nil,
+			"heartbeats must not carry snapshot-only schema metadata"
+		)
 	}
 
 	func testTransitionResetsHeartbeatWindow() throws {

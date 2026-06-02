@@ -86,6 +86,61 @@ describe("classifyEvent", () => {
     ).toBe("testing");
   });
 
+  it("classifies Bash 'bun run format' as testing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: "bun run format",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("testing");
+  });
+
+  it("classifies Bash 'bun run typecheck' as testing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Bash",
+          command: "bun run typecheck",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("testing");
+  });
+
+  it("classifies xcodebuild build/test commands with leading flags as testing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "cursor",
+          kind: "tool_use",
+          name: "Shell",
+          command:
+            "xcodebuild -project apps/menubar/Codogotchi.xcodeproj -scheme Codogotchi build 2>&1 | tail -25",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("testing");
+    expect(
+      classifyEvent(
+        {
+          origin: "cursor",
+          kind: "tool_use",
+          name: "Shell",
+          command:
+            "xcodebuild -scheme Codogotchi -destination 'platform=macOS' test 2>&1 | tail -20",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("testing");
+  });
+
   it("classifies Bash 'git push' as implementing (git push)", () => {
     expect(
       classifyEvent(

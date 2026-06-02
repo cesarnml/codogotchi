@@ -111,7 +111,7 @@ decodes them as `idle`.
 | `errored`         | v2  | Pet is distressed — agent failed.                            | `StopFailure`; `Stop` + `stop_reason: max_tokens`; Cursor `stop` + `status: error`; Cursor `postToolUseFailure` (non-interrupt). | reliable    |
 | `waiting_for_input` | v4 | Pet is awaiting a permission prompt.                         | `PermissionRequest` — wiring deferred to platform-hooks phase. Reserved enum entry.   | reliable    |
 | `implementing`    | v1  | Pet is writing code.                                         | `Edit`, `Write`, `MultiEdit`, `apply_patch`; unknown/write Bash/Shell commands.        | heuristic   |
-| `testing`         | v4  | Pet is running tests / lint / format.                        | Bash/Shell commands matching test-runner prefixes (incl. `bun run ci`, `verify:quiet`, `mac:test`). | heuristic   |
+| `testing`         | v4  | Pet is running tests / verification work.                    | Bash/Shell commands matching test/format/lint/typecheck/build runners (incl. `bun run ci`, `verify:quiet`, `format`, `typecheck`, `mac:test`, `xcodebuild ... build/test`). | heuristic   |
 | `thinking`        | v4  | Pet is exploring/searching the codebase.                     | `Grep`/`Glob`; Bash/Shell read/search commands (incl. compound `&&`/`;` chains); `prompt_submit`; unrecognized hook events. | heuristic   |
 | `reading`         | v4  | Pet is reading source files (light streak).                  | `Read` tool-use ×1–2; `ToolSearch`, `Skill`, `WebSearch`/`WebFetch`/`SemanticSearch`; `mcp__*` tools. | heuristic   |
 | `cramming`        | v4  | Pet is deep-reading (heavy streak).                          | `Read` tool-use ×3+ in a row without an intervening write.                             | heuristic   |
@@ -240,7 +240,7 @@ could apply, the earlier row wins.
 | Edit / Write / MultiEdit / `apply_patch` tool-use (incl. Codex `postToolUse` + `name`)      | `implementing`     |
 | `Grep` / `Glob` tool-use                                                                    | `thinking`         |
 | `ToolSearch`, `Skill`, `WebSearch`, `WebFetch`, `SemanticSearch`, `mcp__*` tool-use       | `reading`          |
-| Bash/Shell command matching a test/lint/format runner (any `&&` / `;` segment)              | `testing`          |
+| Bash/Shell command matching a test/format/lint/typecheck/build runner (any `&&` / `;` segment) | `testing`       |
 | Bash/Shell read/search command (prefix or segment: grep, rg, find, ls, cat, sed -n, git status, git log, git diff, …) | `thinking` |
 | `Read` tool-use ×1 or ×2 (streak, no intervening write)                                    | `reading`          |
 | `Read` tool-use ×3+ (streak, no intervening write)                                         | `cramming`         |
@@ -254,9 +254,15 @@ Note: SoA gate states (`ticket_started`, `ticket_completed`, etc.) are delivered
 
 The `testing` heuristic matches any `&&` / `;` / `||` segment beginning with:
 `bun test`, `bun run test`, `bun run ci`, `bun run ci:quiet`, `bun run verify`,
-`bun run verify:quiet`, `bun run mac:test`, `npm test`, `npm run test`, `pnpm test`,
-`pnpm run test`, `yarn test`, `yarn run test`, `pytest`, `cargo test`, `go test`,
-`swift test`, `xcodebuild test`, `vitest`, `jest`.
+`bun run verify:quiet`, `bun run format`, `bun run format:quiet`, `bun run lint`,
+`bun run lint:quiet`, `bun run typecheck`, `bun run mac:test`, `npm test`,
+`npm run test`, `npm run format`, `npm run lint`, `npm run typecheck`, `pnpm test`,
+`pnpm run test`, `pnpm run format`, `pnpm run lint`, `pnpm run typecheck`,
+`yarn test`, `yarn run test`, `yarn format`, `yarn run format`, `yarn lint`,
+`yarn run lint`, `yarn typecheck`, `yarn run typecheck`, `pytest`, `cargo test`,
+`go test`, `swift test`, `xcodebuild build`, `xcodebuild test`, `vitest`, `jest`,
+`eslint`, `prettier`, `tsc`. `xcodebuild` segments with leading flags also match
+when they contain the `build` or `test` verb later in the segment.
 
 ### Known thinking (explore) prefixes (v4)
 

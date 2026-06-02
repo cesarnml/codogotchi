@@ -62,19 +62,40 @@ export type ClassifyResult = {
 const TEST_RUNNER_PREFIXES = [
   "bun test",
   "bun run test",
+  "bun run format",
+  "bun run format:quiet",
+  "bun run lint",
+  "bun run lint:quiet",
+  "bun run typecheck",
   "npm test",
   "npm run test",
+  "npm run format",
+  "npm run lint",
+  "npm run typecheck",
   "pnpm test",
   "pnpm run test",
+  "pnpm run format",
+  "pnpm run lint",
+  "pnpm run typecheck",
   "yarn test",
   "yarn run test",
+  "yarn format",
+  "yarn run format",
+  "yarn lint",
+  "yarn run lint",
+  "yarn typecheck",
+  "yarn run typecheck",
   "pytest",
   "cargo test",
   "go test",
   "swift test",
+  "xcodebuild build",
   "xcodebuild test",
   "vitest",
   "jest",
+  "eslint",
+  "prettier",
+  "tsc",
   // CI scripts bundle the test suite (plus lint/typecheck) and read as
   // testing intent, not the generic "implementing" fallback. The word-boundary
   // match treats `:` as a boundary stop, so `ci:quiet` needs its own entry.
@@ -281,6 +302,7 @@ function shellCommandSegments(command: string): string[] {
 }
 
 function matchesTestRunnerSegment(trimmed: string): boolean {
+  if (matchesXcodebuildVerification(trimmed)) return true;
   return TEST_RUNNER_PREFIXES.some((prefix) => {
     if (!trimmed.startsWith(prefix)) return false;
     const next = trimmed.slice(prefix.length, prefix.length + 1);
@@ -292,6 +314,13 @@ function matchesTestRunner(command: string): boolean {
   return shellCommandSegments(command).some((segment) =>
     matchesTestRunnerSegment(segment.trimStart()),
   );
+}
+
+function matchesXcodebuildVerification(trimmed: string): boolean {
+  if (!trimmed.startsWith("xcodebuild")) return false;
+  const next = trimmed.slice("xcodebuild".length, "xcodebuild".length + 1);
+  if (next !== "" && next !== " " && next !== "\t") return false;
+  return /\b(build|test)\b/.test(trimmed);
 }
 
 function matchesSedReadOnly(command: string): boolean {
