@@ -146,6 +146,39 @@ that carry an explicit origin field.
   `PLATFORM_TOOL_ALIASES` maps would make the translation table visible to tests without importing
   implementation details and would scale more cleanly when the next platform is added.
 
+## Post-phase advisory triage and a reconciliation-gate gap
+
+After the stack landed on `main`, `/soa tao phase-09` triaged the 12 advisory
+observations from the P9.01–P9.03 subagent reviews: 6 patched (test-coverage
+strengthening plus the hook stdout-contract doc fix), 3 rejected, 3
+already-covered, 0 left for human review. See
+[`advisory-observation-triage.json`](../delivery/phase-09/advisory-observation-triage.json).
+
+The triage surfaced a process gap worth recording. The P9.03 subagent report
+listed **three actionable findings**, but only one fix commit existed for the
+ticket (the `toolCall.name` Pre/Post scoping fix). The other two had cleared the
+`reconcile-subagent-review` gate without a patch *or* a recorded `deferred` row:
+
+- **Finding #1 (hook emits no stdout)** turned out to be a *misclassified*
+  finding — Codogotchi is observe-only by design and correctly emits nothing;
+  the ticket-03 Outcome line was wrong, not the code. Resolved as a doc fix.
+- **Finding #3 (in-place config write race)** was a *real* latent robustness
+  bug: `writeText` did `mkdir` + `writeFile` straight onto the live hooks file,
+  so a crash mid-write could truncate a user's `~/.gemini` / `~/.copilot` /
+  `~/.cursor` / `~/.claude` hooks file. Recoverable via the `backupIfExists`
+  snapshot, and pre-existing across all installers (not P9-introduced), but it
+  should not have passed the gate silently. Fixed post-phase with an atomic
+  temp-file + `rename` write (shared `writeText`, so all installers hardened at
+  once), plus a no-temp-litter test.
+
+The lesson is about the **gate**, not the fix: an actionable finding reached
+`open-pr` with neither a qualifying patch commit nor a `deferred` ledger row,
+and the ledger's `findings: []` array did not reflect the report's three
+actionable entries. Reconciliation's Condition B (report lists actionable
+findings but no patch/deferral) should have blocked or forced an explicit
+disposition. Whether the gate's report-parsing missed the findings or an ack
+slipped through is worth a second look before the next phase relies on it.
+
 ## Net assessment
 
 Phase 09 achieves its product goal: a developer can install native hooks for VS Code (Copilot) and
@@ -168,5 +201,13 @@ Patch any schema drift when it surfaces; the fixture tests will catch regression
 - Phase 10+: RPG and XP/sync ingestion for the two new platforms (separate epic, not a prerequisite
   for Phase 09 exit).
 - OpenCode: revisit when a stable external plugin API is published.
+- **Audit the `reconcile-subagent-review` gate** against the P9.03 case: an
+  actionable finding (in-place write race) reached `open-pr` with no patch and
+  no `deferred` row, and the ledger `findings` array was empty despite three
+  actionable entries in the report. Confirm whether report-parsing or an ack
+  path let it through, and tighten Condition B so a real finding cannot clear
+  the gate without an explicit disposition.
 
 _Created: 2026-06-02. Phase 09 tickets P9.01–P9.04 delivered; PRs #91–#94._
+_Addendum 2026-06-02: post-phase `/soa tao` triage (6 patched, 3 rejected,
+3 already-covered) plus atomic-write fix for P9.03 finding #3._
