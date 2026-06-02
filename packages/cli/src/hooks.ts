@@ -29,6 +29,7 @@ const CODEX_CONFIG_REL = join(".codex", "config.toml");
 const CODEX_HOOKS_REL = join(".codex", "hooks", "codogotchi.toml");
 const CODEX_HOOKS_JSON_REL = join(".codex", "hooks.json");
 const CURSOR_HOOKS_REL = join(".cursor", "hooks.json");
+const COPILOT_HOOKS_REL = join(".copilot", "hooks", "codogotchi.json");
 const CODOGOTCHI_CONFIG_REL = join(".codogotchi", "config.json");
 
 function getUserRoot(): string {
@@ -226,6 +227,93 @@ function cursorAnyWired(hooks: CursorHooksJson): boolean {
   return CURSOR_CODOGOTCHI_EVENTS.some((event) =>
     cursorEventWired(hooks, event),
   );
+}
+
+// Copilot hook file format: a JSON file with an array of hook entries.
+// Written to ~/.copilot/hooks/codogotchi.json (or $COPILOT_HOME/hooks/).
+// Each entry names the event and the shell command to run.
+const COPILOT_CODOGOTCHI_EVENTS = [
+  "userPromptSubmitted",
+  "preToolUse",
+  "postToolUse",
+  "agentStop",
+  "sessionEnd",
+  "errorOccurred",
+  "permissionRequest",
+] as const;
+
+type CopilotHookEntry = { event: string; command: string };
+type CopilotHooksFile = { hooks: CopilotHookEntry[] };
+
+function copilotHookCommand(ctx: InstallHooksContext): string {
+  return [
+    `CODOGOTCHI_HOME=${shellQuote(ctx.home)}`,
+    `CODOGOTCHI_ORIGIN=vscode`,
+    CODOGOTCHI_COMMAND,
+  ].join(" ");
+}
+
+function isCopilotCodogotchiEntry(entry: CopilotHookEntry): boolean {
+  return isCodogotchiCommand(entry.command);
+}
+
+function copilotInstalled(file: CopilotHooksFile): boolean {
+  return COPILOT_CODOGOTCHI_EVENTS.every((event) =>
+    file.hooks.some((e) => e.event === event && isCopilotCodogotchiEntry(e)),
+  );
+}
+
+function withCopilotCodogotchiEntries(
+  existing: CopilotHooksFile,
+  command: string,
+): CopilotHooksFile {
+  // Remove all prior codogotchi entries (dedup), then re-append for each event.
+  const others = existing.hooks.filter((e) => !isCopilotCodogotchiEntry(e));
+  const entries = COPILOT_CODOGOTCHI_EVENTS.map((event) => ({
+    event,
+    command,
+  }));
+  return { hooks: [...others, ...entries] };
+}
+
+export async function installVscodeHooks(
+  ctx: InstallHooksContext,
+): Promise<void> {
+  const root = getUserRoot();
+  const configPath = join(root, CODOGOTCHI_CONFIG_REL);
+  if (!(await fileExists(configPath))) {
+    throw new Error(
+      "codogotchi: missing ~/.codogotchi/config.json. Launch the app or run `codogotchi setup` first.",
+    );
+  }
+
+  const hooksPath = join(root, COPILOT_HOOKS_REL);
+  await backupIfExists(hooksPath);
+
+  const existing = await readJsonOrEmpty<CopilotHooksFile>(hooksPath);
+  const normalized: CopilotHooksFile = {
+    hooks: Array.isArray(existing.hooks) ? existing.hooks : [],
+  };
+  const updated = withCopilotCodogotchiEntries(
+    normalized,
+    copilotHookCommand(ctx),
+  );
+  await writeText(hooksPath, `${JSON.stringify(updated, null, 2)}\n`);
+}
+
+export async function uninstallVscodeHooks(): Promise<void> {
+  const root = getUserRoot();
+  const hooksPath = join(root, COPILOT_HOOKS_REL);
+  if (!(await fileExists(hooksPath))) return;
+  await backupIfExists(hooksPath);
+
+  const existing = await readJsonOrEmpty<CopilotHooksFile>(hooksPath);
+  const cleaned: CopilotHooksFile = {
+    hooks: Array.isArray(existing.hooks)
+      ? existing.hooks.filter((e) => !isCopilotCodogotchiEntry(e))
+      : [],
+  };
+  await writeText(hooksPath, `${JSON.stringify(cleaned, null, 2)}\n`);
 }
 
 async function readJsonOrEmpty<T extends object>(path: string): Promise<T> {
@@ -702,14 +790,21 @@ export async function hooksStatus(): Promise<HooksStatus> {
   const claudePath = join(root, CLAUDE_SETTINGS_REL);
   const codexJsonPath = join(root, CODEX_HOOKS_JSON_REL);
   const cursorPath = join(root, CURSOR_HOOKS_REL);
+  const copilotPath = join(root, COPILOT_HOOKS_REL);
 
-  const [claudePresent, codexPresent, cursorNativePresent, state] =
-    await Promise.all([
-      fileExists(claudePath),
-      fileExists(codexJsonPath),
-      fileExists(cursorPath),
-      readStateJson(root),
-    ]);
+  const [
+    claudePresent,
+    codexPresent,
+    cursorNativePresent,
+    copilotPresent,
+    state,
+  ] = await Promise.all([
+    fileExists(claudePath),
+    fileExists(codexJsonPath),
+    fileExists(cursorPath),
+    fileExists(copilotPath),
+    readStateJson(root),
+  ]);
 
   const claude = claudePresent
     ? await readJsonOrEmpty<ClaudeSettings>(claudePath)
@@ -720,6 +815,9 @@ export async function hooksStatus(): Promise<HooksStatus> {
   const cursorJson = cursorNativePresent
     ? await readJsonOrEmpty<CursorHooksJson>(cursorPath)
     : ({} as CursorHooksJson);
+  const copilotJson = copilotPresent
+    ? await readJsonOrEmpty<CopilotHooksFile>(copilotPath)
+    : ({ hooks: [] } as CopilotHooksFile);
 
   const lastEventAt = state?.updated_at ?? null;
   const origin = state?.source_event?.origin ?? null;
@@ -738,6 +836,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
   // fallback for Cursor.
   const cursorNativeInstalled = cursorInstalled(cursorJson);
   const cursorNativeAnyWired = cursorAnyWired(cursorJson);
+  const vscodeFullyInstalled = copilotInstalled(copilotJson);
 
   // "Partially installed": codogotchi hooks are present but not fully wired for
   // the current expected event set. The integration is real and firing, so this
@@ -772,12 +871,12 @@ export async function hooksStatus(): Promise<HooksStatus> {
       last_event_at: origin === "cursor" ? lastEventAt : null,
     },
     vscode: {
-      present_on_disk: false,
-      installable_in_phase: false,
-      installed: false,
+      present_on_disk: copilotPresent,
+      installable_in_phase: true,
+      installed: vscodeFullyInstalled,
       partially_installed: false,
-      firing_recently: false,
-      last_event_at: null,
+      firing_recently: firingRecently && origin === "vscode",
+      last_event_at: origin === "vscode" ? lastEventAt : null,
     },
     antigravity: {
       present_on_disk: false,

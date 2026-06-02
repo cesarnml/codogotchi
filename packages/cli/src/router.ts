@@ -11,8 +11,10 @@ import {
   hooksStatus,
   installCursorHooks,
   installHooks,
+  installVscodeHooks,
   uninstallCursorHooks,
   uninstallHooks,
+  uninstallVscodeHooks,
 } from "./hooks";
 import { type LootTier, runLoot, TIERS } from "./loot";
 import { terminalPrompter } from "./prompts";
@@ -153,7 +155,7 @@ function parseLootFlags(args: string[]): {
   return { limit, tier, help };
 }
 
-type HooksPlatform = "claude_code" | "cursor";
+type HooksPlatform = "claude_code" | "cursor" | "vscode";
 
 function parseHooksPlatformFlag(args: string[]): {
   platform: HooksPlatform;
@@ -165,9 +167,9 @@ function parseHooksPlatformFlag(args: string[]): {
     if (args[i] === "--platform") {
       const v = args[i + 1];
       i += 1;
-      if (v !== "claude_code" && v !== "cursor") {
+      if (v !== "claude_code" && v !== "cursor" && v !== "vscode") {
         throw new Error(
-          `Invalid --platform value: ${v ?? "(missing)"}; expected claude_code or cursor`,
+          `Invalid --platform value: ${v ?? "(missing)"}; expected claude_code, cursor, or vscode`,
         );
       }
       platform = v;
@@ -469,6 +471,8 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       }
       if (platform === "cursor") {
         await installCursorHooks({ home: getCodogotchiHome() });
+      } else if (platform === "vscode") {
+        await installVscodeHooks({ home: getCodogotchiHome() });
       } else {
         await installHooks({
           home: getCodogotchiHome(),
@@ -481,7 +485,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
     if (sub === "uninstall") {
       if (subArgs.includes("--help") || subArgs.includes("-h")) {
         process.stdout.write(
-          "Usage: codogotchi hooks uninstall [--platform <claude_code|cursor>]\n",
+          "Usage: codogotchi hooks uninstall [--platform <claude_code|cursor|vscode>]\n",
         );
         return { exitCode: 0 };
       }
@@ -497,12 +501,14 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       }
       if (rest.length > 0) {
         process.stderr.write(
-          "Usage: codogotchi hooks uninstall [--platform <claude_code|cursor>]\n",
+          "Usage: codogotchi hooks uninstall [--platform <claude_code|cursor|vscode>]\n",
         );
         return { exitCode: 2 };
       }
       if (platform === "cursor") {
         await uninstallCursorHooks();
+      } else if (platform === "vscode") {
+        await uninstallVscodeHooks();
       } else {
         await uninstallHooks();
       }

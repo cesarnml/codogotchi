@@ -48,6 +48,9 @@ export type HookInput = {
   conversation_id?: string;
   // User prompt on submit hooks (`UserPromptSubmit`, `beforeSubmitPrompt`, …).
   prompt?: string;
+  // Copilot camelCase CLI payload fields.
+  toolName?: string;
+  toolArgs?: { command?: string } & Record<string, unknown>;
 };
 
 export type ClassifyState = { readRun: number };
@@ -220,6 +223,7 @@ function normalizedEventToken(eventName: string | undefined): string {
 const PROMPT_SUBMIT_TOKENS = new Set([
   "userpromptsubmit",
   "beforesubmitprompt",
+  "userpromptsubmitted", // Copilot's -ted suffix variant
 ]);
 
 function isPromptSubmitEvent(eventName: string | undefined): boolean {
@@ -246,7 +250,7 @@ function rawHookKind(input: HookInput): SourceEventKind {
   // Prompt-submit fires before any tool call and carries no tool_name; check it
   // before the tool_name fallthrough so it is never misread as tool_use.
   if (isPromptSubmitEvent(input.hook_event_name)) return "prompt_submit";
-  if (input.tool_name) return "tool_use";
+  if (input.tool_name ?? input.toolName) return "tool_use";
   const hookName = input.hook_event_name;
   if (
     hookName === "afterFileEdit" ||
@@ -255,8 +259,11 @@ function rawHookKind(input: HookInput): SourceEventKind {
     hookName === "afterShellExecution"
   )
     return "tool_use";
-  // Codex/Cursor postToolUse often omits tool_name but still carries name.
-  if (isToolBoundaryHook(hookName) && (input.tool_name ?? input.name)) {
+  // Codex/Cursor/Copilot postToolUse often omits tool_name but still carries name.
+  if (
+    isToolBoundaryHook(hookName) &&
+    (input.tool_name ?? input.toolName ?? input.name)
+  ) {
     return "tool_use";
   }
   const eventName = hookName?.toLowerCase();
@@ -264,19 +271,51 @@ function rawHookKind(input: HookInput): SourceEventKind {
   if (
     eventName === "session_end" ||
     eventName === "stop" ||
-    eventName === "stopfailure"
+    eventName === "stopfailure" ||
+    eventName === "agentstop" || // Copilot: agentStop
+    eventName === "sessionend" // Copilot/Cursor: sessionEnd
   )
     return "session_end";
   if (eventName === "posttoolusefailure") return "tool_use";
   return "session_start";
 }
 
+// Copilot (vscode) tool names differ from Claude's. Map them to the internal
+// names used by classifyEvent so the existing activity-state heuristics apply
+// without a parallel switch. "bash" → "Bash" preserves the test-runner/thinking
+// split. "task" is a think-y planning tool → "Grep" (also thinking).
+function resolveCopilotToolAlias(toolName: string): string {
+  switch (toolName.toLowerCase()) {
+    case "bash":
+      return "Bash";
+    case "create":
+    case "edit":
+      return "Edit";
+    case "view":
+      return "Read";
+    case "grep":
+      return "Grep";
+    case "glob":
+      return "Glob";
+    case "web_fetch":
+      return "WebFetch";
+    case "task":
+      return "Grep"; // thinking
+    default:
+      return toolName;
+  }
+}
+
 function normalize(input: HookInput): NormalizedEvent | null {
   // Prefer explicit shape; fall back to Claude Code raw stdin shape.
   const rawOrigin = rawHookOrigin(input);
   const hookName = input.hook_event_name;
-  let rawName = input.name ?? input.tool_name ?? "unknown";
-  if (hookName === "afterFileEdit") {
+  // Read camelCase Copilot `toolName` as fallback alongside snake_case `tool_name`.
+  const resolvedToolName = input.tool_name ?? input.toolName;
+  let rawName = input.name ?? resolvedToolName ?? "unknown";
+  if (rawOrigin === "vscode" && resolvedToolName) {
+    rawName = resolveCopilotToolAlias(resolvedToolName);
+  } else if (hookName === "afterFileEdit") {
     rawName = "Edit";
   } else if (hookName === "beforeMCPExecution") {
     rawName = input.tool_name ?? input.name ?? "MCP";
@@ -296,7 +335,9 @@ function normalize(input: HookInput): NormalizedEvent | null {
   };
   const parsed = sourceEventSchema.safeParse(candidate);
   if (!parsed.success) return null;
-  const rawCommand = input.command ?? input.tool_input?.command;
+  // Read camelCase Copilot `toolArgs.command` alongside snake_case `tool_input.command`.
+  const rawCommand =
+    input.command ?? input.tool_input?.command ?? input.toolArgs?.command;
   const command = typeof rawCommand === "string" ? rawCommand : undefined;
   return { ...parsed.data, command };
 }
@@ -410,6 +451,10 @@ export function classifyEvent(
     }
     return { state: "standby", sourceEvent, readRun: 0 };
   }
+  // Copilot errorOccurred: terminal error event.
+  if (rawEventName === "erroroccurred") {
+    return { state: "errored", sourceEvent, readRun: 0 };
+  }
   // Explicit failure signal for non-Stop events (rate limit, network error).
   if (input.is_error === true) {
     return { state: "errored", sourceEvent, readRun: 0 };
@@ -437,6 +482,11 @@ export function classifyEvent(
   // It is a turn boundary, so reset the cramming read-run streak.
   if (kind === "prompt_submit") {
     return { state: "thinking", sourceEvent, readRun: 0 };
+  }
+
+  // Copilot agentStop / sessionEnd: clean turn finish → standby.
+  if (rawEventName === "agentstop" || rawEventName === "sessionend") {
+    return { state: "standby", sourceEvent, readRun: 0 };
   }
 
   if (kind === "tool_use") {

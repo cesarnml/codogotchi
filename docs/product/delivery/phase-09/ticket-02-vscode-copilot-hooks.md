@@ -52,8 +52,12 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: repo-level `.github/hooks/` install (documented opt-in only); XP/sync JSONL ingestion.
-Contract note: [any deviation from Type/Scope metadata and why]
+Red first: `camelCase preToolUse with toolName:'edit' classifies as implementing` failed first (toolName not read); `installVscodeHooks` import error failed first for the installer tests.
+
+Why this path: Adding `toolName`/`toolArgs` to `HookInput` + a Copilot alias resolver in `normalize` handles both dialects without duplicating the existing activity-state switch. `CODOGOTCHI_ORIGIN=vscode` env override (already in `rawHookOrigin`) is the disambiguation anchor — no heuristic needed. Copilot hooks file is a simple JSON array written to `~/.copilot/hooks/codogotchi.json`, deduplicated on re-install exactly like the Cursor pattern.
+
+Alternative considered: Adding a Copilot-specific origin-detection heuristic by checking for `toolName` key presence was considered but rejected — Copilot sets `CODOGOTCHI_ORIGIN=vscode` in the installed command, so the env override is both sufficient and explicit, matching the Codex Desktop pattern.
+
+Deferred: repo-level `.github/hooks/` install (documented opt-in only); XP/sync JSONL ingestion; `COPILOT_HOME` env override for alternate Copilot config root (user-level only implemented).
+
+Contract note: `sessionEnd` (Cursor) and `agentStop`/`sessionEnd` (Copilot) now both map to `standby` via the `rawEventName === "agentstop" || rawEventName === "sessionend"` guard. This is a behavioral improvement for Cursor's `sessionEnd` event (previously returned `thinking`); no existing test covered Cursor `sessionEnd`.
