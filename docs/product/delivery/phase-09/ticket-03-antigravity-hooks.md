@@ -54,8 +54,10 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
+Red first: `PreToolUse write_to_file classifies as implementing` failed first — `toolCall.name` not read by `rawHookKind`; all three PreToolUse classifier tests failed simultaneously.
+
+Why this path: Added `toolCall.name` to the `isToolBoundaryHook` condition in `rawHookKind` so Antigravity PreToolUse is recognized as `tool_use` kind. Added `resolveAntigravityToolAlias` mapping to existing tool names (Edit/Shell/Read/Grep) so the existing activity-state switch applies without duplication. Antigravity-specific Stop and PostToolUse handling inserted before the generic `rawEventName === "stop"` check to preserve existing Claude/Cursor Stop semantics. Named-hook map format (`codogotchi` key) written to `~/.gemini/config/hooks.json`; idempotent via full replacement of the `codogotchi` key.
+
 Alternative considered: stepIdx Pre/Post correlation — rejected; `PreToolUse` already classifies the tool and codogotchi needs no post-completion tool attribution for animation.
 Deferred: workspace `.agents/hooks.json` install; `PreInvocation`/`PostInvocation` injection; policy `decision` behaviors; XP/sync JSONL.
-Contract note: [any deviation from Type/Scope metadata and why]
+Contract note: No deviations from Type/Scope metadata.
