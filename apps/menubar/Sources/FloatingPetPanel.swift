@@ -813,18 +813,24 @@ private final class AnimationLabelPillView: NSView {
 	private static let restColor = AnimationBadgeChrome.textColor
 	/// Width of the bright band as a fraction of the label width. The band is a
 	/// clear→white→clear gradient, so the strongly-lit core reads as ~half of this.
-	private static let shimmerBandFraction: CGFloat = 0.4
+	private static let shimmerBandFraction: CGFloat = 0.8
 	/// Seconds for one full left→right pass across the text.
 	private static let shimmerDuration: CFTimeInterval = 1.0
 	private static let shimmerAnimationKey = "codogotchi.badge.shimmer"
 
 	private let effectView = AnimationBadgeChrome.makeEffectView()
 	private let label = NSTextField(labelWithString: "")
-	/// Bright copy of the glyphs, drawn above the dimmed `label` and revealed only
-	/// under the moving gradient band (`shimmerMask`). Mirrors the label's string,
-	/// font, alignment and frame so the highlight lands exactly on the letters.
-	private let shimmerText = CATextLayer()
-	private let shimmerMask = CAGradientLayer()
+	/// Overlay clipped to the glyph shapes (`glyphMask`). It hosts the moving
+	/// `shimmerBand`; everything outside the band reads through to the dimmed base
+	/// `label`, so a bright highlight appears only where the band crosses letters.
+	private let shimmerContainer = CALayer()
+	/// The bright band that physically translates across the text. A *normal*
+	/// sublayer (not a mask), so its position animation runs reliably — animating a
+	/// mask layer's geometry, by contrast, is silently dropped by Core Animation.
+	private let shimmerBand = CAGradientLayer()
+	/// Static glyph stencil used as `shimmerContainer.mask`. Mirrors the label's
+	/// string/font/alignment/frame so the highlight registers on the letters.
+	private let glyphMask = CATextLayer()
 	private var metrics = GateBadgeLayout.metrics(
 		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
 	)
@@ -832,6 +838,7 @@ private final class AnimationLabelPillView: NSView {
 	/// Band width the running animation was built for; lets us restart only when
 	/// the label resizes, not on every layout pass.
 	private var shimmerBandWidth: CGFloat = 0
+	private var occlusionObserver: NSObjectProtocol?
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -848,27 +855,27 @@ private final class AnimationLabelPillView: NSView {
 		label.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(label)
 
-		// Bright glyph overlay + horizontal alpha-band mask. Lives above the
-		// label's own text content and starts hidden until a working state arrives.
-		shimmerText.alignmentMode = .center
-		shimmerText.truncationMode = .end
-		shimmerText.foregroundColor = Self.restColor.cgColor
-		shimmerText.isHidden = true
-		// A narrow band — clear at both edges, opaque white at its center — that
-		// physically translates across the glyphs. Anything outside this band's
-		// bounds is clipped from the bright overlay, so only the ~10% under the
-		// band lights up at any instant.
-		shimmerMask.startPoint = CGPoint(x: 0, y: 0.5)
-		shimmerMask.endPoint = CGPoint(x: 1, y: 0.5)
-		shimmerMask.colors = [
+		// Glyph-masked overlay hosting a narrow bright band. Hidden until a working
+		// state arrives. Hosted in the pill's own layer (above the label) rather
+		// than the text field's AppKit-owned layer.
+		glyphMask.alignmentMode = .center
+		glyphMask.truncationMode = .end
+		glyphMask.foregroundColor = NSColor.white.cgColor
+		shimmerContainer.mask = glyphMask
+		shimmerContainer.masksToBounds = true
+		shimmerContainer.isHidden = true
+		shimmerContainer.zPosition = 1
+
+		shimmerBand.startPoint = CGPoint(x: 0, y: 0.5)
+		shimmerBand.endPoint = CGPoint(x: 1, y: 0.5)
+		shimmerBand.colors = [
 			NSColor.clear.cgColor,
 			NSColor.white.cgColor,
 			NSColor.clear.cgColor,
 		]
-		shimmerMask.locations = [0, 0.5, 1]
-		shimmerText.mask = shimmerMask
-		shimmerText.zPosition = 1
-		label.layer?.addSublayer(shimmerText)
+		shimmerBand.locations = [0, 0.5, 1]
+		shimmerContainer.addSublayer(shimmerBand)
+		layer?.addSublayer(shimmerContainer)
 
 		NSLayoutConstraint.activate([
 			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -884,15 +891,21 @@ private final class AnimationLabelPillView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
+	deinit {
+		if let occlusionObserver {
+			NotificationCenter.default.removeObserver(occlusionObserver)
+		}
+	}
+
 	func configure(text: String, inFlight: Bool, metrics: GateBadgeLayout.Metrics) {
 		self.metrics = metrics
 		let font = NSFont.monospacedSystemFont(ofSize: metrics.fontSize, weight: .medium)
 		label.stringValue = text
 		label.font = font
 		label.textColor = inFlight ? Self.inFlightColor : Self.restColor
-		shimmerText.string = text
-		shimmerText.font = font
-		shimmerText.fontSize = metrics.fontSize
+		glyphMask.string = text
+		glyphMask.font = font
+		glyphMask.fontSize = metrics.fontSize
 		setShimmering(inFlight)
 		applyMetrics()
 		invalidateIntrinsicContentSize()
@@ -913,22 +926,56 @@ private final class AnimationLabelPillView: NSView {
 	override func viewDidChangeBackingProperties() {
 		super.viewDidChangeBackingProperties()
 		let scale = window?.backingScaleFactor ?? 2
-		shimmerText.contentsScale = scale
-		shimmerMask.contentsScale = scale
+		glyphMask.contentsScale = scale
+		shimmerBand.contentsScale = scale
 		// A move between displays drops layer animations; force a re-arm.
-		shimmerBandWidth = 0
-		refreshShimmerGeometry()
+		forceShimmerRearm()
+	}
+
+	override func viewDidMoveToWindow() {
+		super.viewDidMoveToWindow()
+		observeWindowVisibility()
+		// Re-attaching to a window drops any prior animation; re-arm.
+		forceShimmerRearm()
+	}
+
+	/// Core Animation culls running animations whenever the hosting window is
+	/// occluded or moved off the active Space, and they are *not* restored when it
+	/// returns. For a long-lived state (e.g. "Reading") nothing else would re-arm
+	/// the sweep, so it would freeze. Re-arm whenever the window becomes visible.
+	private func observeWindowVisibility() {
+		if let occlusionObserver {
+			NotificationCenter.default.removeObserver(occlusionObserver)
+			self.occlusionObserver = nil
+		}
+		guard let window else { return }
+		occlusionObserver = NotificationCenter.default.addObserver(
+			forName: NSWindow.didChangeOcclusionStateNotification,
+			object: window,
+			queue: .main
+		) { [weak self] _ in
+			Task { @MainActor in
+				guard let self, self.window?.occlusionState.contains(.visible) == true else { return }
+				self.forceShimmerRearm()
+			}
+		}
 	}
 
 	private func setShimmering(_ shimmering: Bool) {
-		shimmerText.isHidden = !shimmering
+		shimmerContainer.isHidden = !shimmering
 		isShimmering = shimmering
 		if !shimmering {
-			shimmerMask.removeAnimation(forKey: Self.shimmerAnimationKey)
+			shimmerBand.removeAnimation(forKey: Self.shimmerAnimationKey)
 			shimmerBandWidth = 0
 		}
 		// `refreshShimmerGeometry` (driven from `applyMetrics`) arms the animation
 		// once the label has a resolved width.
+	}
+
+	private func forceShimmerRearm() {
+		shimmerBandWidth = 0
+		shimmerBand.removeAnimation(forKey: Self.shimmerAnimationKey)
+		refreshShimmerGeometry()
 	}
 
 	/// Size the band to the current label width and (re)arm the sweep. Restarts
@@ -941,14 +988,14 @@ private final class AnimationLabelPillView: NSView {
 		let bandWidth = max(8, width * Self.shimmerBandFraction)
 		let needsRestart =
 			abs(bandWidth - shimmerBandWidth) > 0.5
-			|| shimmerMask.animation(forKey: Self.shimmerAnimationKey) == nil
+			|| shimmerBand.animation(forKey: Self.shimmerAnimationKey) == nil
 		guard needsRestart else { return }
 		shimmerBandWidth = bandWidth
 
 		CATransaction.begin()
 		CATransaction.setDisableActions(true)
-		shimmerMask.bounds = CGRect(x: 0, y: 0, width: bandWidth, height: height)
-		shimmerMask.position = CGPoint(x: -bandWidth / 2, y: height / 2)
+		shimmerBand.bounds = CGRect(x: 0, y: 0, width: bandWidth, height: height)
+		shimmerBand.position = CGPoint(x: -bandWidth / 2, y: height / 2)
 		CATransaction.commit()
 
 		let animation = CABasicAnimation(keyPath: "position.x")
@@ -959,17 +1006,18 @@ private final class AnimationLabelPillView: NSView {
 		animation.duration = Self.shimmerDuration
 		animation.repeatCount = .infinity
 		animation.timingFunction = CAMediaTimingFunction(name: .linear)
-		shimmerMask.add(animation, forKey: Self.shimmerAnimationKey)
+		shimmerBand.add(animation, forKey: Self.shimmerAnimationKey)
 	}
 
 	private func applyMetrics() {
 		AnimationBadgeChrome.apply(to: self, effect: effectView, cornerRadius: metrics.cornerRadius)
-		// Mirror the label's resolved frame so the bright overlay glyphs register
+		// Mirror the label's resolved frame so the overlay glyph stencil registers
 		// exactly on top of the dimmed base glyphs. Disable implicit animation so
 		// the overlay does not lag the pill during drag/reposition.
 		CATransaction.begin()
 		CATransaction.setDisableActions(true)
-		shimmerText.frame = label.bounds
+		shimmerContainer.frame = label.frame
+		glyphMask.frame = shimmerContainer.bounds
 		CATransaction.commit()
 		refreshShimmerGeometry()
 	}
