@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "recordedAt": "2026-06-02T09:59:18.797Z",
+  "recordedAt": "2026-06-02T10:04:31.672Z",
   "summary": {
     "total": 12,
-    "patched": 5,
+    "patched": 6,
     "rejected": 3,
     "already-covered": 3,
-    "requires-human-review": 1
+    "requires-human-review": 0
   },
   "dispositions": [
     {
@@ -103,8 +103,15 @@
       "observation": "Outcome description of `web_fetch` is slightly misleading. The Outcome says `web_fetch → reading` implying a direct mapping; the code routes `web_fetch → \"WebFetch\"` (alias table), then `WebFetch` is in `READING_TOOL_NAMES` → `reading`. The final state is correct; the description skips the intermediate alias and may mislead a future reviewer who searches for a direct `web_fetch` → `reading` entry."
     },
     {
-      "disposition": "requires-human-review",
-      "rationale": "Genuinely ambiguous and product-facing. The shared codogotchi-hook binary emits nothing on stdout for ALL five platforms (claude_code/codex/cursor/vscode/antigravity), and they work in production. Reconciling \"in one place\" forks between (a) correcting ticket-03 line 17 to describe the actual observational-by-omission behavior, or (b) making the shared binary emit `{}` across every platform — a cross-platform change with regression risk. The developer must decide whether Antigravity/Gemini hooks actually require JSON on stdout before either path is taken. Tied to P9.03 actionable finding #1, which the reconciliation ledger recorded as patched (fe4ceea) though the only post-review hook-binary commit (9ed68e2) addressed the toolCall.name finding.",
+      "disposition": "patched",
+      "rationale": "Developer decision: Codogotchi is observe-only and never talks back to the agent via hooks, so silence (no stdout) is the correct contract on every platform — not a bug. Corrected the ticket-03 Outcome line to state the no-stdout invariant (dropping the incorrect `decision: \"allow\"` language) and documented the invariant at the hook's stdout boundary in codogotchi-hook.ts. No binary behavior change. Stdout passthrough remains a deliberate future opt-in if ever wanted.",
+      "patch": {
+        "commitSha": "72240faaa7c89c6b6691186552aefb902c0449a0",
+        "files": [
+          "docs/product/delivery/phase-09/ticket-03-antigravity-hooks.md",
+          "packages/cli/bin/codogotchi-hook.ts"
+        ]
+      },
       "source": {
         "reportPath": "docs/product/delivery/phase-09/reviews/P9.03-subagent-review.report.md",
         "ticketId": "P9.03"
