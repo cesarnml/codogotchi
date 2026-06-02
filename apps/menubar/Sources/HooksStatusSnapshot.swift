@@ -13,6 +13,10 @@ struct HooksStatusSnapshot: Codable, Equatable {
 	struct Platform: Codable, Equatable {
 		var presentOnDisk: Bool
 		var installableInPhase: Bool
+		/// The platform itself is present on this machine (its root config dir
+		/// exists), independent of whether codogotchi hooks are wired in. Drives
+		/// the "new tool detected — Update to install its hooks" prompt.
+		var detected: Bool = false
 		var installed: Bool
 		/// codogotchi hooks are present but not fully wired for the current
 		/// expected event set (e.g. an install predating a newly-added event).
@@ -62,7 +66,7 @@ struct HooksStatusSnapshot: Codable, Equatable {
 
 extension HooksStatusSnapshot.Platform {
 	private enum CodingKeys: String, CodingKey {
-		case presentOnDisk, installableInPhase, installed, partiallyInstalled
+		case presentOnDisk, installableInPhase, detected, installed, partiallyInstalled
 		case firingRecently, lastEventAt, sourceOrigin
 	}
 
@@ -74,6 +78,7 @@ extension HooksStatusSnapshot.Platform {
 		let c = try decoder.container(keyedBy: CodingKeys.self)
 		presentOnDisk = try c.decode(Bool.self, forKey: .presentOnDisk)
 		installableInPhase = try c.decode(Bool.self, forKey: .installableInPhase)
+		detected = try c.decodeIfPresent(Bool.self, forKey: .detected) ?? false
 		installed = try c.decode(Bool.self, forKey: .installed)
 		partiallyInstalled =
 			try c.decodeIfPresent(Bool.self, forKey: .partiallyInstalled) ?? false

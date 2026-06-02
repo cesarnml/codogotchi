@@ -408,9 +408,10 @@ private final class GeneralTabView: NSView {
 		addSubview(hooksFeedbackLabel)
 
 		let cursorNote = settingsBodyLabel(
-			"Install hooks wires Codex, Claude Code, and Cursor together for every "
-				+ "tool you have installed — re-run any time to update. Cursor only reads "
-				+ "hooks at launch, so restart it after installing."
+			"Install hooks wires every coding tool detected on this machine — Codex, "
+				+ "Claude Code, Cursor, VS Code, and Antigravity — re-run any time to "
+				+ "update or pick up a newly installed tool. Cursor only reads hooks at "
+				+ "launch, so restart it after installing."
 		)
 		addSubview(cursorNote)
 
@@ -456,6 +457,10 @@ private final class GeneralTabView: NSView {
 				// Present and firing, just missing a newly-added event. Don't
 				// read as "not installed" — nudge a re-install to complete it.
 				parts.append("installed (update available — re-run Install hooks)")
+			} else if row.detected {
+				// Tool is present on this machine but has no hooks yet — the
+				// actionable case. Re-running Install/Update wires it.
+				parts.append("detected — run Install hooks to wire")
 			} else {
 				parts.append("not installed")
 			}

@@ -18,12 +18,12 @@ struct OnboardingController {
 		return !(appState.hooksStatus?.anyInstalled() ?? false)
 	}
 
-	/// Runs `codogotchi hooks install` for Claude Code, Codex, and native Cursor.
+	/// Installs hooks for every coding tool detected on this machine
+	/// (Claude Code, Codex, Cursor, VS Code/Copilot, Antigravity).
 	/// Returns nil on success; returns an error description on non-zero exit.
 	func runHooksInstall() -> String? {
 		for argv in [
-			["codogotchi", "hooks", "install"],
-			["codogotchi", "hooks", "install", "--platform", "cursor"],
+			["codogotchi", "hooks", "install", "--detected"],
 		] {
 			let result = installRunner(argv)
 			guard result.exitCode == 0 else {

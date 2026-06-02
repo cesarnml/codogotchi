@@ -8,11 +8,13 @@ final class GeneralTabViewModelTests: XCTestCase {
 
 	private func makeSnapshot(
 		codexInstalled: Bool = false,
-		codexFiring: Bool = false
+		codexFiring: Bool = false,
+		codexDetected: Bool = false
 	) -> HooksStatusSnapshot {
 		let codex = HooksStatusSnapshot.Platform(
 			presentOnDisk: codexInstalled,
 			installableInPhase: true,
+			detected: codexDetected || codexInstalled,
 			installed: codexInstalled,
 			firingRecently: codexFiring,
 			lastEventAt: codexFiring ? "2026-05-31T12:00:00Z" : nil,
@@ -158,6 +160,28 @@ final class GeneralTabViewModelTests: XCTestCase {
 		vm.applySnapshot(makeSnapshot(codexInstalled: true))
 		vm.installedHookVersion = nil
 		XCTAssertFalse(vm.needsBannerUpdate)
+	}
+
+	// MARK: - Detected-but-unhooked banner
+
+	func testShouldShowBannerWhenToolDetectedButNotInstalled() {
+		let vm = GeneralTabViewModel(hookVersion: "1.2.0")
+		vm.applySnapshot(makeSnapshot(codexInstalled: false, codexDetected: true))
+		vm.installedHookVersion = nil
+		XCTAssertTrue(vm.hasUnhookedDetectedPlatform)
+		XCTAssertTrue(vm.shouldShowUpdateBanner)
+		XCTAssertEqual(
+			vm.updateBannerMessage,
+			"A new coding tool was detected — click Update to install its hooks."
+		)
+	}
+
+	func testNoDetectedBannerWhenDetectedToolAlreadyInstalled() {
+		let vm = GeneralTabViewModel(hookVersion: "1.2.0")
+		vm.applySnapshot(makeSnapshot(codexInstalled: true))
+		vm.installedHookVersion = "1.2.0"
+		XCTAssertFalse(vm.hasUnhookedDetectedPlatform)
+		XCTAssertFalse(vm.shouldShowUpdateBanner)
 	}
 
 	func testDiagnosticsJSONIsValidJSON() {

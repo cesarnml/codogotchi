@@ -77,6 +77,36 @@ describe("router hooks commands", () => {
     expect(stdoutChunks.join("")).toContain("hooks uninstall: ok");
   });
 
+  it("install --detected wires only the tools whose config dirs exist", async () => {
+    // Present: Claude Code (.claude) + Antigravity (.gemini). Absent: Cursor.
+    mkdirSync(join(userRoot, ".claude"), { recursive: true });
+    mkdirSync(join(userRoot, ".gemini"), { recursive: true });
+
+    expect((await dispatch(["hooks", "install", "--detected"])).exitCode).toBe(
+      0,
+    );
+    expect(stdoutChunks.join("")).toContain("hooks install: ok");
+
+    stdoutChunks.length = 0;
+    expect((await dispatch(["hooks", "status", "--json"])).exitCode).toBe(0);
+    const parsed = JSON.parse(stdoutChunks.join(""));
+    expect(parsed.claude_code.installed).toBe(true);
+    expect(parsed.antigravity.installed).toBe(true);
+    // Cursor was never present on disk, so it must not be wired.
+    expect(parsed.cursor.installed).toBe(false);
+    expect(parsed.cursor.detected).toBe(false);
+  });
+
+  it("status --json reports detected per platform from config-dir presence", async () => {
+    mkdirSync(join(userRoot, ".cursor"), { recursive: true });
+
+    expect((await dispatch(["hooks", "status", "--json"])).exitCode).toBe(0);
+    const parsed = JSON.parse(stdoutChunks.join(""));
+    expect(parsed.cursor.detected).toBe(true);
+    expect(parsed.cursor.installed).toBe(false);
+    expect(parsed.vscode.detected).toBe(false);
+  });
+
   it("returns usage error for unknown hooks subcommand", async () => {
     const result = await dispatch(["hooks", "nope"]);
     expect(result.exitCode).toBe(2);

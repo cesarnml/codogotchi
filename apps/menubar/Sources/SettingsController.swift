@@ -11,13 +11,17 @@ struct SettingsController {
 		self.runner = runner
 	}
 
+	// One command installs hooks for every coding tool detected on this machine,
+	// treating all five platforms equally. Re-running picks up tools installed
+	// since last time.
 	private static let installArgv: [[String]] = [
-		["codogotchi", "hooks", "install"],
-		["codogotchi", "hooks", "install", "--platform", "cursor"],
+		["codogotchi", "hooks", "install", "--detected"],
 	]
 
 	private static let uninstallArgv: [[String]] = [
 		["codogotchi", "hooks", "uninstall", "--platform", "cursor"],
+		["codogotchi", "hooks", "uninstall", "--platform", "vscode"],
+		["codogotchi", "hooks", "uninstall", "--platform", "antigravity"],
 		["codogotchi", "hooks", "uninstall"],
 	]
 
@@ -36,20 +40,21 @@ struct SettingsController {
 		return nil
 	}
 
-	/// Runs `codogotchi hooks install` for Claude Code, Codex, and native Cursor.
+	/// Installs hooks for every coding tool detected on this machine
+	/// (Claude Code, Codex, Cursor, VS Code/Copilot, Antigravity).
 	/// Returns nil on success; returns an error description on non-zero exit.
 	func runHooksInstall() -> String? {
 		runHookArgvSequence(Self.installArgv, failureLabel: "Install failed")
 	}
 
-	/// Idempotent re-install: re-runs install for all platforms so hook JSON points
-	/// at the current bundle's absolute hook path.
+	/// Idempotent re-install: re-runs detected install so hook JSON points at the
+	/// current bundle's absolute hook path and any newly-installed tool gets wired.
 	/// Returns nil on success; returns an error description on non-zero exit.
 	func runHooksUpdate() -> String? {
 		runHookArgvSequence(Self.installArgv, failureLabel: "Update failed")
 	}
 
-	/// Runs `codogotchi hooks uninstall` for Cursor, Claude Code, and Codex.
+	/// Runs `codogotchi hooks uninstall` across all platforms.
 	/// Returns nil on success; returns an error description on non-zero exit.
 	func runHooksUninstall() -> String? {
 		runHookArgvSequence(Self.uninstallArgv, failureLabel: "Uninstall failed")

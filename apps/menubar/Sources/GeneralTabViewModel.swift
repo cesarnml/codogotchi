@@ -15,6 +15,8 @@ final class GeneralTabViewModel {
 		let lastEventAt: String?
 		let sourceOrigin: String?
 		let installable: Bool
+		/// The platform is present on this machine but may not have hooks yet.
+		let detected: Bool
 	}
 
 	/// Current per-platform rows. Updated by `applySnapshot(_:)` and `refresh()`.
@@ -43,20 +45,33 @@ final class GeneralTabViewModel {
 		rows.contains { $0.installable && $0.partiallyInstalled }
 	}
 
-	/// Whether to show the update banner at all: a newer bundled binary OR a
-	/// present-but-incomplete install that needs its wiring finished.
+	/// True when a coding tool is present on this machine but has no codogotchi
+	/// hooks at all (not installed, not partial). This is the "you installed a
+	/// new tool since last time — Update to wire it" signal.
+	var hasUnhookedDetectedPlatform: Bool {
+		rows.contains {
+			$0.installable && $0.detected && !$0.installed && !$0.partiallyInstalled
+		}
+	}
+
+	/// Whether to show the update banner at all: a newer bundled binary, a
+	/// present-but-incomplete install that needs its wiring finished, OR a newly
+	/// detected tool that has no hooks yet.
 	var shouldShowUpdateBanner: Bool {
-		needsBannerUpdate || hasIncompleteInstall
+		needsBannerUpdate || hasIncompleteInstall || hasUnhookedDetectedPlatform
 	}
 
 	/// Banner copy reflecting why an update is offered. A stale binary takes
-	/// precedence (updating it re-wires everything anyway); otherwise call out
-	/// the incomplete wiring explicitly.
+	/// precedence (updating it re-wires everything anyway); then incomplete
+	/// wiring; then a newly detected tool with no hooks.
 	var updateBannerMessage: String {
 		if needsBannerUpdate {
 			return "Hooks are out of date — click Update to apply the bundled version."
 		}
-		return "Some hooks aren't fully wired — click Update to finish installing them."
+		if hasIncompleteInstall {
+			return "Some hooks aren't fully wired — click Update to finish installing them."
+		}
+		return "A new coding tool was detected — click Update to install its hooks."
 	}
 
 	private let statusClient: HookStatusClient
@@ -129,6 +144,7 @@ final class GeneralTabViewModel {
 		return [
 			"present_on_disk": p.presentOnDisk,
 			"installable_in_phase": p.installableInPhase,
+			"detected": p.detected,
 			"installed": p.installed,
 			"partially_installed": p.partiallyInstalled,
 			"firing_recently": p.firingRecently,
@@ -145,7 +161,8 @@ final class GeneralTabViewModel {
 			firingRecently: p.firingRecently,
 			lastEventAt: p.lastEventAt,
 			sourceOrigin: p.sourceOrigin,
-			installable: p.installableInPhase
+			installable: p.installableInPhase,
+			detected: p.detected
 		)
 	}
 }

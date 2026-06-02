@@ -61,6 +61,11 @@ type CodexHooksJson = {
 export type HookPlatformStatus = {
   present_on_disk: boolean;
   installable_in_phase: boolean;
+  // True when the platform itself is present on this machine (its root config
+  // directory exists), independent of whether codogotchi hooks are wired into
+  // it. Distinct from `present_on_disk`, which tracks our hook file. This is the
+  // signal that drives "you have this tool but no hooks — Update to install".
+  detected: boolean;
   installed: boolean;
   // True when codogotchi hooks are present but not fully wired for the current
   // expected event set (e.g. an install that pre-dates a newly-added event).
@@ -670,12 +675,75 @@ function claudeAnyWired(hooks: ClaudeHooks): boolean {
   return CODOGOTCHI_EVENTS.some((event) => claudeEventWired(hooks, event));
 }
 
+// Per-platform detection markers. A platform counts as "present on this
+// machine" when its root config directory exists, independent of whether
+// codogotchi hooks are wired into it yet. This is the basis for installing
+// (and prompting to update) only the tools the user actually has, treating all
+// five platforms equally.
+const PLATFORM_MARKER_DIRS = {
+  claude_code: ".claude",
+  codex: ".codex",
+  cursor: ".cursor",
+  vscode: ".copilot",
+  antigravity: ".gemini",
+} as const;
+
+export type DetectedPlatforms = {
+  claude_code: boolean;
+  codex: boolean;
+  cursor: boolean;
+  vscode: boolean;
+  antigravity: boolean;
+};
+
+/// Detect which coding tools are present on this machine by checking for each
+/// platform's root config directory. Presence here means "the tool exists",
+/// not "codogotchi hooks are installed".
+export async function detectPlatforms(): Promise<DetectedPlatforms> {
+  const root = getUserRoot();
+  const [claude_code, codex, cursor, vscode, antigravity] = await Promise.all([
+    fileExists(join(root, PLATFORM_MARKER_DIRS.claude_code)),
+    fileExists(join(root, PLATFORM_MARKER_DIRS.codex)),
+    fileExists(join(root, PLATFORM_MARKER_DIRS.cursor)),
+    fileExists(join(root, PLATFORM_MARKER_DIRS.vscode)),
+    fileExists(join(root, PLATFORM_MARKER_DIRS.antigravity)),
+  ]);
+  return { claude_code, codex, cursor, vscode, antigravity };
+}
+
+/// Install hooks for every coding tool detected on this machine, treating all
+/// platforms equally: a tool is wired iff its config directory is present.
+/// Idempotent and safe to re-run — a tool installed later gets wired on the
+/// next run. Returns the detection result so callers can report what was done.
+export async function installDetectedHooks(
+  ctx: InstallHooksContext,
+): Promise<DetectedPlatforms> {
+  const detected = await detectPlatforms();
+  if (detected.claude_code) await installClaudeHooks(ctx);
+  if (detected.codex) await installCodexHooks(ctx);
+  if (detected.cursor) await installCursorHooks(ctx);
+  if (detected.vscode) await installVscodeHooks(ctx);
+  if (detected.antigravity) await installAntigravityHooks(ctx);
+  return detected;
+}
+
 // installHooks writes the hook config entries that invoke the
 // `codogotchi-hook` binary into Claude Code's `settings.json` and Codex's
 // active `~/.codex/hooks.json` hook surface. The legacy Codex TOML file is
 // still written for older installs, but current Codex Desktop reads hooks.json.
 // Re-running setup is idempotent: identical config produces identical files.
+// Kept as the Claude+Codex pair for `codogotchi setup` and the bare
+// `hooks install`; `installDetectedHooks` calls the per-platform installers.
 export async function installHooks(ctx: InstallHooksContext): Promise<void> {
+  await installClaudeHooks(ctx);
+  await installCodexHooks(ctx);
+}
+
+/// Wire codogotchi into Claude Code's `~/.claude/settings.json`. Strips the
+/// legacy inert `hooks.codogotchi` orphan and registers the current event set.
+export async function installClaudeHooks(
+  ctx: InstallHooksContext,
+): Promise<void> {
   const root = getUserRoot();
   const configPath = join(root, CODOGOTCHI_CONFIG_REL);
   if (!(await fileExists(configPath))) {
@@ -713,6 +781,22 @@ export async function installHooks(ctx: InstallHooksContext): Promise<void> {
   claudeSettings.hooks = nextHooks;
 
   await writeText(claudePath, `${JSON.stringify(claudeSettings, null, 2)}\n`);
+}
+
+/// Wire codogotchi into Codex's `~/.codex/hooks.json` (and the legacy TOML /
+/// config feature flag for older installs).
+export async function installCodexHooks(
+  ctx: InstallHooksContext,
+): Promise<void> {
+  const root = getUserRoot();
+  const configPath = join(root, CODOGOTCHI_CONFIG_REL);
+  if (!(await fileExists(configPath))) {
+    throw new Error(
+      "codogotchi: missing ~/.codogotchi/config.json. Launch the app or run `codogotchi setup` first.",
+    );
+  }
+
+  const hookCommand = await resolveHookCommand(ctx.execPath);
 
   const codexJsonPath = join(root, CODEX_HOOKS_JSON_REL);
   const codexConfigPath = join(root, CODEX_CONFIG_REL);
@@ -899,6 +983,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
     cursorNativePresent,
     copilotPresent,
     geminiPresent,
+    detected,
     state,
   ] = await Promise.all([
     fileExists(claudePath),
@@ -906,6 +991,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
     fileExists(cursorPath),
     fileExists(copilotPath),
     fileExists(geminiPath),
+    detectPlatforms(),
     readStateJson(root),
   ]);
 
@@ -959,6 +1045,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
     codex: {
       present_on_disk: codexPresent,
       installable_in_phase: true,
+      detected: detected.codex,
       installed: codexFullyInstalled,
       partially_installed: codexPartial,
       firing_recently: firingRecently && origin === "codex",
@@ -967,6 +1054,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
     claude_code: {
       present_on_disk: claudePresent,
       installable_in_phase: true,
+      detected: detected.claude_code,
       installed: claudeCodeInstalled,
       partially_installed: claudePartial,
       firing_recently: firingRecently && origin === "claude_code",
@@ -975,6 +1063,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
     cursor: {
       present_on_disk: cursorNativePresent,
       installable_in_phase: true,
+      detected: detected.cursor,
       installed: cursorNativeInstalled,
       partially_installed: cursorPartial,
       firing_recently: firingRecently && origin === "cursor",
@@ -983,6 +1072,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
     vscode: {
       present_on_disk: copilotPresent,
       installable_in_phase: true,
+      detected: detected.vscode,
       installed: vscodeFullyInstalled,
       partially_installed: false,
       firing_recently: firingRecently && origin === "vscode",
@@ -991,6 +1081,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
     antigravity: {
       present_on_disk: geminiPresent,
       installable_in_phase: true,
+      detected: detected.antigravity,
       installed: antigravityFullyInstalled,
       partially_installed: false,
       firing_recently: firingRecently && origin === "antigravity",

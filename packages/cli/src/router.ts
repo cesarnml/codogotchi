@@ -11,6 +11,7 @@ import {
   hooksStatus,
   installAntigravityHooks,
   installCursorHooks,
+  installDetectedHooks,
   installHooks,
   installVscodeHooks,
   uninstallAntigravityHooks,
@@ -440,14 +441,19 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
     if (sub === "install") {
       if (subArgs.includes("--help") || subArgs.includes("-h")) {
         process.stdout.write(
-          "Usage: codogotchi hooks install [--platform <claude_code|cursor|vscode|antigravity>]\n",
+          "Usage: codogotchi hooks install [--detected | --platform <claude_code|cursor|vscode|antigravity>]\n",
         );
         return { exitCode: 0 };
       }
+      // `--detected` installs every coding tool present on this machine,
+      // treating all platforms equally. It is mutually exclusive with
+      // `--platform`; strip it before platform parsing.
+      const detectedMode = subArgs.includes("--detected");
+      const platformArgs = subArgs.filter((a) => a !== "--detected");
       let platform: HooksPlatform;
       let rest: string[];
       try {
-        ({ platform, rest } = parseHooksPlatformFlag(subArgs));
+        ({ platform, rest } = parseHooksPlatformFlag(platformArgs));
       } catch (err) {
         process.stderr.write(
           `${err instanceof Error ? err.message : String(err)}\n`,
@@ -456,7 +462,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       }
       if (rest.length > 0) {
         process.stderr.write(
-          "Usage: codogotchi hooks install [--platform <claude_code|cursor|vscode|antigravity>]\n",
+          "Usage: codogotchi hooks install [--detected | --platform <claude_code|cursor|vscode|antigravity>]\n",
         );
         return { exitCode: 2 };
       }
@@ -476,7 +482,12 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
         );
         return { exitCode: 2 };
       }
-      if (platform === "cursor") {
+      if (detectedMode) {
+        await installDetectedHooks({
+          home: getCodogotchiHome(),
+          execPath: process.execPath,
+        });
+      } else if (platform === "cursor") {
         await installCursorHooks({ home: getCodogotchiHome() });
       } else if (platform === "vscode") {
         await installVscodeHooks({ home: getCodogotchiHome() });

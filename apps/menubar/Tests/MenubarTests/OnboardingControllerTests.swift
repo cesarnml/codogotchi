@@ -60,8 +60,7 @@ final class OnboardingControllerTests: XCTestCase {
 		XCTAssertEqual(
 			captured,
 			[
-				["codogotchi", "hooks", "install"],
-				["codogotchi", "hooks", "install", "--platform", "cursor"],
+				["codogotchi", "hooks", "install", "--detected"],
 			]
 		)
 	}

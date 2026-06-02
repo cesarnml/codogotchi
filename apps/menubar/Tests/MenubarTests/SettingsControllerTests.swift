@@ -16,8 +16,7 @@ final class SettingsControllerTests: XCTestCase {
 		XCTAssertEqual(
 			captured,
 			[
-				["codogotchi", "hooks", "install"],
-				["codogotchi", "hooks", "install", "--platform", "cursor"],
+				["codogotchi", "hooks", "install", "--detected"],
 			]
 		)
 	}
@@ -49,6 +48,8 @@ final class SettingsControllerTests: XCTestCase {
 			captured,
 			[
 				["codogotchi", "hooks", "uninstall", "--platform", "cursor"],
+				["codogotchi", "hooks", "uninstall", "--platform", "vscode"],
+				["codogotchi", "hooks", "uninstall", "--platform", "antigravity"],
 				["codogotchi", "hooks", "uninstall"],
 			]
 		)
@@ -77,8 +78,8 @@ final class SettingsControllerTests: XCTestCase {
 			return HookStatusClient.RunResult(exitCode: 0, stdout: "", stderr: "")
 		})
 		_ = controller.runHooksUpdate()
-		XCTAssertEqual(captured.count, 2)
-		XCTAssertEqual(captured[0], ["codogotchi", "hooks", "install"])
+		XCTAssertEqual(captured.count, 1)
+		XCTAssertEqual(captured[0], ["codogotchi", "hooks", "install", "--detected"])
 	}
 
 	func testRunHooksUpdateReturnsNilOnSuccess() {
