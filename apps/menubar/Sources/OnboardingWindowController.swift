@@ -11,8 +11,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 	static let windowTitle = "Welcome to Codogotchi"
 	static let ctaTitle = "Approve & install hooks"
 	static let hooksNotActiveTitle = "Hooks installed — waiting for recent activity"
-	static let hooksInstalledWaitingTitle =
-		"Hooks installed — dismiss this window or launch Codex, Claude Code, or Cursor to verify activity"
+	static let hooksInstalledWaitingTitle = "Hooks installed — Codogotchi is ready to use"
 	static let dismissTitle = "Dismiss"
 	static let retryTitle = "Retry install"
 	static let installingText = "Installing hooks…"
