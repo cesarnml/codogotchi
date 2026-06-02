@@ -30,7 +30,7 @@ Red: required
 ## Review Focus
 
 - **Hidden, not removed** — the app's subprocess calls (`SettingsController`, `OnboardingController`) must keep working. Verify the app path still functions after the trim.
-- That `rpg`/`enroll` are untouched (Phase 09 dependency).
+- That `rpg`/`enroll` are untouched (Phase 10 dependency).
 - Help copy makes clear these are app-managed, not broken.
 
 ## Rationale

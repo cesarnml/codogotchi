@@ -69,7 +69,7 @@ Users who only want “pet that reacts to my agent” must still enroll in the f
 
 - Menu: **Install hooks…** (opens help or runs documented command) vs **Enable alive pet…** (deferred UI wire to Phase 10; stub or deep-link OK)
 - README: “Lite install” path (3 steps: build app, `hooks install`, use agent) separate from “Alive pet” path
-- No HUD / hearts / XP UI in this phase (Phase 09+, gated)
+- No HUD / hearts / XP UI in this phase (Phase 10+, gated)
 
 ### 6. Hook behavior in lite mode
 

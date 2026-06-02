@@ -1,4 +1,4 @@
-# Phase 12 Draft — Loot, Equip, Companion, and Custom Pets
+# Phase 13 Draft — Loot, Equip, Companion, and Custom Pets
 
 _Drafted: 2026-05-27_
 _Status: Pre-planning draft — not yet through `/soa plan`_
@@ -90,11 +90,11 @@ Runtime: when premium entitled + equipped, floating/menubar renderer prefers equ
 ## Dependencies
 
 - **Phase 08** Settings shell + pet import / `~/.codogotchi/pets/` canonical layout (the read-only Loot gallery is **built in this phase**, moved out of Phase 08; see committed scope §7)
-- **Phase 11** optional (level-gated loot rarity can wait)
+- **Phase 12** optional (level-gated loot rarity can wait)
 - **Phase 06–07** recommended before loot tied to `source_origin` / platform-specific drops (Cursor vs Claude vs Codex)
 
 ---
 
 ## Next step
 
-`/soa plan docs/product/drafts/phase-12-loot-equip-companion-and-custom-pets.md`
+`/soa plan docs/product/drafts/phase-13-loot-equip-companion-and-custom-pets.md`

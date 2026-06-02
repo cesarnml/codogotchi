@@ -1,4 +1,4 @@
-# Phase 09 Draft — Floating Progression HUD
+# Phase 10 Draft — Floating Progression HUD
 
 _Drafted: 2026-05-27_
 _Status: Pre-planning draft — not yet through `/soa plan`_
@@ -8,7 +8,7 @@ _Source: `notes/private/codogotchi-ideation-storm-roadmap-draft.md` §2 (operato
 
 ## Thesis
 
-When **`features.rpg_enabled`**, make progression **legible on the floating pet only**: Zelda-style **3 hearts**, a **level** badge (1–100 target in Phase 11; this phase uses existing **5 stage** bands), and a **WoW-style XP bar** toward the next band. Menubar stays minimal; HUD is **hidden by default**, shown on **hover**, auto-hides after mouse leave.
+When **`features.rpg_enabled`**, make progression **legible on the floating pet only**: Zelda-style **3 hearts**, a **level** badge (1–100 target in Phase 12; this phase uses existing **5 stage** bands), and a **WoW-style XP bar** toward the next band. Menubar stays minimal; HUD is **hidden by default**, shown on **hover**, auto-hides after mouse leave.
 
 Lite users see **no** hearts/level/XP chrome.
 
@@ -68,8 +68,8 @@ Menubar: optional single “needs attention” dot only (defer if costly)
 
 ## Defers
 
-- 100-level curve and Convex `level` field → **Phase 11**
-- Health tint / sick idle sprites → **Phase 10**
+- 100-level curve and Convex `level` field → **Phase 12**
+- Health tint / sick idle sprites → **Phase 11**
 - Heart decay rule tuning (12h / ½ heart) → product spec in plan; may need signal composite decision
 - Level-up celebration animation policy
 
@@ -99,4 +99,4 @@ Menubar: optional single “needs attention” dot only (defer if costly)
 
 ## Next step
 
-`/soa plan docs/product/drafts/phase-09-floating-progression-hud.md`
+`/soa plan docs/product/drafts/phase-10-floating-progression-hud.md`

@@ -62,7 +62,7 @@ The approved `docs/product/plans/phase-07-*.md` should commit to:
 5. **Terminal failure parity** (`errored`) on Claude / Cursor / Codex
 6. **`work_mode`** populated where hooks are reliable
 7. **Depends on Phase 06** (sticky gate, schema v3, Cursor installer)
-8. **Defers:** RPG `celebrating` / `ascended`, Phase 14 platforms, Phase 13 premium pack; menubar badge optional
+8. **Defers:** RPG `celebrating` / `ascended`, Phase 09 platforms (Copilot + Antigravity), Phase 14 premium pack; menubar badge optional
 
 **Grill-me prompt (paste):** Plan Phase 07 from this draft. Cross-check Phase 06 plan deferrals and research §4–§8. Product level only: goals, ships, defers, exit conditions, codogotchi vs SoA upstream split. No tickets or Zod field design.
 
@@ -222,7 +222,7 @@ Classifier (`hook-binary.ts`): add branches **before** generic `tool_use` heuris
 
 ## Defers
 
-- VS Code / Antigravity adapters → **Phase 14**
+- VS Code / Antigravity adapters → **Phase 09**
 - Premium SoA animation entitlement → **Phase 13**
 - Spritesheet expansion (new rows for `thinking`, richer `idle` states) → tracked in [phase-06-animation-and-signal-research.md](../../notes/public/phase-06-animation-and-signal-research.md)
 

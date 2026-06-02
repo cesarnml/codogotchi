@@ -19,10 +19,10 @@
 - SoA writing directly to `~/.codogotchi/state.json` (replaces `events.ndjson` tail architecture) → Phase 07
 - Full gate vocabulary redesign (`adversarial_prompt_written`, `verification_failed` trigger fix, `stage_advanced` wiring) → Phase 07
 - Full `work_mode: thinking | implementing | testing` taxonomy and animation row remapping → Phase 07
-- VS Code Copilot hook installer → Phase 14
+- VS Code Copilot hook installer → Phase 09
 - Menubar badge count (post-dismiss affordance) → Phase 07 (evaluate after bubble ships)
-- `antigravity` without captured fixtures → Phase 14
-- HUD hearts / XP → Phase 09+ (RPG-gated)
+- `antigravity` without captured fixtures → Phase 09
+- HUD hearts / XP → Phase 10+ (RPG-gated)
 
 ---
 
@@ -117,9 +117,9 @@ Two tracks, kept distinct:
 - **Full gate vocabulary redesign:** `adversarial_prompt_written` timing fix (currently fires on subagent start, should fire on prompt write), `verification_failed` trigger hardening, `stage_advanced`/`ascended` wiring, `focused`/`nervous` trigger conditions. Phase 07.
 - **`work_mode` taxonomy and animation row remapping:** `thinking | implementing | testing` as a renderer-visible field, plus deciding which codogotchi spritesheet rows to retire/repurpose for new semantics. Phase 07.
 - **Menubar badge count:** post-dismiss count badge on the menubar icon. Evaluate after floating bubble ships and the interaction pattern is proven. Phase 07 candidate.
-- **VS Code Copilot hook installer and tool alias table:** Phase 14.
-- **Antigravity without captured fixtures:** Phase 14.
-- **HUD hearts / XP:** Phase 09+ (RPG-gated).
+- **VS Code Copilot hook installer and tool alias table:** Phase 09.
+- **Antigravity without captured fixtures:** Phase 09.
+- **HUD hearts / XP:** Phase 10+ (RPG-gated).
 
 ## Exit Condition
 

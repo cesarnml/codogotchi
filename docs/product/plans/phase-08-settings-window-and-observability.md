@@ -21,12 +21,12 @@
 
 **Defers:**
 
-- **RPG enroll wizard** + "Enable alive pet" CTA → **Phase 09** (first alive-only phase; enroll is its gateway). Carries the corrected enroll design: single shared Convex backend baked into the build; **no user-provided `convex_url`** — users supply a handle only.
-- **Health tab** (`weekend_decay`, `grace_days`, death count, vacation status) → **Phase 10**.
-- **Loot gallery tab** (read-only cards) → **Phase 12**.
+- **RPG enroll wizard** + "Enable alive pet" CTA → **Phase 10** (first alive-only phase; enroll is its gateway). Carries the corrected enroll design: single shared Convex backend baked into the build; **no user-provided `convex_url`** — users supply a handle only.
+- **Health tab** (`weekend_decay`, `grace_days`, death count, vacation status) → **Phase 11**.
+- **Loot gallery tab** (read-only cards) → **Phase 13**.
 - **Sparkle auto-update** → fast-follow stretch (ships only if the week has slack; otherwise a small standalone PR post-launch). Manual **Update hooks** button still ships this phase.
-- **24-frame-per-row animation sheets** → premium pack (Phase 13); v1 ships the 8-frame contract.
-- **`rpg` / `enroll` removal from the public CLI** → **Phase 09** (cannot trim until the in-app enroll replacement exists).
+- **24-frame-per-row animation sheets** → premium pack (Phase 14); v1 ships the 8-frame contract.
+- **`rpg` / `enroll` removal from the public CLI** → **Phase 10** (cannot trim until the in-app enroll replacement exists).
 - BYOP full validation → Phase 12 (layout documented only). XPC-vs-in-process install-API transport → implementation detail. Log-verbosity write toggle → later (config-write surface).
 
 ---
@@ -41,7 +41,7 @@ This phase should leave the product in a state where:
 - A **Lite user** installs / updates / removes hooks and selects a pet **from Settings only** — no JSON editing, no Terminal install steps in the README.
 - A user running **son-of-anton** sees Maew react to review gates (the SoA spritesheet) **without enrolling and without Convex** — SoA visualization works for free because gate *rendering* is decoupled from RPG *enrollment*.
 - The **Developer tab** answers "why does my pet react in Cursor when `~/.cursor/hooks.json` is empty?" without requiring external docs, and shows live `state.json` + `gate.json` read-only.
-- The **public CLI `--help`** lists only read/diagnostic commands for the trimmed set (`setup` / `hooks install` / `hooks uninstall` gone); `rpg` / `enroll` remain until Phase 09 ships the in-app replacement.
+- The **public CLI `--help`** lists only read/diagnostic commands for the trimmed set (`setup` / `hooks install` / `hooks uninstall` gone); `rpg` / `enroll` remain until Phase 10 ships the in-app replacement.
 
 ## Committed Scope
 
@@ -98,7 +98,7 @@ consent sheet was confirmed as the right call during implementation review.
 
 - Retain `status` and `hooks status [--json]` (and future `logs tail` / `state dump`) as scriptable, support-friendly read commands.
 - Remove or hide `setup`, `hooks install`, `hooks uninstall` — these now have in-app replacements.
-- **Keep `rpg` / `enroll` on the public surface** until Phase 09 ships the in-app enroll wizard; removing them now would strand alive users with no enrollment path.
+- **Keep `rpg` / `enroll` on the public surface** until Phase 10 ships the in-app enroll wizard; removing them now would strand alive users with no enrollment path.
 
 ### Renderer two-sheet load + Lite/SoA support
 
@@ -110,21 +110,21 @@ consent sheet was confirmed as the right call during implementation review.
 - **v1 frame budget: 8 frames per animation row** (down from 24), `1.5s` per loop, **continuous playback for as long as the state is active** — this looping liveness (vs Codex's decay-to-idle after ~3 cycles) is the differentiator, not frame count.
 - **Loop seam:** frame 1 ≈ frame 8 so the single animation loops cleanly.
 - Roughly **88 frames per lite pet** (11 rows incl. idle escalation × 8) + **80 SoA frames** (10 rows × 8), stitched into the two sheets — sized to the GPT-image gen-art rate limit on the Codex plan.
-- The **24-frame-per-row sheets become a premium offering** (Phase 13 premium animation pack); v1 free tier ships 8-frame.
+- The **24-frame-per-row sheets become a premium offering** (Phase 14 premium animation pack); v1 free tier ships 8-frame.
 - Renderer animation duration is set to `1.5s` to match this contract (and the Codex spritesheet cadence).
 
 ## Explicit Deferrals
 
-- **RPG enroll wizard + "Enable alive pet" CTA → Phase 09.** Enroll is the gateway to alive mode and Phase 09 is the first alive-only phase. **Binding enroll-design note:** the Convex deployment is a single shared backend owned by the developer, baked into the app build as a compile-time constant — enroll collects a **handle (+ optional GitHub / WakaTime identifiers)** only and **never prompts for `convex_url`**.
-- **Health tab → Phase 10.** Its knobs (`weekend_decay`, `grace_days`, death count, vacation) are health-tier and Phase 10 owns health visuals/decay; the tab is built there, not as a Phase 08 dependency.
-- **Loot gallery tab → Phase 12.** Read-only gallery folds into the loot phase that also adds equip; building it in 08 would ship an alive-tier tab no Lite user touches.
+- **RPG enroll wizard + "Enable alive pet" CTA → Phase 10.** Enroll is the gateway to alive mode and Phase 10 is the first alive-only phase. **Binding enroll-design note:** the Convex deployment is a single shared backend owned by the developer, baked into the app build as a compile-time constant — enroll collects a **handle (+ optional GitHub / WakaTime identifiers)** only and **never prompts for `convex_url`**.
+- **Health tab → Phase 11.** Its knobs (`weekend_decay`, `grace_days`, death count, vacation) are health-tier and Phase 11 owns health visuals/decay; the tab is built there, not as a Phase 08 dependency.
+- **Loot gallery tab → Phase 13.** Read-only gallery folds into the loot phase that also adds equip; building it in 08 would ship an alive-tier tab no Lite user touches.
 - **Sparkle auto-update → fast-follow stretch.** Real setup cost is EdDSA key management, appcast hosting, and full update-cycle testing (~1–1.5 days), none of which a notarized-DMG-on-GitHub-Releases launch requires. Ships only with slack; manual **Update hooks** ships regardless.
-- **`rpg` / `enroll` CLI removal → Phase 09**, gated on the in-app replacement existing.
-- **BYOP full validation → Phase 12** (folder layout documented this phase). **Install-API transport (XPC vs in-process)** and **log-verbosity write toggle** are out of scope as added write surface / implementation detail.
+- **`rpg` / `enroll` CLI removal → Phase 10**, gated on the in-app replacement existing.
+- **BYOP full validation → Phase 13** (folder layout documented this phase). **Install-API transport (XPC vs in-process)** and **log-verbosity write toggle** are out of scope as added write surface / implementation detail.
 
 ## Exit Condition
 
-A fresh Mac with only `Codogotchi.app` in `/Applications` and **no `codogotchi` on PATH** can be onboarded end to end from the Settings window: the user installs hooks, selects a pet, and the menubar/floating pet renders in full color at schema v4. The same Settings window can **Update** and **Remove** hooks. A developer running son-of-anton sees Maew animate through the review lifecycle on the SoA spritesheet with no enrollment and no Convex configured, and the Developer tab shows the live `state.json`/`gate.json` and explains the Cursor third-party-bridge attribution without external docs. The public CLI `--help` shows only read/diagnostic commands for the trimmed set (`setup` / `hooks install` / `hooks uninstall` absent); `rpg` / `enroll` remain pending Phase 09. The README and runbook say "Install Codogotchi.app; use Settings to enable hooks" — not "run `codogotchi hooks install`."
+A fresh Mac with only `Codogotchi.app` in `/Applications` and **no `codogotchi` on PATH** can be onboarded end to end from the Settings window: the user installs hooks, selects a pet, and the menubar/floating pet renders in full color at schema v4. The same Settings window can **Update** and **Remove** hooks. A developer running son-of-anton sees Maew animate through the review lifecycle on the SoA spritesheet with no enrollment and no Convex configured, and the Developer tab shows the live `state.json`/`gate.json` and explains the Cursor third-party-bridge attribution without external docs. The public CLI `--help` shows only read/diagnostic commands for the trimmed set (`setup` / `hooks install` / `hooks uninstall` absent); `rpg` / `enroll` remain pending Phase 10. The README and runbook say "Install Codogotchi.app; use Settings to enable hooks" — not "run `codogotchi hooks install`."
 
 ## Retrospective
 

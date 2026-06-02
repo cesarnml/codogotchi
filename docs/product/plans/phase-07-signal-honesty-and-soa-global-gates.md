@@ -19,9 +19,9 @@
 - Menubar badge count — needs real-world bubble interaction data post-Phase 06
 - TDD gate states (`red_tdd`, `green_tdd`) and micro-gates (`open_pr`, `advance`, `record_review`) — defined and mapped; activate when SoA Phase 17 emits them
 - Lite, SoA, RPG spritesheet art and row design — Phase 07 locks the enum contract; art delivery is per-sheet per phase
-- VS Code / Antigravity adapters → Phase 14
-- Premium SoA animation entitlement → Phase 13
-- RPG spritesheet design → Phase 09+
+- VS Code / Antigravity adapters → Phase 09
+- Premium SoA animation entitlement → Phase 14
+- RPG spritesheet design → Phase 10+
 - `work_mode` field — dropped entirely; `gate.json` + `activity_state` carry the information cleanly
 - `gate_badge` field on `state.json` — dropped; the `gate.json` sidecar *is* the badge source
 
@@ -108,9 +108,9 @@ Canonical user segmentation for all animation decisions going forward:
 - **Menubar badge count:** deferred until real-world interaction data accumulates post-Phase 06 attention bubble
 - **TDD gates and micro-gates:** `red_tdd`, `green_tdd`, `open_pr`, `record_review` defined in enum, mapped in renderer, no exit condition — activate when SoA Phase 17 emits them. `advance` defined but not emitted upstream.
 - **Lite, SoA, RPG spritesheet art:** Phase 07 locks enum contracts; per-sheet art delivery is independent of this phase
-- **VS Code / Antigravity adapters:** Phase 14
-- **Premium SoA animation entitlement:** Phase 13
-- **RPG spritesheet design:** Phase 09+
+- **VS Code / Antigravity adapters:** Phase 09
+- **Premium SoA animation entitlement:** Phase 14
+- **RPG spritesheet design:** Phase 10+
 - **`work_mode` field on `state.json`:** dropped; `gate.json` + `activity_state` carry the same information with a cleaner split
 - **`gate_badge` field on `state.json`:** dropped; the `gate.json` sidecar is the gate-context source — a field on `state.json` would be redundant
 

@@ -1,4 +1,4 @@
-# Phase 10 Draft — Health Visuals and Decay
+# Phase 11 Draft — Health Visuals and Decay
 
 _Drafted: 2026-05-27_
 _Status: Pre-planning draft — not yet through `/soa plan`_
@@ -16,7 +16,7 @@ Works on **floating pet** (primary) and menubar where assets allow.
 
 ## The problem
 
-Phase 03–04 render activity states; HP overlays were explicitly deferred. Hearts in Phase 09 are numeric UI; this phase connects **visual pet body** to degradation.
+Phase 03–04 render activity states; HP overlays were explicitly deferred. Hearts in Phase 10 are numeric UI; this phase connects **visual pet body** to degradation.
 
 ---
 
@@ -70,11 +70,11 @@ Phase 03–04 render activity states; HP overlays were explicitly deferred. Hear
 
 ## Dependencies
 
-- **Phase 09** hearts mapping (consistent bands)
+- **Phase 10** hearts mapping (consistent bands)
 - **Phase 08** Settings shell (the Health settings tab itself is **built in this phase**, moved out of Phase 08; see committed scope §6)
 
 ---
 
 ## Next step
 
-`/soa plan docs/product/drafts/phase-10-health-visuals-and-decay.md`
+`/soa plan docs/product/drafts/phase-11-health-visuals-and-decay.md`

@@ -71,7 +71,7 @@ Menubar → **Settings…** opens a standard macOS window (not a tiny panel). Ta
 
 - Primary CTA: **Turn on alive pet** → **in-app enroll wizard** (no public `codogotchi rpg` write command)
 - Sets `features.rpg_enabled: true` via app install API; prompts for required Convex + handle; secrets in Keychain
-- Unlocks Health + Loot tabs and Phase 09 HUD (if shipped)
+- Unlocks Health + Loot tabs and Phase 10 HUD (if shipped)
 
 ### Pet tab (Codex-like)
 
@@ -149,7 +149,7 @@ README and runbook after Phase 08: “Install Codogotchi.app; use Settings to en
 - **Phase 05** lite config + bundled pet (bootstrap semantics move under install API)
 - **Phase 05** `rpg_enabled` flag (toggle becomes app-owned write)
 - **Phase 07** schema v4 (19-state closed enum) + `gate.json` sidecar (lockstep rule assumes renderer and hook bump together in app releases; the sidecar adds a second state file the renderer must read)
-- Recommended after **Phase 09** so Health tab matches HUD/decay (can parallelize)
+- Recommended after **Phase 10** so Health tab matches HUD/decay (can parallelize)
 
 ---
 

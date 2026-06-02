@@ -80,11 +80,11 @@ Optional `attention` on `state.json` (or documented sibling file):
 
 ## Defers
 
-- VS Code Copilot hook installer + tool alias table → **Phase 14**
-- Antigravity without captured fixtures → **Phase 14**
+- VS Code Copilot hook installer + tool alias table → **Phase 09**
+- Antigravity without captured fixtures → **Phase 09**
 - SoA direct write to `~/.codogotchi/` → **Phase 07** (upstream + reader)
 - Full `work_mode: thinking | implementing | testing` taxonomy → **Phase 07**
-- HUD hearts / XP → **Phase 09+** (RPG-gated)
+- HUD hearts / XP → **Phase 10+** (RPG-gated)
 
 ---
 

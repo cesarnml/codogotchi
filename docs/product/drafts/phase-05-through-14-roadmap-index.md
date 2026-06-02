@@ -1,6 +1,7 @@
 # Codogotchi Phase 05–14 Roadmap Index
 
 _Drafted: 2026-05-27_
+_Updated: 2026-06-02 — Phase 09 bumped to extended platform hooks; RPG ladder shifted 09→10 … 13→14_
 _Status: Draft index for `/soa ideate` output — not a product plan_
 _Prior shipped: Phase 01–04 ([phase-04-floating-pet.md](../plans/phase-04-floating-pet.md))_
 
@@ -38,12 +39,12 @@ _Prior shipped: Phase 01–04 ([phase-04-floating-pet.md](../plans/phase-04-floa
 | **06** | [phase-06-platform-parity-and-attention.md](./phase-06-platform-parity-and-attention.md) | codogotchi | Lite |
 | **07** | [phase-07-signal-honesty-and-soa-global-gates.md](./phase-07-signal-honesty-and-soa-global-gates.md) | codogotchi + **SoA upstream** | Lite |
 | **08** ⭐ | [phase-08-settings-window-and-observability.md](./phase-08-settings-window-and-observability.md) | codogotchi | Both — **lite v1 release gate** |
-| **09** | [phase-09-floating-progression-hud.md](./phase-09-floating-progression-hud.md) | codogotchi | Alive only |
-| **10** | [phase-10-health-visuals-and-decay.md](./phase-10-health-visuals-and-decay.md) | codogotchi | Alive only |
-| **11** | [phase-11-level-curve-100-and-migration.md](./phase-11-level-curve-100-and-migration.md) | codogotchi | Alive |
-| **12** | [phase-12-loot-equip-companion-and-custom-pets.md](./phase-12-loot-equip-companion-and-custom-pets.md) | codogotchi | Alive + premium |
-| **13** | [phase-13-premium-soa-animation-pack.md](./phase-13-premium-soa-animation-pack.md) | codogotchi | Premium |
-| **14** | [phase-14-extended-platform-hooks.md](./phase-14-extended-platform-hooks.md) | codogotchi | Lite |
+| **09** | [phase-09-extended-platform-hooks.md](./phase-09-extended-platform-hooks.md) | codogotchi | Lite — **next phase** |
+| **10** | [phase-10-floating-progression-hud.md](./phase-10-floating-progression-hud.md) | codogotchi | Alive only |
+| **11** | [phase-11-health-visuals-and-decay.md](./phase-11-health-visuals-and-decay.md) | codogotchi | Alive only |
+| **12** | [phase-12-level-curve-100-and-migration.md](./phase-12-level-curve-100-and-migration.md) | codogotchi | Alive |
+| **13** | [phase-13-loot-equip-companion-and-custom-pets.md](./phase-13-loot-equip-companion-and-custom-pets.md) | codogotchi | Alive + premium |
+| **14** | [phase-14-premium-soa-animation-pack.md](./phase-14-premium-soa-animation-pack.md) | codogotchi | Premium |
 
 **Son-of-Anton upstream (tracked in Phase 07 draft):** SoA writes directly to `~/.codogotchi/state.json` on gate emit — no intermediate `gate-events.ndjson` file. Plan separately in son-of-anton repo.
 
@@ -61,15 +62,16 @@ _Prior shipped: Phase 01–04 ([phase-04-floating-pet.md](../plans/phase-04-floa
 
 1. ✅ **05** lite install + onboarding
 2. **06** → **07** platform parity + SoA signal honesty (lite critical path)
-3. **08** settings window + CLI bundling — **lite v1 release gate** (hype + ship after 06–07)
-4. **09–10** RPG HUD + health visuals (alive mode)
-5. **11–13** monetization stack; **14** when fixtures exist
+3. **08** settings window + CLI bundling — **lite v1 release gate**
+4. **09** extended platform hooks (Copilot first, Antigravity fixtures-gated) — **next `/soa plan`**
+5. **10–11** RPG HUD + health visuals (alive mode)
+6. **12–14** monetization stack (level curve, loot, premium animation pack)
 
 ---
 
 ## Field finding (2026-05-27) — Cursor without `~/.cursor/hooks.json`
 
-Dogfooding confirmed: the pet animates during **Cursor Agent** sessions even when `~/.cursor/hooks.json` has no Codogotchi entries. Cursor loads **Claude Code–compatible** hooks from `~/.claude/settings.json` when **Settings → Features → Third-party skills** is enabled ([Cursor third-party hooks](https://cursor.com/docs/reference/third-party-hooks)). `codogotchi setup` / `hooks install` wires `codogotchi-hook` there (and in `~/.codex/hooks.json`), not in Cursor’s native hooks file. Transition logs then show `source_origin: "claude_code"` and Cursor tool names (`Shell`, `Grep`, …) — a **mis-label**, not proof the event came from the Claude Code app. Phase **06** makes attribution honest and adds a native `~/.cursor/hooks.json` installer; Phases **05** and **08** should document the bridge for lite onboarding and debugging.
+Dogfooding confirmed: the pet animates during **Cursor Agent** sessions even when `~/.cursor/hooks.json` has no Codogotchi entries. Cursor loads **Claude Code–compatible** hooks from `~/.claude/settings.json` when **Settings → Features → Third-party skills** is enabled ([Cursor third-party hooks](https://cursor.com/docs/reference/third-party-hooks)). `codogotchi setup` / `hooks install` wires `codogotchi-hook` there (and in `~/.codex/hooks.json`), not in Cursor’s native hooks file. Transition logs then show `source_origin: "claude_code"` and Cursor tool names (`Shell`, `Grep`, …) — a **mis-label**, not proof the event came from the Claude Code app. Phase **06** makes attribution honest and adds a native `~/.cursor/hooks.json` installer; Phases **05** and **08** should document the bridge for lite onboarding and debugging. Phase **09** extends the same native-install pattern to **Copilot** (which also reads `.claude/settings.json`).
 
 ---
 

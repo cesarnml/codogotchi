@@ -1,4 +1,4 @@
-# Phase 11 Draft — Level Curve (1–100) and Migration
+# Phase 12 Draft — Level Curve (1–100) and Migration
 
 _Drafted: 2026-05-27_
 _Status: Pre-planning draft — not yet through `/soa plan`_
@@ -10,7 +10,7 @@ _Source: ideation storm §2.2–2.3_
 
 Replace the **5-stage** ladder with user-facing **Level 1–100**, nonlinear XP thresholds, calibrated so a user whose **30-day activity** is taken as baseline would reach **level 100 in ~2 years** at that pace. This is a **breaking product + schema** change, not a label swap.
 
-HUD (Phase 09) rewires to new level function; Convex migrates `stage` → `level`.
+HUD (Phase 10) rewires to new level function; Convex migrates `stage` → `level`.
 
 ---
 
@@ -43,7 +43,7 @@ HUD (Phase 09) rewires to new level function; Convex migrates `stage` → `level
 
 ### 4. HUD
 
-- Phase 09 level badge and XP bar use new bands (within-level progress)
+- Phase 10 level badge and XP bar use new bands (within-level progress)
 
 ### 5. Celebrations
 
@@ -68,7 +68,7 @@ HUD (Phase 09) rewires to new level function; Convex migrates `stage` → `level
 
 ## Dependencies
 
-- **Phase 09** HUD (or ship HUD after this phase — plan orders)
+- **Phase 10** HUD (or ship HUD after this phase — plan orders)
 - **Phase 08** enroll + sync path for alive users
 - RPG enabled
 
@@ -83,4 +83,4 @@ HUD (Phase 09) rewires to new level function; Convex migrates `stage` → `level
 
 ## Next step
 
-`/soa plan docs/product/drafts/phase-11-level-curve-100-and-migration.md`
+`/soa plan docs/product/drafts/phase-12-level-curve-100-and-migration.md`
