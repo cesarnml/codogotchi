@@ -16,6 +16,8 @@ export const sourceEventOriginSchema = z.enum([
   "claude_code",
   "codex",
   "cursor",
+  "vscode",
+  "antigravity",
   "soa",
   "sync",
   "manual",

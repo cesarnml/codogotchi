@@ -2,8 +2,8 @@ import { describe, expect, it } from "bun:test";
 import { ACTIVITY_STATES } from "./animation-state";
 import {
   parseStateJson,
-  sourceEventOriginSchema,
   STATE_JSON_SCHEMA_VERSION,
+  sourceEventOriginSchema,
   stateJsonV1Schema,
 } from "./state-json";
 
