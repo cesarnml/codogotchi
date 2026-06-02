@@ -815,7 +815,7 @@ private final class AnimationLabelPillView: NSView {
 	/// clear→white→clear gradient, so the strongly-lit core reads as ~half of this.
 	private static let shimmerBandFraction: CGFloat = 0.8
 	/// Seconds for one full left→right pass across the text.
-	private static let shimmerDuration: CFTimeInterval = 1.0
+	private static let shimmerDuration: CFTimeInterval = 1.3
 	private static let shimmerAnimationKey = "codogotchi.badge.shimmer"
 
 	private let effectView = AnimationBadgeChrome.makeEffectView()
