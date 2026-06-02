@@ -25,7 +25,7 @@ describe("LEVEL_THRESHOLDS", () => {
 
   it("is monotonically increasing", () => {
     for (let i = 1; i < LEVEL_THRESHOLDS.length; i++) {
-      expect(LEVEL_THRESHOLDS[i]).toBeGreaterThan(LEVEL_THRESHOLDS[i - 1]!);
+      expect(LEVEL_THRESHOLDS[i]).toBeGreaterThan(LEVEL_THRESHOLDS[i - 1] ?? 0);
     }
   });
 
@@ -60,7 +60,7 @@ describe("levelForXp", () => {
   });
 
   it("boundary at LEVEL_THRESHOLDS[50]: just below → level 50, at → level 51", () => {
-    const threshold = LEVEL_THRESHOLDS[50]!;
+    const threshold = LEVEL_THRESHOLDS[50] ?? 0;
     expect(levelForXp(threshold - 1)).toBe(50);
     expect(levelForXp(threshold)).toBe(51);
   });
@@ -98,7 +98,7 @@ describe("levelProgress", () => {
   });
 
   it("fraction near 0 at bottom of a level", () => {
-    const threshold = LEVEL_THRESHOLDS[10]!;
+    const threshold = LEVEL_THRESHOLDS[10] ?? 0;
     const p = levelProgress(threshold);
     expect(p.level).toBe(11);
     expect(p.fraction).toBeCloseTo(0, 5);
@@ -106,8 +106,8 @@ describe("levelProgress", () => {
   });
 
   it("fraction near 1 just below the next level threshold", () => {
-    const lo = LEVEL_THRESHOLDS[10]!;
-    const hi = LEVEL_THRESHOLDS[11]!;
+    const lo = LEVEL_THRESHOLDS[10] ?? 0;
+    const hi = LEVEL_THRESHOLDS[11] ?? 0;
     const p = levelProgress(hi - 1);
     expect(p.level).toBe(11);
     expect(p.fraction).toBeGreaterThan(0.99);
@@ -117,8 +117,8 @@ describe("levelProgress", () => {
 
   it("span = distance between adjacent thresholds for interior levels", () => {
     for (let i = 0; i < 99; i++) {
-      const lo = LEVEL_THRESHOLDS[i]!;
-      const hi = LEVEL_THRESHOLDS[i + 1]!;
+      const lo = LEVEL_THRESHOLDS[i] ?? 0;
+      const hi = LEVEL_THRESHOLDS[i + 1] ?? 0;
       const p = levelProgress(lo);
       expect(p.span).toBe(hi - lo);
     }

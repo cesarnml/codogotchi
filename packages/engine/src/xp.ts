@@ -58,6 +58,7 @@ export function computeXp(signals: RawSignals): XpTotals {
   };
 }
 
+/** @deprecated Use `levelForXp` from `./level` for the 1–100 progression. */
 export function stageForXp(totalXp: number): Stage {
   let stage: Stage = 1;
   for (let i = 1; i < STAGE_THRESHOLDS.length; i++) {
