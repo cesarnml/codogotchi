@@ -1,0 +1,6 @@
+{
+  "conversationId": "0000-antigravity-fixture-session",
+  "workspacePaths": ["/redacted/workspace"],
+  "hook_event_name": "Stop",
+  "fullyIdle": false
+}

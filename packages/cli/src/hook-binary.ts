@@ -51,6 +51,13 @@ export type HookInput = {
   // Copilot camelCase CLI payload fields.
   toolName?: string;
   toolArgs?: { command?: string } & Record<string, unknown>;
+  // Antigravity camelCase payload fields.
+  toolCall?: {
+    name?: string;
+    args?: { CommandLine?: string } & Record<string, unknown>;
+  };
+  fullyIdle?: boolean;
+  terminationReason?: string;
 };
 
 export type ClassifyState = { readRun: number };
@@ -260,9 +267,10 @@ function rawHookKind(input: HookInput): SourceEventKind {
   )
     return "tool_use";
   // Codex/Cursor/Copilot postToolUse often omits tool_name but still carries name.
+  // Antigravity PreToolUse uses toolCall.name instead of tool_name/toolName.
   if (
     isToolBoundaryHook(hookName) &&
-    (input.tool_name ?? input.toolName ?? input.name)
+    (input.tool_name ?? input.toolName ?? input.name ?? input.toolCall?.name)
   ) {
     return "tool_use";
   }
@@ -306,15 +314,44 @@ function resolveCopilotToolAlias(toolName: string): string {
   }
 }
 
+// Antigravity tool names differ from Claude's. Map them to internal names so
+// the existing activity-state heuristics apply. "run_command" → "Shell"
+// preserves the test-runner/thinking/implementing command split using
+// CommandLine arg. browser_.* tools → "Grep" (thinking).
+function resolveAntigravityToolAlias(toolName: string): string {
+  const lower = toolName.toLowerCase();
+  switch (lower) {
+    case "run_command":
+      return "Shell";
+    case "write_to_file":
+    case "replace_file_content":
+    case "multi_replace_file_content":
+      return "Edit";
+    case "view_file":
+    case "read_url_content":
+      return "Read";
+    case "grep_search":
+    case "find_by_name":
+    case "list_dir":
+      return "Grep";
+    default:
+      if (lower.startsWith("browser_")) return "Grep";
+      return toolName;
+  }
+}
+
 function normalize(input: HookInput): NormalizedEvent | null {
   // Prefer explicit shape; fall back to Claude Code raw stdin shape.
   const rawOrigin = rawHookOrigin(input);
   const hookName = input.hook_event_name;
-  // Read camelCase Copilot `toolName` as fallback alongside snake_case `tool_name`.
-  const resolvedToolName = input.tool_name ?? input.toolName;
+  // Copilot uses camelCase toolName; Antigravity uses toolCall.name.
+  const resolvedToolName =
+    input.tool_name ?? input.toolName ?? input.toolCall?.name;
   let rawName = input.name ?? resolvedToolName ?? "unknown";
   if (rawOrigin === "vscode" && resolvedToolName) {
     rawName = resolveCopilotToolAlias(resolvedToolName);
+  } else if (rawOrigin === "antigravity" && resolvedToolName) {
+    rawName = resolveAntigravityToolAlias(resolvedToolName);
   } else if (hookName === "afterFileEdit") {
     rawName = "Edit";
   } else if (hookName === "beforeMCPExecution") {
@@ -335,9 +372,13 @@ function normalize(input: HookInput): NormalizedEvent | null {
   };
   const parsed = sourceEventSchema.safeParse(candidate);
   if (!parsed.success) return null;
-  // Read camelCase Copilot `toolArgs.command` alongside snake_case `tool_input.command`.
+  // Read Copilot `toolArgs.command` and Antigravity `toolCall.args.CommandLine`
+  // alongside the snake_case `tool_input.command`.
   const rawCommand =
-    input.command ?? input.tool_input?.command ?? input.toolArgs?.command;
+    input.command ??
+    input.tool_input?.command ??
+    input.toolArgs?.command ??
+    input.toolCall?.args?.CommandLine;
   const command = typeof rawCommand === "string" ? rawCommand : undefined;
   return { ...parsed.data, command };
 }
@@ -440,6 +481,29 @@ export function classifyEvent(
   if (rawEventName === "posttoolusefailure" && input.is_interrupt === true) {
     return { state: "thinking", sourceEvent, readRun: 0 };
   }
+  // Antigravity Stop: fullyIdle semantics differ from Claude/Cursor.
+  // fullyIdle===false means background tasks are still running — do not assert standby.
+  if (normalized.origin === "antigravity" && rawEventName === "stop") {
+    if (
+      input.terminationReason === "error" ||
+      (typeof input.error === "string" && input.error.length > 0)
+    ) {
+      return { state: "errored", sourceEvent, readRun: 0 };
+    }
+    if (input.fullyIdle === true) {
+      return { state: "standby", sourceEvent, readRun: 0 };
+    }
+    return { state: "thinking", sourceEvent, readRun: 0 };
+  }
+
+  // Antigravity PostToolUse carries only stepIdx + error; no tool-name correlation.
+  if (normalized.origin === "antigravity" && rawEventName === "posttooluse") {
+    if (typeof input.error === "string" && input.error.length > 0) {
+      return { state: "errored", sourceEvent, readRun: 0 };
+    }
+    return { state: "thinking", sourceEvent, readRun: 0 };
+  }
+
   // Stop: success → standby; failure (is_error, stop_reason, or Cursor status:error) → errored.
   if (rawEventName === "stop") {
     if (
