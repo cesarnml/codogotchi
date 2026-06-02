@@ -627,6 +627,88 @@ describe("classifyEvent", () => {
     });
     expect(out.sourceEvent.origin).toBe("claude_code");
   });
+
+  // P9.02: Copilot (vscode) native hook classifier
+  describe("Copilot (vscode) native hook classifier", () => {
+    let prevOrigin: string | undefined;
+
+    beforeEach(() => {
+      prevOrigin = process.env.CODOGOTCHI_ORIGIN;
+      process.env.CODOGOTCHI_ORIGIN = "vscode";
+    });
+
+    afterEach(() => {
+      if (prevOrigin === undefined) delete process.env.CODOGOTCHI_ORIGIN;
+      else process.env.CODOGOTCHI_ORIGIN = prevOrigin;
+    });
+
+    it("camelCase preToolUse with toolName:'edit' classifies as implementing", () => {
+      const out = classifyEvent(
+        { toolName: "edit", hook_event_name: "preToolUse" } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("implementing");
+      expect(out.sourceEvent.origin).toBe("vscode");
+    });
+
+    it("snake_case PreToolUse with tool_name:'view' classifies as reading", () => {
+      const out = classifyEvent(
+        { tool_name: "view", hook_event_name: "PreToolUse" } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("reading");
+      expect(out.sourceEvent.origin).toBe("vscode");
+    });
+
+    it("userPromptSubmitted classifies as prompt_submit / thinking", () => {
+      const out = classifyEvent(
+        { hook_event_name: "userPromptSubmitted" } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("thinking");
+      expect(out.sourceEvent.kind).toBe("prompt_submit");
+      expect(out.sourceEvent.origin).toBe("vscode");
+    });
+
+    it("camelCase bash toolName with test-runner command classifies as testing", () => {
+      const out = classifyEvent(
+        {
+          toolName: "bash",
+          toolArgs: { command: "bun test" },
+          hook_event_name: "preToolUse",
+        } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("testing");
+      expect(out.sourceEvent.origin).toBe("vscode");
+    });
+
+    it("agentStop classifies as standby", () => {
+      const out = classifyEvent({ hook_event_name: "agentStop" } as HookInput, {
+        readRun: 0,
+      });
+      expect(out.state).toBe("standby");
+      expect(out.sourceEvent.origin).toBe("vscode");
+    });
+
+    it("errorOccurred classifies as errored", () => {
+      const out = classifyEvent(
+        { hook_event_name: "errorOccurred" } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("errored");
+      expect(out.sourceEvent.origin).toBe("vscode");
+    });
+
+    it("permissionRequest classifies as waiting_for_input", () => {
+      const out = classifyEvent(
+        { hook_event_name: "permissionRequest" } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("waiting_for_input");
+      expect(out.sourceEvent.origin).toBe("vscode");
+    });
+  });
 });
 
 describe("runHook", () => {
