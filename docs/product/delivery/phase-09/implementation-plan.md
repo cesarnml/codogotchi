@@ -44,14 +44,17 @@ A reviewer can demonstrate: (1) after `hooks install --platform vscode`, a real 
 
 ## CI Baseline
 
-> Baseline recorded: 2026-06-02 — **`bun run verify:quiet` (biome) PASS** (263 files, no fixes). **Test suite could not execute on this machine: system-wide `EMFILE` (file-descriptor exhaustion)** affecting `bun test` even for a single file at `ulimit -n 65536` — an environment condition, not a code regression. **Stop condition for the first ticket:** the `[red]` step requires a runnable suite; resolve the fd exhaustion (e.g. restart the machine / kill leaked watchers) and re-confirm `bun test packages convex` green before starting `P9.01`. Record the clean result here when obtained.
+> Baseline recorded: 2026-06-02 — **`bun run ci:quiet` PASS** (biome 263 files; `bun test` 324 pass / 0 fail; `xcodebuild` mac:test 410 pass / 0 fail — `** TEST SUCCEEDED **`).
+>
+> Two pre-existing breakages were fixed before this baseline (commits `5f36844`, `59d4a6e`), both unrelated to phase-09:
+> - **`bun test` EMFILE**: `scripts/package-dmg.sh` left an `Applications -> /Applications` symlink in `build/dmg-staging/` inside the repo tree; bun's root-CWD scan followed it into `/Applications` and exhausted file descriptors. Fixed by staging in a `mktemp` dir outside the repo with trap cleanup.
+> - **`mac:test` failure**: `LivePollingTests.testFileNotFoundRendersIdleDesaturated…` asserted `.desaturated` after commit `9262e2e` deliberately switched the missing-file render to full-color `.normal`. Test updated to match shipped behavior.
 
 ## Review Rules
 
 - Tickets must be merged in order (T01 foundation blocks T02–T04).
 - Each ticket PR must pass CI before the next ticket starts.
 - Pre-existing CI failures documented in **CI Baseline** do not block a ticket; newly introduced failures do.
-- The `EMFILE` environment condition above is not a code failure; do not "fix" it inside a ticket — resolve it at the environment level before the red step.
 
 ## Explicit Deferrals
 
@@ -64,7 +67,6 @@ A reviewer can demonstrate: (1) after `hooks install --platform vscode`, a real 
 
 ## Stop Conditions
 
-- The `EMFILE` test-runner condition is unresolved (blocks the red step).
 - A platform's real-usage validation reveals the published schema is wrong in a way that changes ticket scope (capture the drift, pause, reconcile).
 - Broken CI that cannot be resolved within ticket scope.
 - Ambiguous triage where the right action is genuinely unclear.
