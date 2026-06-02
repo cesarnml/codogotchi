@@ -13,9 +13,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   hooksStatus,
+  installAntigravityHooks,
   installCursorHooks,
   installHooks,
   installVscodeHooks,
+  uninstallAntigravityHooks,
   uninstallCursorHooks,
   uninstallHooks,
   uninstallVscodeHooks,
@@ -1006,6 +1008,69 @@ describe("vscode hooks", () => {
     await installVscodeHooks({ home: "/home/user/.codogotchi" });
     await uninstallVscodeHooks();
     const hooksPath = join(userRoot, ".copilot", "hooks", "codogotchi.json");
+    const raw = existsSync(hooksPath) ? readFileSync(hooksPath, "utf8") : "";
+    expect(raw).not.toContain("codogotchi-hook");
+  });
+});
+
+describe("antigravity hooks", () => {
+  let userRoot: string;
+  let prevUserRoot: string | undefined;
+
+  beforeEach(() => {
+    userRoot = mkdtempSync(join(tmpdir(), "codogotchi-antigravity-hooks-"));
+    prevUserRoot = process.env.CODOGOTCHI_USER_ROOT;
+    process.env.CODOGOTCHI_USER_ROOT = userRoot;
+    mkdirSync(join(userRoot, ".codogotchi"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".codogotchi", "config.json"),
+      `${JSON.stringify({ profile_id: "p", pet: "maew", features: { rpg_enabled: false } })}\n`,
+      "utf8",
+    );
+  });
+
+  afterEach(() => {
+    rmSync(userRoot, { recursive: true, force: true });
+    if (prevUserRoot === undefined) delete process.env.CODOGOTCHI_USER_ROOT;
+    else process.env.CODOGOTCHI_USER_ROOT = prevUserRoot;
+  });
+
+  it("hooks install --platform antigravity writes ~/.gemini/config/hooks.json with CODOGOTCHI_ORIGIN=antigravity", async () => {
+    await installAntigravityHooks({ home: "/home/user/.codogotchi" });
+    const raw = readFileSync(
+      join(userRoot, ".gemini", "config", "hooks.json"),
+      "utf8",
+    );
+    expect(raw).toContain("codogotchi-hook");
+    expect(raw).toContain("CODOGOTCHI_ORIGIN=antigravity");
+  });
+
+  it("antigravity install is idempotent — running twice produces a byte-identical file", async () => {
+    const ctx = { home: "/home/user/.codogotchi" };
+    await installAntigravityHooks(ctx);
+    const first = readFileSync(
+      join(userRoot, ".gemini", "config", "hooks.json"),
+      "utf8",
+    );
+    await installAntigravityHooks(ctx);
+    const second = readFileSync(
+      join(userRoot, ".gemini", "config", "hooks.json"),
+      "utf8",
+    );
+    expect(second).toBe(first);
+  });
+
+  it("hooksStatus reports antigravity installed and installable_in_phase after install", async () => {
+    await installAntigravityHooks({ home: "/home/user/.codogotchi" });
+    const status = await hooksStatus();
+    expect(status.antigravity.installed).toBe(true);
+    expect(status.antigravity.installable_in_phase).toBe(true);
+  });
+
+  it("antigravity uninstall leaves no codogotchi entries", async () => {
+    await installAntigravityHooks({ home: "/home/user/.codogotchi" });
+    await uninstallAntigravityHooks();
+    const hooksPath = join(userRoot, ".gemini", "config", "hooks.json");
     const raw = existsSync(hooksPath) ? readFileSync(hooksPath, "utf8") : "";
     expect(raw).not.toContain("codogotchi-hook");
   });
