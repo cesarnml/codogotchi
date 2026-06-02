@@ -1130,4 +1130,12 @@ describe("antigravity hooks", () => {
     expect(parsed.codogotchi).toBeUndefined();
     expect(parsed.myCustomHook).toBeDefined();
   });
+
+  it("antigravity install writes atomically and leaves no temp file litter", async () => {
+    const configDir = join(userRoot, ".gemini", "config");
+    await installAntigravityHooks({ home: "/home/user/.codogotchi" });
+    const entries = readdirSync(configDir);
+    expect(entries).toContain("hooks.json");
+    expect(entries.some((e) => e.includes(".tmp-"))).toBe(false);
+  });
 });

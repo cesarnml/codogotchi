@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import {
   copyFile,
   mkdir,
   readFile,
+  rename,
   rm,
   stat,
   writeFile,
@@ -417,7 +419,19 @@ async function readJsonOrEmpty<T extends object>(path: string): Promise<T> {
 
 async function writeText(path: string, content: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, content, "utf8");
+  // Atomic write: stage to a temp file in the same directory, then rename over
+  // the target. rename is atomic within a filesystem, so a crash mid-write
+  // cannot leave a live hooks file truncated or empty — it keeps its prior
+  // contents (and backupIfExists already snapshotted it). On failure, clean up
+  // the temp file rather than leaving litter beside the real config.
+  const tmpPath = `${path}.tmp-${process.pid}-${randomUUID()}`;
+  try {
+    await writeFile(tmpPath, content, "utf8");
+    await rename(tmpPath, path);
+  } catch (err) {
+    await rm(tmpPath, { force: true });
+    throw err;
+  }
 }
 
 async function readTextOrEmpty(path: string): Promise<string> {
