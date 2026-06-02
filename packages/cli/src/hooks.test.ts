@@ -1011,6 +1011,28 @@ describe("vscode hooks", () => {
     const raw = existsSync(hooksPath) ? readFileSync(hooksPath, "utf8") : "";
     expect(raw).not.toContain("codogotchi-hook");
   });
+
+  it("vscode uninstall preserves unrelated entries and leaves a valid file", async () => {
+    const hooksPath = join(userRoot, ".copilot", "hooks", "codogotchi.json");
+    mkdirSync(join(userRoot, ".copilot", "hooks"), { recursive: true });
+    writeFileSync(
+      hooksPath,
+      `${JSON.stringify({ hooks: [{ event: "preToolUse", command: "my-custom-hook" }] }, null, 2)}\n`,
+      "utf8",
+    );
+
+    await installVscodeHooks({ home: "/home/user/.codogotchi" });
+    await uninstallVscodeHooks();
+
+    expect(existsSync(hooksPath)).toBe(true);
+    const parsed = JSON.parse(readFileSync(hooksPath, "utf8")) as {
+      hooks: { event: string; command: string }[];
+    };
+    expect(
+      parsed.hooks.some((e) => e.command.includes("codogotchi-hook")),
+    ).toBe(false);
+    expect(parsed.hooks.some((e) => e.command === "my-custom-hook")).toBe(true);
+  });
 });
 
 describe("antigravity hooks", () => {
@@ -1073,5 +1095,39 @@ describe("antigravity hooks", () => {
     const hooksPath = join(userRoot, ".gemini", "config", "hooks.json");
     const raw = existsSync(hooksPath) ? readFileSync(hooksPath, "utf8") : "";
     expect(raw).not.toContain("codogotchi-hook");
+  });
+
+  it("antigravity uninstall preserves unrelated named hooks", async () => {
+    const hooksPath = join(userRoot, ".gemini", "config", "hooks.json");
+    mkdirSync(join(userRoot, ".gemini", "config"), { recursive: true });
+    writeFileSync(
+      hooksPath,
+      `${JSON.stringify(
+        {
+          myCustomHook: {
+            PreToolUse: [
+              {
+                matcher: "*",
+                hooks: [{ type: "command", command: "other-hook" }],
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    await installAntigravityHooks({ home: "/home/user/.codogotchi" });
+    await uninstallAntigravityHooks();
+
+    expect(existsSync(hooksPath)).toBe(true);
+    const parsed = JSON.parse(readFileSync(hooksPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    expect(parsed.codogotchi).toBeUndefined();
+    expect(parsed.myCustomHook).toBeDefined();
   });
 });

@@ -660,6 +660,21 @@ describe("classifyEvent", () => {
       expect(out.sourceEvent.origin).toBe("vscode");
     });
 
+    it("snake_case tool_name and camelCase toolName classify identically for the same tool", () => {
+      const snake = classifyEvent(
+        { tool_name: "edit", hook_event_name: "PreToolUse" } as HookInput,
+        { readRun: 0 },
+      );
+      const camel = classifyEvent(
+        { toolName: "edit", hook_event_name: "preToolUse" } as HookInput,
+        { readRun: 0 },
+      );
+      expect(snake.state).toBe("implementing");
+      expect(camel.state).toBe(snake.state);
+      expect(snake.sourceEvent.origin).toBe("vscode");
+      expect(camel.sourceEvent.origin).toBe("vscode");
+    });
+
     it("userPromptSubmitted classifies as prompt_submit / thinking", () => {
       const out = classifyEvent(
         { hook_event_name: "userPromptSubmitted" } as HookInput,
@@ -687,6 +702,15 @@ describe("classifyEvent", () => {
       const out = classifyEvent({ hook_event_name: "agentStop" } as HookInput, {
         readRun: 0,
       });
+      expect(out.state).toBe("standby");
+      expect(out.sourceEvent.origin).toBe("vscode");
+    });
+
+    it("sessionEnd classifies as standby", () => {
+      const out = classifyEvent(
+        { hook_event_name: "sessionEnd" } as HookInput,
+        { readRun: 0 },
+      );
       expect(out.state).toBe("standby");
       expect(out.sourceEvent.origin).toBe("vscode");
     });
@@ -794,6 +818,20 @@ describe("classifyEvent", () => {
       );
       expect(out.state).toBe("errored");
       expect(out.sourceEvent.origin).toBe("antigravity");
+    });
+
+    it("PostToolUse with toolCall.name does not correlate tool metadata", () => {
+      const out = classifyEvent(
+        {
+          hook_event_name: "PostToolUse",
+          toolCall: { name: "write_to_file" },
+        } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("thinking");
+      expect(out.sourceEvent.origin).toBe("antigravity");
+      // toolCall.name is scoped to PreToolUse — PostToolUse stays neutral.
+      expect(out.sourceEvent.kind).not.toBe("tool_use");
     });
 
     it("Stop with fullyIdle:true classifies as standby", () => {
