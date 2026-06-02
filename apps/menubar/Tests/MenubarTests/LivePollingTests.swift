@@ -124,7 +124,7 @@ final class LivePollingTests: XCTestCase {
 
 	// MARK: - Three failure visuals
 
-	func testFileNotFoundRendersIdleDesaturatedWithNoHookTooltip() {
+	func testFileNotFoundRendersIdleFullColorWithNoHookTooltip() {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
 		// Intentionally do NOT write any file.
@@ -137,10 +137,12 @@ final class LivePollingTests: XCTestCase {
 			[.idle],
 			"missing file must render .idle"
 		)
+		// Fresh install (hooks wired, no prompt run yet) is not an error: the pet
+		// shows full-color idle, not desaturated. See commit 9262e2e.
 		XCTAssertEqual(
 			recorder.renders.map { $0.1 },
-			[.desaturated],
-			"missing file must render .desaturated"
+			[.normal],
+			"missing file must render full-color .normal"
 		)
 		XCTAssertEqual(
 			recorder.tooltips,
