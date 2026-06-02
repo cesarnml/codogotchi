@@ -101,6 +101,25 @@ const SOURCE_CONFIGS: Record<JsonlSource, SourceConfig> = {
   codex: CODEX_CONFIG,
 };
 
+// Non-token sources — platforms that hook into Codogotchi for HP/hearts but do not
+// write local token logs, so no JSONL reader is attempted and they are absent from
+// JsonlSource. Their rings/levels freeze gracefully (Cursor/VS Code by design;
+// Antigravity by empirical finding — see notes below).
+//
+// Cursor: tokens are processed cloud-side; no local session JSONL is written.
+//
+// VS Code Copilot: same as Cursor — cloud API, no local token log.
+//
+// Antigravity (agy CLI): transcripts written to
+//   ~/.gemini/antigravity-cli/brain/<conversationId>/.system_generated/logs/transcript.jsonl
+// as step-indexed JSONL (step_index, source, type, status, created_at, content).
+// Model responses use type "PLANNER_RESPONSE" but carry no token count fields.
+// Verified against live transcript files on 2026-06-03: neither transcript.jsonl nor
+// transcript_full.jsonl contain any tokens/usage_metadata/input_tokens fields.
+// Antigravity contributes to hearts via activity hooks; its XP ring freezes.
+// If a future agy release adds token counts to transcripts, add an "antigravity"
+// SourceConfig.extract here reading PLANNER_RESPONSE lines.
+
 async function listJsonlFiles(rootDir: string): Promise<string[]> {
   try {
     const rootStat = await stat(rootDir);
