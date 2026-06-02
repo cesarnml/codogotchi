@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { ACTIVITY_STATES } from "./animation-state";
 import {
   parseStateJson,
+  sourceEventOriginSchema,
   STATE_JSON_SCHEMA_VERSION,
   stateJsonV1Schema,
 } from "./state-json";
@@ -145,6 +146,16 @@ describe("backward compatibility for v1 and v2 payloads", () => {
       activity_state: "errored",
     };
     expect(() => parseStateJson(payload)).not.toThrow();
+  });
+});
+
+describe("sourceEventOriginSchema — P9.01 vscode/antigravity origins", () => {
+  it("accepts vscode as a valid source_event origin", () => {
+    expect(sourceEventOriginSchema.safeParse("vscode").success).toBe(true);
+  });
+
+  it("accepts antigravity as a valid source_event origin", () => {
+    expect(sourceEventOriginSchema.safeParse("antigravity").success).toBe(true);
   });
 });
 

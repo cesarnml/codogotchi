@@ -22,7 +22,28 @@ final class PlatformAttributionTests: XCTestCase {
 	func testAbsentOrUnknownOriginResolvesToNil() {
 		XCTAssertNil(PlatformAttribution(origin: nil))
 		XCTAssertNil(PlatformAttribution(origin: ""))
-		XCTAssertNil(PlatformAttribution(origin: "vscode"))
+	}
+
+	// P9.01 — vscode / antigravity platform origins
+	func testVSCodeOriginResolvesToVSCodePlatform() {
+		XCTAssertEqual(PlatformAttribution(origin: "vscode")?.assetName, "PlatformVSCode")
+	}
+
+	func testAntigravityOriginResolvesToAntigravityPlatform() {
+		XCTAssertEqual(PlatformAttribution(origin: "antigravity")?.assetName, "PlatformAntigravity")
+	}
+
+	func testVSCodeDisplayName() {
+		XCTAssertEqual(PlatformAttribution(origin: "vscode")?.displayName, "VS Code")
+	}
+
+	func testAntigravityDisplayName() {
+		XCTAssertEqual(PlatformAttribution(origin: "antigravity")?.displayName, "Antigravity")
+	}
+
+	func testNonPlatformOriginsStillResolveToNilAfterP9() {
+		XCTAssertNil(PlatformAttribution(origin: "soa"))
+		XCTAssertNil(PlatformAttribution(origin: nil))
 	}
 
 	func testAssetNameMatchesImagesetName() {
