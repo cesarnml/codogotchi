@@ -52,7 +52,7 @@ Hand someone a clean install and, within one coding session, show: a floating pe
 
 ## CI Baseline
 
-> Baseline recorded: _pending_ — run `bun run ci:quiet` on `main` at `/soa execute` kickoff and record pass / pre-existing failures here before P10.01 starts.
+> Baseline recorded: **PASS** (2026-06-03) — 377 TS tests pass (25 files), 417 Swift tests pass, 0 failures. No pre-existing CI failures.
 
 ## Review Rules
 
