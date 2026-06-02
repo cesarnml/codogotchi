@@ -433,7 +433,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
     if (sub === "install") {
       if (subArgs.includes("--help") || subArgs.includes("-h")) {
         process.stdout.write(
-          "Usage: codogotchi hooks install [--platform <claude_code|cursor>]\n",
+          "Usage: codogotchi hooks install [--platform <claude_code|cursor|vscode>]\n",
         );
         return { exitCode: 0 };
       }
@@ -449,7 +449,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       }
       if (rest.length > 0) {
         process.stderr.write(
-          "Usage: codogotchi hooks install [--platform <claude_code|cursor>]\n",
+          "Usage: codogotchi hooks install [--platform <claude_code|cursor|vscode>]\n",
         );
         return { exitCode: 2 };
       }

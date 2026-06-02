@@ -836,7 +836,10 @@ export async function hooksStatus(): Promise<HooksStatus> {
   // fallback for Cursor.
   const cursorNativeInstalled = cursorInstalled(cursorJson);
   const cursorNativeAnyWired = cursorAnyWired(cursorJson);
-  const vscodeFullyInstalled = copilotInstalled(copilotJson);
+  const normalizedCopilot: CopilotHooksFile = {
+    hooks: Array.isArray(copilotJson.hooks) ? copilotJson.hooks : [],
+  };
+  const vscodeFullyInstalled = copilotInstalled(normalizedCopilot);
 
   // "Partially installed": codogotchi hooks are present but not fully wired for
   // the current expected event set. The integration is real and firing, so this
