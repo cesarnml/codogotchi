@@ -21,8 +21,8 @@ const baseV1Payload = {
 };
 
 describe("STATE_JSON_SCHEMA_VERSION", () => {
-  it("is 4 after the Phase 07 v4 bump", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(4);
+  it("is 5 after the Phase 10 v5 bump", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(5);
   });
 });
 
@@ -236,15 +236,15 @@ describe("sourceEventOriginSchema — P9.01 vscode/antigravity origins", () => {
 });
 
 describe("forward-compat refusal", () => {
-  it("rejects schema_version 5 (one ahead of v4)", () => {
-    const payload = { ...baseV1Payload, schema_version: 5 };
+  it("rejects schema_version 6 (one ahead of v5)", () => {
+    const payload = { ...baseV1Payload, schema_version: 6 };
     expect(() => parseStateJson(payload)).toThrow();
   });
 });
 
 describe("schema v4 vocabulary", () => {
-  it("STATE_JSON_SCHEMA_VERSION is 4", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(4);
+  it("STATE_JSON_SCHEMA_VERSION is 5 (v4 vocabulary still tested below)", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(5);
   });
 
   it("v4 hook states are members of ACTIVITY_STATES", () => {
@@ -294,10 +294,10 @@ describe("schema v4 vocabulary", () => {
     expect(() => parseStateJson(payload)).not.toThrow();
   });
 
-  it("parseStateJson rejects schema_version 5", () => {
+  it("parseStateJson rejects schema_version 6 (one past max)", () => {
     const payload = {
       ...baseV1Payload,
-      schema_version: 5,
+      schema_version: 6,
       activity_state: "idle",
     };
     expect(() => parseStateJson(payload)).toThrow();
