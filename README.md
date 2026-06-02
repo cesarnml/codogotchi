@@ -6,8 +6,9 @@ Convex; a macOS **Codogotchi** app renders agent animation state locally from
 `~/.codogotchi/state.json` on the menu bar (static hero frame per state) and an
 optional transparent floating desktop pet (full animation while visible).
 
-**Status:** Phase 08 shipped — Lite-and-SoA v1 release gate (private). The `.app` is now
-self-contained: it bundles the `codogotchi` binary so no PATH prerequisite exists. Settings
+**Status:** Phase 09 shipped — native hook integration for GitHub Copilot (VS Code Agent) and Google
+Antigravity, with five-platform support. Phase 08: Lite-and-SoA v1 release gate (private). The `.app`
+is self-contained: it bundles the `codogotchi` binary so no PATH prerequisite exists. Settings
 (General / Pet / Developer / About) is the control plane for hooks and pet selection. Hook
 install/update/remove live only in Settings → General. The two real 8-frame Maew spritesheets
 (`codogotchi-lite-spritesheet.webp` + `codogotchi-soa-spritesheet.webp`) ship, making Lite and
@@ -15,7 +16,8 @@ SoA visualization work end to end. Earlier phases: 01 CLI + Convex pipeline; 02 
 03 all 19 activity states + codogotchi spritesheet; 04 floating pet + Codogotchi rename; 05 Lite vs
 Alive modes + mandatory onboarding + canonical pet store; 06 attention bubble + sticky SoA gate +
 Cursor platform adapter; 07 schema v4 + gate.json sidecar + renderer merge. See the
-[`phase-08 install runbook`](docs/runbooks/phase-08-lite-install.md).
+[`phase-08 install runbook`](docs/runbooks/phase-08-lite-install.md) and the
+[`phase-09 platform parity matrix`](docs/runbooks/phase-09-platform-parity.md).
 
 ## What ships in Phase 01
 
@@ -136,12 +138,28 @@ If native Cursor hooks are not installed but Claude Code hooks are, Cursor's **T
 feature can route tool calls through Claude Code hooks. Events then show `source_origin: "claude_code"`.
 `codogotchi hooks status` reports `cursor: bridge` in that case.
 
-### GitHub Copilot and Antigravity (Phase 09)
+### GitHub Copilot (VS Code) and Antigravity (Phase 09)
 
-Native hooks for **GitHub Copilot CLI / VS Code Agent** and **Google Antigravity 2.0** are planned in
-[Phase 09](docs/product/plans/phase-09-extended-platform-hooks.md). Until then, `hooks status` reports
-`vscode` and `antigravity` with `installable_in_phase: false`. Copilot may partially animate via the
-same `.claude/settings.json` bridge as Cursor if Claude Code hooks are installed.
+Native hooks for **GitHub Copilot / VS Code Agent** and **Google Antigravity** shipped in Phase 09.
+Install via:
+
+```bash
+codogotchi hooks install --platform vscode       # writes ~/.copilot/hooks/codogotchi.json
+codogotchi hooks install --platform antigravity  # writes ~/.gemini/config/hooks.json
+```
+
+Events fire with `source_origin: "vscode"` and `source_origin: "antigravity"` respectively. The
+animation badge and attention bubble show the correct platform logo for all five supported origins.
+`codogotchi hooks status` reports each platform's install and firing state.
+
+**`vscode`/`copilot` alias:** The canonical `source_origin` is `vscode`; `copilot` is accepted as a
+`CODOGOTCHI_ORIGIN` alias in manual overrides but the installer always writes `vscode`.
+
+**Bridge caveat:** VS Code may animate via the `.claude/settings.json` bridge if only Claude Code hooks
+are installed — events then show `source_origin: "claude_code"` (mislabeled). Prefer native install.
+
+See the [`platform parity matrix`](docs/runbooks/phase-09-platform-parity.md) for full event sets,
+config paths, tool-name mappings, and support levels across all five platforms.
 
 ## Where data lives
 
