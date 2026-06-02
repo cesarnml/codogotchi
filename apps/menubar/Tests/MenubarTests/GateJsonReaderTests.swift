@@ -212,7 +212,93 @@ final class GateJsonReaderTests: XCTestCase {
 		)
 	}
 
+	func testWorktreeContextMatchesPrimaryCheckoutHookRepo() throws {
+		// The real-world SoA case: delivery runs in a linked worktree while the
+		// operator's editor hook reports the primary checkout. Both must resolve
+		// to the same repo so the badge persists across the worktree boundary.
+		let (mainRoot, worktreeRoot) = makeWorktreePair()
+		defer {
+			try? FileManager.default.removeItem(atPath: mainRoot)
+			try? FileManager.default.removeItem(atPath: worktreeRoot)
+		}
+		let context = makeDeliveryContext(repoRoot: worktreeRoot)
+		let sourceEvent = SourceEvent(
+			origin: "claude_code",
+			kind: "tool_use",
+			name: "Bash",
+			repoRoot: mainRoot
+		)
+		XCTAssertEqual(
+			resolveGateBadgeContent(deliveryContext: context, sourceEvent: sourceEvent),
+			GateBadgeContent(ticketId: "P7.01", gate: "review_clean"),
+			"a worktree delivery context and a primary-checkout hook are the same repo"
+		)
+	}
+
+	func testCanonicalRepoRootResolvesWorktreeToMainRoot() throws {
+		let (mainRoot, worktreeRoot) = makeWorktreePair()
+		defer {
+			try? FileManager.default.removeItem(atPath: mainRoot)
+			try? FileManager.default.removeItem(atPath: worktreeRoot)
+		}
+		XCTAssertEqual(
+			canonicalRepoRoot(worktreeRoot), mainRoot,
+			"a linked worktree must resolve to its main checkout root")
+		XCTAssertEqual(
+			canonicalRepoRoot(mainRoot), mainRoot,
+			"a primary checkout must resolve to itself")
+	}
+
+	func testCanonicalRepoRootLeavesUnknownPathsUnchanged() {
+		let bogus = "/tmp/codogotchi-not-a-repo-\(UUID().uuidString)"
+		XCTAssertEqual(
+			canonicalRepoRoot(bogus), bogus,
+			"a path with no .git must be returned unchanged so the guard degrades safely")
+	}
+
+	func testDifferentReposStillSuppressedAfterCanonicalization() throws {
+		// Two independent primary checkouts must still be treated as different
+		// projects — canonicalization must not collapse unrelated repos.
+		let (mainRootA, worktreeRootA) = makeWorktreePair()
+		let (mainRootB, _) = makeWorktreePair()
+		defer {
+			try? FileManager.default.removeItem(atPath: mainRootA)
+			try? FileManager.default.removeItem(atPath: worktreeRootA)
+			try? FileManager.default.removeItem(atPath: mainRootB)
+		}
+		let context = makeDeliveryContext(repoRoot: worktreeRootA)
+		let sourceEvent = SourceEvent(
+			origin: "claude_code",
+			kind: "tool_use",
+			name: "Bash",
+			repoRoot: mainRootB
+		)
+		XCTAssertNil(
+			resolveGateBadgeContent(deliveryContext: context, sourceEvent: sourceEvent),
+			"a worktree of repo A must not match an unrelated repo B")
+	}
+
 	// MARK: - Helpers
+
+	/// Creates a primary-checkout directory (with a `.git` *directory*) and a
+	/// sibling linked-worktree directory (with a `.git` *file* pointing back at
+	/// the primary's `.git/worktrees/<name>`), mirroring real git layout.
+	/// Returns `(mainRoot, worktreeRoot)` absolute paths.
+	private func makeWorktreePair() -> (mainRoot: String, worktreeRoot: String) {
+		let fm = FileManager.default
+		let base = fm.temporaryDirectory.appendingPathComponent("wt-\(UUID().uuidString)")
+		let mainRoot = base.appendingPathComponent("codogotchi")
+		let worktreeName = "codogotchi_wt"
+		let worktreeRoot = base.appendingPathComponent(worktreeName)
+		let gitDir = mainRoot.appendingPathComponent(".git")
+		let worktreeMeta = gitDir.appendingPathComponent("worktrees/\(worktreeName)")
+		try? fm.createDirectory(at: worktreeMeta, withIntermediateDirectories: true)
+		try? fm.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+		let gitFile = worktreeRoot.appendingPathComponent(".git")
+		try? "gitdir: \(worktreeMeta.path)\n".write(
+			to: gitFile, atomically: true, encoding: .utf8)
+		return (mainRoot.path, worktreeRoot.path)
+	}
 
 	private func writeTemp(_ content: String) -> URL {
 		let tmp = FileManager.default.temporaryDirectory

@@ -153,12 +153,53 @@ func resolveGateBadgeContent(
 
 	if let activeRepo = sourceEvent?.repoRoot,
 		let contextRepo = deliveryContext.repoRoot,
-		activeRepo != contextRepo
+		canonicalRepoRoot(activeRepo) != canonicalRepoRoot(contextRepo)
 	{
 		return nil
 	}
 
 	return GateBadgeContent(ticketId: ticketId, gate: gate)
+}
+
+/// Normalizes a checkout path to its main-worktree root using only the
+/// filesystem — no `git` subprocess.
+///
+/// SoA delivery always runs in a *linked worktree* (e.g. `…/codogotchi_p10_03`)
+/// while the operator's active editor — and therefore the hook that writes
+/// `state.json`'s `source_event.repo_root` — typically reports the *primary*
+/// checkout (e.g. `…/codogotchi`). Comparing those raw paths in
+/// `resolveGateBadgeContent` made the repo-guard treat every worktree as a
+/// foreign project and silently suppress the ticket/gate badge. Normalizing both
+/// sides to the shared main root makes the guard mean what it says: "is this the
+/// same repository?" rather than "is this the same on-disk directory?".
+///
+/// - A primary checkout has a `.git` *directory*; the path is returned unchanged.
+/// - A linked worktree has a `.git` *file* containing
+///   `gitdir: <main>/.git/worktrees/<name>`; the main root is the prefix before
+///   `/.git/worktrees/`.
+/// - Any unrecognized shape (missing `.git`, pruned worktree, unexpected
+///   contents) returns the input unchanged so the guard degrades to its prior
+///   exact-match behavior rather than guessing.
+func canonicalRepoRoot(_ path: String) -> String {
+	let normalized =
+		path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path
+	let dotGit = normalized + "/.git"
+	var isDirectory: ObjCBool = false
+	guard FileManager.default.fileExists(atPath: dotGit, isDirectory: &isDirectory)
+	else {
+		return normalized
+	}
+	if isDirectory.boolValue { return normalized }
+	guard let contents = try? String(contentsOfFile: dotGit, encoding: .utf8) else {
+		return normalized
+	}
+	let trimmed = contents.trimmingCharacters(in: .whitespacesAndNewlines)
+	let prefix = "gitdir:"
+	guard trimmed.hasPrefix(prefix) else { return normalized }
+	let gitdir = String(trimmed.dropFirst(prefix.count))
+		.trimmingCharacters(in: .whitespaces)
+	guard let range = gitdir.range(of: "/.git/worktrees/") else { return normalized }
+	return String(gitdir[gitdir.startIndex..<range.lowerBound])
 }
 
 private func parseISO8601Date(_ string: String) -> Date? {
