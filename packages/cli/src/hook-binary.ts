@@ -18,6 +18,7 @@ import {
 import {
   extractPromptText,
   extractSessionId,
+  extractTranscriptUserPrompt,
   lookupPromptAttentionSummary,
   recordPromptAttention,
 } from "./prompt-attention.js";
@@ -65,6 +66,10 @@ export type HookInput = {
   } | null;
   stepIdx?: number;
   executionNum?: number;
+  // Antigravity thread id (camelCase) + path to the JSONL conversation
+  // transcript, which is the only place the user's prompt text appears.
+  conversationId?: string;
+  transcriptPath?: string;
   // Antigravity Stop terminal signal. `fullyIdle` true = clean finish.
   fullyIdle?: boolean;
   // Antigravity termination reason, e.g. "ERROR" (uppercase) on failure.
@@ -830,6 +835,29 @@ export async function runHook(
         promptText,
         opts.now,
       );
+    }
+
+    // Antigravity sends no prompt-submit event and no prompt text — recover the
+    // user's request from the conversation transcript so the standby
+    // AttentionBubble shows "Re: <prompt>" instead of the bare fallback. Record
+    // on every event (cheap, idempotent) so the prompt is stored before Stop.
+    if (
+      origin === "antigravity" &&
+      sessionId !== undefined &&
+      typeof input.transcriptPath === "string"
+    ) {
+      const transcriptPrompt = await extractTranscriptUserPrompt(
+        input.transcriptPath,
+      );
+      if (transcriptPrompt !== undefined) {
+        await recordPromptAttention(
+          opts.home,
+          origin,
+          sessionId,
+          transcriptPrompt,
+          opts.now,
+        );
+      }
     }
 
     const classified = classifyEvent(input, { readRun: counters.read_run });

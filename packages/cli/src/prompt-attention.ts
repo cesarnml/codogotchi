@@ -4,6 +4,8 @@ import type { SourceEventOrigin } from "@codogotchi/contracts";
 export type PromptAttentionHookFields = {
   session_id?: string;
   conversation_id?: string;
+  // Antigravity uses camelCase `conversationId` as the stable thread id.
+  conversationId?: string;
   prompt?: string;
 };
 
@@ -31,10 +33,49 @@ export function promptAttentionPath(home: string): string {
 export function extractSessionId(
   input: PromptAttentionHookFields,
 ): string | undefined {
-  const id = input.session_id ?? input.conversation_id;
+  const id = input.session_id ?? input.conversation_id ?? input.conversationId;
   if (typeof id !== "string") return undefined;
   const trimmed = id.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/// Antigravity sends no prompt-submit event and no prompt text in its hook
+/// payloads — the user's request lives only in the conversation transcript at
+/// `transcriptPath`. Read it and recover the most recent explicit user request
+/// so the standby AttentionBubble can show "Re: <prompt>" like other platforms.
+///
+/// Transcript is JSONL; the relevant lines are
+///   { "type": "USER_INPUT", "source": "USER_EXPLICIT", "content": "<USER_REQUEST>…</USER_REQUEST>…" }
+/// The content wraps the prompt in <USER_REQUEST> tags alongside metadata; we
+/// extract just the request body. Best-effort: returns undefined on any error.
+export async function extractTranscriptUserPrompt(
+  transcriptPath: string,
+): Promise<string | undefined> {
+  let raw: string;
+  try {
+    raw = await readFile(transcriptPath, "utf8");
+  } catch {
+    return undefined;
+  }
+  const lines = raw.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]?.trim();
+    if (!line) continue;
+    let obj: { type?: string; source?: string; content?: string };
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (obj.type !== "USER_INPUT" || obj.source !== "USER_EXPLICIT") continue;
+    const content = typeof obj.content === "string" ? obj.content : "";
+    const match = content.match(
+      /<USER_REQUEST>\s*([\s\S]*?)\s*<\/USER_REQUEST>/,
+    );
+    const prompt = (match ? match[1] : content).trim();
+    if (prompt.length > 0) return prompt;
+  }
+  return undefined;
 }
 
 export function extractPromptText(
