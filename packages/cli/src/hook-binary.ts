@@ -226,6 +226,16 @@ function isPromptSubmitEvent(eventName: string | undefined): boolean {
   return PROMPT_SUBMIT_TOKENS.has(normalizedEventToken(eventName));
 }
 
+/// Claude Code / Codex `PermissionRequest` — agent blocked on user approval.
+function isPermissionRequestEvent(eventName: string | undefined): boolean {
+  return normalizedEventToken(eventName) === "permissionrequest";
+}
+
+/// Cursor MCP execution gate — permission prompt before an MCP tool runs.
+function isCursorMcpPermissionGate(eventName: string | undefined): boolean {
+  return normalizedEventToken(eventName) === "beforemcpexecution";
+}
+
 function isToolBoundaryHook(hookName: string | undefined): boolean {
   const token = normalizedEventToken(hookName);
   return token === "pretooluse" || token === "posttooluse";
@@ -241,6 +251,7 @@ function rawHookKind(input: HookInput): SourceEventKind {
   if (
     hookName === "afterFileEdit" ||
     hookName === "beforeShellExecution" ||
+    hookName === "beforeMCPExecution" ||
     hookName === "afterShellExecution"
   )
     return "tool_use";
@@ -267,11 +278,15 @@ function normalize(input: HookInput): NormalizedEvent | null {
   let rawName = input.name ?? input.tool_name ?? "unknown";
   if (hookName === "afterFileEdit") {
     rawName = "Edit";
+  } else if (hookName === "beforeMCPExecution") {
+    rawName = input.tool_name ?? input.name ?? "MCP";
   } else if (
     hookName === "beforeShellExecution" ||
     hookName === "afterShellExecution"
   ) {
     rawName = "Shell";
+  } else if (isPermissionRequestEvent(hookName)) {
+    rawName = input.tool_name ?? input.name ?? "PermissionRequest";
   }
   const rawKind = rawHookKind(input);
   const candidate: SourceEvent = {
@@ -398,6 +413,22 @@ export function classifyEvent(
   // Explicit failure signal for non-Stop events (rate limit, network error).
   if (input.is_error === true) {
     return { state: "errored", sourceEvent, readRun: 0 };
+  }
+
+  // Mid-turn permission gates — distinct from `standby` (turn finished cleanly).
+  if (
+    isPermissionRequestEvent(input.hook_event_name) ||
+    isCursorMcpPermissionGate(input.hook_event_name)
+  ) {
+    return {
+      state: "waiting_for_input",
+      sourceEvent: {
+        origin: normalized.origin,
+        kind: "tool_use",
+        name: input.tool_name ?? name,
+      },
+      readRun: 0,
+    };
   }
 
   // Prompt submit is the earliest "agent is working" edge — it fires before the
@@ -554,6 +585,7 @@ type AttentionPayload = NonNullable<StateJsonV1["attention"]>;
 
 const STANDBY_TTL_MS = 2 * 60 * 60 * 1000;
 const ERRORED_TTL_MS = 30 * 60 * 1000;
+const WAITING_FOR_INPUT_TTL_MS = 15 * 60 * 1000;
 
 const ATTENTION_STANDBY_FALLBACK = "Waiting for your input";
 
@@ -576,6 +608,16 @@ async function buildAttention(
       summary,
       created_at: now.toISOString(),
       expires_at: new Date(now.getTime() + STANDBY_TTL_MS).toISOString(),
+    };
+  }
+  if (state === "waiting_for_input") {
+    return {
+      reason_kind: "input_requested",
+      summary: "Approval required",
+      created_at: now.toISOString(),
+      expires_at: new Date(
+        now.getTime() + WAITING_FOR_INPUT_TTL_MS,
+      ).toISOString(),
     };
   }
   if (state === "errored") {

@@ -645,7 +645,9 @@ describe("cursor hooks", () => {
     for (const event of [
       "afterFileEdit",
       "beforeShellExecution",
+      "beforeMCPExecution",
       "afterShellExecution",
+      "beforeSubmitPrompt",
       "stop",
       "sessionEnd",
     ]) {
@@ -848,5 +850,97 @@ describe("P7.03 StopFailure registration", () => {
     const status = await hooksStatus();
     // installed must be false because StopFailure slot is missing
     expect(status.claude_code.installed).toBe(false);
+  });
+});
+
+describe("waiting_for_input hook registration", () => {
+  let userRoot: string;
+  let prevUserRoot: string | undefined;
+
+  beforeEach(async () => {
+    userRoot = mkdtempSync(join(tmpdir(), "hooks-waiting-"));
+    mkdirSync(join(userRoot, ".codogotchi"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".codogotchi", "config.json"),
+      `${JSON.stringify({ profile_id: "p", pet: "maew", features: { rpg_enabled: false } })}\n`,
+      "utf8",
+    );
+    await mkdir(join(userRoot, ".claude"), { recursive: true });
+    prevUserRoot = process.env.CODOGOTCHI_USER_ROOT;
+    process.env.CODOGOTCHI_USER_ROOT = userRoot;
+  });
+
+  afterEach(() => {
+    rmSync(userRoot, { recursive: true, force: true });
+    if (prevUserRoot === undefined) delete process.env.CODOGOTCHI_USER_ROOT;
+    else process.env.CODOGOTCHI_USER_ROOT = prevUserRoot;
+  });
+
+  it("Claude installer writes PermissionRequest hook slot", async () => {
+    await installHooks({ home: "/home/user/.codogotchi" });
+    const raw = readFileSync(
+      join(userRoot, ".claude", "settings.json"),
+      "utf8",
+    );
+    expect(raw).toContain("PermissionRequest");
+  });
+
+  it("Codex installer writes PermissionRequest hook slot", async () => {
+    await installHooks({ home: "/home/user/.codogotchi" });
+    const codexJson = JSON.parse(
+      readFileSync(join(userRoot, ".codex", "hooks.json"), "utf8"),
+    ) as { hooks: Record<string, unknown> };
+    expect(codexJson.hooks.PermissionRequest).toBeDefined();
+  });
+
+  it("Cursor installer writes beforeMCPExecution hook slot", async () => {
+    await installCursorHooks({ home: "/home/user/.codogotchi" });
+    const cursor = JSON.parse(
+      readFileSync(join(userRoot, ".cursor", "hooks.json"), "utf8"),
+    ) as Record<string, { command: string }[]>;
+    expect(
+      cursor.beforeMCPExecution?.some((e) =>
+        e.command.includes("codogotchi-hook"),
+      ),
+    ).toBe(true);
+  });
+
+  it("hooksStatus reports installed=false when PermissionRequest slot is absent", async () => {
+    const partialSettings = JSON.stringify({
+      hooks: {
+        UserPromptSubmit: [
+          {
+            matcher: "",
+            hooks: [{ type: "command", command: "codogotchi-hook" }],
+          },
+        ],
+        PreToolUse: [
+          {
+            matcher: "",
+            hooks: [{ type: "command", command: "codogotchi-hook" }],
+          },
+        ],
+        Stop: [
+          {
+            matcher: "",
+            hooks: [{ type: "command", command: "codogotchi-hook" }],
+          },
+        ],
+        StopFailure: [
+          {
+            matcher: "",
+            hooks: [{ type: "command", command: "codogotchi-hook" }],
+          },
+        ],
+      },
+    });
+    writeFileSync(
+      join(userRoot, ".claude", "settings.json"),
+      partialSettings,
+      "utf8",
+    );
+    const status = await hooksStatus();
+    expect(status.claude_code.installed).toBe(false);
+    expect(status.claude_code.partially_installed).toBe(true);
   });
 });

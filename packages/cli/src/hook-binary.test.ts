@@ -1310,3 +1310,76 @@ describe("P7.03 terminal failure parity", () => {
     expect(out.state).toBe("standby");
   });
 });
+
+describe("waiting_for_input permission hooks", () => {
+  it("classifies Claude PermissionRequest as waiting_for_input", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "PermissionRequest",
+        tool_name: "Bash",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("waiting_for_input");
+    expect(out.sourceEvent.origin).toBe("claude_code");
+    expect(out.sourceEvent.name).toBe("Bash");
+  });
+
+  it("classifies Codex permission_request as waiting_for_input", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "permission_request",
+        tool_name: "Write",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("waiting_for_input");
+    expect(out.sourceEvent.origin).toBe("codex");
+    expect(out.sourceEvent.name).toBe("Write");
+  });
+
+  it("classifies Cursor beforeMCPExecution as waiting_for_input", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "beforeMCPExecution",
+        tool_name: "mcp__context7__query",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("waiting_for_input");
+    expect(out.sourceEvent.origin).toBe("cursor");
+    expect(out.sourceEvent.name).toBe("mcp__context7__query");
+  });
+
+  it("Cursor beforeShellExecution still classifies shell activity (not waiting)", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "beforeShellExecution",
+        command: "grep foo",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("thinking");
+    expect(out.sourceEvent.origin).toBe("cursor");
+  });
+
+  it("runHook writes waiting_for_input with attention payload", async () => {
+    const home = mkdtempSync(join(tmpdir(), "codogotchi-waiting-"));
+    try {
+      await runHook(
+        {
+          hook_event_name: "PermissionRequest",
+          tool_name: "Edit",
+        } as HookInput,
+        { home, now: FIXED_NOW },
+      );
+      const state = readState(home);
+      expect(state.activity_state).toBe("waiting_for_input");
+      expect(state.attention?.reason_kind).toBe("input_requested");
+      expect(state.attention?.summary).toBe("Approval required");
+      expect(state.source_event.name).toBe("Edit");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
