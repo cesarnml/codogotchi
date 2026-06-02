@@ -223,7 +223,7 @@ Classifier (`hook-binary.ts`): add branches **before** generic `tool_use` heuris
 ## Defers
 
 - VS Code / Antigravity adapters → **Phase 09**
-- Premium SoA animation entitlement → **Phase 13**
+- Premium SoA animation entitlement → **Phase 14**
 - Spritesheet expansion (new rows for `thinking`, richer `idle` states) → tracked in [phase-06-animation-and-signal-research.md](../../notes/public/phase-06-animation-and-signal-research.md)
 
 ---

@@ -16,7 +16,7 @@
 **Defers:**
 
 - **App Store submission**, Apple Developer Program enrollment, store listing, and review-driven packaging (later phase when the product is viable—not a Phase 05 gate).
-- Native Cursor / VS Code / Antigravity hook installers and truthful `source_origin` (Phase 06).
+- Native Cursor hook installer and honest `source_origin: cursor` → Phase 06 (shipped). VS Code Copilot and Antigravity → Phase 09.
 - Full in-app RPG enrollment UI and multi-tab Settings (Phase 08).
 - Attention tray, signal honesty, HUD, health, loot (Phase 06+ / Phase 10+).
 
@@ -93,10 +93,10 @@ Reliable installers in this phase:
 ## Explicit Deferrals
 
 - **Mac App Store distribution:** Apple Developer Program account, app signing for store, notarization for store submission, App Store Connect metadata, and review. Phase 05 only requires a reproducible **developer install** path documented in README/runbook. Store readiness is a later milestone (after Phases 05–14 land on the 2026-06-30 working deadline).
-- Native Cursor, VS Code, and Antigravity hook installers; tool-alias tables and attribution fixes (Phase 06).
+- Native Cursor hooks (Phase 06, shipped); VS Code Copilot and Antigravity hook installers; tool-alias tables and attribution fixes (Phase 09).
 - Full Settings tabs (General, Health, Loot, Developer depth) and in-app RPG enrollment flow (Phase 08).
 - Attention bubble, tray, TTL, signal honesty (`tool.command`, `work_mode`, origin fixes).
-- Convex schema changes; XP/HP/loot HUD; premium gating; equip rendering (Phase 10+).
+- Convex schema changes; XP/HP/loot HUD (Phase 10+); loot equip (Phase 13+); premium animation pack (Phase 14).
 
 ## Exit Condition
 

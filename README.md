@@ -84,7 +84,7 @@ Codogotchi has two modes:
 | Mode | How to enter | Convex sync | XP / Loot |
 |---|---|---|---|
 | **Lite** | First app launch (onboarding consent sheet) | No | No |
-| **Alive (RPG)** | `codogotchi rpg` (CLI enrollment until Phase 09 ships in-app) | Yes | Yes |
+| **Alive (RPG)** | `codogotchi rpg` (CLI enrollment until Phase 10 ships in-app) | Yes | Yes |
 
 Lite writes `{ "features": { "rpg_enabled": false } }` to `~/.codogotchi/config.json`. RPG commands (`sync`, `status`, `loot`, `vacation`) refuse when `rpg_enabled` is `false`. Run `codogotchi rpg` to enroll and enable them.
 

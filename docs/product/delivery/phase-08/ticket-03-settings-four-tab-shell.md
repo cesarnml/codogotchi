@@ -9,7 +9,7 @@ Red: required
 
 - The Settings window is a standard macOS window (not the current `NSPanel`) with four selectable tabs: **General**, **Pet**, **Developer**, **About**.
 - The existing Hooks section content moves under **General**; the existing Pet section content moves under **Pet** (behaviour preserved this ticket — richer wiring lands in P8.04 / P8.07).
-- The **Alive (RPG)** stub section is removed (deferred to Phase 09) — no disabled/dead-end tab.
+- The **Alive (RPG)** stub section is removed (deferred to Phase 10) — no disabled/dead-end tab.
 - The **About** tab renders the app version (`CFBundleShortVersionString`) and the **bundled hook-binary version** (from the bundled `codogotchi --version`), plus product links.
 - Tab selection state is testable independent of AppKit layout.
 

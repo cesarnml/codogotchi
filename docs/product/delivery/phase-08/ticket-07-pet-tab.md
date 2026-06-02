@@ -43,4 +43,4 @@ Why this path: extend the existing pet section + helpers rather than rebuild imp
 Alternative considered: versioned-copy import — rejected; canonical store is a copy, overwrite-with-backup is sufficient.
 Live renderer update: added replacePets(codexPet:codogotchiPet:) to MenubarRenderer, FloatingPetScene, FloatingPetPanelController, and LivePollingDriver.replaceCodogotchiPet. MenubarApp.reloadActivePet() reconstructs both loaders from the new PetConfig.resolvedPetName() and pushes to all renderers. codexPet/codogotchiPet changed from let to var in renderer types.
 PetConfig.write(petName:to:) added — persists {"pet": id} to the config URL atomically.
-Deferred: BYOP full validation (Phase 12); multiple bundled pets (post-launch).
+Deferred: BYOP full validation (Phase 13); multiple bundled pets (post-launch).

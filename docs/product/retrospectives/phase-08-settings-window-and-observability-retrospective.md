@@ -56,10 +56,10 @@ The stated phase goal was achieved: a fresh Mac with only `Codogotchi.app` in `/
 
 ## Follow-up
 
-- Update `notes/public/codogotchi-lite-and-soa-spritesheet-contact-sheets.md` to reflect the delivered 8-frame spec and mark the 24-frame design as the Phase 13 premium pack. The current doc is actively misleading.
+- Update `notes/public/codogotchi-lite-and-soa-spritesheet-contact-sheets.md` to reflect the delivered 8-frame spec and mark the 24-frame design as the Phase 14 premium pack. The current doc is actively misleading.
 - Add idle-escalation threshold logic to `FloatingPetScene`: the lite sheet has rows 1 (`idle-impatient`) and 2 (`idle-frustrated`) declared as `idleImpatientLiteRow`/`idleFrustratedLiteRow` on `CodogotchiPet`, but no timer-based escalation is wired. This is a known deferral from P8.06.
-- Verify the `testImportPetAddsToCanonicalAndRefreshesEntries` test in P8.07 actually exercises the real `PetImportHelper.importPet` integration before Phase 12 (BYOP) branches from this code.
-- Phase 09: remove `rpg`/`enroll` from the public CLI once the in-app enroll replacement ships.
-- Phase 13: the 24-frame premium animation pack uses the existing two-sheet architecture; `gridColumns` will need to become per-sheet rather than a class constant.
+- Verify the `testImportPetAddsToCanonicalAndRefreshesEntries` test in P8.07 actually exercises the real `PetImportHelper.importPet` integration before Phase 13 (BYOP) branches from this code.
+- Phase 10: remove `rpg`/`enroll` from the public CLI once the in-app enroll replacement ships.
+- Phase 14: the 24-frame premium animation pack uses the existing two-sheet architecture; `gridColumns` will need to become per-sheet rather than a class constant.
 
 _Created: 2026-05-31. PRs #81–#89 open, P8.10 in progress._

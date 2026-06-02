@@ -49,4 +49,4 @@ Alternative considered: keep one combined sheet — rejected; the tier model and
 Row order source: `notes/private/codogotchi-8frame-lite-soa-sheet-prompts.md` — prompt order defines exact row indices for both sheets (11 rows lite, 10 rows SoA).
 Resolution order change: CodogotchiPet is checked BEFORE CodexPet in both MenubarRenderer and FloatingPetScene. The lite sheet now self-contains all 9 hook states, making "Codex first" wrong for hook states. Codex remains the fallback for unknown/artless states (Phase 07 contract preserved).
 GateJsonReader: switched from rowMap to soaRowMap for gate-renderability predicate. All 10 SoA gate states (including .advance and .pollReview, which were artless in P7) now have art.
-Deferred: 24-frame premium pack (Phase 13); rpg sheet (tier 4); idle escalation thresholds (renderer selects idle-impatient row 1 / idle-frustrated row 2 after elapsed-idle timers, not implemented this phase).
+Deferred: 24-frame premium pack (Phase 14); rpg sheet (tier 4); idle escalation thresholds (renderer selects idle-impatient row 1 / idle-frustrated row 2 after elapsed-idle timers, not implemented this phase).

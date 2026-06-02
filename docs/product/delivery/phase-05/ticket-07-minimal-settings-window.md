@@ -26,7 +26,7 @@ Red: required
 
 ## Refactor
 
-- Defer General/Health/Loot/Developer tabs (Phase 10).
+- Defer General/Health/Loot/Developer tabs beyond Phase 08 shell (Health → Phase 11, Loot → Phase 13; enroll/HUD → Phase 10).
 
 ## Review Focus
 
@@ -43,14 +43,14 @@ Why this path: `SettingsController` mirrors `OnboardingController`'s runner-inje
 
 Alternative considered: Using SwiftUI `Settings {}` scene — deferred because the app is a pure AppKit LSUIElement agent with no scene infrastructure; adding a SwiftUI scene would require `@NSApplicationMain` restructuring. Programmatic `NSPanel` used instead, matching the onboarding pattern already in place.
 
-Deferred: Pet selection UI that actually switches the active pet at runtime (Phase 10). General/Health/Loot/Developer tabs (Phase 10). Cursor native install (Phase 06).
+Deferred: Pet selection UI that actually switches the active pet at runtime (shipped Phase 08 Pet tab). General/Health/Loot/Developer tabs beyond Phase 08 shell (Health Phase 11, Loot Phase 13, enroll Phase 10). Cursor native install (Phase 06).
 
 Contract note: Import is copy-only — no runtime read from `~/.codex/pets/` after Phase 05. Settings Install/Uninstall call `codogotchi hooks install|uninstall` subprocess, same as onboarding. Hook status is shared via `updateHookStatus(_:)` push from `MenubarApp.refreshHookStatusCache()`.
 
 Subagent-review patch: `PetImportHelper.importPet` now uses a `.bak` sibling rename before `copyItem` and restores on failure — prevents data-loss if `copyItem` fails after `removeItem` succeeds (spec-permits-real-bug finding).
 
 Advisory observations accepted as deferred or out-of-scope:
-- Canonical pet listing in Settings UI deferred to Phase 10 (Full Settings tabs).
+- Canonical pet listing in Settings UI shipped Phase 08 (Pet tab); alive-tier tabs deferred per roadmap.
 - Cursor bridge "link to README" is plain text in the programmatic NSPanel — acceptable for Phase 05; clickable NSAttributedString link is a polish item.
 - `SettingsWindowController` wiring coverage is advisory; sub-components are individually tested.
 - `handleImportPet` sync on main thread: acceptable tradeoff at Phase 05 sprite sizes.

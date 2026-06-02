@@ -39,7 +39,7 @@ _Prior shipped: Phase 01–04 ([phase-04-floating-pet.md](../plans/phase-04-floa
 | **06** | [phase-06-platform-parity-and-attention.md](./phase-06-platform-parity-and-attention.md) | codogotchi | Lite |
 | **07** | [phase-07-signal-honesty-and-soa-global-gates.md](./phase-07-signal-honesty-and-soa-global-gates.md) | codogotchi + **SoA upstream** | Lite |
 | **08** ⭐ | [phase-08-settings-window-and-observability.md](./phase-08-settings-window-and-observability.md) | codogotchi | Both — **lite v1 release gate** |
-| **09** | [phase-09-extended-platform-hooks.md](./phase-09-extended-platform-hooks.md) | codogotchi | Lite — **next phase** |
+| **09** | [phase-09-extended-platform-hooks.md](./phase-09-extended-platform-hooks.md) ([plan](../plans/phase-09-extended-platform-hooks.md)) | codogotchi | Lite — **next phase** |
 | **10** | [phase-10-floating-progression-hud.md](./phase-10-floating-progression-hud.md) | codogotchi | Alive only |
 | **11** | [phase-11-health-visuals-and-decay.md](./phase-11-health-visuals-and-decay.md) | codogotchi | Alive only |
 | **12** | [phase-12-level-curve-100-and-migration.md](./phase-12-level-curve-100-and-migration.md) | codogotchi | Alive |
@@ -63,7 +63,7 @@ _Prior shipped: Phase 01–04 ([phase-04-floating-pet.md](../plans/phase-04-floa
 1. ✅ **05** lite install + onboarding
 2. **06** → **07** platform parity + SoA signal honesty (lite critical path)
 3. **08** settings window + CLI bundling — **lite v1 release gate**
-4. **09** extended platform hooks (Copilot first, Antigravity fixtures-gated) — **next `/soa plan`**
+4. **09** extended platform hooks — [product plan](../plans/phase-09-extended-platform-hooks.md) written; approve then `/soa decompose`
 5. **10–11** RPG HUD + health visuals (alive mode)
 6. **12–14** monetization stack (level curve, loot, premium animation pack)
 

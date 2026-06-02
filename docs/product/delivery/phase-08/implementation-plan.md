@@ -25,7 +25,7 @@ When this phase is complete:
 | `defaultRunner` resolves the bundled binary first, PATH fallback **dev-only** | Closes the two-channel split; users never depend on PATH |
 | **`Update hooks` = idempotent re-install** (no new CLI verb) | `installHooks` already rewrites platform JSON idempotently; "update" just re-runs it against the current bundle's path |
 | **CLI trim = hide-from-`--help`, not remove** | The app's install API still invokes `hooks install`/`uninstall` as subprocesses; removing them would break the app |
-| Keep `rpg`/`enroll` on the public CLI | No in-app enroll replacement until Phase 09; removing them now strands alive users |
+| Keep `rpg`/`enroll` on the public CLI | No in-app enroll replacement until Phase 10; removing them now strands alive users |
 | Keep the existing **blocking welcome consent sheet** for first run (re-pointed at the bundled binary) | It works, forces the one required action, and is not the "big wizard" the plan warned against; Settings→General owns ongoing hook controls. The product plan's "auto-open Settings" wording is reconciled in P8.10 |
 | Pet import keeps **overwrite-with-rollback-backup** (`PetImportHelper` already does this) | Safe; the canonical store is a copy, not an edit surface — no versioned-copy complexity |
 | Lockstep compares a **build/generation version the binary reports**, recorded in `app-state.json` (`installedHookVersion`, schema 1→2) | A concrete token to compare on launch; a persistent banner (not silent rewrite) delivers lockstep with consent |
@@ -78,8 +78,8 @@ Phase 08 is done when a fresh Mac with only `Codogotchi.app` in `/Applications` 
 - **Sparkle auto-update** — fast-follow stretch; manual Update hooks ships this phase.
 - **Universal / Intel binaries** — arm64-only for v1; documented unsupported-arch message, universal is a follow-up.
 - **RPG enroll wizard, Health tab, Loot gallery** — Phases 09 / 10 / 12 respectively; `rpg`/`enroll` stay on the CLI until 09.
-- **24-frame animation pack** — premium (Phase 13); v1 ships 8-frame.
-- **BYOP full validation** — Phase 12 (layout documented only).
+- **24-frame animation pack** — premium (Phase 14); v1 ships 8-frame.
+- **BYOP full validation** — Phase 13 (layout documented only).
 - **Log-verbosity write toggle**, **XPC vs in-process transport** — out of scope.
 
 ## Stop Conditions

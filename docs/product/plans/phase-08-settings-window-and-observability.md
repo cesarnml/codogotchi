@@ -27,7 +27,7 @@
 - **Sparkle auto-update** → fast-follow stretch (ships only if the week has slack; otherwise a small standalone PR post-launch). Manual **Update hooks** button still ships this phase.
 - **24-frame-per-row animation sheets** → premium pack (Phase 14); v1 ships the 8-frame contract.
 - **`rpg` / `enroll` removal from the public CLI** → **Phase 10** (cannot trim until the in-app enroll replacement exists).
-- BYOP full validation → Phase 12 (layout documented only). XPC-vs-in-process install-API transport → implementation detail. Log-verbosity write toggle → later (config-write surface).
+- BYOP full validation → Phase 13 (layout documented only). XPC-vs-in-process install-API transport → implementation detail. Log-verbosity write toggle → later (config-write surface).
 
 ---
 

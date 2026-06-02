@@ -168,15 +168,15 @@ Key files:
 
 ## Suggested phasing
 
-Do not bolt all four onto Phase 04 (SoA hook hardening). Sequence by **schema clarity × user share**:
+_Do not bolt all four onto Phase 04 (SoA hook hardening). Sequence by **schema clarity × user share**. As of 2026-06-02 roadmap renumber: **Phase 09** is extended platform hooks (Copilot + Antigravity); Cursor shipped Phase 06._
 
 | Phase | Scope |
 | --- | --- |
-| **Phase 04** (already planned) | SoA read-path hardening for Claude/Codex |
-| **Phase 05a or 06** | **Cursor hooks** — dogfood Cursor; best fixture access; IDE-first, CLI caveats documented |
-| **Next** | **VS Code Copilot hooks** — large audience; tool-name mapping is the main lift |
-| **Next** | **Antigravity** — wait for stable hook docs + real fixtures from own usage |
-| **Later** | XP/sync sources for new platforms (only if activity logs are accessible) |
+| **Phase 04** (shipped) | SoA read-path hardening for Claude/Codex |
+| **Phase 06** (shipped) | **Cursor hooks** — native `~/.cursor/hooks.json`, honest `source_origin` |
+| **Phase 09** (next) | **GitHub Copilot CLI / VS Code Agent hooks** — largest remaining audience; tool-name mapping is the main lift |
+| **Phase 09** (same phase, second) | **Antigravity** — fixtures gate; adapter after real stdin captured |
+| **Later** | XP/sync sources for new platforms; **OpenCode** plugin SDK (separate track) |
 
 Each platform phase is roughly **3 tickets**:
 

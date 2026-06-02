@@ -69,7 +69,7 @@ Work top to bottom. Mark each row **pass / fail / skip (reason)**.
 | 3 | Onboarding consent, no skip | First-run sheet: read copy, click **Approve & install hooks**. | Sheet explains hooks; no skip/dismiss path. Backups created for Codex/Claude hook JSON before write (timestamped sidecar under tool config dirs). |
 | 4 | Hooks not active → firing | Before install: status shows not firing. After install: run Claude Code or Codex for a few tool calls. | Pet transitions off idle; `codogotchi hooks status` shows `firing_recently: true` on at least one installable platform. Onboarding/sheet clears **Hooks not active** when firing is observed. |
 | 5 | Settings hooks path | Open minimal Settings → Hooks. Install/uninstall/status. | Per-platform rows for Codex + Claude Code; Cursor shows honest bridge/deferred copy (`installable_in_phase: false` or equivalent). Install from Settings works when hooks were removed. |
-| 6 | Cursor bridge copy | Read README § Cursor, onboarding copy, or `codogotchi hooks status --json` for `cursor`. | Docs state Cursor animates via **Claude third-party hooks bridge**, not native `~/.cursor/hooks.json` (Phase 06). |
+| 6 | Cursor bridge copy | Read README § Cursor, onboarding copy, or `codogotchi hooks status --json` for `cursor`. | Docs explain Claude third-party bridge vs native `~/.cursor/hooks.json` (native install shipped Phase 06; bridge still valid). |
 | 7 | CLI Lite vs Alive | Greenfield: `codogotchi setup` → inspect config. `codogotchi sync` before RPG. Then `codogotchi rpg` (or restore operator config). | `setup` writes Lite + installs hooks; `sync` refuses with message pointing to `rpg`. After `rpg` or operator upgrade: `sync` succeeds. `codogotchi hooks install\|uninstall\|status` behave per product table. |
 | 8 | Reveal pet folder | Menu → **Reveal pet folder**. | Finder opens `~/.codogotchi/pets/` (canonical store), not `~/.codex/pets/`. |
 | 9 | No user-facing demo | Scan README + onboarding; do not document `--demo` as install path. | Demo mentioned only as developer QA (`CODOGOTCHI_DEMO=1` / `--demo`). Optional: run demo and confirm it does not write live `state.json`. |
@@ -110,7 +110,7 @@ Work top to bottom. Mark each row **pass / fail / skip (reason)**.
 Do **not** treat absence of the following as Phase 05 failures during this runbook:
 
 - Mac App Store / notarized distribution
-- Native Cursor, VS Code, or Antigravity hook files with honest `source_origin`
+- Native VS Code Copilot or Antigravity hook files with honest `source_origin` (Phase 09; Cursor native hooks shipped Phase 06)
 - Full Settings tabs, in-app RPG enrollment, HP/XP/stage/loot visuals
 - Bundled `codogotchi` inside `.app` without PATH
 - Public demo carousel or `--demo` as a Lite onboarding path

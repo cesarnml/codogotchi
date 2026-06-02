@@ -56,7 +56,7 @@ Menubar → **Settings…** opens a standard macOS window (not a tiny panel). Ta
 | **General** | Hooks status summary; **Install / Update / Remove hooks** (sole user-facing hook controls) | Same + Convex handle, enroll CTA |
 | **Pet** | List + select; Codex built-in + custom; import-on-select | Same + bundled pets |
 | **Health** | Hidden or “Enable alive pet” CTA | `weekend_decay`, `grace_days`, death count (read-only), vacation status |
-| **Loot** | Hidden or teaser | Read-only **gallery** from `loot.log` (WoW-style cards); equip disabled → “Codogotchi Pro” until Phase 12 |
+| **Loot** | Hidden or teaser | Read-only **gallery** from `loot.log` (WoW-style cards); equip disabled → “Codogotchi Pro” until Phase 13 |
 | **Developer** | ✓ | Read-only: `state.json`, `state-transitions.log`, schema/renderer version; Reveal in Finder |
 | **About** | ✓ | App + bundled hook version, links, product blurb |
 
@@ -80,7 +80,7 @@ Menubar → **Settings…** opens a standard macOS window (not a tiny panel). Ta
 - On select: **copy** `pet.json` + `spritesheet.webp` (+ codogotchi sheet if present) into `~/.codogotchi/pets/<id>/`
 - Non-Codex users: show **bundled** pets only (Phase 05 seed)
 
-### BYOP (document only in this phase; full validation Phase 12)
+### BYOP (document only in this phase; full validation Phase 13)
 
 - Folder layout: `pet.json`, `codogotchi-animations.webp` (Codex rows), `codogotchi-soa-animations.webp` (SoA rows)
 - Power users drop folder under `~/.codogotchi/pets/<id>/`
@@ -122,7 +122,7 @@ README and runbook after Phase 08: “Install Codogotchi.app; use Settings to en
 
 ## Defers
 
-- Loot **equip** actions → **Phase 12**
+- Loot **equip** actions → **Phase 13**
 - Premium billing / StoreKit
 - Premium custom pet generation service
 - Notifications / Hooks advanced tabs

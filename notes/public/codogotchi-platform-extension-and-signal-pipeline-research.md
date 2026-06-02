@@ -372,7 +372,9 @@ Freshness window: same as today — gate seen since last hook offset, or TTL on 
 
 ## 6. Suggested phased roadmap
 
-### Phase 1 — Signal honesty (Cursor first)
+> **Roadmap note (2026-06-02):** VS Code Copilot + Antigravity lifecycle hooks are consolidated into **Phase 09** ([`docs/product/drafts/phase-09-extended-platform-hooks.md`](../../docs/product/drafts/phase-09-extended-platform-hooks.md)). The numbered steps below are research tracks, not current phase IDs.
+
+### Phase 1 — Signal honesty (Cursor first) — **shipped Phase 06**
 
 - Platform adapter layer: `normalizeHookInput(platform, raw) → HookInput`
 - Fix `rawHookOrigin` — never infer; set from installer/platform flag
@@ -391,7 +393,7 @@ See parity roadmap. Unblocks stuck `standby` without waiting for full platform p
 - Optional menubar badge or tray line driven by `work_mode`
 - Future: map work_mode to animation rows (if product wants distinct sprites)
 
-### Phase 4 — VS Code Copilot hooks
+### Phase 4 — VS Code Copilot hooks — **Phase 09 (Copilot first)**
 
 - Tool alias table for Copilot-specific tool names
 - Installer for `.github/hooks` or `~/.copilot/hooks`
@@ -402,7 +404,7 @@ See parity roadmap. Unblocks stuck `standby` without waiting for full platform p
 - Hook reads `~/.codogotchi/gate-events.ndjson`
 - Deprecation path for repo-only tail
 
-### Phase 6 — Antigravity
+### Phase 6 — Antigravity — **Phase 09 (fixtures-gated)**
 
 - Fixture capture from real sessions
 - Adapter + installer once schema stable

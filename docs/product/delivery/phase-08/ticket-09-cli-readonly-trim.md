@@ -9,7 +9,7 @@ Red: required
 
 - `codogotchi --help` lists only read/diagnostic commands plus `rpg`/`enroll`: `status`, `hooks status` are shown; `setup`, `hooks install`, `hooks uninstall` are **hidden** from help.
 - The hidden commands remain **fully functional when invoked directly** — the app's install API still spawns `hooks install`/`uninstall` as subprocesses. Hiding ≠ removing.
-- `rpg` / `enroll` remain visible (no in-app replacement until Phase 09).
+- `rpg` / `enroll` remain visible (no in-app replacement until Phase 10).
 - Hidden commands are marked internal/deprecated in help text so a curious user understands they are app-managed.
 
 ## Red
@@ -41,4 +41,4 @@ Red first: testUsageDoesNotListSetup, testUsageDoesNotListHooksInstall (USAGE st
 Why this path: the install API still needs the subcommands; only the public surface (help) is trimmed.
 Alternative considered: delete the subcommands — rejected; would break the app's own install path.
 Implementation: USAGE string rewritten to omit setup, hooks install, hooks uninstall; adds a note directing users to Settings → General. Flags section updated (removed "setup" from "Flags (setup, rpg)"). Dispatch for all hidden commands unchanged.
-Deferred: `rpg`/`enroll` removal (Phase 09); standalone-CLI-package `--help` trim (follow-up).
+Deferred: `rpg`/`enroll` removal (Phase 10); standalone-CLI-package `--help` trim (follow-up).

@@ -41,7 +41,7 @@ HP and stage accrue in engine/Convex silently; Phase 04 deferred all overlay UI.
 ### 3. Level badge
 
 - User-facing label **Level** (not “stage”)
-- Display number from `profile.stage` (1–5) until Phase 11 migration
+- Display number from `profile.stage` (1–5) until Phase 12 migration
 - Small circle overlay on floating frame when HUD visible
 
 ### 4. XP bar

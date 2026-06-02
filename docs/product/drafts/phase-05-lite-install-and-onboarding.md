@@ -95,7 +95,7 @@ README / runbook: verify bridge with `jq '.hooks' ~/.claude/settings.json | grep
 
 ## Defers
 
-- Native multi-platform hooks (`~/.cursor/hooks.json`, VS Code, Antigravity) and truthful `source_origin` → **Phase 06** (Cursor may already animate via Claude bridge until then)
+- Native Cursor hooks (`~/.cursor/hooks.json`, truthful `source_origin: cursor`) → **Phase 06** (shipped). VS Code Copilot + Antigravity → **Phase 09** (Cursor may still animate via Claude bridge until native install)
 - Attention tray, TTL, bubble UX → **Phase 06**
 - Settings window and RPG unlock UI → **Phase 08**
 - Convex schema changes

@@ -105,7 +105,7 @@ Run `bun run ci:quiet` on `main` before P5.01 starts if this snapshot is stale.
 ## Explicit Deferrals
 
 - Mac App Store submission, notarization for store, Apple Developer Program enrollment.
-- Native Cursor, VS Code, and Antigravity hook installers; honest `source_origin: cursor` (Phase 06).
+- Native Cursor hooks (Phase 06, shipped); VS Code Copilot and Antigravity hook installers (Phase 09); honest `source_origin` per platform.
 - Full Settings tabs and in-app RPG enrollment (Phase 10).
 - User-facing demo mode; menu/README must not present demo as a Lite path.
 - Attention tray, signal honesty, HUD, health visuals, loot UI, Convex schema changes.

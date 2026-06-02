@@ -93,7 +93,7 @@ enrollment to app-first hook install without shipping App Store distribution or
 native multi-IDE installers. Operator RPG behavior is preserved via scripts and
 the config upgrade path. The architecture (TS hook policy, canonical pet store,
 `app-state.json` for UI, subprocess status JSON) is stable for Phase 06 signal
-honesty and Phase 10 Settings depth.
+honesty, Phase 08 settings window, and Phase 09 extended platform hooks.
 
 ## Follow-up
 

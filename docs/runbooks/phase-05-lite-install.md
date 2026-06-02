@@ -86,7 +86,7 @@ After the sheet closes, check hook status from the CLI:
 codogotchi hooks status
 ```
 
-Expected output shows `installed: true` and `firing_recently: false` for `claude_code` and/or `codex` (Cursor, VS Code, and Antigravity report `installable_in_phase: false` — these are Phase 06 targets).
+Expected output shows `installed: true` and `firing_recently: false` for `claude_code` and/or `codex`. **Cursor** is installable after Phase 06 (`cursor.installable_in_phase: true` when native hooks are wired). **VS Code Copilot** and **Antigravity** remain Phase 09 targets (`installable_in_phase: false` until extended platform hooks ship).
 
 ---
 
@@ -109,9 +109,11 @@ codogotchi hooks status
 
 ## Cursor via Claude bridge
 
-Cursor users can route activity through **Claude Code** using a third-party skill. The hook fires with `source_origin: claude_code` and Cursor-originated tool names pass through unchanged. This is the supported bridge in Phase 05.
+Cursor users can route activity through **Claude Code** using a third-party skill. The hook fires with `source_origin: claude_code` and Cursor-originated tool names pass through unchanged. This was the supported bridge in Phase 05.
 
-**Native Cursor hooks** (`source_origin: cursor`) are deferred to Phase 06. `codogotchi hooks status` will show `cursor.installable_in_phase: false` and `source_origin: "phase-06-deferred"` to make this explicit.
+**Native Cursor hooks** (`source_origin: cursor`) shipped in **Phase 06** via `~/.cursor/hooks.json`. Prefer native install; the bridge remains documented for users who have not run `codogotchi hooks install --platform cursor`.
+
+**VS Code Copilot** and **Antigravity** native hooks are **Phase 09** targets.
 
 ---
 

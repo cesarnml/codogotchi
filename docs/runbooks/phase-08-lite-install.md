@@ -122,6 +122,6 @@ Use **Settings → Pet** to:
 | Mode | How to enter | Convex sync | XP / Loot |
 |---|---|---|---|
 | **Lite** | First app launch | No | No |
-| **Alive (RPG)** | `codogotchi rpg` (CLI, until Phase 09 ships in-app enrollment) | Yes | Yes |
+| **Alive (RPG)** | `codogotchi rpg` (CLI, until Phase 10 ships in-app enrollment) | Yes | Yes |
 
 Run `codogotchi rpg` to enroll and enable RPG features.
