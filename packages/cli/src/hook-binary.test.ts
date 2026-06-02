@@ -709,6 +709,120 @@ describe("classifyEvent", () => {
       expect(out.sourceEvent.origin).toBe("vscode");
     });
   });
+
+  // P9.03: Antigravity native hook classifier
+  describe("Antigravity native hook classifier", () => {
+    let prevOrigin: string | undefined;
+
+    beforeEach(() => {
+      prevOrigin = process.env.CODOGOTCHI_ORIGIN;
+      process.env.CODOGOTCHI_ORIGIN = "antigravity";
+    });
+
+    afterEach(() => {
+      if (prevOrigin === undefined) delete process.env.CODOGOTCHI_ORIGIN;
+      else process.env.CODOGOTCHI_ORIGIN = prevOrigin;
+    });
+
+    it("PreToolUse write_to_file classifies as implementing with antigravity origin", () => {
+      const out = classifyEvent(
+        {
+          toolCall: { name: "write_to_file" },
+          hook_event_name: "PreToolUse",
+        } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("implementing");
+      expect(out.sourceEvent.origin).toBe("antigravity");
+    });
+
+    it("PreToolUse run_command with test-runner CommandLine classifies as testing", () => {
+      const out = classifyEvent(
+        {
+          toolCall: {
+            name: "run_command",
+            args: { CommandLine: "bun test packages/engine" },
+          },
+          hook_event_name: "PreToolUse",
+        } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("testing");
+      expect(out.sourceEvent.origin).toBe("antigravity");
+    });
+
+    it("PreToolUse run_command with read-only command classifies as thinking", () => {
+      const out = classifyEvent(
+        {
+          toolCall: {
+            name: "run_command",
+            args: { CommandLine: "grep foo src/" },
+          },
+          hook_event_name: "PreToolUse",
+        } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("thinking");
+      expect(out.sourceEvent.origin).toBe("antigravity");
+    });
+
+    it("PreToolUse view_file classifies as reading", () => {
+      const out = classifyEvent(
+        {
+          toolCall: { name: "view_file" },
+          hook_event_name: "PreToolUse",
+        } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("reading");
+      expect(out.sourceEvent.origin).toBe("antigravity");
+    });
+
+    it("PostToolUse with empty error classifies as neutral (thinking)", () => {
+      const out = classifyEvent(
+        { hook_event_name: "PostToolUse", error: "" } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("thinking");
+      expect(out.sourceEvent.origin).toBe("antigravity");
+    });
+
+    it("PostToolUse with non-empty error classifies as errored", () => {
+      const out = classifyEvent(
+        { hook_event_name: "PostToolUse", error: "exit status 1" } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("errored");
+      expect(out.sourceEvent.origin).toBe("antigravity");
+    });
+
+    it("Stop with fullyIdle:true classifies as standby", () => {
+      const out = classifyEvent(
+        { hook_event_name: "Stop", fullyIdle: true } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("standby");
+      expect(out.sourceEvent.origin).toBe("antigravity");
+    });
+
+    it("Stop with fullyIdle:false does not assert standby (thinking)", () => {
+      const out = classifyEvent(
+        { hook_event_name: "Stop", fullyIdle: false } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("thinking");
+      expect(out.sourceEvent.origin).toBe("antigravity");
+    });
+
+    it("Stop with terminationReason:error classifies as errored", () => {
+      const out = classifyEvent(
+        { hook_event_name: "Stop", terminationReason: "error" } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("errored");
+      expect(out.sourceEvent.origin).toBe("antigravity");
+    });
+  });
 });
 
 describe("runHook", () => {
