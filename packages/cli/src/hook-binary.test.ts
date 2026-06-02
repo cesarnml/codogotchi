@@ -860,6 +860,121 @@ describe("classifyEvent", () => {
       expect(out.state).toBe("errored");
       expect(out.sourceEvent.origin).toBe("antigravity");
     });
+
+    // Real Antigravity payloads carry NO event-name field — the event is
+    // implied by the hooks.json key. These fixtures are the exact shapes
+    // captured from a live Antigravity session; the event must be recovered
+    // from payload shape alone. Regression guard for the "stuck on thinking"
+    // bug where every Antigravity event fell through to the session_start
+    // fallthrough because hook_event_name was always absent.
+    describe("real payloads (no hook_event_name field)", () => {
+      it("PostToolUse (toolCall:null, stepIdx, empty error) → thinking", () => {
+        const out = classifyEvent(
+          {
+            conversationId: "ccb02157",
+            error: "",
+            stepIdx: 1,
+            toolCall: null,
+            workspacePaths: ["/Users/cesar/code/codogotchi"],
+          } as HookInput,
+          { readRun: 0 },
+        );
+        expect(out.state).toBe("thinking");
+        expect(out.sourceEvent.origin).toBe("antigravity");
+      });
+
+      it("Stop (fullyIdle:true, terminationReason:ERROR, 429 error) → errored", () => {
+        const out = classifyEvent(
+          {
+            error: "RESOURCE_EXHAUSTED (code 429): Individual quota reached.",
+            executionNum: 0,
+            fullyIdle: true,
+            terminationReason: "ERROR",
+            workspacePaths: ["/Users/cesar/code/codogotchi"],
+          } as HookInput,
+          { readRun: 0 },
+        );
+        expect(out.state).toBe("errored");
+        expect(out.sourceEvent.origin).toBe("antigravity");
+      });
+
+      it("clean Stop (fullyIdle:true, terminationReason NO_TOOL_CALL) → standby", () => {
+        const out = classifyEvent(
+          {
+            error: "",
+            executionNum: 0,
+            fullyIdle: true,
+            terminationReason: "NO_TOOL_CALL",
+            workspacePaths: ["/Users/cesar/code/codogotchi"],
+          } as HookInput,
+          { readRun: 0 },
+        );
+        expect(out.state).toBe("standby");
+        expect(out.sourceEvent.origin).toBe("antigravity");
+      });
+
+      it("PreToolUse inferred from populated toolCall, no error key (run_command ls) → thinking tool_use", () => {
+        const out = classifyEvent(
+          {
+            stepIdx: 3,
+            toolCall: {
+              name: "run_command",
+              args: {
+                CommandLine: "ls -la",
+                Cwd: "/Users/cesar/code/codogotchi",
+              },
+            },
+            workspacePaths: ["/Users/cesar/code/codogotchi"],
+          } as HookInput,
+          { readRun: 0 },
+        );
+        expect(out.state).toBe("thinking");
+        expect(out.sourceEvent.origin).toBe("antigravity");
+        expect(out.sourceEvent.kind).toBe("tool_use");
+        expect(out.sourceEvent.name).toBe("Shell");
+      });
+
+      // Regression: PostToolUse echoes back a POPULATED toolCall alongside its
+      // `error` key. The `error`-key check must win over toolCall so this is not
+      // misread as PreToolUse (which would drive a tool-use state and, for reads,
+      // wrongly bump the cramming read-run counter). Real captured payload.
+      it("PostToolUse with populated toolCall + empty error → thinking, not tool_use", () => {
+        const out = classifyEvent(
+          {
+            error: "",
+            stepIdx: 3,
+            toolCall: {
+              name: "run_command",
+              args: { CommandLine: "ls -la", toolAction: "List files" },
+            },
+            workspacePaths: ["/Users/cesar/code/codogotchi"],
+          } as HookInput,
+          { readRun: 0 },
+        );
+        expect(out.state).toBe("thinking");
+        expect(out.sourceEvent.origin).toBe("antigravity");
+        expect(out.sourceEvent.kind).not.toBe("tool_use");
+      });
+
+      // A read tool in PostToolUse must NOT advance the read-run streak — only
+      // PreToolUse drives tool classification. Guards the cramming counter.
+      it("PostToolUse view_file (populated toolCall + error) does not advance read-run", () => {
+        const out = classifyEvent(
+          {
+            error: "",
+            stepIdx: 6,
+            toolCall: {
+              name: "view_file",
+              args: { AbsolutePath: "/Users/cesar/code/codogotchi/README.md" },
+            },
+            workspacePaths: ["/Users/cesar/code/codogotchi"],
+          } as HookInput,
+          { readRun: 2 },
+        );
+        expect(out.state).toBe("thinking");
+        expect(out.readRun).toBe(0);
+      });
+    });
   });
 });
 
@@ -903,6 +1018,27 @@ describe("runHook", () => {
     const state = readState(home);
     expect(state.source_event.origin).toBe("cursor");
     expect(state.source_event.repo_root).toBe(repoRoot);
+  });
+
+  it("writes antigravity Stop repo_root from workspacePaths and errored state (real payload)", async () => {
+    const repoRoot = join(tmpdir(), "codogotchi-ag-workspace");
+    await runHook(
+      {
+        origin: "antigravity",
+        error: "RESOURCE_EXHAUSTED (code 429): Individual quota reached.",
+        executionNum: 0,
+        fullyIdle: true,
+        terminationReason: "ERROR",
+        workspacePaths: [repoRoot],
+      } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    // Inferred from shape (no hook_event_name); repo_root from camelCase
+    // workspacePaths, not PWD.
+    expect(state.source_event.origin).toBe("antigravity");
+    expect(state.source_event.repo_root).toBe(repoRoot);
+    expect(state.activity_state).toBe("errored");
   });
 
   it("layers HP from profile.json when present", async () => {

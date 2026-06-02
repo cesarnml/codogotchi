@@ -51,13 +51,26 @@ export type HookInput = {
   // Copilot camelCase CLI payload fields.
   toolName?: string;
   toolArgs?: { command?: string } & Record<string, unknown>;
-  // Antigravity camelCase payload fields.
+  // Antigravity camelCase payload fields. The payload carries NO event-name
+  // field — the event is implied solely by the hooks.json key the command was
+  // registered under — so the event is recovered from these fields' shape:
+  //   Stop        → fullyIdle / terminationReason present
+  //   PostToolUse → an `error` key is present (may be ""); toolCall may be null
+  //                 OR populated (echoed back with the result)
+  //   PreToolUse  → toolCall populated (name + args), NO error key
+  // See inferAntigravityEventName for the exact precedence.
   toolCall?: {
     name?: string;
     args?: { CommandLine?: string } & Record<string, unknown>;
-  };
+  } | null;
+  stepIdx?: number;
+  executionNum?: number;
+  // Antigravity Stop terminal signal. `fullyIdle` true = clean finish.
   fullyIdle?: boolean;
+  // Antigravity termination reason, e.g. "ERROR" (uppercase) on failure.
   terminationReason?: string;
+  // Antigravity workspace roots (camelCase; Cursor uses snake_case above).
+  workspacePaths?: string[];
 };
 
 export type ClassifyState = { readRun: number };
@@ -193,10 +206,14 @@ export function detectTerminalBundleId(
 }
 
 function detectRepoRoot(input: HookInput, env: NodeJS.ProcessEnv): string {
-  const cursorRoot = input.workspace_roots?.find(
-    (root) => typeof root === "string" && root.trim().length > 0,
-  );
-  return resolve(cursorRoot ?? env.PWD ?? process.cwd());
+  // Cursor sends snake_case `workspace_roots`; Antigravity sends camelCase
+  // `workspacePaths`. Without the latter, Antigravity events fall back to PWD —
+  // which is the IDE's launch dir (~/.gemini/config), not the real project.
+  const workspaceRoot = [
+    ...(input.workspace_roots ?? []),
+    ...(input.workspacePaths ?? []),
+  ].find((root) => typeof root === "string" && root.trim().length > 0);
+  return resolve(workspaceRoot ?? env.PWD ?? process.cwd());
 }
 
 function rawHookOrigin(input: HookInput): SourceEventOrigin {
@@ -218,6 +235,35 @@ function rawHookOrigin(input: HookInput): SourceEventOrigin {
     return "cursor"; // simple lowercase (e.g. Cursor "stop")
   }
   return "claude_code"; // PascalCase
+}
+
+/// Antigravity sends NO event-name field on stdin — the event is implied solely
+/// by the hooks.json key the command was registered under. Recover it from the
+/// payload's shape, in this order (verified against real captured payloads):
+///   1. `fullyIdle` / `terminationReason` present  → `Stop` (terminal signals)
+///   2. an `error` key present (even "")           → `PostToolUse`
+///   3. a populated `toolCall` (name), no error    → `PreToolUse`
+///
+/// The `error`-key check MUST precede the `toolCall` check: PostToolUse echoes
+/// back the call's `toolCall` (populated) alongside its `error`, so `toolCall`
+/// presence alone cannot tell Pre from Post. Only PostToolUse carries `error`;
+/// PreToolUse never does. Both events carry `stepIdx`, so it is not a
+/// discriminator. Returns undefined when nothing matches (generic fallthrough).
+function inferAntigravityEventName(input: HookInput): string | undefined {
+  if (input.fullyIdle !== undefined || input.terminationReason !== undefined) {
+    return "Stop";
+  }
+  if (input.error !== undefined) {
+    return "PostToolUse";
+  }
+  if (
+    input.toolCall &&
+    typeof input.toolCall === "object" &&
+    typeof input.toolCall.name === "string"
+  ) {
+    return "PreToolUse";
+  }
+  return undefined;
 }
 
 /// Collapse a platform's prompt-submit event name to a single token so the
@@ -459,6 +505,13 @@ export function classifyEvent(
   input: HookInput,
   prior: ClassifyState,
 ): ClassifyResult {
+  // Antigravity carries no event-name field; synthesize one from payload shape
+  // before any `hook_event_name`-keyed logic runs. Scoped to Antigravity with a
+  // missing name so every other platform is untouched.
+  if (rawHookOrigin(input) === "antigravity" && !input.hook_event_name) {
+    input.hook_event_name = inferAntigravityEventName(input);
+  }
+
   const normalized = normalize(input) ?? {
     origin: "claude_code" as const,
     kind: "session_start" as const,
@@ -490,7 +543,7 @@ export function classifyEvent(
   // fullyIdle===false means background tasks are still running — do not assert standby.
   if (normalized.origin === "antigravity" && rawEventName === "stop") {
     if (
-      input.terminationReason === "error" ||
+      input.terminationReason?.toLowerCase() === "error" ||
       (typeof input.error === "string" && input.error.length > 0)
     ) {
       return { state: "errored", sourceEvent, readRun: 0 };

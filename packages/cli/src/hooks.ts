@@ -285,23 +285,24 @@ function withCopilotCodogotchiEntries(
 }
 
 // Antigravity hook file format: a named-hook map where each key is the hook
-// name and the value maps event names to matcher arrays. Written to
+// name and the value maps event names to handler slots. Written to
 // ~/.gemini/config/hooks.json. The "codogotchi" named hook owns all our entries.
-const ANTIGRAVITY_CODOGOTCHI_EVENTS = [
-  "PreToolUse",
-  "PostToolUse",
-  "Stop",
-] as const;
-
+//
+// Per https://antigravity.google/docs/hooks the two event families differ:
+//   - PreToolUse / PostToolUse use a matcher slot ([{ matcher, hooks }]).
+//   - Stop (a lifecycle event) takes a FLAT handler list ([{ type, command }]);
+//     Antigravity ignores `matcher` for Stop, so the nested form does not fire.
 type AntigravityHookEntry = { type: "command"; command: string };
 type AntigravityHookMatcher = {
   matcher: string;
   hooks: AntigravityHookEntry[];
 };
 type AntigravityHookSlot = AntigravityHookMatcher[];
-type AntigravityNamedHook = Partial<
-  Record<(typeof ANTIGRAVITY_CODOGOTCHI_EVENTS)[number], AntigravityHookSlot>
->;
+type AntigravityNamedHook = {
+  PreToolUse?: AntigravityHookSlot;
+  PostToolUse?: AntigravityHookSlot;
+  Stop?: AntigravityHookEntry[];
+};
 type AntigravityHooksFile = Record<string, AntigravityNamedHook>;
 
 function antigravityHookCommand(ctx: InstallHooksContext): string {
@@ -313,27 +314,42 @@ function antigravityHookCommand(ctx: InstallHooksContext): string {
 }
 
 function buildAntigravityNamedHook(command: string): AntigravityNamedHook {
-  const hook: AntigravityNamedHook = {};
-  for (const event of ANTIGRAVITY_CODOGOTCHI_EVENTS) {
-    hook[event] = [{ matcher: "*", hooks: [{ type: "command", command }] }];
-  }
-  return hook;
+  const matcherSlot = (): AntigravityHookSlot => [
+    { matcher: "*", hooks: [{ type: "command", command }] },
+  ];
+  return {
+    PreToolUse: matcherSlot(),
+    PostToolUse: matcherSlot(),
+    // Flat handler list — Antigravity ignores `matcher` for Stop.
+    Stop: [{ type: "command", command }],
+  };
+}
+
+function antigravityMatcherWired(
+  slot: AntigravityHookSlot | undefined,
+): boolean {
+  return (
+    Array.isArray(slot) &&
+    slot.some(
+      (m) =>
+        m.matcher === "*" &&
+        m.hooks.some((h) => isCodogotchiCommand(h.command)),
+    )
+  );
 }
 
 function isAntigravityInstalled(file: AntigravityHooksFile): boolean {
   const codogotchi = file.codogotchi;
   if (!codogotchi || typeof codogotchi !== "object") return false;
-  return ANTIGRAVITY_CODOGOTCHI_EVENTS.every((event) => {
-    const slot = codogotchi[event];
-    return (
-      Array.isArray(slot) &&
-      slot.some(
-        (m) =>
-          m.matcher === "*" &&
-          m.hooks.some((h) => isCodogotchiCommand(h.command)),
-      )
-    );
-  });
+  const stopSlot = codogotchi.Stop;
+  const stopWired =
+    Array.isArray(stopSlot) &&
+    stopSlot.some((h) => isCodogotchiCommand(h.command));
+  return (
+    antigravityMatcherWired(codogotchi.PreToolUse) &&
+    antigravityMatcherWired(codogotchi.PostToolUse) &&
+    stopWired
+  );
 }
 
 export async function installAntigravityHooks(
