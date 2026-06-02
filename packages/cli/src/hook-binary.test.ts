@@ -1102,7 +1102,7 @@ describe("runHook", () => {
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(STATE_JSON_SCHEMA_VERSION);
+    expect(state.schema_version).toBe(4); // writer pins to v4 until P10.05 ships the v5 writer
     expect(state.activity_state).toBe("implementing");
     expect(state.hp).toBe(100);
     expect(state.hp_overlay).toBe("thriving");
@@ -1248,8 +1248,7 @@ describe("runHook", () => {
       now: FIXED_NOW,
     });
     const state = readState(home);
-    expect(state.schema_version).toBe(STATE_JSON_SCHEMA_VERSION);
-    expect(state.schema_version).toBe(4);
+    expect(state.schema_version).toBe(4); // writer pins to v4 until P10.05 ships the v5 writer
     expect(state.activity_state).toBe("standby");
   });
 

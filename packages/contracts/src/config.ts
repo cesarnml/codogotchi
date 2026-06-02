@@ -12,19 +12,22 @@ const configBaseSchema = z.object({
 const liteConfigSchema = configBaseSchema.extend({
   features: z.object({
     rpg_enabled: z.literal(false),
+    rpg_hud_enabled: z.boolean().optional(),
   }),
 });
 
 const rpgConfigSchema = configBaseSchema.extend({
   features: z.object({
     rpg_enabled: z.literal(true),
+    rpg_hud_enabled: z.boolean().optional(),
   }),
-  handle: z.string().min(1),
-  github_token: z.string().nullable(),
+  // Cloud fields are optional — a config with only rpg_enabled: true is valid (local RPG).
+  handle: z.string().min(1).optional(),
+  github_token: z.string().nullable().optional(),
   github_username: z.string().nullable().optional(),
-  wakatime_key: z.string().nullable(),
-  convex_http_url: z.string().url(),
-  health: healthConfigSchema,
+  wakatime_key: z.string().nullable().optional(),
+  convex_http_url: z.string().url().optional(),
+  health: healthConfigSchema.optional(),
 });
 
 // Canonical schema for the on-disk `~/.codogotchi/config.json` written by
@@ -57,7 +60,10 @@ export const SETTABLE_HEALTH_KEYS = [
   "revive_hp",
 ] as const;
 export type SettableHealthKey = (typeof SETTABLE_HEALTH_KEYS)[number];
-export type FeaturesPathKind = { kind: "features"; key: "rpg_enabled" };
+export type FeaturesPathKind = {
+  kind: "features";
+  key: "rpg_enabled" | "rpg_hud_enabled";
+};
 
 export type ConfigPathKind =
   | { kind: "top"; key: SettableTopLevelKey }
@@ -77,6 +83,9 @@ export function resolveConfigPath(path: string): ConfigPathKind | null {
   }
   if (path === "features.rpg_enabled") {
     return { kind: "features", key: "rpg_enabled" };
+  }
+  if (path === "features.rpg_hud_enabled") {
+    return { kind: "features", key: "rpg_hud_enabled" };
   }
   return null;
 }

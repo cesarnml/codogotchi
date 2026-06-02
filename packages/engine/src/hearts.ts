@@ -1,10 +1,14 @@
-export const MAX_HALF_HEARTS = 6;
+import {
+  ACTIVE_MINUTES_PER_HALF_HEART,
+  HALF_HEART_DECAY_HOURS,
+  MAX_HALF_HEARTS,
+} from "@codogotchi/contracts";
 
-/** One half-heart decays per this many idle hours since last activity. */
-export const HALF_HEART_DECAY_HOURS = 8;
-
-/** One half-heart heals per this many active coding minutes. */
-export const ACTIVE_MINUTES_PER_HALF_HEART = 60;
+export {
+  ACTIVE_MINUTES_PER_HALF_HEART,
+  HALF_HEART_DECAY_HOURS,
+  MAX_HALF_HEARTS,
+};
 
 export type HalfHeartsInput = {
   lastActivityAt: string | null;

@@ -915,7 +915,8 @@ export async function runHook(
         : undefined;
 
     const state: StateJsonV1 = {
-      schema_version: STATE_JSON_SCHEMA_VERSION,
+      schema_version: 4, // v5 writer lands in P10.05 with level/half_hearts fields
+
       activity_state: activityState,
       hp_overlay,
       hp,
