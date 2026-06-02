@@ -30,12 +30,22 @@ export function resolveHalfHearts(
   }
 
   const lastMs = Date.parse(lastActivityAt);
-  const elapsedHours = Math.max(0, (now.getTime() - lastMs) / 3_600_000);
+  // Malformed ISO → treat as no elapsed time (no decay from bad data; never NaN-propagate).
+  const elapsedHours = Number.isFinite(lastMs)
+    ? Math.max(0, (now.getTime() - lastMs) / 3_600_000)
+    : 0;
+
+  const safeMinutes = Number.isFinite(activeMinutes)
+    ? Math.max(0, activeMinutes)
+    : 0;
+  const safeCurrent = Number.isFinite(currentHalfHearts)
+    ? currentHalfHearts
+    : 0;
 
   const idleDecay = Math.floor(elapsedHours / HALF_HEART_DECAY_HOURS);
-  const healGain = Math.floor(activeMinutes / ACTIVE_MINUTES_PER_HALF_HEART);
+  const healGain = Math.floor(safeMinutes / ACTIVE_MINUTES_PER_HALF_HEART);
 
   // Clamp decay first so a ghost at 0 can still recover by coding (no revive threshold).
-  const afterDecay = Math.max(0, currentHalfHearts - idleDecay);
+  const afterDecay = Math.max(0, safeCurrent - idleDecay);
   return Math.min(MAX_HALF_HEARTS, afterDecay + healGain);
 }
