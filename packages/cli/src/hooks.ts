@@ -30,6 +30,7 @@ const CODEX_HOOKS_REL = join(".codex", "hooks", "codogotchi.toml");
 const CODEX_HOOKS_JSON_REL = join(".codex", "hooks.json");
 const CURSOR_HOOKS_REL = join(".cursor", "hooks.json");
 const COPILOT_HOOKS_REL = join(".copilot", "hooks", "codogotchi.json");
+const GEMINI_HOOKS_REL = join(".gemini", "config", "hooks.json");
 const CODOGOTCHI_CONFIG_REL = join(".codogotchi", "config.json");
 
 function getUserRoot(): string {
@@ -274,6 +275,91 @@ function withCopilotCodogotchiEntries(
     command,
   }));
   return { hooks: [...others, ...entries] };
+}
+
+// Antigravity hook file format: a named-hook map where each key is the hook
+// name and the value maps event names to matcher arrays. Written to
+// ~/.gemini/config/hooks.json. The "codogotchi" named hook owns all our entries.
+const ANTIGRAVITY_CODOGOTCHI_EVENTS = [
+  "PreToolUse",
+  "PostToolUse",
+  "Stop",
+] as const;
+
+type AntigravityHookEntry = { type: "command"; command: string };
+type AntigravityHookMatcher = {
+  matcher: string;
+  hooks: AntigravityHookEntry[];
+};
+type AntigravityHookSlot = AntigravityHookMatcher[];
+type AntigravityNamedHook = Partial<
+  Record<(typeof ANTIGRAVITY_CODOGOTCHI_EVENTS)[number], AntigravityHookSlot>
+>;
+type AntigravityHooksFile = Record<string, AntigravityNamedHook>;
+
+function antigravityHookCommand(ctx: InstallHooksContext): string {
+  return [
+    `CODOGOTCHI_HOME=${shellQuote(ctx.home)}`,
+    `CODOGOTCHI_ORIGIN=antigravity`,
+    CODOGOTCHI_COMMAND,
+  ].join(" ");
+}
+
+function buildAntigravityNamedHook(command: string): AntigravityNamedHook {
+  const hook: AntigravityNamedHook = {};
+  for (const event of ANTIGRAVITY_CODOGOTCHI_EVENTS) {
+    hook[event] = [{ matcher: "*", hooks: [{ type: "command", command }] }];
+  }
+  return hook;
+}
+
+function isAntigravityInstalled(file: AntigravityHooksFile): boolean {
+  const codogotchi = file.codogotchi;
+  if (!codogotchi || typeof codogotchi !== "object") return false;
+  return ANTIGRAVITY_CODOGOTCHI_EVENTS.every((event) => {
+    const slot = codogotchi[event];
+    return (
+      Array.isArray(slot) &&
+      slot.some(
+        (m) =>
+          m.matcher === "*" &&
+          m.hooks.some((h) => isCodogotchiCommand(h.command)),
+      )
+    );
+  });
+}
+
+export async function installAntigravityHooks(
+  ctx: InstallHooksContext,
+): Promise<void> {
+  const root = getUserRoot();
+  const configPath = join(root, CODOGOTCHI_CONFIG_REL);
+  if (!(await fileExists(configPath))) {
+    throw new Error(
+      "codogotchi: missing ~/.codogotchi/config.json. Launch the app or run `codogotchi setup` first.",
+    );
+  }
+
+  const hooksPath = join(root, GEMINI_HOOKS_REL);
+  await backupIfExists(hooksPath);
+
+  const existing = await readJsonOrEmpty<AntigravityHooksFile>(hooksPath);
+  const updated: AntigravityHooksFile = {
+    ...existing,
+    codogotchi: buildAntigravityNamedHook(antigravityHookCommand(ctx)),
+  };
+  await writeText(hooksPath, `${JSON.stringify(updated, null, 2)}\n`);
+}
+
+export async function uninstallAntigravityHooks(): Promise<void> {
+  const root = getUserRoot();
+  const hooksPath = join(root, GEMINI_HOOKS_REL);
+  if (!(await fileExists(hooksPath))) return;
+  await backupIfExists(hooksPath);
+
+  const existing = await readJsonOrEmpty<AntigravityHooksFile>(hooksPath);
+  const { codogotchi: _removed, ...rest } = existing;
+  await writeText(hooksPath, `${JSON.stringify(rest, null, 2)}\n`);
 }
 
 export async function installVscodeHooks(
@@ -791,18 +877,21 @@ export async function hooksStatus(): Promise<HooksStatus> {
   const codexJsonPath = join(root, CODEX_HOOKS_JSON_REL);
   const cursorPath = join(root, CURSOR_HOOKS_REL);
   const copilotPath = join(root, COPILOT_HOOKS_REL);
+  const geminiPath = join(root, GEMINI_HOOKS_REL);
 
   const [
     claudePresent,
     codexPresent,
     cursorNativePresent,
     copilotPresent,
+    geminiPresent,
     state,
   ] = await Promise.all([
     fileExists(claudePath),
     fileExists(codexJsonPath),
     fileExists(cursorPath),
     fileExists(copilotPath),
+    fileExists(geminiPath),
     readStateJson(root),
   ]);
 
@@ -818,6 +907,9 @@ export async function hooksStatus(): Promise<HooksStatus> {
   const copilotJson = copilotPresent
     ? await readJsonOrEmpty<CopilotHooksFile>(copilotPath)
     : ({ hooks: [] } as CopilotHooksFile);
+  const geminiJson = geminiPresent
+    ? await readJsonOrEmpty<AntigravityHooksFile>(geminiPath)
+    : ({} as AntigravityHooksFile);
 
   const lastEventAt = state?.updated_at ?? null;
   const origin = state?.source_event?.origin ?? null;
@@ -840,6 +932,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
     hooks: Array.isArray(copilotJson.hooks) ? copilotJson.hooks : [],
   };
   const vscodeFullyInstalled = copilotInstalled(normalizedCopilot);
+  const antigravityFullyInstalled = isAntigravityInstalled(geminiJson);
 
   // "Partially installed": codogotchi hooks are present but not fully wired for
   // the current expected event set. The integration is real and firing, so this
@@ -882,12 +975,12 @@ export async function hooksStatus(): Promise<HooksStatus> {
       last_event_at: origin === "vscode" ? lastEventAt : null,
     },
     antigravity: {
-      present_on_disk: false,
-      installable_in_phase: false,
-      installed: false,
+      present_on_disk: geminiPresent,
+      installable_in_phase: true,
+      installed: antigravityFullyInstalled,
       partially_installed: false,
-      firing_recently: false,
-      last_event_at: null,
+      firing_recently: firingRecently && origin === "antigravity",
+      last_event_at: origin === "antigravity" ? lastEventAt : null,
     },
   };
 }

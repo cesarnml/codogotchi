@@ -9,9 +9,11 @@ import {
 import { defaultReaders } from "./default-readers";
 import {
   hooksStatus,
+  installAntigravityHooks,
   installCursorHooks,
   installHooks,
   installVscodeHooks,
+  uninstallAntigravityHooks,
   uninstallCursorHooks,
   uninstallHooks,
   uninstallVscodeHooks,
@@ -155,7 +157,7 @@ function parseLootFlags(args: string[]): {
   return { limit, tier, help };
 }
 
-type HooksPlatform = "claude_code" | "cursor" | "vscode";
+type HooksPlatform = "claude_code" | "cursor" | "vscode" | "antigravity";
 
 function parseHooksPlatformFlag(args: string[]): {
   platform: HooksPlatform;
@@ -167,9 +169,14 @@ function parseHooksPlatformFlag(args: string[]): {
     if (args[i] === "--platform") {
       const v = args[i + 1];
       i += 1;
-      if (v !== "claude_code" && v !== "cursor" && v !== "vscode") {
+      if (
+        v !== "claude_code" &&
+        v !== "cursor" &&
+        v !== "vscode" &&
+        v !== "antigravity"
+      ) {
         throw new Error(
-          `Invalid --platform value: ${v ?? "(missing)"}; expected claude_code, cursor, or vscode`,
+          `Invalid --platform value: ${v ?? "(missing)"}; expected claude_code, cursor, vscode, or antigravity`,
         );
       }
       platform = v;
@@ -433,7 +440,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
     if (sub === "install") {
       if (subArgs.includes("--help") || subArgs.includes("-h")) {
         process.stdout.write(
-          "Usage: codogotchi hooks install [--platform <claude_code|cursor|vscode>]\n",
+          "Usage: codogotchi hooks install [--platform <claude_code|cursor|vscode|antigravity>]\n",
         );
         return { exitCode: 0 };
       }
@@ -449,7 +456,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       }
       if (rest.length > 0) {
         process.stderr.write(
-          "Usage: codogotchi hooks install [--platform <claude_code|cursor|vscode>]\n",
+          "Usage: codogotchi hooks install [--platform <claude_code|cursor|vscode|antigravity>]\n",
         );
         return { exitCode: 2 };
       }
@@ -473,6 +480,8 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
         await installCursorHooks({ home: getCodogotchiHome() });
       } else if (platform === "vscode") {
         await installVscodeHooks({ home: getCodogotchiHome() });
+      } else if (platform === "antigravity") {
+        await installAntigravityHooks({ home: getCodogotchiHome() });
       } else {
         await installHooks({
           home: getCodogotchiHome(),
@@ -485,7 +494,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
     if (sub === "uninstall") {
       if (subArgs.includes("--help") || subArgs.includes("-h")) {
         process.stdout.write(
-          "Usage: codogotchi hooks uninstall [--platform <claude_code|cursor|vscode>]\n",
+          "Usage: codogotchi hooks uninstall [--platform <claude_code|cursor|vscode|antigravity>]\n",
         );
         return { exitCode: 0 };
       }
@@ -501,7 +510,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       }
       if (rest.length > 0) {
         process.stderr.write(
-          "Usage: codogotchi hooks uninstall [--platform <claude_code|cursor|vscode>]\n",
+          "Usage: codogotchi hooks uninstall [--platform <claude_code|cursor|vscode|antigravity>]\n",
         );
         return { exitCode: 2 };
       }
@@ -509,6 +518,8 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
         await uninstallCursorHooks();
       } else if (platform === "vscode") {
         await uninstallVscodeHooks();
+      } else if (platform === "antigravity") {
+        await uninstallAntigravityHooks();
       } else {
         await uninstallHooks();
       }
