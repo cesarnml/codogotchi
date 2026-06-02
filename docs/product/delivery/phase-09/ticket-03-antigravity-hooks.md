@@ -14,7 +14,7 @@ Red: required
 - `PreToolUse` does all tool classification. `PostToolUse` (which carries only `stepIdx` + `error`, no tool name) maps to `errored` when `error` is non-empty, otherwise a neutral `thinking` — **no stepIdx Pre/Post correlation**.
 - `Stop` maps to `standby` when `fullyIdle === true`; when `fullyIdle === false` (background tasks still running) it does not assert a terminal/standby state. `terminationReason: "error"` (or non-empty `error`) → `errored`.
 - Antigravity has **no prompt-submit event**; `PreInvocation` is the model-call boundary and is optional (only wire it if a `thinking` lead-in is wanted).
-- Hook output stays observational: emit `{}` (or `decision: "allow"` for `PreToolUse`); never `deny`/`ask`, never `injectSteps`.
+- Hook output stays observational: Codogotchi is **observe-only** and emits no stdout — it never participates in the agent's decision path (no `decision`/`deny`/`ask`, no `injectSteps`). Silence is the deliberate contract across every platform; adding stdout passthrough would be a future, opt-in change.
 - `codogotchi hooks install --platform antigravity` writes idempotent config to user-level `~/.gemini/config/hooks.json` (named-hook map with `matcher` per the Antigravity schema) setting `CODOGOTCHI_HOME` + `CODOGOTCHI_ORIGIN=antigravity`; uninstall removes only codogotchi entries; re-install is byte-identical.
 - `hooksStatus()` reports the `antigravity` platform with real detection (replacing the placeholder block).
 - Doc-derived stdin samples committed under `packages/engine/test/fixtures/hooks/antigravity/`.
@@ -61,3 +61,5 @@ Why this path: Added `toolCall.name` to the `isToolBoundaryHook` condition in `r
 Alternative considered: stepIdx Pre/Post correlation — rejected; `PreToolUse` already classifies the tool and codogotchi needs no post-completion tool attribution for animation.
 Deferred: workspace `.agents/hooks.json` install; `PreInvocation`/`PostInvocation` injection; policy `decision` behaviors; XP/sync JSONL.
 Contract note: No deviations from Type/Scope metadata.
+
+Post-phase advisory triage (tao): the original Outcome line claimed the hook may emit `{}` or `decision: "allow"`, but the shared `codogotchi-hook` binary emits no stdout on any platform — and that is correct. Codogotchi is observe-only and intentionally stays out of the agent's decision path. Corrected the Outcome line to state the no-stdout invariant rather than changing the binary; passthrough output remains a deliberate future opt-in if ever wanted.

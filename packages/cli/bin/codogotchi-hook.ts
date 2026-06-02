@@ -14,4 +14,8 @@ async function readStdin(): Promise<string> {
 const raw = await readStdin();
 const home = getCodogotchiHome();
 await runHookFromStdin(raw, { home, now: new Date() });
+// Observe-only contract: Codogotchi consumes hook events and never writes to
+// stdout. It takes no part in the agent's decision path (no decision/deny/ask,
+// no injectSteps) on any platform. Silence is intentional; adding stdout
+// passthrough would be a deliberate future opt-in.
 process.exit(0);
