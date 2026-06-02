@@ -66,6 +66,20 @@ enum ActivityState: String, Equatable, Codable, CaseIterable {
 		case .reviewClean: return "Review Clean"
 		}
 	}
+
+	/// True while the badge represents the agent *actively working* ("in flight").
+	/// Drives the scanning shimmer on the animation badge label — a moving
+	/// highlight that reads as live progress. The four floor states
+	/// (idle/standby/errored/waiting), including escalated-idle, are at rest and
+	/// render the label statically. Every heuristic-tier and gate state shimmers.
+	var isInFlight: Bool {
+		switch self {
+		case .idle, .standby, .errored, .waitingForInput:
+			return false
+		default:
+			return true
+		}
+	}
 }
 
 /// Subset of the hook's `source_event` payload that the transition log

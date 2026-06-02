@@ -209,6 +209,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		badge.reposition(
 			label: animationBadgeLabel,
 			platform: currentPlatform,
+			inFlight: animationBadgeInFlight,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
@@ -222,6 +223,13 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			return escalated
 		}
 		return currentState.displayLabel
+	}
+
+	/// Whether the animation badge label should run the scanning shimmer. Tracks
+	/// the underlying activity state: escalated-idle stays `.idle` and so reads
+	/// static, while every active working state shimmers. See `ActivityState.isInFlight`.
+	private var animationBadgeInFlight: Bool {
+		currentState.isInFlight
 	}
 
 	func apply(state: ActivityState, visualMode: VisualMode) {
@@ -274,6 +282,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		animationBadgePanel?.reposition(
 			label: animationBadgeLabel,
 			platform: currentPlatform,
+			inFlight: animationBadgeInFlight,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
@@ -671,12 +680,14 @@ final class AnimationBadgePanel: NSPanel {
 	func reposition(
 		label: String,
 		platform: PlatformAttribution?,
+		inFlight: Bool,
 		relativeTo petFrame: CGRect,
 		visibleFrame: CGRect
 	) {
 		badgeView.configure(
 			text: label,
 			platform: platform,
+			inFlight: inFlight,
 			metrics: AnimationBadgeLayout.metrics(for: petFrame)
 		)
 		let size = badgeView.preferredSize
@@ -796,11 +807,31 @@ private final class PlatformChipView: NSView {
 /// Frosted label pill: the activity-state name on the same chrome as the
 /// platform chip. Sizing/scaling follows the gate badge metrics.
 private final class AnimationLabelPillView: NSView {
+	/// Base label opacity while the agent is working: dimmed so the bright sweep
+	/// reads as a highlight passing through. Restored to `restColor` at rest.
+	private static let inFlightColor = NSColor(calibratedWhite: 0.58, alpha: 1.0)
+	private static let restColor = AnimationBadgeChrome.textColor
+	/// Width of the bright band as a fraction of the label width. The band is a
+	/// clear→white→clear gradient, so the strongly-lit core reads as ~half of this.
+	private static let shimmerBandFraction: CGFloat = 0.4
+	/// Seconds for one full left→right pass across the text.
+	private static let shimmerDuration: CFTimeInterval = 1.0
+	private static let shimmerAnimationKey = "codogotchi.badge.shimmer"
+
 	private let effectView = AnimationBadgeChrome.makeEffectView()
 	private let label = NSTextField(labelWithString: "")
+	/// Bright copy of the glyphs, drawn above the dimmed `label` and revealed only
+	/// under the moving gradient band (`shimmerMask`). Mirrors the label's string,
+	/// font, alignment and frame so the highlight lands exactly on the letters.
+	private let shimmerText = CATextLayer()
+	private let shimmerMask = CAGradientLayer()
 	private var metrics = GateBadgeLayout.metrics(
 		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
 	)
+	private var isShimmering = false
+	/// Band width the running animation was built for; lets us restart only when
+	/// the label resizes, not on every layout pass.
+	private var shimmerBandWidth: CGFloat = 0
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -812,9 +843,32 @@ private final class AnimationLabelPillView: NSView {
 		label.lineBreakMode = .byTruncatingTail
 		label.maximumNumberOfLines = 1
 		label.alignment = .center
-		label.textColor = AnimationBadgeChrome.textColor
+		label.textColor = Self.restColor
+		label.wantsLayer = true
 		label.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(label)
+
+		// Bright glyph overlay + horizontal alpha-band mask. Lives above the
+		// label's own text content and starts hidden until a working state arrives.
+		shimmerText.alignmentMode = .center
+		shimmerText.truncationMode = .end
+		shimmerText.foregroundColor = Self.restColor.cgColor
+		shimmerText.isHidden = true
+		// A narrow band — clear at both edges, opaque white at its center — that
+		// physically translates across the glyphs. Anything outside this band's
+		// bounds is clipped from the bright overlay, so only the ~10% under the
+		// band lights up at any instant.
+		shimmerMask.startPoint = CGPoint(x: 0, y: 0.5)
+		shimmerMask.endPoint = CGPoint(x: 1, y: 0.5)
+		shimmerMask.colors = [
+			NSColor.clear.cgColor,
+			NSColor.white.cgColor,
+			NSColor.clear.cgColor,
+		]
+		shimmerMask.locations = [0, 0.5, 1]
+		shimmerText.mask = shimmerMask
+		shimmerText.zPosition = 1
+		label.layer?.addSublayer(shimmerText)
 
 		NSLayoutConstraint.activate([
 			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -830,10 +884,16 @@ private final class AnimationLabelPillView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	func configure(text: String, metrics: GateBadgeLayout.Metrics) {
+	func configure(text: String, inFlight: Bool, metrics: GateBadgeLayout.Metrics) {
 		self.metrics = metrics
+		let font = NSFont.monospacedSystemFont(ofSize: metrics.fontSize, weight: .medium)
 		label.stringValue = text
-		label.font = NSFont.monospacedSystemFont(ofSize: metrics.fontSize, weight: .medium)
+		label.font = font
+		label.textColor = inFlight ? Self.inFlightColor : Self.restColor
+		shimmerText.string = text
+		shimmerText.font = font
+		shimmerText.fontSize = metrics.fontSize
+		setShimmering(inFlight)
 		applyMetrics()
 		invalidateIntrinsicContentSize()
 	}
@@ -850,8 +910,68 @@ private final class AnimationLabelPillView: NSView {
 		applyMetrics()
 	}
 
+	override func viewDidChangeBackingProperties() {
+		super.viewDidChangeBackingProperties()
+		let scale = window?.backingScaleFactor ?? 2
+		shimmerText.contentsScale = scale
+		shimmerMask.contentsScale = scale
+		// A move between displays drops layer animations; force a re-arm.
+		shimmerBandWidth = 0
+		refreshShimmerGeometry()
+	}
+
+	private func setShimmering(_ shimmering: Bool) {
+		shimmerText.isHidden = !shimmering
+		isShimmering = shimmering
+		if !shimmering {
+			shimmerMask.removeAnimation(forKey: Self.shimmerAnimationKey)
+			shimmerBandWidth = 0
+		}
+		// `refreshShimmerGeometry` (driven from `applyMetrics`) arms the animation
+		// once the label has a resolved width.
+	}
+
+	/// Size the band to the current label width and (re)arm the sweep. Restarts
+	/// only when the band width actually changes so steady-state layout passes do
+	/// not reset the animation phase mid-stroke.
+	private func refreshShimmerGeometry() {
+		let width = label.bounds.width
+		let height = label.bounds.height
+		guard isShimmering, width > 0, height > 0 else { return }
+		let bandWidth = max(8, width * Self.shimmerBandFraction)
+		let needsRestart =
+			abs(bandWidth - shimmerBandWidth) > 0.5
+			|| shimmerMask.animation(forKey: Self.shimmerAnimationKey) == nil
+		guard needsRestart else { return }
+		shimmerBandWidth = bandWidth
+
+		CATransaction.begin()
+		CATransaction.setDisableActions(true)
+		shimmerMask.bounds = CGRect(x: 0, y: 0, width: bandWidth, height: height)
+		shimmerMask.position = CGPoint(x: -bandWidth / 2, y: height / 2)
+		CATransaction.commit()
+
+		let animation = CABasicAnimation(keyPath: "position.x")
+		// Center of the band travels from just off the left edge to just off the
+		// right edge — one continuous left→right pass per cycle.
+		animation.fromValue = -bandWidth / 2
+		animation.toValue = width + bandWidth / 2
+		animation.duration = Self.shimmerDuration
+		animation.repeatCount = .infinity
+		animation.timingFunction = CAMediaTimingFunction(name: .linear)
+		shimmerMask.add(animation, forKey: Self.shimmerAnimationKey)
+	}
+
 	private func applyMetrics() {
 		AnimationBadgeChrome.apply(to: self, effect: effectView, cornerRadius: metrics.cornerRadius)
+		// Mirror the label's resolved frame so the bright overlay glyphs register
+		// exactly on top of the dimmed base glyphs. Disable implicit animation so
+		// the overlay does not lag the pill during drag/reposition.
+		CATransaction.begin()
+		CATransaction.setDisableActions(true)
+		shimmerText.frame = label.bounds
+		CATransaction.commit()
+		refreshShimmerGeometry()
 	}
 }
 
@@ -887,10 +1007,15 @@ private final class AnimationBadgeView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	func configure(text: String, platform: PlatformAttribution?, metrics: GateBadgeLayout.Metrics) {
+	func configure(
+		text: String,
+		platform: PlatformAttribution?,
+		inFlight: Bool,
+		metrics: GateBadgeLayout.Metrics
+	) {
 		self.metrics = metrics
 		stackView.spacing = metrics.interBadgeSpacing
-		pillView.configure(text: text, metrics: metrics)
+		pillView.configure(text: text, inFlight: inFlight, metrics: metrics)
 		if let platform {
 			chipView.configure(platform: platform, metrics: metrics)
 			if chipView.superview == nil {
