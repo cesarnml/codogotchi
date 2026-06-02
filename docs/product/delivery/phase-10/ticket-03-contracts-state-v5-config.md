@@ -45,3 +45,8 @@ Deferred: Conditional "all-or-none" cloud-field validation for the sync path —
 Contract note: CLI writer explicitly pins to `schema_version: 4` until P10.05 ships the full v5 writer (level + half_hearts fields). `STATE_JSON_SCHEMA_VERSION = 5` is the reader's forward-compat bound, not the current writer version.
 
 Decay constants: moved from `engine/hearts.ts` to `contracts/decay-constants.ts`; engine imports and re-exports them for backward compat. Swift will import from contracts directly in P10.06.
+
+Subagent-review patches (commit b529d3b):
+1. `config-command.ts`: `getDottedValue` and `applyFeaturesValue` extended to handle `features.rpg_hud_enabled` — the flag was missing from the CLI get/set path despite being in the contracts schema.
+2. `router.ts`: sync command now guards against local-RPG configs (rpg_enabled: true, no cloud fields) with a clear error. Without this guard, `runSync()` would receive `undefined` for `handle` and `convex_http_url` and fail with a network error rather than a clear message.
+Deferred note updated: "sync is fully disabled" was inaccurate — the `sync` command was still accessible; the guard closes that gap.
