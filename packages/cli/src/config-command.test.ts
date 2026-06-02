@@ -256,3 +256,55 @@ describe("config command", () => {
     }
   });
 });
+
+describe("rpg_hud_enabled config flag (P10.03)", () => {
+  let home: string;
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "codogotchi-hud-"));
+  });
+  afterEach(() => rmSync(home, { recursive: true, force: true }));
+
+  it("configGet features.rpg_hud_enabled returns true by default (undefined → default true)", async () => {
+    await writeConfig(home, {
+      profile_id: "aaa",
+      features: { rpg_enabled: true },
+    });
+    const out = await configGet({ home, path: "features.rpg_hud_enabled" });
+    expect(out.trim()).toBe("true");
+  });
+
+  it("configSet features.rpg_hud_enabled false persists the opt-out", async () => {
+    await writeConfig(home, {
+      profile_id: "aaa",
+      features: { rpg_enabled: true },
+    });
+    await configSet({
+      home,
+      path: "features.rpg_hud_enabled",
+      value: "false",
+    });
+    const out = await configGet({ home, path: "features.rpg_hud_enabled" });
+    expect(out.trim()).toBe("false");
+  });
+
+  it("configSet features.rpg_hud_enabled true re-enables the HUD", async () => {
+    await writeConfig(home, {
+      profile_id: "aaa",
+      features: { rpg_enabled: true, rpg_hud_enabled: false },
+    });
+    await configSet({ home, path: "features.rpg_hud_enabled", value: "true" });
+    const out = await configGet({ home, path: "features.rpg_hud_enabled" });
+    expect(out.trim()).toBe("true");
+  });
+
+  it("configSet features.rpg_hud_enabled rejects invalid value", async () => {
+    await writeConfig(home, {
+      profile_id: "aaa",
+      features: { rpg_enabled: true },
+    });
+    await expect(
+      configSet({ home, path: "features.rpg_hud_enabled", value: "yes" }),
+    ).rejects.toThrow("rpg_hud_enabled must");
+  });
+});

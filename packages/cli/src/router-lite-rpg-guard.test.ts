@@ -87,4 +87,16 @@ describe("router Lite/RPG command guards", () => {
     expect(stderrChunks.join("")).toContain("codogotchi rpg");
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("refuses sync for local-RPG config (rpg_enabled true, no cloud fields) with clear error (P10.03)", async () => {
+    await writeFile(
+      join(home, "config.json"),
+      `${JSON.stringify({ profile_id: "aaa", features: { rpg_enabled: true } }, null, 2)}\n`,
+      "utf8",
+    );
+    const result = await dispatch(["sync"]);
+    expect(result.exitCode).toBe(2);
+    expect(stderrChunks.join("")).toContain("local-RPG mode");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
