@@ -3,7 +3,7 @@ import XCTest
 @testable import Codogotchi
 
 /// `PlatformAttribution` maps `source_event.origin` strings to the platform logo
-/// the animation badge surfaces. Only the three coding platforms that drive the
+/// the animation badge surfaces. Only the five coding platforms that drive the
 /// pet get a chip; orchestration/bookkeeping origins and unknown/absent values
 /// resolve to `nil` so no chip is drawn.
 final class PlatformAttributionTests: XCTestCase {

@@ -43,8 +43,12 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [any deviation from Type/Scope metadata and why]
+Red first: `testVSCodeOriginResolvesToVSCodePlatform` (Swift) and `sourceEventOriginSchema.safeParse("vscode").success` (TS) failed first. Both failed because neither enum had the new values.
+
+Why this path: Adding two string literals to a `z.enum([...])` and two `case` arms to a Swift enum is the minimal correct implementation. The `assetName`/`displayName` properties extend automatically via the exhaustive switch pattern already in place.
+
+Alternative considered: Adding a `"copilot"` alias at the contract level was considered but deferred per the grill-me decision — the canonical origin is `vscode`; alias handling is adapter-level work, not contract-level.
+
+Deferred: `copilot` alias mapping (deferred to T02 adapter), `source_origin` usage in the hooks installer (T02/T03), and attention-bubble rendering path (already wired via `PlatformAttribution`; no change needed here).
+
+Contract note: SVG asset filename is `githubcopilot.svg` inside `PlatformVSCode.imageset` — intentional. The imageset represents the VS Code origin driven by Copilot events, and the Copilot glyph is the correct product association. No semantic mapping of `copilot` anywhere.
