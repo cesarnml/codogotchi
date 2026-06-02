@@ -1,8 +1,14 @@
 # Phase 12 Draft — Level Curve (1–100) and Migration
 
 _Drafted: 2026-05-27_
-_Status: Pre-planning draft — not yet through `/soa plan`_
+_Status: **SUPERSEDED / FOLDED INTO PHASE 10** (2026-06-03) — retained for history only_
 _Source: ideation storm §2.2–2.3_
+
+> **This phase is redundant.** The 100-level calibrated curve and HUD rewire were pulled
+> forward into [phase-10 (Free RPG Tier)](./phase-10-floating-progression-hud.md). The
+> "migration" reduces to a trivial one-shot for the owner + one buddy (per the Convex
+> validation log), and the Cursor-mislabel concern below is stale now that phase-09
+> delivered five-platform attribution parity. Do not run `/soa plan` on this file.
 
 ---
 

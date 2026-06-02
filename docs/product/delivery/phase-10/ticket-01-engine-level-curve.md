@@ -1,0 +1,44 @@
+# P10.01 Engine — 1–100 level curve
+
+Size: 2 points
+Type: feat
+Scope: engine
+Red: required
+
+## Outcome
+
+- `@codogotchi/engine` exports `levelForXp(totalXp: number): number` returning an integer `1..100` per the calibrated curve.
+- Exports `levelProgress(totalXp: number): { level: number; into: number; span: number; fraction: number }` where `fraction` is `into/span` clamped `0..1` (and `1` at level 100).
+- A frozen `LEVEL_THRESHOLDS` array of 100 cumulative-XP entries is derived from `C(L) = T × ((L−1)/99)^2.5`, `T = 68_000_000_000`. `LEVEL_THRESHOLDS[0] === 0`; `LEVEL_THRESHOLDS[99] === T` (or the rounded constant).
+- Thresholds are monotonically increasing; `levelForXp` is monotonic non-decreasing.
+- `STAGE_THRESHOLDS` and `stageForXp` remain exported and unchanged; `stageForXp` gains a `@deprecated` JSDoc pointing to `levelForXp`.
+
+## Red
+
+- Write failing `vitest` cases: `levelForXp(0) === 1`; `levelForXp(T) === 100`; `levelForXp(T * 2) === 100` (cap); a mid-curve boundary (just below vs at `LEVEL_THRESHOLDS[50]`) flips 50→51; `levelProgress` returns `fraction` near 0 at the bottom of a level and near 1 just below the next; monotonicity over a sampled sweep.
+- Confirm the new tests fail (functions/exports absent).
+- Commit `test(P10.01): level curve thresholds and progress [red]`.
+
+## Green
+
+- Generate `LEVEL_THRESHOLDS` once at module load from the formula (rounded to integers); implement `levelForXp` via binary/linear search over the table and `levelProgress` from neighboring thresholds. Smallest change to pass.
+
+## Refactor
+
+- Share the curve constants (`T`, exponent `2.5`, level count `100`) as named exports so contracts/tests reference them rather than magic numbers. No opportunistic cleanup elsewhere.
+
+## Review Focus
+
+- Curve constants match the locked calibration (`T = 68e9`, `p = 2.5`); document they are **provisional**.
+- Boundary/rounding behavior at level edges; cap at 100; behavior for negative/NaN input (clamp to level 1).
+- `stageForXp` left functionally intact for the dormant sync path.
+
+## Rationale
+
+> Append here (do not edit above) when behavior or trade-offs change during implementation.
+
+Red first: [what test failed first]
+Why this path: [why this implementation was the smallest acceptable]
+Alternative considered: [analytic inverse of the curve vs precomputed table]
+Deferred: [per-user recalibration; re-validation of constants]
+Contract note: [record any metadata deviation]
