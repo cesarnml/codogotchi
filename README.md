@@ -136,6 +136,13 @@ If native Cursor hooks are not installed but Claude Code hooks are, Cursor's **T
 feature can route tool calls through Claude Code hooks. Events then show `source_origin: "claude_code"`.
 `codogotchi hooks status` reports `cursor: bridge` in that case.
 
+### GitHub Copilot and Antigravity (Phase 09)
+
+Native hooks for **GitHub Copilot CLI / VS Code Agent** and **Google Antigravity 2.0** are planned in
+[Phase 09](docs/product/plans/phase-09-extended-platform-hooks.md). Until then, `hooks status` reports
+`vscode` and `antigravity` with `installable_in_phase: false`. Copilot may partially animate via the
+same `.claude/settings.json` bridge as Cursor if Claude Code hooks are installed.
+
 ## Where data lives
 
 | Path | Owner | Purpose |

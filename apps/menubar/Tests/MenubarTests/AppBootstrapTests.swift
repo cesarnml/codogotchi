@@ -65,9 +65,9 @@ final class AppBootstrapTests: XCTestCase {
 		{
 		  "codex": { "present_on_disk": true, "installable_in_phase": true, "installed": true, "firing_recently": false, "last_event_at": null },
 		  "claude_code": { "present_on_disk": true, "installable_in_phase": true, "installed": true, "firing_recently": true, "last_event_at": "2026-05-28T12:00:00Z" },
-		  "cursor": { "present_on_disk": false, "installable_in_phase": false, "installed": false, "firing_recently": false, "last_event_at": null, "source_origin": "phase-06-deferred" },
-		  "vscode": { "present_on_disk": false, "installable_in_phase": false, "installed": false, "firing_recently": false, "last_event_at": null, "source_origin": "phase-06-deferred" },
-		  "antigravity": { "present_on_disk": false, "installable_in_phase": false, "installed": false, "firing_recently": false, "last_event_at": null, "source_origin": "phase-06-deferred" }
+		  "cursor": { "present_on_disk": true, "installable_in_phase": true, "installed": false, "firing_recently": false, "last_event_at": null },
+		  "vscode": { "present_on_disk": false, "installable_in_phase": false, "installed": false, "firing_recently": false, "last_event_at": null },
+		  "antigravity": { "present_on_disk": false, "installable_in_phase": false, "installed": false, "firing_recently": false, "last_event_at": null }
 		}
 		"""#
 
@@ -79,7 +79,9 @@ final class AppBootstrapTests: XCTestCase {
 		XCTAssertTrue(snapshot.codex.installed)
 		XCTAssertTrue(snapshot.claudeCode.firingRecently)
 		XCTAssertEqual(snapshot.claudeCode.lastEventAt, "2026-05-28T12:00:00Z")
-		XCTAssertEqual(snapshot.cursor.sourceOrigin, "phase-06-deferred")
+		XCTAssertTrue(snapshot.cursor.installableInPhase)
+		XCTAssertFalse(snapshot.vscode.installableInPhase)
+		XCTAssertFalse(snapshot.antigravity.installableInPhase)
 	}
 
 	func testHookStatusClientThrowsOnNonZeroExit() {

@@ -67,7 +67,7 @@ Pair with **Phase 07** global gate feed so gates fire when hooks are quiet.
 ## Dependencies
 
 - **Phase 07** SoA global gates (strongly recommended)
-- **Phase 13** premium entitlement infrastructure (shared flag OK)
+- **Phase 13 loot** premium entitlement infrastructure (shared flag OK)
 
 ---
 

@@ -200,24 +200,25 @@ That works for **a personal shim**. It doesn't change the recommendation for **p
 
 - [x] Claude Code hooks (desktop + CLI)
 - [x] Codex hooks (desktop + CLI)
+- [x] **Cursor** native hooks (`~/.cursor/hooks.json`, Phase 06)
 - [x] Shared hook binary + `state.json` pipeline
 - [x] SoA event override (when project dir resolves)
-- [x] Renderer for all 15 states
+- [x] Renderer for schema v4 activity states
 
-### Not done
+### Not done (Phase 09 next)
 
-- [ ] Platform adapters for Cursor / VS Code / Antigravity
-- [ ] Tool-name translation tables per platform
-- [ ] SoA root from `workspace_roots` / platform env vars
-- [ ] `codogotchi setup` installers for new platforms
-- [ ] Fixture capture + tests per platform
-- [ ] Contract origins + docs update
+- [ ] **GitHub Copilot CLI / VS Code Agent** adapter + installer
+- [ ] **Antigravity 2.0** adapter + installer (fixtures gate)
+- [ ] Tool-name translation tables for Copilot + Antigravity
+- [ ] `codogotchi hooks install --platform copilot` / `--all`
+- [ ] Fixture capture + tests for Copilot + Antigravity
+- [ ] Contract origin `copilot` + parity matrix doc
 - [ ] XP/sync for non-Claude/Codex agents
-- [ ] CLI-vs-desktop parity matrix documented
+- [ ] **OpenCode** plugin SDK track (separate from shell hooks)
 
 ### Immediate next move
 
-Capture real hook stdin from a Cursor session, inspect what `preToolUse` / `afterFileEdit` / `stop` actually look like, then decide whether a wrapper or a proper adapter layer is enough. One afternoon of fixtures saves a week of guessing.
+Capture Copilot CLI stdin fixtures (`preToolUse`, `userPromptSubmitted`, `agentStop`), ship native installer + adapter (Phase 09 ticket 1–2). Capture Antigravity fixtures in parallel before betting schema.
 
 ---
 

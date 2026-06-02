@@ -170,6 +170,8 @@ else:
 
 Phase 03 shipped a single **`codogotchi-spritesheet.webp`** (24×9) combining SoA + heuristic rows. Phase 07 architecture splits that into **lite** (hook heuristics) and **soa** (delivery gates) per the four-tier model in animation research §3.
 
+**Phase 08 v1 contract:** shipped **8 frames per row** at 1.5s loop (`codogotchi-lite-spritesheet.webp` + `codogotchi-soa-spritesheet.webp`). The **24-frame-per-row** tier is deferred to the **Phase 14** premium animation pack — do not treat this doc's 24-column pixel math as the current free-tier spec.
+
 ---
 
 ## Related docs
