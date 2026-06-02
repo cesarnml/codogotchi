@@ -3,7 +3,7 @@
 Size: 2 points
 Type: feat
 Scope: engine
-Red: required
+Red: skip
 
 ## Outcome
 
@@ -33,10 +33,36 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+**Stop condition triggered — scope changed to documentation-only.**
 
-Red first: [what test failed first]
-Why this path: [smallest acceptable]
-Alternative considered: [separate parser module vs extending jsonl-parser]
-Deferred: [Cursor/VS Code token reading — not locally available]
-Contract note: [record any metadata deviation]
+Investigated Antigravity's local transcript format before writing any code.
+The `agy` CLI (Antigravity) stores conversation transcripts at:
+`~/.gemini/antigravity-cli/brain/<conversationId>/.system_generated/logs/transcript.jsonl`
+
+These JSONL files contain step-based events (`step_index`, `source`, `type`, `status`,
+`created_at`, `content`) with types such as `USER_INPUT`, `CONVERSATION_HISTORY`,
+`PLANNER_RESPONSE`, `RUN_COMMAND`, `GREP_SEARCH`, `LIST_DIRECTORY`, etc.
+**No message type carries token count fields** — confirmed by scanning all live transcript
+files on 2026-06-03. Neither `transcript.jsonl` nor `transcript_full.jsonl` include any
+`tokens`, `usage_metadata`, `input_tokens`, `output_tokens`, or equivalent fields.
+
+Note: the Gemini CLI (`gemini` / `@google/gemini-cli`) stores sessions at
+`~/.gemini/tmp/<hash>/chats/session-*.json` (JSON arrays, not JSONL) and its model
+messages do carry `tokens: { input, output, cached, total }`. However this is a separate
+product from Antigravity (`agy`) and not what Codogotchi's hooks target.
+
+**Decision**: Fall back to Antigravity HP-only. Antigravity contributes to hearts/health
+via activity hooks (already live from Phase 9) but its ring/level freezes with the same
+graceful treatment as Cursor and VS Code Copilot.
+
+**Red: skip** — no functional implementation; no testable behavior to invert. Changed from
+`Red: required` to `Red: skip` to reflect the doc-only scope.
+
+**Deferred to follow-up** (if Antigravity adds token counts to transcripts in a future
+release): add an `"antigravity"` `SourceConfig.extract` to `jsonl-parser.ts` reading the
+`PLANNER_RESPONSE` lines from `~/.gemini/antigravity-cli/brain/`.
+
+Deferred: Antigravity token reading — local JSONL carries no token counts (verified 2026-06-03).
+Deferred: Cursor/VS Code token reading — tokens live cloud-side (no local session JSONL written).
+Contract note: `JsonlSource` remains `"claude" | "codex"` only. Antigravity, Cursor, and VS Code
+are documented in a contract comment block below `SOURCE_CONFIGS` in `jsonl-parser.ts`.
