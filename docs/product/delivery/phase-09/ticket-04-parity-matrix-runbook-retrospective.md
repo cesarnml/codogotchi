@@ -40,7 +40,7 @@ Red: skip
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
 Red first: n/a (doc-only, Red skip)
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [any deviation from Type/Scope metadata and why]
+Why this path: Placed parity matrix in `docs/runbooks/` alongside the existing `phase-08-lite-install.md` and other per-phase runbooks — consistent location, easy to find. Alternative of `docs/product/notes/public/` would have mixed operator runbooks with internal planning notes.
+Alternative considered: Combining parity matrix + retrospective into one doc — rejected; the matrix is a living operator reference that should not be interspersed with retrospective narrative.
+Deferred: Real-usage validation attestation for vscode and antigravity — both remain `documented` until the developer runs a live session and confirms the payload shapes.
+Contract note: None — Type: docs, Scope: platform matches delivery.
