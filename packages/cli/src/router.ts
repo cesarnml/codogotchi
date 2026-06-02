@@ -274,6 +274,13 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       process.stderr.write(gate.message);
       return { exitCode: gate.exitCode };
     }
+    if (!gate.config.convex_http_url || !gate.config.handle) {
+      process.stderr.write(
+        "codogotchi: `sync` requires cloud configuration (handle + convex_http_url). " +
+          "This install is running in local-RPG mode — sync is not available.\n",
+      );
+      return { exitCode: 2 };
+    }
     const result = await runSync({
       home,
       config: gate.config,

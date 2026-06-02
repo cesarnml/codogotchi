@@ -125,6 +125,11 @@ function getDottedValue(config: CodogotchiConfigShape, path: string): unknown {
   if (path === "features.rpg_enabled") {
     return config.features.rpg_enabled;
   }
+  if (path === "features.rpg_hud_enabled") {
+    return (
+      (config.features as { rpg_hud_enabled?: boolean }).rpg_hud_enabled ?? true
+    );
+  }
   if (path.startsWith("health.")) {
     if (!config.features.rpg_enabled) {
       throw new ConfigCommandError(
@@ -180,6 +185,18 @@ function applyFeaturesValue(
   key: string,
   raw: string,
 ): CodogotchiConfigShape {
+  if (key === "rpg_hud_enabled") {
+    const val = raw === "true" ? true : raw === "false" ? false : null;
+    if (val === null) {
+      throw new ConfigCommandError(
+        `rpg_hud_enabled must be "true" or "false", got: ${raw}`,
+      );
+    }
+    return {
+      ...config,
+      features: { ...config.features, rpg_hud_enabled: val },
+    };
+  }
   if (key !== "rpg_enabled") {
     throw new ConfigCommandError(`Unknown features key: ${key}`);
   }
