@@ -8,9 +8,9 @@ import Foundation
 /// so the strings live in exactly one place. If you change a string here,
 /// update the contract doc in the same PR (and vice versa).
 enum LivePollingTooltips {
-	/// Surfaced when the polling target file is absent — the hook binary is
-	/// almost certainly not installed or has never run on this machine.
-	static let noHookDetected: String = "codogotchi-hook not detected"
+	/// Surfaced when the polling target file is absent — hooks are installed
+	/// but no agent prompt has been run yet on this machine.
+	static let noHookDetected: String = "Waiting for first agent prompt…"
 
 	/// Surfaced for both malformed JSON and missing/non-integer `schema_version`.
 	/// The product policy folds those into a single user-facing failure visual
@@ -242,7 +242,7 @@ final class LivePollingDriver {
 		case .failure(.fileNotFound):
 			let gateBadge = resolveGateBadgeContent(deliveryContext: deliveryContext, sourceEvent: nil)
 			return Outcome(
-				state: .idle, mode: .desaturated,
+				state: .idle, mode: .normal,
 				tooltip: LivePollingTooltips.noHookDetected,
 				attention: nil, sourceEvent: nil, gateBadge: gateBadge
 			)

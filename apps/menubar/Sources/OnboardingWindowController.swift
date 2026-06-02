@@ -141,6 +141,9 @@ private final class OnboardingContentView: NSView {
 	private let retryButton = NSButton(title: "", target: nil, action: nil)
 	private let dismissButton = NSButton(title: "", target: nil, action: nil)
 
+	private var dismissCenteredConstraint: NSLayoutConstraint!
+	private var dismissPairedConstraint: NSLayoutConstraint!
+
 	private let onApprove: () -> Void
 	private let onRetry: () -> Void
 	private let onDismiss: () -> Void
@@ -186,6 +189,8 @@ private final class OnboardingContentView: NSView {
 		statusLabel.textColor = .secondaryLabelColor
 		retryButton.isHidden = true
 		dismissButton.isHidden = false
+		dismissPairedConstraint.isActive = false
+		dismissCenteredConstraint.isActive = true
 	}
 
 	func setHooksNotActive() {
@@ -194,6 +199,8 @@ private final class OnboardingContentView: NSView {
 		statusLabel.textColor = .secondaryLabelColor
 		retryButton.isHidden = false
 		dismissButton.isHidden = false
+		dismissCenteredConstraint.isActive = false
+		dismissPairedConstraint.isActive = true
 	}
 
 	// MARK: - Layout
@@ -275,9 +282,13 @@ private final class OnboardingContentView: NSView {
 			retryButton.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 8),
 			retryButton.centerXAnchor.constraint(equalTo: centerXAnchor, constant: -56),
 
-			dismissButton.centerYAnchor.constraint(equalTo: retryButton.centerYAnchor),
-			dismissButton.centerXAnchor.constraint(equalTo: centerXAnchor, constant: 56),
+			dismissButton.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 8),
 		])
+
+		dismissCenteredConstraint = dismissButton.centerXAnchor.constraint(equalTo: centerXAnchor)
+		dismissPairedConstraint = dismissButton.centerXAnchor.constraint(
+			equalTo: centerXAnchor, constant: 56)
+		dismissCenteredConstraint.isActive = true
 	}
 
 	@objc private func approveTapped() {
