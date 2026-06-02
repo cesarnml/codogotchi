@@ -1012,12 +1012,38 @@ describe("vscode hooks", () => {
     expect(raw).not.toContain("codogotchi-hook");
   });
 
+  it("vscode install writes the versioned event-map schema with a bash field", async () => {
+    await installVscodeHooks({ home: "/home/user/.codogotchi" });
+    const parsed = JSON.parse(
+      readFileSync(
+        join(userRoot, ".copilot", "hooks", "codogotchi.json"),
+        "utf8",
+      ),
+    ) as { version: number; hooks: Record<string, { bash: string }[]> };
+    expect(parsed.version).toBe(1);
+    expect(Array.isArray(parsed.hooks.preToolUse)).toBe(true);
+    expect(parsed.hooks.preToolUse[0]?.bash).toContain("codogotchi-hook");
+    expect(parsed.hooks.agentStop[0]?.bash).toContain(
+      "CODOGOTCHI_ORIGIN=vscode",
+    );
+  });
+
   it("vscode uninstall preserves unrelated entries and leaves a valid file", async () => {
     const hooksPath = join(userRoot, ".copilot", "hooks", "codogotchi.json");
     mkdirSync(join(userRoot, ".copilot", "hooks"), { recursive: true });
+    // Correct (versioned map) schema with an unrelated user hook under preToolUse.
     writeFileSync(
       hooksPath,
-      `${JSON.stringify({ hooks: [{ event: "preToolUse", command: "my-custom-hook" }] }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", bash: "my-custom-hook" }],
+          },
+        },
+        null,
+        2,
+      )}\n`,
       "utf8",
     );
 
@@ -1026,12 +1052,11 @@ describe("vscode hooks", () => {
 
     expect(existsSync(hooksPath)).toBe(true);
     const parsed = JSON.parse(readFileSync(hooksPath, "utf8")) as {
-      hooks: { event: string; command: string }[];
+      hooks: Record<string, { type: string; bash: string }[]>;
     };
-    expect(
-      parsed.hooks.some((e) => e.command.includes("codogotchi-hook")),
-    ).toBe(false);
-    expect(parsed.hooks.some((e) => e.command === "my-custom-hook")).toBe(true);
+    const all = Object.values(parsed.hooks).flat();
+    expect(all.some((e) => e.bash.includes("codogotchi-hook"))).toBe(false);
+    expect(all.some((e) => e.bash === "my-custom-hook")).toBe(true);
   });
 });
 

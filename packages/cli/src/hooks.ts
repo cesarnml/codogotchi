@@ -237,21 +237,27 @@ function cursorAnyWired(hooks: CursorHooksJson): boolean {
   );
 }
 
-// Copilot hook file format: a JSON file with an array of hook entries.
-// Written to ~/.copilot/hooks/codogotchi.json (or $COPILOT_HOME/hooks/).
-// Each entry names the event and the shell command to run.
+// GitHub Copilot (VS Code Copilot Chat + Copilot CLI) hook file format.
+// Written to ~/.copilot/hooks/codogotchi.json. Per
+// https://docs.github.com/en/copilot/reference/hooks-configuration the schema
+// is a VERSIONED object whose `hooks` is a MAP keyed by event name, each value
+// an array of hook entries. Command hooks use a `bash` field (run via a shell,
+// which our env-prefixed command needs). The earlier flat `{hooks:[{event,
+// command}]}` form was silently ignored — Copilot fired nothing.
 const COPILOT_CODOGOTCHI_EVENTS = [
   "userPromptSubmitted",
   "preToolUse",
-  "postToolUse",
   "agentStop",
-  "sessionEnd",
   "errorOccurred",
   "permissionRequest",
 ] as const;
 
-type CopilotHookEntry = { event: string; command: string };
-type CopilotHooksFile = { hooks: CopilotHookEntry[] };
+type CopilotCommandHook = { type: "command"; bash: string };
+type CopilotHookSlot = CopilotCommandHook[];
+type CopilotHooksFile = {
+  version?: number;
+  hooks?: Record<string, CopilotHookSlot | unknown>;
+} & Record<string, unknown>;
 
 function copilotHookCommand(ctx: InstallHooksContext): string {
   return [
@@ -261,27 +267,75 @@ function copilotHookCommand(ctx: InstallHooksContext): string {
   ].join(" ");
 }
 
-function isCopilotCodogotchiEntry(entry: CopilotHookEntry): boolean {
-  return isCodogotchiCommand(entry.command);
+function isCopilotCommandHook(value: unknown): value is CopilotCommandHook {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return v.type === "command" && typeof v.bash === "string";
+}
+
+function isCopilotCodogotchiEntry(value: unknown): boolean {
+  return isCopilotCommandHook(value) && isCodogotchiCommand(value.bash);
+}
+
+/// The `hooks` map, or {} when absent or in the legacy flat-array form (which is
+/// discarded — it never worked).
+function copilotHookMap(file: CopilotHooksFile): Record<string, unknown> {
+  const hooks = file.hooks;
+  if (hooks && typeof hooks === "object" && !Array.isArray(hooks)) {
+    return hooks as Record<string, unknown>;
+  }
+  return {};
 }
 
 function copilotInstalled(file: CopilotHooksFile): boolean {
-  return COPILOT_CODOGOTCHI_EVENTS.every((event) =>
-    file.hooks.some((e) => e.event === event && isCopilotCodogotchiEntry(e)),
-  );
+  const map = copilotHookMap(file);
+  return COPILOT_CODOGOTCHI_EVENTS.every((event) => {
+    const slot = map[event];
+    return Array.isArray(slot) && slot.some(isCopilotCodogotchiEntry);
+  });
 }
 
+/// Rebuild the file: preserve unrelated events/entries, strip prior codogotchi
+/// entries (dedup), then register our command under each event. Idempotent.
 function withCopilotCodogotchiEntries(
   existing: CopilotHooksFile,
-  command: string,
+  bash: string,
 ): CopilotHooksFile {
-  // Remove all prior codogotchi entries (dedup), then re-append for each event.
-  const others = existing.hooks.filter((e) => !isCopilotCodogotchiEntry(e));
-  const entries = COPILOT_CODOGOTCHI_EVENTS.map((event) => ({
-    event,
-    command,
-  }));
-  return { hooks: [...others, ...entries] };
+  const map = copilotHookMap(existing);
+  const nextHooks: Record<string, unknown> = {};
+  for (const [event, slot] of Object.entries(map)) {
+    if (!Array.isArray(slot)) {
+      nextHooks[event] = slot;
+      continue;
+    }
+    const others = slot.filter((e) => !isCopilotCodogotchiEntry(e));
+    if (others.length > 0) nextHooks[event] = others;
+  }
+  const entry: CopilotCommandHook = { type: "command", bash };
+  for (const event of COPILOT_CODOGOTCHI_EVENTS) {
+    const slot = Array.isArray(nextHooks[event])
+      ? (nextHooks[event] as unknown[])
+      : [];
+    nextHooks[event] = [...slot, entry];
+  }
+  return { ...existing, version: 1, hooks: nextHooks };
+}
+
+/// Strip codogotchi entries from every event, preserving everything else.
+function withoutCopilotCodogotchiEntries(
+  existing: CopilotHooksFile,
+): CopilotHooksFile {
+  const map = copilotHookMap(existing);
+  const nextHooks: Record<string, unknown> = {};
+  for (const [event, slot] of Object.entries(map)) {
+    if (!Array.isArray(slot)) {
+      nextHooks[event] = slot;
+      continue;
+    }
+    const others = slot.filter((e) => !isCopilotCodogotchiEntry(e));
+    if (others.length > 0) nextHooks[event] = others;
+  }
+  return { ...existing, hooks: nextHooks };
 }
 
 // Antigravity hook file format: a named-hook map where each key is the hook
@@ -400,11 +454,8 @@ export async function installVscodeHooks(
   await backupIfExists(hooksPath);
 
   const existing = await readJsonOrEmpty<CopilotHooksFile>(hooksPath);
-  const normalized: CopilotHooksFile = {
-    hooks: Array.isArray(existing.hooks) ? existing.hooks : [],
-  };
   const updated = withCopilotCodogotchiEntries(
-    normalized,
+    existing,
     copilotHookCommand(ctx),
   );
   await writeText(hooksPath, `${JSON.stringify(updated, null, 2)}\n`);
@@ -417,11 +468,7 @@ export async function uninstallVscodeHooks(): Promise<void> {
   await backupIfExists(hooksPath);
 
   const existing = await readJsonOrEmpty<CopilotHooksFile>(hooksPath);
-  const cleaned: CopilotHooksFile = {
-    hooks: Array.isArray(existing.hooks)
-      ? existing.hooks.filter((e) => !isCopilotCodogotchiEntry(e))
-      : [],
-  };
+  const cleaned = withoutCopilotCodogotchiEntries(existing);
   await writeText(hooksPath, `${JSON.stringify(cleaned, null, 2)}\n`);
 }
 
@@ -1022,7 +1069,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
     : ({} as CursorHooksJson);
   const copilotJson = copilotPresent
     ? await readJsonOrEmpty<CopilotHooksFile>(copilotPath)
-    : ({ hooks: [] } as CopilotHooksFile);
+    : ({} as CopilotHooksFile);
   const geminiJson = geminiPresent
     ? await readJsonOrEmpty<AntigravityHooksFile>(geminiPath)
     : ({} as AntigravityHooksFile);
@@ -1044,10 +1091,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
   // fallback for Cursor.
   const cursorNativeInstalled = cursorInstalled(cursorJson);
   const cursorNativeAnyWired = cursorAnyWired(cursorJson);
-  const normalizedCopilot: CopilotHooksFile = {
-    hooks: Array.isArray(copilotJson.hooks) ? copilotJson.hooks : [],
-  };
-  const vscodeFullyInstalled = copilotInstalled(normalizedCopilot);
+  const vscodeFullyInstalled = copilotInstalled(copilotJson);
   const antigravityFullyInstalled = isAntigravityInstalled(geminiJson);
 
   // "Partially installed": codogotchi hooks are present but not fully wired for

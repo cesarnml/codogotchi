@@ -1,5 +1,15 @@
 # Handoff: verify the REAL VS Code / Copilot hook API (live capture)
 
+> **✅ RESOLVED 2026-06-03.** This was carried out and fixed. Findings: the
+> write-side file format was wrong (Copilot needs a versioned event-map with a
+> `bash` field, not a flat `{hooks:[{event,command}]}` array — that's why it was
+> 100% silent). The payload turned out to be Claude-Code-shaped (PascalCase
+> `hook_event_name`, snake_case `tool_name`/`tool_input`, `prompt`, `cwd`), so
+> the parse side only needed real VS Code tool-name aliases (run_in_terminal →
+> Shell, read_file → Read, grep_search → Grep, create_file/insert_edit_into_file
+> → Write/Edit) plus `cwd` for repo_root. Kept below as the capture-method
+> reference for future platforms.
+
 > Paste this whole file to the next Claude as the task brief. It mirrors the
 > Antigravity debug session that fixed commit `316916c`
 > (`fix(hooks): classify Antigravity events by payload shape`). The VS Code /

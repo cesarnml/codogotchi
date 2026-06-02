@@ -47,6 +47,8 @@ export type HookInput = {
   // Stable thread id (Claude/Codex `session_id`, Cursor `conversation_id`).
   session_id?: string;
   conversation_id?: string;
+  // Project working directory (VS Code Copilot, Claude Code) — used for repo_root.
+  cwd?: string;
   // User prompt on submit hooks (`UserPromptSubmit`, `beforeSubmitPrompt`, …).
   prompt?: string;
   // Copilot camelCase CLI payload fields.
@@ -218,7 +220,13 @@ function detectRepoRoot(input: HookInput, env: NodeJS.ProcessEnv): string {
     ...(input.workspace_roots ?? []),
     ...(input.workspacePaths ?? []),
   ].find((root) => typeof root === "string" && root.trim().length > 0);
-  return resolve(workspaceRoot ?? env.PWD ?? process.cwd());
+  // VS Code Copilot (and Claude Code) send the project dir as `cwd`; prefer it
+  // over the hook process PWD, which may be the IDE launch dir.
+  const cwd =
+    typeof input.cwd === "string" && input.cwd.trim().length > 0
+      ? input.cwd
+      : undefined;
+  return resolve(workspaceRoot ?? cwd ?? env.PWD ?? process.cwd());
 }
 
 function rawHookOrigin(input: HookInput): SourceEventOrigin {
@@ -350,21 +358,34 @@ function rawHookKind(input: HookInput): SourceEventKind {
 // split. "task" is a think-y planning tool → "Grep" (also thinking).
 function resolveCopilotToolAlias(toolName: string): string {
   switch (toolName.toLowerCase()) {
+    // Real VS Code Copilot Chat agent tool names (verified via live capture).
+    case "run_in_terminal":
     case "bash":
-      return "Bash";
+      return "Shell"; // routes to command inspection (test/think/implement)
+    case "read_file":
+    case "view":
+      return "Read";
+    case "grep_search":
+    case "grep":
+      return "Grep";
+    case "file_search":
+    case "semantic_search":
+    case "list_dir":
+    case "glob":
+    case "task":
+      return "Grep"; // thinking-bucket search/explore tools
+    case "create_file":
+      return "Write";
+    case "insert_edit_into_file":
+    case "replace_string_in_file":
+    case "multi_replace_string_in_file":
+    case "apply_patch":
     case "create":
     case "edit":
       return "Edit";
-    case "view":
-      return "Read";
-    case "grep":
-      return "Grep";
-    case "glob":
-      return "Glob";
+    case "fetch_webpage":
     case "web_fetch":
       return "WebFetch";
-    case "task":
-      return "Grep"; // thinking
     default:
       return toolName;
   }

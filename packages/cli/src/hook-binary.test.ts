@@ -732,6 +732,112 @@ describe("classifyEvent", () => {
       expect(out.state).toBe("waiting_for_input");
       expect(out.sourceEvent.origin).toBe("vscode");
     });
+
+    // Real VS Code Copilot Chat payloads (captured live): Claude-Code-shaped —
+    // PascalCase hook_event_name, snake_case tool_name/tool_input, prompt,
+    // session_id, transcript_path, cwd. Tool names are VS Code's own vocabulary.
+    describe("real payloads (captured live)", () => {
+      it("PreToolUse run_in_terminal 'ls -la' → Shell, thinking", () => {
+        const out = classifyEvent(
+          {
+            hook_event_name: "PreToolUse",
+            session_id: "S1",
+            tool_name: "run_in_terminal",
+            tool_input: { command: "ls -la" },
+            cwd: "/Users/cesar/code/codogotchi",
+          } as HookInput,
+          { readRun: 0 },
+        );
+        expect(out.state).toBe("thinking");
+        expect(out.sourceEvent.name).toBe("Shell");
+        expect(out.sourceEvent.origin).toBe("vscode");
+      });
+
+      it("PreToolUse run_in_terminal 'bun test' → Shell, testing", () => {
+        const out = classifyEvent(
+          {
+            hook_event_name: "PreToolUse",
+            tool_name: "run_in_terminal",
+            tool_input: { command: "bun test packages/cli" },
+          } as HookInput,
+          { readRun: 0 },
+        );
+        expect(out.state).toBe("testing");
+        expect(out.sourceEvent.name).toBe("Shell");
+      });
+
+      it("PreToolUse read_file → Read, reading", () => {
+        const out = classifyEvent(
+          {
+            hook_event_name: "PreToolUse",
+            tool_name: "read_file",
+            tool_input: { filePath: "/x/README.md" },
+          } as HookInput,
+          { readRun: 0 },
+        );
+        expect(out.state).toBe("reading");
+        expect(out.sourceEvent.name).toBe("Read");
+      });
+
+      it("PreToolUse grep_search → Grep, thinking", () => {
+        const out = classifyEvent(
+          {
+            hook_event_name: "PreToolUse",
+            tool_name: "grep_search",
+            tool_input: { query: "codogotchi" },
+          } as HookInput,
+          { readRun: 0 },
+        );
+        expect(out.state).toBe("thinking");
+        expect(out.sourceEvent.name).toBe("Grep");
+      });
+
+      it("PreToolUse create_file → Write, implementing", () => {
+        const out = classifyEvent(
+          {
+            hook_event_name: "PreToolUse",
+            tool_name: "create_file",
+            tool_input: { filePath: "/x/new.ts" },
+          } as HookInput,
+          { readRun: 0 },
+        );
+        expect(out.state).toBe("implementing");
+        expect(out.sourceEvent.name).toBe("Write");
+      });
+
+      it("Stop (hook_event_name 'Stop') → standby", () => {
+        const out = classifyEvent(
+          {
+            hook_event_name: "Stop",
+            session_id: "S1",
+            stop_hook_active: false,
+            cwd: "/Users/cesar/code/codogotchi",
+          } as HookInput,
+          { readRun: 0 },
+        );
+        expect(out.state).toBe("standby");
+        expect(out.sourceEvent.origin).toBe("vscode");
+      });
+
+      it("repo_root comes from cwd via runHook", async () => {
+        const home = mkdtempSync(join(tmpdir(), "codogotchi-vscode-run-"));
+        await runHook(
+          {
+            hook_event_name: "PreToolUse",
+            tool_name: "read_file",
+            tool_input: { filePath: "/x/README.md" },
+            cwd: "/Users/cesar/code/codogotchi",
+          } as HookInput,
+          { home, now: FIXED_NOW },
+        );
+        const raw = readFileSync(join(home, "state.json"), "utf8");
+        const state = JSON.parse(raw);
+        expect(state.source_event.repo_root).toBe(
+          "/Users/cesar/code/codogotchi",
+        );
+        rmSync(home, { recursive: true, force: true });
+      });
+    });
   });
 
   // P9.03: Antigravity native hook classifier
