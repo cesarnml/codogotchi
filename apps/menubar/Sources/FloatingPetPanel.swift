@@ -839,6 +839,14 @@ private final class AnimationLabelPillView: NSView {
 	/// the label resizes, not on every layout pass.
 	private var shimmerBandWidth: CGFloat = 0
 	private var occlusionObserver: NSObjectProtocol?
+	/// Watchdog that re-arms the sweep if it ever stops advancing. Core Animation
+	/// culls animations on a range of events (Space switch, app deactivation,
+	/// window occlusion) and does not always restore them or fire a notification,
+	/// which previously left the highlight frozen mid-text. The heartbeat samples
+	/// the band's presentation layer and restarts the animation the instant it
+	/// detects no movement, so the sweep cannot stay stuck.
+	private var shimmerHeartbeat: Timer?
+	private var lastShimmerSampleX: CGFloat = .nan
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -895,6 +903,7 @@ private final class AnimationLabelPillView: NSView {
 		if let occlusionObserver {
 			NotificationCenter.default.removeObserver(occlusionObserver)
 		}
+		shimmerHeartbeat?.invalidate()
 	}
 
 	func configure(text: String, inFlight: Bool, metrics: GateBadgeLayout.Metrics) {
@@ -964,12 +973,44 @@ private final class AnimationLabelPillView: NSView {
 	private func setShimmering(_ shimmering: Bool) {
 		shimmerContainer.isHidden = !shimmering
 		isShimmering = shimmering
-		if !shimmering {
+		if shimmering {
+			startShimmerHeartbeat()
+		} else {
+			shimmerHeartbeat?.invalidate()
+			shimmerHeartbeat = nil
 			shimmerBand.removeAnimation(forKey: Self.shimmerAnimationKey)
 			shimmerBandWidth = 0
 		}
 		// `refreshShimmerGeometry` (driven from `applyMetrics`) arms the animation
 		// once the label has a resolved width.
+	}
+
+	private func startShimmerHeartbeat() {
+		guard shimmerHeartbeat == nil else { return }
+		lastShimmerSampleX = .nan
+		// Sample a few times per sweep. Added to `.common` modes so it keeps firing
+		// during tracking runloops (menu/drag), and on the main runloop it fires
+		// even while the app is in the background.
+		let timer = Timer(timeInterval: 0.4, repeats: true) { [weak self] _ in
+			Task { @MainActor in self?.shimmerHeartbeatTick() }
+		}
+		RunLoop.main.add(timer, forMode: .common)
+		shimmerHeartbeat = timer
+	}
+
+	private func shimmerHeartbeatTick() {
+		// Only police the sweep when it should actually be running and visible.
+		guard isShimmering, window?.occlusionState.contains(.visible) == true else {
+			lastShimmerSampleX = .nan
+			return
+		}
+		let sample = shimmerBand.presentation()?.position.x ?? .nan
+		defer { lastShimmerSampleX = sample }
+		// Frozen if there is no in-flight presentation, or the band has not advanced
+		// since the previous sample. A spurious match at the sweep wrap just restarts
+		// the sweep — visually harmless.
+		let frozen = sample.isNaN || (!lastShimmerSampleX.isNaN && abs(sample - lastShimmerSampleX) < 0.5)
+		if frozen { forceShimmerRearm() }
 	}
 
 	private func forceShimmerRearm() {
