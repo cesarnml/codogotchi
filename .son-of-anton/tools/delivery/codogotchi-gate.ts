@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { execSync } from 'node:child_process';
 
 import type { ResolvedOrchestratorConfig } from './config';
 
@@ -8,7 +9,8 @@ import type { ResolvedOrchestratorConfig } from './config';
  *  now the durable signal for which gate is active, so the animation only needs
  *  to mark the transition briefly rather than hold for minutes. */
 const GATE_TTL_MS = 30_000;
-const DELIVERY_CONTEXT_LEASE_MS = 6 * 60 * 60 * 1000;
+/** Lease long enough to survive an overnight pause + next-day resume. */
+const DELIVERY_CONTEXT_LEASE_MS = 24 * 60 * 60 * 1000;
 
 /** Canonical gate-name strings matching the codogotchi schema-v4 ActivityState contract */
 export const GATE_NAMES = {
@@ -57,6 +59,25 @@ export function resolveCodogotchiHome(): string {
   return process.env['CODOGOTCHI_HOME'] || join(homedir(), '.codogotchi');
 }
 
+/**
+ * Returns the main-worktree root for any git checkout, including linked
+ * worktrees. `git rev-parse --git-common-dir` always points at the shared
+ * `.git` dir regardless of which worktree is active; its parent is the main
+ * checkout root. This makes delivery-context.json use the same path the hook
+ * binary writes into `source_event.repo_root` (which also resolves from the
+ * main checkout), so the renderer's repo-mismatch guard never fires for
+ * worktrees of the same repository.
+ */
+function resolveCanonicalGitRoot(cwd: string): string {
+  try {
+    const raw = execSync('git rev-parse --git-common-dir', { cwd, encoding: 'utf8' }).trim();
+    const absoluteCommonDir = isAbsolute(raw) ? raw : join(cwd, raw);
+    return dirname(absoluteCommonDir);
+  } catch {
+    return cwd;
+  }
+}
+
 export async function writeGateEvent(
   config: ResolvedOrchestratorConfig,
   event: GateEvent,
@@ -66,7 +87,7 @@ export async function writeGateEvent(
     const home = resolveCodogotchiHome();
     const since = new Date();
     const expiresAt = new Date(since.getTime() + GATE_TTL_MS);
-    const repoRoot = resolve(event.repoRoot ?? process.cwd());
+    const repoRoot = resolveCanonicalGitRoot(resolve(event.repoRoot ?? process.cwd()));
     const payload: GateJsonPayload = {
       gate: event.gate,
       since: since.toISOString(),
