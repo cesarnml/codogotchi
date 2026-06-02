@@ -15,8 +15,10 @@ import {
   hooksStatus,
   installCursorHooks,
   installHooks,
+  installVscodeHooks,
   uninstallCursorHooks,
   uninstallHooks,
+  uninstallVscodeHooks,
 } from "./hooks";
 
 describe("installHooks", () => {
@@ -942,5 +944,69 @@ describe("waiting_for_input hook registration", () => {
     const status = await hooksStatus();
     expect(status.claude_code.installed).toBe(false);
     expect(status.claude_code.partially_installed).toBe(true);
+  });
+});
+
+// P9.02: VS Code (Copilot) hooks installer
+describe("vscode hooks", () => {
+  let userRoot: string;
+  let prevUserRoot: string | undefined;
+
+  beforeEach(() => {
+    userRoot = mkdtempSync(join(tmpdir(), "codogotchi-vscode-hooks-"));
+    prevUserRoot = process.env.CODOGOTCHI_USER_ROOT;
+    process.env.CODOGOTCHI_USER_ROOT = userRoot;
+    mkdirSync(join(userRoot, ".codogotchi"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".codogotchi", "config.json"),
+      `${JSON.stringify({ profile_id: "p", pet: "maew", features: { rpg_enabled: false } })}\n`,
+      "utf8",
+    );
+  });
+
+  afterEach(() => {
+    rmSync(userRoot, { recursive: true, force: true });
+    if (prevUserRoot === undefined) delete process.env.CODOGOTCHI_USER_ROOT;
+    else process.env.CODOGOTCHI_USER_ROOT = prevUserRoot;
+  });
+
+  it("hooks install --platform vscode writes ~/.copilot/hooks/codogotchi.json with CODOGOTCHI_ORIGIN=vscode", async () => {
+    await installVscodeHooks({ home: "/home/user/.codogotchi" });
+    const raw = readFileSync(
+      join(userRoot, ".copilot", "hooks", "codogotchi.json"),
+      "utf8",
+    );
+    expect(raw).toContain("codogotchi-hook");
+    expect(raw).toContain("CODOGOTCHI_ORIGIN=vscode");
+  });
+
+  it("vscode install is idempotent — running twice produces a byte-identical file", async () => {
+    const ctx = { home: "/home/user/.codogotchi" };
+    await installVscodeHooks(ctx);
+    const first = readFileSync(
+      join(userRoot, ".copilot", "hooks", "codogotchi.json"),
+      "utf8",
+    );
+    await installVscodeHooks(ctx);
+    const second = readFileSync(
+      join(userRoot, ".copilot", "hooks", "codogotchi.json"),
+      "utf8",
+    );
+    expect(second).toBe(first);
+  });
+
+  it("hooksStatus reports vscode installed and installable_in_phase after install", async () => {
+    await installVscodeHooks({ home: "/home/user/.codogotchi" });
+    const status = await hooksStatus();
+    expect(status.vscode.installed).toBe(true);
+    expect(status.vscode.installable_in_phase).toBe(true);
+  });
+
+  it("vscode uninstall removes codogotchi entries", async () => {
+    await installVscodeHooks({ home: "/home/user/.codogotchi" });
+    await uninstallVscodeHooks();
+    const hooksPath = join(userRoot, ".copilot", "hooks", "codogotchi.json");
+    const raw = existsSync(hooksPath) ? readFileSync(hooksPath, "utf8") : "";
+    expect(raw).not.toContain("codogotchi-hook");
   });
 });
