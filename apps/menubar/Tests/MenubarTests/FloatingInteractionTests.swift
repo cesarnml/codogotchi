@@ -340,7 +340,7 @@ final class FloatingInteractionTests: XCTestCase {
 				previous: .jumping
 			),
 			.jumping,
-			"first drag ticks are often vertical-only; must not clear hover jumping"
+			"first drag ticks are often vertical-only; must not clear click jumping"
 		)
 	}
 
@@ -384,22 +384,16 @@ final class FloatingInteractionTests: XCTestCase {
 		)
 	}
 
-	func testHoverInBoundsSelectsJumping() {
+	func testClickOnDragRegionSelectsJumping() {
 		XCTAssertEqual(
-			FloatingInteractionPolicy.hoverInteraction(pointerInBounds: true, isDragging: false),
+			FloatingInteractionPolicy.clickInteraction(hitTarget: .dragRegion),
 			.jumping
 		)
 	}
 
-	func testHoverOutsideBoundsHasNoInteraction() {
+	func testClickOnResizeAffordanceHasNoInteraction() {
 		XCTAssertNil(
-			FloatingInteractionPolicy.hoverInteraction(pointerInBounds: false, isDragging: false)
-		)
-	}
-
-	func testHoverSuppressedWhileDragging() {
-		XCTAssertNil(
-			FloatingInteractionPolicy.hoverInteraction(pointerInBounds: true, isDragging: true)
+			FloatingInteractionPolicy.clickInteraction(hitTarget: .resizeAffordance)
 		)
 	}
 

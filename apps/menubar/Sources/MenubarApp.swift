@@ -248,6 +248,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					apply: { state in
 						stateFanout.applyDemo(state: state)
 					},
+					tickInterval: DemoConfig.demoTickSeconds(
+						from: ProcessInfo.processInfo.environment
+					),
 					transitionLog: self.transitionLog
 				)
 				driver.start()

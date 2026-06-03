@@ -97,7 +97,9 @@ Closing the lid (or otherwise sleeping the machine) is safe — the 1-second pol
 polling target to a sandboxed file under `$TMPDIR/codogotchi-demo/state.json`
 and cycles activity fixtures on a timer. Both surfaces consume the same fanout;
 the menubar stays static between state changes. Optional
-`CODOGOTCHI_DEMO_FRAME_MS` slows **floating pet** frames only.
+`CODOGOTCHI_DEMO_TICK_SECONDS` controls how long each activity state is shown
+(default **3** seconds). Optional `CODOGOTCHI_DEMO_FRAME_MS` slows **floating
+pet** frames only.
 
 Two equivalent activations:
 

@@ -43,9 +43,24 @@ struct DemoConfig: Equatable {
 		)
 	}
 
+	/// Default demo cycle interval (seconds between activity-state fixtures).
+	static let defaultDemoTickSeconds: TimeInterval = 3.0
+
 	/// Default frame interval for demo mode (ms). Named constant so it is not
 	/// scattered as a magic number across the renderer and the test suite.
 	static let defaultDemoFrameMs: Int = 500
+
+	/// Resolve the demo cycle interval in seconds from the environment.
+	///
+	/// `CODOGOTCHI_DEMO_TICK_SECONDS`, when present and parseable as a positive
+	/// number, overrides `defaultDemoTickSeconds`. Out-of-range or unparseable
+	/// values silently fall back to `defaultDemoTickSeconds`.
+	static func demoTickSeconds(from environment: [String: String]) -> TimeInterval {
+		guard let raw = environment["CODOGOTCHI_DEMO_TICK_SECONDS"],
+			let value = Double(raw), value > 0
+		else { return defaultDemoTickSeconds }
+		return value
+	}
 
 	/// Resolve the demo frame interval in milliseconds from the environment.
 	///

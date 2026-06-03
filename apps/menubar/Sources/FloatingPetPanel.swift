@@ -1359,11 +1359,15 @@ enum FloatingInteractionPolicy {
 		bounds.contains(point)
 	}
 
-	/// Reserved-row interaction while the pointer is over the frame but not
-	/// dragging (P4.07 hover feedback).
-	static func hoverInteraction(pointerInBounds: Bool, isDragging: Bool) -> FloatingInteraction? {
-		guard pointerInBounds, !isDragging else { return nil }
-		return .jumping
+	/// Reserved-row interaction for a primary (left) click on the pet body.
+	/// Resize drags use `interaction(forStepDelta:…)` instead.
+	static func clickInteraction(hitTarget: FloatingInteractionHitTarget) -> FloatingInteraction? {
+		switch hitTarget {
+		case .dragRegion:
+			return .jumping
+		case .resizeAffordance:
+			return nil
+		}
 	}
 
 	/// Maps a single drag event's screen-space step (not cumulative delta from
@@ -1381,7 +1385,7 @@ enum FloatingInteractionPolicy {
 			if delta.width > 0 { return .runningRight }
 			if delta.width < 0 { return .runningLeft }
 			// Vertical-only steps must not drop back to activity frames mid-drag
-			// (common on the first `mouseDragged` tick while hover is `.jumping`).
+			// (common on the first `mouseDragged` tick while a click set `.jumping`).
 			if previous == .runningLeft || previous == .runningRight || previous == .jumping {
 				return previous
 			}
@@ -1580,6 +1584,10 @@ private final class FloatingPetInteractionView: NSView {
 			)
 			activeInteraction = .drag(grabOffsetInScreen: grabOffset)
 			overlayView.showsResizeAffordance = false
+			emitInteraction(
+				FloatingInteractionPolicy.clickInteraction(hitTarget: .dragRegion),
+				reason: "mouseDown-click"
+			)
 		case .resizeAffordance:
 			activeInteraction = .resize(startFrame: window.frame, startScreenPoint: startScreenPoint)
 			pushResizeCursor()
@@ -1958,7 +1966,7 @@ private final class FloatingPetInteractionView: NSView {
 			NSCursor.arrow.set()
 		}
 
-		syncHoverInteraction(reason: reason)
+		syncPointerIdleInteraction(reason: reason)
 	}
 
 	private func emitInteraction(_ interaction: FloatingInteraction?, reason: String) {
@@ -1967,15 +1975,11 @@ private final class FloatingPetInteractionView: NSView {
 		interactionHandler(interaction)
 	}
 
-	/// Hover feedback when no drag is active; skipped while `mouseDragged` owns
-	/// interaction selection.
-	private func syncHoverInteraction(reason: String) {
-		guard activeInteraction == nil else { return }
-		let hover = FloatingInteractionPolicy.hoverInteraction(
-			pointerInBounds: pointerInsideFrame,
-			isDragging: false
-		)
-		emitInteraction(hover, reason: "hover-\(reason)")
+	/// Clears interaction overlays when the pointer leaves the frame (no hover
+	/// jumping). Skipped while `mouseDragged` owns interaction selection.
+	private func syncPointerIdleInteraction(reason: String) {
+		guard activeInteraction == nil, !pointerInsideFrame else { return }
+		emitInteraction(nil, reason: "pointer-left-\(reason)")
 	}
 }
 

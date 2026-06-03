@@ -192,6 +192,27 @@ final class DemoModeTests: XCTestCase {
 		}
 	}
 
+	// MARK: - Demo cycle tick interval
+
+	func testDefaultDemoTickSecondsIs3() {
+		XCTAssertEqual(DemoConfig.demoTickSeconds(from: [:]), 3.0)
+	}
+
+	func testDemoTickSecondsEnvVarIsHonored() {
+		XCTAssertEqual(
+			DemoConfig.demoTickSeconds(from: ["CODOGOTCHI_DEMO_TICK_SECONDS": "20"]), 20.0)
+	}
+
+	func testDemoTickSecondsInvalidValueFallsBackTo3() {
+		XCTAssertEqual(
+			DemoConfig.demoTickSeconds(from: ["CODOGOTCHI_DEMO_TICK_SECONDS": "invalid"]), 3.0)
+	}
+
+	func testDemoTickSecondsZeroValueFallsBackTo3() {
+		XCTAssertEqual(
+			DemoConfig.demoTickSeconds(from: ["CODOGOTCHI_DEMO_TICK_SECONDS": "0"]), 3.0)
+	}
+
 	// MARK: - P3.06: CODOGOTCHI_DEMO_FRAME_MS
 
 	func testDefaultDemoFrameMsIs500() {
