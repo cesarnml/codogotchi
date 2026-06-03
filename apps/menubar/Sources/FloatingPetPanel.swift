@@ -545,7 +545,15 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 				self.showHUDForHover()
 			} else {
 				self.hideHUDForHoverEnd()
+				self.rpgHUDPanel?.setRingHovered(false)
 			}
+		}
+		view.onPointerUpdate = { [weak self] in
+			guard let self else { return }
+			let screenPt = NSEvent.mouseLocation
+			self.rpgHUDPanel?.setRingHovered(
+				self.rpgHUDPanel?.ringScreenRect()?.contains(screenPt) == true
+			)
 		}
 		return view
 	}
@@ -1582,6 +1590,8 @@ private final class FloatingPetInteractionView: NSView {
 	var hideFloatingPetHandler: (() -> Void)?
 	/// Fired when the pointer enters or leaves the pet frame. `true` = entered.
 	var onHoverChange: ((Bool) -> Void)?
+	/// Fired on every pointer event while tracking (moved, entered, exited).
+	var onPointerUpdate: (() -> Void)?
 
 	init(
 		frame: CGRect,
@@ -2066,6 +2076,7 @@ private final class FloatingPetInteractionView: NSView {
 			pointerInAffordance: affordanceHoverActive || inAffordanceRect,
 			reason: reason
 		)
+		onPointerUpdate?()
 	}
 
 	private func pushResizeCursor() {

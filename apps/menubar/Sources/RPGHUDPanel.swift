@@ -18,7 +18,7 @@ enum RPGHUDLayout {
 	static let heartSpacing: CGFloat = 2
 	/// Vertical gap between the heart row and the XP ring.
 	static let rowGap: CGFloat = 3
-	static let ringDiameter: CGFloat = 44
+	static let ringDiameter: CGFloat = 44 * 1.2
 	/// Inset of the HUD's content corner from the pet frame's top-left corner.
 	static let inset: CGFloat = 8
 	/// HUD size scale clamp relative to `baselinePetWidth`.
@@ -226,10 +226,14 @@ final class RPGRingView: NSView {
 	private let discTintLayer = CALayer()
 	private let lvlView = NSImageView()
 	private let numberLabel = NSTextField(labelWithString: "")
+	/// Hover-mode labels: "XP" wordmark + percentage value (replaces lvl/number).
+	private let xpWordLabel = NSTextField(labelWithString: "XP")
+	private let percentLabel = NSTextField(labelWithString: "")
 
 	private var fraction: Double = 0
 	private var level: Int = 1
 	private var ringDiameter: CGFloat = RPGHUDLayout.ringDiameter
+	private var isHovered: Bool = false
 
 	override init(frame: NSRect) {
 		super.init(frame: frame)
@@ -284,6 +288,17 @@ final class RPGRingView: NSView {
 		numberLabel.wantsLayer = true
 		applyTextShadow(to: numberLabel)
 		addSubview(numberLabel)
+
+		for label in [xpWordLabel, percentLabel] {
+			label.textColor = .white
+			label.alignment = .center
+			label.isBordered = false
+			label.drawsBackground = false
+			label.wantsLayer = true
+			applyTextShadow(to: label)
+			label.isHidden = true
+			addSubview(label)
+		}
 	}
 
 	@available(*, unavailable)
@@ -305,12 +320,22 @@ final class RPGRingView: NSView {
 		self.fraction = max(0, min(1, fraction))
 		self.level = level
 		self.ringDiameter = ringDiameter
-		numberLabel.stringValue = "\(level)"
 		numberLabel.font = .systemFont(ofSize: max(8, round(ringDiameter * 0.32)), weight: .heavy)
+		numberLabel.stringValue = "\(level)"
+		percentLabel.stringValue = "\(Int((self.fraction * 100).rounded()))%"
 		if changed {
 			needsLayout = true
 			relayoutRing()
 		}
+	}
+
+	func setHovered(_ hovered: Bool) {
+		guard hovered != isHovered else { return }
+		isHovered = hovered
+		lvlView.isHidden = hovered
+		numberLabel.isHidden = hovered
+		xpWordLabel.isHidden = !hovered
+		percentLabel.isHidden = !hovered
 	}
 
 	override func layout() {
@@ -378,6 +403,42 @@ final class RPGRingView: NSView {
 			y: round(bottomY + numSize.height + gap),
 			width: lvlW,
 			height: lvlH)
+
+		// Hover labels: "XP" wordmark above percent, both sized to fit inside the disc.
+		xpWordLabel.font = .systemFont(ofSize: max(6, round(ringDiameter * 0.17)), weight: .heavy)
+		// Size percent font smaller so it sits comfortably inside the disc.
+		let maxPctWidth = discR * 2 * 0.68
+		let nominalPctSize = max(8, round(ringDiameter * 0.32))
+		percentLabel.font = .systemFont(
+			ofSize: fittingFontSize(for: percentLabel.stringValue, maxWidth: maxPctWidth, startSize: nominalPctSize),
+			weight: .heavy)
+		let xpSize = xpWordLabel.fittingSize
+		let pctSize = percentLabel.fittingSize
+		// No gap between XP and percent; shift group up relative to centre.
+		let hoverTotal = xpSize.height + pctSize.height
+		let hoverBottomY = bounds.midY - hoverTotal / 2 + nudge
+		percentLabel.frame = NSRect(
+			x: round(bounds.midX - pctSize.width / 2),
+			y: round(hoverBottomY),
+			width: ceil(pctSize.width),
+			height: ceil(pctSize.height))
+		xpWordLabel.frame = NSRect(
+			x: round(bounds.midX - xpSize.width / 2),
+			y: round(hoverBottomY + pctSize.height),
+			width: ceil(xpSize.width),
+			height: ceil(xpSize.height))
+	}
+
+	private func fittingFontSize(for text: String, maxWidth: CGFloat, startSize: CGFloat) -> CGFloat {
+		var size = startSize
+		while size > 6 {
+			let w = (text as NSString).size(withAttributes: [
+				.font: NSFont.systemFont(ofSize: size, weight: .heavy)
+			]).width
+			if w <= maxWidth { break }
+			size -= 0.5
+		}
+		return size
 	}
 
 	func flash(isLevelUp: Bool, isMilestone: Bool) {
@@ -482,16 +543,21 @@ final class RPGHUDContentView: NSView {
 
 	private func relayout() {
 		let pad = metrics.glowPad
-		// Ring sits at the bottom-left of the content box (visually below the
-		// heart row, since NSViews are y-up).
+		// Center the ring below the middle heart (index 1).
+		let midHeartCenterX = pad + metrics.heartWidth * 1.5 + metrics.heartSpacing
+		let ringX = round(midHeartCenterX - metrics.ringDiameter / 2)
 		ringView.frame = NSRect(
-			x: pad, y: pad, width: metrics.ringDiameter, height: metrics.ringDiameter)
+			x: ringX, y: pad, width: metrics.ringDiameter, height: metrics.ringDiameter)
 
 		let heartY = pad + metrics.ringDiameter + metrics.rowGap
 		for (idx, hv) in heartViews.enumerated() {
 			let x = pad + CGFloat(idx) * (metrics.heartWidth + metrics.heartSpacing)
 			hv.frame = NSRect(x: x, y: heartY, width: metrics.heartWidth, height: metrics.heartHeight)
 		}
+	}
+
+	func setRingHovered(_ hovered: Bool) {
+		ringView.setHovered(hovered)
 	}
 
 	func flash(_ event: RPGFlashEvent) {
@@ -526,6 +592,7 @@ extension HeartState {
 @MainActor
 final class RPGHUDPanel: NSPanel {
 	private let contentHUD = RPGHUDContentView(frame: .zero)
+	private var lastMetrics: RPGHUDLayout.Metrics?
 
 	init() {
 		super.init(
@@ -549,6 +616,22 @@ final class RPGHUDPanel: NSPanel {
 	override var canBecomeKey: Bool { false }
 	override var canBecomeMain: Bool { false }
 
+	/// Screen rect of the XP ring, used for ring-specific hover detection.
+	func ringScreenRect() -> CGRect? {
+		guard let m = lastMetrics else { return nil }
+		let midHeartCenterX = m.glowPad + m.heartWidth * 1.5 + m.heartSpacing
+		let ringX = round(midHeartCenterX - m.ringDiameter / 2)
+		return CGRect(
+			x: frame.origin.x + ringX,
+			y: frame.origin.y + m.glowPad,
+			width: m.ringDiameter,
+			height: m.ringDiameter)
+	}
+
+	func setRingHovered(_ hovered: Bool) {
+		contentHUD.setRingHovered(hovered)
+	}
+
 	/// Update content and reposition relative to the pet. Does not change
 	/// visibility (caller controls alpha / ordering).
 	func reposition(
@@ -560,6 +643,7 @@ final class RPGHUDPanel: NSPanel {
 		visibleFrame: CGRect
 	) {
 		let metrics = RPGHUDLayout.metrics(for: petFrame)
+		lastMetrics = metrics
 		let size = RPGHUDLayout.panelSize(metrics)
 		let frame = RPGHUDLayout.frame(
 			hudSize: size, metrics: metrics, relativeTo: petFrame, spriteAnchor: spriteAnchor,
