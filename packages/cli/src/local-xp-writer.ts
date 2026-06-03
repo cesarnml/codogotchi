@@ -150,20 +150,23 @@ export async function computeAndPersistV5Fields(
         : parseSince(cache.last_read_at_codex);
     try {
       const result = await readJsonlSignals({ source, rootDir, since });
+      // Advance cursor to 1 ms past the last consumed event so that an event
+      // exactly at `lastEventAt` is excluded on the next read (the parser
+      // filter is `timestamp < sinceIso` — strictly less-than). Fall back to
+      // `now` when no events were found so the cursor still advances.
+      const nextCursor = result.lastEventAt
+        ? new Date(result.lastEventAt.getTime() + 1).toISOString()
+        : now.toISOString();
       if (source === "claude") {
         cache.cumulative_claude_tokens += result.totalTokens;
-        cache.last_read_at_claude = now.toISOString();
+        cache.last_read_at_claude = nextCursor;
       } else {
         cache.cumulative_codex_tokens += result.totalTokens;
-        cache.last_read_at_codex = now.toISOString();
+        cache.last_read_at_codex = nextCursor;
       }
     } catch {
-      // Best-effort: JSONL unavailable → keep cumulative totals unchanged.
-      if (source === "claude") {
-        cache.last_read_at_claude = now.toISOString();
-      } else {
-        cache.last_read_at_codex = now.toISOString();
-      }
+      // Best-effort: JSONL unavailable → leave cursor unchanged so the next
+      // successful run retries the same window and no tokens are lost.
     }
   }
 
