@@ -7,10 +7,11 @@ Red: skip
 
 ## Outcome
 
-- The JSONL signal reader gains an `antigravity` source: it parses Antigravity's local conversation JSONL and returns the same `JsonlSignalSet` shape (`totalTokens`, `events`, `lastEventAt`, `perProject`).
-- The Antigravity transcript root is resolved (env override + default path, mirroring `claudeRoot`/`codexRoot`).
-- Token extraction maps Antigravity's payload fields to input/output token counts with per-event timestamps.
-- Cursor and VS Code Copilot are explicitly documented (code comment + contract note) as **non-token sources** (cloud-side usage), so no reader is attempted for them.
+**Scope-changed: stop condition triggered.** Original outcome described a functional Antigravity JSONL reader; that reader was not implemented because Antigravity's local transcripts carry no token counts (see Rationale).
+
+- Cursor, VS Code Copilot, **and Antigravity** are explicitly documented (code comment) as **non-token sources** in `jsonl-parser.ts`. Antigravity's reason (no token fields in local JSONL) is noted separately from Cursor/VS Code (cloud-side tokens).
+- `JsonlSource` remains `"claude" | "codex"` only.
+- Antigravity continues to contribute to HP/hearts via existing activity hooks (Phase 9); its XP ring freezes with the same graceful treatment as Cursor/VS Code.
 
 ## Red
 
