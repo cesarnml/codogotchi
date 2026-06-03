@@ -32,7 +32,7 @@ enum ConfigBootstrap {
 		let payload: [String: Any] = [
 			"profile_id": UUID().uuidString,
 			"pet": DEFAULT_PET_NAME,
-			"features": ["rpg_enabled": false],
+			"features": ["rpg_enabled": true, "rpg_hud_enabled": true],
 		]
 
 		do {

@@ -36,9 +36,10 @@ final class AppBootstrapTests: XCTestCase {
 			let profileId = try XCTUnwrap(obj["profile_id"] as? String)
 			XCTAssertFalse(profileId.isEmpty)
 			let features = try XCTUnwrap(obj["features"] as? [String: Any])
-			XCTAssertEqual(features["rpg_enabled"] as? Bool, false)
+			XCTAssertEqual(features["rpg_enabled"] as? Bool, true)
+			XCTAssertEqual(features["rpg_hud_enabled"] as? Bool, true)
 
-			// Minimal Lite: no RPG fields outside features.rpg_enabled.
+			// Minimal Lite: no RPG fields outside features.
 			XCTAssertNil(obj["handle"])
 			XCTAssertNil(obj["convex_url"])
 		}
