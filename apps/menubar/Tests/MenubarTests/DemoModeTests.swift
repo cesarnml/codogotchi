@@ -309,4 +309,47 @@ final class DemoModeTests: XCTestCase {
 		XCTAssertEqual(end.level, 16)
 		XCTAssertEqual(end.halfHearts, 6)
 	}
+
+	// MARK: - Configurable HUD demo speed
+
+	func testHUDDemoHalfHeartStepScalesWithLevelSpeedKeepingRatio() {
+		// Default 5:8 heart:level ratio is preserved at any level speed.
+		XCTAssertEqual(HUDDemoDriver.halfHeartStep(forSecondsPerLevel: 8), 5, accuracy: 1e-9)
+		XCTAssertEqual(
+			HUDDemoDriver.halfHeartStep(forSecondsPerLevel: 3), 3 * 5.0 / 8.0, accuracy: 1e-9)
+	}
+
+	func testHUDDemoSnapshotHonorsCustomLevelSpeed() {
+		// 3s/level: still level 1 just before 3s, level 2 at 3s, ring half at 1.5s.
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 2.99, secondsPerLevel: 3).level, 1)
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 3, secondsPerLevel: 3).level, 2)
+		XCTAssertEqual(
+			HUDDemoDriver.snapshot(at: 1.5, secondsPerLevel: 3).levelFraction, 0.5, accuracy: 1e-9)
+	}
+
+	func testHUDDemoSnapshotScalesHeartsWithLevelSpeed() {
+		let step = HUDDemoDriver.halfHeartStep(forSecondsPerLevel: 3)
+		// One half-heart lost after a single (scaled) step.
+		XCTAssertEqual(
+			HUDDemoDriver.snapshot(
+				at: step, secondsPerLevel: 3, secondsPerHalfHeartStep: step
+			).halfHearts, 5)
+	}
+
+	func testHUDDemoLevelSecondsParsesEnvOverride() {
+		XCTAssertEqual(
+			DemoConfig.hudDemoLevelSeconds(from: ["CODOGOTCHI_HUD_DEMO_LEVEL_SECONDS": "3"]),
+			3, accuracy: 1e-9)
+	}
+
+	func testHUDDemoLevelSecondsFallsBackWhenAbsentOrInvalid() {
+		let fallback = HUDDemoDriver.defaultSecondsPerLevel
+		XCTAssertEqual(DemoConfig.hudDemoLevelSeconds(from: [:]), fallback, accuracy: 1e-9)
+		XCTAssertEqual(
+			DemoConfig.hudDemoLevelSeconds(from: ["CODOGOTCHI_HUD_DEMO_LEVEL_SECONDS": "0"]),
+			fallback, accuracy: 1e-9)
+		XCTAssertEqual(
+			DemoConfig.hudDemoLevelSeconds(from: ["CODOGOTCHI_HUD_DEMO_LEVEL_SECONDS": "abc"]),
+			fallback, accuracy: 1e-9)
+	}
 }

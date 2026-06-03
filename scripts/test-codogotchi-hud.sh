@@ -6,14 +6,26 @@
 # under CODOGOTCHI_HUD_DEMO=1. The app then pins the floating pet + HUD and
 # sweeps the RPG values for 120 seconds:
 #
-#   - level: starts at 1, +1 every 8s  -> ends on level 16
+#   - level: starts at 1, +1 every Ns (default 8) -> faster N = more level-ups
 #   - XP ring: fills 0 -> 1 within each level (gradual)
-#   - hearts: triangle wave 6 -> 0 -> 6, one half-heart every 5s
-#            (a full -> empty -> full cycle takes 60s; you see two cycles)
+#   - hearts: triangle wave 6 -> 0 -> 6, one half-heart every N×5/8 s
+#            (the cycle scales with level speed, keeping the 5:8 heart:level ratio)
 #
-# Pair with the `tch` zsh function (see scripts/README or your ~/.zshrc).
+# Usage:
+#   test-codogotchi-hud.sh [SECONDS_PER_LEVEL]
+#     SECONDS_PER_LEVEL  optional positive number (default 8). e.g. `… 3` for a
+#                        punchier ~3s/level demo (~1.9s per half-heart tick).
+#
+# Pair with the `tch` zsh function — make sure it forwards args, e.g.
+#   tch() { "$HOME/code/codogotchi/scripts/test-codogotchi-hud.sh" "$@" }
 
 set -euo pipefail
+
+LEVEL_SECONDS="${1:-8}"
+if ! awk "BEGIN{exit !(\"$LEVEL_SECONDS\"+0 > 0)}" 2>/dev/null; then
+	echo "✖ SECONDS_PER_LEVEL must be a positive number (got: $LEVEL_SECONDS)" >&2
+	exit 1
+fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$REPO_ROOT/apps/menubar/Codogotchi.xcodeproj"
@@ -48,11 +60,14 @@ osascript -e 'quit app "Codogotchi"' >/dev/null 2>&1 || true
 pkill -x Codogotchi >/dev/null 2>&1 || true
 sleep 0.7
 
-CODOGOTCHI_HUD_DEMO=1 nohup "$BIN" >"$RUN_LOG" 2>&1 &
+CODOGOTCHI_HUD_DEMO=1 CODOGOTCHI_HUD_DEMO_LEVEL_SECONDS="$LEVEL_SECONDS" \
+	nohup "$BIN" >"$RUN_LOG" 2>&1 &
 disown || true
 
-cat <<'EOF'
+HEART_SECONDS="$(awk "BEGIN{printf \"%.2f\", $LEVEL_SECONDS * 5 / 8}")"
+END_LEVEL="$(awk "BEGIN{printf \"%d\", 1 + int(120 / $LEVEL_SECONDS)}")"
+cat <<EOF
 ✓ HUD demo running for 120s.
-  level 1 → 16  ·  ring fills 8s/level  ·  hearts cycle 6→0→6 (5s/half-heart, 2 cycles)
+  level 1 → $END_LEVEL  ·  ring fills ${LEVEL_SECONDS}s/level  ·  hearts ${HEART_SECONDS}s/half-heart
   The HUD stays pinned for the whole run, then returns to hover-only behavior.
 EOF

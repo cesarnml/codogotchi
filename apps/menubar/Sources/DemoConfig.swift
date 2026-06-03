@@ -74,6 +74,19 @@ struct DemoConfig: Equatable {
 		return value
 	}
 
+	/// Resolve the HUD-demo seconds-per-level from the environment.
+	///
+	/// `CODOGOTCHI_HUD_DEMO_LEVEL_SECONDS`, when present and parseable as a
+	/// positive number, sets how fast the HUD demo levels up; the half-heart
+	/// cycle scales proportionally (see `HUDDemoDriver.halfHeartStep`).
+	/// Out-of-range or unparseable values fall back to the default 8s/level.
+	static func hudDemoLevelSeconds(from environment: [String: String]) -> TimeInterval {
+		guard let raw = environment["CODOGOTCHI_HUD_DEMO_LEVEL_SECONDS"],
+			let value = Double(raw), value > 0
+		else { return HUDDemoDriver.defaultSecondsPerLevel }
+		return value
+	}
+
 	/// Production seam: reads `ProcessInfo` at launch time.
 	static func forLaunch() -> DemoConfig {
 		let env = ProcessInfo.processInfo.environment

@@ -403,6 +403,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		menuBuilder?.refreshFloatingPetMenuItemTitle()
 		hudDemoActive = true
 		controller.setHUDDemoActive(true)
+		let levelSeconds = DemoConfig.hudDemoLevelSeconds(
+			from: ProcessInfo.processInfo.environment
+		)
 		let driver = HUDDemoDriver(
 			apply: { [weak controller] halfHearts, levelFraction, level in
 				controller?.applyRPGState(
@@ -416,7 +419,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				controller?.setHUDDemoActive(false)
 				self?.hudDemoActive = false
 				self?.hudDemoDriver = nil
-			}
+			},
+			secondsPerLevel: levelSeconds
 		)
 		driver.start()
 		self.hudDemoDriver = driver

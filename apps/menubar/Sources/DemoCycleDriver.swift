@@ -154,21 +154,34 @@ final class DemoCycleDriver {
 ///   `secondsPerHalfHeartStep` seconds.
 ///
 /// With the defaults (120s, 8s/level, 5s/half-heart) the run ends on level 16
-/// after two complete full→empty→full heart cycles. The pure `snapshot(at:)`
-/// mapping is unit-tested; the timer is a thin driver around it.
+/// after two complete full→empty→full heart cycles. `secondsPerLevel` is
+/// configurable (faster leveling for a punchier demo); the half-heart step
+/// scales with it so the heart cycle keeps the same 5:8 ratio. The pure
+/// `snapshot(at:)` mapping is unit-tested; the timer is a thin driver around it.
 @MainActor
 final class HUDDemoDriver {
 	typealias RPGApply = (_ halfHearts: Int, _ levelFraction: Double, _ level: Int) -> Void
 
 	static let totalDuration: TimeInterval = 120
-	static let secondsPerLevel: TimeInterval = 8
-	static let secondsPerHalfHeartStep: TimeInterval = 5
+	static let defaultSecondsPerLevel: TimeInterval = 8
+	static let defaultSecondsPerHalfHeartStep: TimeInterval = 5
 	static let maxHalfHearts = 6
 	static let startLevel = 1
 
+	/// Proportional half-heart step for a given seconds-per-level, preserving the
+	/// default 5:8 heart:level ratio so faster leveling speeds the heart cycle to
+	/// match. E.g. 3s/level → 3 × 5/8 ≈ 1.875s per half-heart.
+	static func halfHeartStep(forSecondsPerLevel secondsPerLevel: TimeInterval) -> TimeInterval {
+		secondsPerLevel * (defaultSecondsPerHalfHeartStep / defaultSecondsPerLevel)
+	}
+
 	/// Deterministic mapping from elapsed seconds to HUD RPG values. Pure so it
 	/// can be unit-tested without a timer.
-	static func snapshot(at elapsed: TimeInterval)
+	static func snapshot(
+		at elapsed: TimeInterval,
+		secondsPerLevel: TimeInterval = defaultSecondsPerLevel,
+		secondsPerHalfHeartStep: TimeInterval = defaultSecondsPerHalfHeartStep
+	)
 		-> (halfHearts: Int, levelFraction: Double, level: Int)
 	{
 		let t = max(0, min(totalDuration, elapsed))
@@ -183,19 +196,30 @@ final class HUDDemoDriver {
 
 	private let apply: RPGApply
 	private let onComplete: () -> Void
+	private let secondsPerLevel: TimeInterval
+	private let secondsPerHalfHeartStep: TimeInterval
 	private let tickInterval: TimeInterval
 	private let clock: () -> Date
 	private var startedAt: Date?
 	private var timer: Timer?
 
+	/// - Parameters:
+	///   - secondsPerLevel: how long each level takes (default 8s).
+	///   - secondsPerHalfHeartStep: half-heart cadence; when `nil` it is derived
+	///     from `secondsPerLevel` to preserve the default 5:8 heart:level ratio.
 	init(
 		apply: @escaping RPGApply,
 		onComplete: @escaping () -> Void = {},
+		secondsPerLevel: TimeInterval = defaultSecondsPerLevel,
+		secondsPerHalfHeartStep: TimeInterval? = nil,
 		tickInterval: TimeInterval = 0.05,
 		clock: @escaping () -> Date = Date.init
 	) {
 		self.apply = apply
 		self.onComplete = onComplete
+		self.secondsPerLevel = secondsPerLevel
+		self.secondsPerHalfHeartStep =
+			secondsPerHalfHeartStep ?? Self.halfHeartStep(forSecondsPerLevel: secondsPerLevel)
 		self.tickInterval = tickInterval
 		self.clock = clock
 	}
@@ -232,7 +256,10 @@ final class HUDDemoDriver {
 	}
 
 	private func emit(at elapsed: TimeInterval) {
-		let snap = Self.snapshot(at: elapsed)
+		let snap = Self.snapshot(
+			at: elapsed,
+			secondsPerLevel: secondsPerLevel,
+			secondsPerHalfHeartStep: secondsPerHalfHeartStep)
 		apply(snap.halfHearts, snap.levelFraction, snap.level)
 	}
 }
