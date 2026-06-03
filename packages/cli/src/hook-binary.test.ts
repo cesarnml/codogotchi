@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -1856,5 +1857,123 @@ describe("waiting_for_input permission hooks", () => {
     } finally {
       rmSync(home, { recursive: true, force: true });
     }
+  });
+});
+
+// Fixture JSONL line with 1,000,000 tokens (500k input + 500k output).
+// Event timestamp is 60 s before FIXED_NOW so it falls within the `since=epoch`
+// first-read window but before the cursor stored after that read (= FIXED_NOW),
+// ensuring the no-double-count assertion holds for any `since ≥ FIXED_NOW`.
+const FIXTURE_EVENT_TS = new Date(
+  new Date("2026-05-18T15:00:00.000Z").getTime() - 60_000,
+).toISOString();
+const FIXTURE_JSONL_LINE = JSON.stringify({
+  timestamp: FIXTURE_EVENT_TS,
+  cwd: "/fixture/project",
+  message: { usage: { input_tokens: 500_000, output_tokens: 500_000 } },
+});
+// Expected level for 1,000,000 XP (1 XP per token, claude only).
+const EXPECTED_LEVEL = 2;
+const EXPECTED_LEVEL_FRACTION = 0.09321718114555341;
+
+describe("runHook v5 local RPG fields", () => {
+  let home: string;
+  let claudeRoot: string;
+  const origClaudeRoot = process.env.CODOGOTCHI_CLAUDE_ROOT;
+  const origCodexRoot = process.env.CODOGOTCHI_CODEX_ROOT;
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "codogotchi-v5-"));
+    claudeRoot = join(home, "claude-sessions");
+    mkdirSync(claudeRoot, { recursive: true });
+    // Point readers at temp dirs so no real ~/.claude or ~/.codex is touched.
+    process.env.CODOGOTCHI_CLAUDE_ROOT = claudeRoot;
+    process.env.CODOGOTCHI_CODEX_ROOT = join(home, "codex-sessions");
+    // Config with rpg_enabled: true but no cloud fields (local-RPG mode).
+    writeFileSync(
+      join(home, "config.json"),
+      JSON.stringify({
+        profile_id: "test-profile",
+        features: { rpg_enabled: true },
+      }),
+    );
+    // Single fixture JSONL file with 1,000,000 tokens.
+    const projDir = join(claudeRoot, "fixture-project");
+    mkdirSync(projDir, { recursive: true });
+    writeFileSync(join(projDir, "transcript.jsonl"), `${FIXTURE_JSONL_LINE}\n`);
+  });
+
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+    if (origClaudeRoot === undefined) delete process.env.CODOGOTCHI_CLAUDE_ROOT;
+    else process.env.CODOGOTCHI_CLAUDE_ROOT = origClaudeRoot;
+    if (origCodexRoot === undefined) delete process.env.CODOGOTCHI_CODEX_ROOT;
+    else process.env.CODOGOTCHI_CODEX_ROOT = origCodexRoot;
+  });
+
+  it("claude hook event writes v5 state with level, level_fraction, half_hearts, last_activity_at", async () => {
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.schema_version).toBe(5);
+    expect(state.level).toBe(EXPECTED_LEVEL);
+    expect(state.level_fraction).toBeCloseTo(EXPECTED_LEVEL_FRACTION, 6);
+    expect(state.half_hearts).toBe(6);
+    expect(state.last_activity_at).toBe(FIXED_NOW.toISOString());
+  });
+
+  it("second identical run does not increase XP (no double count)", async () => {
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: FIXED_NOW },
+    );
+    const state1 = readState(home);
+    expect(state1.level).toBe(EXPECTED_LEVEL);
+
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: FIXED_NOW },
+    );
+    const state2 = readState(home);
+
+    expect(state2.level).toBe(EXPECTED_LEVEL);
+    expect(state2.level_fraction).toBe(state1.level_fraction);
+  });
+
+  it("cursor-origin event updates last_activity_at but leaves level unchanged", async () => {
+    // Establish XP with a claude event first.
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: FIXED_NOW },
+    );
+    const stateAfterClaude = readState(home);
+
+    const laterNow = new Date(FIXED_NOW.getTime() + 30_000);
+    await runHook(
+      { hook_event_name: "beforeShellExecution" }, // cursor origin
+      { home, now: laterNow },
+    );
+    const stateAfterCursor = readState(home);
+
+    expect(stateAfterCursor.last_activity_at).toBe(laterNow.toISOString());
+    expect(stateAfterCursor.level).toBe(stateAfterClaude.level);
+    expect(stateAfterCursor.level_fraction).toBe(
+      stateAfterClaude.level_fraction,
+    );
+  });
+
+  it("succeeds with rpg_enabled:true but no cloud config (no convex_http_url)", async () => {
+    // Config already has rpg_enabled:true, no handle or convex_http_url — local-RPG mode.
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.schema_version).toBe(5);
+    expect(state.level).toBeDefined();
+    expect(state.half_hearts).toBeDefined();
+    expect(state.last_activity_at).toBeDefined();
   });
 });
