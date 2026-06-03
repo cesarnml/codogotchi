@@ -27,8 +27,14 @@ final class RPGTabViewModel {
 	}
 
 	/// Persists `rpg_hud_enabled` to config and updates the local property.
+	/// Reverts the in-memory value if the write fails so the UI stays
+	/// consistent with what will survive a relaunch.
 	func setRPGHUDEnabled(_ enabled: Bool) {
 		rpgHUDEnabled = enabled
-		try? PetConfig.write(rpgHUDEnabled: enabled, to: configURL)
+		do {
+			try PetConfig.write(rpgHUDEnabled: enabled, to: configURL)
+		} catch {
+			rpgHUDEnabled = !enabled
+		}
 	}
 }

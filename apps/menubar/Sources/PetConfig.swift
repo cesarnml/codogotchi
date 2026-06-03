@@ -61,7 +61,7 @@ enum PetConfig {
 				"features": ["rpg_enabled": false],
 			]
 		}
-		var features = (obj["features"] as? [String: Any]) ?? [:]
+		var features = (obj["features"] as? [String: Any]) ?? ["rpg_enabled": false]
 		features["rpg_hud_enabled"] = rpgHUDEnabled
 		obj["features"] = features
 
