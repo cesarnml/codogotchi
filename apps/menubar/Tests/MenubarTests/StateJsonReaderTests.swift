@@ -107,7 +107,7 @@ final class StateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(expected, 5)
 	}
 
-	func testExpectedSchemaVersionIs4() {
+	func testExpectedSchemaVersionIs5() {
 		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 5)
 	}
 

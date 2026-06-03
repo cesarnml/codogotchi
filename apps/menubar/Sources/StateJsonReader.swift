@@ -80,6 +80,8 @@ enum StateJsonReader {
 				level: payload.level ?? 1,
 				levelFraction: payload.levelFraction ?? 0.0,
 				halfHearts: payload.halfHearts ?? MAX_HALF_HEARTS,
+				// `?? nil` coerces String?? → String?: maps both absent key (.none outer)
+				// and explicit JSON null (.some(.none) inner) to nil. Do not remove.
 				lastActivityAt: payload.lastActivityAt ?? nil
 			)
 			return .success(

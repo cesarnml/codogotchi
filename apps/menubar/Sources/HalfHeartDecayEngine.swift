@@ -1,10 +1,11 @@
 import Foundation
 
-/// Decay period from contracts/decay-constants.ts — one half-heart per 8 idle hours.
-/// Using wall-clock elapsed so sleep/wake is handled correctly on resume.
+/// Decay period derived from contracts/decay-constants.ts `HALF_HEART_DECAY_HOURS = 8`.
+/// Stored as seconds so `timeIntervalSince` can be compared directly.
+/// If the TS source ever changes to a non-whole-hour value, update both.
 let HALF_HEART_DECAY_SECONDS: Double = 8 * 3600
 
-/// Maximum half-hearts from contracts/decay-constants.ts.
+/// Maximum half-hearts from contracts/decay-constants.ts `MAX_HALF_HEARTS = 6`.
 let MAX_HALF_HEARTS: Int = 6
 
 /// Pure decay math helper.
