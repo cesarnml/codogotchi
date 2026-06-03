@@ -79,16 +79,15 @@ On first launch the app presents a **Welcome to Codogotchi** consent sheet. Appr
 hooks. After closing the sheet, open **Settings → General** at any time to install, update, or
 remove hooks, and **Settings → Pet** to switch pets.
 
-## Lite vs Alive
+## Tiers (animation vs local RPG vs cloud)
 
-Codogotchi has two modes:
-
-| Mode | How to enter | Convex sync | XP / Loot |
+| Tier | Config | Network | Progression |
 |---|---|---|---|
-| **Lite** | First app launch (onboarding consent sheet) | No | No |
-| **Alive (RPG)** | `codogotchi rpg` (CLI enrollment until Phase 10 ships in-app) | Yes | Yes |
+| **Animation-only** | `features.rpg_enabled: false` (default on first launch today) | No | Hook-driven pet animation only |
+| **Free RPG (local)** | `features.rpg_enabled: true` (no Convex fields required) | No | Hearts, level 1–100, XP ring via local JSONL + hooks; HUD opt-out: `features.rpg_hud_enabled: false` in **Settings → RPG** |
+| **Alive + sync** | `rpg_enabled: true` + cloud profile fields | Yes (when configured) | `sync`, leaderboard — Phase 11+ |
 
-Lite writes `{ "features": { "rpg_enabled": false } }` to `~/.codogotchi/config.json`. RPG commands (`sync`, `status`, `loot`, `vacation`) refuse when `rpg_enabled` is `false`. Run `codogotchi rpg` to enroll and enable them.
+Enable local RPG with `codogotchi rpg` (interactive setup) or set `features.rpg_enabled: true` in `~/.codogotchi/config.json`. Cloud-backed commands (`sync`, `status`, `loot`, `vacation`) still require a enrolled cloud profile when implemented; local progression does not need a Convex URL.
 
 ## CLI surface
 
@@ -97,7 +96,7 @@ Phase 08 trimmed the public CLI to read/diagnostic commands. Hook management and
 internally (the app spawns them as subprocesses) but are hidden from `--help`.
 
 ```
-codogotchi rpg                                Alive enrollment: prompts for handle, GitHub, Convex URL
+codogotchi rpg                                Enable local RPG (`rpg_enabled: true`); may prompt for cloud enroll when configured
 codogotchi hooks status [--json]              Print per-platform hook install + firing status
 codogotchi status                             Cached profile, HP, recent loot — requires rpg_enabled: true
 

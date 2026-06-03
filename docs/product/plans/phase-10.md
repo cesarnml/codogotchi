@@ -1,6 +1,6 @@
 # Phase 10: Free RPG Tier (Local Floating Progression HUD)
 
-**Delivery status:** Product plan approved 2026-06-03. Decomposition in progress.
+**Delivery status:** Delivered 2026-06-03 (stack PRs #96–#104; retrospective in [`phase-10-free-rpg-tier-retrospective.md`](../retrospectives/phase-10-free-rpg-tier-retrospective.md)).
 
 ## TL;DR
 

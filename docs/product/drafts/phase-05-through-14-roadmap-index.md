@@ -1,7 +1,7 @@
 # Codogotchi Phase 05–14 Roadmap Index
 
 _Drafted: 2026-05-27_
-_Updated: 2026-06-02 — Phase 09 bumped to extended platform hooks; RPG ladder shifted 09→10 … 13→14_
+_Updated: 2026-06-03 — Phase 10 (Free RPG tier) delivered; Lite retired as product floor; notarization next_
 _Status: Draft index for `/soa ideate` output — not a product plan_
 _Prior shipped: Phase 01–04 ([phase-04-floating-pet.md](../plans/phase-04-floating-pet.md))_
 
@@ -26,25 +26,26 @@ _Prior shipped: Phase 01–04 ([phase-04-floating-pet.md](../plans/phase-04-floa
 
 | Mode | Default | Unlock |
 | --- | --- | --- |
-| **Lite** | `codogotchi hooks install` + app | Native Codex-class pet; multi-platform hooks; SoA gates; no Convex required |
-| **Alive (RPG)** | Opt-in | Settings **Turn on alive pet** or `codogotchi enroll` — XP, health, loot, sync |
+| **Free RPG (local)** | Shipped Phase 10 — hearts + 1–100 level + HUD (local only) | `features.rpg_enabled: true` (today still via `codogotchi rpg` or manual config); opt out HUD in **Settings → RPG** |
+| **Animation-only (legacy Lite config)** | `features.rpg_enabled: false` | Hooks + floating pet animation; no local progression writer — **retired as product floor** |
+| **Alive + sync** | Deferred (Phase 11+) | Opt-in leaderboard / Convex — not v1 |
 
 ---
 
 ## Phase ladder
 
-| Phase | Draft | Repo | RPG? |
+| Phase | Draft | Repo | Status |
 | --- | --- | --- | --- |
-| **05** | [phase-05-lite-install-and-onboarding.md](./phase-05-lite-install-and-onboarding.md) | codogotchi | Lite default |
-| **06** | [phase-06-platform-parity-and-attention.md](./phase-06-platform-parity-and-attention.md) | codogotchi | Lite |
-| **07** | [phase-07-signal-honesty-and-soa-global-gates.md](./phase-07-signal-honesty-and-soa-global-gates.md) | codogotchi + **SoA upstream** | Lite |
-| **08** ⭐ | [phase-08-settings-window-and-observability.md](./phase-08-settings-window-and-observability.md) | codogotchi | Both — **lite v1 release gate** |
-| **09** | [phase-09-extended-platform-hooks.md](./phase-09-extended-platform-hooks.md) ([plan](../plans/phase-09-extended-platform-hooks.md)) | codogotchi | Lite — **next phase** |
-| **10** | [phase-10-floating-progression-hud.md](./phase-10-floating-progression-hud.md) | codogotchi | Alive only |
-| **11** | [phase-11-health-visuals-and-decay.md](./phase-11-health-visuals-and-decay.md) | codogotchi | Alive only |
-| **12** | [phase-12-level-curve-100-and-migration.md](./phase-12-level-curve-100-and-migration.md) | codogotchi | Alive |
-| **13** | [phase-13-loot-equip-companion-and-custom-pets.md](./phase-13-loot-equip-companion-and-custom-pets.md) | codogotchi | Alive + premium |
-| **14** | [phase-14-premium-soa-animation-pack.md](./phase-14-premium-soa-animation-pack.md) | codogotchi | Premium |
+| **05** | [phase-05-lite-install-and-onboarding.md](./phase-05-lite-install-and-onboarding.md) | codogotchi | ✅ Shipped (historical Lite onboarding) |
+| **06** | [phase-06-platform-parity-and-attention.md](./phase-06-platform-parity-and-attention.md) | codogotchi | ✅ Shipped |
+| **07** | [phase-07-signal-honesty-and-soa-global-gates.md](./phase-07-signal-honesty-and-soa-global-gates.md) | codogotchi + **SoA upstream** | ✅ Shipped |
+| **08** ⭐ | [phase-08-settings-window-and-observability.md](./phase-08-settings-window-and-observability.md) | codogotchi | ✅ Shipped — settings + bundled CLI |
+| **09** | [phase-09-extended-platform-hooks.md](./phase-09-extended-platform-hooks.md) ([plan](../plans/phase-09-extended-platform-hooks.md)) | codogotchi | ✅ Shipped — five-platform hooks |
+| **10** | [phase-10-floating-progression-hud.md](./phase-10-floating-progression-hud.md) ([plan](../plans/phase-10.md)) | codogotchi | ✅ **Delivered** — Free RPG local tier |
+| **11** | [phase-11-health-visuals-and-decay.md](./phase-11-health-visuals-and-decay.md) | codogotchi | Draft — sick-idle art (was decay visuals) |
+| **12** | [phase-12-level-curve-100-and-migration.md](./phase-12-level-curve-100-and-migration.md) | codogotchi | **Superseded** — folded into Phase 10 |
+| **13** | [phase-13-loot-equip-companion-and-custom-pets.md](./phase-13-loot-equip-companion-and-custom-pets.md) | codogotchi | Draft — loot / premium |
+| **14** | [phase-14-premium-soa-animation-pack.md](./phase-14-premium-soa-animation-pack.md) | codogotchi | Draft — premium SoA pack |
 
 **Son-of-Anton upstream (tracked in Phase 07 draft):** SoA writes directly to `~/.codogotchi/state.json` on gate emit — no intermediate `gate-events.ndjson` file. Plan separately in son-of-anton repo.
 
@@ -60,12 +61,13 @@ _Prior shipped: Phase 01–04 ([phase-04-floating-pet.md](../plans/phase-04-floa
 
 ## Suggested plan order
 
-1. ✅ **05** lite install + onboarding
-2. **06** → **07** platform parity + SoA signal honesty (lite critical path)
-3. **08** settings window + CLI bundling — **lite v1 release gate**
-4. **09** extended platform hooks — [product plan](../plans/phase-09-extended-platform-hooks.md) written; approve then `/soa decompose`
-5. **10–11** RPG HUD + health visuals (alive mode)
-6. **12–14** monetization stack (level curve, loot, premium animation pack)
+1. ✅ **05–09** install, parity, SoA gates, settings shell, extended hooks
+2. ✅ **10** Free RPG tier (local HUD, v5 state, 1–100 curve)
+3. **Next (product)** — **notarized DMG / distribution** (not in this index; see operator distribution notes)
+4. **11** opt-in sync + leaderboard + enroll (when ready — security-sensitive)
+5. **11 draft (art)** — sick-idle / health-tint sprites (renamed scope; decay math shipped in 10)
+6. **13–14** loot, premium animation pack (paid Alive tier)
+7. ~~**12**~~ — do not plan; curve lives in Phase 10
 
 ---
 

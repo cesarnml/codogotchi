@@ -1,11 +1,11 @@
-# Animation State Vocabulary (v4)
+# Animation State Vocabulary (v5)
 
 The contract for the data the codogotchi hook binary writes to
 `~/.codogotchi/state.json` on every relevant Claude Code / Codex / Cursor lifecycle event,
 and which any future renderer (macOS app, web preview, CLI ascii) consumes.
 
 This doc defines the **closed enums** of activity states and HP overlay states,
-the v4 `state.json` schema (with `schema_version: 4`), and the mapping table from
+the v5 `state.json` schema (with `schema_version: 5` when local RPG is enabled), and the mapping table from
 raw signal classes to activity states. Closed enums mean a renderer can switch
 exhaustively without a `default:` catch-all; adding a state is a deliberate
 schema bump, not a runtime surprise.
@@ -44,6 +44,13 @@ model described in §7 of `notes/public/phase-06-animation-and-signal-research.m
 The hook binary becomes a pure platform-event classifier (no `.soa/events.ndjson` reads);
 gate signals are delivered via `~/.codogotchi/gate.json` instead
 (see `docs/contracts/gate-json.md`).
+
+Phase 10 (P10.03 / P10.05) is the formal v5 bump for **local RPG**: when
+`features.rpg_enabled` is true, the hook writer emits `schema_version: 5` with
+`level`, `level_fraction`, `half_hearts`, and `last_activity_at`. Renderers accept
+v4 payloads unchanged; v5 fields are required only when `schema_version >= 5`.
+Swift applies local decay to `half_hearts` from `last_activity_at`; XP/heal are
+owned by the CLI writer, not recomputed in the renderer.
 
 ### Forward-compatibility policy
 
@@ -168,11 +175,15 @@ every relevant lifecycle event. Schema:
 
 ```json
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "activity_state": "testing",
   "hp_overlay": "thriving",
   "hp": 87,
-  "updated_at": "2026-05-29T12:00:00.000Z",
+  "level": 12,
+  "level_fraction": 0.42,
+  "half_hearts": 5,
+  "last_activity_at": "2026-06-03T04:00:00.000Z",
+  "updated_at": "2026-06-03T04:00:01.000Z",
   "source_event": {
     "origin": "claude_code",
     "kind": "tool_use",
@@ -182,6 +193,13 @@ every relevant lifecycle event. Schema:
 }
 ```
 
+v5 changes from v4 (local RPG only — writer emits v4 when `rpg_enabled` is false):
+
+- `level` — integer `1..100` from cumulative lifetime tokens (`levelForXp`).
+- `level_fraction` — number `0..1`, progress within the current level toward the next.
+- `half_hearts` — integer `0..6` (three hearts × two half-hearts); canonical HP unit for the floating HUD; Swift may decrement locally for idle decay.
+- `last_activity_at` — ISO-8601 timestamp of last coding activity across hooked platforms, or `null` before first activity.
+
 v4 changes from v3:
 - `activity_state` uses the v4 19-state enum (old states like `running-tests`,
   `reviewing`, `pushing`, `hyped`, etc. are removed).
@@ -190,9 +208,10 @@ v4 changes from v3:
 - `gate_badge` field was never added (deferred; gate signals use `gate.json` instead).
 - `attention` and `tool_command` optional fields are unchanged.
 
-Per the forward-compat policy, v1–v3 payloads continue to parse against the
-v4 schema (`got ≤ expected=4`). Old activity_state values from removed states
-decode as `idle` in the Swift renderer (unknown-rawValue fallback).
+Per the forward-compat policy, v1–v4 payloads continue to parse when the renderer's
+`EXPECTED_VERSION` is 5 (`got ≤ expected`). Old activity_state values from removed states
+decode as `idle` in the Swift renderer (unknown-rawValue fallback). Payloads with
+`schema_version > EXPECTED_VERSION` are refused.
 
 ### Field meanings
 
@@ -203,8 +222,11 @@ decode as `idle` in the Swift renderer (unknown-rawValue fallback).
 - `hp_overlay` — one of the closed HP-overlay enum values. Always derived from
   the most recently observed `hp` value; the hook does not compute it on the
   fly, it carries forward the bucket the last sync produced.
-- `hp` — integer `[-100, 100]`. Below zero is permitted to model "ghost depth"
-  and revival cost; the renderer treats anything ≤ 0 as `ghost`.
+- `hp` — integer `[-100, 100]`. Legacy sync bucket; local RPG HUD uses `half_hearts`
+  for hearts display. Below zero is permitted to model "ghost depth"; the renderer
+  treats anything ≤ 0 as `ghost` for overlay tinting.
+- `level`, `level_fraction`, `half_hearts`, `last_activity_at` — v5 RPG fields;
+  see v5 example above. Required when `schema_version >= 5`.
 - `updated_at` — ISO-8601 timestamp of when the hook wrote this state.
 - `source_event` — the event that caused this write. Renderers may use this
   for short transition animations.
