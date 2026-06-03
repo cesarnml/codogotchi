@@ -10,11 +10,12 @@ import {
   type SourceEvent,
   type SourceEventKind,
   type SourceEventOrigin,
-  STATE_JSON_SCHEMA_VERSION,
   type StateJsonV1,
   sourceEventSchema,
   stateJsonV1Schema,
 } from "@codogotchi/contracts";
+import { readConfig } from "./config.js";
+import { computeAndPersistV5Fields } from "./local-xp-writer.js";
 import {
   extractPromptText,
   extractSessionId,
@@ -914,17 +915,48 @@ export async function runHook(
         ? classified.command
         : undefined;
 
-    const state: StateJsonV1 = {
-      schema_version: 4, // v5 writer lands in P10.05 with level/half_hearts fields
+    // Write v5 RPG fields when the user has rpg_enabled: true in their config.
+    // Falls back to v4 when config is absent or rpg_enabled is false so that
+    // existing v4 readers and hook tests are unaffected.
+    let v5: Awaited<ReturnType<typeof computeAndPersistV5Fields>> | null = null;
+    try {
+      const config = await readConfig(opts.home);
+      if (config?.features.rpg_enabled === true) {
+        v5 = await computeAndPersistV5Fields(
+          opts.home,
+          classified.sourceEvent.origin,
+          opts.now,
+        );
+      }
+    } catch {
+      // Best-effort: never let v5 compute failure block state write.
+    }
 
-      activity_state: activityState,
-      hp_overlay,
-      hp,
-      updated_at: opts.now.toISOString(),
-      source_event: sourceEvent,
-      ...(attention !== undefined && { attention }),
-      ...(toolCommand !== undefined && { tool_command: toolCommand }),
-    };
+    const state: StateJsonV1 = v5
+      ? {
+          schema_version: 5,
+          activity_state: activityState,
+          hp_overlay,
+          hp,
+          updated_at: opts.now.toISOString(),
+          source_event: sourceEvent,
+          level: v5.level,
+          level_fraction: v5.level_fraction,
+          half_hearts: v5.half_hearts,
+          last_activity_at: v5.last_activity_at,
+          ...(attention !== undefined && { attention }),
+          ...(toolCommand !== undefined && { tool_command: toolCommand }),
+        }
+      : {
+          schema_version: 4,
+          activity_state: activityState,
+          hp_overlay,
+          hp,
+          updated_at: opts.now.toISOString(),
+          source_event: sourceEvent,
+          ...(attention !== undefined && { attention }),
+          ...(toolCommand !== undefined && { tool_command: toolCommand }),
+        };
 
     await writeStateAtomic(opts.home, state);
     await writeCounters(opts.home, {

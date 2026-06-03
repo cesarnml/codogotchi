@@ -13,7 +13,6 @@ import { join } from "node:path";
 import {
   type ProfileResponse,
   parseStateJson,
-  STATE_JSON_SCHEMA_VERSION,
   type StateJsonV1,
 } from "@codogotchi/contracts";
 import { classifyEvent, type HookInput, runHook } from "./hook-binary";

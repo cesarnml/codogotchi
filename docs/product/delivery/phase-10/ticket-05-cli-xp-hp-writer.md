@@ -35,10 +35,16 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Red first: `schema_version` check (expected 5, got 4) and v5 field absence.
 
-Red first: [what test failed first]
-Why this path: [smallest acceptable]
-Alternative considered: [recompute-from-scratch each tick vs incremental cursors]
-Deferred: [syncing any of this — out of scope]
-Contract note: [record any metadata deviation]
+Why this path: New `local-xp-writer.ts` module owns the cache + compute; `runHook` reads config and calls it, falling back to v4 when `rpg_enabled` is absent. Keeps the hook path backwards-compatible for Lite users and tests without config.
+
+Alternative considered: Recompute XP from scratch on each tick vs incremental cursors. Chose incremental cursors (`last_read_at_claude` / `last_read_at_codex` as `since` dates) to avoid re-scanning all JSONL history on every event and to prevent double-counting. The cursor is set to `now` after each read, ensuring the next read only captures new events.
+
+Active minutes: 1 event = 1 minute approximation. Simplest local proxy without Wakatime precision; Swift decay timer (P10.06) will consume `last_activity_at` for actual decay. The remainder (`active_minutes % 60`) carries forward between hook calls so partial heal-progress is not lost.
+
+Half-hearts decay: `resolveHalfHearts` is called with the PREVIOUS `last_activity_at` (snapshot before update) so elapsed idle time since the last event is counted as decay rather than zeroed out by the current event's timestamp.
+
+Deferred: Syncing any of this — out of scope. JSONL read rate-limiting (coarse interval) — left for follow-up; the `last_read_at` cursor already prevents double-counting, and test fixture confirms correctness.
+
+Contract note: v5 fields (`level`, `level_fraction`, `half_hearts`, `last_activity_at`) are written only when `config.features.rpg_enabled === true`. Without config or with `rpg_enabled: false`, the hook writes `schema_version: 4` with no RPG fields — existing v4 readers and tests are unaffected.
