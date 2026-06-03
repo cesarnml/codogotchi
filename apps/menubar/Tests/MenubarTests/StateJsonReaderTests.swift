@@ -333,11 +333,35 @@ final class StateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(snapshot.activityState, .idle)
 	}
 
-	func testSchemaVersion5FailsWithSchemaNewer() throws {
-		// [red] v5 must be refused after the v4 bump (one ahead of expected)
+	func testSchemaVersion5ParsesSuccessfullyAfterV5Bump() throws {
+		// [red] v5 must be accepted after the v5 bump
 		let tmp = FileManager.default.temporaryDirectory
 			.appendingPathComponent("schema-v5-\(UUID().uuidString).json")
-		try #"{"schema_version": 5, "activity_state": "idle", "updated_at": "x"}"#
+		try #"{"schema_version": 5, "activity_state": "idle", "updated_at": "2026-06-03T00:00:00.000Z", "level": 1, "level_fraction": 0.0, "half_hearts": 6, "last_activity_at": null}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.schemaVersion, 5)
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	// MARK: - Schema v5 RPG fields (P10.06 — [red])
+
+	func testExpectedSchemaVersionIsV5() {
+		// [red] EXPECTED_STATE_SCHEMA_VERSION must be 5 after the v5 bump
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 5)
+	}
+
+	func testSchemaVersion6FailsWithSchemaNewer() throws {
+		// [red] v6 must be refused with schemaNewer(6, 5) after the v5 bump
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("schema-v6-\(UUID().uuidString).json")
+		try #"{"schema_version": 6, "activity_state": "idle", "updated_at": "x"}"#
 			.write(to: tmp, atomically: true, encoding: .utf8)
 		defer { try? FileManager.default.removeItem(at: tmp) }
 
@@ -350,7 +374,63 @@ final class StateJsonReaderTests: XCTestCase {
 			XCTFail("expected schemaNewer, got \(error)")
 			return
 		}
-		XCTAssertEqual(got, 5)
-		XCTAssertEqual(expected, 4)
+		XCTAssertEqual(got, 6)
+		XCTAssertEqual(expected, 5)
+	}
+
+	func testV5PayloadDecodesLevelHalfHeartsAndLevelFraction() throws {
+		// [red] a v5 payload must decode level, level_fraction, half_hearts onto the snapshot
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("v5-rpg-fields-\(UUID().uuidString).json")
+		try #"{"schema_version": 5, "activity_state": "idle", "updated_at": "2026-06-03T00:00:00.000Z", "level": 42, "level_fraction": 0.25, "half_hearts": 4, "last_activity_at": "2026-06-03T00:00:00.000Z"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.level, 42)
+		XCTAssertEqual(snapshot.levelFraction, 0.25, accuracy: 0.001)
+		XCTAssertEqual(snapshot.halfHearts, 4)
+		XCTAssertNotNil(snapshot.lastActivityAt)
+	}
+
+	func testV5PayloadNullLastActivityAtDecodesAsNil() throws {
+		// [red] null last_activity_at must decode as nil on the snapshot
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("v5-null-laa-\(UUID().uuidString).json")
+		try #"{"schema_version": 5, "activity_state": "idle", "updated_at": "2026-06-03T00:00:00.000Z", "level": 1, "level_fraction": 0.0, "half_hearts": 6, "last_activity_at": null}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertNil(snapshot.lastActivityAt)
+		XCTAssertEqual(snapshot.halfHearts, 6)
+	}
+
+	func testOlderPayloadRPGFieldsFallBackToSafeDefaults() throws {
+		// [red] v4 payload missing RPG fields must fall back to safe defaults
+		// (level 1, halfHearts 6, levelFraction 0.0, lastActivityAt nil)
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("v4-no-rpg-\(UUID().uuidString).json")
+		try #"{"schema_version": 4, "activity_state": "idle", "updated_at": "2026-06-03T00:00:00.000Z"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.level, 1)
+		XCTAssertEqual(snapshot.halfHearts, 6)
+		XCTAssertEqual(snapshot.levelFraction, 0.0, accuracy: 0.001)
+		XCTAssertNil(snapshot.lastActivityAt)
 	}
 }
