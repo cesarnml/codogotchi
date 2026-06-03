@@ -44,8 +44,8 @@ Red: skip
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [n/a — doc-only]
-Why this path: [n/a]
-Alternative considered: [n/a]
-Deferred: [n/a]
-Contract note: [record any metadata deviation]
+Red first: n/a — doc-only (`Red: skip`).
+Why this path: Retrospective from delivery state + ticket rationales; public doc sweep in-repo; operator-local `notes/private/{convex-deployment,stage-100-calibration,free-cloud-plan}.md` are gitignored — documented in phase retrospective follow-up for manual edit on the developer machine.
+Alternative considered: Creating tracked copies of private notes — rejected; keeps operator secrets local.
+Deferred: Default-on `rpg_enabled` at bootstrap — follow-up item in retrospective §Follow-up.
+Contract note: None; docs aligned to shipped v5 + `half_hearts` semantics.

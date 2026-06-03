@@ -1,8 +1,10 @@
 # Phase 05 Lite install runbook
 
+> **Historical (Phase 05).** After Phase 10, the product floor is **Free RPG (local)** — see [README](../../README.md). This runbook documents the original source-build Lite path.
+
 Codogotchi ships as a **source build** — no App Store, no notarized DMG. This runbook covers the full install path from a fresh checkout to a running pet that reacts to real tool events.
 
-**Scope:** Lite mode. Maew idles and fires on Claude Code / Codex activity. RPG features (XP, Convex sync, loot) require a separate `codogotchi rpg` enrollment step — see the [Lite vs Alive](#lite-vs-alive) section below.
+**Scope:** Lite mode. Maew idles and fires on Claude Code / Codex activity. Local RPG (hearts + level) uses `features.rpg_enabled: true` — see README tiers; cloud sync remains Phase 11+.
 
 **Not in scope:** Mac App Store submission, notarization, VS Code hooks, native Cursor hooks, in-app RPG enrollment, HP overlays, loot UI. These are deferred to later phases.
 

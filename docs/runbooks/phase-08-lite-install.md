@@ -1,5 +1,7 @@
 # Phase 08 Lite install runbook
 
+> **Historical.** Phase 10 shipped **Free RPG (local)** as the product direction. See [README](../../README.md) for current tiers; use this runbook for bundled `.app` install mechanics.
+
 Codogotchi ships as a **source build** — no App Store, no notarized DMG. This runbook covers the
 full install path from a fresh checkout to a running pet that reacts to real tool events.
 
