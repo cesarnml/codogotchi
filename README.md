@@ -83,11 +83,11 @@ remove hooks, and **Settings → Pet** to switch pets.
 
 | Tier | Config | Network | Progression |
 |---|---|---|---|
-| **Animation-only** | `features.rpg_enabled: false` (default on first launch today) | No | Hook-driven pet animation only |
-| **Free RPG (local)** | `features.rpg_enabled: true` (no Convex fields required) | No | Hearts, level 1–100, XP ring via local JSONL + hooks; HUD opt-out: `features.rpg_hud_enabled: false` in **Settings → RPG** |
+| **Free RPG (local)** | `features.rpg_enabled: true` + `rpg_hud_enabled: true` — **the v1 install default** (no Convex fields required) | No | Hearts, level 1–100, XP ring via local JSONL + hooks; HUD opt-out: set `features.rpg_hud_enabled: false` in **Settings → RPG** |
+| **Animation-only** | `features.rpg_enabled: false` (opt-out via `codogotchi config set features.rpg_enabled false`) | No | Hook-driven pet animation only |
 | **Alive + sync** | `rpg_enabled: true` + cloud profile fields | Yes (when configured) | `sync`, leaderboard — Phase 11+ |
 
-Enable local RPG with `codogotchi rpg` (interactive setup) or set `features.rpg_enabled: true` in `~/.codogotchi/config.json`. Cloud-backed commands (`sync`, `status`, `loot`, `vacation`) still require a enrolled cloud profile when implemented; local progression does not need a Convex URL.
+`codogotchi setup` provisions local RPG by default (`rpg_enabled: true`, HUD on) — fully local, no Convex URL, no network. New users see the Tamagotchi loop on first run and can hide the HUD in **Settings → RPG**. `codogotchi rpg` (interactive) is the separate opt-in for cloud/social enrollment. Cloud-backed commands (`sync`, `status`, `loot`, `vacation`) still require an enrolled cloud profile when implemented; local progression does not need a Convex URL.
 
 ## CLI surface
 
@@ -96,7 +96,7 @@ Phase 08 trimmed the public CLI to read/diagnostic commands. Hook management and
 internally (the app spawns them as subprocesses) but are hidden from `--help`.
 
 ```
-codogotchi rpg                                Enable local RPG (`rpg_enabled: true`); may prompt for cloud enroll when configured
+codogotchi rpg                                Cloud/social enrollment (handle + Convex); local RPG is already on by default after `setup`
 codogotchi hooks status [--json]              Print per-platform hook install + firing status
 codogotchi status                             Cached profile, HP, recent loot — requires rpg_enabled: true
 

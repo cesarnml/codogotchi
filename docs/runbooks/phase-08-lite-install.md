@@ -119,11 +119,17 @@ Use **Settings → Pet** to:
 
 ---
 
-## Lite vs Alive
+## Modes
+
+Since the v1 baseline, `codogotchi setup` (first launch) provisions **local RPG**
+by default — `rpg_enabled: true`, HUD on — with no Convex and no network.
 
 | Mode | How to enter | Convex sync | XP / Loot |
 |---|---|---|---|
-| **Lite** | First app launch | No | No |
-| **Alive (RPG)** | `codogotchi rpg` (CLI, until Phase 10 ships in-app enrollment) | Yes | Yes |
+| **Free RPG (local)** | First app launch / `codogotchi setup` (v1 default) | No | XP/HP/level local; loot needs cloud |
+| **Animation-only** | `codogotchi config set features.rpg_enabled false` | No | No |
+| **Alive (cloud/social)** | `codogotchi rpg` enrollment | Yes | Yes |
 
-Run `codogotchi rpg` to enroll and enable RPG features.
+Local RPG is on out of the box; hide the HUD in **Settings → RPG**
+(`rpg_hud_enabled: false`). Run `codogotchi rpg` only to enroll the
+cloud/social layer (leaderboard, loot) when it ships.

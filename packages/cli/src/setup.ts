@@ -28,7 +28,7 @@ export type InstallHooksContext = {
 };
 
 // ---------------------------------------------------------------------------
-// Lite setup (codogotchi setup)
+// Default setup (codogotchi setup) — local RPG baseline, no cloud
 // ---------------------------------------------------------------------------
 
 export type LiteSetupDeps = {
@@ -50,8 +50,10 @@ export type SetupResult = {
 };
 
 /**
- * Lite (non-interactive) setup. Writes a minimal config with rpg_enabled=false
- * and installs hooks. No prompts, no Convex registration.
+ * Default (non-interactive) setup. Writes a local-RPG config
+ * (rpg_enabled=true, rpg_hud_enabled=true) and installs hooks. No prompts, no
+ * Convex registration — local progression only. Cloud/social enrollment stays
+ * a separate opt-in via `codogotchi rpg`.
  */
 export async function runSetup(
   deps: LiteSetupDeps,
@@ -66,7 +68,12 @@ export async function runSetup(
   const config: CodogotchiConfig = {
     profile_id,
     pet: "maew",
-    features: { rpg_enabled: false },
+    // v1 baseline: local RPG on by default with the HUD visible, so first-run
+    // users get a taste of the Tamagotchi loop before deciding. No cloud fields
+    // — this is fully local (XP/HP/level computed by the hook). The HUD can be
+    // hidden via Settings → RPG (`rpg_hud_enabled: false`); animation-only Lite
+    // mode is still reachable via `codogotchi config set features.rpg_enabled false`.
+    features: { rpg_enabled: true, rpg_hud_enabled: true },
   };
 
   // Write config first so installHooks can verify it exists

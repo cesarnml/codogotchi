@@ -41,23 +41,26 @@ describe("runSetup (Lite)", () => {
     rmSync(home, { recursive: true, force: true });
   });
 
-  it("greenfield: writes Lite config, installs hooks, no network", async () => {
+  it("greenfield: writes local-RPG config (rpg_enabled+hud on), installs hooks, no network", async () => {
     const { deps, hooksRec } = makeLiteDeps(home);
 
     const result = await runSetup(deps);
 
-    expect(result.config.features.rpg_enabled).toBe(false);
+    expect(result.config.features.rpg_enabled).toBe(true);
+    expect(result.config.features.rpg_hud_enabled).toBe(true);
     expect(result.config.pet).toBe("maew");
     expect(result.config.profile_id).toBe(
       "11111111-2222-3333-4444-555555555555",
     );
+    // Local baseline — no cloud fields written by setup
     expect("handle" in result.config).toBe(false);
     expect("convex_http_url" in result.config).toBe(false);
 
     // Config persisted to disk under CODOGOTCHI_HOME
     expect(existsSync(configPath(home))).toBe(true);
     const onDisk = await readConfig(home);
-    expect(onDisk?.features.rpg_enabled).toBe(false);
+    expect(onDisk?.features.rpg_enabled).toBe(true);
+    expect(onDisk?.features.rpg_hud_enabled).toBe(true);
     expect(onDisk?.profile_id).toBe("11111111-2222-3333-4444-555555555555");
 
     // Hooks installed exactly once

@@ -132,24 +132,26 @@ describe("runSetup (Lite)", () => {
     rmSync(home, { recursive: true, force: true });
   });
 
-  it("greenfield: writes Lite config with rpg_enabled=false, calls installHooks, no fetch", async () => {
+  it("greenfield: writes local-RPG config (rpg_enabled+hud on), calls installHooks, no fetch", async () => {
     const { deps, hookCalls } = makeLiteDeps(home);
 
     const result = await runSetup(deps);
 
-    expect(result.config.features.rpg_enabled).toBe(false);
+    expect(result.config.features.rpg_enabled).toBe(true);
+    expect(result.config.features.rpg_hud_enabled).toBe(true);
     expect(result.config.pet).toBe("maew");
     expect(result.config.profile_id).toBe(
       "11111111-2222-3333-4444-555555555555",
     );
-    // no handle, github, wakatime, convex on Lite config
+    // local baseline — no handle, github, wakatime, convex written by setup
     expect("handle" in result.config).toBe(false);
     expect("convex_http_url" in result.config).toBe(false);
 
     // Config written to disk
     expect(existsSync(configPath(home))).toBe(true);
     const onDisk = await readConfig(home);
-    expect(onDisk?.features.rpg_enabled).toBe(false);
+    expect(onDisk?.features.rpg_enabled).toBe(true);
+    expect(onDisk?.features.rpg_hud_enabled).toBe(true);
     expect(onDisk?.profile_id).toBe("11111111-2222-3333-4444-555555555555");
 
     // Hooks installed exactly once, with home only
