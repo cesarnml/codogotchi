@@ -37,8 +37,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [analytic inverse of the curve vs precomputed table]
-Deferred: [per-user recalibration; re-validation of constants]
-Contract note: [record any metadata deviation]
+Red first: Import of `./level` failed (module not found) — all 18 tests failed at module resolution.
+Why this path: Precomputed frozen table + binary search is O(log 100) = O(1) in practice, avoids floating-point inverse root on every call, and makes boundaries crystal-clear for tests. One frozen array, one search.
+Alternative considered: Analytic inverse `((xp/T)^(1/2.5) * 99 + 1)` avoids storage but requires `Math.pow` on every call and rounds differently at boundaries — table is more testable and matches the spec's threshold language directly.
+Deferred: Per-user recalibration; re-validation of constants against real token distribution when sync ships.
+Contract note: `LEVEL_T`, `LEVEL_EXPONENT`, `LEVEL_COUNT` exported as named constants per ticket scope. Non-null assertions replaced with `?? 0` / `?? LEVEL_T` fallbacks to satisfy biome linter (`noNonNullAssertion` rule).
