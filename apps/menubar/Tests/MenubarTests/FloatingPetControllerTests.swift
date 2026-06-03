@@ -28,6 +28,12 @@ final class FloatingPetControllerTests: XCTestCase {
 			appliedGateBadges.append(content)
 		}
 
+		var rpgHUDEnabledCalls: [Bool] = []
+
+		func setRPGHUDEnabled(_ enabled: Bool) {
+			rpgHUDEnabledCalls.append(enabled)
+		}
+
 		func setInteraction(_ interaction: FloatingInteraction?) {
 			appliedInteractions.append(interaction)
 		}
@@ -169,6 +175,26 @@ final class FloatingPetControllerTests: XCTestCase {
 
 			XCTAssertEqual(panel.appliedGateBadges, [badge])
 			XCTAssertEqual(panel.shownFrames, [])
+		}
+	}
+
+	func testSetRPGHUDEnabledForwardsLiveToggleToPanel() throws {
+		// Regression (P10.08-B): toggling the Settings → RPG "Show RPG HUD"
+		// checkbox must reach the floating panel live, not only on the next RPG
+		// poll — otherwise the change requires an app restart to take effect.
+		try withTempHome { _ in
+			let initial = FloatingAppState(
+				isFloatingPetVisible: true,
+				frame: CGRect(x: 120, y: 160, width: 220, height: 180)
+			)
+			try AppStateStore.save(initial)
+			let panel = FloatingPetPanelSpy()
+			let controller = FloatingPetController(panel: panel, visibleFrameProvider: { self.visibleFrame })
+
+			controller.setRPGHUDEnabled(false)
+			controller.setRPGHUDEnabled(true)
+
+			XCTAssertEqual(panel.rpgHUDEnabledCalls, [false, true])
 		}
 	}
 

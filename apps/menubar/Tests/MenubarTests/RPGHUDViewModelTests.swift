@@ -196,6 +196,28 @@ final class RPGHUDViewModelTests: XCTestCase {
 		XCTAssertFalse(vm.isHUDEnabled, "opt-out suppresses HUD regardless of other values")
 	}
 
+	/// Regression (P10.08-B): a live Settings toggle flips visibility without a
+	/// new RPG poll. `setHUDEnabled` must update `isHUDEnabled` while leaving the
+	/// last-rendered snapshot (hearts/ring/level) untouched and firing no flash.
+	func testSetHUDEnabledFlipsVisibilityWithoutDisturbingSnapshotOrFlashing() {
+		let vm = RPGHUDViewModel()
+		var flashes: [RPGFlashEvent] = []
+		vm.onFlash = { flashes.append($0) }
+		vm.update(halfHearts: 3, levelFraction: 0.5, level: 7, hudEnabled: true)
+		flashes.removeAll()
+
+		vm.setHUDEnabled(false)
+		XCTAssertFalse(vm.isHUDEnabled)
+		vm.setHUDEnabled(true)
+		XCTAssertTrue(vm.isHUDEnabled)
+
+		// Snapshot preserved; no flash events from a visibility-only change.
+		XCTAssertEqual(vm.hearts, RPGHUDViewModel.hearts(from: 3))
+		XCTAssertEqual(vm.ringFraction, 0.5)
+		XCTAssertEqual(vm.level, 7)
+		XCTAssertTrue(flashes.isEmpty, "visibility toggle must not emit flash events")
+	}
+
 	// MARK: - Layout: opaque-bounds anchoring
 
 	/// A wide on-screen area so placement is never clamped to the screen edge.

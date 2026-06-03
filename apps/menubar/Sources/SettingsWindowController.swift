@@ -32,6 +32,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	/// Wire this in `MenubarApp` to reload pet loaders and push a fresh frame.
 	var onPetActivated: ((String) -> Void)?
 
+	/// Called when the user toggles the RPG HUD checkbox. Receives the persisted
+	/// enabled state. Wire this in `MenubarApp` to push HUD visibility to the
+	/// floating pet live, so the change takes effect without an app restart.
+	var onRPGHUDEnabledChanged: ((Bool) -> Void)?
+
 	init(
 		settingsController: SettingsController = SettingsController(),
 		petImportHelper: PetImportHelper = PetImportHelper(),
@@ -129,7 +134,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		let rpg = RPGTabView(
 			viewModel: rpgTabViewModel,
 			onToggle: { [weak self] enabled in
-				self?.rpgTabViewModel.setRPGHUDEnabled(enabled)
+				guard let self else { return }
+				self.rpgTabViewModel.setRPGHUDEnabled(enabled)
+				// Fire with the *persisted* value: `setRPGHUDEnabled` reverts on a
+				// failed write, so the live HUD must track what survives a relaunch.
+				self.onRPGHUDEnabledChanged?(self.rpgTabViewModel.rpgHUDEnabled)
 			}
 		)
 		let developerViewModel = makeDeveloperTabViewModel()

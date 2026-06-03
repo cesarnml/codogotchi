@@ -209,6 +209,23 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 	}
 
+	/// Apply a live change to the HUD-enabled setting (Settings → RPG toggle)
+	/// without waiting for the next RPG state poll. Disabling hides the HUD
+	/// immediately; enabling restores the normal hover-driven reveal (the HUD
+	/// pops back on the next hover, or right away if the pet is hovered).
+	func setRPGHUDEnabled(_ enabled: Bool) {
+		rpgHUDViewModel.setHUDEnabled(enabled)
+		guard isPanelShown else { return }
+		guard rpgHUDViewModel.isHUDEnabled else {
+			cancelHUDAutoHide()
+			rpgHUDPanel?.hideImmediately()
+			return
+		}
+		if isHoveringPet || hudDemoActive {
+			showHUDForHover()
+		}
+	}
+
 	func setHUDDemoActive(_ active: Bool) {
 		hudDemoActive = active
 		if active {

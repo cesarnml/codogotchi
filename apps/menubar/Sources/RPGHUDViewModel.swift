@@ -75,6 +75,14 @@ final class RPGHUDViewModel {
 		}
 	}
 
+	/// Flip HUD visibility without touching the displayed snapshot. Used when
+	/// the user toggles `rpg_hud_enabled` in Settings: there is no new RPG poll
+	/// to ride, so the live value must be updated directly. Does not emit flash
+	/// events — it is a visibility change, not a state delta.
+	func setHUDEnabled(_ enabled: Bool) {
+		isHUDEnabled = enabled
+	}
+
 	/// Derive the 3-slot heart array from a raw `halfHearts` count (0…6).
 	/// Slot 0 is the leftmost heart and fills first. Each slot covers 2 half-hearts:
 	/// slot 0 = halves 5–6, slot 1 = halves 3–4, slot 2 = halves 1–2.

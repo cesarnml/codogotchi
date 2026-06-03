@@ -197,6 +197,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		settingsController.onPetActivated = { [weak self] _ in
 			self?.reloadActivePet()
 		}
+		settingsController.onRPGHUDEnabledChanged = { [weak self] enabled in
+			self?.floatingPetController?.setRPGHUDEnabled(enabled)
+		}
 		self.settingsWindowController = settingsController
 
 		let menuBuilder = MenubarMenu(
