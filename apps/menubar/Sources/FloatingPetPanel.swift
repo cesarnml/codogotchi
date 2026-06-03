@@ -33,6 +33,11 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// origin is absent or non-platform, in which case no chip is drawn.
 	private var currentPlatform: PlatformAttribution?
 
+	// RPG HUD — shown on hover when rpg_hud_enabled is true.
+	private var rpgHUDPanel: RPGHUDPanel?
+	private let rpgHUDViewModel = RPGHUDViewModel()
+	private var isHoveringPet = false
+
 	init(
 		codexPet: CodexPet,
 		codogotchiPet: CodogotchiPet?,
@@ -106,6 +111,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		attentionBubble?.orderOut(nil)
 		gateBadgePanel?.orderOut(nil)
 		animationBadgePanel?.orderOut(nil)
+		rpgHUDPanel?.orderOut(nil)
 	}
 
 	/// Swap in new pet loaders and immediately repaint the current state.
@@ -166,6 +172,21 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		repositionAndShowAnimationBadge()
 	}
 
+	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool) {
+		rpgHUDViewModel.onFlash = { [weak self] event in
+			self?.rpgHUDPanel?.flash(event)
+		}
+		rpgHUDViewModel.update(
+			halfHearts: halfHearts,
+			levelFraction: levelFraction,
+			level: level,
+			hudEnabled: hudEnabled
+		)
+		if isPanelShown {
+			repositionAndShowHUD()
+		}
+	}
+
 	private func handleBubbleDismiss() {
 		attentionActive = false
 		apply(state: .idle, visualMode: currentMode)
@@ -193,6 +214,26 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			visibleFrame: visibleFrameProvider()
 		)
 		badge.orderFrontRegardless()
+	}
+
+	private func repositionAndShowHUD() {
+		guard isPanelShown, isHoveringPet, rpgHUDViewModel.isHUDEnabled else {
+			rpgHUDPanel?.orderOut(nil)
+			return
+		}
+		let hud = rpgHUDPanel ?? {
+			let p = RPGHUDPanel()
+			rpgHUDPanel = p
+			return p
+		}()
+		hud.reposition(
+			hearts: rpgHUDViewModel.hearts,
+			ringFraction: rpgHUDViewModel.ringFraction,
+			level: rpgHUDViewModel.level,
+			relativeTo: lastPanelFrame,
+			visibleFrame: visibleFrameProvider()
+		)
+		hud.orderFrontRegardless()
 	}
 
 	private func repositionAndShowAnimationBadge() {
@@ -286,6 +327,15 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
+		if isHoveringPet, rpgHUDViewModel.isHUDEnabled {
+			rpgHUDPanel?.reposition(
+				hearts: rpgHUDViewModel.hearts,
+				ringFraction: rpgHUDViewModel.ringFraction,
+				level: rpgHUDViewModel.level,
+				relativeTo: lastPanelFrame,
+				visibleFrame: visibleFrameProvider()
+			)
+		}
 	}
 
 	/// Committed frame change (mouseUp): re-anchor once more, then forward to the
@@ -340,6 +390,11 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		wireFrameHandlers(on: view)
 		view.hideFloatingPetHandler = { [weak self] in
 			self?.onHideFloatingPet?()
+		}
+		view.onHoverChange = { [weak self] isHovering in
+			guard let self else { return }
+			self.isHoveringPet = isHovering
+			self.repositionAndShowHUD()
 		}
 		return view
 	}
@@ -1370,6 +1425,8 @@ private final class FloatingPetInteractionView: NSView {
 	/// runs per `mouseDragged`; persistence stays on `frameChangeHandler`.
 	var liveFrameChangeHandler: ((CGRect) -> Void)?
 	var hideFloatingPetHandler: (() -> Void)?
+	/// Fired when the pointer enters or leaves the pet frame. `true` = entered.
+	var onHoverChange: ((Bool) -> Void)?
 
 	init(
 		frame: CGRect,
@@ -1835,7 +1892,11 @@ private final class FloatingPetInteractionView: NSView {
 		let inBounds = FloatingInteractionPolicy.pointerInBounds(localPoint, bounds: bounds)
 		let inAffordanceRect = FloatingInteractionPolicy.resizeAffordanceRect(in: bounds)
 			.contains(localPoint)
+		let wasInBounds = pointerInsideFrame
 		pointerInsideFrame = inBounds
+		if inBounds != wasInBounds {
+			onHoverChange?(inBounds)
+		}
 		if inAffordanceRect {
 			affordanceHoverActive = true
 		} else if !isResizing {

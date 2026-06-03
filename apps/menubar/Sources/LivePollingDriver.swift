@@ -59,6 +59,7 @@ final class LivePollingDriver {
 	typealias ApplyAttention = (AttentionPayload?, SourceEvent?) -> Void
 	typealias ApplyGateBadge = (GateBadgeContent?) -> Void
 	typealias ApplyPlatform = (String?) -> Void
+	typealias ApplyRPGState = (Int, Double, Int) -> Void
 	typealias Reader = (String) -> Result<StateSnapshot, StateReadError>
 	typealias GateReader = (String) -> GateSnapshot?
 	typealias DeliveryContextReaderFn = (String) -> DeliveryContextSnapshot?
@@ -89,6 +90,10 @@ final class LivePollingDriver {
 	/// platform chip can track who last drove the pet. `nil` on read failures and
 	/// when the payload omits an origin.
 	var applyPlatform: ApplyPlatform?
+	/// Optional sink for RPG state (halfHearts, levelFraction, level). Emitted
+	/// whenever any of the three values change on a successful read. Not emitted
+	/// on read failures — the HUD retains its last-known values.
+	var applyRPGState: ApplyRPGState?
 
 	private var timer: Timer?
 	private var lastRendered: (state: ActivityState, mode: VisualMode)?
@@ -104,6 +109,8 @@ final class LivePollingDriver {
 	/// so the first `nil` origin still clears any inherited chip.
 	private var lastPlatformOrigin: String?
 	private var hasEmittedPlatform = false
+	/// Cached RPG state triple. `nil` means never emitted.
+	private var lastRPGState: (halfHearts: Int, levelFraction: Double, level: Int)? = nil
 	/// Agent-reported state from the last successful read. The transition log
 	/// records changes against this value, not against the rendered visual
 	/// state, because failure visuals collapse to `.idle` regardless of what
@@ -209,6 +216,19 @@ final class LivePollingDriver {
 		let attention: AttentionPayload?
 		let sourceEvent: SourceEvent?
 		let gateBadge: GateBadgeContent?
+		let rpgState: (halfHearts: Int, levelFraction: Double, level: Int)?
+
+		static func == (lhs: Outcome, rhs: Outcome) -> Bool {
+			lhs.state == rhs.state
+				&& lhs.mode == rhs.mode
+				&& lhs.tooltip == rhs.tooltip
+				&& lhs.attention == rhs.attention
+				&& lhs.sourceEvent == rhs.sourceEvent
+				&& lhs.gateBadge == rhs.gateBadge
+				&& lhs.rpgState?.halfHearts == rhs.rpgState?.halfHearts
+				&& lhs.rpgState?.levelFraction == rhs.rpgState?.levelFraction
+				&& lhs.rpgState?.level == rhs.rpgState?.level
+		}
 	}
 
 	private func decide(
@@ -237,21 +257,22 @@ final class LivePollingDriver {
 				tooltip: nil,
 				attention: snapshot.attention,
 				sourceEvent: snapshot.sourceEvent,
-				gateBadge: gateBadge
+				gateBadge: gateBadge,
+				rpgState: (snapshot.halfHearts, snapshot.levelFraction, snapshot.level)
 			)
 		case .failure(.fileNotFound):
 			let gateBadge = resolveGateBadgeContent(deliveryContext: deliveryContext, sourceEvent: nil)
 			return Outcome(
 				state: .idle, mode: .normal,
 				tooltip: LivePollingTooltips.noHookDetected,
-				attention: nil, sourceEvent: nil, gateBadge: gateBadge
+				attention: nil, sourceEvent: nil, gateBadge: gateBadge, rpgState: nil
 			)
 		case .failure(.malformed), .failure(.schemaMissingOrInvalid):
 			let gateBadge = resolveGateBadgeContent(deliveryContext: deliveryContext, sourceEvent: nil)
 			return Outcome(
 				state: .idle, mode: .desaturated,
 				tooltip: LivePollingTooltips.schemaMissing,
-				attention: nil, sourceEvent: nil, gateBadge: gateBadge
+				attention: nil, sourceEvent: nil, gateBadge: gateBadge, rpgState: nil
 			)
 		case .failure(.schemaNewer(let got, let expected)):
 			let gateBadge = resolveGateBadgeContent(deliveryContext: deliveryContext, sourceEvent: nil)
@@ -259,7 +280,7 @@ final class LivePollingDriver {
 				state: .idle,
 				mode: .desaturated,
 				tooltip: LivePollingTooltips.schemaNewer(got: got, expected: expected),
-				attention: nil, sourceEvent: nil, gateBadge: gateBadge
+				attention: nil, sourceEvent: nil, gateBadge: gateBadge, rpgState: nil
 			)
 		}
 	}
@@ -299,7 +320,8 @@ final class LivePollingDriver {
 			tooltip: nil,
 			attention: nil,
 			sourceEvent: nil,
-			gateBadge: nil
+			gateBadge: nil,
+			rpgState: nil
 		)
 	}
 
@@ -358,6 +380,19 @@ final class LivePollingDriver {
 				sink(origin)
 				lastPlatformOrigin = origin
 				hasEmittedPlatform = true
+			}
+		}
+
+		if let sink = applyRPGState, let rpg = outcome.rpgState {
+			let changed: Bool = {
+				guard let last = lastRPGState else { return true }
+				return last.halfHearts != rpg.halfHearts
+					|| last.levelFraction != rpg.levelFraction
+					|| last.level != rpg.level
+			}()
+			if changed {
+				sink(rpg.halfHearts, rpg.levelFraction, rpg.level)
+				lastRPGState = rpg
 			}
 		}
 	}

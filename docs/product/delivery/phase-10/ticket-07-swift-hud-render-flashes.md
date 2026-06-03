@@ -36,10 +36,27 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Red first: `testHeartsAllFull` failed immediately (stub returned `[]`); all
+23 tests in `RPGHUDViewModelTests` failed — hearts count, ring fraction, all
+flash events, and opt-out flag. Correct failures.
 
-Red first: [what test failed first]
-Why this path: [smallest acceptable]
-Alternative considered: [absolute-value vs delta-driven flashes]
-Deferred: [bespoke level-up animations — premium]
-Contract note: [record any metadata deviation]
+Why this path: `RPGHUDViewModel` is the tested logic layer; `RPGHUDPanel` is a
+thin AppKit overlay using the same `FloatingPetPanelManaging` pattern as the
+existing `AnimationBadgePanel` and `GateBadgePanel`. No SwiftUI because the
+entire floating-pet surface is AppKit/SpriteKit.
+
+Alternative considered: delta-driven vs absolute-value flashes. Delta-driven
+wins — absolute would flash spuriously on first render (launch) and on every
+LivePollingDriver tick even if nothing changed. Deltas fire only on meaningful
+transitions. The `previousHalfHearts`/`previousLevel` guard on the first
+`update()` call prevents any launch-time flash.
+
+Deferred: bespoke per-event character animations (premium), hover auto-hide
+timer (current UX: hide-on-leave is instant via `onHoverChange` callback),
+milestone sparkle persistence across sessions (sparkle fires on the same tick
+the milestone is first reached; unseen-burst persistence deferred to P11+).
+
+Contract note: `LivePollingDriver.Outcome` gained a `rpgState` field;
+`FloatingPetPanelManaging` protocol extended with `applyRPGState`; default
+no-op prevents existing tests/mocks from breaking. `PetConfig.resolvedRPGHUDEnabled()`
+reads `features.rpg_hud_enabled` from config.json; defaults `true` when absent.

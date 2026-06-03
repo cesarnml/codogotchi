@@ -8,6 +8,19 @@ let DEFAULT_PET_NAME = "maew"
 /// at call time and returns the `pet` key value. Falls back to `DEFAULT_PET_NAME`
 /// on any read or parse failure — missing file, malformed JSON, or absent key.
 enum PetConfig {
+	/// Returns `false` only when `features.rpg_hud_enabled` is explicitly `false`.
+	/// Defaults to `true` (HUD visible) when the key is absent, config is
+	/// missing, or the value is not a Boolean.
+	static func resolvedRPGHUDEnabled() -> Bool {
+		let url = configURL()
+		guard let data = try? Data(contentsOf: url),
+			let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+			let features = obj["features"] as? [String: Any],
+			let flag = features["rpg_hud_enabled"] as? Bool
+		else { return true }
+		return flag
+	}
+
 	/// Returns the configured pet name, or `DEFAULT_PET_NAME` on soft failure.
 	static func resolvedPetName() -> String {
 		let url = configURL()
