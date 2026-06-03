@@ -33,10 +33,20 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// origin is absent or non-platform, in which case no chip is drawn.
 	private var currentPlatform: PlatformAttribution?
 
-	// RPG HUD — shown on hover when rpg_hud_enabled is true.
+	// RPG HUD — shown on hover, and transiently revealed on animation moments
+	// (lose/gain a half-heart, level up) when not hovering.
 	private var rpgHUDPanel: RPGHUDPanel?
 	private let rpgHUDViewModel = RPGHUDViewModel()
 	private var isHoveringPet = false
+	/// Pending auto-hide for a transient (non-hover) reveal.
+	private var hudAutoHideWork: DispatchWorkItem?
+	/// Set by the view-model's flash callback during `update`, signalling that
+	/// the current snapshot crossed an animation threshold worth revealing.
+	private var hudFlashPending = false
+	/// Seconds a transient reveal stays on screen before fading out.
+	private static let hudTransientSeconds: TimeInterval = 4.0
+	/// When true (HUD demo), the HUD is pinned visible regardless of hover.
+	private var hudDemoActive = false
 
 	init(
 		codexPet: CodexPet,
@@ -111,7 +121,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		attentionBubble?.orderOut(nil)
 		gateBadgePanel?.orderOut(nil)
 		animationBadgePanel?.orderOut(nil)
-		rpgHUDPanel?.orderOut(nil)
+		cancelHUDAutoHide()
+		rpgHUDPanel?.hideImmediately()
 	}
 
 	/// Swap in new pet loaders and immediately repaint the current state.
@@ -174,16 +185,37 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool) {
 		rpgHUDViewModel.onFlash = { [weak self] event in
-			self?.rpgHUDPanel?.flash(event)
+			guard let self else { return }
+			self.hudFlashPending = true
+			self.rpgHUDPanel?.flash(event)
 		}
+		hudFlashPending = false
 		rpgHUDViewModel.update(
 			halfHearts: halfHearts,
 			levelFraction: levelFraction,
 			level: level,
 			hudEnabled: hudEnabled
 		)
-		if isPanelShown {
-			repositionAndShowHUD()
+		guard isPanelShown else { return }
+		guard rpgHUDViewModel.isHUDEnabled else {
+			cancelHUDAutoHide()
+			rpgHUDPanel?.hideImmediately()
+			return
+		}
+		if isHoveringPet || hudDemoActive {
+			showHUDForHover()
+		} else if hudFlashPending {
+			revealHUDTransiently()
+		}
+	}
+
+	func setHUDDemoActive(_ active: Bool) {
+		hudDemoActive = active
+		if active {
+			showHUDForHover()
+		} else if !isHoveringPet {
+			cancelHUDAutoHide()
+			rpgHUDPanel?.fadeOut()
 		}
 	}
 
@@ -216,11 +248,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		badge.orderFrontRegardless()
 	}
 
-	private func repositionAndShowHUD() {
-		guard isPanelShown, isHoveringPet, rpgHUDViewModel.isHUDEnabled else {
-			rpgHUDPanel?.orderOut(nil)
-			return
-		}
+	/// Lazily create the HUD panel and push the latest state + position into it.
+	private func refreshHUDContent() -> RPGHUDPanel? {
+		guard rpgHUDViewModel.isHUDEnabled else { return nil }
 		let hud = rpgHUDPanel ?? {
 			let p = RPGHUDPanel()
 			rpgHUDPanel = p
@@ -233,7 +263,44 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
-		hud.orderFrontRegardless()
+		return hud
+	}
+
+	/// Steady reveal while hovering: cancel any transient timer, hold visible.
+	private func showHUDForHover() {
+		guard isPanelShown, rpgHUDViewModel.isHUDEnabled else { return }
+		cancelHUDAutoHide()
+		refreshHUDContent()?.ensureVisible()
+	}
+
+	/// Hover ended: fade out unless a transient reveal is mid-flight.
+	private func hideHUDForHoverEnd() {
+		guard !hudDemoActive else { return }
+		guard hudAutoHideWork == nil else { return }
+		rpgHUDPanel?.fadeOut()
+	}
+
+	/// Brief reveal on an animation moment while not hovering: fade in, then fade
+	/// out after `hudTransientSeconds` unless the pointer started hovering.
+	private func revealHUDTransiently() {
+		guard isPanelShown, rpgHUDViewModel.isHUDEnabled else { return }
+		refreshHUDContent()?.fadeIn()
+		cancelHUDAutoHide()
+		let work = DispatchWorkItem { [weak self] in
+			guard let self else { return }
+			self.hudAutoHideWork = nil
+			if !self.isHoveringPet {
+				self.rpgHUDPanel?.fadeOut()
+			}
+		}
+		hudAutoHideWork = work
+		DispatchQueue.main.asyncAfter(
+			deadline: .now() + Self.hudTransientSeconds, execute: work)
+	}
+
+	private func cancelHUDAutoHide() {
+		hudAutoHideWork?.cancel()
+		hudAutoHideWork = nil
 	}
 
 	private func repositionAndShowAnimationBadge() {
@@ -327,7 +394,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
-		if isHoveringPet, rpgHUDViewModel.isHUDEnabled {
+		// Keep the HUD glued to the pet during drag whenever it is visible —
+		// either steady (hover) or mid transient reveal.
+		if rpgHUDViewModel.isHUDEnabled, isHoveringPet || hudAutoHideWork != nil {
 			rpgHUDPanel?.reposition(
 				hearts: rpgHUDViewModel.hearts,
 				ringFraction: rpgHUDViewModel.ringFraction,
@@ -394,7 +463,11 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		view.onHoverChange = { [weak self] isHovering in
 			guard let self else { return }
 			self.isHoveringPet = isHovering
-			self.repositionAndShowHUD()
+			if isHovering {
+				self.showHUDForHover()
+			} else {
+				self.hideHUDForHoverEnd()
+			}
 		}
 		return view
 	}

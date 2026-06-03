@@ -23,6 +23,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// outside demo mode or when the renderer failed to load.
 	var demoDriver: DemoCycleDriver?
 
+	/// Held strongly so the HUD demo's `Timer` survives. Non-nil only under
+	/// `CODOGOTCHI_HUD_DEMO=1`.
+	var hudDemoDriver: HUDDemoDriver?
+
+	/// True while the HUD demo is sweeping RPG values; suppresses the live
+	/// poller's RPG updates so they do not fight the demo animation.
+	private var hudDemoActive = false
+
 	/// Held so `LivePollingDriver` can check sheet availability for gate elevation.
 	var codogotchiPet: CodogotchiPet?
 
@@ -291,8 +299,11 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				floatingPetController?.applyPlatform(origin: origin)
 			}
 			driver.applyRPGState = {
-				[weak floatingPetController = self.floatingPetController]
+				[weak self, weak floatingPetController = self.floatingPetController]
 				halfHearts, levelFraction, level in
+				// While the HUD demo is animating, ignore real RPG updates so the
+				// demo's values are not overwritten on each poll tick.
+				guard self?.hudDemoActive != true else { return }
 				let hudEnabled = PetConfig.resolvedRPGHUDEnabled()
 				floatingPetController?.applyRPGState(
 					halfHearts: halfHearts,
@@ -303,6 +314,12 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			}
 			driver.start()
 			self.livePollingDriver = driver
+		}
+
+		// HUD demo (developer convenience): pin the floating pet + HUD and sweep
+		// RPG values for 120s. Independent of `CODOGOTCHI_DEMO`.
+		if ProcessInfo.processInfo.environment["CODOGOTCHI_HUD_DEMO"] == "1" {
+			startHUDDemo()
 		}
 
 		// Best-effort hook status refresh: shell out to `codogotchi hooks status --json`
@@ -369,6 +386,37 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			ProcessInfo.processInfo.endActivity(activity)
 			self.activity = nil
 		}
+	}
+
+	/// Pin the floating pet + HUD and run the RPG-HUD animation for developer
+	/// inspection. Restores normal hover-driven HUD behavior when the run ends.
+	@MainActor
+	private func startHUDDemo() {
+		guard let controller = floatingPetController else {
+			NSLog("MenubarApp: HUD demo requested but floating pet controller is unavailable")
+			return
+		}
+		controller.setFloatingPetVisible(true)
+		menuBuilder?.refreshFloatingPetMenuItemTitle()
+		hudDemoActive = true
+		controller.setHUDDemoActive(true)
+		let driver = HUDDemoDriver(
+			apply: { [weak controller] halfHearts, levelFraction, level in
+				controller?.applyRPGState(
+					halfHearts: halfHearts,
+					levelFraction: levelFraction,
+					level: level,
+					hudEnabled: true
+				)
+			},
+			onComplete: { [weak self, weak controller] in
+				controller?.setHUDDemoActive(false)
+				self?.hudDemoActive = false
+				self?.hudDemoDriver = nil
+			}
+		)
+		driver.start()
+		self.hudDemoDriver = driver
 	}
 
 	func applicationWillTerminate(_ notification: Notification) {

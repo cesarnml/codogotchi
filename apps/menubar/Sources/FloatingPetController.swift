@@ -17,6 +17,7 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func applyGateBadge(content: GateBadgeContent?)
 	func applyPlatform(origin: String?)
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool)
+	func setHUDDemoActive(_ active: Bool)
 	func setInteraction(_ interaction: FloatingInteraction?)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 }
@@ -26,6 +27,7 @@ extension FloatingPetPanelManaging {
 	func applyGateBadge(content: GateBadgeContent?) {}
 	func applyPlatform(origin: String?) {}
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool) {}
+	func setHUDDemoActive(_ active: Bool) {}
 }
 
 @MainActor
@@ -124,6 +126,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 			level: level,
 			hudEnabled: hudEnabled
 		)
+	}
+
+	func setHUDDemoActive(_ active: Bool) {
+		panel.setHUDDemoActive(active)
 	}
 
 	func persistFrameChange(_ frame: CGRect) {

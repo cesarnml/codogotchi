@@ -265,4 +265,48 @@ final class DemoModeTests: XCTestCase {
 			}
 		}
 	}
+
+	// MARK: - HUD demo snapshot mapping
+
+	func testHUDDemoStartsFullHeartsEmptyRingLevelOne() {
+		let s = HUDDemoDriver.snapshot(at: 0)
+		XCTAssertEqual(s.halfHearts, 6)
+		XCTAssertEqual(s.level, 1)
+		XCTAssertEqual(s.levelFraction, 0, accuracy: 1e-9)
+	}
+
+	func testHUDDemoLevelIncrementsEveryEightSeconds() {
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 7.99).level, 1)
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 8).level, 2)
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 16).level, 3)
+	}
+
+	func testHUDDemoRingFillsWithinEachLevel() {
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 4).levelFraction, 0.5, accuracy: 1e-9)
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 8).levelFraction, 0, accuracy: 1e-9)
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 12).levelFraction, 0.5, accuracy: 1e-9)
+	}
+
+	func testHUDDemoHeartsTriangleWaveEveryFiveSeconds() {
+		// Full → empty over 30s (one half-heart every 5s).
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 0).halfHearts, 6)
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 5).halfHearts, 5)
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 30).halfHearts, 0)
+		// Then empty → full over the next 30s.
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 35).halfHearts, 1)
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 60).halfHearts, 6)
+	}
+
+	func testHUDDemoCompletesTwoHeartCyclesAndEndsLevelSixteen() {
+		XCTAssertEqual(HUDDemoDriver.snapshot(at: 90).halfHearts, 0)
+		let end = HUDDemoDriver.snapshot(at: 120)
+		XCTAssertEqual(end.halfHearts, 6, "two complete heart cycles end on full hearts")
+		XCTAssertEqual(end.level, 16, "15 level-ups over 120s start at 1 → end at 16")
+	}
+
+	func testHUDDemoClampsBeyondDuration() {
+		let end = HUDDemoDriver.snapshot(at: 999)
+		XCTAssertEqual(end.level, 16)
+		XCTAssertEqual(end.halfHearts, 6)
+	}
 }

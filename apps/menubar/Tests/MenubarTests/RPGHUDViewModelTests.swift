@@ -1,3 +1,4 @@
+import CoreGraphics
 import XCTest
 
 @testable import Codogotchi
@@ -193,5 +194,40 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let vm = RPGHUDViewModel()
 		vm.update(halfHearts: 6, levelFraction: 0.99, level: 50, hudEnabled: false)
 		XCTAssertFalse(vm.isHUDEnabled, "opt-out suppresses HUD regardless of other values")
+	}
+
+	// MARK: - Layout: shrink-aware left offset
+
+	/// A wide on-screen area so placement is never clamped to the screen edge.
+	private static let roomyVisibleFrame = CGRect(x: 0, y: 0, width: 4000, height: 3000)
+
+	private func hudFrame(petWidth: CGFloat, petMinX: CGFloat = 1000) -> CGRect {
+		let petFrame = CGRect(x: petMinX, y: 800, width: petWidth, height: petWidth * 1.2)
+		let metrics = RPGHUDLayout.metrics(for: petFrame)
+		let size = RPGHUDLayout.panelSize(metrics)
+		return RPGHUDLayout.frame(
+			hudSize: size,
+			metrics: metrics,
+			relativeTo: petFrame,
+			visibleFrame: Self.roomyVisibleFrame
+		)
+	}
+
+	/// At max scale (pet width ≥ baseline×1.5) the HUD's panel left edge aligns
+	/// with the pet frame's left edge — no extra leftward shift.
+	func testNoLeftShiftAtMaxPetFrame() {
+		let petMinX: CGFloat = 1000
+		let frame = hudFrame(petWidth: 330, petMinX: petMinX)
+		XCTAssertEqual(frame.minX, petMinX, accuracy: 0.5, "no left shift expected at max pet frame")
+	}
+
+	/// Below max scale the HUD slides left of the pet frame's left edge.
+	func testLeftShiftWhenPetFrameShrinks() {
+		let petMinX: CGFloat = 1000
+		let mid = hudFrame(petWidth: 220, petMinX: petMinX)
+		let small = hudFrame(petWidth: 165, petMinX: petMinX)
+		XCTAssertLessThan(mid.minX, petMinX, "mid pet frame should shift HUD left of the frame edge")
+		XCTAssertLessThan(
+			small.minX, mid.minX, "smaller pet frame should shift the HUD further left than mid")
 	}
 }

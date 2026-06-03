@@ -142,3 +142,97 @@ final class DemoCycleDriver {
 		apply(entry.state)
 	}
 }
+
+/// Drives a self-contained RPG-HUD animation for developer convenience when the
+/// app launches under `CODOGOTCHI_HUD_DEMO=1` (see `tch` / `test-codogotchi-hud`).
+///
+/// Over `totalDuration` seconds it sweeps the HUD's three inputs:
+/// - **level** starts at 1 and increments every `secondsPerLevel` seconds,
+/// - **levelFraction** fills 0→1 within each level so the XP ring climbs
+///   gradually,
+/// - **halfHearts** runs a triangle wave 6→0→6, one half-heart every
+///   `secondsPerHalfHeartStep` seconds.
+///
+/// With the defaults (120s, 8s/level, 5s/half-heart) the run ends on level 16
+/// after two complete full→empty→full heart cycles. The pure `snapshot(at:)`
+/// mapping is unit-tested; the timer is a thin driver around it.
+@MainActor
+final class HUDDemoDriver {
+	typealias RPGApply = (_ halfHearts: Int, _ levelFraction: Double, _ level: Int) -> Void
+
+	static let totalDuration: TimeInterval = 120
+	static let secondsPerLevel: TimeInterval = 8
+	static let secondsPerHalfHeartStep: TimeInterval = 5
+	static let maxHalfHearts = 6
+	static let startLevel = 1
+
+	/// Deterministic mapping from elapsed seconds to HUD RPG values. Pure so it
+	/// can be unit-tested without a timer.
+	static func snapshot(at elapsed: TimeInterval)
+		-> (halfHearts: Int, levelFraction: Double, level: Int)
+	{
+		let t = max(0, min(totalDuration, elapsed))
+		let level = startLevel + Int(t / secondsPerLevel)
+		let levelFraction = t.truncatingRemainder(dividingBy: secondsPerLevel) / secondsPerLevel
+		let step = Int(t / secondsPerHalfHeartStep)
+		let period = maxHalfHearts * 2
+		let pos = step % period
+		let halfHearts = pos <= maxHalfHearts ? maxHalfHearts - pos : pos - maxHalfHearts
+		return (halfHearts, levelFraction, level)
+	}
+
+	private let apply: RPGApply
+	private let onComplete: () -> Void
+	private let tickInterval: TimeInterval
+	private let clock: () -> Date
+	private var startedAt: Date?
+	private var timer: Timer?
+
+	init(
+		apply: @escaping RPGApply,
+		onComplete: @escaping () -> Void = {},
+		tickInterval: TimeInterval = 0.05,
+		clock: @escaping () -> Date = Date.init
+	) {
+		self.apply = apply
+		self.onComplete = onComplete
+		self.tickInterval = tickInterval
+		self.clock = clock
+	}
+
+	deinit {
+		timer?.invalidate()
+	}
+
+	/// Begin the animation, emitting the starting frame (level 1, empty ring,
+	/// full hearts) immediately.
+	func start() {
+		stop()
+		startedAt = clock()
+		emit(at: 0)
+		timer = Timer.scheduledTimer(withTimeInterval: tickInterval, repeats: true) {
+			[weak self] _ in
+			Task { @MainActor in self?.runTick() }
+		}
+	}
+
+	func stop() {
+		timer?.invalidate()
+		timer = nil
+	}
+
+	private func runTick() {
+		guard let startedAt else { return }
+		let elapsed = clock().timeIntervalSince(startedAt)
+		emit(at: elapsed)
+		if elapsed >= Self.totalDuration {
+			stop()
+			onComplete()
+		}
+	}
+
+	private func emit(at elapsed: TimeInterval) {
+		let snap = Self.snapshot(at: elapsed)
+		apply(snap.halfHearts, snap.levelFraction, snap.level)
+	}
+}
