@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-06-03T08:27:06.643Z",
+  "summary": {
+    "total": 22,
+    "patched": 0,
+    "rejected": 11,
+    "already-covered": 9,
+    "requires-human-review": 2
+  },
+  "dispositions": [
+    {
+      "disposition": "already-covered",
+      "rationale": "level.ts JSDoc on levelProgress already documents the level-100 `into` semantics: it states fraction is always 1, span is the last-interval width, and `into` reflects raw excess beyond LEVEL_T and may exceed span — callers should use `fraction`, not `into`. The recommended documentation already landed in P10.01.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.01-subagent-review.report.md",
+        "ticketId": "P10.01"
+      },
+      "observation": "**`into` semantics at level 100 with xp > LEVEL_T:** When `xp > LEVEL_T`, the level-100 branch sets `into = xp - LEVEL_T` (a positive excess) while `span = LEVEL_T - LEVEL_THRESHOLDS[98]` (the width of the last level interval). This means `into` can exceed `span` at level 100, which is inconsistent with interior-level behavior where `into < span` is guaranteed. Invariant 3 explicitly exempts level 100 from the `into ≤ span` rule, so this is spec-permitted. Callers who consume the raw `into` field (rather than `fraction`) at level 100 may encounter surprising values if xp grows past `LEVEL_T`. Consider documenting the level-100 semantics of `into` in the JSDoc, or clamping it to `Math.min(into, span)` in a future pass."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "level.test.ts now exercises both fields: the level-100 case \"at T XP: level 100, fraction is 1, into is 0, span is positive\" asserts into === 0 and span > 0. The recommended test coverage already landed in P10.01.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.01-subagent-review.report.md",
+        "ticketId": "P10.01"
+      },
+      "observation": "**`levelProgress(T)` test does not assert `into` or `span`:** The test `at T XP: level 100, fraction is 1` checks `level` and `fraction` but leaves `into` and `span` unexercised. Both are correct (`into = 0`, `span = LEVEL_T - LEVEL_THRESHOLDS[98] > 0`) but unasserted. A future edit to the level-100 branch could silently break `into` without failing any test."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "packages/contracts/src/decay-constants.ts now exists and is the single source of the decay constants (added in P10.06); the engine references contracts. The plan claim that decay constants live in @codogotchi/contracts is now accurate.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.02-subagent-review.report.md",
+        "ticketId": "P10.02"
+      },
+      "observation": "[docs/product/delivery/phase-10/implementation-plan.md](/Users/cesar/code/codogotchi_p10_02/docs/product/delivery/phase-10/implementation-plan.md:17) says decay constants live in `@codogotchi/contracts`, while [docs/product/delivery/phase-10/ticket-02-engine-heart-model.md](/Users/cesar/code/codogotchi_p10_02/docs/product/delivery/phase-10/ticket-02-engine-heart-model.md:14) says this engine ticket exports them so contracts can reference one definition. The diff currently implements the ticket-local version only: constants exist in engine, and contracts are not yet updated in this changeset."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Stale aspirational bullet in the ticket Outcome (a historical delivery snapshot). ACTIVE_HOUR_TOKEN_FLOOR was never introduced as a named constant by design; the active-minutes/event floor is realized in the P10.05 writer. No code defect — markdown artifact in a delivered ticket doc.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.02-subagent-review.report.md",
+        "ticketId": "P10.02"
+      },
+      "observation": "[docs/product/delivery/phase-10/ticket-02-engine-heart-model.md](/Users/cesar/code/codogotchi_p10_02/docs/product/delivery/phase-10/ticket-02-engine-heart-model.md:11) says `ACTIVE_HOUR_TOKEN_FLOOR` or an event floor is documented, but this diff adds only `MAX_HALF_HEARTS`, `HALF_HEART_DECAY_HOURS`, `ACTIVE_MINUTES_PER_HALF_HEART`, and the resolver. I did not find any new token-floor constant or documentation in the touched code/tests."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "ticket-03 now documents the single-schema decision explicitly (Alternative considered: \"Separate stateJsonV4Schema/stateJsonV5Schema union — rejected\"). Code uses a single stateJsonV1Schema with conditional superRefine, consistent with the doc. The drift the observation flagged is resolved.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.03-subagent-review.report.md",
+        "ticketId": "P10.03"
+      },
+      "observation": "The same ticket doc says `stateJsonV5Schema` adds the new fields, but the implementation kept a single `stateJsonV1Schema` with conditional `superRefine`. That drift is harmless behaviorally, but the doc names a schema that does not exist."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Imprecise prose in a historical ticket Rationale snapshot. The validation relaxation (all cloud fields .optional()) is sound because the sync path is not wired/active in Phase 10. The phrase \"no code reads those cloud fields\" is loose wording in a delivered ticket doc, not a code defect.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.03-subagent-review.report.md",
+        "ticketId": "P10.03"
+      },
+      "observation": "The ticket doc at `docs/product/delivery/phase-10/ticket-03-contracts-state-v5-config.md:43` says the cloud-field relaxation is acceptable because “sync is fully disabled in Phase 10 and no code reads those cloud fields.” The current code does not match that claim: `packages/cli/src/router.ts:269-290` still exposes `sync`, and `packages/cli/src/sync.ts:142-158` reads `handle`, `health`, and `convex_http_url`."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Compile-time exhaustiveness is already enforced: JsonlSource is a closed union and SOURCE_CONFIGS is typed Record<JsonlSource, SourceConfig>, so adding a member without a config is a type error. A runtime exhaustiveness test adds little; advisory test-gap note, not a defect.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.04-subagent-review.report.md",
+        "ticketId": "P10.04"
+      },
+      "observation": "[jsonl-parser.test.ts](/Users/cesar/code/codogotchi_p10_04/packages/engine/src/sources/jsonl-parser.test.ts:18) gives good runtime coverage for Claude and Codex parsing, but it does not act as an exhaustiveness guard against a future accidental `JsonlSource` expansion. This is a test-gap note, not a defect in this diff."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "ticket-04 Outcome now carries the \"Scope-changed: stop condition triggered\" note and documents Antigravity as a non-token source — the original functional-reader bullets were corrected in the P10.09 documentation sweep.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.04-subagent-review.report.md",
+        "ticketId": "P10.04"
+      },
+      "observation": "[ticket-04-engine-antigravity-reader.md](/Users/cesar/code/codogotchi_p10_04/docs/product/delivery/phase-10/ticket-04-engine-antigravity-reader.md:8) still has the original `Outcome` bullets claiming the JSONL reader gains an `antigravity` source, resolves an Antigravity root, and extracts token counts, while the same file’s Rationale at [line 36](/Users/cesar/code/codogotchi_p10_04/docs/product/delivery/phase-10/ticket-04-engine-antigravity-reader.md:36) and the code change in [jsonl-parser.ts](/Users/cesar/code/codogotchi_p10_04/packages/engine/src/sources/jsonl-parser.ts:104) show the ticket stopped at documentation-only HP behavior."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "ticket-05 Outcome now reads \"tallies cumulative tokens across claude + codex only (Antigravity is HP-only — no token counts...)\". The stale claude+codex+antigravity claim was corrected in the documentation sweep.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.04-subagent-review.report.md",
+        "ticketId": "P10.04"
+      },
+      "observation": "[ticket-05-cli-xp-hp-writer.md](/Users/cesar/code/codogotchi_p10_04/docs/product/delivery/phase-10/ticket-05-cli-xp-hp-writer.md:11) still specifies XP accumulation across `claude + codex + antigravity`, but the actual code contracts in [default-readers.ts](/Users/cesar/code/codogotchi_p10_04/packages/cli/src/default-readers.ts:32), [sync.ts](/Users/cesar/code/codogotchi_p10_04/packages/cli/src/sync.ts:20), and [sync-profile.ts](/Users/cesar/code/codogotchi_p10_04/packages/contracts/src/sync-profile.ts:37) have no Antigravity token source. That is not a current implementation bug, but it is a stale downstream contract for the next ticket."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Hedged prose (\"a coarse periodic refresh if one already exists\") in the ticket Outcome; the Rationale correctly states read rate-limiting/refresh is deferred. No periodic-refresh path is claimed to exist in code. Doc imprecision in a historical ticket snapshot, not a code defect.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.05-subagent-review.report.md",
+        "ticketId": "P10.05"
+      },
+      "observation": "`docs/product/delivery/phase-10/ticket-05-cli-xp-hp-writer.md:10` claims “a coarse periodic refresh if one already exists,” but neither `packages/cli/src/hook-binary.ts` nor `packages/cli/src/local-xp-writer.ts` implements any periodic refresh path; the code only runs on hook events. The same doc’s Rationale at lines 48-50 instead says that read rate-limiting/refresh is deferred."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "Same root cause as the broad-catch observation above (hook-binary.ts:922-933). Whether the doc needs to enumerate invalid-config / v5-error fallback depends on the developer’s decision on whether to keep the silent catch or surface errors. Pairs with the requires-human-review decision on the swallow itself.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.05-subagent-review.report.md",
+        "ticketId": "P10.05"
+      },
+      "observation": "`docs/product/delivery/phase-10/ticket-05-cli-xp-hp-writer.md:40,50` says the hook falls back to v4 when `rpg_enabled` is absent/false, but the implementation also falls back on invalid config and any v5 compute error because of the broad outer catch."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Advisory test-assertion-strength note. The core no-double-count behavior is covered by a dedicated test; tightening the pre-cursor assertion is optional hardening, not prioritized for lite v1. No behavioral defect.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.05-subagent-review.report.md",
+        "ticketId": "P10.05"
+      },
+      "observation": "`packages/cli/src/hook-binary.test.ts:1944-1963` does not assert that the pre-cursor state actually has a concrete level/value before comparing post-cursor equality, so it would not catch a setup-run silent fallback to v4 in the same way the no-double-count test would."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "Genuine design decision deferred to the developer: should the v5 hook path surface ConfigReadError / v5 compute failures (a diagnostic signal) or keep the broad catch as a silent v4 fail-safe? Both are defensible; the developer must choose whether a malformed config should be observable rather than silently stranding the user on v4.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.05-subagent-review.report.md",
+        "ticketId": "P10.05"
+      },
+      "observation": "`packages/cli/src/hook-binary.ts:922-933` silently swallows `ConfigReadError` and all v5 compute errors, so a malformed config leaves the user on v4 forever with no signal. I demonstrated this with `{ \"profile_id\": \"p\" }`, which produced a clean v4 `state.json`."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "The stale \"Is4\" name no longer exists — the test is now testExpectedSchemaVersionIs5 (asserts ==5), and testExpectedSchemaVersionIsV4 is annotated \"Updated to v5 in P10.06\". The CI-output confusion the observation flagged is resolved.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.06-subagent-review.report.md",
+        "ticketId": "P10.06"
+      },
+      "observation": "**A1 — Stale test name `testExpectedSchemaVersionIs4`** (`StateJsonReaderTests.swift:110`): The test body asserts `EXPECTED_STATE_SCHEMA_VERSION == 5`, but the function name says \"Is4.\" This is a copy-paste artifact from the v4 bump and will appear as \"Is4\" in CI output while asserting 5. There are now three separate functions asserting the same constant (`testExpectedSchemaVersionIs4`, `testExpectedSchemaVersionIsV4` at line 294, and `testExpectedSchemaVersionIsV5` at line 355). Not a correctness bug, but the stale names add confusion."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "HalfHeartDecayEngine.swift already carries the recommended inline comment tying HALF_HEART_DECAY_SECONDS to contracts/decay-constants.ts HALF_HEART_DECAY_HOURS, plus an explicit \"If the TS source ever changes to a non-whole-hour value, update both\" note surfacing the dependency.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.06-subagent-review.report.md",
+        "ticketId": "P10.06"
+      },
+      "observation": "**A2 — Contract unit-name mismatch between TypeScript and Swift** (`packages/contracts/src/decay-constants.ts` vs. `apps/menubar/Sources/HalfHeartDecayEngine.swift`): The TypeScript contract exports `HALF_HEART_DECAY_HOURS = 8`; the Swift constant is `HALF_HEART_DECAY_SECONDS = 8 * 3600`. The values are consistent but the unit conversion is implicit. The ticket Rationale says the constants \"match contracts/decay-constants.ts exactly,\" which is true in value but not in name or unit. If the TS constant were changed to a non-multiple of 3600, the Swift constant would drift silently. An inline comment referencing the TS source would surface this dependency."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "StateJsonReader.swift already carries the recommended comment explaining `?? nil` is a String?? → String? coercion (mapping both absent key and explicit JSON null to nil) with a \"Do not remove\" guard against inadvertent refactor removal.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.06-subagent-review.report.md",
+        "ticketId": "P10.06"
+      },
+      "observation": "**A3 — `payload.lastActivityAt ?? nil` is a necessary type coercion, not obvious guard** (`StateJsonReader.swift:83`): The `?? nil` is required to coerce `String??` → `String?` for the `StateSnapshot` initializer; without it the code would not compile. A future refactor that makes the initializer parameter `String??` directly could silently remove the distinction between absent key and explicit null. A one-line comment explaining that `?? nil` is a type coercion from double-optional would prevent inadvertent removal."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Spec-permitted: the ticket hides HUD chrome but does not require suppressing view-model events. The onFlash path is a no-op when the panel is nil and harmless otherwise. No correctness impact.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.07-subagent-review.report.md",
+        "ticketId": "P10.07"
+      },
+      "observation": "Flash events (`.heartInjured`, `.heartHealed`, `.levelUp`, `.milestoneBurst`) fire inside `rpgHUDViewModel.update()` regardless of `isHUDEnabled`. When the HUD is disabled, the `onFlash` callback calls `self?.rpgHUDPanel?.flash(event)`: if `rpgHUDPanel` is nil, it is a no-op; if the panel exists but is ordered out, Core Animation animations are added to an invisible view's layers. This is harmless but slightly wasteful. The ticket spec allows this (it says the HUD chrome is hidden, not that view-model events are suppressed), so this is not a finding under clause 3 but worth flagging."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Spec-permitted and negligible: reassigning a semantically identical closure once per 1Hz poll tick is trivial allocation churn with no correctness impact. Not worth a change.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.07-subagent-review.report.md",
+        "ticketId": "P10.07"
+      },
+      "observation": "The `onFlash` closure on `rpgHUDViewModel` is reassigned on every `applyRPGState` call (every polling tick). The closure is semantically identical each time (same capture list, same body), so this is a minor allocation churn at 1Hz but not a correctness issue."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Advisory test-gap. hearts(from:) clamping is covered by a parametrized count assertion, and the level-decrease/no-flash behavior is correctly implemented. Additional exhaustive negative-input and level-decrease tests are optional hardening, not prioritized for lite v1.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.07-subagent-review.report.md",
+        "ticketId": "P10.07"
+      },
+      "observation": "The test suite has no coverage for `halfHearts` inputs outside 0…6 (e.g., 7 or -1) against the view-model's `update()` method, and no test for a level decrease (level at tick N+1 less than level at tick N, which should fire no flash). Both behaviors are correctly implemented but unconfirmed by any test. Recommended additions: one test per gap."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Out-of-scope minor UX asymmetry: the settings checkbox can show stale state only if the config is edited externally while the settings window is closed; the HUD itself stays live via its poll cycle. A candidate follow-on, not a Phase-10 defect.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.08-subagent-review.report.md",
+        "ticketId": "P10.08"
+      },
+      "observation": "`RPGTabViewModel` is initialized once in `SettingsWindowController.init` and the same instance is reused across window close/reopen cycles. When the Settings window is closed, `openWindow()` creates a fresh `RPGTabView` seeded from `rpgTabViewModel.rpgHUDEnabled`. If the config was modified externally (e.g., via `codogotchi config set features.rpg_hud_enabled false`) while the settings window was closed, the checkbox will display stale state on next window open because `rpgTabViewModel` does not re-read the config on window reopen. The HUD itself does pick up external changes on its poll cycle (MenubarApp.swift:293 calls `PetConfig.resolvedRPGHUDEnabled()` directly). This asymmetry is outside ticket scope but is worth documenting for a follow-on."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Cosmetic. rpgTabViewModel is intentionally a durable property, so windowWillClose correctly has no rpgTabView reference to nil-clear. No lifecycle defect; at most a readability nit.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.08-subagent-review.report.md",
+        "ticketId": "P10.08"
+      },
+      "observation": "The `windowWillClose` cleanup (lines 76–80) nil-clears `window`, `generalTab`, and `petTab` but has no corresponding `rpgTabView` reference to clear — consistent with the pattern of `rpgTabViewModel` being a durable property, but the asymmetry in cleanup relative to `petTab` and `generalTab` could mislead a future reader into thinking the RPG tab's view has some lifecycle requirement it does not."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "\"Show RPG HUD\" (checked = HUD shown) is logically equivalent to and arguably clearer than the spec’s negative \"Disable RPG HUD\" affordance. Cosmetic label drift between a ticket doc and the implemented UI with no behavioral consequence.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-10/reviews/P10.08-subagent-review.report.md",
+        "ticketId": "P10.08"
+      },
+      "observation": "The ticket Outcome and Review Focus describe the toggle as \"Disable RPG HUD\" but the `RPGTabView` implementation uses `NSButton(checkboxWithTitle: \"Show RPG HUD\")` — an enable affordance rather than a disable affordance. The semantics are logically equivalent (checked = HUD shown), but the label contradicts the ticket's stated UI spec. This is a doc-vs-code label drift that has no behavioral consequence but may confuse QA or future authors reading the ticket alongside the code."
+    }
+  ]
+}
