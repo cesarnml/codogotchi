@@ -321,8 +321,8 @@ final class RPGHUDViewModelTests: XCTestCase {
 			relativeTo: petFrame, spriteAnchor: anchor, visibleFrame: Self.roomyVisibleFrame)
 		let gap = (anchor.width * RPGHUDLayout.gapFraction).rounded()
 		XCTAssertEqual(tomb.minX, anchor.maxX + gap, accuracy: 0.5)
-		XCTAssertEqual(tomb.width, m.ringDiameter, accuracy: 0.5)
-		XCTAssertEqual(tomb.height, m.ringDiameter, accuracy: 0.5)
+		XCTAssertEqual(tomb.width, m.ringDiameter * 2, accuracy: 0.5)
+		XCTAssertEqual(tomb.height, m.ringDiameter * 2, accuracy: 0.5)
 	}
 
 	/// The tombstone is vertically centered on the HUD's XP ring.

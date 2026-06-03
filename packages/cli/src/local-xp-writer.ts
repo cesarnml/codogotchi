@@ -144,29 +144,42 @@ export async function computeAndPersistV5Fields(
   if (isTokenSource(origin)) {
     const source = origin === "claude_code" ? "claude" : "codex";
     const rootDir = source === "claude" ? claudeRoot() : codexRoot();
-    const since =
+    const lastRead =
       source === "claude"
-        ? parseSince(cache.last_read_at_claude)
-        : parseSince(cache.last_read_at_codex);
-    try {
-      const result = await readJsonlSignals({ source, rootDir, since });
-      // Advance cursor to 1 ms past the last consumed event so that an event
-      // exactly at `lastEventAt` is excluded on the next read (the parser
-      // filter is `timestamp < sinceIso` — strictly less-than). Fall back to
-      // `now` when no events were found so the cursor still advances.
-      const nextCursor = result.lastEventAt
-        ? new Date(result.lastEventAt.getTime() + 1).toISOString()
-        : now.toISOString();
-      if (source === "claude") {
-        cache.cumulative_claude_tokens += result.totalTokens;
-        cache.last_read_at_claude = nextCursor;
-      } else {
-        cache.cumulative_codex_tokens += result.totalTokens;
-        cache.last_read_at_codex = nextCursor;
+        ? cache.last_read_at_claude
+        : cache.last_read_at_codex;
+
+    if (lastRead === null) {
+      // First-ever run for this source: initialize cursor to now and skip
+      // historical tokens so a fresh install doesn't import the entire
+      // pre-existing JSONL history at once.
+      if (source === "claude") cache.last_read_at_claude = now.toISOString();
+      else cache.last_read_at_codex = now.toISOString();
+    } else {
+      try {
+        const result = await readJsonlSignals({
+          source,
+          rootDir,
+          since: parseSince(lastRead),
+        });
+        // Advance cursor to 1 ms past the last consumed event so that an event
+        // exactly at `lastEventAt` is excluded on the next read (the parser
+        // filter is `timestamp < sinceIso` — strictly less-than). Fall back to
+        // `now` when no events were found so the cursor still advances.
+        const nextCursor = result.lastEventAt
+          ? new Date(result.lastEventAt.getTime() + 1).toISOString()
+          : now.toISOString();
+        if (source === "claude") {
+          cache.cumulative_claude_tokens += result.totalTokens;
+          cache.last_read_at_claude = nextCursor;
+        } else {
+          cache.cumulative_codex_tokens += result.totalTokens;
+          cache.last_read_at_codex = nextCursor;
+        }
+      } catch {
+        // Best-effort: JSONL unavailable → leave cursor unchanged so the next
+        // successful run retries the same window and no tokens are lost.
       }
-    } catch {
-      // Best-effort: JSONL unavailable → leave cursor unchanged so the next
-      // successful run retries the same window and no tokens are lost.
     }
   }
 

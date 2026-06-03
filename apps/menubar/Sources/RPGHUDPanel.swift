@@ -112,8 +112,9 @@ enum RPGHUDLayout {
 	) -> CGRect {
 		let m = metrics(for: petFrame)
 		let side = m.ringDiameter * 2
-		// Top of tombstone aligns with the top of the heart row (petFrame.maxY - inset).
-		let y = petFrame.maxY - m.inset - side
+		// Vertically center the tombstone on the XP ring.
+		let ringCenterY = petFrame.maxY - m.inset - m.heartHeight - m.rowGap - m.ringDiameter / 2
+		let y = ringCenterY - side / 2
 		let x: CGFloat
 		if let anchor = spriteAnchor, anchor.width > 0 {
 			let gap = round(anchor.width * gapFraction)

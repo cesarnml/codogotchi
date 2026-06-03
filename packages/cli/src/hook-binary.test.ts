@@ -1896,6 +1896,17 @@ describe("runHook v5 local RPG fields", () => {
         features: { rpg_enabled: true },
       }),
     );
+    // Pre-seed cache with cursor just before the fixture event so the tests
+    // exercise the incremental-read path (cursor already initialized, event
+    // arrives after cursor). Without this the first run would skip historical
+    // tokens as intended for a real fresh install.
+    const cursorBeforeFixture = new Date(
+      new Date(FIXTURE_EVENT_TS).getTime() - 1000,
+    ).toISOString();
+    writeFileSync(
+      join(home, ".local-xp-cache.json"),
+      JSON.stringify({ last_read_at_claude: cursorBeforeFixture }),
+    );
     // Single fixture JSONL file with 1,000,000 tokens.
     const projDir = join(claudeRoot, "fixture-project");
     mkdirSync(projDir, { recursive: true });
