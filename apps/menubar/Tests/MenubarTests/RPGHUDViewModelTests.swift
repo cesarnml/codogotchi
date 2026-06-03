@@ -269,4 +269,43 @@ final class RPGHUDViewModelTests: XCTestCase {
 		// Wider sprite → larger gap → content right edge pushed further left.
 		XCTAssertLessThan(contentRight(forAnchorWidth: 200), contentRight(forAnchorWidth: 120))
 	}
+
+	// MARK: - Layout: tombstone (death marker)
+
+	/// The tombstone's left edge sits a proportional gap to the **right** of the
+	/// sprite's opaque right edge (mirror of the HUD's left-side anchoring), sized
+	/// to the XP ring.
+	func testTombstoneAnchorsGapRightOfSpriteOpaqueEdge() {
+		let (m, _, petFrame) = metrics(petWidth: 220)
+		let anchor = CGRect(x: 1180, y: 820, width: 150, height: 260)
+		let tomb = RPGHUDLayout.tombstoneFrame(
+			relativeTo: petFrame, spriteAnchor: anchor, visibleFrame: Self.roomyVisibleFrame)
+		let gap = (anchor.width * RPGHUDLayout.gapFraction).rounded()
+		XCTAssertEqual(tomb.minX, anchor.maxX + gap, accuracy: 0.5)
+		XCTAssertEqual(tomb.width, m.ringDiameter, accuracy: 0.5)
+		XCTAssertEqual(tomb.height, m.ringDiameter, accuracy: 0.5)
+	}
+
+	/// The tombstone is vertically centered on the HUD's XP ring.
+	func testTombstoneVerticallyCentersOnXPRing() {
+		let (m, size, petFrame) = metrics(petWidth: 220)
+		let anchor = CGRect(x: 1180, y: 820, width: 150, height: 260)
+		let hud = RPGHUDLayout.frame(
+			hudSize: size, metrics: m, relativeTo: petFrame, spriteAnchor: anchor,
+			visibleFrame: Self.roomyVisibleFrame)
+		// Ring sits at the panel's bottom-left, inset by glowPad.
+		let ringCenterY = hud.minY + m.glowPad + m.ringDiameter / 2
+		let tomb = RPGHUDLayout.tombstoneFrame(
+			relativeTo: petFrame, spriteAnchor: anchor, visibleFrame: Self.roomyVisibleFrame)
+		XCTAssertEqual(tomb.midY, ringCenterY, accuracy: 1.5)
+	}
+
+	/// Without a sprite anchor the tombstone hugs the right inside edge of the pet
+	/// frame (mirror of the HUD's left-inset fallback).
+	func testTombstoneFallbackHugsFrameRightInset() {
+		let (m, _, petFrame) = metrics(petWidth: 220)
+		let tomb = RPGHUDLayout.tombstoneFrame(
+			relativeTo: petFrame, spriteAnchor: nil, visibleFrame: Self.roomyVisibleFrame)
+		XCTAssertEqual(tomb.maxX, petFrame.maxX - m.inset, accuracy: 0.5)
+	}
 }

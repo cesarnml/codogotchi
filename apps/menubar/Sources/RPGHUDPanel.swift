@@ -100,6 +100,34 @@ enum RPGHUDLayout {
 		let cy = max(safe.minY, min(safe.maxY - hudSize.height, y))
 		return CGRect(x: cx, y: cy, width: hudSize.width, height: hudSize.height)
 	}
+
+	/// Death-marker (tombstone) geometry: a `ringDiameter`-sized square placed to
+	/// the **right** of the pet, vertically centered on the HUD's XP ring. Mirrors
+	/// the HUD's anchor/scale/gap mechanics but offsets right instead of left, so
+	/// it never smashes into the pet. Clamped on-screen.
+	static func tombstoneFrame(
+		relativeTo petFrame: CGRect,
+		spriteAnchor: CGRect?,
+		visibleFrame: CGRect
+	) -> CGRect {
+		let m = metrics(for: petFrame)
+		let side = m.ringDiameter
+		// The HUD's XP ring sits at the bottom of its content box; this is its
+		// center in global y (derived from `frame`'s vertical placement).
+		let ringCenterY = petFrame.maxY - m.inset - m.heartHeight - m.rowGap - m.ringDiameter / 2
+		let y = ringCenterY - side / 2
+		let x: CGFloat
+		if let anchor = spriteAnchor, anchor.width > 0 {
+			let gap = round(anchor.width * gapFraction)
+			x = anchor.maxX + gap
+		} else {
+			x = petFrame.maxX - m.inset - side
+		}
+		let safe = visibleFrame.insetBy(dx: 2, dy: 2)
+		let cx = max(safe.minX, min(safe.maxX - side, x))
+		let cy = max(safe.minY, min(safe.maxY - side, y))
+		return CGRect(x: cx, y: cy, width: side, height: side)
+	}
 }
 
 // MARK: - Heart subview
@@ -581,5 +609,49 @@ final class RPGHUDPanel: NSPanel {
 
 	func flash(_ event: RPGFlashEvent) {
 		contentHUD.flash(event)
+	}
+}
+
+// MARK: - Tombstone panel
+
+/// Persistent floating overlay that marks the pet as dead (0 hearts): a
+/// tombstone shown to the right of the pet at the XP-ring's vertical level.
+/// Visible whenever the pet is dead, independent of hover. Fully transparent and
+/// click-through, matching the other floating chrome panels.
+@MainActor
+final class TombstonePanel: NSPanel {
+	private let imageView = NSImageView()
+
+	init() {
+		super.init(
+			contentRect: .zero,
+			styleMask: [.borderless, .nonactivatingPanel],
+			backing: .buffered,
+			defer: false
+		)
+		backgroundColor = .clear
+		isOpaque = false
+		hasShadow = false
+		level = .floating
+		collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+		hidesOnDeactivate = false
+		isReleasedWhenClosed = false
+		ignoresMouseEvents = true
+		imageView.image = NSImage(named: "tombstone")
+		imageView.imageScaling = .scaleProportionallyUpOrDown
+		imageView.wantsLayer = true
+		contentView = imageView
+	}
+
+	override var canBecomeKey: Bool { false }
+	override var canBecomeMain: Bool { false }
+
+	/// Reposition to the right of the pet at the XP-ring level. Does not change
+	/// visibility (caller controls ordering).
+	func reposition(relativeTo petFrame: CGRect, spriteAnchor: CGRect?, visibleFrame: CGRect) {
+		let frame = RPGHUDLayout.tombstoneFrame(
+			relativeTo: petFrame, spriteAnchor: spriteAnchor, visibleFrame: visibleFrame)
+		setFrame(frame, display: true)
+		imageView.frame = NSRect(origin: .zero, size: frame.size)
 	}
 }

@@ -69,6 +69,24 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertNotNil(scene.overlayLayerForTesting.parent)
 	}
 
+	func testSetDeadRendersGrayscaleAndClearsOnRevive() throws {
+		// A desaturate that fails routes the death path to the gray fallback
+		// (colorBlendFactor == 1) — a deterministic signal desaturation was asked
+		// for, independent of pixel inspection.
+		let scene = try makeScene(desaturateFrame: { _ in nil })
+		scene.update(state: .idle, visualMode: .normal)
+		XCTAssertFalse(scene.isDeadForTesting)
+		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 0)
+
+		scene.setDead(true)
+		XCTAssertTrue(scene.isDeadForTesting)
+		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 1)
+
+		scene.setDead(false)
+		XCTAssertFalse(scene.isDeadForTesting)
+		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 0)
+	}
+
 	func testFloatingSceneUsesSourceResolutionCodexTextures() throws {
 		let scene = try makeScene(size: CGSize(width: 180, height: 140))
 

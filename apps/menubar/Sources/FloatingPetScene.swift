@@ -80,6 +80,9 @@ final class FloatingPetScene: SKScene {
 
 	private var currentState: ActivityState = .idle
 	private var currentMode: VisualMode = .normal
+	/// When true (pet at 0 hearts), the sprite is rendered grayscale regardless of
+	/// `currentMode`. Driven by the RPG path, not the activity-state visual mode.
+	private var isDead = false
 	private var currentInteraction: FloatingInteraction?
 	private var currentFrames: [CodexPet.Frame] = [] {
 		didSet { opaqueBoxDirty = true }
@@ -165,6 +168,14 @@ final class FloatingPetScene: SKScene {
 			layoutLayers()
 			paintCurrentFrame()
 		}
+	}
+
+	/// Force grayscale rendering when the pet is dead (0 hearts), independent of
+	/// the activity-state `VisualMode`. Repaints immediately on change.
+	func setDead(_ dead: Bool) {
+		guard dead != isDead else { return }
+		isDead = dead
+		paintCurrentFrame()
 	}
 
 	func update(state: ActivityState, visualMode: VisualMode) {
@@ -292,6 +303,7 @@ final class FloatingPetScene: SKScene {
 	// MARK: - Test access
 
 	var currentStateForTesting: ActivityState { currentState }
+	var isDeadForTesting: Bool { isDead }
 	var currentIdleEscalationForTesting: IdleEscalation { currentEscalation }
 	var currentInteractionForTesting: FloatingInteraction? { currentInteraction }
 	var currentFrameIndexForTesting: Int { frameIndex }
@@ -445,11 +457,9 @@ final class FloatingPetScene: SKScene {
 		let frame = currentFrames[frameIndex % currentFrames.count]
 		let textureImage: CGImage
 		let colorBlendFactor: CGFloat
-		switch currentMode {
-		case .normal:
-			textureImage = frame.cgImage
-			colorBlendFactor = 0
-		case .desaturated:
+		// Death (0 hearts) forces grayscale regardless of the activity-state mode,
+		// matching the failure-mode desaturation path.
+		if isDead || currentMode == .desaturated {
 			if let desaturated = desaturateFrame(frame) {
 				textureImage = desaturated
 				colorBlendFactor = 0
@@ -458,6 +468,9 @@ final class FloatingPetScene: SKScene {
 				textureImage = frame.cgImage
 				colorBlendFactor = 1
 			}
+		} else {
+			textureImage = frame.cgImage
+			colorBlendFactor = 0
 		}
 
 		let texture = SKTexture(cgImage: textureImage)
