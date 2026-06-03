@@ -17,6 +17,21 @@
       "findings": [],
       "probedSurfaces": [],
       "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "a7da01d5b0e2de6cb788270e893e218731ba472a",
+      "outcome": "deferred",
+      "completedAt": "2026-06-03T03:44:07.014Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "reason": "Finding 3 (Swift StateJsonReader rejects schema_version 5): by-design dependency on P10.06 which owns EXPECTED_STATE_SCHEMA_VERSION bump and v5 field parsing. The stacked PRs merge together; P10.06 lands before the app is used with v5 state.json.",
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
     }
   ]
 }
