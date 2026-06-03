@@ -36,8 +36,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [smallest acceptable]
-Alternative considered: [Swift triggers a CLI tick vs Swift computes decay — chose latter per loop-ownership decision]
-Deferred: [HP heal logic — owned by CLI]
-Contract note: [record any metadata deviation]
+Red first: compile error on `snapshot.level` — `StateSnapshot` had no v5 fields; `HalfHeartDecayEngine` not in scope.
+Why this path: added 4 optional fields to `StateSnapshot` with safe defaults so all ≤v4 call sites compile unchanged; `StatePayload` uses `String??` for `last_activity_at` to distinguish absent (v4) from JSON null (v5 explicit nil). Bumped `EXPECTED_STATE_SCHEMA_VERSION` 4 → 5 and updated hardcoded "v4" assertions in `LivePollingTests` and `StateJsonReaderTests`.
+Alternative considered: Swift triggers a CLI tick vs Swift computes decay locally — chose latter per loop-ownership decision; Swift never heals (writer-owned), it only decays below the written value.
+Deferred: Timer-driven recompute wiring into HUD render path — `HalfHeartDecayEngine` is a pure helper; the timer that calls it lives in P10.07. HP heal logic owned by CLI.
+Contract note: `HALF_HEART_DECAY_SECONDS` and `MAX_HALF_HEARTS` match contracts/decay-constants.ts exactly (8 h, 6). No deviation.

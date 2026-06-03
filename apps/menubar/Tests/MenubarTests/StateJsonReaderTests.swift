@@ -104,11 +104,11 @@ final class StateJsonReaderTests: XCTestCase {
 			return
 		}
 		XCTAssertEqual(got, 99)
-		XCTAssertEqual(expected, 4)
+		XCTAssertEqual(expected, 5)
 	}
 
 	func testExpectedSchemaVersionIs4() {
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 4)
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 5)
 	}
 
 	func testSchemaVersion4ParsesSuccessfullyAfterV4Bump() throws {
@@ -292,8 +292,8 @@ final class StateJsonReaderTests: XCTestCase {
 	// MARK: - Schema v4 vocabulary (P7.01 — [red])
 
 	func testExpectedSchemaVersionIsV4() {
-		// [red] EXPECTED_STATE_SCHEMA_VERSION must be 4 after the v4 bump
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 4)
+		// Updated to v5 in P10.06
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 5)
 	}
 
 	func testTicketStartedIsAValidV4State() {

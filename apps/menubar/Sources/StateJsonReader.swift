@@ -5,7 +5,7 @@ import Foundation
 /// is refused; equal or lower versions parse best-effort and tolerate extra
 /// fields. Bump deliberately when the renderer gains support for a newer
 /// schema; do not silently widen.
-let EXPECTED_STATE_SCHEMA_VERSION = 4
+let EXPECTED_STATE_SCHEMA_VERSION = 5
 
 /// Error cases surfaced by `StateJsonReader.read(at:)`.
 ///
@@ -76,7 +76,11 @@ enum StateJsonReader {
 				updatedAt: payload.updatedAt,
 				sourceEvent: payload.sourceEvent,
 				attention: payload.attention,
-				toolCommand: payload.toolCommand
+				toolCommand: payload.toolCommand,
+				level: payload.level ?? 1,
+				levelFraction: payload.levelFraction ?? 0.0,
+				halfHearts: payload.halfHearts ?? MAX_HALF_HEARTS,
+				lastActivityAt: payload.lastActivityAt ?? nil
 			)
 			return .success(
 				StateSnapshot(
@@ -85,7 +89,11 @@ enum StateJsonReader {
 					updatedAt: raw.updatedAt,
 					sourceEvent: raw.sourceEvent,
 					attention: raw.attention,
-					toolCommand: raw.toolCommand
+					toolCommand: raw.toolCommand,
+					level: raw.level,
+					levelFraction: raw.levelFraction,
+					halfHearts: raw.halfHearts,
+					lastActivityAt: raw.lastActivityAt
 				)
 			)
 		} catch {
@@ -125,6 +133,8 @@ enum StateJsonReader {
 /// when present so the transition log (P2.08) can record its
 /// `origin`/`kind`/`name` triplet; absence is normal and surfaces as nil.
 /// `attention` carries the TTL expiry used by `resolveActivityState` (P6.07).
+/// v5 RPG fields are optional so ≤v4 payloads parse without them; the reader
+/// fills in safe defaults when they are absent.
 private struct StatePayload: Decodable {
 	let schemaVersion: Int
 	let activityState: ActivityState
@@ -135,4 +145,12 @@ private struct StatePayload: Decodable {
 	/// command string for Bash/Shell tool events. Decoded so the transition
 	/// log can record it; absence is normal for non-shell events.
 	let toolCommand: String?
+	// v5 RPG progression fields — optional for forward-compat with ≤v4 payloads
+	let level: Int?
+	let levelFraction: Double?
+	let halfHearts: Int?
+	/// Decoded as `String?` to preserve the raw ISO 8601 value; null from the
+	/// writer decodes as nil. Wall-clock elapsed is computed in
+	/// `HalfHeartDecayEngine` using `Date` after parsing.
+	let lastActivityAt: String??
 }
