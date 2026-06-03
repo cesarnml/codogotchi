@@ -517,6 +517,207 @@ final class FloatingPetScene: SKScene {
 		spriteNode.position = .zero
 	}
 
+	// MARK: - Level-up effect (prototype)
+
+	/// Cached, lazily-built effect textures. Generated once and reused so each
+	/// level-up doesn't re-rasterize gradients.
+	private var levelUpGlowTexture: SKTexture?
+	private var levelUpSparkTexture: SKTexture?
+
+	/// Gold tones for the level-up burst.
+	private static let levelUpGold = NSColor(calibratedRed: 1.0, green: 0.85, blue: 0.45, alpha: 1.0)
+	private static let levelUpWhiteGold = NSColor(calibratedRed: 1.0, green: 0.96, blue: 0.78, alpha: 1.0)
+
+	/// Play a transient level-up celebration: a bloom flash and rising spark
+	/// fountain at the pet's feet, plus two radial "firework" bursts beside the
+	/// pet — one low on the left (hip height), then a slightly delayed one high on
+	/// the right (shoulder height). The fireworks stay clear of the panel edges.
+	/// Additive-blended in the overlay layer, self-removing after ~2s. Safe to
+	/// call repeatedly; an in-flight effect is replaced.
+	func playLevelUpEffect() {
+		overlayLayer.childNode(withName: "levelUpEffect")?.removeFromParent()
+
+		// Work in overlay-local coordinates (overlayLayer sits at panel center).
+		let halfW = size.width / 2
+		let halfH = size.height / 2
+		let petRect = currentSpriteOpaqueRect()
+			?? CGRect(x: size.width * 0.3, y: size.height * 0.15,
+					  width: size.width * 0.4, height: size.height * 0.7)
+		let petCenterX = petRect.midX - halfW
+		let petBottom = petRect.minY - halfH
+		let petW = petRect.width
+		let petH = petRect.height
+
+		// Burst radius, plus clamps that keep each burst's glow off the box edges.
+		let radius = max(min(size.width, size.height) * 0.17, 20)
+		let pad: CGFloat = 4
+		func clampX(_ x: CGFloat) -> CGFloat { min(max(x, -halfW + radius + pad), halfW - radius - pad) }
+		func clampY(_ y: CGFloat) -> CGFloat { min(max(y, -halfH + radius + pad), halfH - radius - pad) }
+
+		let sideOffset = max(petW * 0.5, radius * 0.9)
+		let leftPos = CGPoint(
+			x: clampX(petCenterX - sideOffset),
+			y: clampY(petBottom + petH * 0.42))   // hip height, left
+		let rightPos = CGPoint(
+			x: clampX(petCenterX + sideOffset),
+			y: clampY(petBottom + petH * 0.72))   // shoulder height, right
+
+		let glowTex = levelUpGlowTexture ?? Self.makeRadialGlowTexture(color: Self.levelUpWhiteGold)
+		levelUpGlowTexture = glowTex
+		let sparkTex = levelUpSparkTexture ?? Self.makeRadialGlowTexture(color: Self.levelUpGold)
+		levelUpSparkTexture = sparkTex
+
+		let container = SKNode()
+		container.name = "levelUpEffect"
+
+		// Bottom animation: a bloom flash at the pet's feet and a rising fountain
+		// of sparks, layered behind the two side fireworks.
+		let basePoint = CGPoint(x: petCenterX, y: petBottom)
+
+		let bloom = SKSpriteNode(texture: glowTex)
+		bloom.blendMode = .add
+		bloom.zPosition = 0
+		bloom.position = basePoint
+		let bloomSide = max(petW * 1.6, size.width * 0.7)
+		bloom.size = CGSize(width: bloomSide, height: bloomSide)
+		bloom.alpha = 0
+		bloom.setScale(0.4)
+		bloom.run(.sequence([
+			.group([.fadeAlpha(to: 0.9, duration: 0.22), .scale(to: 1.0, duration: 0.22)]),
+			.wait(forDuration: 0.18),
+			.group([.fadeOut(withDuration: 0.7), .scale(to: 1.5, duration: 0.7)]),
+		]))
+		container.addChild(bloom)
+
+		let fountainWidth = max(petW * 0.6, 30)
+		let fountain = SKEmitterNode()
+		fountain.particleTexture = sparkTex
+		fountain.zPosition = 2
+		fountain.position = basePoint
+		fountain.particleBirthRate = 220
+		fountain.particleLifetime = 1.0
+		fountain.particleLifetimeRange = 0.5
+		fountain.emissionAngle = .pi / 2          // straight up
+		fountain.emissionAngleRange = .pi / 3
+		fountain.particleSpeed = 110
+		fountain.particleSpeedRange = 55
+		fountain.yAcceleration = -40              // gentle slowdown as they rise
+		fountain.particlePositionRange = CGVector(dx: fountainWidth, dy: 8)
+		fountain.particleAlpha = 0.95
+		fountain.particleAlphaSpeed = -0.85
+		fountain.particleScale = 0.18
+		fountain.particleScaleRange = 0.12
+		fountain.particleScaleSpeed = -0.08
+		fountain.particleColor = Self.levelUpGold
+		fountain.particleColorBlendFactor = 1.0
+		fountain.particleBlendMode = .add
+		fountain.run(.sequence([
+			.wait(forDuration: 0.55),
+			.run { [weak fountain] in fountain?.particleBirthRate = 0 },
+		]))
+		container.addChild(fountain)
+
+		spawnFirework(at: leftPos, radius: radius, delay: 0.0,
+					  glowTex: glowTex, sparkTex: sparkTex, in: container)
+		spawnFirework(at: rightPos, radius: radius, delay: 0.18,
+					  glowTex: glowTex, sparkTex: sparkTex, in: container)
+
+		overlayLayer.addChild(container)
+		container.run(.sequence([.wait(forDuration: 2.0), .removeFromParent()]))
+	}
+
+	/// One firework: a quick central flash that scales up and fades, plus a short
+	/// radial burst of sparks flying outward. `radius` bounds both so it stays
+	/// inside the panel. `delay` staggers this burst relative to its sibling.
+	private func spawnFirework(
+		at position: CGPoint,
+		radius: CGFloat,
+		delay: TimeInterval,
+		glowTex: SKTexture,
+		sparkTex: SKTexture,
+		in container: SKNode
+	) {
+		// Central flash.
+		let flash = SKSpriteNode(texture: glowTex)
+		flash.blendMode = .add
+		flash.zPosition = 5
+		flash.position = position
+		flash.size = CGSize(width: radius * 2, height: radius * 2)
+		flash.alpha = 0
+		flash.setScale(0.25)
+		flash.run(.sequence([
+			.wait(forDuration: delay),
+			.group([.fadeAlpha(to: 0.95, duration: 0.10), .scale(to: 1.0, duration: 0.16)]),
+			.group([.fadeOut(withDuration: 0.4), .scale(to: 1.25, duration: 0.4)]),
+			.removeFromParent(),
+		]))
+		container.addChild(flash)
+
+		// Radial spark burst — emits a fixed number then stops. Speed × lifetime
+		// keeps the spark reach near `radius` so it doesn't punch through the edges.
+		let emitter = SKEmitterNode()
+		emitter.particleTexture = sparkTex
+		emitter.zPosition = 6
+		emitter.position = position
+		emitter.numParticlesToEmit = 34
+		emitter.particleBirthRate = 0          // gated on by the delay action below
+		emitter.particleLifetime = 0.5
+		emitter.particleLifetimeRange = 0.2
+		emitter.emissionAngle = 0
+		emitter.emissionAngleRange = .pi * 2   // full circle
+		emitter.particleSpeed = radius * 2.0
+		emitter.particleSpeedRange = radius * 0.8
+		emitter.particleAlpha = 0.95
+		emitter.particleAlphaSpeed = -1.4
+		emitter.particleScale = 0.12
+		emitter.particleScaleRange = 0.07
+		emitter.particleScaleSpeed = -0.12
+		emitter.particleColor = Self.levelUpGold
+		emitter.particleColorBlendFactor = 1.0
+		emitter.particleBlendMode = .add
+		emitter.run(.sequence([
+			.wait(forDuration: delay),
+			.run { [weak emitter] in emitter?.particleBirthRate = 1400 },
+		]))
+		container.addChild(emitter)
+	}
+
+	/// Soft radial gradient (opaque center → transparent edge) for the bloom and
+	/// the spark particle. Premultiplied so additive blending reads cleanly.
+	private static func makeRadialGlowTexture(color: NSColor, diameter: Int = 128) -> SKTexture {
+		let image = renderImage(width: diameter, height: diameter) { ctx in
+			let cs = CGColorSpaceCreateDeviceRGB()
+			let rgb = color.usingColorSpace(.deviceRGB) ?? color
+			let colors = [
+				rgb.withAlphaComponent(1.0).cgColor,
+				rgb.withAlphaComponent(0.0).cgColor,
+			] as CFArray
+			guard let grad = CGGradient(colorsSpace: cs, colors: colors, locations: [0, 1]) else {
+				return
+			}
+			let c = CGPoint(x: diameter / 2, y: diameter / 2)
+			ctx.drawRadialGradient(
+				grad, startCenter: c, startRadius: 0, endCenter: c,
+				endRadius: CGFloat(diameter) / 2, options: [])
+		}
+		let texture = image.map(SKTexture.init(cgImage:)) ?? SKTexture()
+		return texture
+	}
+
+	/// Render into a fresh premultiplied-RGBA bitmap context and return the image.
+	private static func renderImage(
+		width: Int, height: Int, _ draw: (CGContext) -> Void
+	) -> CGImage? {
+		let cs = CGColorSpaceCreateDeviceRGB()
+		guard let ctx = CGContext(
+			data: nil, width: width, height: height, bitsPerComponent: 8,
+			bytesPerRow: 0, space: cs,
+			bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+		else { return nil }
+		draw(ctx)
+		return ctx.makeImage()
+	}
+
 	private static func desaturate(_ frame: CodexPet.Frame, ciContext: CIContext) -> CGImage? {
 		let ci = CIImage(cgImage: frame.cgImage)
 		let filter = CIFilter.colorControls()

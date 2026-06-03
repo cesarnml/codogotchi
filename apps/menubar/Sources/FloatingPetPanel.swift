@@ -188,6 +188,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			guard let self else { return }
 			self.hudFlashPending = true
 			self.rpgHUDPanel?.flash(event)
+			if event == .levelUp {
+				self.scene?.playLevelUpEffect()
+			}
 		}
 		hudFlashPending = false
 		rpgHUDViewModel.update(
