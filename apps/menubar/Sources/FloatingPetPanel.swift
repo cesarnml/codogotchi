@@ -1542,9 +1542,9 @@ private final class FloatingPetInteractionView: NSView {
 		if kind == Self.trackingKindAffordance {
 			affordanceHoverActive = false
 		}
-		if kind == Self.trackingKindBounds || kind == nil {
-			pointerInsideFrame = false
-		}
+		// Do NOT pre-assign pointerInsideFrame = false here. handlePointerEvent
+		// owns all reads and writes of pointerInsideFrame so the wasInBounds delta
+		// check fires correctly and onHoverChange?(false) propagates to the HUD.
 		handlePointerEvent(
 			at: convert(window?.mouseLocationOutsideOfEventStream ?? .zero, from: nil),
 			reason: "mouseExited(\(kind ?? "bounds"))"
