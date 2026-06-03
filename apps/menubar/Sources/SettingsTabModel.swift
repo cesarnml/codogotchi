@@ -1,9 +1,10 @@
 import Foundation
 
-/// The four selectable tabs in the Settings window, in display order.
+/// The selectable tabs in the Settings window, in display order.
 enum SettingsTab: Int, CaseIterable {
 	case general
 	case pet
+	case rpg
 	case developer
 	case about
 
@@ -11,6 +12,7 @@ enum SettingsTab: Int, CaseIterable {
 		switch self {
 		case .general: return "General"
 		case .pet: return "Pet"
+		case .rpg: return "RPG"
 		case .developer: return "Developer"
 		case .about: return "About"
 		}

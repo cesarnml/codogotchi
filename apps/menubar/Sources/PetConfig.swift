@@ -12,7 +12,11 @@ enum PetConfig {
 	/// Defaults to `true` (HUD visible) when the key is absent, config is
 	/// missing, or the value is not a Boolean.
 	static func resolvedRPGHUDEnabled() -> Bool {
-		let url = configURL()
+		resolvedRPGHUDEnabled(from: configURL())
+	}
+
+	/// URL-injectable variant for tests and `RPGTabViewModel`.
+	static func resolvedRPGHUDEnabled(from url: URL) -> Bool {
 		guard let data = try? Data(contentsOf: url),
 			let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
 			let features = obj["features"] as? [String: Any],
@@ -38,6 +42,32 @@ enum PetConfig {
 		return FileManager.default.homeDirectoryForCurrentUser
 			.appendingPathComponent(".codogotchi")
 			.appendingPathComponent("config.json")
+	}
+
+	/// Updates `features.rpg_hud_enabled` in `~/.codogotchi/config.json`,
+	/// preserving every other field using a read-merge-write approach.
+	static func write(rpgHUDEnabled: Bool, to url: URL) throws {
+		let parent = url.deletingLastPathComponent()
+		try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+
+		var obj: [String: Any]
+		if let data = try? Data(contentsOf: url),
+			let existing = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+		{
+			obj = existing
+		} else {
+			obj = [
+				"profile_id": UUID().uuidString,
+				"features": ["rpg_enabled": false],
+			]
+		}
+		var features = (obj["features"] as? [String: Any]) ?? [:]
+		features["rpg_hud_enabled"] = rpgHUDEnabled
+		obj["features"] = features
+
+		let data = try JSONSerialization.data(
+			withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])
+		try data.write(to: url, options: .atomic)
 	}
 
 	/// Updates the `pet` key in `~/.codogotchi/config.json`, preserving every
