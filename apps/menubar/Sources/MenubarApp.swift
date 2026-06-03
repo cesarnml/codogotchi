@@ -287,6 +287,17 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			driver.applyPlatform = { [weak floatingPetController = self.floatingPetController] origin in
 				floatingPetController?.applyPlatform(origin: origin)
 			}
+			driver.applyRPGState = {
+				[weak floatingPetController = self.floatingPetController]
+				halfHearts, levelFraction, level in
+				let hudEnabled = PetConfig.resolvedRPGHUDEnabled()
+				floatingPetController?.applyRPGState(
+					halfHearts: halfHearts,
+					levelFraction: levelFraction,
+					level: level,
+					hudEnabled: hudEnabled
+				)
+			}
 			driver.start()
 			self.livePollingDriver = driver
 		}

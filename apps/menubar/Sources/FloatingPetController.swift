@@ -16,6 +16,7 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
 	func applyPlatform(origin: String?)
+	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool)
 	func setInteraction(_ interaction: FloatingInteraction?)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 }
@@ -24,6 +25,7 @@ extension FloatingPetPanelManaging {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 	func applyGateBadge(content: GateBadgeContent?) {}
 	func applyPlatform(origin: String?) {}
+	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool) {}
 }
 
 @MainActor
@@ -113,6 +115,15 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 
 	func applyPlatform(origin: String?) {
 		panel.applyPlatform(origin: origin)
+	}
+
+	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool) {
+		panel.applyRPGState(
+			halfHearts: halfHearts,
+			levelFraction: levelFraction,
+			level: level,
+			hudEnabled: hudEnabled
+		)
 	}
 
 	func persistFrameChange(_ frame: CGRect) {
