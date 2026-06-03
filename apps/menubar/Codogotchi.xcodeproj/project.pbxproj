@@ -53,6 +53,8 @@
 		A925B230B90C9CB80111DB1B /* HookStatusClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88147EFF470B888D90E5B12A /* HookStatusClient.swift */; };
 		A92DC2BEE3B5EFA1E191BA32 /* state-json in Resources */ = {isa = PBXBuildFile; fileRef = 4412C28CB80A89E0E021EC03 /* state-json */; };
 		A94729EE4E31C8A57629486A /* RPGHUDViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78115EE1CE4F0AFD41CC1231 /* RPGHUDViewModelTests.swift */; };
+		DF9BEBFC50F34E06BEB78C3F /* RPGTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 323203AC81734F0880A36222 /* RPGTabViewModel.swift */; };
+		6B1BEE4B6AE94191875E7065 /* RPGTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E331A86CC16348038CC45626 /* RPGTabViewModelTests.swift */; };
 		AF2EB6CAE9F7B4CF31D9F5C3 /* GateJsonReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9510141802B8B0C9F7E186A5 /* GateJsonReader.swift */; };
 		B20913FC5559EE95F7E4E2BA /* PetImportHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */; };
 		BA3F2EF6D3F5E093C9DFFBE9 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F15B1B99434EA9F9005052 /* AppStateTests.swift */; };
@@ -130,6 +132,8 @@
 		72DE062B5722F00B659A555C /* CodogotchiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodogotchiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		73B325A85B9C3A8AFB02C5BA /* SettingsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsController.swift; sourceTree = "<group>"; };
 		78115EE1CE4F0AFD41CC1231 /* RPGHUDViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDViewModelTests.swift; sourceTree = "<group>"; };
+		323203AC81734F0880A36222 /* RPGTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGTabViewModel.swift; sourceTree = "<group>"; };
+		E331A86CC16348038CC45626 /* RPGTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGTabViewModelTests.swift; sourceTree = "<group>"; };
 		7AC107DCBD46F0F6DBA5B3B6 /* maew */ = {isa = PBXFileReference; lastKnownFileType = folder; name = maew; path = Fixtures/maew; sourceTree = SOURCE_ROOT; };
 		7CFB15552DA5880C593A2C60 /* AttentionSubtitleFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttentionSubtitleFormatting.swift; sourceTree = "<group>"; };
 		8376E8D645FB7A0F189A4BF7 /* SettingsTabModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabModel.swift; sourceTree = "<group>"; };
@@ -206,6 +210,7 @@
 				E0A9EA8AA7530DED8536C384 /* PetTabViewModelTests.swift */,
 				15EB23CFF7BEBC442A06A8B1 /* PlatformAttributionTests.swift */,
 				78115EE1CE4F0AFD41CC1231 /* RPGHUDViewModelTests.swift */,
+				E331A86CC16348038CC45626 /* RPGTabViewModelTests.swift */,
 				DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */,
 				05EB20E9AD12E7E2765C3217 /* SettingsTabModelTests.swift */,
 				9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */,
@@ -261,6 +266,7 @@
 				19D23A5CD119A7DB5B530305 /* PlatformAttribution.swift */,
 				63448DB1F4F0A42702BBD634 /* RPGHUDPanel.swift */,
 				30E7A608633EF3BA15E7E2EA /* RPGHUDViewModel.swift */,
+				323203AC81734F0880A36222 /* RPGTabViewModel.swift */,
 				73B325A85B9C3A8AFB02C5BA /* SettingsController.swift */,
 				8376E8D645FB7A0F189A4BF7 /* SettingsTabModel.swift */,
 				F03E85F706D8680019622FDC /* SettingsWindowController.swift */,
@@ -452,6 +458,7 @@
 				316AA2C6A8C406E70790A264 /* PlatformAttribution.swift in Sources */,
 				28B80419A453FDCC6A0CD4F6 /* RPGHUDPanel.swift in Sources */,
 				BD51685E4C7A6B5F071523BE /* RPGHUDViewModel.swift in Sources */,
+				DF9BEBFC50F34E06BEB78C3F /* RPGTabViewModel.swift in Sources */,
 				71AFF145FBC55826CFD98324 /* SettingsController.swift in Sources */,
 				5BCBBEDB079EFB169F7D3314 /* SettingsTabModel.swift in Sources */,
 				9B062BB29847EA8ABCE06338 /* SettingsWindowController.swift in Sources */,
@@ -492,6 +499,7 @@
 				7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */,
 				E93167AF2416BE06B2BAA308 /* PlatformAttributionTests.swift in Sources */,
 				A94729EE4E31C8A57629486A /* RPGHUDViewModelTests.swift in Sources */,
+				6B1BEE4B6AE94191875E7065 /* RPGTabViewModelTests.swift in Sources */,
 				49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */,
 				EDFFAD8F83BE0E484D996FCB /* SettingsTabModelTests.swift in Sources */,
 				C4F4151A25F6ED0D587172FD /* StateJsonReaderTests.swift in Sources */,
