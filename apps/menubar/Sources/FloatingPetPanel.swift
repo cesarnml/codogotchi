@@ -39,9 +39,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private let rpgHUDViewModel = RPGHUDViewModel()
 	private var isHoveringPet = false
 	// Death (0 hearts): the pet renders grayscale and a persistent tombstone is
-	// shown to the right of the pet. Both clear when at least a half-heart returns.
+	// shown to the right of the pet. Both are part of the RPG HUD — they clear
+	// when at least a half-heart returns *or* the HUD is disabled. The active
+	// decision lives in `rpgHUDViewModel.showsDeathPresentation`.
 	private var tombstonePanel: TombstonePanel?
-	private var isDeadState = false
 	/// Pending auto-hide for a transient (non-hover) reveal.
 	private var hudAutoHideWork: DispatchWorkItem?
 	/// Set by the view-model's flash callback during `update`, signalling that
@@ -205,7 +206,6 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			level: level,
 			hudEnabled: hudEnabled
 		)
-		isDeadState = halfHearts == 0
 		updateDeathPresentation()
 		guard isPanelShown else { return }
 		guard rpgHUDViewModel.isHUDEnabled else {
@@ -226,6 +226,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// pops back on the next hover, or right away if the pet is hovered).
 	func setRPGHUDEnabled(_ enabled: Bool) {
 		rpgHUDViewModel.setHUDEnabled(enabled)
+		// The tombstone + grayscale are part of the HUD: disabling recolors the pet
+		// and drops the tombstone even mid-death; re-enabling restores them if dead.
+		updateDeathPresentation()
 		guard isPanelShown else { return }
 		guard rpgHUDViewModel.isHUDEnabled else {
 			cancelHUDAutoHide()
@@ -277,12 +280,14 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	}
 
 	/// Apply the death (0-heart) presentation: grayscale the sprite and show a
-	/// persistent tombstone to the right of the pet, or clear both when alive.
+	/// persistent tombstone to the right of the pet, or clear both when alive or
+	/// when the HUD is disabled (the tombstone + grayscale belong to the RPG HUD).
 	/// The sprite grayscale is applied even while hidden so it is correct on the
 	/// next show; the tombstone panel is only ordered in while the pet is visible.
 	private func updateDeathPresentation() {
-		scene?.setDead(isDeadState)
-		guard isPanelShown, isDeadState else {
+		let active = rpgHUDViewModel.showsDeathPresentation
+		scene?.setDead(active)
+		guard isPanelShown, active else {
 			tombstonePanel?.orderOut(nil)
 			return
 		}
@@ -466,7 +471,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			)
 		}
 		// The tombstone is persistent while dead — keep it glued to the pet too.
-		if isDeadState {
+		if rpgHUDViewModel.showsDeathPresentation {
 			tombstonePanel?.reposition(
 				relativeTo: lastPanelFrame,
 				spriteAnchor: currentSpriteAnchorGlobal(),

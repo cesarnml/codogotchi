@@ -218,6 +218,45 @@ final class RPGHUDViewModelTests: XCTestCase {
 		XCTAssertTrue(flashes.isEmpty, "visibility toggle must not emit flash events")
 	}
 
+	// MARK: - Death state
+
+	func testIsDeadOnlyWhenAllHeartsEmpty() {
+		let vm = RPGHUDViewModel()
+		XCTAssertFalse(vm.isDead, "no snapshot yet → not dead")
+		vm.update(halfHearts: 1, levelFraction: 0, level: 1, hudEnabled: true)
+		XCTAssertFalse(vm.isDead, "a half-heart remains → alive")
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, hudEnabled: true)
+		XCTAssertTrue(vm.isDead, "0 half-hearts → dead")
+	}
+
+	/// The tombstone + grayscale belong to the RPG HUD: when the HUD is disabled
+	/// the death presentation must be off even while the pet is dead, and it must
+	/// return when the HUD is re-enabled.
+	func testShowsDeathPresentationGatedByHUDEnabled() {
+		let vm = RPGHUDViewModel()
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, hudEnabled: true)
+		XCTAssertTrue(vm.showsDeathPresentation, "dead + HUD enabled → death visuals show")
+
+		// Live toggle off → death visuals suppressed though still dead.
+		vm.setHUDEnabled(false)
+		XCTAssertTrue(vm.isDead)
+		XCTAssertFalse(vm.showsDeathPresentation, "HUD off must recolor pet + drop tombstone")
+
+		// Re-enable → death visuals return (still dead).
+		vm.setHUDEnabled(true)
+		XCTAssertTrue(vm.showsDeathPresentation)
+
+		// A poll arriving with the HUD opted out also suppresses death visuals.
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, hudEnabled: false)
+		XCTAssertFalse(vm.showsDeathPresentation)
+	}
+
+	func testShowsDeathPresentationFalseWhenAlive() {
+		let vm = RPGHUDViewModel()
+		vm.update(halfHearts: 4, levelFraction: 0.2, level: 3, hudEnabled: true)
+		XCTAssertFalse(vm.showsDeathPresentation)
+	}
+
 	// MARK: - Layout: opaque-bounds anchoring
 
 	/// A wide on-screen area so placement is never clamped to the screen edge.

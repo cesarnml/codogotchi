@@ -33,6 +33,15 @@ final class RPGHUDViewModel {
 	private(set) var level: Int = 1
 	private(set) var isHUDEnabled: Bool = true
 
+	/// The pet is dead when every heart slot is empty (0 half-hearts). False
+	/// before the first snapshot (no hearts yet) so death visuals never flash on.
+	var isDead: Bool { !hearts.isEmpty && hearts.allSatisfy { $0 == .empty } }
+
+	/// Whether the death presentation (grayscale pet + tombstone) should show. The
+	/// tombstone is part of the RPG HUD — alongside the hearts, XP ring, and level
+	/// label — so it (and the grayscale) only appear while the HUD is enabled.
+	var showsDeathPresentation: Bool { isDead && isHUDEnabled }
+
 	/// Called (on the caller's thread) whenever a flash event fires.
 	/// No event fires on the *first* call to `update` — deltas require a prior state.
 	var onFlash: ((RPGFlashEvent) -> Void)?
