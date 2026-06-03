@@ -261,9 +261,17 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			ringFraction: rpgHUDViewModel.ringFraction,
 			level: rpgHUDViewModel.level,
 			relativeTo: lastPanelFrame,
+			spriteAnchor: currentSpriteAnchorGlobal(),
 			visibleFrame: visibleFrameProvider()
 		)
 		return hud
+	}
+
+	/// The pet's opaque silhouette in global screen coordinates, used to anchor
+	/// the HUD beside the real sprite. `nil` when no sprite is loaded.
+	private func currentSpriteAnchorGlobal() -> CGRect? {
+		guard let local = scene?.currentSpriteOpaqueRect() else { return nil }
+		return local.offsetBy(dx: lastPanelFrame.minX, dy: lastPanelFrame.minY)
 	}
 
 	/// Steady reveal while hovering: cancel any transient timer, hold visible.
@@ -395,13 +403,14 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			visibleFrame: visibleFrameProvider()
 		)
 		// Keep the HUD glued to the pet during drag whenever it is visible —
-		// either steady (hover) or mid transient reveal.
-		if rpgHUDViewModel.isHUDEnabled, isHoveringPet || hudAutoHideWork != nil {
+		// steady (hover), pinned (demo), or mid transient reveal.
+		if rpgHUDViewModel.isHUDEnabled, isHoveringPet || hudDemoActive || hudAutoHideWork != nil {
 			rpgHUDPanel?.reposition(
 				hearts: rpgHUDViewModel.hearts,
 				ringFraction: rpgHUDViewModel.ringFraction,
 				level: rpgHUDViewModel.level,
 				relativeTo: lastPanelFrame,
+				spriteAnchor: currentSpriteAnchorGlobal(),
 				visibleFrame: visibleFrameProvider()
 			)
 		}

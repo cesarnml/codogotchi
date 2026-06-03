@@ -21,13 +21,13 @@ enum RPGHUDLayout {
 	static let ringDiameter: CGFloat = 44
 	/// Inset of the HUD's content corner from the pet frame's top-left corner.
 	static let inset: CGFloat = 8
-	/// Scale at/above which the pet frame is "max" and the HUD gets no extra
-	/// left shift; below it the HUD slides left proportionally to the shrink.
+	/// HUD size scale clamp relative to `baselinePetWidth`.
 	static let maxScale: CGFloat = 1.5
 	static let minScale: CGFloat = 0.75
-	/// Fraction of pet width the HUD shifts left at the smallest pet frame, to
-	/// minimize overlap with the sprite as the frame shrinks.
-	static let maxLeftShiftFraction: CGFloat = 0.10
+	/// Horizontal gap between the HUD and the pet's opaque left edge, as a
+	/// fraction of the pet's opaque width — keeps a proportionally consistent gap
+	/// at every frame size. Tuned so the max frame reads ~20pt.
+	static let gapFraction: CGFloat = 0.12
 	/// Extra padding baked into the panel so the heart damage/heal glow (which
 	/// the flash SVGs render outside the heart core) is not clipped.
 	static let glowPadBase: CGFloat = 8
@@ -69,21 +69,32 @@ enum RPGHUDLayout {
 		)
 	}
 
-	/// Position the HUD panel so its content corner sits at the pet frame's
-	/// top-left, inset by a scaled margin. The panel itself extends `glowPad`
-	/// beyond the content on every side. Clamped to stay on-screen.
+	/// Position the HUD panel near the pet's top-left.
+	///
+	/// When `spriteAnchor` (the pet's opaque silhouette in global coordinates) is
+	/// provided, the HUD's content right edge sits a proportional gap to the left
+	/// of the sprite's true left edge — so the gap stays visually consistent at
+	/// every frame size and the HUD never floats over the pet, regardless of the
+	/// transparent padding in the artwork. Without an anchor it falls back to the
+	/// pet frame's top-left inset. Vertical placement tracks the frame top in
+	/// both cases. The panel extends `glowPad` beyond the content; clamped
+	/// on-screen.
 	static func frame(
 		hudSize: CGSize,
 		metrics m: Metrics,
 		relativeTo petFrame: CGRect,
+		spriteAnchor: CGRect?,
 		visibleFrame: CGRect
 	) -> CGRect {
-		// As the pet frame shrinks below max, slide the HUD left proportionally so
-		// it overlaps the sprite less. Zero shift at (and above) max scale.
-		let shrinkT = max(0, min(1, (maxScale - m.scale) / (maxScale - minScale)))
-		let leftShift = round(shrinkT * petFrame.width * maxLeftShiftFraction)
-		let x = petFrame.minX + m.inset - m.glowPad - leftShift
 		let y = petFrame.maxY - m.inset - hudSize.height + m.glowPad
+		let x: CGFloat
+		if let anchor = spriteAnchor, anchor.width > 0 {
+			let gap = round(anchor.width * gapFraction)
+			let contentRight = anchor.minX - gap
+			x = contentRight - m.contentWidth - m.glowPad
+		} else {
+			x = petFrame.minX + m.inset - m.glowPad
+		}
 		let safe = visibleFrame.insetBy(dx: 2, dy: 2)
 		let cx = max(safe.minX, min(safe.maxX - hudSize.width, x))
 		let cy = max(safe.minY, min(safe.maxY - hudSize.height, y))
@@ -519,12 +530,14 @@ final class RPGHUDPanel: NSPanel {
 		ringFraction: Double,
 		level: Int,
 		relativeTo petFrame: CGRect,
+		spriteAnchor: CGRect? = nil,
 		visibleFrame: CGRect
 	) {
 		let metrics = RPGHUDLayout.metrics(for: petFrame)
 		let size = RPGHUDLayout.panelSize(metrics)
 		let frame = RPGHUDLayout.frame(
-			hudSize: size, metrics: metrics, relativeTo: petFrame, visibleFrame: visibleFrame)
+			hudSize: size, metrics: metrics, relativeTo: petFrame, spriteAnchor: spriteAnchor,
+			visibleFrame: visibleFrame)
 		setFrame(frame, display: true)
 		contentHUD.frame = NSRect(origin: .zero, size: frame.size)
 		contentHUD.update(

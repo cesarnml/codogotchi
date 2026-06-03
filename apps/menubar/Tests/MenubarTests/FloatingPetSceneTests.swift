@@ -352,4 +352,65 @@ final class FloatingPetSceneTests: XCTestCase {
 			"ending drag/resize must restore the rendered idle-escalation row, not plain idle"
 		)
 	}
+
+	// MARK: - Sprite opaque bounds (HUD anchoring)
+
+	/// Build a `width`×`height` RGBA image with an opaque rectangle (in y-up
+	/// pixel coords) and everything else transparent.
+	private func makeImage(
+		width: Int, height: Int, opaque: CGRect
+	) -> CGImage {
+		let bytesPerRow = width * 4
+		var data = [UInt8](repeating: 0, count: bytesPerRow * height)
+		let ctx = CGContext(
+			data: &data, width: width, height: height, bitsPerComponent: 8,
+			bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(),
+			bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+		ctx.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+		ctx.fill(opaque)
+		return ctx.makeImage()!
+	}
+
+	func testNormalizedBoxFindsOpaqueRegion() {
+		// 10×10 image, opaque 4×4 block at x∈[2,6), y∈[3,7) (y-up).
+		let img = makeImage(width: 10, height: 10, opaque: CGRect(x: 2, y: 3, width: 4, height: 4))
+		let box = try! XCTUnwrap(SpriteOpaqueBounds.normalizedBox(of: img))
+		XCTAssertEqual(box.minX, 0.2, accuracy: 0.001)
+		XCTAssertEqual(box.minY, 0.3, accuracy: 0.001)
+		XCTAssertEqual(box.width, 0.4, accuracy: 0.001)
+		XCTAssertEqual(box.height, 0.4, accuracy: 0.001)
+	}
+
+	func testNormalizedBoxReturnsNilForFullyTransparentImage() {
+		let img = makeImage(width: 8, height: 8, opaque: .zero)
+		XCTAssertNil(SpriteOpaqueBounds.normalizedBox(of: img))
+	}
+
+	func testUnionBoxSpansAllFrames() {
+		let left = makeImage(width: 10, height: 10, opaque: CGRect(x: 1, y: 1, width: 2, height: 2))
+		let right = makeImage(width: 10, height: 10, opaque: CGRect(x: 6, y: 6, width: 3, height: 3))
+		let union = try! XCTUnwrap(SpriteOpaqueBounds.unionNormalizedBox(of: [left, right]))
+		XCTAssertEqual(union.minX, 0.1, accuracy: 0.001)
+		XCTAssertEqual(union.minY, 0.1, accuracy: 0.001)
+		XCTAssertEqual(union.maxX, 0.9, accuracy: 0.001)
+		XCTAssertEqual(union.maxY, 0.9, accuracy: 0.001)
+	}
+
+	/// A portrait sprite in a square panel is letterboxed horizontally; the
+	/// mapped opaque rect must account for the centered fit, not the panel edges.
+	func testOpaqueRectInPanelHonorsAspectFitLetterbox() {
+		// 100×200 image (portrait) in a 200×200 panel → fit scale 1.0, drawn
+		// 100×200, centered with 50pt margins left/right.
+		let imageSize = CGSize(width: 100, height: 200)
+		let panelSize = CGSize(width: 200, height: 200)
+		// Opaque box covering the full image.
+		let box = CGRect(x: 0, y: 0, width: 1, height: 1)
+		let rect = try! XCTUnwrap(
+			FloatingPetScene.opaqueRectInPanel(
+				normalizedBox: box, imageSize: imageSize, panelSize: panelSize))
+		XCTAssertEqual(rect.minX, 50, accuracy: 0.5, "centered horizontally with 50pt margin")
+		XCTAssertEqual(rect.width, 100, accuracy: 0.5)
+		XCTAssertEqual(rect.minY, 0, accuracy: 0.5, "fills height")
+		XCTAssertEqual(rect.height, 200, accuracy: 0.5)
+	}
 }

@@ -4,6 +4,66 @@ import CoreImage.CIFilterBuiltins
 import Foundation
 import SpriteKit
 
+/// Computes the alpha (non-transparent) bounding box of sprite artwork. Pure and
+/// testable; used to anchor the RPG HUD beside the pet's real silhouette rather
+/// than the transparent panel frame.
+enum SpriteOpaqueBounds {
+	/// Normalized (0..1) opaque bounding box of one image in a y-up coordinate
+	/// space (origin bottom-left) to match SpriteKit/AppKit. Returns nil when the
+	/// image is empty or fully transparent.
+	static func normalizedBox(of cgImage: CGImage, alphaThreshold: UInt8 = 10) -> CGRect? {
+		let w = cgImage.width
+		let h = cgImage.height
+		guard w > 0, h > 0 else { return nil }
+		let bytesPerRow = w * 4
+		var data = [UInt8](repeating: 0, count: bytesPerRow * h)
+		return data.withUnsafeMutableBytes { raw -> CGRect? in
+			guard let base = raw.baseAddress,
+				let ctx = CGContext(
+					data: base, width: w, height: h, bitsPerComponent: 8,
+					bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(),
+					bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+			else { return nil }
+			// CGContext is y-up; the drawn image is upright, so row 0 is the
+			// sprite's bottom — matching the panel's y-up space (no flip needed).
+			ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: w, height: h))
+			let bytes = raw.bindMemory(to: UInt8.self)
+			var minX = w
+			var minY = h
+			var maxX = -1
+			var maxY = -1
+			for y in 0..<h {
+				let row = y * bytesPerRow
+				for x in 0..<w where bytes[row + x * 4 + 3] > alphaThreshold {
+					if x < minX { minX = x }
+					if x > maxX { maxX = x }
+					if y < minY { minY = y }
+					if y > maxY { maxY = y }
+				}
+			}
+			guard maxX >= minX, maxY >= minY else { return nil }
+			return CGRect(
+				x: CGFloat(minX) / CGFloat(w),
+				y: CGFloat(minY) / CGFloat(h),
+				width: CGFloat(maxX - minX + 1) / CGFloat(w),
+				height: CGFloat(maxY - minY + 1) / CGFloat(h)
+			)
+		}
+	}
+
+	/// Union of the per-frame opaque boxes — a stable box that contains the pet
+	/// in every pose of the current animation, so the HUD anchor never overlaps
+	/// and never jitters. Nil when no frame has opaque pixels.
+	static func unionNormalizedBox(of images: [CGImage]) -> CGRect? {
+		var result: CGRect?
+		for image in images {
+			guard let box = normalizedBox(of: image) else { continue }
+			result = result.map { $0.union(box) } ?? box
+		}
+		return result
+	}
+}
+
 @MainActor
 final class FloatingPetScene: SKScene {
 	private var codexPet: CodexPet
@@ -21,10 +81,17 @@ final class FloatingPetScene: SKScene {
 	private var currentState: ActivityState = .idle
 	private var currentMode: VisualMode = .normal
 	private var currentInteraction: FloatingInteraction?
-	private var currentFrames: [CodexPet.Frame] = []
+	private var currentFrames: [CodexPet.Frame] = [] {
+		didSet { opaqueBoxDirty = true }
+	}
 	private var currentSource: FloatingFrameSource = .codex
 	private var frameIndex: Int = 0
 	private var timer: Timer?
+	/// Cached normalized (0..1, y-up) opaque box unioned across the current
+	/// frame set; recomputed only when the frame set changes so the HUD anchor
+	/// doesn't jitter frame-to-frame.
+	private var cachedOpaqueImageBox: CGRect?
+	private var opaqueBoxDirty = true
 	/// When true, frame timer is off (floating panel hidden). State updates still
 	/// repaint once so show/hide restores the correct pose without animating.
 	private var isAnimationPaused = false
@@ -404,6 +471,43 @@ final class FloatingPetScene: SKScene {
 
 	private func fittedSpriteSize(for imageSize: CGSize) -> CGSize {
 		FloatingFramePolicy.fittedSpriteSize(imageSize: imageSize, panelSize: size)
+	}
+
+	/// Opaque (non-transparent) bounds of the current sprite, in the scene/panel
+	/// coordinate space (origin bottom-left, y-up, 0..size). Accounts for the
+	/// aspect-fit + centered placement of the sprite within the panel and the
+	/// artwork's alpha bounding box (unioned across the current animation's
+	/// frames, cached). Returns nil when no frame is loaded or all are
+	/// transparent. Used to anchor the RPG HUD beside the pet's real silhouette.
+	func currentSpriteOpaqueRect() -> CGRect? {
+		guard !currentFrames.isEmpty else { return nil }
+		if opaqueBoxDirty {
+			cachedOpaqueImageBox = SpriteOpaqueBounds.unionNormalizedBox(
+				of: currentFrames.map(\.cgImage))
+			opaqueBoxDirty = false
+		}
+		guard let box = cachedOpaqueImageBox else { return nil }
+		let imageSize = currentFrames[frameIndex % currentFrames.count].image.size
+		return Self.opaqueRectInPanel(normalizedBox: box, imageSize: imageSize, panelSize: size)
+	}
+
+	/// Map a normalized (0..1, y-up) opaque box in image space to panel-local
+	/// coordinates, honoring the aspect-fit + centered sprite placement. Pure +
+	/// testable.
+	static func opaqueRectInPanel(normalizedBox box: CGRect, imageSize: CGSize, panelSize: CGSize)
+		-> CGRect?
+	{
+		guard imageSize.width > 0, imageSize.height > 0, panelSize.width > 0, panelSize.height > 0
+		else { return nil }
+		let drawn = FloatingFramePolicy.fittedSpriteSize(imageSize: imageSize, panelSize: panelSize)
+		let originX = (panelSize.width - drawn.width) / 2
+		let originY = (panelSize.height - drawn.height) / 2
+		return CGRect(
+			x: originX + box.minX * drawn.width,
+			y: originY + box.minY * drawn.height,
+			width: box.width * drawn.width,
+			height: box.height * drawn.height
+		)
 	}
 
 	private func layoutLayers() {

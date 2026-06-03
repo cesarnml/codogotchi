@@ -196,38 +196,55 @@ final class RPGHUDViewModelTests: XCTestCase {
 		XCTAssertFalse(vm.isHUDEnabled, "opt-out suppresses HUD regardless of other values")
 	}
 
-	// MARK: - Layout: shrink-aware left offset
+	// MARK: - Layout: opaque-bounds anchoring
 
 	/// A wide on-screen area so placement is never clamped to the screen edge.
 	private static let roomyVisibleFrame = CGRect(x: 0, y: 0, width: 4000, height: 3000)
 
-	private func hudFrame(petWidth: CGFloat, petMinX: CGFloat = 1000) -> CGRect {
+	private func metrics(petWidth: CGFloat, petMinX: CGFloat = 1000)
+		-> (RPGHUDLayout.Metrics, CGSize, CGRect)
+	{
 		let petFrame = CGRect(x: petMinX, y: 800, width: petWidth, height: petWidth * 1.2)
-		let metrics = RPGHUDLayout.metrics(for: petFrame)
-		let size = RPGHUDLayout.panelSize(metrics)
-		return RPGHUDLayout.frame(
-			hudSize: size,
-			metrics: metrics,
-			relativeTo: petFrame,
-			visibleFrame: Self.roomyVisibleFrame
-		)
+		let m = RPGHUDLayout.metrics(for: petFrame)
+		return (m, RPGHUDLayout.panelSize(m), petFrame)
 	}
 
-	/// At max scale (pet width ≥ baseline×1.5) the HUD's panel left edge aligns
-	/// with the pet frame's left edge — no extra leftward shift.
-	func testNoLeftShiftAtMaxPetFrame() {
-		let petMinX: CGFloat = 1000
-		let frame = hudFrame(petWidth: 330, petMinX: petMinX)
-		XCTAssertEqual(frame.minX, petMinX, accuracy: 0.5, "no left shift expected at max pet frame")
+	/// Without a sprite anchor the HUD falls back to the pet frame's top-left
+	/// inset (content corner at the frame's left edge).
+	func testFallbackAnchorsToFrameTopLeft() {
+		let (m, size, petFrame) = metrics(petWidth: 220)
+		let frame = RPGHUDLayout.frame(
+			hudSize: size, metrics: m, relativeTo: petFrame, spriteAnchor: nil,
+			visibleFrame: Self.roomyVisibleFrame)
+		// Content corner = panel.minX + glowPad == petFrame.minX + inset.
+		XCTAssertEqual(frame.minX + m.glowPad, petFrame.minX + m.inset, accuracy: 0.5)
 	}
 
-	/// Below max scale the HUD slides left of the pet frame's left edge.
-	func testLeftShiftWhenPetFrameShrinks() {
-		let petMinX: CGFloat = 1000
-		let mid = hudFrame(petWidth: 220, petMinX: petMinX)
-		let small = hudFrame(petWidth: 165, petMinX: petMinX)
-		XCTAssertLessThan(mid.minX, petMinX, "mid pet frame should shift HUD left of the frame edge")
-		XCTAssertLessThan(
-			small.minX, mid.minX, "smaller pet frame should shift the HUD further left than mid")
+	/// With a sprite anchor, the HUD's content right edge sits a proportional gap
+	/// to the left of the sprite's opaque left edge — independent of where the
+	/// pet frame's own left edge is.
+	func testAnchorsGapLeftOfSpriteOpaqueEdge() {
+		let (m, size, petFrame) = metrics(petWidth: 220)
+		let anchor = CGRect(x: 1180, y: 820, width: 150, height: 260)
+		let frame = RPGHUDLayout.frame(
+			hudSize: size, metrics: m, relativeTo: petFrame, spriteAnchor: anchor,
+			visibleFrame: Self.roomyVisibleFrame)
+		let gap = (anchor.width * RPGHUDLayout.gapFraction).rounded()
+		let contentRight = frame.minX + m.glowPad + m.contentWidth
+		XCTAssertEqual(contentRight, anchor.minX - gap, accuracy: 0.5)
+	}
+
+	/// The gap scales with the sprite's opaque width, keeping it proportional.
+	func testGapScalesWithSpriteWidth() {
+		let (m, size, petFrame) = metrics(petWidth: 220)
+		func contentRight(forAnchorWidth w: CGFloat) -> CGFloat {
+			let anchor = CGRect(x: 1180, y: 820, width: w, height: 260)
+			let frame = RPGHUDLayout.frame(
+				hudSize: size, metrics: m, relativeTo: petFrame, spriteAnchor: anchor,
+				visibleFrame: Self.roomyVisibleFrame)
+			return frame.minX + m.glowPad + m.contentWidth
+		}
+		// Wider sprite → larger gap → content right edge pushed further left.
+		XCTAssertLessThan(contentRight(forAnchorWidth: 200), contentRight(forAnchorWidth: 120))
 	}
 }
