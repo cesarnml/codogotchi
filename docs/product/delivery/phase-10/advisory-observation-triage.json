@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "recordedAt": "2026-06-03T08:27:06.643Z",
+  "recordedAt": "2026-06-03T08:52:15.830Z",
   "summary": {
     "total": 22,
-    "patched": 0,
-    "rejected": 11,
+    "patched": 1,
+    "rejected": 12,
     "already-covered": 9,
-    "requires-human-review": 2
+    "requires-human-review": 0
   },
   "dispositions": [
     {
@@ -100,8 +100,15 @@
       "observation": "`docs/product/delivery/phase-10/ticket-05-cli-xp-hp-writer.md:10` claims “a coarse periodic refresh if one already exists,” but neither `packages/cli/src/hook-binary.ts` nor `packages/cli/src/local-xp-writer.ts` implements any periodic refresh path; the code only runs on hook events. The same doc’s Rationale at lines 48-50 instead says that read rate-limiting/refresh is deferred."
     },
     {
-      "disposition": "requires-human-review",
-      "rationale": "Same root cause as the broad-catch observation above (hook-binary.ts:922-933). Whether the doc needs to enumerate invalid-config / v5-error fallback depends on the developer’s decision on whether to keep the silent catch or surface errors. Pairs with the requires-human-review decision on the swallow itself.",
+      "disposition": "patched",
+      "rationale": "Doc/comment accuracy fix (no behavior change). Corrected the hook-binary comments and the ticket-05 Contract note to state the v4 fallback also triggers on a malformed config (ConfigReadError) and any v5 compute error, not only absent/false rpg_enabled, and dropped the obsolete \"existing v4 readers are unaffected\" framing since v01 is the release. The underlying surface-vs-silent behavior decision is tracked separately for /soa quality-control (see P10.05 swallow observation).",
+      "patch": {
+        "commitSha": "f13daa2c947822f55f5236732920b3bac2add68b",
+        "files": [
+          "packages/cli/src/hook-binary.ts",
+          "docs/product/delivery/phase-10/ticket-05-cli-xp-hp-writer.md"
+        ]
+      },
       "source": {
         "reportPath": "docs/product/delivery/phase-10/reviews/P10.05-subagent-review.report.md",
         "ticketId": "P10.05"
@@ -118,8 +125,9 @@
       "observation": "`packages/cli/src/hook-binary.test.ts:1944-1963` does not assert that the pre-cursor state actually has a concrete level/value before comparing post-cursor equality, so it would not catch a setup-run silent fallback to v4 in the same way the no-double-count test would."
     },
     {
-      "disposition": "requires-human-review",
-      "rationale": "Genuine design decision deferred to the developer: should the v5 hook path surface ConfigReadError / v5 compute failures (a diagnostic signal) or keep the broad catch as a silent v4 fail-safe? Both are defensible; the developer must choose whether a malformed config should be observable rather than silently stranding the user on v4.",
+      "disposition": "rejected",
+      "rationale": "Routed to the quality-control lane (a deliberate follow-up, not a non-issue). Context: v01 is the release and the intent is for rpg_enabled to default true on first install (currently it defaults false in the greenfield path). Under that intent the silent v5->v4 fallback would rob every opted-in user of the headline feature with no signal, so this is a release-robustness behavior decision — surface a diagnostic / preserve last-good v5 / hard-fail vs. silent fallback — coupled to the default-true decision and to the missing regression test (P10.05-D). It belongs with the HUD-toggle subsystem already headed to quality-control, not a tao band-aid.",
+      "followUpReference": "/soa quality-control (next lane) — RPG v5-failure handling + HUD-toggle subsystem",
       "source": {
         "reportPath": "docs/product/delivery/phase-10/reviews/P10.05-subagent-review.report.md",
         "ticketId": "P10.05"
@@ -182,7 +190,8 @@
     },
     {
       "disposition": "rejected",
-      "rationale": "Out-of-scope minor UX asymmetry: the settings checkbox can show stale state only if the config is edited externally while the settings window is closed; the HUD itself stays live via its poll cycle. A candidate follow-on, not a Phase-10 defect.",
+      "rationale": "Routed to the quality-control lane alongside the HUD-toggle work it belongs to. The settings checkbox can show stale state when the config is edited externally while the window is closed because rpgTabViewModel does not re-read config on reopen; the HUD itself stays live via its poll cycle. A real (minor) bug in the toggle subsystem that is explicitly going to quality-control next.",
+      "followUpReference": "/soa quality-control (next lane) — RPG v5-failure handling + HUD-toggle subsystem",
       "source": {
         "reportPath": "docs/product/delivery/phase-10/reviews/P10.08-subagent-review.report.md",
         "ticketId": "P10.08"
