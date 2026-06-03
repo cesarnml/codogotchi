@@ -916,8 +916,11 @@ export async function runHook(
         : undefined;
 
     // Write v5 RPG fields when the user has rpg_enabled: true in their config.
-    // Falls back to v4 when config is absent or rpg_enabled is false so that
-    // existing v4 readers and hook tests are unaffected.
+    // Falls back to v4 in every other case: config absent, rpg_enabled false,
+    // a malformed config (ConfigReadError), or any v5 compute error (see catch
+    // below). The fallback exists so the hook never crashes the host agent — it
+    // is the Lite-mode path, not a signal that v4 is the intended state for an
+    // opted-in user.
     let v5: Awaited<ReturnType<typeof computeAndPersistV5Fields>> | null = null;
     try {
       const config = await readConfig(opts.home);
@@ -929,7 +932,11 @@ export async function runHook(
         );
       }
     } catch {
-      // Best-effort: never let v5 compute failure block state write.
+      // Best-effort: a malformed config or v5 compute failure must never block
+      // the state write, so we silently fall back to v4. NOTE: for an opted-in
+      // user this hides a real failure with no signal — whether a v5 failure
+      // should surface a diagnostic is a deliberate open decision tracked for
+      // /soa quality-control.
     }
 
     const state: StateJsonV1 = v5

@@ -37,7 +37,7 @@ Red: required
 
 Red first: `schema_version` check (expected 5, got 4) and v5 field absence.
 
-Why this path: New `local-xp-writer.ts` module owns the cache + compute; `runHook` reads config and calls it, falling back to v4 when `rpg_enabled` is absent. Keeps the hook path backwards-compatible for Lite users and tests without config.
+Why this path: New `local-xp-writer.ts` module owns the cache + compute; `runHook` reads config and calls it, falling back to v4 when `rpg_enabled` is absent/false or the v5 path errors. Keeps the hook path backwards-compatible for Lite users and tests without config.
 
 Alternative considered: Recompute XP from scratch on each tick vs incremental cursors. Chose incremental cursors (`last_read_at_claude` / `last_read_at_codex` as `since` dates) to avoid re-scanning all JSONL history on every event and to prevent double-counting. The cursor is set to `now` after each read, ensuring the next read only captures new events.
 
@@ -47,4 +47,4 @@ Half-hearts decay: `resolveHalfHearts` is called with the PREVIOUS `last_activit
 
 Deferred: Syncing any of this — out of scope. JSONL read rate-limiting (coarse interval) — left for follow-up; the `last_read_at` cursor already prevents double-counting, and test fixture confirms correctness.
 
-Contract note: v5 fields (`level`, `level_fraction`, `half_hearts`, `last_activity_at`) are written only when `config.features.rpg_enabled === true`. Without config or with `rpg_enabled: false`, the hook writes `schema_version: 4` with no RPG fields — existing v4 readers and tests are unaffected.
+Contract note: v5 fields (`level`, `level_fraction`, `half_hearts`, `last_activity_at`) are written only when `config.features.rpg_enabled === true`. In every other case — no config, `rpg_enabled: false`, a malformed config (`ConfigReadError`), or any v5 compute error — the hook falls back to `schema_version: 4` with no RPG fields. The malformed-config/compute-error fallback is silent and best-effort so the hook never crashes the host agent; whether a v5 failure for an opted-in user should surface a diagnostic is deferred to `/soa quality-control`.
