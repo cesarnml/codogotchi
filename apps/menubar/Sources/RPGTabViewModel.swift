@@ -2,30 +2,33 @@ import Foundation
 
 /// View-model for the RPG settings tab.
 ///
-/// Stub: all values are placeholder/wrong; all mutations are no-ops.
-/// Tests written against this stub will fail — that is the Red state.
+/// Owns the `rpg_hud_enabled` toggle: reads the flag from config on init,
+/// persists changes via `PetConfig.write(rpgHUDEnabled:to:)`, and exposes
+/// static demo values for the showcase / demo-mode HUD render.
 final class RPGTabViewModel {
-	/// Whether the RPG HUD is currently enabled. Stub always returns `false`.
-	private(set) var rpgHUDEnabled: Bool = false
+	/// Whether the floating RPG HUD is currently enabled. Defaults to `true`
+	/// when the config key is absent or the file does not exist.
+	private(set) var rpgHUDEnabled: Bool
 
-	/// Demo half-heart count for showcase rendering. Stub: 0.
-	let demoHalfHearts: Int = 0
+	/// Demo half-heart count for showcase rendering (full-ish: 5 of 6).
+	let demoHalfHearts: Int = 5
 
-	/// Demo level for showcase rendering. Stub: 1.
-	let demoLevel: Int = 1
+	/// Demo level for showcase rendering (mid-level showcase).
+	let demoLevel: Int = 42
 
-	/// Demo ring fill fraction for showcase rendering. Stub: 0.0.
-	let demoRingFraction: Double = 0.0
+	/// Demo ring fill fraction for showcase rendering (partially filled).
+	let demoRingFraction: Double = 0.65
 
 	private let configURL: URL
 
 	init(configURL: URL = PetConfig.configURL()) {
 		self.configURL = configURL
+		self.rpgHUDEnabled = PetConfig.resolvedRPGHUDEnabled(from: configURL)
 	}
 
 	/// Persists `rpg_hud_enabled` to config and updates the local property.
-	/// Stub: no-op.
 	func setRPGHUDEnabled(_ enabled: Bool) {
-		// stub — does not write or update
+		rpgHUDEnabled = enabled
+		try? PetConfig.write(rpgHUDEnabled: enabled, to: configURL)
 	}
 }

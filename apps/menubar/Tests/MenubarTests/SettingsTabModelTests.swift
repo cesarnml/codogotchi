@@ -4,9 +4,9 @@ import XCTest
 
 final class SettingsTabModelTests: XCTestCase {
 
-	func testHasFourTabsInOrder() {
+	func testHasFiveTabsInOrder() {
 		let model = SettingsTabModel()
-		XCTAssertEqual(model.tabs, [.general, .pet, .developer, .about])
+		XCTAssertEqual(model.tabs, [.general, .pet, .rpg, .developer, .about])
 	}
 
 	func testDefaultSelectionIsGeneral() {
@@ -35,6 +35,7 @@ final class SettingsTabModelTests: XCTestCase {
 	func testTabTitles() {
 		XCTAssertEqual(SettingsTab.general.title, "General")
 		XCTAssertEqual(SettingsTab.pet.title, "Pet")
+		XCTAssertEqual(SettingsTab.rpg.title, "RPG")
 		XCTAssertEqual(SettingsTab.developer.title, "Developer")
 		XCTAssertEqual(SettingsTab.about.title, "About")
 	}

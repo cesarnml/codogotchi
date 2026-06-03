@@ -20,6 +20,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private let tabModel = SettingsTabModel()
 	private let generalViewModel: GeneralTabViewModel
 	private let petTabViewModel: PetTabViewModel
+	private let rpgTabViewModel: RPGTabViewModel
 
 	private let settingsController: SettingsController
 	private let petImportHelper: PetImportHelper
@@ -35,6 +36,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		settingsController: SettingsController = SettingsController(),
 		petImportHelper: PetImportHelper = PetImportHelper(),
 		petTabViewModel: PetTabViewModel = PetTabViewModel(),
+		rpgTabViewModel: RPGTabViewModel = RPGTabViewModel(),
 		aboutViewModel: AboutViewModel = AboutViewModel(),
 		generalViewModel: GeneralTabViewModel = GeneralTabViewModel(),
 		appStateLoader: @escaping () -> FloatingAppState = {
@@ -45,6 +47,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		self.settingsController = settingsController
 		self.petImportHelper = petImportHelper
 		self.petTabViewModel = petTabViewModel
+		self.rpgTabViewModel = rpgTabViewModel
 		self.aboutViewModel = aboutViewModel
 		self.generalViewModel = generalViewModel
 		self.appStateLoader = appStateLoader
@@ -123,6 +126,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			onImportPet: { [weak self] petId in self?.handleImportPet(id: petId) },
 			onSelectPet: { [weak self] petId in self?.handleSelectPet(id: petId) }
 		)
+		let rpg = RPGTabView(
+			viewModel: rpgTabViewModel,
+			onToggle: { [weak self] enabled in
+				self?.rpgTabViewModel.setRPGHUDEnabled(enabled)
+			}
+		)
 		let developerViewModel = makeDeveloperTabViewModel()
 		let developer = DeveloperTabView(viewModel: developerViewModel)
 		let about = AboutTabView(viewModel: aboutViewModel)
@@ -135,6 +144,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		for (tab, view): (SettingsTab, NSView) in [
 			(.general, general),
 			(.pet, pet),
+			(.rpg, rpg),
 			(.developer, developer),
 			(.about, about),
 		] {
@@ -738,6 +748,58 @@ private final class PetTabView: NSView {
 }
 
 private var actionKey: UInt8 = 0
+
+// MARK: - RPGTabView
+
+/// RPG tab — HUD opt-out toggle and demo mode preview.
+private final class RPGTabView: NSView {
+	private let toggleButton = NSButton(checkboxWithTitle: "Show RPG HUD", target: nil, action: nil)
+	private let onToggle: (Bool) -> Void
+
+	init(viewModel: RPGTabViewModel, onToggle: @escaping (Bool) -> Void) {
+		self.onToggle = onToggle
+		super.init(frame: .zero)
+		toggleButton.state = viewModel.rpgHUDEnabled ? .on : .off
+		setupViews()
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	private func setupViews() {
+		let title = settingsSectionTitle("RPG")
+		addSubview(title)
+
+		let note = settingsBodyLabel(
+			"When enabled, a floating HUD shows hearts, level, and XP ring while "
+				+ "you code. Toggle off to hide it completely — the RPG engine keeps "
+				+ "running in the background."
+		)
+		addSubview(note)
+
+		toggleButton.target = self
+		toggleButton.action = #selector(toggleChanged)
+		toggleButton.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(toggleButton)
+
+		NSLayoutConstraint.activate([
+			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			note.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
+			note.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			note.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			toggleButton.topAnchor.constraint(equalTo: note.bottomAnchor, constant: 16),
+			toggleButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+		])
+	}
+
+	@objc private func toggleChanged() {
+		onToggle(toggleButton.state == .on)
+	}
+}
 
 // MARK: - DeveloperTabView
 
