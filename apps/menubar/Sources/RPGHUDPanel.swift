@@ -111,11 +111,9 @@ enum RPGHUDLayout {
 		visibleFrame: CGRect
 	) -> CGRect {
 		let m = metrics(for: petFrame)
-		let side = m.ringDiameter
-		// The HUD's XP ring sits at the bottom of its content box; this is its
-		// center in global y (derived from `frame`'s vertical placement).
-		let ringCenterY = petFrame.maxY - m.inset - m.heartHeight - m.rowGap - m.ringDiameter / 2
-		let y = ringCenterY - side / 2
+		let side = m.ringDiameter * 2
+		// Top of tombstone aligns with the top of the heart row (petFrame.maxY - inset).
+		let y = petFrame.maxY - m.inset - side
 		let x: CGFloat
 		if let anchor = spriteAnchor, anchor.width > 0 {
 			let gap = round(anchor.width * gapFraction)
