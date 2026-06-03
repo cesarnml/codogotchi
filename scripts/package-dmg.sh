@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT="$REPO_ROOT/apps/menubar/Codogotchi.xcodeproj"
-DMG_OUT="$REPO_ROOT/build/Codogotchi.dmg"
+DMG_OUT="$REPO_ROOT/builds/Codogotchi.dmg"
 
 # Stage OUTSIDE the repo tree. The staging dir contains an `Applications ->
 # /Applications` symlink for the drag-to-install layout; if it lives inside the
@@ -13,7 +13,7 @@ DMG_OUT="$REPO_ROOT/build/Codogotchi.dmg"
 BUILD_DIR="$(mktemp -d -t codogotchi-dmg-staging)"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 
-echo "==> Building Codogotchi (Release)…"
+echo "==> Building Codogotchi (Release)..."
 xcodebuild \
   -project "$PROJECT" \
   -scheme Codogotchi \
@@ -29,11 +29,12 @@ if [[ -z "$APP_PATH" ]]; then
 fi
 echo "==> Built: $APP_PATH"
 
-echo "==> Staging DMG contents in $BUILD_DIR…"
+echo "==> Staging DMG contents in ${BUILD_DIR}..."
 cp -R "$APP_PATH" "$BUILD_DIR/Codogotchi.app"
 ln -s /Applications "$BUILD_DIR/Applications"
 
-echo "==> Creating DMG…"
+echo "==> Creating DMG..."
+mkdir -p "$(dirname "$DMG_OUT")"
 rm -f "$DMG_OUT"
 hdiutil create \
   -volname "Codogotchi" \
