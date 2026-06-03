@@ -8,7 +8,7 @@ Product plan: [`docs/product/plans/phase-10.md`](../../plans/phase-10.md). Draft
 
 ## Product contract
 
-After this phase, a clean install with no configuration shows a floating pet whose **hearts** respond to coding across all five hooked platforms (Claude, Codex, Cursor, VS Code, Antigravity), and whose **level + XP ring** progress on the three agents that write local token logs (Claude, Codex, Antigravity). Hearts decay when idle and heal when active — computed locally, no network. The pet flashes Zelda-style on each ±½-heart change and on level-up. Users can disable the HUD from a new RPG tab in Settings. No account, URL, key, or network traffic is involved.
+After this phase, a clean install with no configuration shows a floating pet whose **hearts** respond to coding across all five hooked platforms (Claude, Codex, Cursor, VS Code, Antigravity), and whose **level + XP ring** progress on the two agents that write local token logs (Claude, Codex). Hearts decay when idle and heal when active — computed locally, no network. The pet flashes Zelda-style on each ±½-heart change and on level-up. Users can disable the HUD from a new RPG tab in Settings. No account, URL, key, or network traffic is involved.
 
 ## Grill-Me decisions locked
 
@@ -48,7 +48,7 @@ After this phase, a clean install with no configuration shows a floating pet who
 
 ## Exit Condition
 
-Hand someone a clean install and, within one coding session, show: a floating pet whose hearts decay when idle, heal when active, and flash Zelda-style on each ±½-heart change across whichever of the five platforms they use; and — for Claude/Codex/Antigravity users — a level number inside an XP ring that fills as they work and flashes on roll-over. A Cursor- or VS Code-only user gets living hearts and a frozen ring they can hide via **Disable RPG HUD** in the new RPG settings tab. All local, no network. The 1–100 curve uses the provisional calibrated constants; demo mode showcases the HUD. The sync/leaderboard half is cleanly absent.
+Hand someone a clean install and, within one coding session, show: a floating pet whose hearts decay when idle, heal when active, and flash Zelda-style on each ±½-heart change across whichever of the five platforms they use; and — for Claude/Codex users — a level number inside an XP ring that fills as they work and flashes on roll-over. A Cursor, VS Code, or Antigravity user gets living hearts and a frozen ring they can hide via **Disable RPG HUD** in the new RPG settings tab. All local, no network. The 1–100 curve uses the provisional calibrated constants; demo mode showcases the HUD. The sync/leaderboard half is cleanly absent.
 
 ## CI Baseline
 
