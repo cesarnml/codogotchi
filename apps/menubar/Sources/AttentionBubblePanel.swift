@@ -65,8 +65,9 @@ enum AttentionFocusTarget {
 }
 
 /// Floating attention bubble shown below the pet panel when `state.json`
-/// carries an unexpired `attention` object. Session-local dismiss — never
-/// writes back to `state.json`.
+/// carries an unexpired `attention` object. On dismiss the caller writes
+/// `activity_state: idle` and removes `attention` from `state.json` via
+/// `FloatingPetPanelController.onAttentionDismissed`.
 @MainActor
 final class AttentionBubblePanel: NSPanel {
 	private let bubbleView: AttentionBubbleView

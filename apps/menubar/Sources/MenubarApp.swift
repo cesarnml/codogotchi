@@ -295,6 +295,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			driver.applyAttention = { [weak floatingPetController = self.floatingPetController] payload, sourceEvent in
 				floatingPetController?.applyAttention(payload: payload, sourceEvent: sourceEvent)
 			}
+			let statePath = config.pollingTarget.path
+			self.floatingPetPanelController?.onAttentionDismissed = {
+				StateJsonWriter.dismissAttention(at: statePath)
+			}
 			driver.applyGateBadge = { [weak floatingPetController = self.floatingPetController] content in
 				floatingPetController?.applyGateBadge(content: content)
 			}

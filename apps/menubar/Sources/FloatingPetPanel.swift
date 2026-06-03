@@ -15,6 +15,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var currentMode: VisualMode = .normal
 	private var frameChangeHandler: ((CGRect) -> Void)?
 	var onHideFloatingPet: (() -> Void)?
+	/// Called when the user dismisses or focuses away from the attention bubble.
+	/// Intended for the caller to persist the idle state back to state.json so a
+	/// relaunch does not re-show the bubble.
+	var onAttentionDismissed: (() -> Void)?
 
 	// Attention bubble — shown below the pet when a non-expired attention payload is active.
 	private var attentionBubble: AttentionBubblePanel?
@@ -253,6 +257,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private func handleBubbleDismiss() {
 		attentionActive = false
 		apply(state: .idle, visualMode: currentMode)
+		onAttentionDismissed?()
 	}
 
 	private func repositionAndShowBubble() {
