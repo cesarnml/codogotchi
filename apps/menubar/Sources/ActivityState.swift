@@ -159,6 +159,14 @@ struct StateSnapshot: Equatable {
 	/// which command drove a state change — the signal needed to audit the
 	/// producer-side bucketing heuristic after the fact.
 	let toolCommand: String?
+	// v5 RPG progression fields (P10.06). Absent for ≤v4 payloads; default to
+	// safe values so the HUD renders sensibly before the first v5 write.
+	let level: Int
+	let levelFraction: Double
+	let halfHearts: Int
+	/// ISO 8601 datetime string or nil. Nil means no activity recorded yet
+	/// (fresh install / null from writer) — the decay engine treats nil as "no decay".
+	let lastActivityAt: String?
 
 	init(
 		schemaVersion: Int,
@@ -166,7 +174,11 @@ struct StateSnapshot: Equatable {
 		updatedAt: String,
 		sourceEvent: SourceEvent?,
 		attention: AttentionPayload?,
-		toolCommand: String? = nil
+		toolCommand: String? = nil,
+		level: Int = 1,
+		levelFraction: Double = 0.0,
+		halfHearts: Int = 6,
+		lastActivityAt: String? = nil
 	) {
 		self.schemaVersion = schemaVersion
 		self.activityState = activityState
@@ -174,6 +186,10 @@ struct StateSnapshot: Equatable {
 		self.sourceEvent = sourceEvent
 		self.attention = attention
 		self.toolCommand = toolCommand
+		self.level = level
+		self.levelFraction = levelFraction
+		self.halfHearts = halfHearts
+		self.lastActivityAt = lastActivityAt
 	}
 }
 
