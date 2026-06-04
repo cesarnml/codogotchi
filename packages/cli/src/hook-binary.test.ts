@@ -1989,4 +1989,34 @@ describe("runHook v5 local RPG fields", () => {
     expect(state.half_hearts).toBeDefined();
     expect(state.last_activity_at).toBeDefined();
   });
+
+  it("credits at most one active-minute per wall-clock minute (heal unit is a minute, not a hook event)", async () => {
+    const readActiveMinutes = (): number =>
+      JSON.parse(readFileSync(join(home, ".local-xp-cache.json"), "utf8"))
+        .active_minutes;
+
+    // Three hook events inside the same minute earn exactly 1 active-minute.
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: FIXED_NOW },
+    );
+    expect(readActiveMinutes()).toBe(1);
+
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: new Date(FIXED_NOW.getTime() + 5_000) },
+    );
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: new Date(FIXED_NOW.getTime() + 59_999) },
+    );
+    expect(readActiveMinutes()).toBe(1);
+
+    // An event a full minute past the last credit earns the next active-minute.
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: new Date(FIXED_NOW.getTime() + 60_000) },
+    );
+    expect(readActiveMinutes()).toBe(2);
+  });
 });

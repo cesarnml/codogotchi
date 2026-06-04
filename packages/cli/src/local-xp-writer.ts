@@ -18,8 +18,15 @@ export type LocalXpCache = {
   last_read_at_codex: string | null;
   // Most recent event timestamp from any of the five coding platforms.
   last_activity_at: string | null;
+  // Timestamp of the last event that was *credited* toward active_minutes.
+  // Used to clamp heal credit to at most one active-minute per wall-clock
+  // minute: a burst of hook events inside the same 60s window earns 1, not N.
+  // null means no minute has been credited yet (fresh cache / first event).
+  last_active_credit_at: string | null;
   // Accumulated active minutes since the last half-heart computation.
-  // Reset to remainder after each resolveHalfHearts call.
+  // Reset to remainder after each resolveHalfHearts call. One unit == one
+  // wall-clock minute of activity (gated by last_active_credit_at), NOT one
+  // hook invocation.
   active_minutes: number;
   // Current half-hearts value — persisted so decay accumulates correctly.
   half_hearts: number;
@@ -61,6 +68,7 @@ function defaultCache(): LocalXpCache {
     last_read_at_claude: null,
     last_read_at_codex: null,
     last_activity_at: null,
+    last_active_credit_at: null,
     active_minutes: 0,
     half_hearts: MAX_HALF_HEARTS,
   };
@@ -87,6 +95,10 @@ export async function readLocalXpCache(home: string): Promise<LocalXpCache> {
         typeof p.last_read_at_codex === "string" ? p.last_read_at_codex : null,
       last_activity_at:
         typeof p.last_activity_at === "string" ? p.last_activity_at : null,
+      last_active_credit_at:
+        typeof p.last_active_credit_at === "string"
+          ? p.last_active_credit_at
+          : null,
       active_minutes:
         typeof p.active_minutes === "number" ? p.active_minutes : 0,
       half_hearts:
@@ -137,8 +149,23 @@ export async function computeAndPersistV5Fields(
   // Every coding event from any of the five platforms extends last_activity_at.
   cache.last_activity_at = now.toISOString();
 
-  // Each event contributes 1 active minute toward healing.
-  cache.active_minutes += 1;
+  // Credit at most one active-minute per wall-clock minute. A burst of hook
+  // events inside the same 60s window must earn 1 active-minute, not N — the
+  // heal unit is a real minute of coding, not a hook invocation. Rolling 60s
+  // gate (not calendar-minute bucketing) so events straddling a minute
+  // boundary cannot double-credit within seconds of each other.
+  const prevCreditAt =
+    cache.last_active_credit_at !== null
+      ? Date.parse(cache.last_active_credit_at)
+      : null;
+  const elapsedSinceCredit =
+    prevCreditAt !== null && Number.isFinite(prevCreditAt)
+      ? now.getTime() - prevCreditAt
+      : Number.POSITIVE_INFINITY;
+  if (elapsedSinceCredit >= 60_000) {
+    cache.active_minutes += 1;
+    cache.last_active_credit_at = now.toISOString();
+  }
 
   // Read new JSONL tokens for token sources only.
   if (isTokenSource(origin)) {
