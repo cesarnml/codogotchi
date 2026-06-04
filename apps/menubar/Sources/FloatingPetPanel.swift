@@ -42,6 +42,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var rpgHUDPanel: RPGHUDPanel?
 	private let rpgHUDViewModel = RPGHUDViewModel()
 	private var isHoveringPet = false
+	/// Local event monitor installed when the pointer leaves the pet frame while
+	/// the HUD is visible — keeps the HUD alive until the pointer also exits the
+	/// HUD panel itself.
+	private var hudHoverMonitor: Any?
 	// Death (0 hearts): the pet renders grayscale and a persistent tombstone is
 	// shown to the right of the pet. Both are part of the RPG HUD — they clear
 	// when at least a half-heart returns *or* the HUD is disabled. The active
@@ -133,6 +137,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		animationBadgePanel?.orderOut(nil)
 		tombstonePanel?.orderOut(nil)
 		cancelHUDAutoHide()
+		cancelHUDHoverMonitor()
 		rpgHUDPanel?.hideImmediately()
 	}
 
@@ -214,6 +219,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		guard isPanelShown else { return }
 		guard rpgHUDViewModel.isHUDEnabled else {
 			cancelHUDAutoHide()
+			cancelHUDHoverMonitor()
 			rpgHUDPanel?.hideImmediately()
 			return
 		}
@@ -236,6 +242,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		guard isPanelShown else { return }
 		guard rpgHUDViewModel.isHUDEnabled else {
 			cancelHUDAutoHide()
+			cancelHUDHoverMonitor()
 			rpgHUDPanel?.hideImmediately()
 			return
 		}
@@ -250,6 +257,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			showHUDForHover()
 		} else if !isHoveringPet {
 			cancelHUDAutoHide()
+			cancelHUDHoverMonitor()
 			rpgHUDPanel?.fadeOut()
 		}
 	}
@@ -339,13 +347,20 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private func showHUDForHover() {
 		guard isPanelShown, rpgHUDViewModel.isHUDEnabled else { return }
 		cancelHUDAutoHide()
+		cancelHUDHoverMonitor()
 		refreshHUDContent()?.ensureVisible()
 	}
 
-	/// Hover ended: fade out unless a transient reveal is mid-flight.
+	/// Hover ended: fade out unless a transient reveal is mid-flight, or the
+	/// pointer has moved directly onto the HUD panel — in which case arm a monitor
+	/// to wait until it leaves both the HUD and the pet frame.
 	private func hideHUDForHoverEnd() {
 		guard !hudDemoActive else { return }
 		guard hudAutoHideWork == nil else { return }
+		if rpgHUDPanel?.frame.contains(NSEvent.mouseLocation) == true {
+			installHUDHoverMonitor()
+			return
+		}
 		rpgHUDPanel?.fadeOut()
 	}
 
@@ -370,6 +385,37 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private func cancelHUDAutoHide() {
 		hudAutoHideWork?.cancel()
 		hudAutoHideWork = nil
+	}
+
+	private func cancelHUDHoverMonitor() {
+		if let monitor = hudHoverMonitor {
+			NSEvent.removeMonitor(monitor)
+			hudHoverMonitor = nil
+		}
+	}
+
+	/// Arm a local event monitor that fades the HUD once the pointer exits both
+	/// the HUD panel frame and the pet panel frame. Used when hover leaves the pet
+	/// but the pointer lands directly on the HUD — the appear trigger is unaffected
+	/// (the HUD still only appears on pet-hover or animation flash).
+	private func installHUDHoverMonitor() {
+		cancelHUDHoverMonitor()
+		hudHoverMonitor = NSEvent.addLocalMonitorForEvents(
+			matching: [.mouseMoved, .leftMouseDragged]
+		) { [weak self] event in
+			Task { @MainActor in
+				guard let self else { return }
+				let pt = NSEvent.mouseLocation
+				let inHUD = self.rpgHUDPanel?.frame.contains(pt) == true
+				let inPet = self.lastPanelFrame.contains(pt)
+				guard !inHUD, !inPet else { return }
+				self.cancelHUDHoverMonitor()
+				if !self.isHoveringPet, !self.hudDemoActive, self.hudAutoHideWork == nil {
+					self.rpgHUDPanel?.fadeOut()
+				}
+			}
+			return event
+		}
 	}
 
 	private func repositionAndShowAnimationBadge() {
