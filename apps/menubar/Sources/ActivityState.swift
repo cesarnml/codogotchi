@@ -232,8 +232,8 @@ struct IdleEscalationConfig: Equatable {
 	var frustratedAfter: TimeInterval
 
 	static let production = IdleEscalationConfig(
-		impatientAfter: 5 * 60,
-		frustratedAfter: 10 * 60
+		impatientAfter: 10 * 60,
+		frustratedAfter: 30 * 60
 	)
 
 	static func resolve(

@@ -408,6 +408,23 @@ final class FloatingPetScene: SKScene {
 		applyIdleEscalation(level)
 	}
 
+	/// Step the idle escalation down by one level (frustrated→impatient→none).
+	/// Called when the user holds a click for ≥5 s while the pet is escalated.
+	/// No-op when already at `.none` or when not in the idle state.
+	func decrementIdleEscalation() {
+		guard currentState == .idle else { return }
+		let next: IdleEscalation
+		switch currentEscalation {
+		case .frustrated: next = .impatient
+		case .impatient: next = .none
+		case .none: return
+		}
+		// Push idleSince forward so the timer naturally re-escalates from zero
+		// relative to now, rather than immediately re-triggering the old level.
+		idleSince = clock()
+		applyIdleEscalation(next)
+	}
+
 	private func applyIdleEscalation(_ level: IdleEscalation) {
 		guard level != currentEscalation else { return }
 		currentEscalation = level

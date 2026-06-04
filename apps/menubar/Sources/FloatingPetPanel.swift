@@ -467,6 +467,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		scene?.setInteraction(interaction)
 	}
 
+	func decrementIdleEscalation() {
+		scene?.decrementIdleEscalation()
+	}
+
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
 		frameChangeHandler = handler
 		if let view = panel?.contentView as? FloatingPetInteractionView {
@@ -583,6 +587,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		wireFrameHandlers(on: view)
 		view.hideFloatingPetHandler = { [weak self] in
 			self?.onHideFloatingPet?()
+		}
+		view.holdDeEscalationHandler = { [weak self] in
+			self?.scene?.decrementIdleEscalation()
 		}
 		view.onHoverChange = { [weak self] isHovering in
 			guard let self else { return }
@@ -1615,6 +1622,7 @@ private final class FloatingPetInteractionView: NSView {
 	private let sceneSizeHandler: (CGSize) -> Void
 	private var activeInteraction: ActiveInteraction?
 	private var lastEmittedInteraction: FloatingInteraction?
+	private var holdTimer: Timer?
 	private var boundsTrackingArea: NSTrackingArea?
 	private var affordanceTrackingArea: NSTrackingArea?
 	private var lastTrackingBoundsSize: CGSize = .zero
@@ -1633,6 +1641,8 @@ private final class FloatingPetInteractionView: NSView {
 	/// chrome (the attention bubble) can re-anchor live. Must stay cheap — it
 	/// runs per `mouseDragged`; persistence stays on `frameChangeHandler`.
 	var liveFrameChangeHandler: ((CGRect) -> Void)?
+	/// Fired when the user holds a stationary click on the pet body for ≥5 s.
+	var holdDeEscalationHandler: (() -> Void)?
 	var hideFloatingPetHandler: (() -> Void)?
 	/// Fired when the pointer enters or leaves the pet frame. `true` = entered.
 	var onHoverChange: ((Bool) -> Void)?
@@ -1795,6 +1805,7 @@ private final class FloatingPetInteractionView: NSView {
 				FloatingInteractionPolicy.clickInteraction(hitTarget: .dragRegion),
 				reason: "mouseDown-click"
 			)
+			startHoldTimer()
 		case .resizeAffordance:
 			activeInteraction = .resize(startFrame: window.frame, startScreenPoint: startScreenPoint)
 			pushResizeCursor()
@@ -1803,6 +1814,7 @@ private final class FloatingPetInteractionView: NSView {
 	}
 
 	override func mouseDragged(with event: NSEvent) {
+		cancelHoldTimer()
 		guard let window, let activeInteraction else { return }
 		let currentPoint = NSEvent.mouseLocation
 		let nextFrame: CGRect
@@ -1855,6 +1867,7 @@ private final class FloatingPetInteractionView: NSView {
 	}
 
 	override func mouseUp(with event: NSEvent) {
+		cancelHoldTimer()
 		let wasResizing = isResizing
 		window?.displayIfNeeded()
 		activeInteraction = nil
@@ -1874,6 +1887,18 @@ private final class FloatingPetInteractionView: NSView {
 	private var isResizing: Bool {
 		if case .resize = activeInteraction { return true }
 		return false
+	}
+
+	private func startHoldTimer() {
+		holdTimer?.invalidate()
+		holdTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in
+			self?.holdDeEscalationHandler?()
+		}
+	}
+
+	private func cancelHoldTimer() {
+		holdTimer?.invalidate()
+		holdTimer = nil
 	}
 
 	private var isTranslating: Bool {
