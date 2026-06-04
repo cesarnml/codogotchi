@@ -24,10 +24,13 @@ enum RPGHUDLayout {
 	/// HUD size scale clamp relative to `baselinePetWidth`.
 	static let maxScale: CGFloat = 1.5
 	static let minScale: CGFloat = 0.75
-	/// Horizontal gap between the HUD and the pet's opaque left edge, as a
-	/// fraction of the pet's opaque width — keeps a proportionally consistent gap
-	/// at every frame size. Tuned so the max frame reads ~20pt.
-	static let gapFraction: CGFloat = 0.12
+	/// Horizontal gap between the HUD (hearts + XP ring) and the pet's opaque
+	/// left edge, as a fraction of the pet's opaque width — keeps a proportionally
+	/// consistent gap at every frame size. Tuned so the max frame reads ~20pt.
+	static let hudGapFraction: CGFloat = 0.12
+	/// Horizontal gap between the tombstone and the pet's opaque right edge, as a
+	/// fraction of the pet's opaque width.
+	static let tombstoneGapFraction: CGFloat = 0.02
 	/// Extra padding baked into the panel so the heart damage/heal glow (which
 	/// the flash SVGs render outside the heart core) is not clipped.
 	static let glowPadBase: CGFloat = 8
@@ -89,7 +92,7 @@ enum RPGHUDLayout {
 		let y = petFrame.maxY - m.inset - hudSize.height + m.glowPad
 		let x: CGFloat
 		if let anchor = spriteAnchor, anchor.width > 0 {
-			let gap = round(anchor.width * gapFraction)
+			let gap = round(anchor.width * hudGapFraction)
 			let contentRight = anchor.minX - gap
 			x = contentRight - m.contentWidth - m.glowPad
 		} else {
@@ -117,7 +120,7 @@ enum RPGHUDLayout {
 		let y = ringCenterY - side / 2
 		let x: CGFloat
 		if let anchor = spriteAnchor, anchor.width > 0 {
-			let gap = round(anchor.width * gapFraction)
+			let gap = round(anchor.width * tombstoneGapFraction)
 			x = anchor.maxX + gap
 		} else {
 			x = petFrame.maxX - m.inset - side
