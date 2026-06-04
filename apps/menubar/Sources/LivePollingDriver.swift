@@ -77,6 +77,12 @@ final class LivePollingDriver {
 	private let tickInterval: TimeInterval
 	private let transitionLog: TransitionLog?
 	private var codogotchiPet: CodogotchiPet?
+	/// Wall-clock source for half-heart decay. Injected so tests drive decay
+	/// deterministically; production uses `Date()`. Each tick recomputes the
+	/// displayed half-hearts against this `now`, so the 1Hz poll loop *is* the
+	/// decay timer — no separate `Timer` is needed and `pollNow()` (wake-from-
+	/// sleep) reflects true elapsed time immediately.
+	private let now: () -> Date
 
 	/// Optional sink for attention payload updates. Called when `attention`
 	/// or `sourceEvent.origin` changes between ticks. Second parameter is the
@@ -131,7 +137,8 @@ final class LivePollingDriver {
 		deliveryContextReader: @escaping DeliveryContextReaderFn = DeliveryContextReader.read(at:),
 		tickInterval: TimeInterval = 1.0,
 		transitionLog: TransitionLog? = nil,
-		codogotchiPet: CodogotchiPet? = nil
+		codogotchiPet: CodogotchiPet? = nil,
+		now: @escaping () -> Date = { Date() }
 	) {
 		self.pollingTargetPath = pollingTargetPath
 		self.gatePath = gatePath
@@ -146,6 +153,7 @@ final class LivePollingDriver {
 		self.tickInterval = tickInterval
 		self.transitionLog = transitionLog
 		self.codogotchiPet = codogotchiPet
+		self.now = now
 	}
 
 	deinit {
@@ -251,6 +259,18 @@ final class LivePollingDriver {
 				deliveryContext: deliveryContext,
 				sourceEvent: snapshot.sourceEvent
 			)
+			// Decay the *displayed* half-hearts below the written value based on
+			// wall-clock elapsed since `last_activity_at`. The writer is
+			// authoritative on heals; Swift only ever decays (never invents
+			// heals). Recomputed every tick against the injected clock, so a long
+			// idle stretch with no new hook write still shows hearts ticking down
+			// — the change-gated emit fires only when a half-heart boundary is
+			// crossed (≤ once per 8h), so this is effectively free.
+			let displayedHalfHearts = HalfHeartDecayEngine.displayed(
+				written: snapshot.halfHearts,
+				lastActivityAt: Self.parseISO8601Date(snapshot.lastActivityAt),
+				now: now()
+			)
 			return Outcome(
 				state: state,
 				mode: .normal,
@@ -258,7 +278,7 @@ final class LivePollingDriver {
 				attention: snapshot.attention,
 				sourceEvent: snapshot.sourceEvent,
 				gateBadge: gateBadge,
-				rpgState: (snapshot.halfHearts, snapshot.levelFraction, snapshot.level)
+				rpgState: (displayedHalfHearts, snapshot.levelFraction, snapshot.level)
 			)
 		case .failure(.fileNotFound):
 			let gateBadge = resolveGateBadgeContent(deliveryContext: deliveryContext, sourceEvent: nil)
@@ -323,6 +343,18 @@ final class LivePollingDriver {
 			gateBadge: nil,
 			rpgState: nil
 		)
+	}
+
+	/// Two-pass ISO 8601 parse for `last_activity_at`: fractional-seconds form
+	/// first (writer default), then whole-seconds fallback. `nil` in → `nil` out
+	/// (no activity recorded → the decay engine treats it as "no decay").
+	private static func parseISO8601Date(_ string: String?) -> Date? {
+		guard let string else { return nil }
+		let formatter = ISO8601DateFormatter()
+		formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+		if let date = formatter.date(from: string) { return date }
+		formatter.formatOptions = [.withInternetDateTime]
+		return formatter.date(from: string)
 	}
 
 	private func emit(_ outcome: Outcome) {

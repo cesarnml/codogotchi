@@ -52,6 +52,7 @@ final class LivePollingTests: XCTestCase {
 		var tooltips: [String?] = []
 		var gateBadges: [GateBadgeContent?] = []
 		var platforms: [String?] = []
+		var rpgStates: [(halfHearts: Int, levelFraction: Double, level: Int)] = []
 	}
 
 	private func makeDriver(
@@ -61,7 +62,8 @@ final class LivePollingTests: XCTestCase {
 		deliveryContextPath: URL? = nil,
 		previewStatePath: URL? = nil,
 		previewGatePath: URL? = nil,
-		transitionLog: TransitionLog? = nil
+		transitionLog: TransitionLog? = nil,
+		now: @escaping () -> Date = { Date() }
 	) -> LivePollingDriver {
 		let driver = LivePollingDriver(
 			pollingTargetPath: target.path,
@@ -71,11 +73,28 @@ final class LivePollingTests: XCTestCase {
 			previewGatePath: previewGatePath?.path,
 			apply: { state, mode in recorder.renders.append((state, mode)) },
 			setTooltip: { tip in recorder.tooltips.append(tip) },
-			transitionLog: transitionLog
+			transitionLog: transitionLog,
+			now: now
 		)
 		driver.applyGateBadge = { recorder.gateBadges.append($0) }
 		driver.applyPlatform = { recorder.platforms.append($0) }
+		driver.applyRPGState = { recorder.rpgStates.append(($0, $1, $2)) }
 		return driver
+	}
+
+	/// Minimal v5 `state.json` payload for decay tests: only the fields the
+	/// reader requires plus the two the decay engine reads.
+	private func writeV5StateJson(
+		_ target: URL,
+		halfHearts: Int,
+		lastActivityAt: String?,
+		activityState: String = "idle"
+	) throws {
+		let lastActivity =
+			lastActivityAt.map { "\"\($0)\"" } ?? "null"
+		try """
+			{"schema_version":5,"activity_state":"\(activityState)","updated_at":"2026-01-01T00:00:00Z","level":3,"level_fraction":0.5,"half_hearts":\(halfHearts),"last_activity_at":\(lastActivity)}
+			""".write(to: target, atomically: true, encoding: .utf8)
 	}
 
 	private func writePreviewStateJson(
@@ -494,5 +513,64 @@ final class LivePollingTests: XCTestCase {
 			["claude_code", nil],
 			"a read failure must clear the attributed platform so no stale chip lingers"
 		)
+	}
+
+	// MARK: - Half-heart decay on the poll loop (P10.07)
+
+	func testDecaysDisplayedHalfHeartsBelowWrittenValueWhileIdle() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		let lastActivity = "2026-06-04T00:00:00.000Z"
+		// Written value is full (6); 16h elapsed since last activity → floor(16/8)
+		// = 2 half-hearts of decay, so the HUD must show 4 even though no new hook
+		// write occurred (file unchanged between the activity write and now).
+		try writeV5StateJson(target, halfHearts: 6, lastActivityAt: lastActivity)
+		let sixteenHoursLater = ISO8601DateFormatter().date(from: "2026-06-04T16:00:00Z")!
+		let driver = makeDriver(target: target, recorder: recorder, now: { sixteenHoursLater })
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(
+			recorder.rpgStates.last?.halfHearts, 4,
+			"16h idle decays 2 half-hearts below the written 6 with no new hook write")
+	}
+
+	func testNullLastActivityAtDoesNotDecay() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		// Fresh profile: last_activity_at is null → no decay regardless of clock.
+		try writeV5StateJson(target, halfHearts: 6, lastActivityAt: nil)
+		let driver = makeDriver(
+			target: target, recorder: recorder,
+			now: { ISO8601DateFormatter().date(from: "2030-01-01T00:00:00Z")! })
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(
+			recorder.rpgStates.last?.halfHearts, 6,
+			"null last_activity_at must hold the written value (no decay)")
+	}
+
+	func testDecayCrossingBoundaryReEmitsWithoutFileChange() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		let lastActivity = "2026-06-04T00:00:00.000Z"
+		try writeV5StateJson(target, halfHearts: 6, lastActivityAt: lastActivity)
+		// Advance the injected clock across the 8h decay boundary between ticks
+		// with no file write — proves decay rides the poll loop, not a file change
+		// (the codogotchi-10 change-gate-starvation pattern does not apply because
+		// the displayed value is recomputed against `now` every tick).
+		var current = ISO8601DateFormatter().date(from: "2026-06-04T07:59:00Z")!
+		let driver = makeDriver(target: target, recorder: recorder, now: { current })
+
+		driver.tickForTesting()
+		XCTAssertEqual(recorder.rpgStates.last?.halfHearts, 6, "before 8h: full")
+
+		current = ISO8601DateFormatter().date(from: "2026-06-04T08:01:00Z")!
+		driver.tickForTesting()
+
+		XCTAssertEqual(
+			recorder.rpgStates.last?.halfHearts, 5,
+			"crossing 8h must emit a fresh decayed value even though state.json never changed")
 	}
 }
