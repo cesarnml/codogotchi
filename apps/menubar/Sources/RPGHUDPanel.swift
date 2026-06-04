@@ -321,7 +321,7 @@ final class RPGRingView: NSView {
 		self.fraction = max(0, min(1, fraction))
 		self.level = level
 		self.ringDiameter = ringDiameter
-		numberLabel.font = .systemFont(ofSize: max(8, round(ringDiameter * 0.32)), weight: .heavy)
+		numberLabel.font = .systemFont(ofSize: max(8, round(ringDiameter * 0.28)), weight: .heavy)
 		numberLabel.stringValue = "\(level)"
 		percentLabel.stringValue = "\(Int((self.fraction * 100).rounded()))%"
 		if changed {
