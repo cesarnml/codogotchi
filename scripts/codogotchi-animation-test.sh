@@ -86,6 +86,11 @@ canonical_state() {
 		error|errored) echo "errored" ;;
 		waiting|waiting_for_input|input|request_input) echo "waiting_for_input" ;;
 		implement|implementing|coding|code) echo "implementing" ;;
+		edit|editing) echo "editing" ;;
+		search|searching) echo "searching" ;;
+		web|web_search) echo "web_search" ;;
+		verify|verifying) echo "verifying" ;;
+		git|git_ops) echo "git_ops" ;;
 		test|testing) echo "testing" ;;
 		think|thinking) echo "thinking" ;;
 		read|reading) echo "reading" ;;
@@ -249,9 +254,14 @@ main() {
 						idle \
 						standby \
 						thinking \
+						searching \
+						web_search \
 						reading \
 						implementing \
+						editing \
+						git_ops \
 						testing \
+						verifying \
 						cramming \
 						errored \
 						waiting_for_input

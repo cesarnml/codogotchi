@@ -8,6 +8,11 @@ export const ACTIVITY_STATES = [
   "waiting_for_input",
   // Heuristic-tier hook states
   "implementing",
+  "editing",
+  "searching",
+  "web_search",
+  "verifying",
+  "git_ops",
   "testing",
   "thinking",
   "reading",
@@ -59,6 +64,11 @@ export const RELIABLE_ACTIVITY_STATES = [
 // Heuristic: inferred from tool-use patterns; may occasionally misclassify.
 export const HEURISTIC_ACTIVITY_STATES = [
   "implementing",
+  "editing",
+  "searching",
+  "web_search",
+  "verifying",
+  "git_ops",
   "testing",
   "thinking",
   "reading",

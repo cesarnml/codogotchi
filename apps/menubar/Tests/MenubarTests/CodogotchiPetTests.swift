@@ -44,16 +44,17 @@ final class CodogotchiPetTests: XCTestCase {
 			"P8.06: 8 frames at 1.5s loop = 187.5ms per frame")
 	}
 
-	// MARK: - liteRowMap coverage (9 hook states)
+	// MARK: - liteRowMap coverage (14 hook states: 9 original + 5 new)
 
-	func testLiteRowMapHasExactly9HookStates() {
-		XCTAssertEqual(CodogotchiPet.liteRowMap.count, 9)
+	func testLiteRowMapHasExactly14HookStates() {
+		XCTAssertEqual(CodogotchiPet.liteRowMap.count, 14)
 	}
 
 	func testLiteRowMapCoversAllHookStates() {
 		let expected: Set<ActivityState> = [
 			.idle, .standby, .errored, .waitingForInput,
-			.implementing, .testing, .thinking, .reading, .cramming,
+			.implementing, .editing, .searching, .webSearch, .verifying, .gitOps,
+			.testing, .thinking, .reading, .cramming,
 		]
 		XCTAssertEqual(Set(CodogotchiPet.liteRowMap.keys), expected)
 	}

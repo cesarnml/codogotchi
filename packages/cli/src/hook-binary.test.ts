@@ -25,7 +25,7 @@ function readState(home: string): StateJsonV1 {
 }
 
 describe("classifyEvent", () => {
-  it("classifies Claude Code Edit tool-use as implementing", () => {
+  it("classifies Claude Code Edit tool-use as editing", () => {
     const out = classifyEvent(
       {
         origin: "claude_code",
@@ -34,29 +34,29 @@ describe("classifyEvent", () => {
       },
       { readRun: 0 },
     );
-    expect(out.state).toBe("implementing");
+    expect(out.state).toBe("editing");
     expect(out.sourceEvent.origin).toBe("claude_code");
     expect(out.sourceEvent.kind).toBe("tool_use");
     expect(out.sourceEvent.name).toBe("Edit");
     expect(out.readRun).toBe(0);
   });
 
-  it("classifies Write tool-use as implementing", () => {
+  it("classifies Write tool-use as editing", () => {
     expect(
       classifyEvent(
         { origin: "claude_code", kind: "tool_use", name: "Write" },
         { readRun: 0 },
       ).state,
-    ).toBe("implementing");
+    ).toBe("editing");
   });
 
-  it("classifies MultiEdit tool-use as implementing", () => {
+  it("classifies MultiEdit tool-use as editing", () => {
     expect(
       classifyEvent(
         { origin: "claude_code", kind: "tool_use", name: "MultiEdit" },
         { readRun: 0 },
       ).state,
-    ).toBe("implementing");
+    ).toBe("editing");
   });
 
   it("classifies Bash 'bun test' as testing", () => {
@@ -86,7 +86,7 @@ describe("classifyEvent", () => {
     ).toBe("testing");
   });
 
-  it("classifies Bash 'bun run format' as testing", () => {
+  it("classifies Bash 'bun run format' as verifying", () => {
     expect(
       classifyEvent(
         {
@@ -97,10 +97,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("testing");
+    ).toBe("verifying");
   });
 
-  it("classifies Bash 'bun run typecheck' as testing", () => {
+  it("classifies Bash 'bun run typecheck' as verifying", () => {
     expect(
       classifyEvent(
         {
@@ -111,10 +111,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("testing");
+    ).toBe("verifying");
   });
 
-  it("classifies xcodebuild build/test commands with leading flags as testing", () => {
+  it("classifies xcodebuild build with leading flags as verifying", () => {
     expect(
       classifyEvent(
         {
@@ -126,7 +126,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("testing");
+    ).toBe("verifying");
+  });
+
+  it("classifies xcodebuild test with leading flags as testing", () => {
     expect(
       classifyEvent(
         {
@@ -141,7 +144,7 @@ describe("classifyEvent", () => {
     ).toBe("testing");
   });
 
-  it("classifies Bash 'git push' as implementing (git push)", () => {
+  it("classifies Bash 'git push' as git_ops", () => {
     expect(
       classifyEvent(
         {
@@ -152,10 +155,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("implementing");
+    ).toBe("git_ops");
   });
 
-  it("classifies Bash 'grep' as thinking", () => {
+  it("classifies Bash 'grep' as searching", () => {
     expect(
       classifyEvent(
         {
@@ -166,10 +169,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("thinking");
+    ).toBe("searching");
   });
 
-  it("classifies Bash 'find' as thinking", () => {
+  it("classifies Bash 'find' as searching", () => {
     expect(
       classifyEvent(
         {
@@ -180,10 +183,10 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("thinking");
+    ).toBe("searching");
   });
 
-  it("classifies Bash 'rg' as thinking", () => {
+  it("classifies Bash 'rg' as searching", () => {
     expect(
       classifyEvent(
         {
@@ -194,7 +197,7 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("thinking");
+    ).toBe("searching");
   });
 
   it("classifies Bash 'ls' as thinking", () => {
@@ -253,7 +256,7 @@ describe("classifyEvent", () => {
     ).toBe("implementing");
   });
 
-  it("classifies Bash 'bun run build' as implementing", () => {
+  it("classifies Bash 'bun run build' as verifying", () => {
     expect(
       classifyEvent(
         {
@@ -264,7 +267,7 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("implementing");
+    ).toBe("verifying");
   });
 
   it("classifies Bash 'echo hello' as implementing", () => {
@@ -295,7 +298,7 @@ describe("classifyEvent", () => {
     ).toBe("implementing");
   });
 
-  it("classifies Cursor Shell 'grep' as thinking", () => {
+  it("classifies Cursor Shell 'grep' as searching", () => {
     expect(
       classifyEvent(
         {
@@ -306,7 +309,7 @@ describe("classifyEvent", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("thinking");
+    ).toBe("searching");
   });
 
   it("classifies Cursor Shell 'npm install' as implementing", () => {
@@ -365,7 +368,7 @@ describe("classifyEvent", () => {
     ).toBe("implementing");
   });
 
-  it("thinking bucket resets readRun to 0", () => {
+  it("searching bucket resets readRun to 0", () => {
     const out = classifyEvent(
       {
         origin: "claude_code",
@@ -375,7 +378,7 @@ describe("classifyEvent", () => {
       },
       { readRun: 2 },
     );
-    expect(out.state).toBe("thinking");
+    expect(out.state).toBe("searching");
     expect(out.readRun).toBe(0);
   });
 
@@ -407,7 +410,7 @@ describe("classifyEvent", () => {
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { readRun: 2 },
     );
-    expect(after_edit.state).toBe("implementing");
+    expect(after_edit.state).toBe("editing");
     expect(after_edit.readRun).toBe(0);
   });
 
@@ -440,12 +443,12 @@ describe("classifyEvent", () => {
     ).toBe("thinking");
   });
 
-  it("classifies Claude Code raw stdin {tool_name:'Edit'} as implementing", () => {
+  it("classifies Claude Code raw stdin {tool_name:'Edit'} as editing", () => {
     const out = classifyEvent(
       { tool_name: "Edit", hook_event_name: "PreToolUse" } as HookInput,
       { readRun: 0 },
     );
-    expect(out.state).toBe("implementing");
+    expect(out.state).toBe("editing");
     expect(out.sourceEvent.origin).toBe("claude_code");
     expect(out.sourceEvent.kind).toBe("tool_use");
     expect(out.sourceEvent.name).toBe("Edit");
@@ -456,7 +459,7 @@ describe("classifyEvent", () => {
       { tool_name: "Edit", hook_event_name: "pre_tool_use" } as HookInput,
       { readRun: 0 },
     );
-    expect(out.state).toBe("implementing");
+    expect(out.state).toBe("editing");
     expect(out.sourceEvent.origin).toBe("codex");
     expect(out.sourceEvent.kind).toBe("tool_use");
     expect(out.sourceEvent.name).toBe("Edit");
@@ -572,25 +575,25 @@ describe("classifyEvent", () => {
     expect(out.state).toBe("errored");
   });
 
-  it("regression: Edit tool-use still classifies as implementing (v2 path)", () => {
+  it("regression: Edit tool-use classifies as editing (v2 path)", () => {
     const out = classifyEvent(
       { origin: "claude_code", kind: "tool_use", name: "Edit" } as HookInput,
       { readRun: 0 },
     );
-    expect(out.state).toBe("implementing");
+    expect(out.state).toBe("editing");
   });
 
   // P6.05: Cursor origin fix + shell hooks
-  it("Cursor afterFileEdit classifies as implementing with cursor origin", () => {
+  it("Cursor afterFileEdit classifies as editing with cursor origin", () => {
     const out = classifyEvent(
       { hook_event_name: "afterFileEdit" } as HookInput,
       { readRun: 0 },
     );
-    expect(out.state).toBe("implementing");
+    expect(out.state).toBe("editing");
     expect(out.sourceEvent.origin).toBe("cursor");
   });
 
-  it("Cursor beforeShellExecution 'grep' classifies as thinking with cursor origin", () => {
+  it("Cursor beforeShellExecution 'grep' classifies as searching with cursor origin", () => {
     const out = classifyEvent(
       {
         hook_event_name: "beforeShellExecution",
@@ -598,7 +601,7 @@ describe("classifyEvent", () => {
       } as HookInput,
       { readRun: 0 },
     );
-    expect(out.state).toBe("thinking");
+    expect(out.state).toBe("searching");
     expect(out.sourceEvent.origin).toBe("cursor");
   });
 
@@ -642,12 +645,12 @@ describe("classifyEvent", () => {
       else process.env.CODOGOTCHI_ORIGIN = prevOrigin;
     });
 
-    it("camelCase preToolUse with toolName:'edit' classifies as implementing", () => {
+    it("camelCase preToolUse with toolName:'edit' classifies as editing", () => {
       const out = classifyEvent(
         { toolName: "edit", hook_event_name: "preToolUse" } as HookInput,
         { readRun: 0 },
       );
-      expect(out.state).toBe("implementing");
+      expect(out.state).toBe("editing");
       expect(out.sourceEvent.origin).toBe("vscode");
     });
 
@@ -669,7 +672,7 @@ describe("classifyEvent", () => {
         { toolName: "edit", hook_event_name: "preToolUse" } as HookInput,
         { readRun: 0 },
       );
-      expect(snake.state).toBe("implementing");
+      expect(snake.state).toBe("editing");
       expect(camel.state).toBe(snake.state);
       expect(snake.sourceEvent.origin).toBe("vscode");
       expect(camel.sourceEvent.origin).toBe("vscode");
@@ -779,7 +782,7 @@ describe("classifyEvent", () => {
         expect(out.sourceEvent.name).toBe("Read");
       });
 
-      it("PreToolUse grep_search → Grep, thinking", () => {
+      it("PreToolUse grep_search → Grep, searching", () => {
         const out = classifyEvent(
           {
             hook_event_name: "PreToolUse",
@@ -788,11 +791,11 @@ describe("classifyEvent", () => {
           } as HookInput,
           { readRun: 0 },
         );
-        expect(out.state).toBe("thinking");
+        expect(out.state).toBe("searching");
         expect(out.sourceEvent.name).toBe("Grep");
       });
 
-      it("PreToolUse create_file → Write, implementing", () => {
+      it("PreToolUse create_file → Write, editing", () => {
         const out = classifyEvent(
           {
             hook_event_name: "PreToolUse",
@@ -801,7 +804,7 @@ describe("classifyEvent", () => {
           } as HookInput,
           { readRun: 0 },
         );
-        expect(out.state).toBe("implementing");
+        expect(out.state).toBe("editing");
         expect(out.sourceEvent.name).toBe("Write");
       });
 
@@ -854,7 +857,7 @@ describe("classifyEvent", () => {
       else process.env.CODOGOTCHI_ORIGIN = prevOrigin;
     });
 
-    it("PreToolUse write_to_file classifies as implementing with antigravity origin", () => {
+    it("PreToolUse write_to_file classifies as editing with antigravity origin", () => {
       const out = classifyEvent(
         {
           toolCall: { name: "write_to_file" },
@@ -862,7 +865,7 @@ describe("classifyEvent", () => {
         } as HookInput,
         { readRun: 0 },
       );
-      expect(out.state).toBe("implementing");
+      expect(out.state).toBe("editing");
       expect(out.sourceEvent.origin).toBe("antigravity");
     });
 
@@ -881,7 +884,7 @@ describe("classifyEvent", () => {
       expect(out.sourceEvent.origin).toBe("antigravity");
     });
 
-    it("PreToolUse run_command with read-only command classifies as thinking", () => {
+    it("PreToolUse run_command with read-only command classifies as searching", () => {
       const out = classifyEvent(
         {
           toolCall: {
@@ -892,7 +895,7 @@ describe("classifyEvent", () => {
         } as HookInput,
         { readRun: 0 },
       );
-      expect(out.state).toBe("thinking");
+      expect(out.state).toBe("searching");
       expect(out.sourceEvent.origin).toBe("antigravity");
     });
 
@@ -1103,7 +1106,7 @@ describe("runHook", () => {
     );
     const state = readState(home);
     expect(state.schema_version).toBe(4); // writer pins to v4 until P10.05 ships the v5 writer
-    expect(state.activity_state).toBe("implementing");
+    expect(state.activity_state).toBe("editing");
     expect(state.hp).toBe(100);
     expect(state.hp_overlay).toBe("thriving");
     expect(state.updated_at).toBe(FIXED_NOW.toISOString());
@@ -1469,7 +1472,7 @@ describe("P7.02 §7 pure classifier", () => {
     ).toBe("thinking");
   });
 
-  it("classifies Bash 'git status' as thinking", () => {
+  it("classifies Bash 'git status' as searching", () => {
     expect(
       classifyEvent(
         {
@@ -1480,7 +1483,7 @@ describe("P7.02 §7 pure classifier", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("thinking");
+    ).toBe("searching");
   });
 
   it("classifies Bash 'pgrep' as thinking", () => {
@@ -1541,7 +1544,7 @@ describe("P7.02 §7 pure classifier", () => {
     ).toBe("testing");
   });
 
-  it("classifies Codex apply_patch as implementing", () => {
+  it("classifies Codex apply_patch as editing", () => {
     expect(
       classifyEvent(
         {
@@ -1551,10 +1554,10 @@ describe("P7.02 §7 pure classifier", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("implementing");
+    ).toBe("editing");
   });
 
-  it("classifies Cursor Grep tool as thinking", () => {
+  it("classifies Cursor Grep tool as searching", () => {
     expect(
       classifyEvent(
         {
@@ -1564,10 +1567,10 @@ describe("P7.02 §7 pure classifier", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("thinking");
+    ).toBe("searching");
   });
 
-  it("classifies Cursor Glob tool as thinking", () => {
+  it("classifies Cursor Glob tool as searching", () => {
     expect(
       classifyEvent(
         {
@@ -1577,28 +1580,28 @@ describe("P7.02 §7 pure classifier", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("thinking");
+    ).toBe("searching");
   });
 
-  it("classifies ToolSearch as reading", () => {
+  it("classifies ToolSearch as web_search", () => {
     expect(
       classifyEvent(
         { origin: "claude_code", kind: "tool_use", name: "ToolSearch" },
         { readRun: 0 },
       ).state,
-    ).toBe("reading");
+    ).toBe("web_search");
   });
 
-  it("classifies Skill as reading", () => {
+  it("classifies Skill as web_search", () => {
     expect(
       classifyEvent(
         { origin: "claude_code", kind: "tool_use", name: "Skill" },
         { readRun: 0 },
       ).state,
-    ).toBe("reading");
+    ).toBe("web_search");
   });
 
-  it("classifies MCP tools (mcp__ prefix) as reading", () => {
+  it("classifies MCP tools (mcp__ prefix) as web_search", () => {
     expect(
       classifyEvent(
         {
@@ -1608,10 +1611,10 @@ describe("P7.02 §7 pure classifier", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("reading");
+    ).toBe("web_search");
   });
 
-  it("classifies compound shell with git status as thinking", () => {
+  it("classifies compound shell with git status as searching", () => {
     expect(
       classifyEvent(
         {
@@ -1623,10 +1626,10 @@ describe("P7.02 §7 pure classifier", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("thinking");
+    ).toBe("searching");
   });
 
-  it("classifies compound shell with rg after cd as thinking", () => {
+  it("classifies compound shell with rg after cd as searching", () => {
     expect(
       classifyEvent(
         {
@@ -1637,15 +1640,15 @@ describe("P7.02 §7 pure classifier", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("thinking");
+    ).toBe("searching");
   });
 
-  it("classifies Codex postToolUse apply_patch (name only) as implementing", () => {
+  it("classifies Codex postToolUse apply_patch (name only) as editing", () => {
     const out = classifyEvent(
       { name: "apply_patch", hook_event_name: "postToolUse" } as HookInput,
       { readRun: 0 },
     );
-    expect(out.state).toBe("implementing");
+    expect(out.state).toBe("editing");
     expect(out.sourceEvent.kind).toBe("tool_use");
     expect(out.sourceEvent.name).toBe("apply_patch");
   });
@@ -1664,7 +1667,7 @@ describe("P7.02 §7 pure classifier", () => {
     ).toBe("testing");
   });
 
-  it("classifies bun run verify:quiet as testing", () => {
+  it("classifies bun run verify:quiet as verifying", () => {
     expect(
       classifyEvent(
         {
@@ -1675,7 +1678,7 @@ describe("P7.02 §7 pure classifier", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("testing");
+    ).toBe("verifying");
   });
 
   it("classifies unknown tool_use as thinking (global fallback)", () => {
@@ -1704,8 +1707,8 @@ describe("P7.02 §7 pure classifier", () => {
         { home, now: FIXED_NOW },
       );
       const state = readState(home);
-      // pure classifier: Edit → implementing; .soa/events.ndjson is never read
-      expect(state.activity_state).toBe("implementing");
+      // pure classifier: Edit → editing; .soa/events.ndjson is never read
+      expect(state.activity_state).toBe("editing");
       expect(state.source_event.origin).toBe("claude_code");
     } finally {
       rmSync(home, { recursive: true, force: true });
@@ -1834,7 +1837,7 @@ describe("waiting_for_input permission hooks", () => {
       } as HookInput,
       { readRun: 0 },
     );
-    expect(out.state).toBe("thinking");
+    expect(out.state).toBe("searching");
     expect(out.sourceEvent.origin).toBe("cursor");
   });
 

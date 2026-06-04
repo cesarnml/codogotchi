@@ -69,6 +69,11 @@ final class CodexPet {
 	static let rowMap: [ActivityState: RowSpec] = [
 		.idle: RowSpec(rowIndex: 0, frameCount: 8),
 		.implementing: RowSpec(rowIndex: 7, frameCount: 6),
+		.editing: RowSpec(rowIndex: 7, frameCount: 6), // TODO: remap when lite sheet ships
+		.searching: RowSpec(rowIndex: 8, frameCount: 4), // TODO: remap when lite sheet ships
+		.webSearch: RowSpec(rowIndex: 8, frameCount: 4), // TODO: remap when lite sheet ships
+		.verifying: RowSpec(rowIndex: 7, frameCount: 6), // TODO: remap when lite sheet ships
+		.gitOps: RowSpec(rowIndex: 7, frameCount: 6), // TODO: remap when lite sheet ships
 		.testing: RowSpec(rowIndex: 7, frameCount: 6),
 		.thinking: RowSpec(rowIndex: 8, frameCount: 4),
 		.standby: RowSpec(rowIndex: 3, frameCount: 8),

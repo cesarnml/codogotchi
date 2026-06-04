@@ -41,6 +41,11 @@ final class CodogotchiPet {
 		.thinking: RowSpec(rowIndex: 4, frameCount: 8),
 		.reading: RowSpec(rowIndex: 5, frameCount: 8),
 		.implementing: RowSpec(rowIndex: 6, frameCount: 8),
+		.editing: RowSpec(rowIndex: 6, frameCount: 8), // TODO: remap when lite sheet ships
+		.searching: RowSpec(rowIndex: 4, frameCount: 8), // TODO: remap when lite sheet ships
+		.webSearch: RowSpec(rowIndex: 4, frameCount: 8), // TODO: remap when lite sheet ships
+		.verifying: RowSpec(rowIndex: 7, frameCount: 8), // TODO: remap when lite sheet ships
+		.gitOps: RowSpec(rowIndex: 6, frameCount: 8), // TODO: remap when lite sheet ships
 		.testing: RowSpec(rowIndex: 7, frameCount: 8),
 		.cramming: RowSpec(rowIndex: 8, frameCount: 8),
 		.errored: RowSpec(rowIndex: 9, frameCount: 8),

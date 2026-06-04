@@ -19,11 +19,16 @@ import Foundation
 final class DemoCycleDriver {
 	typealias StateApply = (ActivityState) -> Void
 
-	/// Canonical demo cycle order — all 19 schema-v4 `ActivityState` cases.
+	/// Canonical demo cycle order — all 24 `ActivityState` cases.
 	/// The demo doubles as a manual visual check that every state renders correctly.
 	static let cycle: [(state: ActivityState, fixtureFilename: String)] = [
 		(.idle, "idle.json"),
 		(.implementing, "implementing.json"),
+		(.editing, "editing.json"),
+		(.searching, "searching.json"),
+		(.webSearch, "web_search.json"),
+		(.verifying, "verifying.json"),
+		(.gitOps, "git_ops.json"),
 		(.testing, "testing.json"),
 		(.thinking, "thinking.json"),
 		(.reading, "reading.json"),

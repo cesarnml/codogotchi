@@ -90,58 +90,64 @@ export type ClassifyResult = {
   command?: string;
 };
 
-const TEST_RUNNER_PREFIXES = [
-  "bun test",
-  "bun run test",
+// "Prove the change" commands: build, format, lint, typecheck, CI gates.
+// Distinct from actual test runners — verifying confirms the build/style contract.
+const VERIFYING_PREFIXES = [
   "bun run format",
   "bun run format:quiet",
   "bun run lint",
   "bun run lint:quiet",
   "bun run typecheck",
-  "npm test",
-  "npm run test",
+  "bun run build",
+  "bun run ci",
+  "bun run ci:quiet",
+  "bun run verify",
+  "bun run verify:quiet",
   "npm run format",
   "npm run lint",
   "npm run typecheck",
-  "pnpm test",
-  "pnpm run test",
+  "npm run build",
+  "npm run ci",
   "pnpm run format",
   "pnpm run lint",
   "pnpm run typecheck",
-  "yarn test",
-  "yarn run test",
+  "pnpm run build",
+  "pnpm run ci",
   "yarn format",
   "yarn run format",
   "yarn lint",
   "yarn run lint",
   "yarn typecheck",
   "yarn run typecheck",
+  "yarn build",
+  "yarn run build",
+  "yarn run ci",
+  "eslint",
+  "prettier",
+  "tsc",
+  "swiftformat",
+];
+
+const TEST_RUNNER_PREFIXES = [
+  "bun test",
+  "bun run test",
+  "bun run mac:test",
+  "npm test",
+  "npm run test",
+  "pnpm test",
+  "pnpm run test",
+  "yarn test",
+  "yarn run test",
   "pytest",
   "cargo test",
   "go test",
   "swift test",
-  "xcodebuild build",
-  "xcodebuild test",
   "vitest",
   "jest",
-  "eslint",
-  "prettier",
-  "tsc",
-  // CI scripts bundle the test suite (plus lint/typecheck) and read as
-  // testing intent, not the generic "implementing" fallback. The word-boundary
-  // match treats `:` as a boundary stop, so `ci:quiet` needs its own entry.
-  "bun run ci",
-  "bun run ci:quiet",
-  "bun run verify",
-  "bun run verify:quiet",
-  "bun run mac:test",
-  "npm run ci",
-  "pnpm run ci",
-  "yarn run ci",
 ];
 
-// Tool-use names that load docs, skills, or MCP reference material (not code edits).
-const READING_TOOL_NAMES = new Set([
+// Tool-use names that fetch external docs, web pages, or skills (not local file reads).
+const WEB_SEARCH_TOOL_NAMES = new Set([
   "ToolSearch",
   "Skill",
   "SemanticSearch",
@@ -149,11 +155,37 @@ const READING_TOOL_NAMES = new Set([
   "WebFetch",
 ]);
 
-// §7 read/search bucket: commands that explore the codebase without writing.
-const THINKING_BASH_PREFIXES = [
+// Codebase exploration: search/query commands that never write.
+const SEARCHING_BASH_PREFIXES = [
   "grep",
   "find",
   "rg",
+  "git log",
+  "git diff",
+  "git status",
+  "git blame",
+  "git show",
+];
+
+// Git write operations: unambiguously state-changing git commands.
+// `git branch` is excluded — it's both a read (list/show) and write (create/delete) command,
+// and the read form (`git branch --show-current`) is common in compound inspection scripts.
+const GIT_OPS_BASH_PREFIXES = [
+  "git commit",
+  "git push",
+  "git merge",
+  "git rebase",
+  "git stash",
+  "git tag",
+  "git pull",
+  "git fetch",
+  "git checkout",
+  "git reset",
+  "git cherry-pick",
+];
+
+// §7 read/inspect bucket: read-only shell commands that are not codebase search.
+const THINKING_BASH_PREFIXES = [
   "ls",
   "cat",
   "head",
@@ -161,9 +193,6 @@ const THINKING_BASH_PREFIXES = [
   "wc",
   "awk",
   "jq",
-  "git log",
-  "git diff",
-  "git status",
   "pgrep",
   "nl",
   "xcodebuild -list",
@@ -476,8 +505,19 @@ function shellCommandSegments(command: string): string[] {
   return segments.length > 0 ? segments : [command.trim()];
 }
 
+function matchesPrefixWithBoundary(
+  prefixes: readonly string[],
+  trimmed: string,
+): boolean {
+  return prefixes.some((prefix) => {
+    if (!trimmed.startsWith(prefix)) return false;
+    const next = trimmed.slice(prefix.length, prefix.length + 1);
+    return next === "" || next === " " || next === "\t";
+  });
+}
+
 function matchesTestRunnerSegment(trimmed: string): boolean {
-  if (matchesXcodebuildVerification(trimmed)) return true;
+  if (matchesXcodebuildTest(trimmed)) return true;
   return TEST_RUNNER_PREFIXES.some((prefix) => {
     if (!trimmed.startsWith(prefix)) return false;
     const next = trimmed.slice(prefix.length, prefix.length + 1);
@@ -491,11 +531,40 @@ function matchesTestRunner(command: string): boolean {
   );
 }
 
-function matchesXcodebuildVerification(trimmed: string): boolean {
+function matchesVerifyingCommand(command: string): boolean {
+  return shellCommandSegments(command).some((segment) => {
+    const trimmed = segment.trimStart();
+    return (
+      matchesXcodebuildBuild(trimmed) ||
+      matchesPrefixWithBoundary(VERIFYING_PREFIXES, trimmed)
+    );
+  });
+}
+
+function matchesSearchingCommand(command: string): boolean {
+  return shellCommandSegments(command).some((segment) =>
+    matchesPrefixWithBoundary(SEARCHING_BASH_PREFIXES, segment.trimStart()),
+  );
+}
+
+function matchesGitOpsCommand(command: string): boolean {
+  return shellCommandSegments(command).some((segment) =>
+    matchesPrefixWithBoundary(GIT_OPS_BASH_PREFIXES, segment.trimStart()),
+  );
+}
+
+function matchesXcodebuildTest(trimmed: string): boolean {
   if (!trimmed.startsWith("xcodebuild")) return false;
   const next = trimmed.slice("xcodebuild".length, "xcodebuild".length + 1);
   if (next !== "" && next !== " " && next !== "\t") return false;
-  return /\b(build|test)\b/.test(trimmed);
+  return /\btest\b/.test(trimmed);
+}
+
+function matchesXcodebuildBuild(trimmed: string): boolean {
+  if (!trimmed.startsWith("xcodebuild")) return false;
+  const next = trimmed.slice("xcodebuild".length, "xcodebuild".length + 1);
+  if (next !== "" && next !== " " && next !== "\t") return false;
+  return /\bbuild\b/.test(trimmed) && !/\btest\b/.test(trimmed);
 }
 
 function matchesSedReadOnly(command: string): boolean {
@@ -523,8 +592,8 @@ function matchesThinkingCommand(command: string): boolean {
   );
 }
 
-function isReadingTool(name: string): boolean {
-  if (READING_TOOL_NAMES.has(name)) return true;
+function isWebSearchTool(name: string): boolean {
+  if (WEB_SEARCH_TOOL_NAMES.has(name)) return true;
   return name.startsWith("mcp__");
 }
 
@@ -645,20 +714,29 @@ export function classifyEvent(
       name === "MultiEdit" ||
       name === "apply_patch"
     ) {
-      return { state: "implementing", sourceEvent, readRun: 0 };
+      return { state: "editing", sourceEvent, readRun: 0 };
     }
     if (name === "Grep" || name === "Glob") {
-      return { state: "thinking", sourceEvent, readRun: 0 };
+      return { state: "searching", sourceEvent, readRun: 0 };
     }
-    if (isReadingTool(name)) {
-      return { state: "reading", sourceEvent, readRun: 0 };
+    if (isWebSearchTool(name)) {
+      return { state: "web_search", sourceEvent, readRun: 0 };
     }
     if (name === "Bash" || name === "Shell") {
       if (command === undefined) {
         return { state: "implementing", sourceEvent, readRun: 0 };
       }
+      if (matchesGitOpsCommand(command)) {
+        return { state: "git_ops", sourceEvent, readRun: 0, command };
+      }
       if (matchesTestRunner(command)) {
         return { state: "testing", sourceEvent, readRun: 0, command };
+      }
+      if (matchesVerifyingCommand(command)) {
+        return { state: "verifying", sourceEvent, readRun: 0, command };
+      }
+      if (matchesSearchingCommand(command)) {
+        return { state: "searching", sourceEvent, readRun: 0, command };
       }
       if (matchesThinkingCommand(command)) {
         return { state: "thinking", sourceEvent, readRun: 0, command };

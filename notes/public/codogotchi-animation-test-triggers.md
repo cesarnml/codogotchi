@@ -18,6 +18,11 @@ Canonical trigger words:
 - `errored`
 - `waiting_for_input`
 - `implementing`
+- `editing`
+- `searching`
+- `web_search`
+- `verifying`
+- `git_ops`
 - `testing`
 - `thinking`
 - `reading`
@@ -38,6 +43,11 @@ Accepted convenience aliases:
 - `error` → `errored`
 - `waiting` → `waiting_for_input`
 - `code`, `coding`, `implement` → `implementing`
+- `edit` → `editing`
+- `search` → `searching`
+- `web` → `web_search`
+- `verify` → `verifying`
+- `git` → `git_ops`
 - `test` → `testing`
 - `think` → `thinking`
 - `read` → `reading`
@@ -94,13 +104,19 @@ Notes:
 1. `idle`
 2. `standby`
 3. `thinking`
-4. `reading`
-5. `implementing`
-6. `testing`
-7. `cramming`
-8. `errored`
-9. `waiting_for_input`
+4. `searching` *(temporarily bucketed to row 4 — same animation as `thinking` until lite sheet ships)*
+5. `web_search` *(temporarily bucketed to row 4 — same animation as `thinking` until lite sheet ships)*
+6. `reading`
+7. `implementing`
+8. `editing` *(temporarily bucketed to row 6 — same animation as `implementing` until lite sheet ships)*
+9. `git_ops` *(temporarily bucketed to row 6 — same animation as `implementing` until lite sheet ships)*
+10. `testing`
+11. `verifying` *(temporarily bucketed to row 7 — same animation as `testing` until lite sheet ships)*
+12. `cramming`
+13. `errored`
+14. `waiting_for_input`
 
-Note:
+Notes:
 
 - Lite rows 1 and 2 (`idle_impatient`, `idle_frustrated`) are time-based idle-escalation variants, not direct `ActivityState` values, so they are not individually triggerable through the current shell helpers.
+- The 5 new states (`editing`, `searching`, `web_search`, `verifying`, `git_ops`) share rows with existing states until the updated lite spritesheet ships. The badge label is correct; only the animation is a visual duplicate.
