@@ -397,14 +397,22 @@ final class FloatingInteractionTests: XCTestCase {
 		)
 	}
 
-	func testResizeAffordanceSelectsJumping() {
-		let interaction = FloatingInteractionPolicy.interaction(
-			forStepDelta: CGSize(width: 12, height: 12),
-			hitTarget: .resizeAffordance
+	func testResizeAffordanceHasNoInteraction() {
+		// Resizing must not animate the pet: dragging the affordance clears any
+		// interaction so the activity-state animation already playing stays put,
+		// regardless of drag direction or the previous interaction.
+		XCTAssertNil(
+			FloatingInteractionPolicy.interaction(
+				forStepDelta: CGSize(width: 12, height: 12),
+				hitTarget: .resizeAffordance
+			)
 		)
-		XCTAssertEqual(
-			interaction, .jumping,
-			"resize affordance must pick the jumping reserved row regardless of drag direction"
+		XCTAssertNil(
+			FloatingInteractionPolicy.interaction(
+				forStepDelta: CGSize(width: 0, height: 8),
+				hitTarget: .resizeAffordance,
+				previous: .jumping
+			)
 		)
 	}
 

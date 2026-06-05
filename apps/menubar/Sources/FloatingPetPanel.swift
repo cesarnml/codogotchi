@@ -1642,7 +1642,9 @@ enum FloatingInteractionPolicy {
 	) -> FloatingInteraction? {
 		switch hitTarget {
 		case .resizeAffordance:
-			return .jumping
+			// Resizing must not animate the pet: clear any interaction so the
+			// activity-state animation that was already playing stays put.
+			return nil
 		case .dragRegion:
 			if delta.width > 0 { return .runningRight }
 			if delta.width < 0 { return .runningLeft }
