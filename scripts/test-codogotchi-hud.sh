@@ -92,14 +92,58 @@ else
 	cp "$STATE" "$STATE_BAK"
 fi
 
-restore() {
+# Atomically rewrite the real state.json as a clean idle frame, preserving real
+# progression (level / hearts / hp) from the pre-run snapshot when available.
+write_idle() {
+	python3 - "$STATE_BAK" "$STATE" <<'PY'
+import json, os, sys
+from datetime import datetime, timezone
+
+bak, state = sys.argv[1], sys.argv[2]
+now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+d = {}
+for src in (bak, state):
+    try:
+        with open(src) as f:
+            d = json.load(f)
+        break
+    except (FileNotFoundError, ValueError):
+        continue
+
+out = {"schema_version": d.get("schema_version", 5), "activity_state": "idle", "active_minutes": 0}
+for k in ("level", "level_fraction", "half_hearts", "hp", "hp_overlay"):
+    if k in d:
+        out[k] = d[k]
+out["updated_at"] = now
+out["last_activity_at"] = now
+out["source_event"] = {"origin": "manual", "kind": "cli", "name": "reset-idle"}
+
+tmp = state + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(out, f, indent=2, sort_keys=True)
+    f.write("\n")
+os.replace(tmp, state)
+PY
+}
+
+# On teardown — normal end, Ctrl-C, or kill — leave the pet at a clean idle
+# resting state instead of a stranded death/revive frame. Cleanup runs exactly
+# once, only from the EXIT trap; INT/TERM convert to a clean exit so it fires
+# reliably. (A bare `trap … INT` would *resume* the `while` loop after Ctrl-C and
+# keep writing dead frames, with the backup already gone — the old footgun.)
+cleanup() {
+	[[ -n "${CLEANED:-}" ]] && return
+	CLEANED=1
 	rm -f "$PIN"
-	cp "$STATE_BAK" "$STATE" 2>/dev/null || true
+	write_idle || true
 	rm -f "$STATE_BAK"
 	echo ""
-	echo "↩ restored your real Codogotchi state (HUD back to hover)."
+	echo "↩ Codogotchi reset to idle (HUD back to hover)."
 }
-trap restore EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 CODOGOTCHI_HOME="$HOME_DIR" nohup "$BIN" >"$RUN_LOG" 2>&1 &
 disown || true

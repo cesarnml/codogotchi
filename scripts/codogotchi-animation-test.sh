@@ -10,6 +10,13 @@ PY
 STATE_PATH="${PREVIEW_ROOT}/state-override.json"
 GATE_PATH="${PREVIEW_ROOT}/gate-override.json"
 
+# `single` intentionally leaves its preview override in place to expire on its
+# own (30s), and a normal `cycle` clears overrides when it finishes. But an
+# interrupted `cycle` (Ctrl-C) would otherwise strand an override for up to its
+# expiry window, freezing the HUD. Clear overrides on interrupt only — never on
+# normal EXIT, so `single`'s deferred-expiry behavior is preserved.
+trap 'rm -f "$STATE_PATH" "$GATE_PATH" 2>/dev/null || true' INT TERM
+
 usage() {
 	cat <<'EOF'
 Usage:

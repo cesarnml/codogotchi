@@ -41,7 +41,6 @@ HOME_DIR="${CODOGOTCHI_HOME:-$HOME/.codogotchi}"
 STATE="$HOME_DIR/state.json"
 GATE="$HOME_DIR/gate.json"
 STATE_BAK="$HOME_DIR/state.tcha-backup.json"
-GATE_BAK="$HOME_DIR/gate.tcha-backup.json"
 # Sentinel the running app watches (0.5s) to force the HUD visible without hover.
 PIN="$HOME_DIR/hud-pin"
 
@@ -54,28 +53,63 @@ if [[ ! -f "$STATE" ]]; then
 	exit 1
 fi
 
-# Snapshot real state + gate so we can put everything back exactly as it was.
+# Snapshot real state so cleanup can carry real progression into the idle frame.
 cp "$STATE" "$STATE_BAK"
-GATE_EXISTED=0
-if [[ -f "$GATE" ]]; then
-	GATE_EXISTED=1
-	cp "$GATE" "$GATE_BAK"
-fi
 
-restore() {
-	rm -f "$PIN"
-	cp "$STATE_BAK" "$STATE" 2>/dev/null || true
-	rm -f "$STATE_BAK"
-	if [[ "$GATE_EXISTED" == "1" ]]; then
-		cp "$GATE_BAK" "$GATE" 2>/dev/null || true
-		rm -f "$GATE_BAK"
-	else
-		rm -f "$GATE"
-	fi
-	echo ""
-	echo "↩ restored your real Codogotchi state (HUD back to hover)."
+# Atomically rewrite the real state.json as a clean idle frame, preserving real
+# progression (level / hearts / hp) from the pre-run snapshot when available.
+write_idle() {
+	python3 - "$STATE_BAK" "$STATE" <<'PY'
+import json, os, sys
+from datetime import datetime, timezone
+
+bak, state = sys.argv[1], sys.argv[2]
+now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+d = {}
+for src in (bak, state):
+    try:
+        with open(src) as f:
+            d = json.load(f)
+        break
+    except (FileNotFoundError, ValueError):
+        continue
+
+out = {"schema_version": d.get("schema_version", 5), "activity_state": "idle", "active_minutes": 0}
+for k in ("level", "level_fraction", "half_hearts", "hp", "hp_overlay"):
+    if k in d:
+        out[k] = d[k]
+out["updated_at"] = now
+out["last_activity_at"] = now
+out["source_event"] = {"origin": "manual", "kind": "cli", "name": "reset-idle"}
+
+tmp = state + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(out, f, indent=2, sort_keys=True)
+    f.write("\n")
+os.replace(tmp, state)
+PY
 }
-trap restore EXIT INT TERM
+
+# On teardown — normal end, Ctrl-C, or kill — leave the pet at a clean idle
+# resting state instead of a stranded demo beat (and never a stale pre-run
+# snapshot, which is how `searching` from another repo once got stuck). Cleanup
+# runs exactly once, only from the EXIT trap; INT/TERM convert to a clean exit so
+# it fires reliably. (A bare `trap … INT` would resume the remaining beats after
+# Ctrl-C, then the final EXIT restore would find its backup already deleted — the
+# old footgun that stranded the last beat.)
+cleanup() {
+	[[ -n "${CLEANED:-}" ]] && return
+	CLEANED=1
+	rm -f "$PIN"
+	write_idle || true
+	rm -f "$STATE_BAK" "$GATE"
+	echo ""
+	echo "↩ Codogotchi reset to idle (HUD back to hover)."
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Pin the HUD visible for the whole run; restore() removes it.
 touch "$PIN"
@@ -168,4 +202,4 @@ beat state errored          0 "$LEVEL_UP"   0.65 cursor       45; sleep "$BEAT" 
 beat gate  ticket_completed 1 "$LEVEL_UP"   0.75 vscode       0;  sleep "$BEAT"   # ← +½ heart heal flash (meter vanishes)
 
 echo "✓ hero arc complete."
-# trap restores real state on EXIT.
+# EXIT trap resets the pet to a clean idle frame.
