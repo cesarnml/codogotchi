@@ -487,9 +487,9 @@ final class FloatingPetControllerTests: XCTestCase {
 		XCTAssertEqual(config.escalation(forElapsed: 100_000), .frustrated)
 	}
 
-	func testIdleEscalationConfigProductionDefaultsAreFiveAndTenMinutes() {
-		XCTAssertEqual(IdleEscalationConfig.production.impatientAfter, 5 * 60, accuracy: 0.001)
-		XCTAssertEqual(IdleEscalationConfig.production.frustratedAfter, 10 * 60, accuracy: 0.001)
+	func testIdleEscalationConfigProductionDefaultsAreTenAndThirtyMinutes() {
+		XCTAssertEqual(IdleEscalationConfig.production.impatientAfter, 10 * 60, accuracy: 0.001)
+		XCTAssertEqual(IdleEscalationConfig.production.frustratedAfter, 30 * 60, accuracy: 0.001)
 	}
 
 	func testIdleEscalationConfigResolvesEnvOverridesInMilliseconds() {

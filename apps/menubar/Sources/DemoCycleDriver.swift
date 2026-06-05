@@ -165,7 +165,9 @@ final class DemoCycleDriver {
 /// `snapshot(at:)` mapping is unit-tested; the timer is a thin driver around it.
 @MainActor
 final class HUDDemoDriver {
-	typealias RPGApply = (_ halfHearts: Int, _ levelFraction: Double, _ level: Int) -> Void
+	typealias RPGApply = (
+		_ halfHearts: Int, _ levelFraction: Double, _ level: Int, _ activeMinutes: Int
+	) -> Void
 
 	static let totalDuration: TimeInterval = 120
 	static let defaultSecondsPerLevel: TimeInterval = 8
@@ -265,6 +267,13 @@ final class HUDDemoDriver {
 			at: elapsed,
 			secondsPerLevel: secondsPerLevel,
 			secondsPerHalfHeartStep: secondsPerHalfHeartStep)
-		apply(snap.halfHearts, snap.levelFraction, snap.level)
+		// Synthesize a revival-meter carry from progress within the current
+		// half-heart step so the meter visibly fills while the demo pet is dead
+		// (halfHearts == 0). Not part of the unit-tested `snapshot` shape.
+		let t = max(0, min(Self.totalDuration, elapsed))
+		let stepProgress =
+			t.truncatingRemainder(dividingBy: secondsPerHalfHeartStep) / secondsPerHalfHeartStep
+		let demoActiveMinutes = Int(stepProgress * Double(ACTIVE_MINUTES_PER_HALF_HEART))
+		apply(snap.halfHearts, snap.levelFraction, snap.level, demoActiveMinutes)
 	}
 }

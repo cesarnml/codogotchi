@@ -31,6 +31,11 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// poller's RPG updates so they do not fight the demo animation.
 	private var hudDemoActive = false
 
+	/// Held strongly so the runtime `hud-pin` sentinel watcher's `Timer` survives.
+	private var hudPinWatchTimer: Timer?
+	/// Last observed `hud-pin` sentinel state, so the HUD is toggled only on change.
+	private var hudPinnedLast = false
+
 	/// Held so `LivePollingDriver` can check sheet availability for gate elevation.
 	var codogotchiPet: CodogotchiPet?
 
@@ -307,7 +312,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			}
 			driver.applyRPGState = {
 				[weak self, weak floatingPetController = self.floatingPetController]
-				halfHearts, levelFraction, level in
+				halfHearts, levelFraction, level, activeMinutes in
 				// While the HUD demo is animating, ignore real RPG updates so the
 				// demo's values are not overwritten on each poll tick.
 				guard self?.hudDemoActive != true else { return }
@@ -316,6 +321,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					halfHearts: halfHearts,
 					levelFraction: levelFraction,
 					level: level,
+					activeMinutes: activeMinutes,
 					hudEnabled: hudEnabled
 				)
 			}
@@ -327,6 +333,30 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		// RPG values for 120s. Independent of `CODOGOTCHI_DEMO`.
 		if ProcessInfo.processInfo.environment["CODOGOTCHI_HUD_DEMO"] == "1" {
 			startHUDDemo()
+		}
+
+		// Runtime HUD pin: while `~/.codogotchi/hud-pin` exists, force the floating
+		// pet + HUD visible regardless of hover — without suppressing live RPG
+		// updates (so a scripted demo like `tcha` keeps driving hearts/level).
+		// Checked on a light 0.5s cadence and toggled only on change.
+		let hudPinPath = config.pollingTarget
+			.deletingLastPathComponent()
+			.appendingPathComponent("hud-pin")
+			.path
+		let applyHUDPin: (Bool) -> Void = { [weak self] pinned in
+			guard let self, pinned != self.hudPinnedLast else { return }
+			self.hudPinnedLast = pinned
+			if pinned {
+				self.floatingPetController?.setFloatingPetVisible(true)
+				self.menuBuilder?.refreshFloatingPetMenuItemTitle()
+			}
+			self.floatingPetController?.setHUDPinned(pinned)
+		}
+		applyHUDPin(FileManager.default.fileExists(atPath: hudPinPath))
+		hudPinWatchTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+			Task { @MainActor in
+				applyHUDPin(FileManager.default.fileExists(atPath: hudPinPath))
+			}
 		}
 
 		// Best-effort hook status refresh: shell out to `codogotchi hooks status --json`
@@ -411,11 +441,12 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			from: ProcessInfo.processInfo.environment
 		)
 		let driver = HUDDemoDriver(
-			apply: { [weak controller] halfHearts, levelFraction, level in
+			apply: { [weak controller] halfHearts, levelFraction, level, activeMinutes in
 				controller?.applyRPGState(
 					halfHearts: halfHearts,
 					levelFraction: levelFraction,
 					level: level,
+					activeMinutes: activeMinutes,
 					hudEnabled: true
 				)
 			},

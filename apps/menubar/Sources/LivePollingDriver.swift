@@ -59,7 +59,7 @@ final class LivePollingDriver {
 	typealias ApplyAttention = (AttentionPayload?, SourceEvent?) -> Void
 	typealias ApplyGateBadge = (GateBadgeContent?) -> Void
 	typealias ApplyPlatform = (String?) -> Void
-	typealias ApplyRPGState = (Int, Double, Int) -> Void
+	typealias ApplyRPGState = (Int, Double, Int, Int) -> Void
 	typealias Reader = (String) -> Result<StateSnapshot, StateReadError>
 	typealias GateReader = (String) -> GateSnapshot?
 	typealias DeliveryContextReaderFn = (String) -> DeliveryContextSnapshot?
@@ -116,7 +116,8 @@ final class LivePollingDriver {
 	private var lastPlatformOrigin: String?
 	private var hasEmittedPlatform = false
 	/// Cached RPG state triple. `nil` means never emitted.
-	private var lastRPGState: (halfHearts: Int, levelFraction: Double, level: Int)? = nil
+	private var lastRPGState:
+		(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int)? = nil
 	/// Agent-reported state from the last successful read. The transition log
 	/// records changes against this value, not against the rendered visual
 	/// state, because failure visuals collapse to `.idle` regardless of what
@@ -224,7 +225,7 @@ final class LivePollingDriver {
 		let attention: AttentionPayload?
 		let sourceEvent: SourceEvent?
 		let gateBadge: GateBadgeContent?
-		let rpgState: (halfHearts: Int, levelFraction: Double, level: Int)?
+		let rpgState: (halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int)?
 
 		static func == (lhs: Outcome, rhs: Outcome) -> Bool {
 			lhs.state == rhs.state
@@ -236,6 +237,7 @@ final class LivePollingDriver {
 				&& lhs.rpgState?.halfHearts == rhs.rpgState?.halfHearts
 				&& lhs.rpgState?.levelFraction == rhs.rpgState?.levelFraction
 				&& lhs.rpgState?.level == rhs.rpgState?.level
+				&& lhs.rpgState?.activeMinutes == rhs.rpgState?.activeMinutes
 		}
 	}
 
@@ -278,7 +280,10 @@ final class LivePollingDriver {
 				attention: snapshot.attention,
 				sourceEvent: snapshot.sourceEvent,
 				gateBadge: gateBadge,
-				rpgState: (displayedHalfHearts, snapshot.levelFraction, snapshot.level)
+				rpgState: (
+					displayedHalfHearts, snapshot.levelFraction, snapshot.level,
+					snapshot.activeMinutes
+				)
 			)
 		case .failure(.fileNotFound):
 			let gateBadge = resolveGateBadgeContent(deliveryContext: deliveryContext, sourceEvent: nil)
@@ -421,9 +426,13 @@ final class LivePollingDriver {
 				return last.halfHearts != rpg.halfHearts
 					|| last.levelFraction != rpg.levelFraction
 					|| last.level != rpg.level
+					// Revival progress: while dead, halfHearts stays 0 but the
+					// active-minute carry climbs each minute. Without this the
+					// regeneration meter would never advance until the pet revived.
+					|| last.activeMinutes != rpg.activeMinutes
 			}()
 			if changed {
-				sink(rpg.halfHearts, rpg.levelFraction, rpg.level)
+				sink(rpg.halfHearts, rpg.levelFraction, rpg.level, rpg.activeMinutes)
 				lastRPGState = rpg
 			}
 		}

@@ -130,6 +130,36 @@ enum RPGHUDLayout {
 		let cy = max(safe.minY, min(safe.maxY - side, y))
 		return CGRect(x: cx, y: cy, width: side, height: side)
 	}
+
+	/// Regeneration-meter geometry: a tall, narrow vertical bar (plus a rotated
+	/// "REGENERATION" label band) placed to the **right of the tombstone**, its
+	/// height matching the tombstone so the two read as a pair. Shown only while
+	/// the pet is dead, it visualizes revival progress (active-minute carry toward
+	/// the first half-heart). Anchored off `tombstoneFrame` so it tracks the same
+	/// scale/anchor mechanics. Clamped on-screen.
+	static func regenMeterFrame(
+		relativeTo petFrame: CGRect,
+		spriteAnchor: CGRect?,
+		visibleFrame: CGRect
+	) -> CGRect {
+		let tomb = tombstoneFrame(
+			relativeTo: petFrame, spriteAnchor: spriteAnchor, visibleFrame: visibleFrame)
+		let m = metrics(for: petFrame)
+		// Track band + gap + rotated-label band. Tuned to read like the mockup's
+		// slim gauge without crowding the tombstone.
+		let trackWidth = max(8, round(m.ringDiameter * 0.34))
+		let labelBand = max(10, round(m.ringDiameter * 0.40))
+		let innerGap = round(m.ringDiameter * 0.12)
+		let width = trackWidth + innerGap + labelBand
+		let height = tomb.height
+		let gap = max(4, round(m.ringDiameter * 0.16))
+		let x = tomb.maxX + gap
+		let y = tomb.minY
+		let safe = visibleFrame.insetBy(dx: 2, dy: 2)
+		let cx = max(safe.minX, min(safe.maxX - width, x))
+		let cy = max(safe.minY, min(safe.maxY - height, y))
+		return CGRect(x: cx, y: cy, width: width, height: height)
+	}
 }
 
 // MARK: - Heart subview
@@ -739,5 +769,161 @@ final class TombstonePanel: NSPanel {
 			relativeTo: petFrame, spriteAnchor: spriteAnchor, visibleFrame: visibleFrame)
 		setFrame(frame, display: true)
 		imageView.frame = NSRect(origin: .zero, size: frame.size)
+	}
+}
+
+// MARK: - Regeneration meter
+
+/// Custom-drawn vertical gauge showing how close a dead pet is to reviving:
+/// a dark segmented track with a green fill from the bottom (= revival progress)
+/// and a rotated "REGENERATION" label. Pure layer drawing — no asset. Driven by
+/// `configure(progress:)` where `progress` is the 0…1 `reviveProgress` fraction.
+final class RegenMeterView: NSView {
+	private let trackContainer = CALayer()
+	private let trackBackground = CALayer()
+	private let fillGradient = CAGradientLayer()
+	private let fillMask = CALayer()
+	private let tickLayer = CAShapeLayer()
+	private let labelLayer = CATextLayer()
+
+	private var progress: Double = 0
+
+	override init(frame: NSRect) {
+		super.init(frame: frame)
+		wantsLayer = true
+		layer?.masksToBounds = false
+
+		// Capsule track that clips the green fill to a rounded bar.
+		trackContainer.masksToBounds = true
+		trackContainer.borderWidth = 1
+		trackContainer.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
+		layer?.addSublayer(trackContainer)
+
+		trackBackground.backgroundColor =
+			NSColor(srgbRed: 0x24 / 255, green: 0x24 / 255, blue: 0x24 / 255, alpha: 0.92).cgColor
+		trackContainer.addSublayer(trackBackground)
+
+		// Bottom-anchored green fill (top = brighter, matching the mockup gauge).
+		fillGradient.colors = [
+			NSColor(srgbRed: 0x8F / 255, green: 0xE0 / 255, blue: 0x4B / 255, alpha: 1).cgColor,
+			NSColor(srgbRed: 0x5F / 255, green: 0xB2 / 255, blue: 0x2E / 255, alpha: 1).cgColor,
+		]
+		fillGradient.startPoint = CGPoint(x: 0.5, y: 1.0)
+		fillGradient.endPoint = CGPoint(x: 0.5, y: 0.0)
+		trackContainer.addSublayer(fillGradient)
+
+		// Segment dividers drawn over the fill for the mockup's notched look.
+		tickLayer.strokeColor = NSColor.black.withAlphaComponent(0.32).cgColor
+		tickLayer.lineWidth = 1
+		trackContainer.addSublayer(tickLayer)
+
+		labelLayer.string = "REGENERATION"
+		labelLayer.alignmentMode = .center
+		labelLayer.truncationMode = .none
+		labelLayer.foregroundColor =
+			NSColor(srgbRed: 0x8A / 255, green: 0x8A / 255, blue: 0x8A / 255, alpha: 1).cgColor
+		labelLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
+		layer?.addSublayer(labelLayer)
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	/// Push a new revival-progress fraction (0…1) and redraw.
+	func configure(progress: Double) {
+		self.progress = max(0, min(1, progress))
+		needsLayout = true
+		relayout()
+	}
+
+	override func layout() {
+		super.layout()
+		relayout()
+	}
+
+	private func relayout() {
+		let h = bounds.height
+		let trackWidth = max(8, round(bounds.width * 0.40))
+		let labelBandX = trackWidth + round(bounds.width * 0.10)
+		let labelBandWidth = max(8, bounds.width - labelBandX)
+		let radius = trackWidth / 2
+
+		CATransaction.begin()
+		CATransaction.setDisableActions(true)
+
+		let track = CGRect(x: 0, y: 0, width: trackWidth, height: h)
+		trackContainer.frame = track
+		trackContainer.cornerRadius = radius
+		trackBackground.frame = trackContainer.bounds
+
+		// Fill grows from the bottom proportional to progress.
+		let fillH = round(h * CGFloat(progress))
+		fillGradient.frame = CGRect(x: 0, y: 0, width: trackWidth, height: fillH)
+		fillGradient.isHidden = fillH <= 0.5
+
+		// Four segments → three internal divider lines.
+		let ticks = CGMutablePath()
+		for i in 1..<4 {
+			let y = round(h * CGFloat(i) / 4)
+			ticks.move(to: CGPoint(x: 0, y: y))
+			ticks.addLine(to: CGPoint(x: trackWidth, y: y))
+		}
+		tickLayer.frame = trackContainer.bounds
+		tickLayer.path = ticks
+
+		// Rotated label: lay out a wide text box, then rotate +90° so it reads
+		// bottom-to-top in the band to the right of the track.
+		let fontSize = max(6, round(labelBandWidth * 0.62))
+		labelLayer.fontSize = fontSize
+		labelLayer.font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+		labelLayer.bounds = CGRect(x: 0, y: 0, width: h, height: labelBandWidth)
+		labelLayer.position = CGPoint(x: labelBandX + labelBandWidth / 2, y: h / 2)
+		labelLayer.transform = CATransform3DMakeRotation(.pi / 2, 0, 0, 1)
+
+		CATransaction.commit()
+	}
+}
+
+/// Persistent floating overlay hosting the `RegenMeterView`, shown to the right
+/// of the tombstone while the pet is dead. Click-through and chrome-free like the
+/// other floating panels; vanishes together with the tombstone on revival.
+@MainActor
+final class RegenMeterPanel: NSPanel {
+	private let meterView = RegenMeterView(frame: .zero)
+
+	init() {
+		super.init(
+			contentRect: .zero,
+			styleMask: [.borderless, .nonactivatingPanel],
+			backing: .buffered,
+			defer: false
+		)
+		backgroundColor = .clear
+		isOpaque = false
+		hasShadow = false
+		level = .floating
+		collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+		hidesOnDeactivate = false
+		isReleasedWhenClosed = false
+		ignoresMouseEvents = true
+		contentView = meterView
+	}
+
+	override var canBecomeKey: Bool { false }
+	override var canBecomeMain: Bool { false }
+
+	/// Reposition beside the tombstone and push the latest revival progress.
+	/// Does not change visibility (caller controls ordering).
+	func reposition(
+		progress: Double,
+		relativeTo petFrame: CGRect,
+		spriteAnchor: CGRect?,
+		visibleFrame: CGRect
+	) {
+		let frame = RPGHUDLayout.regenMeterFrame(
+			relativeTo: petFrame, spriteAnchor: spriteAnchor, visibleFrame: visibleFrame)
+		setFrame(frame, display: true)
+		meterView.frame = NSRect(origin: .zero, size: frame.size)
+		meterView.configure(progress: progress)
 	}
 }

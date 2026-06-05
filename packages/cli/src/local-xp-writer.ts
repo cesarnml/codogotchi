@@ -37,6 +37,10 @@ export type V5Fields = {
   level_fraction: number;
   half_hearts: number;
   last_activity_at: string | null;
+  // Active-minute carry toward the next half-heart (0…59, the post-`%60`
+  // remainder). Surfaced so the renderer can draw revival progress while the
+  // pet is dead: fraction = active_minutes / ACTIVE_MINUTES_PER_HALF_HEART.
+  active_minutes: number;
 };
 
 export function localXpCachePath(home: string): string {
@@ -239,5 +243,8 @@ export async function computeAndPersistV5Fields(
     level_fraction: lp.fraction,
     half_hearts: newHalfHearts,
     last_activity_at: cache.last_activity_at,
+    // Post-`%60` carry: 0 immediately after a half-heart is earned, climbing
+    // toward 60 as active minutes accrue. This is the live revival progress.
+    active_minutes: cache.active_minutes,
   };
 }

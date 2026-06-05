@@ -57,20 +57,20 @@ final class RPGHUDViewModelTests: XCTestCase {
 
 	func testRingFractionPropagates() {
 		let vm = RPGHUDViewModel()
-		vm.update(halfHearts: 6, levelFraction: 0.75, level: 5, hudEnabled: true)
+		vm.update(halfHearts: 6, levelFraction: 0.75, level: 5, activeMinutes: 0, hudEnabled: true)
 		XCTAssertEqual(vm.ringFraction, 0.75, accuracy: 1e-9)
 	}
 
 	func testLevelPropagates() {
 		let vm = RPGHUDViewModel()
-		vm.update(halfHearts: 6, levelFraction: 0.0, level: 7, hudEnabled: true)
+		vm.update(halfHearts: 6, levelFraction: 0.0, level: 7, activeMinutes: 0, hudEnabled: true)
 		XCTAssertEqual(vm.level, 7)
 	}
 
 	/// `hearts` on the view-model should mirror the static helper after update.
 	func testHeartsFieldMirrorsHelper() {
 		let vm = RPGHUDViewModel()
-		vm.update(halfHearts: 3, levelFraction: 0.5, level: 1, hudEnabled: true)
+		vm.update(halfHearts: 3, levelFraction: 0.5, level: 1, activeMinutes: 0, hudEnabled: true)
 		XCTAssertEqual(vm.hearts, RPGHUDViewModel.hearts(from: 3))
 	}
 
@@ -80,7 +80,7 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let vm = RPGHUDViewModel()
 		var flashes: [RPGFlashEvent] = []
 		vm.onFlash = { flashes.append($0) }
-		vm.update(halfHearts: 6, levelFraction: 0.0, level: 1, hudEnabled: true)
+		vm.update(halfHearts: 6, levelFraction: 0.0, level: 1, activeMinutes: 0, hudEnabled: true)
 		XCTAssertTrue(flashes.isEmpty, "first render must not fire any flash")
 	}
 
@@ -88,9 +88,9 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let vm = RPGHUDViewModel()
 		var flashes: [RPGFlashEvent] = []
 		vm.onFlash = { flashes.append($0) }
-		vm.update(halfHearts: 6, levelFraction: 0.0, level: 1, hudEnabled: true) // prime
+		vm.update(halfHearts: 6, levelFraction: 0.0, level: 1, activeMinutes: 0, hudEnabled: true) // prime
 		flashes.removeAll()
-		vm.update(halfHearts: 5, levelFraction: 0.0, level: 1, hudEnabled: true)
+		vm.update(halfHearts: 5, levelFraction: 0.0, level: 1, activeMinutes: 0, hudEnabled: true)
 		XCTAssertTrue(flashes.contains(.heartInjured), "decrease should fire .heartInjured")
 	}
 
@@ -98,9 +98,9 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let vm = RPGHUDViewModel()
 		var flashes: [RPGFlashEvent] = []
 		vm.onFlash = { flashes.append($0) }
-		vm.update(halfHearts: 4, levelFraction: 0.0, level: 1, hudEnabled: true) // prime
+		vm.update(halfHearts: 4, levelFraction: 0.0, level: 1, activeMinutes: 0, hudEnabled: true) // prime
 		flashes.removeAll()
-		vm.update(halfHearts: 5, levelFraction: 0.0, level: 1, hudEnabled: true)
+		vm.update(halfHearts: 5, levelFraction: 0.0, level: 1, activeMinutes: 0, hudEnabled: true)
 		XCTAssertTrue(flashes.contains(.heartHealed), "increase should fire .heartHealed")
 	}
 
@@ -108,9 +108,9 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let vm = RPGHUDViewModel()
 		var flashes: [RPGFlashEvent] = []
 		vm.onFlash = { flashes.append($0) }
-		vm.update(halfHearts: 5, levelFraction: 0.0, level: 1, hudEnabled: true) // prime
+		vm.update(halfHearts: 5, levelFraction: 0.0, level: 1, activeMinutes: 0, hudEnabled: true) // prime
 		flashes.removeAll()
-		vm.update(halfHearts: 5, levelFraction: 0.0, level: 1, hudEnabled: true)
+		vm.update(halfHearts: 5, levelFraction: 0.0, level: 1, activeMinutes: 0, hudEnabled: true)
 		let heartFlashes = flashes.filter { $0 == .heartInjured || $0 == .heartHealed }
 		XCTAssertTrue(heartFlashes.isEmpty, "no flash when halfHearts unchanged")
 	}
@@ -121,9 +121,9 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let vm = RPGHUDViewModel()
 		var flashes: [RPGFlashEvent] = []
 		vm.onFlash = { flashes.append($0) }
-		vm.update(halfHearts: 6, levelFraction: 0.0, level: 1, hudEnabled: true) // prime
+		vm.update(halfHearts: 6, levelFraction: 0.0, level: 1, activeMinutes: 0, hudEnabled: true) // prime
 		flashes.removeAll()
-		vm.update(halfHearts: 6, levelFraction: 0.1, level: 2, hudEnabled: true)
+		vm.update(halfHearts: 6, levelFraction: 0.1, level: 2, activeMinutes: 0, hudEnabled: true)
 		XCTAssertTrue(flashes.contains(.levelUp), "level increase should fire .levelUp")
 	}
 
@@ -131,9 +131,9 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let vm = RPGHUDViewModel()
 		var flashes: [RPGFlashEvent] = []
 		vm.onFlash = { flashes.append($0) }
-		vm.update(halfHearts: 6, levelFraction: 0.0, level: 5, hudEnabled: true) // prime
+		vm.update(halfHearts: 6, levelFraction: 0.0, level: 5, activeMinutes: 0, hudEnabled: true) // prime
 		flashes.removeAll()
-		vm.update(halfHearts: 6, levelFraction: 0.5, level: 5, hudEnabled: true)
+		vm.update(halfHearts: 6, levelFraction: 0.5, level: 5, activeMinutes: 0, hudEnabled: true)
 		XCTAssertFalse(flashes.contains(.levelUp), "no level-up flash when level unchanged")
 	}
 
@@ -142,9 +142,9 @@ final class RPGHUDViewModelTests: XCTestCase {
 			let vm = RPGHUDViewModel()
 			var flashes: [RPGFlashEvent] = []
 			vm.onFlash = { flashes.append($0) }
-			vm.update(halfHearts: 6, levelFraction: 0.0, level: milestone - 1, hudEnabled: true) // prime
+			vm.update(halfHearts: 6, levelFraction: 0.0, level: milestone - 1, activeMinutes: 0, hudEnabled: true) // prime
 			flashes.removeAll()
-			vm.update(halfHearts: 6, levelFraction: 0.0, level: milestone, hudEnabled: true)
+			vm.update(halfHearts: 6, levelFraction: 0.0, level: milestone, activeMinutes: 0, hudEnabled: true)
 			XCTAssertTrue(
 				flashes.contains(.milestoneBurst),
 				"milestone burst expected at level \(milestone)"
@@ -156,9 +156,9 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let vm = RPGHUDViewModel()
 		var flashes: [RPGFlashEvent] = []
 		vm.onFlash = { flashes.append($0) }
-		vm.update(halfHearts: 6, levelFraction: 0.0, level: 4, hudEnabled: true) // prime
+		vm.update(halfHearts: 6, levelFraction: 0.0, level: 4, activeMinutes: 0, hudEnabled: true) // prime
 		flashes.removeAll()
-		vm.update(halfHearts: 6, levelFraction: 0.0, level: 5, hudEnabled: true)
+		vm.update(halfHearts: 6, levelFraction: 0.0, level: 5, activeMinutes: 0, hudEnabled: true)
 		XCTAssertFalse(
 			flashes.contains(.milestoneBurst),
 			"no milestone burst at non-milestone level 5"
@@ -169,9 +169,9 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let vm = RPGHUDViewModel()
 		var flashes: [RPGFlashEvent] = []
 		vm.onFlash = { flashes.append($0) }
-		vm.update(halfHearts: 6, levelFraction: 0.0, level: 9, hudEnabled: true) // prime
+		vm.update(halfHearts: 6, levelFraction: 0.0, level: 9, activeMinutes: 0, hudEnabled: true) // prime
 		flashes.removeAll()
-		vm.update(halfHearts: 6, levelFraction: 0.0, level: 10, hudEnabled: true)
+		vm.update(halfHearts: 6, levelFraction: 0.0, level: 10, activeMinutes: 0, hudEnabled: true)
 		XCTAssertTrue(flashes.contains(.levelUp), "milestone level should also fire .levelUp")
 		XCTAssertTrue(flashes.contains(.milestoneBurst), "milestone level should fire .milestoneBurst")
 	}
@@ -180,19 +180,19 @@ final class RPGHUDViewModelTests: XCTestCase {
 
 	func testHUDEnabledWhenFlagTrue() {
 		let vm = RPGHUDViewModel()
-		vm.update(halfHearts: 6, levelFraction: 0.5, level: 1, hudEnabled: true)
+		vm.update(halfHearts: 6, levelFraction: 0.5, level: 1, activeMinutes: 0, hudEnabled: true)
 		XCTAssertTrue(vm.isHUDEnabled)
 	}
 
 	func testHUDDisabledWhenFlagFalse() {
 		let vm = RPGHUDViewModel()
-		vm.update(halfHearts: 6, levelFraction: 0.5, level: 1, hudEnabled: false)
+		vm.update(halfHearts: 6, levelFraction: 0.5, level: 1, activeMinutes: 0, hudEnabled: false)
 		XCTAssertFalse(vm.isHUDEnabled, "rpg_hud_enabled=false must set isHUDEnabled=false")
 	}
 
 	func testHUDOptOutSuppressesEvenWhenOtherFieldsValid() {
 		let vm = RPGHUDViewModel()
-		vm.update(halfHearts: 6, levelFraction: 0.99, level: 50, hudEnabled: false)
+		vm.update(halfHearts: 6, levelFraction: 0.99, level: 50, activeMinutes: 0, hudEnabled: false)
 		XCTAssertFalse(vm.isHUDEnabled, "opt-out suppresses HUD regardless of other values")
 	}
 
@@ -203,7 +203,7 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let vm = RPGHUDViewModel()
 		var flashes: [RPGFlashEvent] = []
 		vm.onFlash = { flashes.append($0) }
-		vm.update(halfHearts: 3, levelFraction: 0.5, level: 7, hudEnabled: true)
+		vm.update(halfHearts: 3, levelFraction: 0.5, level: 7, activeMinutes: 0, hudEnabled: true)
 		flashes.removeAll()
 
 		vm.setHUDEnabled(false)
@@ -223,9 +223,9 @@ final class RPGHUDViewModelTests: XCTestCase {
 	func testIsDeadOnlyWhenAllHeartsEmpty() {
 		let vm = RPGHUDViewModel()
 		XCTAssertFalse(vm.isDead, "no snapshot yet → not dead")
-		vm.update(halfHearts: 1, levelFraction: 0, level: 1, hudEnabled: true)
+		vm.update(halfHearts: 1, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
 		XCTAssertFalse(vm.isDead, "a half-heart remains → alive")
-		vm.update(halfHearts: 0, levelFraction: 0, level: 1, hudEnabled: true)
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
 		XCTAssertTrue(vm.isDead, "0 half-hearts → dead")
 	}
 
@@ -234,7 +234,7 @@ final class RPGHUDViewModelTests: XCTestCase {
 	/// return when the HUD is re-enabled.
 	func testShowsDeathPresentationGatedByHUDEnabled() {
 		let vm = RPGHUDViewModel()
-		vm.update(halfHearts: 0, levelFraction: 0, level: 1, hudEnabled: true)
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
 		XCTAssertTrue(vm.showsDeathPresentation, "dead + HUD enabled → death visuals show")
 
 		// Live toggle off → death visuals suppressed though still dead.
@@ -247,14 +247,50 @@ final class RPGHUDViewModelTests: XCTestCase {
 		XCTAssertTrue(vm.showsDeathPresentation)
 
 		// A poll arriving with the HUD opted out also suppresses death visuals.
-		vm.update(halfHearts: 0, levelFraction: 0, level: 1, hudEnabled: false)
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: false)
 		XCTAssertFalse(vm.showsDeathPresentation)
 	}
 
 	func testShowsDeathPresentationFalseWhenAlive() {
 		let vm = RPGHUDViewModel()
-		vm.update(halfHearts: 4, levelFraction: 0.2, level: 3, hudEnabled: true)
+		vm.update(halfHearts: 4, levelFraction: 0.2, level: 3, activeMinutes: 0, hudEnabled: true)
 		XCTAssertFalse(vm.showsDeathPresentation)
+	}
+
+	// MARK: - Revival meter
+
+	/// While dead, the meter fraction tracks active-minute carry toward the first
+	/// half-heart: 0/60 → 0.0, 30/60 → 0.5, and it clamps at 60/60 → 1.0.
+	func testReviveProgressTracksActiveMinutes() {
+		let vm = RPGHUDViewModel()
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
+		XCTAssertEqual(vm.reviveProgress, 0.0, accuracy: 1e-9)
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 30, hudEnabled: true)
+		XCTAssertEqual(vm.reviveProgress, 0.5, accuracy: 1e-9)
+		// Carry should never exceed a full block, but clamp defensively anyway.
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 90, hudEnabled: true)
+		XCTAssertEqual(vm.reviveProgress, 1.0, accuracy: 1e-9)
+	}
+
+	/// The meter shows under exactly the death-presentation condition (dead + HUD
+	/// enabled) and vanishes the instant a half-heart returns — the revival event.
+	func testShowsReviveMeterMatchesDeathAndVanishesOnRevival() {
+		let vm = RPGHUDViewModel()
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 45, hudEnabled: true)
+		XCTAssertTrue(vm.showsReviveMeter, "dead + HUD enabled → meter shows")
+
+		// Earning the first half-heart revives the pet → meter (and tombstone) go.
+		vm.update(halfHearts: 1, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
+		XCTAssertFalse(vm.isDead)
+		XCTAssertFalse(vm.showsReviveMeter, "revived → meter vanishes")
+	}
+
+	/// The meter belongs to the HUD: opting the HUD out hides it even mid-death.
+	func testShowsReviveMeterGatedByHUDEnabled() {
+		let vm = RPGHUDViewModel()
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 20, hudEnabled: false)
+		XCTAssertTrue(vm.isDead)
+		XCTAssertFalse(vm.showsReviveMeter, "HUD off → no meter even while dead")
 	}
 
 	// MARK: - Layout: opaque-bounds anchoring
@@ -290,7 +326,7 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let frame = RPGHUDLayout.frame(
 			hudSize: size, metrics: m, relativeTo: petFrame, spriteAnchor: anchor,
 			visibleFrame: Self.roomyVisibleFrame)
-		let gap = (anchor.width * RPGHUDLayout.gapFraction).rounded()
+		let gap = (anchor.width * RPGHUDLayout.hudGapFraction).rounded()
 		let contentRight = frame.minX + m.glowPad + m.contentWidth
 		XCTAssertEqual(contentRight, anchor.minX - gap, accuracy: 0.5)
 	}
@@ -319,7 +355,7 @@ final class RPGHUDViewModelTests: XCTestCase {
 		let anchor = CGRect(x: 1180, y: 820, width: 150, height: 260)
 		let tomb = RPGHUDLayout.tombstoneFrame(
 			relativeTo: petFrame, spriteAnchor: anchor, visibleFrame: Self.roomyVisibleFrame)
-		let gap = (anchor.width * RPGHUDLayout.gapFraction).rounded()
+		let gap = (anchor.width * RPGHUDLayout.tombstoneGapFraction).rounded()
 		XCTAssertEqual(tomb.minX, anchor.maxX + gap, accuracy: 0.5)
 		XCTAssertEqual(tomb.width, m.ringDiameter * 2, accuracy: 0.5)
 		XCTAssertEqual(tomb.height, m.ringDiameter * 2, accuracy: 0.5)

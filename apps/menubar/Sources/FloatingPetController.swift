@@ -16,9 +16,10 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
 	func applyPlatform(origin: String?)
-	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool)
+	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool)
 	func setRPGHUDEnabled(_ enabled: Bool)
 	func setHUDDemoActive(_ active: Bool)
+	func setHUDPinned(_ pinned: Bool)
 	func setInteraction(_ interaction: FloatingInteraction?)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 }
@@ -27,9 +28,10 @@ extension FloatingPetPanelManaging {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 	func applyGateBadge(content: GateBadgeContent?) {}
 	func applyPlatform(origin: String?) {}
-	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool) {}
+	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {}
 	func setRPGHUDEnabled(_ enabled: Bool) {}
 	func setHUDDemoActive(_ active: Bool) {}
+	func setHUDPinned(_ pinned: Bool) {}
 }
 
 @MainActor
@@ -121,11 +123,12 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 		panel.applyPlatform(origin: origin)
 	}
 
-	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool) {
+	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {
 		panel.applyRPGState(
 			halfHearts: halfHearts,
 			levelFraction: levelFraction,
 			level: level,
+			activeMinutes: activeMinutes,
 			hudEnabled: hudEnabled
 		)
 	}
@@ -136,6 +139,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
 
 	func setHUDDemoActive(_ active: Bool) {
 		panel.setHUDDemoActive(active)
+	}
+
+	func setHUDPinned(_ pinned: Bool) {
+		panel.setHUDPinned(pinned)
 	}
 
 	func persistFrameChange(_ frame: CGRect) {

@@ -80,6 +80,7 @@ enum StateJsonReader {
 				level: payload.level ?? 1,
 				levelFraction: payload.levelFraction ?? 0.0,
 				halfHearts: payload.halfHearts ?? MAX_HALF_HEARTS,
+				activeMinutes: payload.activeMinutes ?? 0,
 				// `?? nil` coerces String?? → String?: maps both absent key (.none outer)
 				// and explicit JSON null (.some(.none) inner) to nil. Do not remove.
 				lastActivityAt: payload.lastActivityAt ?? nil
@@ -95,6 +96,7 @@ enum StateJsonReader {
 					level: raw.level,
 					levelFraction: raw.levelFraction,
 					halfHearts: raw.halfHearts,
+					activeMinutes: raw.activeMinutes,
 					lastActivityAt: raw.lastActivityAt
 				)
 			)
@@ -151,6 +153,9 @@ private struct StatePayload: Decodable {
 	let level: Int?
 	let levelFraction: Double?
 	let halfHearts: Int?
+	/// Active-minute carry toward the next half-heart (0…59). Absent for ≤v4
+	/// payloads and older v5 writers; the reader fills 0 when missing.
+	let activeMinutes: Int?
 	/// Decoded as `String?` to preserve the raw ISO 8601 value; null from the
 	/// writer decodes as nil. Wall-clock elapsed is computed in
 	/// `HalfHeartDecayEngine` using `Date` after parsing.

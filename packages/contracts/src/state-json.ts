@@ -56,6 +56,10 @@ export const stateJsonV1Schema = z
     level: z.number().int().min(1).max(100).optional(),
     level_fraction: z.number().min(0).max(1).optional(),
     half_hearts: z.number().int().min(0).max(6).optional(),
+    // Active-minute carry toward the next half-heart (0…59). Drives the
+    // revival progress meter shown while the pet is dead. Optional/additive —
+    // older writers and ≤v4 payloads omit it; renderers treat absence as 0.
+    active_minutes: z.number().int().min(0).optional(),
     last_activity_at: z
       .string()
       .datetime({ offset: true })

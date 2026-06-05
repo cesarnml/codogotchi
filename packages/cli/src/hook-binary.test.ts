@@ -1935,6 +1935,9 @@ describe("runHook v5 local RPG fields", () => {
     expect(state.level_fraction).toBeCloseTo(EXPECTED_LEVEL_FRACTION, 6);
     expect(state.half_hearts).toBe(6);
     expect(state.last_activity_at).toBe(FIXED_NOW.toISOString());
+    // Revival-meter source: the active-minute carry is surfaced into state.json
+    // so the renderer can draw revival progress. One event → 1 active-minute.
+    expect(state.active_minutes).toBe(1);
   });
 
   it("second identical run does not increase XP (no double count)", async () => {

@@ -21,6 +21,11 @@ enum RPGFlashEvent: Equatable {
 /// regular level-up flash). Persisted to `RPGHUDViewModel` as a constant.
 let RPG_MILESTONE_LEVELS: Set<Int> = [10, 25, 50, 75, 100]
 
+/// Active coding minutes needed to earn one half-heart. Mirrors contracts
+/// `ACTIVE_MINUTES_PER_HALF_HEART = 60`. Drives the revival meter denominator:
+/// reviving a dead pet (0 → 1 half-heart) is exactly one full block of these.
+let ACTIVE_MINUTES_PER_HALF_HEART: Int = 60
+
 /// View-model that converts raw `StateSnapshot` RPG fields into display-ready
 /// values and emits delta-driven flash events. All logic is pure/deterministic
 /// and lives here so the view renders dumbly. Tests drive this in isolation.
@@ -33,6 +38,10 @@ final class RPGHUDViewModel {
 	private(set) var level: Int = 1
 	private(set) var isHUDEnabled: Bool = true
 
+	/// Active-minute carry toward the next half-heart (0…59) from the latest
+	/// snapshot. While dead this is the raw progress toward revival.
+	private(set) var activeMinutes: Int = 0
+
 	/// The pet is dead when every heart slot is empty (0 half-hearts). False
 	/// before the first snapshot (no hearts yet) so death visuals never flash on.
 	var isDead: Bool { !hearts.isEmpty && hearts.allSatisfy { $0 == .empty } }
@@ -41,6 +50,20 @@ final class RPGHUDViewModel {
 	/// tombstone is part of the RPG HUD — alongside the hearts, XP ring, and level
 	/// label — so it (and the grayscale) only appear while the HUD is enabled.
 	var showsDeathPresentation: Bool { isDead && isHUDEnabled }
+
+	/// Revival progress as a 0.0…1.0 fraction: how close the dead pet is to
+	/// earning its first half-heart back. `activeMinutes / 60`, clamped. Only
+	/// meaningful while dead — the meter consumer gates on `showsReviveMeter`.
+	var reviveProgress: Double {
+		let raw = Double(activeMinutes) / Double(ACTIVE_MINUTES_PER_HALF_HEART)
+		return min(1.0, max(0.0, raw))
+	}
+
+	/// Whether the regeneration meter should show. It lives alongside the
+	/// tombstone, so it appears under exactly the same condition — while the pet
+	/// is dead and the HUD is enabled — and vanishes the instant the pet revives
+	/// (regains a half-heart → `isDead` flips false).
+	var showsReviveMeter: Bool { showsDeathPresentation }
 
 	/// Called (on the caller's thread) whenever a flash event fires.
 	/// No event fires on the *first* call to `update` — deltas require a prior state.
@@ -54,14 +77,22 @@ final class RPGHUDViewModel {
 	///   - halfHearts: 0…6 raw half-heart count from state.json
 	///   - levelFraction: 0.0…1.0 XP ring fill from state.json
 	///   - level: 1…100 level number from state.json
+	///   - activeMinutes: 0…59 active-minute carry toward the next half-heart
 	///   - hudEnabled: `false` suppresses all HUD chrome regardless of hover
-	func update(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool) {
+	func update(
+		halfHearts: Int,
+		levelFraction: Double,
+		level: Int,
+		activeMinutes: Int,
+		hudEnabled: Bool
+	) {
 		let prevHalfHearts = previousHalfHearts
 		let prevLevel = previousLevel
 
 		self.hearts = Self.hearts(from: halfHearts)
 		self.ringFraction = levelFraction
 		self.level = level
+		self.activeMinutes = activeMinutes
 		self.isHUDEnabled = hudEnabled
 
 		previousHalfHearts = halfHearts

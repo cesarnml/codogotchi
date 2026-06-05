@@ -174,6 +174,10 @@ struct StateSnapshot: Equatable {
 	let level: Int
 	let levelFraction: Double
 	let halfHearts: Int
+	/// Active-minute carry toward the next half-heart (0…59). Drives the revival
+	/// progress meter shown while the pet is dead: fraction = activeMinutes / 60.
+	/// Absent for ≤v4 payloads and older v5 writers — defaults to 0.
+	let activeMinutes: Int
 	/// ISO 8601 datetime string or nil. Nil means no activity recorded yet
 	/// (fresh install / null from writer) — the decay engine treats nil as "no decay".
 	let lastActivityAt: String?
@@ -188,6 +192,7 @@ struct StateSnapshot: Equatable {
 		level: Int = 1,
 		levelFraction: Double = 0.0,
 		halfHearts: Int = 6,
+		activeMinutes: Int = 0,
 		lastActivityAt: String? = nil
 	) {
 		self.schemaVersion = schemaVersion
@@ -199,6 +204,7 @@ struct StateSnapshot: Equatable {
 		self.level = level
 		self.levelFraction = levelFraction
 		self.halfHearts = halfHearts
+		self.activeMinutes = activeMinutes
 		self.lastActivityAt = lastActivityAt
 	}
 }

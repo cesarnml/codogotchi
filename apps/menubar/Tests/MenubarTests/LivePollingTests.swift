@@ -52,7 +52,7 @@ final class LivePollingTests: XCTestCase {
 		var tooltips: [String?] = []
 		var gateBadges: [GateBadgeContent?] = []
 		var platforms: [String?] = []
-		var rpgStates: [(halfHearts: Int, levelFraction: Double, level: Int)] = []
+		var rpgStates: [(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int)] = []
 	}
 
 	private func makeDriver(
@@ -78,7 +78,7 @@ final class LivePollingTests: XCTestCase {
 		)
 		driver.applyGateBadge = { recorder.gateBadges.append($0) }
 		driver.applyPlatform = { recorder.platforms.append($0) }
-		driver.applyRPGState = { recorder.rpgStates.append(($0, $1, $2)) }
+		driver.applyRPGState = { recorder.rpgStates.append(($0, $1, $2, $3)) }
 		return driver
 	}
 

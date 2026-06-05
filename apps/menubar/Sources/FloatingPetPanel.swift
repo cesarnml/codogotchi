@@ -51,6 +51,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	// when at least a half-heart returns *or* the HUD is disabled. The active
 	// decision lives in `rpgHUDViewModel.showsDeathPresentation`.
 	private var tombstonePanel: TombstonePanel?
+	/// Regeneration meter shown beside the tombstone while dead, visualizing how
+	/// close the pet is to reviving (active-minute carry toward the first
+	/// half-heart). Shares the tombstone's lifecycle via `showsReviveMeter`.
+	private var regenMeterPanel: RegenMeterPanel?
 	/// Pending auto-hide for a transient (non-hover) reveal.
 	private var hudAutoHideWork: DispatchWorkItem?
 	/// Set by the view-model's flash callback during `update`, signalling that
@@ -60,6 +64,13 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private static let hudTransientSeconds: TimeInterval = 4.0
 	/// When true (HUD demo), the HUD is pinned visible regardless of hover.
 	private var hudDemoActive = false
+	/// When true (runtime `hud-pin` sentinel), the HUD stays visible regardless of
+	/// hover. Unlike `hudDemoActive` this does NOT suppress live RPG updates, so a
+	/// scripted demo (e.g. `tcha`) can keep feeding hearts/level while the HUD is
+	/// forced on.
+	private var hudPinned = false
+	/// HUD forced visible (sweep demo or runtime pin) regardless of hover.
+	private var hudForcedVisible: Bool { hudDemoActive || hudPinned }
 
 	init(
 		codexPet: CodexPet,
@@ -136,6 +147,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		gateBadgePanel?.orderOut(nil)
 		animationBadgePanel?.orderOut(nil)
 		tombstonePanel?.orderOut(nil)
+		regenMeterPanel?.orderOut(nil)
 		cancelHUDAutoHide()
 		cancelHUDHoverMonitor()
 		rpgHUDPanel?.hideImmediately()
@@ -199,7 +211,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		repositionAndShowAnimationBadge()
 	}
 
-	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, hudEnabled: Bool) {
+	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {
 		rpgHUDViewModel.onFlash = { [weak self] event in
 			guard let self else { return }
 			self.hudFlashPending = true
@@ -213,6 +225,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			halfHearts: halfHearts,
 			levelFraction: levelFraction,
 			level: level,
+			activeMinutes: activeMinutes,
 			hudEnabled: hudEnabled
 		)
 		updateDeathPresentation()
@@ -223,7 +236,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			rpgHUDPanel?.hideImmediately()
 			return
 		}
-		if isHoveringPet || hudDemoActive {
+		if isHoveringPet || hudForcedVisible {
 			showHUDForHover()
 		} else if hudFlashPending {
 			revealHUDTransiently()
@@ -246,14 +259,26 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			rpgHUDPanel?.hideImmediately()
 			return
 		}
-		if isHoveringPet || hudDemoActive {
+		if isHoveringPet || hudForcedVisible {
 			showHUDForHover()
 		}
 	}
 
 	func setHUDDemoActive(_ active: Bool) {
 		hudDemoActive = active
-		if active {
+		refreshForcedHUDVisibility()
+	}
+
+	func setHUDPinned(_ pinned: Bool) {
+		hudPinned = pinned
+		refreshForcedHUDVisibility()
+	}
+
+	/// Reconcile the HUD's pinned/demo "always visible" intent with the panel.
+	/// Shows the HUD when either force is active; otherwise lets a non-hovered
+	/// HUD fade back to the normal hover-driven behavior.
+	private func refreshForcedHUDVisibility() {
+		if hudForcedVisible {
 			showHUDForHover()
 		} else if !isHoveringPet {
 			cancelHUDAutoHide()
@@ -302,6 +327,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		scene?.setDead(active)
 		guard isPanelShown, active else {
 			tombstonePanel?.orderOut(nil)
+			regenMeterPanel?.orderOut(nil)
 			return
 		}
 		let tomb = tombstonePanel ?? {
@@ -315,6 +341,20 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			visibleFrame: visibleFrameProvider()
 		)
 		tomb.orderFrontRegardless()
+
+		// Revival meter rides alongside the tombstone, gated on the same flag.
+		let meter = regenMeterPanel ?? {
+			let p = RegenMeterPanel()
+			regenMeterPanel = p
+			return p
+		}()
+		meter.reposition(
+			progress: rpgHUDViewModel.reviveProgress,
+			relativeTo: lastPanelFrame,
+			spriteAnchor: currentSpriteAnchorGlobal(),
+			visibleFrame: visibleFrameProvider()
+		)
+		meter.orderFrontRegardless()
 	}
 
 	/// Lazily create the HUD panel and push the latest state + position into it.
@@ -528,6 +568,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		// The tombstone is persistent while dead — keep it glued to the pet too.
 		if rpgHUDViewModel.showsDeathPresentation {
 			tombstonePanel?.reposition(
+				relativeTo: lastPanelFrame,
+				spriteAnchor: currentSpriteAnchorGlobal(),
+				visibleFrame: visibleFrameProvider()
+			)
+			regenMeterPanel?.reposition(
+				progress: rpgHUDViewModel.reviveProgress,
 				relativeTo: lastPanelFrame,
 				spriteAnchor: currentSpriteAnchorGlobal(),
 				visibleFrame: visibleFrameProvider()

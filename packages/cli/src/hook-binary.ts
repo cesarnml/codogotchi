@@ -1028,6 +1028,7 @@ export async function runHook(
           level: v5.level,
           level_fraction: v5.level_fraction,
           half_hearts: v5.half_hearts,
+          active_minutes: v5.active_minutes,
           last_activity_at: v5.last_activity_at,
           ...(attention !== undefined && { attention }),
           ...(toolCommand !== undefined && { tool_command: toolCommand }),
