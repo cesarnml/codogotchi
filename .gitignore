@@ -258,3 +258,6 @@ output
 .cursor
 generated_assets/**/*
 builds
+
+# Local WakaTime API response dumps (debug artifacts)
+wakatime-*.json
