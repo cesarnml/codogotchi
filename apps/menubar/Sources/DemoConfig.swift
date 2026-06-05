@@ -87,6 +87,12 @@ struct DemoConfig: Equatable {
 		return value
 	}
 
+	/// Whether the HUD demo should pin hearts at full and show only the level/XP
+	/// sweep (the `tcl` leveling demo). Enabled by `CODOGOTCHI_HUD_DEMO_HEARTS_FULL=1`.
+	static func hudDemoHeartsFull(from environment: [String: String]) -> Bool {
+		environment["CODOGOTCHI_HUD_DEMO_HEARTS_FULL"] == "1"
+	}
+
 	/// Production seam: reads `ProcessInfo` at launch time.
 	static func forLaunch() -> DemoConfig {
 		let env = ProcessInfo.processInfo.environment

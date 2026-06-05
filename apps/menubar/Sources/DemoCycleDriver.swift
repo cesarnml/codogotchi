@@ -205,6 +205,7 @@ final class HUDDemoDriver {
 	private let onComplete: () -> Void
 	private let secondsPerLevel: TimeInterval
 	private let secondsPerHalfHeartStep: TimeInterval
+	private let heartsFull: Bool
 	private let tickInterval: TimeInterval
 	private let clock: () -> Date
 	private var startedAt: Date?
@@ -214,11 +215,16 @@ final class HUDDemoDriver {
 	///   - secondsPerLevel: how long each level takes (default 8s).
 	///   - secondsPerHalfHeartStep: half-heart cadence; when `nil` it is derived
 	///     from `secondsPerLevel` to preserve the default 5:8 heart:level ratio.
+	///   - heartsFull: when true, hearts stay pinned at full (the heart triangle
+	///     wave is suppressed) so the demo shows only the level/XP-ring sweep —
+	///     the "leveling" demo (`tcl`). The pure `snapshot` math is untouched; the
+	///     override is applied at emit time.
 	init(
 		apply: @escaping RPGApply,
 		onComplete: @escaping () -> Void = {},
 		secondsPerLevel: TimeInterval = defaultSecondsPerLevel,
 		secondsPerHalfHeartStep: TimeInterval? = nil,
+		heartsFull: Bool = false,
 		tickInterval: TimeInterval = 0.05,
 		clock: @escaping () -> Date = Date.init
 	) {
@@ -227,6 +233,7 @@ final class HUDDemoDriver {
 		self.secondsPerLevel = secondsPerLevel
 		self.secondsPerHalfHeartStep =
 			secondsPerHalfHeartStep ?? Self.halfHeartStep(forSecondsPerLevel: secondsPerLevel)
+		self.heartsFull = heartsFull
 		self.tickInterval = tickInterval
 		self.clock = clock
 	}
@@ -274,6 +281,10 @@ final class HUDDemoDriver {
 		let stepProgress =
 			t.truncatingRemainder(dividingBy: secondsPerHalfHeartStep) / secondsPerHalfHeartStep
 		let demoActiveMinutes = Int(stepProgress * Double(ACTIVE_MINUTES_PER_HALF_HEART))
-		apply(snap.halfHearts, snap.levelFraction, snap.level, demoActiveMinutes)
+		// `heartsFull` pins hearts at max so only the level/XP-ring sweep shows
+		// (the leveling demo). Full hearts → not dead → revive meter stays hidden.
+		let hearts = heartsFull ? Self.maxHalfHearts : snap.halfHearts
+		let active = heartsFull ? 0 : demoActiveMinutes
+		apply(hearts, snap.levelFraction, snap.level, active)
 	}
 }

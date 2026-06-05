@@ -440,6 +440,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		let levelSeconds = DemoConfig.hudDemoLevelSeconds(
 			from: ProcessInfo.processInfo.environment
 		)
+		let heartsFull = DemoConfig.hudDemoHeartsFull(
+			from: ProcessInfo.processInfo.environment
+		)
 		let driver = HUDDemoDriver(
 			apply: { [weak controller] halfHearts, levelFraction, level, activeMinutes in
 				controller?.applyRPGState(
@@ -455,7 +458,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				self?.hudDemoActive = false
 				self?.hudDemoDriver = nil
 			},
-			secondsPerLevel: levelSeconds
+			secondsPerLevel: levelSeconds,
+			heartsFull: heartsFull
 		)
 		driver.start()
 		self.hudDemoDriver = driver
