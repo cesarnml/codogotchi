@@ -173,18 +173,53 @@ final class FloatingPetScene: SKScene {
 		}
 	}
 
-	/// Force grayscale rendering when the pet is dead (0 hearts), independent of
-	/// the activity-state `VisualMode`. Repaints immediately on change.
+	/// Lock the pet to the dead animation when it hits 0 hearts: force grayscale
+	/// (independent of the activity-state `VisualMode`) and freeze the sprite on
+	/// the dead row. While dead the scene ignores activity-state frame swaps, mouse
+	/// interactions, and idle escalation — dead means dead until revived. Reviving
+	/// resumes the current activity-state animation.
 	func setDead(_ dead: Bool) {
 		guard dead != isDead else { return }
 		isDead = dead
-		paintCurrentFrame()
+		if dead {
+			// Drop any in-flight mouse interaction and idle escalation, then lock to
+			// the dead row. Activity-state changes still reach the badge (panel-owned)
+			// but never touch the sprite or the idle clock until revival.
+			currentInteraction = nil
+			if currentEscalation != .none {
+				currentEscalation = .none
+				onIdleEscalationChange?(.none)
+			}
+			let resolved = resolveDeadFrames()
+			currentFrames = resolved.frames
+			currentSource = resolved.source
+			frameIndex = 0
+			paintCurrentFrame()
+			restartTimer()
+		} else {
+			// Revived: resume the live activity-state animation, re-arming the idle
+			// clock when returning to a resting idle.
+			idleSince = (currentState == .idle) ? clock() : nil
+			let resolved = currentFramesForState()
+			currentFrames = resolved.frames
+			currentSource = resolved.source
+			frameIndex = 0
+			paintCurrentFrame()
+			restartTimer()
+		}
 	}
 
 	func update(state: ActivityState, visualMode: VisualMode) {
 		let stateChanged = state != currentState || currentFrames.isEmpty
 		currentState = state
 		currentMode = visualMode
+
+		// While dead the pet is locked to the dead animation. The latest activity
+		// state is still stored — the panel badge reflects it and revival resumes
+		// from it — but it never swaps the sprite or arms the idle clock.
+		if isDead {
+			return
+		}
 
 		// During an active mouse-reactive interaction the interaction animation
 		// owns the sprite — defer the activity-state frame swap until the
@@ -224,6 +259,9 @@ final class FloatingPetScene: SKScene {
 	/// activity-state animation remains in place. Passing `nil` restores the
 	/// ordinary activity-state animation.
 	func setInteraction(_ interaction: FloatingInteraction?) {
+		// Mouse interactions are suppressed while dead — the pet stays on the dead
+		// animation regardless of drag / click-hold gestures.
+		guard !isDead else { return }
 		guard let interaction else {
 			guard currentInteraction != nil else { return }
 			currentInteraction = nil
@@ -400,6 +438,8 @@ final class FloatingPetScene: SKScene {
 	/// (idle always animates, so this fires regularly while idle). No-op unless
 	/// the agent is continuously idle and not mid-interaction.
 	private func maybeEscalateIdle() {
+		// Dead means dead until revived: no idle → impatient → frustrated progression.
+		guard !isDead else { return }
 		guard currentState == .idle, currentInteraction == nil else {
 			return
 		}
@@ -458,6 +498,15 @@ final class FloatingPetScene: SKScene {
 
 	private func currentFramesForState() -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {
 		currentState == .idle ? currentIdleFrames() : resolveFrames(for: currentState)
+	}
+
+	/// Frames for the dead presentation (0 hearts). Interim mapping: reuse the
+	/// lite `errored` row until a dedicated dead row ships in the lite-basic sheet.
+	/// Codex-only pets (no lite sheet) fall back to the Codex idle row.
+	private func resolveDeadFrames() -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {
+		let liteErrored = codogotchiPet?.floatingFrames(for: .errored) ?? []
+		if !liteErrored.isEmpty { return (liteErrored, .codogotchi) }
+		return (codexPet.floatingFrames(for: .idle), .idleFallback)
 	}
 
 	private func resolveFrames(for state: ActivityState) -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {

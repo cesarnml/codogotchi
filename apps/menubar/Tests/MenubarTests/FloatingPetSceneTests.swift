@@ -87,6 +87,83 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 0)
 	}
 
+	// MARK: - Death lock
+
+	func testDeadLocksToLiteErroredRowSource() throws {
+		let scene = try makeScene()
+		scene.update(state: .implementing, visualMode: .normal)
+		XCTAssertEqual(scene.currentFrameSourceForTesting, "codogotchi")
+
+		scene.setDead(true)
+
+		// Dead reuses the lite sheet's errored row (interim until a dedicated dead
+		// row ships): still a codogotchi source with the full 8-frame loop.
+		XCTAssertTrue(scene.isDeadForTesting)
+		XCTAssertEqual(scene.currentFrameSourceForTesting, "codogotchi")
+		XCTAssertEqual(scene.currentFramesForTesting.count, 8)
+	}
+
+	func testActivityStateUpdatesIgnoredWhileDead() throws {
+		let scene = try makeScene()
+		scene.update(state: .implementing, visualMode: .normal)
+		scene.setDead(true)
+		let deadFrames = scene.currentFramesForTesting.map(ObjectIdentifier.init)
+
+		// A live activity change still advances the stored state (the panel badge
+		// reads it) but must not swap the locked dead sprite.
+		scene.update(state: .thinking, visualMode: .normal)
+
+		XCTAssertEqual(scene.currentStateForTesting, .thinking)
+		XCTAssertEqual(
+			scene.currentFramesForTesting.map(ObjectIdentifier.init),
+			deadFrames,
+			"sprite frames must stay locked to the dead animation while dead"
+		)
+	}
+
+	func testMouseInteractionsSuppressedWhileDead() throws {
+		let scene = try makeScene()
+		scene.update(state: .implementing, visualMode: .normal)
+		scene.setDead(true)
+		let deadFrames = scene.currentFramesForTesting.map(ObjectIdentifier.init)
+
+		scene.setInteraction(.jumping)
+
+		XCTAssertNil(scene.currentInteractionForTesting)
+		XCTAssertEqual(
+			scene.currentFramesForTesting.map(ObjectIdentifier.init),
+			deadFrames,
+			"mouse interactions must not disturb the dead animation"
+		)
+	}
+
+	func testReviveRestoresActivityAnimation() throws {
+		let scene = try makeScene()
+		scene.update(state: .implementing, visualMode: .normal)
+		scene.setDead(true)
+
+		scene.setDead(false)
+
+		XCTAssertFalse(scene.isDeadForTesting)
+		XCTAssertEqual(scene.currentStateForTesting, .implementing)
+		XCTAssertEqual(scene.currentFrameSourceForTesting, "codogotchi")
+		XCTAssertEqual(scene.currentFramesForTesting.count, 8)
+	}
+
+	func testCodexOnlyPetDeadFallsBackToIdle() throws {
+		let missingPet = try CodogotchiPet(petDirectory: missingCodogotchiPetDirectory())
+		XCTAssertFalse(missingPet.hasLiteSheet)
+		let scene = try makeScene(codogotchiPet: missingPet)
+		scene.update(state: .idle, visualMode: .normal)
+
+		scene.setDead(true)
+
+		// No lite sheet → dead falls back to the Codex idle row.
+		XCTAssertTrue(scene.isDeadForTesting)
+		XCTAssertEqual(scene.currentFrameSourceForTesting, "idle-fallback")
+		XCTAssertFalse(scene.currentFramesForTesting.isEmpty)
+	}
+
 	func testFloatingSceneUsesSourceResolutionCodexTextures() throws {
 		let scene = try makeScene(size: CGSize(width: 180, height: 140))
 
@@ -270,6 +347,37 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 
 		// And she re-escalates from zero on the normal cadence afterward.
+		now = now.addingTimeInterval(61)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+	}
+
+	func testIdleEscalationFrozenWhileDead() throws {
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let scene = try makeEscalationScene(clock: { now })
+
+		scene.update(state: .idle, visualMode: .normal)
+		now = now.addingTimeInterval(130) // past frustratedAfter (120)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
+
+		// Dying resets escalation to none and emits the change.
+		var emitted: [IdleEscalation] = []
+		scene.onIdleEscalationChange = { emitted.append($0) }
+		scene.setDead(true)
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+		XCTAssertEqual(emitted, [.none])
+
+		// Frame ticks with elapsed idle time must NOT re-escalate while dead —
+		// dead means dead until revived.
+		now = now.addingTimeInterval(10_000)
+		scene.advanceFrameForTesting()
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+		XCTAssertEqual(emitted, [.none])
+
+		// After revival the idle clock re-arms from zero and escalates normally.
+		scene.setDead(false)
 		now = now.addingTimeInterval(61)
 		scene.advanceFrameForTesting()
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
