@@ -1,0 +1,91 @@
+---
+interface Props {
+  active?: string;
+}
+const { active = "" } = Astro.props;
+
+const links = [
+  { href: "/hatch", label: "Hatch", key: "hatch" },
+  { href: "/pets", label: "Adopt a Pet", key: "pets" },
+  { href: "/docs/spritesheet", label: "Docs", key: "docs" },
+  { href: "/rpg", label: "RPG", key: "rpg", lock: true },
+];
+---
+
+<nav
+  class="bg-surface/90 backdrop-blur-md sticky top-0 w-full z-50 border-b-2 border-charcoal-ink shadow-[0_4px_0_0_var(--color-charcoal-ink)]"
+>
+  <div
+    class="flex justify-between items-center px-6 py-3 max-w-7xl mx-auto"
+  >
+    <a
+      href="/"
+      class="font-display text-2xl text-primary font-extrabold flex items-center gap-2 hover:scale-105 transition-transform"
+    >
+      <span class="material-symbols-outlined fill text-[28px]">pets</span>
+      Codogotchi
+    </a>
+
+    <div class="hidden md:flex items-center gap-7">
+      {
+        links.map((l) => (
+          <a
+            href={l.href}
+            class={`font-medium transition-transform hover:scale-105 hover:text-primary flex items-center gap-1 ${
+              active === l.key
+                ? "text-primary font-bold border-b-2 border-primary"
+                : "text-on-surface-variant"
+            }`}
+          >
+            {l.label}
+            {l.lock && <span class="text-xs opacity-70">🔒</span>}
+          </a>
+        ))
+      }
+    </div>
+
+    <a
+      href="/#install"
+      class="hidden md:flex squishy-btn bg-primary-container text-on-primary-container font-display font-bold text-sm px-5 py-2 rounded-full items-center gap-1.5"
+    >
+      <span class="material-symbols-outlined text-[18px]">download</span>
+      Install
+    </a>
+
+    <button class="md:hidden text-charcoal-ink" aria-label="Menu" id="menu-toggle">
+      <span class="material-symbols-outlined">menu</span>
+    </button>
+  </div>
+
+  <div
+    id="mobile-menu"
+    class="md:hidden hidden flex-col gap-1 px-6 pb-4 border-t-2 border-charcoal-ink/20"
+  >
+    {
+      links.map((l) => (
+        <a
+          href={l.href}
+          class={`py-2 font-medium ${active === l.key ? "text-primary font-bold" : "text-on-surface-variant"}`}
+        >
+          {l.label}
+          {l.lock && <span class="text-xs opacity-70"> 🔒</span>}
+        </a>
+      ))
+    }
+    <a
+      href="/#install"
+      class="mt-2 squishy-btn bg-primary-container text-on-primary-container font-display font-bold text-sm px-5 py-2 rounded-full text-center"
+    >
+      Install for macOS
+    </a>
+  </div>
+</nav>
+
+<script>
+  const t = document.getElementById("menu-toggle");
+  const m = document.getElementById("mobile-menu");
+  t?.addEventListener("click", () => {
+    m?.classList.toggle("hidden");
+    m?.classList.toggle("flex");
+  });
+</script>

@@ -1,0 +1,178 @@
+---
+import Base from "../layouts/Base.astro";
+
+const steps = [
+  {
+    n: 1,
+    title: "Install the skill",
+    body: "Add hatch-codogotchi to your Codex or Claude agent.",
+  },
+  {
+    n: 2,
+    title: "Give a seed or description",
+    body: "Drop a 192×208 image, or just describe the character.",
+  },
+  {
+    n: 3,
+    title: "Agent generates rows",
+    body: "Frames are drawn one row at a time and self-validated.",
+  },
+  {
+    n: 4,
+    title: "Restart Codogotchi",
+    body: "It installs to ~/.codogotchi/pets/<id>/. Your pet is alive.",
+  },
+];
+---
+
+<Base
+  active="hatch"
+  title="Hatch a Codogotchi — generate a pet with AI"
+  description="hatch-codogotchi is a Codex/Claude skill that generates a complete animated Codogotchi from a seed image or a plain-text description."
+>
+  <section class="max-w-5xl mx-auto px-6 pt-12 pb-6 text-center flex flex-col items-center gap-5">
+    <div
+      class="relative w-40 h-40 rounded-full bg-surface-container-highest sticker-card flex items-center justify-center overflow-hidden -rotate-2"
+    >
+      <span class="text-7xl">🥚</span>
+      <span class="material-symbols-outlined absolute top-3 right-4 text-3xl text-gold-leaf animate-bounce">auto_awesome</span>
+    </div>
+    <h1 class="font-display text-3xl md:text-4xl font-extrabold text-primary">
+      Hatch a pet — no pixel-art skills required.
+    </h1>
+    <p class="text-on-surface-variant max-w-2xl">
+      <code class="font-mono text-sm text-primary">hatch-codogotchi</code> is a Codex/Claude
+      skill that generates a complete, animated Codogotchi from a seed image or a plain-text
+      description. Your agent renders every frame, one row at a time, self-validates each strip,
+      writes <code class="font-mono text-sm text-primary">pet.json</code>, and installs it for you.
+    </p>
+  </section>
+
+  <!-- Two input paths -->
+  <section class="max-w-5xl mx-auto px-6 py-8 grid md:grid-cols-2 gap-5">
+    <div class="sticker-card bg-surface-container-low rounded-2xl p-6 flex flex-col gap-3 rotate-1">
+      <div class="w-12 h-12 rounded-full bg-primary-container text-on-primary-container border-2 border-charcoal-ink flex items-center justify-center">
+        <span class="material-symbols-outlined">image</span>
+      </div>
+      <h2 class="font-display text-xl font-bold">Seed image</h2>
+      <p class="text-on-surface-variant text-sm">
+        Drop a single <strong>192×208</strong> character image. Most consistent results — the
+        agent extracts a reference and animates it across every state.
+      </p>
+    </div>
+    <div class="sticker-card bg-surface-bright rounded-2xl p-6 flex flex-col gap-3 -rotate-1">
+      <div class="w-12 h-12 rounded-full bg-tertiary-container text-on-tertiary-container border-2 border-charcoal-ink flex items-center justify-center">
+        <span class="material-symbols-outlined">chat</span>
+      </div>
+      <h2 class="font-display text-xl font-bold">Text description</h2>
+      <p class="text-on-surface-variant text-sm">
+        e.g. <em>"a chibi orange tabby in a tiny yellow hoodie, round head, warm pastel
+        palette."</em> The character is designed during the run.
+      </p>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="max-w-5xl mx-auto px-6 py-6">
+    <div class="sticker-card bg-inverse-on-surface rounded-2xl p-8">
+      <h2 class="font-display text-2xl font-bold text-center text-secondary mb-8">How it works</h2>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 relative">
+        <div class="hidden lg:block absolute top-6 left-12 right-12 border-t-2 border-dashed border-charcoal-ink/40"></div>
+        {
+          steps.map((s) => (
+            <div class="flex flex-col items-center text-center gap-2 relative z-10">
+              <div class="w-12 h-12 rounded-full bg-surface border-2 border-charcoal-ink flex items-center justify-center text-primary font-display font-extrabold shadow-[2px_2px_0_0_var(--color-charcoal-ink)]">
+                {s.n}
+              </div>
+              <h3 class="font-bold text-on-surface">{s.title}</h3>
+              <p class="text-sm text-on-surface-variant">{s.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Command -->
+  <section class="max-w-5xl mx-auto px-6 py-6 flex flex-col gap-5">
+    <div class="menubar-inset rounded-xl p-5 relative group">
+      <button
+        class="absolute top-3 right-3 text-white/40 hover:text-gold-leaf transition-colors copy-btn"
+        data-copy='python scripts/prepare_pet_run.py --description "a chibi orange tabby in a tiny yellow hoodie" --pet-name "Mochi" --style plush'
+        aria-label="Copy command"
+      >
+        <span class="material-symbols-outlined text-[18px]">content_copy</span>
+      </button>
+      <code class="font-mono text-sm text-jade-sage break-words block leading-relaxed">
+        <span class="text-tertiary-fixed-dim">python</span> scripts/prepare_pet_run.py
+        --description <span class="text-blush-pink">"a chibi orange tabby in a tiny yellow hoodie"</span>
+        --pet-name <span class="text-blush-pink">"Mochi"</span>
+        --style <span class="text-secondary-fixed-dim">plush</span>
+      </code>
+    </div>
+
+    <!-- What you get -->
+    <div class="sticker-card bg-surface-container rounded-2xl p-6">
+      <h3 class="font-display text-lg font-bold mb-3 flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary">inventory_2</span>
+        What you get
+      </h3>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <span class="px-3 py-1.5 rounded-full border-2 border-charcoal-ink bg-surface-bright text-xs font-bold flex items-center gap-1 shadow-[2px_2px_0_0_var(--color-charcoal-ink)]">
+          <span class="material-symbols-outlined text-[14px]">image</span> spritesheet.webp
+          <span class="text-on-surface-variant font-normal">· Tier 1 Codex 8×9</span>
+        </span>
+        <span class="px-3 py-1.5 rounded-full border-2 border-charcoal-ink bg-surface-bright text-xs font-bold flex items-center gap-1 shadow-[2px_2px_0_0_var(--color-charcoal-ink)]">
+          <span class="material-symbols-outlined text-[14px]">settings</span> codogotchi-lite-spritesheet.webp
+          <span class="text-on-surface-variant font-normal">· Tier 2 Lite 8×11</span>
+        </span>
+        <span class="px-3 py-1.5 rounded-full border-2 border-charcoal-ink bg-surface-bright text-xs font-bold flex items-center gap-1 shadow-[2px_2px_0_0_var(--color-charcoal-ink)]">
+          <span class="material-symbols-outlined text-[14px]">star</span> codogotchi-soa-spritesheet.webp
+          <span class="text-on-surface-variant font-normal">· Tier 3 SoA 8×10</span>
+        </span>
+        <span class="px-3 py-1.5 rounded-full border-2 border-charcoal-ink bg-surface-bright text-xs font-bold flex items-center gap-1 shadow-[2px_2px_0_0_var(--color-charcoal-ink)]">
+          <span class="material-symbols-outlined text-[14px]">description</span> pet.json
+        </span>
+      </div>
+      <p class="text-sm text-on-surface-variant">
+        Start with <strong>Tier 1 + Tier 2 (Lite)</strong>. Tier 3 (SoA) is optional and
+        independent — hatch it later to light up Son-of-Anton delivery gates.
+      </p>
+    </div>
+  </section>
+
+  <!-- Cross links -->
+  <section class="max-w-5xl mx-auto px-6 py-8 grid md:grid-cols-2 gap-5">
+    <a href="/docs/spritesheet" class="sticker-card sticker-card-hover bg-blush-pink/30 rounded-2xl p-5 flex items-center justify-between rotate-1">
+      <span class="font-bold flex items-center gap-2">
+        <span class="material-symbols-outlined">menu_book</span>
+        Prefer to draw it yourself? Spritesheet Reference
+      </span>
+      <span class="material-symbols-outlined">arrow_forward</span>
+    </a>
+    <a href="/pets" class="sticker-card sticker-card-hover bg-secondary-fixed/50 rounded-2xl p-5 flex items-center justify-between -rotate-1">
+      <span class="font-bold flex items-center gap-2">
+        <span class="material-symbols-outlined">photo_library</span>
+        Want to share it? Adopt a Pet
+      </span>
+      <span class="material-symbols-outlined">arrow_forward</span>
+    </a>
+  </section>
+
+  <script>
+    document.querySelectorAll<HTMLButtonElement>(".copy-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const text = btn.getAttribute("data-copy") || "";
+        try {
+          await navigator.clipboard.writeText(text);
+          const icon = btn.querySelector("span");
+          if (icon) {
+            const prev = icon.textContent;
+            icon.textContent = "check";
+            setTimeout(() => (icon.textContent = prev), 1600);
+          }
+        } catch {}
+      });
+    });
+  </script>
+</Base>

@@ -1,0 +1,285 @@
+---
+import Base from "../../layouts/Base.astro";
+
+const toc = [
+  { id: "file-layout", label: "File Layout" },
+  { id: "grid-timing", label: "Grid & Timing" },
+  { id: "tier-1", label: "Tier 1 — Codex" },
+  { id: "tier-2", label: "Tier 2 — Lite" },
+  { id: "tier-3", label: "Tier 3 — SoA" },
+  { id: "resolution", label: "Resolution Order" },
+  { id: "checklist", label: "Compliance Checklist" },
+];
+
+// Tier 2 (Lite) rows — agent hook states + idle escalation.
+const liteRows = [
+  ["idle", "idle", "No active session / quiet default"],
+  ["idle-impatient", "idle (escalated)", "No activity for a while"],
+  ["idle-frustrated", "idle (escalated)", "Idle even longer"],
+  ["standby", "standby", "Waiting for the developer"],
+  ["thinking", "thinking", "Exploring / searching the codebase"],
+  ["reading", "reading", "Reading source (light streak)"],
+  ["cramming", "cramming", "Deep-reading (3+ reads in a row)"],
+  ["implementing", "implementing", "Writing code"],
+  ["testing", "testing", "Running tests / verify / lint / build"],
+  ["errored", "errored", "Agent failed — distressed"],
+  ["waiting_for_input", "waiting_for_input", "Awaiting a permission prompt"],
+];
+
+// Tier 3 (SoA) rows — Son-of-Anton delivery-gate moments via gate.json.
+const soaRows = [
+  ["ticket_started", "ticket_started", "Delivery ticket just started"],
+  ["green_tdd", "green_tdd", "Tests passing"],
+  ["red_tdd", "red_tdd", "Failing test committed"],
+  ["open_pr", "open_pr", "PR opened for review"],
+  ["adversarial_review", "adversarial_review", "Subagent review in progress"],
+  ["poll_review", "poll_review", "AI review window open"],
+  ["record_review", "record_review", "Review outcome recorded"],
+  ["advance", "advance", "Phase / ticket advanced"],
+  ["ticket_completed", "ticket_completed", "Ticket marked done"],
+  ["review_clean", "review_clean", "Review recorded as clean"],
+];
+---
+
+<Base
+  active="docs"
+  title="Spritesheet Reference — Codogotchi"
+  description="The exact file names, grid, timing, and animation rows for the Codogotchi three-tier spritesheet system."
+>
+  <div class="max-w-7xl w-full mx-auto px-6 py-8 flex flex-col md:flex-row gap-6">
+    <!-- Sidebar -->
+    <aside class="hidden md:block w-60 flex-shrink-0">
+      <div class="sticker-card bg-surface-container-lowest rounded-2xl p-5 sticky top-24">
+        <h3 class="font-display text-lg font-bold mb-4 flex items-center gap-2">
+          <span class="material-symbols-outlined text-secondary">menu_book</span>
+          Reference
+        </h3>
+        <ul class="flex flex-col gap-2">
+          {
+            toc.map((t) => (
+              <li>
+                <a href={`#${t.id}`} class="text-sm text-on-surface-variant hover:text-primary font-medium">
+                  {t.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <div class="flex-grow min-w-0 flex flex-col gap-8">
+      <!-- Hero -->
+      <section class="sticker-card bg-surface-container-low rounded-2xl p-8 relative overflow-hidden">
+        <span class="material-symbols-outlined absolute -top-3 -right-3 text-6xl text-surface-variant opacity-40 rotate-12">local_florist</span>
+        <h1 class="font-display text-3xl md:text-4xl font-extrabold mb-3">Spritesheet Reference</h1>
+        <p class="text-on-surface-variant max-w-2xl mb-4">
+          A Codogotchi pet is a folder consumed directly by the macOS app. This is the
+          exact spec for the <strong>three-tier</strong> spritesheet system — file names,
+          grid, timing, and the animation rows each tier carries.
+        </p>
+        <div class="bg-primary-fixed text-on-primary-fixed-variant rounded-xl border-2 border-charcoal-ink p-4 flex items-start gap-3">
+          <span class="material-symbols-outlined">auto_awesome</span>
+          <p class="text-sm">
+            Don't want to draw all this? Let AI hatch it for you →
+            <a href="/hatch" class="font-bold underline">/hatch</a>
+          </p>
+        </div>
+      </section>
+
+      <!-- File layout -->
+      <section id="file-layout" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">File Layout</h2>
+        <div class="menubar-inset rounded-xl p-5 font-mono text-sm text-jade-sage overflow-x-auto">
+          <pre class="leading-relaxed"><code>${`{CODOGOTCHI_HOME:-~/.codogotchi}`}/pets/&lt;pet_id&gt;/
+├── pet.json                          <span class="text-white/40"># manifest (id, display_name)</span>
+├── spritesheet.webp                  <span class="text-white/40"># Tier 1 — Codex  (required)</span>
+├── codogotchi-lite-spritesheet.webp  <span class="text-white/40"># Tier 2 — Lite   (optional)</span>
+└── codogotchi-soa-spritesheet.webp   <span class="text-white/40"># Tier 3 — SoA    (optional)</span></code></pre>
+        </div>
+      </section>
+
+      <!-- Grid & timing -->
+      <section id="grid-timing" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">Grid & Timing</h2>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {
+            [
+              ["Columns", "8 frames"],
+              ["Cell size", "192 × 208 px"],
+              ["Frame timing", "187.5 ms"],
+              ["Loop", "continuous"],
+            ].map(([k, v]) => (
+              <div class="sticker-card bg-surface-container-lowest rounded-xl p-4 text-center">
+                <div class="text-xs uppercase font-bold text-on-surface-variant">{k}</div>
+                <div class="font-display text-lg font-bold text-primary mt-1">{v}</div>
+              </div>
+            ))
+          }
+        </div>
+        <p class="text-sm text-on-surface-variant mt-3">
+          Every tier uses an <strong>8-column</strong> grid with a <strong>192×208</strong> cell.
+          Other cell sizes are allowed if <code class="font-mono">width % 8 == 0</code> and
+          <code class="font-mono">height % rowCount == 0</code>, keeping the same aspect ratio across tiers.
+        </p>
+      </section>
+
+      <!-- Tier 1 -->
+      <section id="tier-1" class="scroll-mt-24">
+        <div class="sticker-card bg-surface-container-lowest rounded-2xl p-6">
+          <div class="flex justify-between items-start border-b-2 border-dashed border-surface-variant pb-3 mb-4">
+            <div>
+              <span class="bg-tertiary-container text-on-tertiary-container text-xs font-bold px-2 py-1 rounded">Tier 1 · required</span>
+              <h2 class="font-display text-2xl font-bold mt-2">Codex — spritesheet.webp</h2>
+            </div>
+            <div class="text-right font-mono text-sm text-outline">
+              <div>Grid: 8 × 9</div>
+              <div>1536 × 1872 px</div>
+            </div>
+          </div>
+          <p class="text-on-surface-variant text-sm">
+            The required base sheet and fallback for every state. Carries idle, mouse
+            interactions, errored, waiting, and fallback poses. If Lite and SoA are absent,
+            the whole pet renders from here.
+          </p>
+        </div>
+      </section>
+
+      <!-- Tier 2 -->
+      <section id="tier-2" class="scroll-mt-24">
+        <div class="sticker-card bg-surface-container-lowest rounded-2xl p-6">
+          <div class="flex justify-between items-start border-b-2 border-dashed border-surface-variant pb-3 mb-4">
+            <div>
+              <span class="bg-secondary-container text-on-secondary-container text-xs font-bold px-2 py-1 rounded">Tier 2 · optional</span>
+              <h2 class="font-display text-2xl font-bold mt-2">Lite — codogotchi-lite-spritesheet.webp</h2>
+            </div>
+            <div class="text-right font-mono text-sm text-outline">
+              <div>Grid: 8 × 11</div>
+              <div>1536 × 2288 px</div>
+            </div>
+          </div>
+          <p class="text-on-surface-variant text-sm mb-4">
+            Replaces Codex's generic "running" with per-activity art — all agent hook states
+            plus idle mood escalation. When present, it wins over Codex for those rows.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr class="text-left text-on-surface-variant border-b-2 border-charcoal-ink/20">
+                  <th class="py-2 pr-3 font-bold w-12">Row</th>
+                  <th class="py-2 pr-3 font-bold">Animation</th>
+                  <th class="py-2 pr-3 font-bold">ActivityState</th>
+                  <th class="py-2 font-bold">Notes</th>
+                </tr>
+              </thead>
+              <tbody class="font-mono text-xs">
+                {
+                  liteRows.map((r, i) => (
+                    <tr class="border-b border-charcoal-ink/10">
+                      <td class="py-1.5 pr-3 text-outline">{i}</td>
+                      <td class="py-1.5 pr-3 font-bold text-primary">{r[0]}</td>
+                      <td class="py-1.5 pr-3 text-tertiary">{r[1]}</td>
+                      <td class="py-1.5 font-body text-on-surface-variant">{r[2]}</td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tier 3 -->
+      <section id="tier-3" class="scroll-mt-24">
+        <div class="sticker-card bg-surface-container-lowest rounded-2xl p-6">
+          <div class="flex justify-between items-start border-b-2 border-dashed border-surface-variant pb-3 mb-4">
+            <div>
+              <span class="bg-gold-leaf/40 text-on-secondary-fixed-variant text-xs font-bold px-2 py-1 rounded border border-gold-leaf">Tier 3 · optional</span>
+              <h2 class="font-display text-2xl font-bold mt-2">SoA — codogotchi-soa-spritesheet.webp</h2>
+            </div>
+            <div class="text-right font-mono text-sm text-outline">
+              <div>Grid: 8 × 10</div>
+              <div>1536 × 2080 px</div>
+            </div>
+          </div>
+          <p class="text-on-surface-variant text-sm mb-4">
+            Son-of-Anton delivery-gate moments, shown only when
+            <code class="font-mono">~/.codogotchi/gate.json</code> is active and unexpired. Gate art
+            takes precedence over the hook state for the duration of the gate.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr class="text-left text-on-surface-variant border-b-2 border-charcoal-ink/20">
+                  <th class="py-2 pr-3 font-bold w-12">Row</th>
+                  <th class="py-2 pr-3 font-bold">Animation</th>
+                  <th class="py-2 pr-3 font-bold">gate.json value</th>
+                  <th class="py-2 font-bold">Notes</th>
+                </tr>
+              </thead>
+              <tbody class="font-mono text-xs">
+                {
+                  soaRows.map((r, i) => (
+                    <tr class="border-b border-charcoal-ink/10">
+                      <td class="py-1.5 pr-3 text-outline">{i}</td>
+                      <td class="py-1.5 pr-3 font-bold text-primary">{r[0]}</td>
+                      <td class="py-1.5 pr-3 text-tertiary">{r[1]}</td>
+                      <td class="py-1.5 font-body text-on-surface-variant">{r[2]}</td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Resolution order -->
+      <section id="resolution" class="scroll-mt-24">
+        <div class="sticker-card bg-primary-fixed rounded-2xl p-6">
+          <h2 class="font-display text-2xl font-bold mb-2">Resolution order</h2>
+          <p class="text-sm text-on-primary-fixed-variant mb-4">
+            The renderer resolves which row to animate using this priority — first match wins.
+            Gate art shows only while active; otherwise the hook state shows through; Codex is the
+            universal fallback.
+          </p>
+          <div class="flex flex-wrap gap-2 items-center font-mono text-xs">
+            {
+              ["SoA (gate.json)", "Lite", "Codex", "Codex idle"].map((s, i, a) => (
+                <>
+                  <span class="bg-surface px-3 py-1.5 rounded border-2 border-charcoal-ink">{s}</span>
+                  {i < a.length - 1 && <span class="material-symbols-outlined text-[18px]">arrow_forward</span>}
+                </>
+              ))
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- Checklist -->
+      <section id="checklist" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">Compliance checklist</h2>
+        <div class="sticker-card bg-surface-container-lowest rounded-2xl p-6">
+          <ul class="flex flex-col gap-3 text-sm">
+            {
+              [
+                "pet.json has at minimum an id (lowercase slug) and display_name.",
+                "spritesheet.webp present, 8 columns × 9 rows, cell aspect matches all tiers.",
+                "imageWidth % 8 == 0 and imageHeight % rowCount == 0 for every sheet.",
+                "Lite sheet (if present) is 8 × 11; SoA sheet (if present) is 8 × 10.",
+                "WebP lossless recommended (PNG also accepted); 8 frames per row.",
+                "Folder installed at ~/.codogotchi/pets/<pet_id>/, then restart the app.",
+              ].map((c) => (
+                <li class="flex items-start gap-2">
+                  <span class="material-symbols-outlined text-jade-sage text-[20px]">check_circle</span>
+                  <span class="text-on-surface-variant">{c}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </section>
+    </div>
+  </div>
+</Base>

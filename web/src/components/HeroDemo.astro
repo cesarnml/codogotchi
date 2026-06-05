@@ -1,0 +1,47 @@
+---
+// Draft hero animation: the real Codogotchi floating pet (Maew) recorded from
+// the running app, framed inside a dark "menubar inset" window. The GIF already
+// carries the in-app HUD — hearts, level, and the live activity status pill —
+// so no synthetic HUD is layered on top. Swap public/assets/hero-maew.gif to
+// update the reel (or drop in a higher-fidelity capture later).
+const src = "/assets/hero-maew.gif";
+---
+
+<div class="hero-demo w-full max-w-md mx-auto select-none">
+  <div class="menubar-inset rounded-2xl overflow-hidden -rotate-1">
+    <!-- window chrome -->
+    <div
+      class="flex items-center gap-2 px-4 py-2.5 border-b border-white/10 bg-black/30"
+    >
+      <span class="w-3 h-3 rounded-full bg-[#ff5f57]"></span>
+      <span class="w-3 h-3 rounded-full bg-[#febc2e]"></span>
+      <span class="w-3 h-3 rounded-full bg-[#28c840]"></span>
+      <span class="font-mono text-xs text-white/40 ml-2">agent-process.sh</span>
+      <span
+        class="ml-auto font-mono text-[10px] uppercase tracking-wider text-jade-sage flex items-center gap-1"
+      >
+        <span class="w-1.5 h-1.5 rounded-full bg-jade-sage animate-pulse"></span>
+        live
+      </span>
+    </div>
+
+    <!-- pet stage: the real floating pet -->
+    <div
+      class="relative flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_center,rgba(240,130,78,0.18),transparent_70%)]"
+    >
+      <img
+        src={src}
+        alt="Codogotchi's pet Maew animating in the macOS app — hearts, level, and live coding status."
+        width="350"
+        height="300"
+        class="w-full max-w-[360px] h-auto"
+        loading="eager"
+        decoding="async"
+      />
+    </div>
+  </div>
+
+  <p class="mt-3 text-center text-xs text-on-surface-variant">
+    Live capture of the real menubar pet · hearts, level &amp; mood move with your agent
+  </p>
+</div>

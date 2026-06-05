@@ -1,0 +1,55 @@
+---
+interface Props {
+  active?: string;
+}
+const { active = "" } = Astro.props;
+
+const links = [
+  { href: "/docs/spritesheet", label: "Docs", key: "docs" },
+  { href: "/hatch", label: "Hatch a Pet", key: "hatch" },
+  { href: "/pets", label: "Adopt a Pet", key: "pets" },
+  {
+    href: "https://github.com/cesarnml/codogotchi",
+    label: "GitHub",
+    key: "gh",
+  },
+  { href: "/rpg", label: "RPG 🔒", key: "rpg" },
+];
+---
+
+<footer
+  class="w-full mt-16 pt-10 pb-8 bg-surface-container-lowest border-t-2 border-dashed border-charcoal-ink"
+>
+  <div class="squiggle w-full max-w-7xl mx-auto mb-8 opacity-60"></div>
+  <div class="flex flex-col items-center gap-6 px-6 w-full max-w-7xl mx-auto">
+    <a
+      href="/"
+      class="font-display text-2xl text-primary font-extrabold flex items-center gap-2"
+    >
+      <span class="material-symbols-outlined fill text-[26px]">pets</span>
+      Codogotchi
+    </a>
+    <div class="flex flex-wrap justify-center gap-x-6 gap-y-2">
+      {
+        links.map((l) => (
+          <a
+            href={l.href}
+            class={`font-body hover:text-primary transition-colors ${active === l.key ? "text-primary font-bold" : "text-on-surface-variant"}`}
+          >
+            {l.label}
+          </a>
+        ))
+      }
+    </div>
+    <p class="text-sm text-on-surface-variant text-center max-w-md">
+      Works with Claude Code · Codex · Cursor · Copilot · Antigravity.
+      Your little buddy who codes with you.
+    </p>
+    <p class="text-xs text-on-surface-variant/70 text-center flex items-center gap-1">
+      Made with love and jasmine
+      <span class="material-symbols-outlined fill text-blush-pink text-[14px]"
+        >favorite</span
+      >
+    </p>
+  </div>
+</footer>

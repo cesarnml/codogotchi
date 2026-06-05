@@ -12,6 +12,7 @@
       "!.son-of-anton",
       "!convex/_generated",
       "!apps",
+      "!web",
       "!.agents/delivery",
       "!docs/product/delivery/**/reviews/*-subagent-review.report.md",
       "!docs/product/delivery/**/reviews/*-subagent-review.prompt.md"

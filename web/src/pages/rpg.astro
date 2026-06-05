@@ -1,0 +1,227 @@
+---
+import Base from "../layouts/Base.astro";
+
+const board = [
+  {
+    rank: 1,
+    pet: "🐉",
+    name: "Drogo",
+    owner: "@vesper",
+    lvl: 87,
+    xp: "42,180",
+    streak: "121🔥",
+  },
+  {
+    rank: 2,
+    pet: "🐱",
+    name: "Boba",
+    owner: "@dev_jasmine",
+    lvl: 74,
+    xp: "38,940",
+    streak: "98🔥",
+  },
+  {
+    rank: 3,
+    pet: "🤖",
+    name: "Byte",
+    owner: "@robo_smith",
+    lvl: 69,
+    xp: "35,210",
+    streak: "64🔥",
+  },
+  {
+    rank: 4,
+    pet: "🐕",
+    name: "Mochi",
+    owner: "@code_doge",
+    lvl: 61,
+    xp: "31,002",
+    streak: "47🔥",
+  },
+  {
+    rank: 5,
+    pet: "👧",
+    name: "Maew",
+    owner: "@cesar",
+    lvl: 58,
+    xp: "29,870",
+    streak: "53🔥",
+  },
+  {
+    rank: 6,
+    pet: "🌶️",
+    name: "Pim",
+    owner: "@nin_codes",
+    lvl: 44,
+    xp: "22,140",
+    streak: "31🔥",
+  },
+  {
+    rank: 7,
+    pet: "☁️",
+    name: "Nim",
+    owner: "@cloudwalker",
+    lvl: 38,
+    xp: "19,560",
+    streak: "22🔥",
+  },
+  {
+    rank: 8,
+    pet: "🧋",
+    name: "Tofu",
+    owner: "@plushdev",
+    lvl: 27,
+    xp: "13,400",
+    streak: "16🔥",
+  },
+  {
+    rank: 9,
+    pet: "🍙",
+    name: "Kao",
+    owner: "@riceball",
+    lvl: 19,
+    xp: "8,920",
+    streak: "9🔥",
+  },
+  {
+    rank: 10,
+    pet: "🐢",
+    name: "Tuk",
+    owner: "@slowclap",
+    lvl: 12,
+    xp: "4,310",
+    streak: "4🔥",
+  },
+];
+
+const locked = [
+  { icon: "trending_up", title: "XP & Leveling" },
+  { icon: "calendar_month", title: "Weekly Challenges" },
+  { icon: "swords", title: "Pet Battles" },
+  { icon: "forum", title: "Social Feed" },
+];
+---
+
+<Base
+  active="rpg"
+  title="Codogotchi RPG — a free social layer, coming soon"
+  description="Your pet earns XP while you code. Level up, compete on leaderboards, and share your pet's story. Free, no pay-to-win."
+>
+  <section class="max-w-6xl mx-auto px-6 pt-10 pb-6">
+    <div class="sticker-card bg-surface-container-low rounded-3xl p-8 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
+      <span class="material-symbols-outlined absolute -top-4 -right-4 text-[120px] text-jade-sage opacity-20">local_florist</span>
+      <div class="flex-1 flex flex-col items-start gap-4 z-10">
+        <div class="inline-flex items-center gap-2 bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-xs font-bold border-2 border-charcoal-ink">
+          <span class="material-symbols-outlined text-[14px]">construction</span>
+          In Development
+        </div>
+        <h1 class="font-display text-3xl md:text-4xl font-extrabold text-on-surface leading-tight">
+          Codogotchi RPG — <span class="text-primary">a free social layer,</span> coming soon.
+        </h1>
+        <p class="text-on-surface-variant max-w-md">
+          Your pet already earns <strong>levels and half-hearts</strong> from real coding activity,
+          locally. Soon: XP, leaderboards, weekly challenges, and a social feed. Level up. Compete.
+          Share your pet's story.
+        </p>
+        <form class="mt-2 flex w-full max-w-md gap-2" id="notify-form">
+          <input
+            type="email"
+            required
+            placeholder="you@example.com"
+            class="flex-1 bg-surface-bright rounded-lg border-2 border-charcoal-ink px-4 py-3 focus:outline-none focus:border-secondary-container"
+          />
+          <button
+            type="submit"
+            class="squishy-btn bg-primary-container text-on-primary-container rounded-lg px-6 py-3 font-display font-bold flex items-center gap-1.5"
+          >
+            Notify me
+            <span class="material-symbols-outlined text-[18px]">send</span>
+          </button>
+        </form>
+        <p class="text-sm text-on-surface-variant" id="notify-msg" hidden>
+          🌸 You're on the list! We'll ping you when RPG launches.
+        </p>
+      </div>
+      <div class="flex-1 flex justify-center z-10">
+        <div class="menubar-inset rounded-full w-56 h-56 flex items-center justify-center -rotate-2">
+          <span class="text-8xl">🥊</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Leaderboard -->
+  <section class="max-w-6xl mx-auto px-6 py-8">
+    <h2 class="font-display text-2xl font-bold mb-4 flex items-center gap-2">
+      <span class="material-symbols-outlined text-gold-leaf">leaderboard</span>
+      Weekly leaderboard
+      <span class="text-xs uppercase font-bold bg-gold-leaf/30 border border-gold-leaf text-on-secondary-fixed-variant px-2 py-0.5 rounded-full">preview</span>
+    </h2>
+    <div class="sticker-card bg-surface-container-lowest rounded-2xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-on-surface-variant border-b-2 border-charcoal-ink/20 bg-surface-container">
+              <th class="py-3 px-4 font-bold">Rank</th>
+              <th class="py-3 px-4 font-bold">Pet</th>
+              <th class="py-3 px-4 font-bold">Owner</th>
+              <th class="py-3 px-4 font-bold text-right">Level</th>
+              <th class="py-3 px-4 font-bold text-right">XP this week</th>
+              <th class="py-3 px-4 font-bold text-right">Streak</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              board.map((r) => (
+                <tr
+                  class={`border-b border-charcoal-ink/10 ${r.rank === 1 ? "bg-gold-leaf/20" : ""}`}
+                >
+                  <td class="py-3 px-4 font-display font-bold">
+                    {r.rank === 1 ? "👑 1" : r.rank}
+                  </td>
+                  <td class="py-3 px-4 flex items-center gap-2">
+                    <span class="menubar-inset rounded-lg w-9 h-9 flex items-center justify-center text-lg">{r.pet}</span>
+                    <span class="font-bold">{r.name}</span>
+                  </td>
+                  <td class="py-3 px-4 text-on-surface-variant">{r.owner}</td>
+                  <td class="py-3 px-4 text-right font-mono">{r.lvl}</td>
+                  <td class="py-3 px-4 text-right font-mono">{r.xp}</td>
+                  <td class="py-3 px-4 text-right font-mono">{r.streak}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Locked features -->
+  <section class="max-w-6xl mx-auto px-6 py-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
+    {
+      locked.map((f) => (
+        <div class="sticker-card bg-surface-container rounded-2xl p-6 flex flex-col items-center gap-3 text-center relative overflow-hidden">
+          <span class="material-symbols-outlined text-4xl text-outline blur-[1px]">{f.icon}</span>
+          <h3 class="font-display font-bold blur-[1px]">{f.title}</h3>
+          <span class="material-symbols-outlined absolute top-2 right-2 text-charcoal-ink/60 text-[18px]">lock</span>
+        </div>
+      ))
+    }
+  </section>
+
+  <section class="max-w-6xl mx-auto px-6 pb-4">
+    <p class="text-center text-sm text-on-surface-variant italic">
+      RPG is free. No pay-to-win. Your pet's level reflects your real coding activity.
+    </p>
+  </section>
+
+  <script>
+    const form = document.getElementById("notify-form");
+    const msg = document.getElementById("notify-msg");
+    form?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (msg) msg.hidden = false;
+      (form as HTMLFormElement).reset();
+    });
+  </script>
+</Base>

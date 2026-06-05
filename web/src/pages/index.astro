@@ -1,0 +1,222 @@
+---
+import Base from "../layouts/Base.astro";
+import HeroDemo from "../components/HeroDemo.astro";
+
+const ways = [
+  {
+    icon: "favorite",
+    color: "bg-primary-container text-on-primary-container",
+    title: "Meet Maew",
+    body: "The charming default pet who ships with the app. A cute-flirty buddy in a white sundress, animated across all 19 agent states out of the box.",
+    cta: "She's already in the app",
+    href: "#install",
+  },
+  {
+    icon: "auto_awesome",
+    color: "bg-tertiary-container text-on-tertiary-container",
+    title: "Hatch your own with AI",
+    body: "Describe a pet or drop a seed image and your agent generates a full animated spritesheet for you — one row at a time — via the hatch-codogotchi skill.",
+    cta: "Hatch a pet",
+    href: "/hatch",
+  },
+  {
+    icon: "groups",
+    color: "bg-secondary-container text-on-secondary-container",
+    title: "Adopt a community pet",
+    body: "Browse pets hatched and hand-drawn by other developers, then drop the folder into ~/.codogotchi/pets/ and switch to it in Settings → Pet.",
+    cta: "Browse the gallery",
+    href: "/pets",
+  },
+  {
+    icon: "draw",
+    color: "bg-jade-sage/40 text-on-surface",
+    title: "Bring your own spritesheet",
+    body: "Hand-draw a Codex-compatible sheet using the reference spec — an 8-column grid with a 192×208 cell. Tier 1 is all you need to start.",
+    cta: "Read the spec",
+    href: "/docs/spritesheet",
+  },
+];
+
+const features = [
+  {
+    icon: "bolt",
+    title: "Reacts to your agent",
+    body: "The pet's animation changes per activity — implementing, testing, thinking, reading, cramming, errored, standby. 19 states driven by real lifecycle hooks, not a spinner.",
+  },
+  {
+    icon: "layers",
+    title: "Tiered spritesheets",
+    body: "Tier 1 (Codex 8×9) is the required base. Tier 2 (Lite 8×11) adds per-activity art and idle escalation. Tier 3 (SoA 8×10) lights up delivery-gate moments.",
+  },
+  {
+    icon: "stadia_controller",
+    title: "RPG layer (coming soon)",
+    body: "Your pet already earns levels and half-hearts from real coding activity. XP, leaderboards, and a social feed are on the way — free, no pay-to-win.",
+    soon: true,
+  },
+];
+
+const platforms = [
+  "Claude Code",
+  "Codex",
+  "Cursor",
+  "Copilot (VS Code)",
+  "Antigravity",
+];
+---
+
+<Base active="">
+  <!-- HERO -->
+  <section class="max-w-7xl mx-auto px-6 pt-12 pb-8">
+    <div class="grid lg:grid-cols-2 gap-10 items-center">
+      <div class="flex flex-col gap-6">
+        <div
+          class="inline-flex items-center gap-2 w-max bg-gold-leaf/20 border-2 border-gold-leaf text-on-secondary-fixed-variant px-3 py-1 rounded-full text-xs font-bold -rotate-1"
+        >
+          <span class="material-symbols-outlined text-[14px] text-gold-leaf">pets</span>
+          Lives in your macOS menubar
+        </div>
+        <h1 class="font-display text-4xl md:text-5xl font-extrabold text-on-surface leading-[1.1]">
+          Your AI agent <span class="text-primary">deserves a pet.</span>
+        </h1>
+        <p class="text-on-surface-variant text-lg max-w-lg">
+          Codogotchi lives in your menubar and animates in real time to what your
+          agent is doing — coding, thinking, testing, erroring, waiting. A cute
+          little buddy inside your workflow.
+        </p>
+        <div class="flex flex-wrap gap-3" id="install">
+          <a
+            href="#install-guide"
+            class="squishy-btn bg-primary-container text-on-primary-container font-display font-bold px-6 py-3 rounded-full flex items-center gap-2"
+          >
+            <span class="material-symbols-outlined text-[20px]">download</span>
+            Install for macOS
+          </a>
+          <a
+            href="/hatch"
+            class="squishy-btn bg-surface-bright text-primary font-display font-bold px-6 py-3 rounded-full flex items-center gap-2"
+          >
+            Hatch your own
+            <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+          </a>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 pt-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant mr-1"
+            >Works with</span
+          >
+          {
+            platforms.map((p) => (
+              <span class="px-3 py-1 rounded-full border border-charcoal-ink/40 bg-surface-bright text-xs font-medium">
+                {p}
+              </span>
+            ))
+          }
+        </div>
+      </div>
+
+      <HeroDemo />
+    </div>
+  </section>
+
+  <div class="squiggle max-w-7xl mx-auto w-full opacity-50 my-6"></div>
+
+  <!-- FOUR WAYS -->
+  <section class="max-w-7xl mx-auto px-6 py-10">
+    <div class="text-center mb-10">
+      <h2 class="font-display text-3xl md:text-4xl font-extrabold text-on-surface">
+        Four ways to get a pet
+      </h2>
+      <p class="text-on-surface-variant mt-2">
+        Start with Maew, hatch something new, adopt a buddy, or draw your own.
+      </p>
+    </div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {
+        ways.map((w, idx) => (
+          <a
+            href={w.href}
+            class={`sticker-card sticker-card-hover bg-surface-container-lowest rounded-2xl p-6 flex flex-col gap-3 ${idx % 2 ? "-rotate-1" : "rotate-1"}`}
+          >
+            <div
+              class={`w-12 h-12 rounded-full flex items-center justify-center border-2 border-charcoal-ink ${w.color}`}
+            >
+              <span class="material-symbols-outlined">{w.icon}</span>
+            </div>
+            <h3 class="font-display text-lg font-bold text-on-surface">{w.title}</h3>
+            <p class="text-sm text-on-surface-variant flex-grow">{w.body}</p>
+            <span class="text-sm font-bold text-primary flex items-center gap-1 mt-2">
+              {w.cta}
+              <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+            </span>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="max-w-7xl mx-auto px-6 py-10">
+    <div class="grid md:grid-cols-3 gap-5">
+      {
+        features.map((f) => (
+          <div class="sticker-card bg-surface-container-low rounded-2xl p-6 flex flex-col gap-3 relative overflow-hidden">
+            <span class="material-symbols-outlined absolute -top-3 -right-3 text-6xl text-outline-variant opacity-30 rotate-12">
+              local_florist
+            </span>
+            <div class="w-12 h-12 rounded-2xl bg-surface-bright border-2 border-charcoal-ink flex items-center justify-center text-primary">
+              <span class="material-symbols-outlined">{f.icon}</span>
+            </div>
+            <h3 class="font-display text-lg font-bold text-on-surface flex items-center gap-2">
+              {f.title}
+              {f.soon && (
+                <span class="text-[10px] uppercase font-bold bg-gold-leaf/30 border border-gold-leaf text-on-secondary-fixed-variant px-2 py-0.5 rounded-full">
+                  soon
+                </span>
+              )}
+            </h3>
+            <p class="text-sm text-on-surface-variant">{f.body}</p>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section class="max-w-5xl mx-auto px-6 py-12" id="install-guide">
+    <div class="sticker-card bg-surface-container rounded-3xl p-8 md:p-10">
+      <div class="flex flex-col md:flex-row md:items-center gap-3 mb-6">
+        <h2 class="font-display text-2xl md:text-3xl font-extrabold text-on-surface">
+          Install Codogotchi
+        </h2>
+        <span
+          class="w-max text-xs font-bold uppercase bg-secondary-container text-on-secondary-container border-2 border-charcoal-ink px-3 py-1 rounded-full"
+        >
+          Private beta · build from source
+        </span>
+      </div>
+      <p class="text-on-surface-variant mb-6 max-w-2xl">
+        There's no notarized DMG yet — the macOS app is a source build during the
+        private beta. The <code class="font-mono text-sm text-primary">.app</code> bundles its own
+        <code class="font-mono text-sm text-primary">codogotchi</code> binary, so there's no PATH
+        prerequisite. On first launch it asks to install hooks; after that, manage
+        everything from <strong>Settings → General</strong>.
+      </p>
+      <div class="menubar-inset rounded-xl p-5 font-mono text-sm text-jade-sage overflow-x-auto">
+        <div><span class="text-white/40"># clone &amp; build the menubar app</span></div>
+        <div><span class="text-tertiary-fixed-dim">bun</span> install</div>
+        <div><span class="text-tertiary-fixed-dim">bun</span> run mac:build</div>
+        <div class="text-white/70">
+          open <span class="text-blush-pink">"$(find ~/Library/Developer/Xcode/DerivedData \</span>
+        </div>
+        <div class="text-white/70 pl-4">
+          <span class="text-blush-pink">-name 'Codogotchi.app' -path '*/Build/Products/*' | head -1)"</span>
+        </div>
+      </div>
+      <p class="text-sm text-on-surface-variant mt-4">
+        Then approve the <strong>Welcome to Codogotchi</strong> consent sheet to install
+        hooks for Claude Code, Codex, Cursor, Copilot (VS Code) and Antigravity — no
+        Terminal commands required.
+      </p>
+    </div>
+  </section>
+</Base>
