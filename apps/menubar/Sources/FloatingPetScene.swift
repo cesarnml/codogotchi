@@ -117,6 +117,7 @@ final class FloatingPetScene: SKScene {
 		codogotchiPet: CodogotchiPet?,
 		demoFrameInterval: TimeInterval? = nil,
 		idleEscalationConfig: IdleEscalationConfig = .production,
+		initialIdleAge: TimeInterval = 0,
 		clock: @escaping () -> Date = Date.init,
 		desaturateFrame: ((CodexPet.Frame) -> CGImage?)? = nil,
 		interactionFramesProvider: ((FloatingInteraction) -> [CodexPet.Frame])? = nil
@@ -134,8 +135,10 @@ final class FloatingPetScene: SKScene {
 		self.demoFrameInterval = demoFrameInterval
 		// Scene starts in idle, so begin the idle clock immediately — the first
 		// `update(state:.idle)` won't be a transition and would otherwise never
-		// arm escalation.
-		self.idleSince = clock()
+		// arm escalation. `initialIdleAge` backdates that clock so the pet can
+		// launch already-escalated (the `tcib` idle-bump demo) under production
+		// timing instead of waiting out the real escalation windows.
+		self.idleSince = clock().addingTimeInterval(-max(0, initialIdleAge))
 		super.init(size: size)
 
 		backgroundColor = .clear
@@ -419,9 +422,13 @@ final class FloatingPetScene: SKScene {
 		case .impatient: next = .none
 		case .none: return
 		}
-		// Push idleSince forward so the timer naturally re-escalates from zero
-		// relative to now, rather than immediately re-triggering the old level.
-		idleSince = clock()
+		// Re-anchor the idle clock to the floor of the level we just stepped down
+		// to, so the elapsed-time recompute on the next frame tick agrees with
+		// `next` instead of demoting further. Anchoring to `clock()` (zero
+		// elapsed) is what made frustrated→impatient land back on plain idle: the
+		// very next tick re-derived `.none`. From this floor the timer naturally
+		// re-escalates after the remaining time.
+		idleSince = clock().addingTimeInterval(-idleEscalationConfig.elapsedFloor(for: next))
 		applyIdleEscalation(next)
 	}
 

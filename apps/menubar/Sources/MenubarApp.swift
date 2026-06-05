@@ -175,7 +175,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				codexPet: codexPet,
 				codogotchiPet: codogotchiPet,
 				demoFrameInterval: demoInterval,
-				idleEscalationConfig: IdleEscalationConfig.resolve()
+				idleEscalationConfig: IdleEscalationConfig.resolve(),
+				initialIdleAge: IdleEscalationConfig.backdateSeconds()
 			)
 			self.floatingPetPanelController = floatingPanel
 			let floatingPetController = FloatingPetController(
@@ -333,6 +334,15 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		// RPG values for 120s. Independent of `CODOGOTCHI_DEMO`.
 		if ProcessInfo.processInfo.environment["CODOGOTCHI_HUD_DEMO"] == "1" {
 			startHUDDemo()
+		}
+
+		// Float-on-launch (developer convenience, e.g. the `tcib` idle-bump demo):
+		// guarantee the floating pet is on screen at startup without entering the
+		// pinned HUD-demo mode, so escalation + click-hold de-escalation can be
+		// exercised under otherwise normal hover-driven behavior.
+		if ProcessInfo.processInfo.environment["CODOGOTCHI_FLOAT_ON_LAUNCH"] == "1" {
+			floatingPetController?.setFloatingPetVisible(true)
+			menuBuilder.refreshFloatingPetMenuItemTitle()
 		}
 
 		// Runtime HUD pin: while `~/.codogotchi/hud-pin` exists, force the floating

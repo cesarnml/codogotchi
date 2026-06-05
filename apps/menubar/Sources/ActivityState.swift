@@ -262,6 +262,30 @@ struct IdleEscalationConfig: Equatable {
 		return .none
 	}
 
+	/// The minimum continuous-idle elapsed time that maps to `level` — i.e. the
+	/// floor of that level's window. Inverse of `escalation(forElapsed:)`, used
+	/// to re-anchor the idle clock after a manual step-down so the elapsed-time
+	/// recompute agrees with the level rather than demoting further.
+	func elapsedFloor(for level: IdleEscalation) -> TimeInterval {
+		switch level {
+		case .none: return 0
+		case .impatient: return impatientAfter
+		case .frustrated: return frustratedAfter
+		}
+	}
+
+	/// Initial idle age (seconds) to backdate the idle clock to at launch, read
+	/// from `CODOGOTCHI_IDLE_BACKDATE_MS` (milliseconds). Used by the `tcib`
+	/// idle-bump demo to start the pet already escalated (e.g. frustrated) under
+	/// otherwise production timing, so the click-hold de-escalation can be
+	/// exercised without waiting out the real 30-minute window. Returns 0 (no
+	/// backdating) when unset or invalid.
+	static func backdateSeconds(
+		environment: [String: String] = ProcessInfo.processInfo.environment
+	) -> TimeInterval {
+		positiveSeconds(environment["CODOGOTCHI_IDLE_BACKDATE_MS"]) ?? 0
+	}
+
 	private static func positiveSeconds(_ raw: String?) -> TimeInterval? {
 		guard let raw, let ms = Double(raw), ms > 0 else { return nil }
 		return ms / 1000.0

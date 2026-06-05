@@ -7,6 +7,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var codogotchiPet: CodogotchiPet?
 	private let demoFrameInterval: TimeInterval?
 	private let idleEscalationConfig: IdleEscalationConfig
+	private let initialIdleAge: TimeInterval
 	private let clock: () -> Date
 	private let visibleFrameProvider: () -> CGRect
 	private var panel: NSPanel?
@@ -77,6 +78,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		codogotchiPet: CodogotchiPet?,
 		demoFrameInterval: TimeInterval? = nil,
 		idleEscalationConfig: IdleEscalationConfig = .production,
+		initialIdleAge: TimeInterval = 0,
 		clock: @escaping () -> Date = Date.init,
 		visibleFrameProvider: @escaping () -> CGRect = {
 			NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
@@ -86,6 +88,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		self.codogotchiPet = codogotchiPet
 		self.demoFrameInterval = demoFrameInterval
 		self.idleEscalationConfig = idleEscalationConfig
+		self.initialIdleAge = initialIdleAge
 		self.clock = clock
 		self.visibleFrameProvider = visibleFrameProvider
 	}
@@ -101,6 +104,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 				codogotchiPet: codogotchiPet,
 				demoFrameInterval: demoFrameInterval,
 				idleEscalationConfig: idleEscalationConfig,
+				initialIdleAge: initialIdleAge,
 				clock: clock
 			)
 			scene.onIdleEscalationChange = { [weak self] level in
@@ -1860,7 +1864,11 @@ private final class FloatingPetInteractionView: NSView {
 	}
 
 	override func mouseDragged(with event: NSEvent) {
-		cancelHoldTimer()
+		// Intentionally does NOT cancel the hold timer: any continuous click-hold
+		// on the pet body de-escalates after 5 s, whether the user holds still
+		// (jumping) or drags (running-left/right). The timer is only cancelled on
+		// mouseUp. Resize never arms the timer, so dragging the affordance is a
+		// no-op here.
 		guard let window, let activeInteraction else { return }
 		let currentPoint = NSEvent.mouseLocation
 		let nextFrame: CGRect
@@ -1937,9 +1945,14 @@ private final class FloatingPetInteractionView: NSView {
 
 	private func startHoldTimer() {
 		holdTimer?.invalidate()
-		holdTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in
+		// Repeats so a sustained hold steps down one level every 5 s ("5 s for
+		// each bump"). Added in `.common` mode rather than scheduled in `.default`
+		// so it keeps firing while a drag puts the run loop in event-tracking mode.
+		let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
 			self?.holdDeEscalationHandler?()
 		}
+		RunLoop.main.add(timer, forMode: .common)
+		holdTimer = timer
 	}
 
 	private func cancelHoldTimer() {

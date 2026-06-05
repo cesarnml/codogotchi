@@ -234,7 +234,8 @@ final class FloatingPetSceneTests: XCTestCase {
 	private func makeEscalationScene(
 		clock: @escaping () -> Date,
 		impatientAfter: TimeInterval = 60,
-		frustratedAfter: TimeInterval = 120
+		frustratedAfter: TimeInterval = 120,
+		initialIdleAge: TimeInterval = 0
 	) throws -> FloatingPetScene {
 		try FloatingPetScene(
 			size: CGSize(width: 180, height: 140),
@@ -244,8 +245,34 @@ final class FloatingPetSceneTests: XCTestCase {
 				impatientAfter: impatientAfter,
 				frustratedAfter: frustratedAfter
 			),
+			initialIdleAge: initialIdleAge,
 			clock: clock
 		)
+	}
+
+	func testInitialIdleAgeLaunchesAlreadyFrustratedThenBumpsNormally() throws {
+		// Backdates the idle clock past the frustrated threshold (the `tcib`
+		// demo): she starts frustrated, and click-hold de-escalation then behaves
+		// under the normal production-shaped timing.
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let scene = try makeEscalationScene(clock: { now }, initialIdleAge: 130)
+
+		scene.update(state: .idle, visualMode: .normal)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
+
+		// First bump → impatient, stable; second bump → none.
+		scene.decrementIdleEscalation()
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+		scene.decrementIdleEscalation()
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+
+		// And she re-escalates from zero on the normal cadence afterward.
+		now = now.addingTimeInterval(61)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
 	}
 
 	func testIdleEscalatesImpatientThenFrustratedByElapsedTime() throws {
@@ -310,6 +337,52 @@ final class FloatingPetSceneTests: XCTestCase {
 
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 		XCTAssertTrue(emitted.isEmpty)
+	}
+
+	func testDecrementStepsFrustratedToImpatientAndStaysPutAcrossFrameTicks() throws {
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let scene = try makeEscalationScene(clock: { now })
+
+		scene.update(state: .idle, visualMode: .normal)
+		now = now.addingTimeInterval(130) // > frustratedAfter (120)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
+
+		// One bump: frustrated → impatient, and it must survive the next frame
+		// tick rather than the elapsed-time recompute demoting it back to idle.
+		scene.decrementIdleEscalation()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+
+		// Second bump: impatient → none, also stable across a tick.
+		scene.decrementIdleEscalation()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+	}
+
+	func testDecrementToImpatientReEscalatesToFrustratedAfterRemainingTime() throws {
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let scene = try makeEscalationScene(clock: { now })
+
+		scene.update(state: .idle, visualMode: .normal)
+		now = now.addingTimeInterval(130)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
+
+		// Bump down to impatient: the clock is re-anchored to the impatient floor,
+		// so re-escalation to frustrated takes (frustratedAfter - impatientAfter).
+		scene.decrementIdleEscalation()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+
+		now = now.addingTimeInterval(59) // still short of the 60s remaining window
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+
+		now = now.addingTimeInterval(2) // crosses the frustrated threshold
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
 	}
 
 	func testIdleEscalationEmitsLevelChangesToObserver() throws {
