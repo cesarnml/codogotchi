@@ -171,6 +171,7 @@ const SEARCHING_BASH_PREFIXES = [
 // `git branch` is excluded — it's both a read (list/show) and write (create/delete) command,
 // and the read form (`git branch --show-current`) is common in compound inspection scripts.
 const GIT_OPS_BASH_PREFIXES = [
+  "git add",
   "git commit",
   "git push",
   "git merge",
@@ -497,13 +498,24 @@ function isFailureStopReason(reason: string | undefined): boolean {
   return reason !== undefined && FAILURE_STOP_REASONS.has(reason);
 }
 
-function shellCommandSegments(command: string): string[] {
-  const segments = command
-    .split(/\s*(?:&&|\|\||;)\s*/)
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0);
-  return segments.length > 0 ? segments : [command.trim()];
-}
+// Output-only pipe stages (tail/head/grep filtering test output) must not
+// override the intent of the left-hand command in compound pipelines.
+const PIPE_OUTPUT_FILTER_PREFIXES = [
+  "tail",
+  "head",
+  "wc",
+  "grep",
+  "egrep",
+  "fgrep",
+  "rg",
+  "sed",
+  "awk",
+  "tee",
+  "sort",
+  "uniq",
+] as const;
+
+const SEQUENTIAL_COMMAND_SPLIT = /\s*(?:&&|\|\||;|\n)\s*|\s*(?<![&>])&(?!&)\s*/;
 
 function matchesPrefixWithBoundary(
   prefixes: readonly string[],
@@ -516,6 +528,67 @@ function matchesPrefixWithBoundary(
   });
 }
 
+function splitShellPipes(segment: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  for (let i = 0; i < segment.length; i++) {
+    const ch = segment[i];
+    if (ch === "|") {
+      if (segment[i + 1] === "|") {
+        current += "||";
+        i++;
+        continue;
+      }
+      parts.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  const trimmed = current.trim();
+  if (trimmed.length > 0) parts.push(trimmed);
+  return parts.length > 0 ? parts : [segment.trim()];
+}
+
+function isNeutralShellSegment(trimmed: string): boolean {
+  if (trimmed.length === 0) return true;
+  if (/^cd(?:\s+\S+|$)/.test(trimmed)) return true;
+  if (/^pushd(?:\s+\S+|$)/.test(trimmed)) return true;
+  if (/^popd(?:\s+|$)/.test(trimmed)) return true;
+  if (/^echo(?:\s+("|')?[-=]{2,}|$)/.test(trimmed)) return true;
+  if (/^echo\s+["']?EXIT:/.test(trimmed)) return true;
+  if (trimmed === "true" || trimmed === "false") return true;
+  return false;
+}
+
+function isPipeOutputFilterSegment(trimmed: string): boolean {
+  return matchesPrefixWithBoundary(PIPE_OUTPUT_FILTER_PREFIXES, trimmed);
+}
+
+/** Split compound shell strings into semantic segments for heuristic matching. */
+export function shellCommandSegments(command: string): string[] {
+  const segments: string[] = [];
+  for (const part of command.split(SEQUENTIAL_COMMAND_SPLIT)) {
+    const trimmedPart = part.trim();
+    if (trimmedPart.length === 0) continue;
+    for (const pipeSegment of splitShellPipes(trimmedPart)) {
+      const normalized = pipeSegment.trim();
+      if (normalized.length === 0 || isNeutralShellSegment(normalized))
+        continue;
+      segments.push(normalized);
+    }
+  }
+  return segments.length > 0 ? segments : [command.trim()];
+}
+
+function classificationSegments(command: string): string[] {
+  const segments = shellCommandSegments(command);
+  const nonFilters = segments.filter(
+    (segment) => !isPipeOutputFilterSegment(segment.trimStart()),
+  );
+  return nonFilters.length > 0 ? nonFilters : segments;
+}
+
 function matchesTestRunnerSegment(trimmed: string): boolean {
   if (matchesXcodebuildTest(trimmed)) return true;
   return TEST_RUNNER_PREFIXES.some((prefix) => {
@@ -526,13 +599,13 @@ function matchesTestRunnerSegment(trimmed: string): boolean {
 }
 
 function matchesTestRunner(command: string): boolean {
-  return shellCommandSegments(command).some((segment) =>
+  return classificationSegments(command).some((segment) =>
     matchesTestRunnerSegment(segment.trimStart()),
   );
 }
 
 function matchesVerifyingCommand(command: string): boolean {
-  return shellCommandSegments(command).some((segment) => {
+  return classificationSegments(command).some((segment) => {
     const trimmed = segment.trimStart();
     return (
       matchesXcodebuildBuild(trimmed) ||
@@ -542,13 +615,13 @@ function matchesVerifyingCommand(command: string): boolean {
 }
 
 function matchesSearchingCommand(command: string): boolean {
-  return shellCommandSegments(command).some((segment) =>
+  return classificationSegments(command).some((segment) =>
     matchesPrefixWithBoundary(SEARCHING_BASH_PREFIXES, segment.trimStart()),
   );
 }
 
 function matchesGitOpsCommand(command: string): boolean {
-  return shellCommandSegments(command).some((segment) =>
+  return classificationSegments(command).some((segment) =>
     matchesPrefixWithBoundary(GIT_OPS_BASH_PREFIXES, segment.trimStart()),
   );
 }
@@ -587,7 +660,7 @@ function matchesThinkingCommandSegment(trimmed: string): boolean {
 }
 
 function matchesThinkingCommand(command: string): boolean {
-  return shellCommandSegments(command).some((segment) =>
+  return classificationSegments(command).some((segment) =>
     matchesThinkingCommandSegment(segment.trimStart()),
   );
 }

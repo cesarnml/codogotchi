@@ -15,7 +15,12 @@ import {
   parseStateJson,
   type StateJsonV1,
 } from "@codogotchi/contracts";
-import { classifyEvent, type HookInput, runHook } from "./hook-binary";
+import {
+  classifyEvent,
+  type HookInput,
+  runHook,
+  shellCommandSegments,
+} from "./hook-binary";
 
 const FIXED_NOW = new Date("2026-05-18T15:00:00.000Z");
 
@@ -1681,6 +1686,91 @@ describe("P7.02 §7 pure classifier", () => {
     ).toBe("verifying");
   });
 
+  it("classifies standalone git add as git_ops", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "cursor",
+          kind: "tool_use",
+          name: "Shell",
+          command: "git add packages/cli/src/hook-binary.ts",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("git_ops");
+  });
+
+  it("classifies background cd then git commit as git_ops", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "cursor",
+          kind: "tool_use",
+          name: "Shell",
+          command: "cd /repo & git commit -m test",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("git_ops");
+  });
+
+  it("classifies piped test runner by left-hand command", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "cursor",
+          kind: "tool_use",
+          name: "Shell",
+          command: "bun test packages/cli 2>&1 | tail -20",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("testing");
+  });
+
+  it("classifies piped verify runner by left-hand command", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "cursor",
+          kind: "tool_use",
+          name: "Shell",
+          command: "bun run verify:quiet 2>&1 | tail -6",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("verifying");
+  });
+
+  it("classifies git commit after format and add segments as git_ops", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "cursor",
+          kind: "tool_use",
+          name: "Shell",
+          command:
+            "cd /repo; bun run format >/dev/null 2>&1; git add docs/ledger.jsonl && git commit -q -m docs",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("git_ops");
+  });
+
+  it("classifies grep commit compound as git_ops over searching", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "cursor",
+          kind: "tool_use",
+          name: "Shell",
+          command: "grep foo && git commit -m test",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("git_ops");
+  });
+
   it("classifies unknown tool_use as thinking (global fallback)", () => {
     expect(
       classifyEvent(
@@ -1714,6 +1804,45 @@ describe("P7.02 §7 pure classifier", () => {
       rmSync(home, { recursive: true, force: true });
       rmSync(projectRoot, { recursive: true, force: true });
     }
+  });
+});
+
+describe("shellCommandSegments", () => {
+  it("splits on &&, ;, newline, and single &", () => {
+    expect(shellCommandSegments("cd /repo && git commit -m x")).toEqual([
+      "git commit -m x",
+    ]);
+    expect(shellCommandSegments("cd /repo; git status")).toEqual([
+      "git status",
+    ]);
+    expect(shellCommandSegments("cd /repo & git commit -m x")).toEqual([
+      "git commit -m x",
+    ]);
+    expect(shellCommandSegments("cd /repo\ngit status --short")).toEqual([
+      "git status --short",
+    ]);
+  });
+
+  it("splits pipes and strips neutral cd/echo segments", () => {
+    expect(
+      shellCommandSegments(
+        'ls -la /tmp/memory 2>&1; echo "---"; grep -ril "quality" /tmp/memory 2>&1',
+      ),
+    ).toEqual([
+      "ls -la /tmp/memory 2>&1",
+      'grep -ril "quality" /tmp/memory 2>&1',
+    ]);
+    expect(
+      shellCommandSegments("bun test packages/cli 2>&1 | tail -20"),
+    ).toEqual(["bun test packages/cli 2>&1", "tail -20"]);
+  });
+
+  it("does not split shell redirects like 2>&1 on single &", () => {
+    expect(shellCommandSegments("git push 2>&1")).toEqual(["git push 2>&1"]);
+  });
+
+  it("preserves a lone command when every segment is neutral", () => {
+    expect(shellCommandSegments("cd /repo")).toEqual(["cd /repo"]);
   });
 });
 
