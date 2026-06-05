@@ -152,7 +152,7 @@ enum RPGHUDLayout {
 		let innerGap = round(m.ringDiameter * 0.10)
 		let width = trackWidth + innerGap + labelBand
 		let height = tomb.height
-		let gap = max(4, round(m.ringDiameter * 0.16))
+		let gap = max(3, round(m.ringDiameter * 0.107))
 		let x = tomb.maxX + gap
 		let y = tomb.minY
 		let safe = visibleFrame.insetBy(dx: 2, dy: 2)
@@ -853,20 +853,24 @@ final class RegenMeterView: NSView {
 		CATransaction.begin()
 		CATransaction.setDisableActions(true)
 
-		let track = CGRect(x: 0, y: 0, width: trackWidth, height: h)
+		// Trim a few points off the bottom so the cylinder extends less far below
+		// the tombstone; its top edge still aligns with the tombstone.
+		let bottomInset: CGFloat = 5
+		let trackH = max(1, h - bottomInset)
+		let track = CGRect(x: 0, y: bottomInset, width: trackWidth, height: trackH)
 		trackContainer.frame = track
 		trackContainer.cornerRadius = radius
 		trackBackground.frame = trackContainer.bounds
 
 		// Fill grows from the bottom proportional to progress.
-		let fillH = round(h * CGFloat(progress))
+		let fillH = round(trackH * CGFloat(progress))
 		fillGradient.frame = CGRect(x: 0, y: 0, width: trackWidth, height: fillH)
 		fillGradient.isHidden = fillH <= 0.5
 
 		// Four segments → three internal divider lines.
 		let ticks = CGMutablePath()
 		for i in 1..<4 {
-			let y = round(h * CGFloat(i) / 4)
+			let y = round(trackH * CGFloat(i) / 4)
 			ticks.move(to: CGPoint(x: 0, y: y))
 			ticks.addLine(to: CGPoint(x: trackWidth, y: y))
 		}
@@ -891,7 +895,9 @@ final class RegenMeterView: NSView {
 		labelLayer.fontSize = fontSize
 		labelLayer.font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
 		labelLayer.bounds = CGRect(x: 0, y: 0, width: labelSpan, height: labelBandWidth)
-		labelLayer.position = CGPoint(x: labelBandX + labelBandWidth / 2, y: h * 0.58)
+		// Centered just below the mid-line (nudged down ~10pt from the prior
+		// position) so it sits where the concept art places it.
+		labelLayer.position = CGPoint(x: labelBandX + labelBandWidth / 2, y: h * 0.58 - 10)
 		labelLayer.transform = CATransform3DMakeRotation(.pi / 2, 0, 0, 1)
 
 		CATransaction.commit()
