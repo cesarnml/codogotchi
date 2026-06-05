@@ -70,7 +70,7 @@ if [[ ! -x "$BIN" ]]; then
 	exit 1
 fi
 
-echo "▶ Relaunching in normal mode, starting $START_LEVEL…"
+echo "▶ Relaunching in normal mode, starting ${START_LEVEL}…"
 osascript -e 'quit app "Codogotchi"' >/dev/null 2>&1 || true
 pkill -x Codogotchi >/dev/null 2>&1 || true
 sleep 0.7
