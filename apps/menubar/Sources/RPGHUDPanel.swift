@@ -147,9 +147,9 @@ enum RPGHUDLayout {
 		let m = metrics(for: petFrame)
 		// Track band + gap + rotated-label band. Tuned to read like the mockup's
 		// slim gauge without crowding the tombstone.
-		let trackWidth = max(8, round(m.ringDiameter * 0.34))
+		let trackWidth = max(6, round(m.ringDiameter * 0.225))
 		let labelBand = max(10, round(m.ringDiameter * 0.40))
-		let innerGap = round(m.ringDiameter * 0.12)
+		let innerGap = round(m.ringDiameter * 0.10)
 		let width = trackWidth + innerGap + labelBand
 		let height = tomb.height
 		let gap = max(4, round(m.ringDiameter * 0.16))
@@ -843,8 +843,10 @@ final class RegenMeterView: NSView {
 
 	private func relayout() {
 		let h = bounds.height
-		let trackWidth = max(8, round(bounds.width * 0.40))
-		let labelBandX = trackWidth + round(bounds.width * 0.10)
+		// Track fractions mirror the panel composition in `regenMeterFrame`
+		// (track 0.225r : gap 0.10r : label 0.40r of a 0.725r-wide panel).
+		let trackWidth = max(6, round(bounds.width * 0.31))
+		let labelBandX = trackWidth + round(bounds.width * 0.14)
 		let labelBandWidth = max(8, bounds.width - labelBandX)
 		let radius = trackWidth / 2
 
@@ -871,13 +873,25 @@ final class RegenMeterView: NSView {
 		tickLayer.frame = trackContainer.bounds
 		tickLayer.path = ticks
 
-		// Rotated label: lay out a wide text box, then rotate +90° so it reads
-		// bottom-to-top in the band to the right of the track.
-		let fontSize = max(6, round(labelBandWidth * 0.62))
+		// Rotated label: size it to span ~2/3 of the meter height (the rotated text
+		// box width is its on-screen vertical extent), then rotate +90° so it reads
+		// bottom-to-top. Shrink the font until "REGENERATION" fits that span, and
+		// center it above the mid-line so the lower third — where the green fill
+		// rises — stays clear (matches the concept art).
+		let labelSpan = h * 0.64
+		let text = "REGENERATION" as NSString
+		var fontSize = max(6, round(labelBandWidth * 0.85))
+		while fontSize > 5 {
+			let w = text.size(withAttributes: [
+				.font: NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+			]).width
+			if w <= labelSpan { break }
+			fontSize -= 0.5
+		}
 		labelLayer.fontSize = fontSize
 		labelLayer.font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
-		labelLayer.bounds = CGRect(x: 0, y: 0, width: h, height: labelBandWidth)
-		labelLayer.position = CGPoint(x: labelBandX + labelBandWidth / 2, y: h / 2)
+		labelLayer.bounds = CGRect(x: 0, y: 0, width: labelSpan, height: labelBandWidth)
+		labelLayer.position = CGPoint(x: labelBandX + labelBandWidth / 2, y: h * 0.58)
 		labelLayer.transform = CATransform3DMakeRotation(.pi / 2, 0, 0, 1)
 
 		CATransaction.commit()
