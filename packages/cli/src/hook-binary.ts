@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rmdir, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  rename,
+  rmdir,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import {
@@ -204,6 +211,12 @@ const CRAMMING_THRESHOLD = 3;
 
 const LOCK_RETRY_DELAY_MS = 10;
 const LOCK_TIMEOUT_MS = 2000;
+// A held lock is released in `finally`, so any lock older than this was
+// abandoned by a hook killed mid-write (SIGKILL, closed terminal, OOM). Hooks
+// complete well under LOCK_TIMEOUT_MS, so this is comfortably above any
+// legitimate hold — break a lock this old rather than freezing state writes
+// (which leaves the pet stuck on its last frame until the dir is removed by hand).
+const LOCK_STALE_MS = 10_000;
 
 type NormalizedEvent = {
   origin: SourceEventOrigin;
@@ -874,6 +887,13 @@ async function withHomeLock<T>(home: string, fn: () => Promise<T>): Promise<T> {
       break;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      // Stale-lock recovery: a hook killed mid-write never reaches the `finally`
+      // rmdir below, leaving the directory behind forever and timing out every
+      // later write. Break a lock older than LOCK_STALE_MS and retry immediately.
+      if (await isLockStale(lockPath)) {
+        await rmdir(lockPath).catch(() => {});
+        continue;
+      }
       if (Date.now() - startedAt >= LOCK_TIMEOUT_MS) {
         throw new Error(`Timed out waiting for hook lock at ${lockPath}`);
       }
@@ -884,7 +904,23 @@ async function withHomeLock<T>(home: string, fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } finally {
-    await rmdir(lockPath);
+    // Tolerate the dir already being gone — another worker may have judged this
+    // lock stale and broken it (only possible if `fn` ran past LOCK_STALE_MS).
+    await rmdir(lockPath).catch(() => {});
+  }
+}
+
+/// True when `lockPath` exists and its mtime is older than LOCK_STALE_MS — i.e.
+/// it was abandoned by a killed hook. The lock dir's mtime is its creation time
+/// (it stays empty), so mtime age ≈ how long the lock has been held. Returns
+/// false if it vanished between the failed mkdir and this stat (the retry loop
+/// will simply re-attempt mkdir).
+async function isLockStale(lockPath: string): Promise<boolean> {
+  try {
+    const info = await stat(lockPath);
+    return Date.now() - info.mtimeMs >= LOCK_STALE_MS;
+  } catch {
+    return false;
   }
 }
 

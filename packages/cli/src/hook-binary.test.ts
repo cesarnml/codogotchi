@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -1231,6 +1232,25 @@ describe("runHook", () => {
     ]);
 
     expect(readState(home).activity_state).toBe("cramming");
+  });
+
+  it("breaks a stale .hook.lock left by a killed hook and still writes state.json", async () => {
+    // A hook killed mid-write never reaches the `finally` rmdir, so the lock dir
+    // is left behind. Without stale recovery this would time out every later
+    // write and freeze the pet. Simulate it: an old, never-released lock dir.
+    const lockPath = join(home, ".hook.lock");
+    mkdirSync(lockPath);
+    const stale = new Date(Date.now() - 60_000); // 60s old → past LOCK_STALE_MS
+    utimesSync(lockPath, stale, stale);
+
+    await runHook(
+      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      { home, now: FIXED_NOW },
+    );
+
+    expect(readState(home).activity_state).toBe("editing");
+    // Lock was broken, acquired, and released again on the way out.
+    expect(existsSync(lockPath)).toBe(false);
   });
 
   it("resets Read run when an Edit interrupts across invocations", async () => {
