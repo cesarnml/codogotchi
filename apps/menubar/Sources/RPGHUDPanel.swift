@@ -16,8 +16,10 @@ enum RPGHUDLayout {
 	/// Heart artwork aspect (width / height) — from the 208×192 source SVG.
 	static let heartAspect: CGFloat = 208.0 / 192.0
 	static let heartSpacing: CGFloat = 2
-	/// Vertical gap between the heart row and the XP ring.
+	/// Vertical gap between stacked HUD rows (hearts / regen bar / XP ring).
 	static let rowGap: CGFloat = 3
+	/// Thickness of the alive-state heart-regen bar, when shown.
+	static let regenBarHeight: CGFloat = 5
 	static let ringDiameter: CGFloat = 44 * 1.2
 	/// Inset of the HUD's content corner from the pet frame's top-left corner.
 	static let inset: CGFloat = 8
@@ -44,13 +46,20 @@ enum RPGHUDLayout {
 		let ringDiameter: CGFloat
 		let inset: CGFloat
 		let glowPad: CGFloat
+		let regenBarHeight: CGFloat
+		/// When true the heart-regen bar occupies a row between the hearts and the
+		/// ring, growing `contentHeight` by `regenBarHeight + rowGap`.
+		let showsRegenBar: Bool
 
 		var heartsRowWidth: CGFloat { heartWidth * 3 + heartSpacing * 2 }
 		var contentWidth: CGFloat { max(heartsRowWidth, ringDiameter) }
-		var contentHeight: CGFloat { heartHeight + rowGap + ringDiameter }
+		var contentHeight: CGFloat {
+			let base = heartHeight + rowGap + ringDiameter
+			return showsRegenBar ? base + regenBarHeight + rowGap : base
+		}
 	}
 
-	static func metrics(for petFrame: CGRect) -> Metrics {
+	static func metrics(for petFrame: CGRect, showsRegenBar: Bool = false) -> Metrics {
 		let scale = max(minScale, min(maxScale, petFrame.width / baselinePetWidth))
 		let hh = round(heartHeight * scale)
 		return Metrics(
@@ -61,7 +70,9 @@ enum RPGHUDLayout {
 			rowGap: max(1, round(rowGap * scale)),
 			ringDiameter: round(ringDiameter * scale),
 			inset: round(inset * scale),
-			glowPad: round(glowPadBase * scale)
+			glowPad: round(glowPadBase * scale),
+			regenBarHeight: max(3, round(regenBarHeight * scale)),
+			showsRegenBar: showsRegenBar
 		)
 	}
 
@@ -527,6 +538,103 @@ final class RPGRingView: NSView {
 	}
 }
 
+// MARK: - Regen bar subview
+
+/// Alive-state heart-regen bar: a slim horizontal capsule that sits between the
+/// heart row and the XP ring (mirroring the mockup). A glossy red gradient fills
+/// from the left to the active-minute carry toward the next half-heart, over a
+/// dark segmented track that visually rhymes with the vertical REGENERATION
+/// gauge. Pure layer drawing — no asset. Driven by `configure(progress:)` where
+/// `progress` is the 0…1 `heartRegenProgress` fraction. Hidden by the content
+/// view at full health and while dead.
+final class RPGRegenBarView: NSView {
+	private let trackContainer = CALayer()
+	private let trackBackground = CALayer()
+	private let fillGradient = CAGradientLayer()
+	private let tickLayer = CAShapeLayer()
+
+	private var progress: Double = 0
+
+	override init(frame: NSRect) {
+		super.init(frame: frame)
+		wantsLayer = true
+		layer?.masksToBounds = false
+
+		// Capsule track that clips the red fill to a rounded bar.
+		trackContainer.masksToBounds = true
+		trackContainer.borderWidth = 1
+		trackContainer.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
+		layer?.addSublayer(trackContainer)
+
+		trackBackground.backgroundColor =
+			NSColor(srgbRed: 0x24 / 255, green: 0x24 / 255, blue: 0x24 / 255, alpha: 0.92).cgColor
+		trackContainer.addSublayer(trackBackground)
+
+		// Left-anchored red fill with a top→bottom glossy sheen: a bright coral
+		// highlight up top settling to a deep crimson, for the "spiffy" gradient.
+		fillGradient.colors = [
+			NSColor(srgbRed: 0xFF / 255, green: 0x7A / 255, blue: 0x5C / 255, alpha: 1).cgColor,
+			NSColor(srgbRed: 0xE6 / 255, green: 0x3A / 255, blue: 0x28 / 255, alpha: 1).cgColor,
+			NSColor(srgbRed: 0xB0 / 255, green: 0x16 / 255, blue: 0x0A / 255, alpha: 1).cgColor,
+		]
+		fillGradient.locations = [0.0, 0.5, 1.0]
+		fillGradient.startPoint = CGPoint(x: 0.5, y: 1.0)
+		fillGradient.endPoint = CGPoint(x: 0.5, y: 0.0)
+		trackContainer.addSublayer(fillGradient)
+
+		// Segment dividers drawn over the fill for the notched look that echoes the
+		// vertical REGENERATION gauge.
+		tickLayer.strokeColor = NSColor.black.withAlphaComponent(0.32).cgColor
+		tickLayer.lineWidth = 1
+		trackContainer.addSublayer(tickLayer)
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	/// Push a new regen-progress fraction (0…1) and redraw.
+	func configure(progress: Double) {
+		self.progress = max(0, min(1, progress))
+		needsLayout = true
+		relayout()
+	}
+
+	override func layout() {
+		super.layout()
+		relayout()
+	}
+
+	private func relayout() {
+		let w = bounds.width
+		let h = bounds.height
+		let radius = h / 2
+
+		CATransaction.begin()
+		CATransaction.setDisableActions(true)
+
+		trackContainer.frame = bounds
+		trackContainer.cornerRadius = radius
+		trackBackground.frame = trackContainer.bounds
+
+		// Fill grows from the left proportional to progress.
+		let fillW = round(w * CGFloat(progress))
+		fillGradient.frame = CGRect(x: 0, y: 0, width: fillW, height: h)
+		fillGradient.isHidden = fillW <= 0.5
+
+		// Four segments → three internal divider lines (mirrors the green gauge).
+		let ticks = CGMutablePath()
+		for i in 1..<4 {
+			let x = round(w * CGFloat(i) / 4)
+			ticks.move(to: CGPoint(x: x, y: 0))
+			ticks.addLine(to: CGPoint(x: x, y: h))
+		}
+		tickLayer.frame = trackContainer.bounds
+		tickLayer.path = ticks
+
+		CATransaction.commit()
+	}
+}
+
 // MARK: - Content view
 
 /// Hosts the heart row (top) and the XP ring (below), both flush to the
@@ -535,6 +643,7 @@ final class RPGRingView: NSView {
 final class RPGHUDContentView: NSView {
 	private let heartViews: [RPGHeartView]
 	private let ringView = RPGRingView(frame: .zero)
+	private let regenBar = RPGRegenBarView(frame: .zero)
 	private var metrics = RPGHUDLayout.metrics(for: CGRect(x: 0, y: 0, width: 220, height: 220))
 	private var lastHearts: [HeartState]?
 
@@ -544,14 +653,23 @@ final class RPGHUDContentView: NSView {
 		wantsLayer = true
 		layer?.masksToBounds = false
 		heartViews.forEach { addSubview($0) }
+		regenBar.isHidden = true
+		addSubview(regenBar)
 		addSubview(ringView)
 	}
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	func update(hearts: [HeartState], ringFraction: Double, level: Int, metrics: RPGHUDLayout.Metrics) {
+	func update(
+		hearts: [HeartState],
+		ringFraction: Double,
+		level: Int,
+		regenProgress: Double,
+		metrics: RPGHUDLayout.Metrics
+	) {
 		self.metrics = metrics
+		regenBar.isHidden = !metrics.showsRegenBar
 		relayout()
 
 		for (idx, hv) in heartViews.enumerated() {
@@ -565,6 +683,9 @@ final class RPGHUDContentView: NSView {
 		lastHearts = hearts
 
 		ringView.configure(fraction: ringFraction, level: level, ringDiameter: metrics.ringDiameter)
+		if metrics.showsRegenBar {
+			regenBar.configure(progress: regenProgress)
+		}
 	}
 
 	private func playHeartDelta(on hv: RPGHeartView, from prev: HeartState, to next: HeartState) {
@@ -583,7 +704,15 @@ final class RPGHUDContentView: NSView {
 		ringView.frame = NSRect(
 			x: ringX, y: pad, width: metrics.ringDiameter, height: metrics.ringDiameter)
 
-		let heartY = pad + metrics.ringDiameter + metrics.rowGap
+		// Stack (bottom-up in AppKit coords): ring, [regen bar], hearts. When the
+		// bar is shown it inserts a row (bar height + gap) that pushes the hearts up.
+		var heartY = pad + metrics.ringDiameter + metrics.rowGap
+		if metrics.showsRegenBar {
+			let barY = pad + metrics.ringDiameter + metrics.rowGap
+			regenBar.frame = NSRect(
+				x: pad, y: barY, width: metrics.heartsRowWidth, height: metrics.regenBarHeight)
+			heartY = barY + metrics.regenBarHeight + metrics.rowGap
+		}
 		for (idx, hv) in heartViews.enumerated() {
 			let x = pad + CGFloat(idx) * (metrics.heartWidth + metrics.heartSpacing)
 			hv.frame = NSRect(x: x, y: heartY, width: metrics.heartWidth, height: metrics.heartHeight)
@@ -672,11 +801,13 @@ final class RPGHUDPanel: NSPanel {
 		hearts: [HeartState],
 		ringFraction: Double,
 		level: Int,
+		regenProgress: Double = 0,
+		showsRegenBar: Bool = false,
 		relativeTo petFrame: CGRect,
 		spriteAnchor: CGRect? = nil,
 		visibleFrame: CGRect
 	) {
-		let metrics = RPGHUDLayout.metrics(for: petFrame)
+		let metrics = RPGHUDLayout.metrics(for: petFrame, showsRegenBar: showsRegenBar)
 		lastMetrics = metrics
 		let size = RPGHUDLayout.panelSize(metrics)
 		let frame = RPGHUDLayout.frame(
@@ -685,7 +816,8 @@ final class RPGHUDPanel: NSPanel {
 		setFrame(frame, display: true)
 		contentHUD.frame = NSRect(origin: .zero, size: frame.size)
 		contentHUD.update(
-			hearts: hearts, ringFraction: ringFraction, level: level, metrics: metrics)
+			hearts: hearts, ringFraction: ringFraction, level: level, regenProgress: regenProgress,
+			metrics: metrics)
 	}
 
 	func fadeIn() {

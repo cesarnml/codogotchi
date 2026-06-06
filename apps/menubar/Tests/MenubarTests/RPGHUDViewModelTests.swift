@@ -293,6 +293,76 @@ final class RPGHUDViewModelTests: XCTestCase {
 		XCTAssertFalse(vm.showsReviveMeter, "HUD off → no meter even while dead")
 	}
 
+	// MARK: - Heart-regen bar (alive-state)
+
+	/// `isFull` is true only at 6 half-hearts and false before any snapshot.
+	func testIsFullOnlyAtMaxHealth() {
+		let vm = RPGHUDViewModel()
+		XCTAssertFalse(vm.isFull, "no snapshot yet → not full")
+		vm.update(halfHearts: 5, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
+		XCTAssertFalse(vm.isFull, "5 half-hearts → not full")
+		vm.update(halfHearts: 6, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
+		XCTAssertTrue(vm.isFull, "6 half-hearts → full")
+	}
+
+	/// The regen bar fraction tracks the same active-minute carry as the revival
+	/// meter: 0/60 → 0.0, 30/60 → 0.5, clamped at 60/60 → 1.0.
+	func testHeartRegenProgressTracksActiveMinutes() {
+		let vm = RPGHUDViewModel()
+		vm.update(halfHearts: 3, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
+		XCTAssertEqual(vm.heartRegenProgress, 0.0, accuracy: 1e-9)
+		vm.update(halfHearts: 3, levelFraction: 0, level: 1, activeMinutes: 30, hudEnabled: true)
+		XCTAssertEqual(vm.heartRegenProgress, 0.5, accuracy: 1e-9)
+		vm.update(halfHearts: 3, levelFraction: 0, level: 1, activeMinutes: 90, hudEnabled: true)
+		XCTAssertEqual(vm.heartRegenProgress, 1.0, accuracy: 1e-9)
+	}
+
+	/// The bar shows only while alive, below max health, and HUD-enabled.
+	func testShowsHeartRegenBarOnlyWhenAliveAndNotFull() {
+		let vm = RPGHUDViewModel()
+		XCTAssertFalse(vm.showsHeartRegenBar, "no snapshot yet → hidden")
+
+		// Mid-health alive → shown.
+		vm.update(halfHearts: 3, levelFraction: 0, level: 1, activeMinutes: 20, hudEnabled: true)
+		XCTAssertTrue(vm.showsHeartRegenBar, "alive + below max → bar shows")
+
+		// Full health → hidden (nothing to regen).
+		vm.update(halfHearts: 6, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
+		XCTAssertFalse(vm.showsHeartRegenBar, "full health → bar hidden")
+
+		// Dead → hidden (the green revival meter owns the display).
+		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 20, hudEnabled: true)
+		XCTAssertFalse(vm.showsHeartRegenBar, "dead → bar hidden")
+	}
+
+	/// The bar belongs to the HUD: opting the HUD out hides it even when alive and
+	/// below max health, and a live toggle flips it without a new poll.
+	func testShowsHeartRegenBarGatedByHUDEnabled() {
+		let vm = RPGHUDViewModel()
+		vm.update(halfHearts: 4, levelFraction: 0, level: 1, activeMinutes: 10, hudEnabled: false)
+		XCTAssertFalse(vm.showsHeartRegenBar, "HUD off → no bar even when alive + below max")
+
+		vm.setHUDEnabled(true)
+		XCTAssertTrue(vm.showsHeartRegenBar, "HUD re-enabled → bar returns")
+	}
+
+	// MARK: - Layout: regen-bar row height
+
+	/// When the bar is requested, the content height grows by the bar row (bar
+	/// height + a row gap); without it the height matches the hearts-over-ring
+	/// stack.
+	func testRegenBarGrowsContentHeight() {
+		let petFrame = CGRect(x: 1000, y: 800, width: 220, height: 264)
+		let withoutBar = RPGHUDLayout.metrics(for: petFrame, showsRegenBar: false)
+		let withBar = RPGHUDLayout.metrics(for: petFrame, showsRegenBar: true)
+		XCTAssertEqual(
+			withBar.contentHeight - withoutBar.contentHeight,
+			withBar.regenBarHeight + withBar.rowGap,
+			accuracy: 0.5)
+		// Width is unaffected — the bar spans the heart row, never wider.
+		XCTAssertEqual(withBar.contentWidth, withoutBar.contentWidth, accuracy: 0.5)
+	}
+
 	// MARK: - Layout: opaque-bounds anchoring
 
 	/// A wide on-screen area so placement is never clamped to the screen edge.

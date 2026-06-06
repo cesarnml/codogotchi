@@ -1,0 +1,37 @@
+{
+  "name": "hatch-codogotchi",
+  "version": "0.1.0",
+  "description": "Codex-native skills that draw Codogotchi-compatible sprite atlases (Codex, Lite-Basic, Lite-Enhanced, and Son-of-Anton tiers) from a seed image, a text description, or an existing Codex sheet.",
+  "author": {
+    "name": "Cesar Mejia",
+    "url": "https://github.com/cesarnml"
+  },
+  "homepage": "https://github.com/cesarnml/codogotchi/tree/main/plugins/hatch-codogotchi",
+  "repository": "https://github.com/cesarnml/codogotchi",
+  "license": "MIT",
+  "keywords": [
+    "codogotchi",
+    "spritesheet",
+    "sprite-atlas",
+    "pet",
+    "animation",
+    "pixel-art",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Hatch Codogotchi",
+    "shortDescription": "Draw Codogotchi-compatible sprite atlases.",
+    "longDescription": "Hatch Codogotchi bundles five guided, frame-first skills plus a Python pipeline (prepare → stitch → inspect → compose → validate) for producing Codogotchi-compatible WebP sprite atlases: the required Codex Tier-1 sheet, the Lite-Basic and Lite-Enhanced alive/dead tiers, and the Son-of-Anton delivery-gate sheet. Start from a seed image, a text description, or an existing Codex spritesheet.",
+    "developerName": "Cesar Mejia",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/cesarnml/codogotchi",
+    "defaultPrompt": [
+      "Hatch a new Codogotchi pet from this seed image",
+      "Add the Lite-Basic spritesheet to my existing Codex pet",
+      "Generate the Son-of-Anton gate spritesheet for my pet"
+    ],
+    "brandColor": "#F6A5C0"
+  }
+}

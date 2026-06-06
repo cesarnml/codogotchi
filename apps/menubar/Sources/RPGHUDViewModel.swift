@@ -46,6 +46,10 @@ final class RPGHUDViewModel {
 	/// before the first snapshot (no hearts yet) so death visuals never flash on.
 	var isDead: Bool { !hearts.isEmpty && hearts.allSatisfy { $0 == .empty } }
 
+	/// The pet is at max health when all three slots are full (6 half-hearts).
+	/// False before the first snapshot so the regen bar never shows pre-data.
+	var isFull: Bool { hearts.count == 3 && hearts.allSatisfy { $0 == .full } }
+
 	/// Whether the death presentation (grayscale pet + tombstone) should show. The
 	/// tombstone is part of the RPG HUD — alongside the hearts, XP ring, and level
 	/// label — so it (and the grayscale) only appear while the HUD is enabled.
@@ -64,6 +68,20 @@ final class RPGHUDViewModel {
 	/// is dead and the HUD is enabled — and vanishes the instant the pet revives
 	/// (regains a half-heart → `isDead` flips false).
 	var showsReviveMeter: Bool { showsDeathPresentation }
+
+	/// Progress toward the *next* half-heart earned by active coding, as a 0…1
+	/// fraction. Identical math to `reviveProgress` (`activeMinutes / 60`); this
+	/// name is used while the pet is alive, where "revive" would mislead. Drives
+	/// the alive-state heart-regen bar that sits between the hearts and XP ring.
+	var heartRegenProgress: Double { reviveProgress }
+
+	/// Whether the alive-state heart-regen bar should show. Only while the HUD is
+	/// enabled, the pet is alive (not dead), and not already at max health: at
+	/// full health there is nothing to regen, and while dead the green revival
+	/// meter owns the progress display instead. False before the first snapshot.
+	var showsHeartRegenBar: Bool {
+		isHUDEnabled && !hearts.isEmpty && !isDead && !isFull
+	}
 
 	/// Called (on the caller's thread) whenever a flash event fires.
 	/// No event fires on the *first* call to `update` — deltas require a prior state.

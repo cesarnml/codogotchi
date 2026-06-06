@@ -72,6 +72,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var hudPinned = false
 	/// HUD forced visible (sweep demo or runtime pin) regardless of hover.
 	private var hudForcedVisible: Bool { hudDemoActive || hudPinned }
+	/// True while the user is actively dragging the pet. The RPG HUD (hearts,
+	/// heart-regen bar, XP ring + its content) and the death chrome (tombstone +
+	/// revival meter) are fully ordered out for the duration so they neither render
+	/// nor re-anchor each drag tick — repositioning them per `mouseDragged` was the
+	/// main source of drag lag. The correct presentation is restored on mouse-up.
+	private var isDraggingPet = false
 
 	init(
 		codexPet: CodexPet,
@@ -373,6 +379,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			hearts: rpgHUDViewModel.hearts,
 			ringFraction: rpgHUDViewModel.ringFraction,
 			level: rpgHUDViewModel.level,
+			regenProgress: rpgHUDViewModel.heartRegenProgress,
+			showsRegenBar: rpgHUDViewModel.showsHeartRegenBar,
 			relativeTo: lastPanelFrame,
 			spriteAnchor: currentSpriteAnchorGlobal(),
 			visibleFrame: visibleFrameProvider()
@@ -530,6 +538,31 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		view.frameChangeHandler = { [weak self] frame in
 			self?.handleCommittedFrameChange(frame)
 		}
+		view.onDragStateChange = { [weak self] dragging in
+			self?.setPetDragging(dragging)
+		}
+	}
+
+	/// Drag begin/end notification from the interaction view. Hides the RPG HUD and
+	/// death chrome for the duration of a drag (a pure perf win — see `isDraggingPet`)
+	/// and restores the correct presentation on mouse-up.
+	private func setPetDragging(_ dragging: Bool) {
+		guard isDraggingPet != dragging else { return }
+		isDraggingPet = dragging
+		if dragging {
+			// Order the HUD chrome fully out so it stops rendering and re-anchoring.
+			cancelHUDAutoHide()
+			cancelHUDHoverMonitor()
+			rpgHUDPanel?.hideImmediately()
+			tombstonePanel?.orderOut(nil)
+			regenMeterPanel?.orderOut(nil)
+		} else {
+			// Restore whatever should be on screen now that the drag has ended.
+			updateDeathPresentation()
+			if isHoveringPet || hudForcedVisible {
+				showHUDForHover()
+			}
+		}
 	}
 
 	/// Live re-anchor: keep `lastPanelFrame` current and glue the attention
@@ -557,13 +590,18 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
-		// Keep the HUD glued to the pet during drag whenever it is visible —
-		// steady (hover), pinned (demo), or mid transient reveal.
+		// While dragging the pet, the HUD + death chrome are ordered out for perf
+		// (see `isDraggingPet`); skip re-anchoring them entirely until mouse-up.
+		guard !isDraggingPet else { return }
+		// Keep the HUD glued to the pet on non-drag live moves (e.g. resize) while
+		// it is visible — steady (hover), pinned (demo), or mid transient reveal.
 		if rpgHUDViewModel.isHUDEnabled, isHoveringPet || hudDemoActive || hudAutoHideWork != nil {
 			rpgHUDPanel?.reposition(
 				hearts: rpgHUDViewModel.hearts,
 				ringFraction: rpgHUDViewModel.ringFraction,
 				level: rpgHUDViewModel.level,
+				regenProgress: rpgHUDViewModel.heartRegenProgress,
+				showsRegenBar: rpgHUDViewModel.showsHeartRegenBar,
 				relativeTo: lastPanelFrame,
 				spriteAnchor: currentSpriteAnchorGlobal(),
 				visibleFrame: visibleFrameProvider()
@@ -1693,6 +1731,10 @@ private final class FloatingPetInteractionView: NSView {
 	/// chrome (the attention bubble) can re-anchor live. Must stay cheap — it
 	/// runs per `mouseDragged`; persistence stays on `frameChangeHandler`.
 	var liveFrameChangeHandler: ((CGRect) -> Void)?
+	/// Fired when a pet drag begins (`true`) and ends (`false`). Lets the panel
+	/// suppress the RPG HUD + death chrome for the duration of the drag. Resize
+	/// drags do not fire this — only translation of the pet body.
+	var onDragStateChange: ((Bool) -> Void)?
 	/// Fired when the user holds a stationary click on the pet body for ≥5 s.
 	var holdDeEscalationHandler: (() -> Void)?
 	var hideFloatingPetHandler: (() -> Void)?
@@ -1853,6 +1895,7 @@ private final class FloatingPetInteractionView: NSView {
 			)
 			activeInteraction = .drag(grabOffsetInScreen: grabOffset)
 			overlayView.showsResizeAffordance = false
+			onDragStateChange?(true)
 			emitInteraction(
 				FloatingInteractionPolicy.clickInteraction(hitTarget: .dragRegion),
 				reason: "mouseDown-click"
@@ -1925,8 +1968,10 @@ private final class FloatingPetInteractionView: NSView {
 	override func mouseUp(with event: NSEvent) {
 		cancelHoldTimer()
 		let wasResizing = isResizing
+		let wasDragging = isTranslating
 		window?.displayIfNeeded()
 		activeInteraction = nil
+		if wasDragging { onDragStateChange?(false) }
 		emitInteraction(nil, reason: "mouseUp-clear")
 		if let frame = window?.frame {
 			frameChangeHandler?(frame)
