@@ -131,5 +131,6 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_petId", ["petId"])
-    .index("by_listed_createdAt", ["listed", "createdAt"]),
+    .index("by_listed_createdAt", ["listed", "createdAt"])
+    .index("by_author_createdAt", ["authorUserId", "createdAt"]),
 });
