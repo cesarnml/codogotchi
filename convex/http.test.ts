@@ -1,7 +1,46 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { convexTest } from "convex-test";
 import { convexTestModules } from "../test/convex-modules";
+import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
+
+async function seedDownloadPet(
+  t: ReturnType<typeof convexTest>,
+  opts: { petId: string; listed: boolean },
+): Promise<Id<"_storage">> {
+  const userId = await t.run(async (ctx) =>
+    ctx.db.insert("users", { username: "creator", rpgHandle: null }),
+  );
+  const zipBytes = new Uint8Array([80, 75, 3, 4, 0, 0]); // PK zip magic
+  const zipId = await t.run(
+    async (ctx) =>
+      await (
+        ctx as unknown as {
+          storage: { store: (b: Blob) => Promise<Id<"_storage">> };
+        }
+      ).storage.store(new Blob([zipBytes], { type: "application/zip" })),
+  );
+  const now = Date.now();
+  await t.run(async (ctx) => {
+    await ctx.db.insert("pets", {
+      petId: opts.petId,
+      displayName: "Test Cat",
+      description: "A pet",
+      authorUserId: userId,
+      authorUsername: "creator",
+      tiers: ["codex"],
+      zipStorageId: zipId,
+      thumbnailStorageId: null,
+      sizes: {},
+      downloadCount: 0,
+      listed: opts.listed,
+      reported: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+  return zipId;
+}
 
 // Force loot rng so http happy-path is deterministic across CI runs.
 spyOn(Math, "random").mockReturnValue(0.99);
@@ -48,5 +87,40 @@ describe("POST /sync", () => {
     // The body should mention the missing/invalid field path so a buddy can
     // self-diagnose without server logs.
     expect(text.toLowerCase()).toMatch(/handle|signals|config|now/);
+  });
+});
+
+describe("GET /pets/:petId/download", () => {
+  test("streams the stored zip and increments downloadCount", async () => {
+    const t = convexTest(schema, convexTestModules);
+    await seedDownloadPet(t, { petId: "cool-cat", listed: true });
+
+    const res = await t.fetch("/pets/cool-cat/download", { method: "GET" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/zip");
+    const disposition = res.headers.get("content-disposition") ?? "";
+    expect(disposition).toContain("cool-cat.codogotchi-pet.zip");
+
+    const pet = await t.run(async (ctx) =>
+      ctx.db
+        .query("pets")
+        .withIndex("by_petId", (q) => q.eq("petId", "cool-cat"))
+        .unique(),
+    );
+    expect(pet?.downloadCount).toBe(1);
+  });
+
+  test("returns 404 for an unlisted pet", async () => {
+    const t = convexTest(schema, convexTestModules);
+    await seedDownloadPet(t, { petId: "hidden-cat", listed: false });
+
+    const res = await t.fetch("/pets/hidden-cat/download", { method: "GET" });
+    expect(res.status).toBe(404);
+  });
+
+  test("returns 404 for an unknown pet", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const res = await t.fetch("/pets/ghost/download", { method: "GET" });
+    expect(res.status).toBe(404);
   });
 });

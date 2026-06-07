@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import JSZip from "jszip";
+import { CELL_COLS, TIER_ROW_COUNTS } from "@codogotchi/pets";
 import { convexTest } from "convex-test";
+import JSZip from "jszip";
+import { convexTestModules } from "../../test/convex-modules";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
-import { convexTestModules } from "../../test/convex-modules";
-import { CELL_COLS, TIER_ROW_COUNTS } from "@codogotchi/pets";
 
 // --- minimal PNG builder (image-size reads PNG headers from .webp-named files) ---
 function crc32(buf: Uint8Array): number {
