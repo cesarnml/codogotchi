@@ -88,7 +88,6 @@ describe("pets — insert + lookup", () => {
     await insertPet(t, userId, zipId, { petId: "pet-listed", listed: true });
     await insertPet(t, userId, zipId, { petId: "pet-unlisted", listed: false });
 
-    // Stub listPets returns ALL pets — so length is 2, not 1 → FAIL (red).
     const pets = await t.query(internal.pets.listPets, {});
     expect(pets).toHaveLength(1);
     expect(pets[0].petId).toBe("pet-listed");

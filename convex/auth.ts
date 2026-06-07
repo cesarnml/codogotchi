@@ -33,19 +33,48 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   ],
   callbacks: {
     async createOrUpdateUser(ctx, args) {
+      const profile = args.profile;
+      const profileEmail = profile.email as string | undefined;
+      const profileName = profile.name as string | undefined;
+      const profileImage = profile.image as string | undefined;
+
       if (args.existingUserId) {
-        // Existing user — no username change, just allow auth system to update
-        // base fields (name, image, etc.) via the default path.
+        // Existing linked account — patch auth-managed fields that may have
+        // changed since sign-up (name, image, email verification) without
+        // touching username or rpgHandle.
+        await ctx.db.patch(args.existingUserId, {
+          name: profileName,
+          image: profileImage,
+          email: profileEmail,
+        });
         return args.existingUserId;
       }
 
-      // New user — determine a unique username.
-      const profile = args.profile;
-      const emailPrefix = (profile.email as string | undefined)
+      // No existing linked account — check for a user with the same verified
+      // email before inserting.  This implements cross-provider account linking:
+      // a user who signs up with Password and later signs in with Google on the
+      // same email address gets ONE unified identity instead of two separate rows.
+      if (profileEmail) {
+        const existingByEmail = await ctx.db
+          .query("users")
+          .withIndex("email", (q) => q.eq("email", profileEmail))
+          .first();
+        if (existingByEmail) {
+          // Link this new provider to the existing user and refresh mutable fields.
+          await ctx.db.patch(existingByEmail._id, {
+            name: profileName ?? existingByEmail.name,
+            image: profileImage ?? existingByEmail.image,
+          });
+          return existingByEmail._id;
+        }
+      }
+
+      // Genuinely new user — synthesize a unique username.
+      const emailPrefix = profileEmail
         ?.split("@")[0]
         ?.toLowerCase()
         .replace(/[^a-z0-9_]/g, "_");
-      const nameSlug = (profile.name as string | undefined)
+      const nameSlug = profileName
         ?.toLowerCase()
         .replace(/\s+/g, "_")
         .replace(/[^a-z0-9_]/g, "");
@@ -57,23 +86,25 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         emailPrefix ||
         `user_${Date.now().toString(36)}`;
 
-      // Find a unique username: base, base_1, base_2, …
+      // Find the first available username: base, base_1, base_2, …
+      // Bounded by the assumption that usernames are scarce relative to the
+      // total user count; loop terminates once a free slot is found.
       let username = base;
       let attempt = 0;
       while (true) {
-        const existing = await ctx.db
+        const taken = await ctx.db
           .query("users")
           .withIndex("by_username", (q) => q.eq("username", username))
           .unique();
-        if (!existing) break;
+        if (!taken) break;
         attempt++;
         username = `${base}_${attempt}`;
       }
 
       return await ctx.db.insert("users", {
-        email: profile.email as string | undefined,
-        name: profile.name as string | undefined,
-        image: profile.image as string | undefined,
+        email: profileEmail,
+        name: profileName,
+        image: profileImage,
         username,
         rpgHandle: null,
       });
