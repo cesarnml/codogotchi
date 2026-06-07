@@ -27,6 +27,36 @@ export const listPets = query({
   },
 });
 
+// Gallery-optimized paginated list: same order as listPets, with thumbnailUrl
+// resolved from storage so the React SPA can render cards without an extra round-trip.
+export const listPetsForGallery = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("pets")
+      .withIndex("by_listed_createdAt", (q) => q.eq("listed", true))
+      .order("desc")
+      .paginate(args.paginationOpts);
+    const page = await Promise.all(
+      result.page.map(async (pet) => ({
+        _id: pet._id,
+        petId: pet.petId,
+        displayName: pet.displayName,
+        description: pet.description,
+        authorUsername: pet.authorUsername,
+        tiers: pet.tiers,
+        downloadCount: pet.downloadCount,
+        sizes: pet.sizes as { width: number; height: number } | null,
+        createdAt: pet.createdAt,
+        thumbnailUrl: pet.thumbnailStorageId
+          ? await ctx.storage.getUrl(pet.thumbnailStorageId)
+          : null,
+      })),
+    );
+    return { ...result, page };
+  },
+});
+
 // Returns the pet detail payload for a listed pet; null for unlisted or missing.
 // Includes a deterministic downloadUrl for the detail page.
 export const getPet = query({
