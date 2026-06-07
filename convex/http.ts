@@ -48,6 +48,7 @@ http.route({
 
 // GET /pets/<petId>/download — streams the canonical zip and increments downloadCount.
 // All three install paths (npx, curl, direct download) hit this single endpoint.
+// claimDownload atomically checks listed + increments count, eliminating TOCTOU.
 http.route({
   pathPrefix: "/pets/",
   method: "GET",
@@ -64,17 +65,17 @@ http.route({
     }
     const petId = segments[1];
 
-    const pet = await ctx.runQuery(internal.pets.getPetForDownload, { petId });
-    if (!pet) {
+    // Atomic check: verifies listed + increments downloadCount in one mutation.
+    // Returns null for unlisted or missing pets; returns { zipStorageId } otherwise.
+    const claim = await ctx.runMutation(internal.pets.claimDownload, { petId });
+    if (!claim) {
       return jsonError(404, { error: "not_found" });
     }
 
-    const blob = await ctx.storage.get(pet.zipStorageId);
+    const blob = await ctx.storage.get(claim.zipStorageId);
     if (!blob) {
       return jsonError(500, { error: "storage_error" });
     }
-
-    await ctx.runMutation(internal.pets.incrementDownloadCount, { petId });
 
     return new Response(blob, {
       status: 200,

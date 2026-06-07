@@ -1,10 +1,11 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 
 // Shared visibility guard: returns null for unlisted or missing pets.
-// Used by getPet, getPetForDownload, and the download HTTP action.
+// Used by getPet and claimDownload; enforces the operator kill-switch on every read path.
 async function getListedPet(ctx: QueryCtx, petId: string) {
   const pet = await ctx.db
     .query("pets")
@@ -27,34 +28,37 @@ export const listPets = query({
 });
 
 // Returns the pet detail payload for a listed pet; null for unlisted or missing.
+// Includes a deterministic downloadUrl for the detail page.
 export const getPet = query({
   args: { petId: v.string() },
   handler: async (ctx, args) => {
-    return await getListedPet(ctx, args.petId);
+    const pet = await getListedPet(ctx, args.petId);
+    if (!pet) return null;
+    return { ...pet, downloadUrl: `/pets/${pet.petId}/download` };
   },
 });
 
-// Internal query used by the download HTTP action.
-export const getPetForDownload = internalQuery({
+// Atomically checks the listed kill-switch, increments downloadCount, and returns the
+// zipStorageId — all in one mutation. Prevents the TOCTOU window where a pet could be
+// unlisted between a separate visibility query and a separate increment mutation.
+// Returns null if the pet is unlisted or missing (HTTP action should return 404).
+export const claimDownload = internalMutation({
   args: { petId: v.string() },
-  handler: async (ctx, args) => {
-    return await getListedPet(ctx, args.petId);
-  },
-});
-
-// Increments downloadCount for a pet by petId — called by the download HTTP action.
-export const incrementDownloadCount = internalMutation({
-  args: { petId: v.string() },
-  handler: async (ctx, args) => {
+  returns: v.union(v.object({ zipStorageId: v.id("_storage") }), v.null()),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ zipStorageId: Id<"_storage"> } | null> => {
     const pet = await ctx.db
       .query("pets")
       .withIndex("by_petId", (q) => q.eq("petId", args.petId))
       .unique();
-    if (!pet) throw new Error(`Pet not found: ${args.petId}`);
+    if (!pet?.listed) return null;
     await ctx.db.patch(pet._id, {
       downloadCount: pet.downloadCount + 1,
       updatedAt: Date.now(),
     });
+    return { zipStorageId: pet.zipStorageId };
   },
 });
 

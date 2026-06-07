@@ -168,5 +168,7 @@ describe("getPet — listed-aware visibility", () => {
     expect(pet?.petId).toBe("visible-pet");
     expect(pet?.sizes).toBeDefined();
     expect(pet?.zipStorageId).toBeDefined();
+    // @ts-expect-error — downloadUrl added by getPet handler
+    expect(pet?.downloadUrl).toBe("/pets/visible-pet/download");
   });
 });
