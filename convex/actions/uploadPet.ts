@@ -3,7 +3,7 @@
 import { validateAndRepackPet } from "@codogotchi/pets";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { action } from "../_generated/server";
 
 const RATE_LIMIT_MAX = 10;
@@ -46,6 +46,15 @@ export const uploadPet = action({
       );
     }
 
+    // Reject duplicate slugs before touching storage (best-effort; createPet
+    // re-checks atomically, but this avoids orphaned blobs on the common path)
+    const existingPet = await ctx.runQuery(api.pets.getPet, {
+      petId: petIdSlug,
+    });
+    if (existingPet !== null) {
+      throw new ConvexError(`Pet slug "${petIdSlug}" is already in use`);
+    }
+
     const rawBlob = await ctx.storage.get(args.rawZipStorageId);
     if (!rawBlob) {
       throw new ConvexError("Uploaded zip not found in storage");
@@ -65,27 +74,45 @@ export const uploadPet = action({
       new Blob([result.canonicalZip], { type: "application/zip" }),
     );
 
-    // Accept thumbnail only if present and within size cap; treat as cosmetic
+    // Accept thumbnail only if present and within size cap; treat as cosmetic.
+    // Oversized thumbnails are deleted to avoid orphaned storage blobs.
     let resolvedThumbnailId = args.thumbnailStorageId ?? null;
     if (resolvedThumbnailId !== null) {
       const thumbBlob = await ctx.storage.get(resolvedThumbnailId);
       if (!thumbBlob || thumbBlob.size > MAX_THUMBNAIL_BYTES) {
+        if (thumbBlob) {
+          try {
+            await ctx.storage.delete(resolvedThumbnailId);
+          } catch {
+            // best-effort cleanup; do not mask the main action result
+          }
+        }
         resolvedThumbnailId = null;
       }
     }
 
-    await ctx.runMutation(internal.pets.createPet, {
-      petId: petIdSlug,
-      displayName: args.displayName,
-      description: args.description,
-      authorUserId: userId,
-      authorUsername: user.username,
-      tiers: result.metadata.tiers,
-      zipStorageId: canonicalZipStorageId,
-      thumbnailStorageId: resolvedThumbnailId,
-      sizes: { fileSizes: result.metadata.fileSizes },
-      listed: true,
-    });
+    try {
+      await ctx.runMutation(internal.pets.createPet, {
+        petId: petIdSlug,
+        displayName: args.displayName,
+        description: args.description,
+        authorUserId: userId,
+        authorUsername: user.username,
+        tiers: result.metadata.tiers,
+        zipStorageId: canonicalZipStorageId,
+        thumbnailStorageId: resolvedThumbnailId,
+        sizes: { fileSizes: result.metadata.fileSizes },
+        listed: true,
+      });
+    } catch (err) {
+      // Clean up canonical zip if the row write failed to avoid orphaned blobs
+      try {
+        await ctx.storage.delete(canonicalZipStorageId);
+      } catch {
+        // best-effort; deletion failure is secondary to the primary error
+      }
+      throw err;
+    }
 
     return { petId: petIdSlug };
   },
