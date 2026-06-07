@@ -7,13 +7,15 @@ const { active = "" } = Astro.props;
 const links = [
   { href: "/docs/spritesheet", label: "Docs", key: "docs" },
   { href: "/hatch", label: "Hatch a Pet", key: "hatch" },
-  { href: "/pets", label: "Adopt a Pet", key: "pets" },
+  { href: "/gallery", label: "Gallery", key: "pets" },
   {
     href: "https://github.com/cesarnml/codogotchi",
     label: "GitHub",
     key: "gh",
   },
   { href: "/rpg", label: "RPG 🔒", key: "rpg" },
+  { href: "/privacy", label: "Privacy", key: "privacy" },
+  { href: "/terms", label: "Terms", key: "terms" },
 ];
 ---
 
@@ -44,6 +46,14 @@ const links = [
     <p class="text-sm text-on-surface-variant text-center max-w-md">
       Works with Claude Code · Codex · Cursor · Copilot · Antigravity.
       Your little buddy who codes with you.
+    </p>
+    <p class="text-xs text-on-surface-variant/70 text-center max-w-lg leading-relaxed">
+      Gallery pets are community-shared and may be inspired by existing characters
+      or brands. Codogotchi does not claim rights to any character designs shown
+      there. Takedowns: <a
+        href="mailto:admin@codogotchi.app"
+        class="hover:text-primary underline">admin@codogotchi.app</a
+      >.
     </p>
     <p class="text-xs text-on-surface-variant/70 text-center flex items-center gap-1">
       Made with love and jasmine

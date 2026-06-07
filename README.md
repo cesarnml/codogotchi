@@ -6,16 +6,19 @@ Convex; a macOS **Codogotchi** app renders agent animation state locally from
 `~/.codogotchi/state.json` on the menu bar (static hero frame per state) and an
 optional transparent floating desktop pet (full animation while visible).
 
-**Status:** Phase 09 shipped — native hook integration for GitHub Copilot (VS Code Agent) and Google
-Antigravity, with five-platform support. Phase 08: Lite-and-SoA v1 release gate (private). The `.app`
-is self-contained: it bundles the `codogotchi` binary so no PATH prerequisite exists. Settings
-(General / Pet / Developer / About) is the control plane for hooks and pet selection. Hook
-install/update/remove live only in Settings → General. The two real 8-frame Maew spritesheets
-(`codogotchi-lite-spritesheet.webp` + `codogotchi-soa-spritesheet.webp`) ship, making Lite and
-SoA visualization work end to end. Earlier phases: 01 CLI + Convex pipeline; 02 menu bar NSStatusItem;
-03 all 19 activity states + codogotchi spritesheet; 04 floating pet + Codogotchi rename; 05 Lite vs
-Alive modes + mandatory onboarding + canonical pet store; 06 attention bubble + sticky SoA gate +
-Cursor platform adapter; 07 schema v4 + gate.json sidecar + renderer merge. See the
+**Status:** Phase 11 shipped — the **[pet gallery marketplace](#pet-gallery-marketplace-phase-11)** at
+`codogotchi.app/gallery`: signed-in creators upload pets, anyone installs them with
+`npx codogotchi add <id>`. Earlier: Phase 10 free local RPG tier (hearts, level 1–100, floating HUD);
+Phase 09 native hooks for GitHub Copilot (VS Code Agent) and Google Antigravity (five-platform
+support); Phase 08 Lite-and-SoA v1 release gate (private). The `.app` is self-contained: it bundles the
+`codogotchi` binary so no PATH prerequisite exists. Settings (General / Pet / Developer / RPG / About)
+is the control plane for hooks and pet selection. Hook install/update/remove live only in
+Settings → General. The two real 8-frame Maew spritesheets (`codogotchi-lite-spritesheet.webp` +
+`codogotchi-soa-spritesheet.webp`) ship, making Lite and SoA visualization work end to end. Earlier
+phases: 01 CLI + Convex pipeline; 02 menu bar NSStatusItem; 03 all 19 activity states + codogotchi
+spritesheet; 04 floating pet + Codogotchi rename; 05 Lite vs Alive modes + mandatory onboarding +
+canonical pet store; 06 attention bubble + sticky SoA gate + Cursor platform adapter; 07 schema v4 +
+gate.json sidecar + renderer merge. See the
 [`phase-08 install runbook`](docs/runbooks/phase-08-lite-install.md) and the
 [`phase-09 platform parity matrix`](docs/runbooks/phase-09-platform-parity.md).
 
@@ -116,6 +119,33 @@ Environment overrides:
 |---|---|---|
 | `CODOGOTCHI_HOME` | `~/.codogotchi` | Config / cache / log root |
 | `CODOGOTCHI_USER_ROOT` | OS home | Home dir used for hook installation |
+
+## Pet gallery marketplace (Phase 11)
+
+[`codogotchi.app/gallery`](https://codogotchi.app/gallery) is a community marketplace for Codogotchi
+pets. A logged-out visitor can browse, search, and open any pet, then install it three ways — all of
+which land the package in `${CODOGOTCHI_HOME:-~/.codogotchi}/pets/<pet-id>/`, ready to pick in
+**Settings → Pet**:
+
+```bash
+npx codogotchi add <pet-id>     # the bare `codogotchi` npm package — add-only surface
+# or a curl one-liner / direct .zip download from the pet's detail page
+```
+
+> The npm `codogotchi` package is a **separate, minimal node build** published over the bare name. Its
+> only commands are `add`, `status`, and `--version` — app-owned write commands (`setup`,
+> `hooks install`) are not exposed, preserving the Phase-08 app-owned-writes boundary. The full command
+> set above lives in the bun-compiled binary bundled inside the `.app`. Installs are **no-overwrite** by
+> default (`--force` to override) and the download is re-validated against the pet contract before it
+> lands.
+
+To **publish** a pet, sign in at [`/upload`](https://codogotchi.app/upload) with Google, GitHub, or
+email/password and choose a public username. Every upload is server-validated, stripped to an
+allowlist, and re-packed into a canonical zip — the trust boundary is at upload, so curl/npx/download
+are all safe. Minimum bar: a **Codex + Lite-Basic** pet (see
+[`hatch-codogotchi`](plugins/hatch-codogotchi/README.md) to generate one). The operator can unlist any
+pet instantly; takedowns and privacy/deletion requests go to `admin@codogotchi.app`
+([Privacy](https://codogotchi.app/privacy) · [Terms](https://codogotchi.app/terms)).
 
 ## Cursor install paths
 
