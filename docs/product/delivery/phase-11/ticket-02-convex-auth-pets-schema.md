@@ -41,8 +41,14 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [any deviation from the ticket metadata contract]
+Red first: `listPets returns only listed:true rows` — stub returned all pets, exposing the missing filter.
+`username uniqueness is enforced` — stub allowed duplicate usernames without throwing.
+`migration is idempotent` — stub threw "Not implemented".
+
+Why this path: `@convex-dev/auth@0.0.93` required upgrading `@auth/core` to `^0.37.0` and `convex` to `^1.39.1` (peer dep bump). Schema inlines `authTables.users` to add `username` + `rpgHandle` fields; the spread-then-override pattern is the documented extension path. Username uniqueness is enforced via a mutation-level check (index lookup before insert) rather than a DB-level constraint — Convex has no UNIQUE constraint primitive; the serialized mutation model prevents races.
+
+Alternative considered: keeping `users` table as a fully custom table (not using authTables) — rejected because authTables provides `authSessions`, `authAccounts`, `authRefreshTokens`, `authVerificationCodes`, `authVerifiers`, `authRateLimits` needed for real auth flows. Custom table would require re-implementing all session/account management.
+
+Deferred: actual OAuth app creation (AUTH_GOOGLE_ID/SECRET, AUTH_GITHUB_ID/SECRET) and Resend domain auth — surfaced in P11.07. Providers are wired; credentials can be absent in dev/test without breaking schema or TS tests.
+
+Contract note: `convex` upgraded from `^1.16.0` → `^1.39.1` as required peer dep for `@convex-dev/auth@0.0.93`. `convex-test@0.0.52` remained compatible.
