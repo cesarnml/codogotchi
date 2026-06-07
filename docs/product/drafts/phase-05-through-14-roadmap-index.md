@@ -41,7 +41,7 @@ _Prior shipped: Phase 01–04 ([phase-04-floating-pet.md](../plans/phase-04-floa
 | **07** | [phase-07-signal-honesty-and-soa-global-gates.md](./phase-07-signal-honesty-and-soa-global-gates.md) | codogotchi + **SoA upstream** | ✅ Shipped |
 | **08** ⭐ | [phase-08-settings-window-and-observability.md](./phase-08-settings-window-and-observability.md) | codogotchi | ✅ Shipped — settings + bundled CLI |
 | **09** | [phase-09-extended-platform-hooks.md](./phase-09-extended-platform-hooks.md) ([plan](../plans/phase-09-extended-platform-hooks.md)) | codogotchi | ✅ Shipped — five-platform hooks |
-| **10** | [phase-10-floating-progression-hud.md](./phase-10-floating-progression-hud.md) ([plan](../plans/phase-10.md)) | codogotchi | ✅ **Delivered** — Free RPG local tier |
+| **10** | [phase-10-floating-progression-hud.md](./phase-10-floating-progression-hud.md) ([plan](../plans/phase-10-free-rpg-tier.md)) | codogotchi | ✅ **Delivered** — Free RPG local tier |
 | **11** | [phase-11-health-visuals-and-decay.md](./phase-11-health-visuals-and-decay.md) | codogotchi | Draft — sick-idle art (was decay visuals) |
 | **12** | [phase-12-level-curve-100-and-migration.md](./phase-12-level-curve-100-and-migration.md) | codogotchi | **Superseded** — folded into Phase 10 |
 | **13** | [phase-13-loot-equip-companion-and-custom-pets.md](./phase-13-loot-equip-companion-and-custom-pets.md) | codogotchi | Draft — loot / premium |

@@ -4,7 +4,7 @@
 
 ## Epic
 
-Product plan: [`docs/product/plans/phase-10.md`](../../plans/phase-10.md). Draft: [`docs/product/drafts/phase-10-floating-progression-hud.md`](../../drafts/phase-10-floating-progression-hud.md).
+Product plan: [`docs/product/plans/phase-10-free-rpg-tier.md`](../../plans/phase-10-free-rpg-tier.md). Draft: [`docs/product/drafts/phase-10-floating-progression-hud.md`](../../drafts/phase-10-floating-progression-hud.md).
 
 ## Product contract
 

@@ -1,6 +1,6 @@
 # Phase 10 — Free RPG tier (local floating progression HUD) retrospective
 
-Source plan: [`docs/product/plans/phase-10.md`](../plans/phase-10.md).
+Source plan: [`docs/product/plans/phase-10-free-rpg-tier.md`](../plans/phase-10-free-rpg-tier.md).
 Delivery plan: [`docs/product/delivery/phase-10/implementation-plan.md`](../delivery/phase-10/implementation-plan.md).
 
 ## Scope delivered

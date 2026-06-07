@@ -1,7 +1,7 @@
 # Phase 10 Draft — Free RPG Tier (Floating Progression HUD)
 
 _Drafted: 2026-05-27 · Rewritten: 2026-06-03 · **Delivered: 2026-06-03**_
-_Status: **Delivered** — product plan [`phase-10.md`](../plans/phase-10.md), delivery [`phase-10/`](../delivery/phase-10/), retrospective [`phase-10-free-rpg-tier-retrospective.md`](../retrospectives/phase-10-free-rpg-tier-retrospective.md)_
+_Status: **Delivered** — product plan [`phase-10-free-rpg-tier.md`](../plans/phase-10-free-rpg-tier.md), delivery [`phase-10/`](../delivery/phase-10/), retrospective [`phase-10-free-rpg-tier-retrospective.md`](../retrospectives/phase-10-free-rpg-tier-retrospective.md)_
 _Source: `notes/private/codogotchi-ideation-storm-roadmap-draft.md` §2, `notes/private/free-cloud-plan.md`, `notes/private/stage-100-calibration.md` (operator-local)_
 _Supersedes: Phase 12 (level curve + migration) — folded into this phase; see [Relationship to Phase 12](#relationship-to-phase-12)._
 
