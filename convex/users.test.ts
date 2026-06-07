@@ -1,8 +1,8 @@
-import { convexTest } from "convex-test";
 import { describe, expect, test } from "bun:test";
-import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { convexTest } from "convex-test";
 import { convexTestModules } from "../test/convex-modules";
+import { internal } from "./_generated/api";
+import schema from "./schema";
 
 describe("users — identity + uniqueness", () => {
   test("username uniqueness is enforced — second insert with same username throws", async () => {

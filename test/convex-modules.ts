@@ -16,4 +16,5 @@ export const convexTestModules = {
   "../../../convex/pets.ts": () => import("../convex/pets.ts"),
   "../../../convex/migrations/p11_02.ts": () =>
     import("../convex/migrations/p11_02.ts"),
+  "../../../convex/auth.ts": () => import("../convex/auth.ts"),
 };

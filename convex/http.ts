@@ -2,8 +2,12 @@ import { syncProfileRequestSchema } from "@codogotchi/contracts";
 import { httpRouter } from "convex/server";
 import { api } from "./_generated/api";
 import { httpAction } from "./_generated/server";
+import { auth } from "./auth";
 
 const http = httpRouter();
+
+// Mount @convex-dev/auth HTTP routes (sign-in, sign-out, session refresh, etc.)
+auth.addHttpRoutes(http);
 
 http.route({
   path: "/sync",

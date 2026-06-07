@@ -1,9 +1,9 @@
-import { convexTest } from "convex-test";
-import type { Id } from "./_generated/dataModel";
 import { describe, expect, test } from "bun:test";
-import { internal } from "./_generated/api";
-import schema from "./schema";
+import { convexTest } from "convex-test";
 import { convexTestModules } from "../test/convex-modules";
+import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import schema from "./schema";
 
 async function seedUser(t: ReturnType<typeof convexTest>) {
   return await t.run(async (ctx) => {

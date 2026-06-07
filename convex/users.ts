@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
 
-// Stub: inserts without checking uniqueness. Uniqueness enforcement is added in green.
+// Internal mutation used by the auth createOrUpdateUser callback and tests.
+// Enforces username uniqueness — throws if the username is already in use.
 export const createUser = internalMutation({
   args: {
     username: v.string(),
@@ -11,6 +12,13 @@ export const createUser = internalMutation({
     image: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) => q.eq("username", args.username))
+      .unique();
+    if (existing !== null) {
+      throw new Error(`Username "${args.username}" is already taken`);
+    }
     return await ctx.db.insert("users", {
       username: args.username,
       rpgHandle: args.rpgHandle,

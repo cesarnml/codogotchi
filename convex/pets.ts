@@ -1,12 +1,15 @@
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
 
-// Stub: listPets returns ALL pets regardless of listed flag.
-// Green implementation filters to listed: true only.
+// Returns only listed pets, newest first.
 export const listPets = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("pets").order("desc").collect();
+    return await ctx.db
+      .query("pets")
+      .withIndex("by_listed_createdAt", (q) => q.eq("listed", true))
+      .order("desc")
+      .collect();
   },
 });
 
@@ -21,7 +24,7 @@ export const getPet = query({
 });
 
 // Internal mutation used by the upload action (P11.03).
-// Stub: does not enforce petId uniqueness yet.
+// Enforces petId uniqueness — throws if the slug is already in use.
 export const createPet = internalMutation({
   args: {
     petId: v.string(),
@@ -36,6 +39,13 @@ export const createPet = internalMutation({
     listed: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("pets")
+      .withIndex("by_petId", (q) => q.eq("petId", args.petId))
+      .unique();
+    if (existing !== null) {
+      throw new Error(`Pet slug "${args.petId}" is already in use`);
+    }
     const now = Date.now();
     return await ctx.db.insert("pets", {
       ...args,
