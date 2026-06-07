@@ -46,10 +46,12 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Red first: All 8 tests failed against the "not implemented" stub on the first run.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [any deviation from the ticket metadata contract]
+Why this path: Used `jszip` + `image-size` (pure JS) as specified. `image-size` reads PNG/WebP headers without needing a pixel codec; confirmed by test suite passing. Traversal guard (`name.includes("..")`) plus the allowlist check together ensure no unrecognized entry survives into the canonical output. The canonical zip is rebuilt from scratch — input bytes are never forwarded.
+
+Alternative considered: Using `sharp` for image dimension reads — rejected per spec (native dep). `image-size` handles PNG and WebP dimension headers without native dependencies.
+
+Deferred: WebP format validation beyond dimension checks; thumbnail extraction; pixel-level content inspection. All deferred per ticket scope.
+
+Contract note: `TIER_ROW_COUNTS` and `TIER_FILES` are exported from `packages/pets/src/pet-contract.ts` for reuse by P11.03 (Convex action) and P11.05 (CLI). Size caps (5 MB/file, 20 MB total) not specified in the contract doc — used reasonable values based on expected atlas sizes.
