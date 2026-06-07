@@ -1,5 +1,6 @@
 {
-  "buildCommand": "cd web && bun run build",
+  "buildCommand": "node_modules/.bin/astro build --root web",
   "outputDirectory": "web/dist",
   "installCommand": "bun install"
 }
+
