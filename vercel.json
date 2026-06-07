@@ -3,4 +3,3 @@
   "outputDirectory": "web/dist",
   "installCommand": "bun install && cd web && bun install"
 }
-
