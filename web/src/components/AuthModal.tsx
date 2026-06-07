@@ -140,17 +140,18 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-charcoal-ink/50 p-4"
+      className="fixed inset-0 z-[100] overflow-y-auto bg-charcoal-ink/50"
       onClick={onClose}
       role="presentation"
     >
-      <div
-        className="w-full max-w-md bg-surface-container-lowest border-2 border-charcoal-ink rounded-2xl shadow-[0_8px_0_0_var(--color-charcoal-ink)] p-6 flex flex-col gap-4"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Sign in or register"
-      >
+      <div className="flex min-h-full items-start justify-center p-4 sm:pt-[15vh] sm:pb-12">
+        <div
+          className="w-full max-w-md bg-surface-container-lowest border-2 border-charcoal-ink rounded-2xl shadow-[0_8px_0_0_var(--color-charcoal-ink)] p-6 flex flex-col gap-4"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Sign in or register"
+        >
         <div className="flex justify-between items-center">
           <h2 className="font-display text-2xl font-extrabold text-on-surface">
             {verifyEmail
@@ -295,6 +296,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
             </button>
           </>
         )}
+        </div>
       </div>
     </div>
   );
