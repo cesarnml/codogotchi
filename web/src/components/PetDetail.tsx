@@ -100,7 +100,7 @@ export default function PetDetail({
         const zip = await JSZip.loadAsync(buf);
         const sheet = zip.file("spritesheet.webp");
         if (!sheet) return;
-        const blob = new Blob([await sheet.async("uint8array")], {
+        const blob = new Blob([await sheet.async("arraybuffer")], {
           type: "image/webp",
         });
         const url = URL.createObjectURL(blob);

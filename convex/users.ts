@@ -1,5 +1,16 @@
-import { v } from "convex/values";
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import {
+  normalizeUsername,
+  usernameTakenMessage,
+  validateUsername,
+} from "@codogotchi/contracts";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { ConvexError, v } from "convex/values";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
 
 // Internal mutation used by the auth createOrUpdateUser callback and tests.
 // Enforces username uniqueness — throws if the username is already in use.
@@ -17,7 +28,7 @@ export const createUser = internalMutation({
       .withIndex("by_username", (q) => q.eq("username", args.username))
       .unique();
     if (existing !== null) {
-      throw new Error(`Username "${args.username}" is already taken`);
+      throw new Error(usernameTakenMessage(args.username));
     }
     return await ctx.db.insert("users", {
       username: args.username,
@@ -41,7 +52,55 @@ export const getUserByUsername = query({
   handler: async (ctx, args) => {
     return await ctx.db
       .query("users")
-      .withIndex("by_username", (q) => q.eq("username", args.username))
+      .withIndex("by_username", (q) =>
+        q.eq("username", normalizeUsername(args.username)),
+      )
       .unique();
+  },
+});
+
+// The signed-in user's public profile, or null when anonymous. Drives the
+// nav auth state and the "choose a username" prompt after social sign-up.
+export const currentUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    const user = await ctx.db.get(userId);
+    if (!user) return null;
+    return {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      image: user.image,
+      usernameSet: user.usernameSet ?? false,
+    };
+  },
+});
+
+// Sets the signed-in user's public username. Authoritative server-side
+// uniqueness + shape enforcement — the client validation is convenience only.
+export const setUsername = mutation({
+  args: { username: v.string() },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new ConvexError("Not authenticated");
+    }
+    const result = validateUsername(args.username);
+    if (!result.ok) {
+      throw new ConvexError(result.error);
+    }
+    const normalized = result.value;
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) => q.eq("username", normalized))
+      .unique();
+    if (existing !== null && existing._id !== userId) {
+      throw new ConvexError(usernameTakenMessage(normalized));
+    }
+    await ctx.db.patch(userId, { username: normalized, usernameSet: true });
+    return { username: normalized };
   },
 });

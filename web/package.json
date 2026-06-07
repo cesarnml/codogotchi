@@ -12,6 +12,7 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@convex-dev/auth": "^0.0.93",
     "astro": "6.4.4",
     "convex": "^1.40.0",
     "jszip": "^3.10.1",
@@ -19,10 +20,12 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.9",
     "@astrojs/react": "^5.0.7",
     "@tailwindcss/vite": "4.3.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "tailwindcss": "4.3.0"
+    "tailwindcss": "4.3.0",
+    "typescript": "^6.0.3"
   }
 }

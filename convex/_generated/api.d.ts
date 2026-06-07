@@ -8,18 +8,30 @@
  * @module
  */
 
+import type * as ResendOTP from "../ResendOTP.js";
+import type * as actions_uploadPet from "../actions/uploadPet.js";
+import type * as auth from "../auth.js";
 import type * as http from "../http.js";
+import type * as migrations_p11_02 from "../migrations/p11_02.js";
 import type * as mutations_syncProfile from "../mutations/syncProfile.js";
+import type * as pets from "../pets.js";
+import type * as users from "../users.js";
 
 import type {
-	ApiFromModules,
-	FilterApi,
-	FunctionReference,
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-	http: typeof http;
-	"mutations/syncProfile": typeof mutations_syncProfile;
+  ResendOTP: typeof ResendOTP;
+  "actions/uploadPet": typeof actions_uploadPet;
+  auth: typeof auth;
+  http: typeof http;
+  "migrations/p11_02": typeof migrations_p11_02;
+  "mutations/syncProfile": typeof mutations_syncProfile;
+  pets: typeof pets;
+  users: typeof users;
 }>;
 
 /**
@@ -31,8 +43,8 @@ declare const fullApi: ApiFromModules<{
  * ```
  */
 export declare const api: FilterApi<
-	typeof fullApi,
-	FunctionReference<any, "public">
+  typeof fullApi,
+  FunctionReference<any, "public">
 >;
 
 /**
@@ -44,8 +56,8 @@ export declare const api: FilterApi<
  * ```
  */
 export declare const internal: FilterApi<
-	typeof fullApi,
-	FunctionReference<any, "internal">
+  typeof fullApi,
+  FunctionReference<any, "internal">
 >;
 
 export declare const components: {};

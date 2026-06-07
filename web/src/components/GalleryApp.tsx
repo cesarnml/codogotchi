@@ -1,13 +1,9 @@
-import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { useEffect, useState } from "react";
+import { API_BASE, convex } from "../lib/convex";
 import { hashToView, viewToHash, type View } from "../lib/router";
 import GalleryGrid from "./GalleryGrid";
 import PetDetail from "./PetDetail";
-
-const CONVEX_URL = "https://careful-bat-587.convex.cloud";
-export const API_BASE = "https://careful-bat-587.convex.site";
-
-const convex = new ConvexReactClient(CONVEX_URL);
 
 export default function GalleryApp() {
   const [view, setView] = useState<View>(() =>
@@ -26,7 +22,7 @@ export default function GalleryApp() {
   };
 
   return (
-    <ConvexProvider client={convex}>
+    <ConvexAuthProvider client={convex}>
       {view.type === "gallery" ? (
         <GalleryGrid onSelectPet={(petId) => navigate({ type: "detail", petId })} />
       ) : (
@@ -36,6 +32,6 @@ export default function GalleryApp() {
           onBack={() => navigate({ type: "gallery" })}
         />
       )}
-    </ConvexProvider>
+    </ConvexAuthProvider>
   );
 }
