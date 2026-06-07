@@ -5,7 +5,7 @@ import { CLI_VERSION } from "./version";
 
 // The production Convex HTTP URL.  Override with CODOGOTCHI_API_URL for testing
 // or self-hosting.
-const DEFAULT_API_URL = "https://careful-bat-587.convex.cloud";
+const DEFAULT_API_URL = "https://careful-bat-587.convex.site";
 
 export type DispatchResult = { exitCode: number };
 

@@ -25,7 +25,7 @@
     },
     "packages/cli": {
       "name": "@codogotchi/cli",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "bin": {
         "codogotchi": "./bin/codogotchi.ts",
         "codogotchi-hook": "./bin/codogotchi-hook.ts",
@@ -42,10 +42,8 @@
       "bin": {
         "codogotchi": "./dist/codogotchi.js",
       },
-      "dependencies": {
-        "@codogotchi/cli": "workspace:*",
-      },
       "devDependencies": {
+        "@codogotchi/cli": "workspace:*",
         "tsup": "^8.5.1",
       },
     },

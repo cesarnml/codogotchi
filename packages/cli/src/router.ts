@@ -594,7 +594,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
     }
     const apiUrl =
       process.env.CODOGOTCHI_API_URL?.trim() ||
-      "https://careful-bat-587.convex.cloud";
+      "https://careful-bat-587.convex.site";
     const result = await runAdd(
       { home: getCodogotchiHome(), fetch, apiUrl },
       { petId, force },
