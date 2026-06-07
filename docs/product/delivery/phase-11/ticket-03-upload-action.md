@@ -39,8 +39,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [any deviation from the ticket metadata contract]
+Red first: "Could not find module for: actions/uploadPet" — all 5 tests failed before the action file existed.
+Why this path: `getAuthUserId` from @convex-dev/auth extracts userId from `identity.subject.split("|")[0]`, making `t.withIdentity({ subject: userId + "|session" })` work cleanly in convex-test without seeding auth sessions. The raw zip is deleted after validation regardless of outcome; the canonical repack is always the stored artifact.
+Alternative considered: Inlining validator logic directly in the action — rejected; the shared `@codogotchi/pets` validator is the contract authority, and esbuild resolves it correctly from the workspace symlink.
+Deferred: Moderation beyond format validation; server-side thumbnail regeneration; thumbnail MIME validation beyond size cap; pixel dimensions not returned by validator metadata (stored as fileSizes only).
+Contract note: `sizes` field stores `{ fileSizes: Record<string, number> }` from validator metadata. Per-frame pixel dimensions (width/height) are validated internally but not surfaced in the metadata type — P11.04/P11.06 concern.

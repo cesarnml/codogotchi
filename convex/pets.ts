@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
 
 // Returns only listed pets, newest first.
 export const listPets = query({
@@ -20,6 +20,20 @@ export const getPet = query({
       .query("pets")
       .withIndex("by_petId", (q) => q.eq("petId", args.petId))
       .unique();
+  },
+});
+
+// Counts recent pets by a given author within a time window for rate limiting.
+export const countRecentPetsByAuthor = internalQuery({
+  args: { authorUserId: v.id("users"), since: v.number() },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("pets")
+      .withIndex("by_author_createdAt", (q) =>
+        q.eq("authorUserId", args.authorUserId).gte("createdAt", args.since),
+      )
+      .collect();
+    return rows.length;
   },
 });
 
