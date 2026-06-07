@@ -50,3 +50,25 @@ export function validateUsername(raw: string): UsernameValidation {
 export function usernameTakenMessage(username: string): string {
   return `Username "${username}" is already taken`;
 }
+
+/**
+ * Coerces an arbitrary string into a guaranteed-valid username. Unlike
+ * {@link validateUsername} (which rejects), this always returns a conformant
+ * handle — used server-side where a username MUST be produced (e.g. synthesizing
+ * one for social signups, or hardening a directly-submitted password signup that
+ * bypassed client validation). Strips disallowed characters, clamps length, and
+ * falls back to a unique-ish handle when nothing usable remains.
+ */
+export function coerceUsername(raw: string): string {
+  let value = normalizeUsername(raw).replace(/[^a-z0-9_]/g, "");
+  if (value.length === 0) {
+    value = `user_${Date.now().toString(36)}`;
+  }
+  if (value.length > USERNAME_MAX) {
+    value = value.slice(0, USERNAME_MAX);
+  }
+  if (value.length < USERNAME_MIN) {
+    value = value.padEnd(USERNAME_MIN, "0");
+  }
+  return value;
+}

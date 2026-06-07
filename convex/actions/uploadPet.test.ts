@@ -213,6 +213,91 @@ describe("uploadPet action", () => {
     ).rejects.toThrow(/already in use|duplicate/i);
   });
 
+  async function blobExists(
+    t: ReturnType<typeof convexTest>,
+    id: Id<"_storage">,
+  ): Promise<boolean> {
+    return await t.run(async (ctx) => (await ctx.storage.get(id)) !== null);
+  }
+
+  test("invalid package deletes the staged raw zip AND thumbnail", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const userId = await seedUser(t);
+    const incompleteZip = await makeTestZip({
+      "pet.json": VALID_PET_JSON,
+      "spritesheet.webp": CODEX_SHEET,
+      // missing codogotchi-lite-basic-spritesheet.webp → validator rejects
+    });
+    const rawZipStorageId = await seedBlob(t, incompleteZip);
+    const thumbnailStorageId = await seedBlob(
+      t,
+      new Uint8Array([137, 80, 78, 71]),
+    );
+
+    await expect(
+      t
+        .withIdentity({ subject: `${userId}|test-session` })
+        .action(api.actions.uploadPet.uploadPet, {
+          rawZipStorageId,
+          thumbnailStorageId,
+          displayName: "Bad Pet",
+          description: "Missing lite-basic",
+          petId: "bad-pet",
+        }),
+    ).rejects.toThrow(/lite.basic|invalid/i);
+
+    // Both client-staged blobs must be cleaned up so rejected uploads do not
+    // leak storage.
+    expect(await blobExists(t, rawZipStorageId)).toBe(false);
+    expect(await blobExists(t, thumbnailStorageId)).toBe(false);
+  });
+
+  test("early rejection (rate limit) deletes the staged raw zip", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const userId = await seedUser(t);
+    const now = Date.now();
+    const fakeZipId = await seedBlob(t, new Uint8Array([1, 2, 3]));
+    for (let i = 0; i < 10; i++) {
+      await t.run(async (ctx) => {
+        await ctx.db.insert("pets", {
+          petId: `rl-seed-${i}`,
+          displayName: `Seeded ${i}`,
+          description: "seeded",
+          authorUserId: userId,
+          authorUsername: "testcreator",
+          tiers: ["codex"],
+          zipStorageId: fakeZipId,
+          thumbnailStorageId: null,
+          sizes: {},
+          downloadCount: 0,
+          listed: true,
+          reported: false,
+          createdAt: now - 3600_000,
+          updatedAt: now - 3600_000,
+        });
+      });
+    }
+    const validZip = await makeTestZip({
+      "pet.json": VALID_PET_JSON,
+      "spritesheet.webp": CODEX_SHEET,
+      "codogotchi-lite-basic-spritesheet.webp": LITE_BASIC_SHEET,
+    });
+    const rawZipStorageId = await seedBlob(t, validZip);
+
+    await expect(
+      t
+        .withIdentity({ subject: `${userId}|test-session` })
+        .action(api.actions.uploadPet.uploadPet, {
+          rawZipStorageId,
+          displayName: "Rate Limited",
+          description: "Over limit",
+          petId: "rl-pet",
+        }),
+    ).rejects.toThrow(/rate limit/i);
+
+    expect(await blobExists(t, rawZipStorageId)).toBe(false);
+  });
+
   test("rate limit exceeded rejects upload", async () => {
     const t = convexTest(schema, convexTestModules);
     const userId = await seedUser(t);

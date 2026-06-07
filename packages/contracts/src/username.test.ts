@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  coerceUsername,
   normalizeUsername,
   USERNAME_MAX,
   USERNAME_MIN,
@@ -61,5 +62,30 @@ describe("usernameTakenMessage", () => {
     expect(usernameTakenMessage("maew")).toBe(
       'Username "maew" is already taken',
     );
+  });
+});
+
+describe("coerceUsername", () => {
+  it("always returns a valid username", () => {
+    for (const raw of ["bad name!", "  Maew  ", "x", "a".repeat(40), "@@@@"]) {
+      expect(validateUsername(coerceUsername(raw)).ok).toBe(true);
+    }
+  });
+
+  it("strips disallowed characters", () => {
+    expect(coerceUsername("bad name!")).toBe("badname");
+  });
+
+  it("clamps overlength handles to the max", () => {
+    expect(coerceUsername("a".repeat(40))).toHaveLength(USERNAME_MAX);
+  });
+
+  it("pads too-short handles up to the minimum", () => {
+    expect(coerceUsername("ab").length).toBeGreaterThanOrEqual(USERNAME_MIN);
+  });
+
+  it("falls back to a usable handle when nothing valid remains", () => {
+    const result = coerceUsername("!!!!");
+    expect(validateUsername(result).ok).toBe(true);
   });
 });

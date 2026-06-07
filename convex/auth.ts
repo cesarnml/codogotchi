@@ -1,6 +1,10 @@
 import GitHub from "@auth/core/providers/github";
 import Google from "@auth/core/providers/google";
-import { normalizeUsername } from "@codogotchi/contracts";
+import {
+  coerceUsername,
+  normalizeUsername,
+  USERNAME_MAX,
+} from "@codogotchi/contracts";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
 import type { DataModel } from "./_generated/dataModel";
@@ -93,15 +97,24 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         .replace(/[^a-z0-9_]/g, "");
       const provided = (profile.username as string | undefined)?.trim();
 
-      const base =
+      // Coerce to a guaranteed-valid handle. This is the authoritative
+      // server-side gate: password signups are validated client-side, but a
+      // direct auth request (or a synthesized social handle) could otherwise
+      // insert spaces, punctuation, or an over/under-length username that
+      // users.setUsername would later reject. coerceUsername strips/clamps so
+      // the inserted handle always satisfies the same rules.
+      const base = coerceUsername(
         provided ||
-        nameSlug ||
-        emailPrefix ||
-        `user_${Date.now().toString(36)}`;
+          nameSlug ||
+          emailPrefix ||
+          `user_${Date.now().toString(36)}`,
+      );
 
       // Find the first available username: base, base_1, base_2, …
       // Bounded by the assumption that usernames are scarce relative to the
-      // total user count; loop terminates once a free slot is found.
+      // total user count; loop terminates once a free slot is found. The base is
+      // truncated to leave room for the suffix so the result never exceeds
+      // USERNAME_MAX.
       let username = base;
       let attempt = 0;
       while (true) {
@@ -111,7 +124,8 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           .unique();
         if (!taken) break;
         attempt++;
-        username = `${base}_${attempt}`;
+        const suffix = `_${attempt}`;
+        username = `${base.slice(0, USERNAME_MAX - suffix.length)}${suffix}`;
       }
 
       // Password signups carry usernameSet:true (form-chosen handle); social
