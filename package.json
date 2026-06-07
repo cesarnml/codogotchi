@@ -25,13 +25,15 @@
     "mac:test": "xcodebuild -project apps/menubar/Codogotchi.xcodeproj -scheme Codogotchi test"
   },
   "dependencies": {
+    "@auth/core": "^0.37.0",
     "@codogotchi/contracts": "workspace:*",
-    "@codogotchi/engine": "workspace:*"
+    "@codogotchi/engine": "workspace:*",
+    "@convex-dev/auth": "^0.0.93"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
     "@types/bun": "latest",
-    "convex": "^1.16.0",
+    "convex": "^1.17.0",
     "convex-test": "^0.0.52"
   },
   "peerDependencies": {

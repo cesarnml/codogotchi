@@ -1,0 +1,41 @@
+import { convexTest } from "convex-test";
+import { describe, expect, test } from "bun:test";
+import { api, internal } from "./_generated/api";
+import schema from "./schema";
+import { convexTestModules } from "../test/convex-modules";
+
+describe("users — identity + uniqueness", () => {
+  test("username uniqueness is enforced — second insert with same username throws", async () => {
+    const t = convexTest(schema, convexTestModules);
+    await t.mutation(internal.users.createUser, {
+      username: "alice",
+      rpgHandle: null,
+    });
+    // Stub does NOT check uniqueness, so this will succeed and the test
+    // expectation below (expects throw) will FAIL — correct red behaviour.
+    await expect(
+      t.mutation(internal.users.createUser, {
+        username: "alice",
+        rpgHandle: null,
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+describe("migrations/p11_02 — idempotency", () => {
+  test("migration is idempotent — no-op on already-migrated deployment", async () => {
+    const t = convexTest(schema, convexTestModules);
+    // Stub throws, so both calls fail — test will FAIL (red).
+    const r1 = await t.mutation(
+      internal.migrations.p11_02.migrateDropLegacyUsers,
+      {},
+    );
+    const r2 = await t.mutation(
+      internal.migrations.p11_02.migrateDropLegacyUsers,
+      {},
+    );
+    // Both runs should succeed and return the same status.
+    expect(r1).toMatchObject({ status: "clean" });
+    expect(r2).toMatchObject({ status: "clean" });
+  });
+});
