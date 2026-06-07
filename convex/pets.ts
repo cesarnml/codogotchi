@@ -1,25 +1,60 @@
+import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
+import type { QueryCtx } from "./_generated/server";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 
-// Returns only listed pets, newest first.
+// Shared visibility guard: returns null for unlisted or missing pets.
+// Used by getPet, getPetForDownload, and the download HTTP action.
+async function getListedPet(ctx: QueryCtx, petId: string) {
+  const pet = await ctx.db
+    .query("pets")
+    .withIndex("by_petId", (q) => q.eq("petId", petId))
+    .unique();
+  if (!pet?.listed) return null;
+  return pet;
+}
+
+// Returns only listed pets, newest first, paginated.
 export const listPets = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
     return await ctx.db
       .query("pets")
       .withIndex("by_listed_createdAt", (q) => q.eq("listed", true))
       .order("desc")
-      .collect();
+      .paginate(args.paginationOpts);
   },
 });
 
+// Returns the pet detail payload for a listed pet; null for unlisted or missing.
 export const getPet = query({
   args: { petId: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    return await getListedPet(ctx, args.petId);
+  },
+});
+
+// Internal query used by the download HTTP action.
+export const getPetForDownload = internalQuery({
+  args: { petId: v.string() },
+  handler: async (ctx, args) => {
+    return await getListedPet(ctx, args.petId);
+  },
+});
+
+// Increments downloadCount for a pet by petId — called by the download HTTP action.
+export const incrementDownloadCount = internalMutation({
+  args: { petId: v.string() },
+  handler: async (ctx, args) => {
+    const pet = await ctx.db
       .query("pets")
       .withIndex("by_petId", (q) => q.eq("petId", args.petId))
       .unique();
+    if (!pet) throw new Error(`Pet not found: ${args.petId}`);
+    await ctx.db.patch(pet._id, {
+      downloadCount: pet.downloadCount + 1,
+      updatedAt: Date.now(),
+    });
   },
 });
 
