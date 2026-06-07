@@ -1,26 +1,18 @@
-# codogotchi
+# Codogotchi
 
-Codogotchi is the RPG layer on top of Codex- and Claude-format pets. Your
-agent activity feeds XP, HP, stage advancement, and loot. The data lives in
-Convex; a macOS **Codogotchi** app renders agent animation state locally from
-`~/.codogotchi/state.json` on the menu bar (static hero frame per state) and an
-optional transparent floating desktop pet (full animation while visible).
+A macOS desktop companion that reacts to your AI agent's activity in real time — idle, thinking, coding, testing, even dying when your HP runs out. The pet lives on your menu bar and optionally floats on screen. Your agent writes `~/.codogotchi/state.json`; the app reads it and animates.
+
+**[Download at codogotchi.app](https://codogotchi.app)** · Browse pets at [/gallery](https://codogotchi.app/gallery) · Publish yours at [/upload](https://codogotchi.app/upload)
 
 **Status:** Phase 11 shipped — the **[pet gallery marketplace](#pet-gallery-marketplace-phase-11)** at
 `codogotchi.app/gallery`: signed-in creators upload pets, anyone installs them with
-`npx codogotchi add <id>`. Earlier: Phase 10 free local RPG tier (hearts, level 1–100, floating HUD);
-Phase 09 native hooks for GitHub Copilot (VS Code Agent) and Google Antigravity (five-platform
-support); Phase 08 Lite-and-SoA v1 release gate (private). The `.app` is self-contained: it bundles the
+`npx codogotchi add <id>`. Phase 10: free local RPG tier (hearts, level 1–100, floating HUD);
+Phase 09: native hooks for GitHub Copilot (VS Code Agent) and Google Antigravity (five-platform
+support); Phase 08: Lite-and-SoA v1 release. The `.app` is self-contained: it bundles the
 `codogotchi` binary so no PATH prerequisite exists. Settings (General / Pet / Developer / RPG / About)
 is the control plane for hooks and pet selection. Hook install/update/remove live only in
-Settings → General. The two real 8-frame Maew spritesheets (`codogotchi-lite-spritesheet.webp` +
-`codogotchi-soa-spritesheet.webp`) ship, making Lite and SoA visualization work end to end. Earlier
-phases: 01 CLI + Convex pipeline; 02 menu bar NSStatusItem; 03 all 19 activity states + codogotchi
-spritesheet; 04 floating pet + Codogotchi rename; 05 Lite vs Alive modes + mandatory onboarding +
-canonical pet store; 06 attention bubble + sticky SoA gate + Cursor platform adapter; 07 schema v4 +
-gate.json sidecar + renderer merge. See the
-[`phase-08 install runbook`](docs/runbooks/phase-08-lite-install.md) and the
-[`phase-09 platform parity matrix`](docs/runbooks/phase-09-platform-parity.md).
+Settings → General. Maew ships with a four-tier spritesheet set (Codex + Lite-Basic + Lite-Enhanced +
+SoA) — see the [spritesheet reference](https://codogotchi.app/docs/spritesheet).
 
 ## What ships in Phase 01
 
@@ -56,21 +48,35 @@ packages/
 convex/       # Convex schema, mutations, HTTP action
 apps/
   menubar/    # Codogotchi macOS app — menu bar + floating pet (Swift / SpriteKit)
+plugins/
+  hatch-codogotchi/  # AI spritesheet generation skills + scripts
+web/          # codogotchi.app site (Astro)
 docs/
   contracts/  # animation-state-vocabulary, soa-event-feed, convex-deployment
   product/    # plans, delivery, retrospectives
   runbooks/   # phase validation runbooks, scheduled-sync install
 ```
 
-## Install (private, source build)
+## Install
 
-There is no App Store or notarized DMG yet. See the
-[`phase-08 Lite install runbook`](docs/runbooks/phase-08-lite-install.md) for the full walk-through.
+**Download the DMG from [codogotchi.app](https://codogotchi.app).** Open it, drag **Codogotchi** to
+`/Applications`, then clear the macOS quarantine flag:
 
-**No PATH prerequisite.** The `.app` bundles its own `codogotchi` binary (Phase 08). Install the app
-and use Settings → General to enable hooks — no Terminal commands required.
+```bash
+xattr -cr /Applications/Codogotchi.app
+```
 
-Quick path via debug build:
+> The build is not yet notarized. The `xattr -cr` command removes the quarantine attribute that
+> macOS attaches to unsigned downloads — it is equivalent to right-clicking → Open in Finder.
+> This step will go away once the app is notarized.
+
+Double-click to launch. **No PATH prerequisite** — the `.app` bundles its own `codogotchi` binary.
+
+On first launch the app presents a **Welcome to Codogotchi** consent sheet. Approve to install
+hooks. Open **Settings → General** to install, update, or remove hooks at any time;
+**Settings → Pet** to switch pets.
+
+### Source build (contributors)
 
 ```bash
 bun install
@@ -78,9 +84,7 @@ bun run mac:build
 open "$(find ~/Library/Developer/Xcode/DerivedData -name 'Codogotchi.app' -path '*/Build/Products/*' | head -1)"
 ```
 
-On first launch the app presents a **Welcome to Codogotchi** consent sheet. Approve to install
-hooks. After closing the sheet, open **Settings → General** at any time to install, update, or
-remove hooks, and **Settings → Pet** to switch pets.
+See [`docs/runbooks/phase-08-lite-install.md`](docs/runbooks/phase-08-lite-install.md) for the full validation walk-through.
 
 ## Tiers (animation vs local RPG vs cloud)
 
@@ -203,7 +207,7 @@ config paths, tool-name mappings, and support levels across all five platforms.
 | `~/.codogotchi/sync.log` | `sync` | Per-source success / failure (rotated) |
 | `~/.codogotchi/loot.log` | `sync` (via Convex) | Loot history (for `loot`) |
 | `~/.codogotchi/scorePR.log` | `sync` | `scorePR` heuristic decisions |
-| `~/.codogotchi/pets/<name>/` | app / user | Canonical pet assets — Maew seeded from bundle on first launch (`pet.json`, `spritesheet.webp`, `codogotchi-lite-spritesheet.webp`, `codogotchi-soa-spritesheet.webp`) |
+| `~/.codogotchi/pets/<name>/` | app / user | Canonical pet assets — Maew seeded from bundle on first launch (`pet.json`, `spritesheet.webp`, `codogotchi-lite-basic-spritesheet.webp`, `codogotchi-lite-enhanced-spritesheet.webp`, `codogotchi-soa-spritesheet.webp`) |
 | Convex `profiles`, `loot_events`, `users` | server | Canonical state |
 
 ## Health semantics
@@ -302,4 +306,4 @@ command surface.
 
 ## License
 
-Private repository. No license granted.
+MIT — see [LICENSE](LICENSE).

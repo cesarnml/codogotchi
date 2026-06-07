@@ -5,28 +5,39 @@ const toc = [
   { id: "file-layout", label: "File Layout" },
   { id: "grid-timing", label: "Grid & Timing" },
   { id: "tier-1", label: "Tier 1 — Codex" },
-  { id: "tier-2", label: "Tier 2 — Lite" },
-  { id: "tier-3", label: "Tier 3 — SoA" },
+  { id: "tier-2", label: "Tier 2 — Lite-Basic" },
+  { id: "tier-3", label: "Tier 3 — Lite-Enhanced" },
+  { id: "tier-4", label: "Tier 4 — SoA" },
   { id: "resolution", label: "Resolution Order" },
   { id: "checklist", label: "Compliance Checklist" },
 ];
 
-// Tier 2 (Lite) rows — agent hook states + idle escalation.
-const liteRows = [
-  ["idle", "idle", "No active session / quiet default"],
-  ["idle-impatient", "idle (escalated)", "No activity for a while"],
-  ["idle-frustrated", "idle (escalated)", "Idle even longer"],
-  ["standby", "standby", "Waiting for the developer"],
-  ["thinking", "thinking", "Exploring / searching the codebase"],
-  ["reading", "reading", "Reading source (light streak)"],
-  ["cramming", "cramming", "Deep-reading (3+ reads in a row)"],
-  ["implementing", "implementing", "Writing code"],
-  ["testing", "testing", "Running tests / verify / lint / build"],
-  ["errored", "errored", "Agent failed — distressed"],
-  ["waiting_for_input", "waiting_for_input", "Awaiting a permission prompt"],
+// Tier 2 (Lite-Basic) rows — minimal "alive/dead" tier, every pet ships this
+const liteBasicRows = [
+  ["idle", "idle", "Calm neutral breathing loop"],
+  ["standby", "standby", "Done, handing control back — rings a handbell"],
+  ["thinking", "thinking", "Pondering — thought-bubble + lightbulb"],
+  ["reading", "reading", "Light reading — one open book"],
+  ["implementing", "implementing", "Active coding — laptop"],
+  ["testing", "testing", "Lab-experiment — flask + test tube"],
+  ["errored", "errored", "Distressed — red ✗ badge"],
+  ["waiting-for-input", "waiting_for_input", `Blocked, awaiting your input — "?" sign`],
+  ["dead", "(renderer — 0 HP)", "Knocked out — X-eyes + spirit-puff"],
 ];
 
-// Tier 3 (SoA) rows — Son-of-Anton delivery-gate moments via gate.json.
+// Tier 3 (Lite-Enhanced) rows — polish extension, requires Lite-Basic
+const liteEnhancedRows = [
+  ["idle-impatient", "(renderer — ~5 min idle)", "Restless — taps wristwatch"],
+  ["idle-frustrated", "(renderer — ~10 min idle)", "Agitated — steam puffs"],
+  ["cramming", "cramming", "Heavy study — tall stack of books"],
+  ["editing", "editing", "Targeted edit — pencil + paper"],
+  ["git-ops", "git_ops", "Shipping — Octocat icon launched"],
+  ["verifying", "verifying", "Post-change check — clipboard + green stamp"],
+  ["searching", "searching", "Local grep/find — magnifier + file folder"],
+  ["web-search", "web_search", "Web query — deerstalker hat + globe"],
+];
+
+// Tier 4 (SoA) rows — Son-of-Anton delivery-gate moments via gate.json
 const soaRows = [
   ["ticket_started", "ticket_started", "Delivery ticket just started"],
   ["green_tdd", "green_tdd", "Tests passing"],
@@ -44,7 +55,7 @@ const soaRows = [
 <Base
   active="docs"
   title="Spritesheet Reference — Codogotchi"
-  description="The exact file names, grid, timing, and animation rows for the Codogotchi three-tier spritesheet system."
+  description="The exact file names, grid, timing, and animation rows for the Codogotchi four-tier spritesheet system."
 >
   <div class="max-w-7xl w-full mx-auto px-6 py-8 flex flex-col md:flex-row gap-6">
     <!-- Sidebar -->
@@ -76,7 +87,7 @@ const soaRows = [
         <h1 class="font-display text-3xl md:text-4xl font-extrabold mb-3">Spritesheet Reference</h1>
         <p class="text-on-surface-variant max-w-2xl mb-4">
           A Codogotchi pet is a folder consumed directly by the macOS app. This is the
-          exact spec for the <strong>three-tier</strong> spritesheet system — file names,
+          exact spec for the <strong>four-tier</strong> spritesheet system — file names,
           grid, timing, and the animation rows each tier carries.
         </p>
         <div class="bg-primary-fixed text-on-primary-fixed-variant rounded-xl border-2 border-charcoal-ink p-4 flex items-start gap-3">
@@ -93,11 +104,16 @@ const soaRows = [
         <h2 class="font-display text-2xl font-bold mb-4">File Layout</h2>
         <div class="menubar-inset rounded-xl p-5 font-mono text-sm text-jade-sage overflow-x-auto">
           <pre class="leading-relaxed"><code>${`{CODOGOTCHI_HOME:-~/.codogotchi}`}/pets/&lt;pet_id&gt;/
-├── pet.json                          <span class="text-white/40"># manifest (id, display_name)</span>
-├── spritesheet.webp                  <span class="text-white/40"># Tier 1 — Codex  (required)</span>
-├── codogotchi-lite-spritesheet.webp  <span class="text-white/40"># Tier 2 — Lite   (optional)</span>
-└── codogotchi-soa-spritesheet.webp   <span class="text-white/40"># Tier 3 — SoA    (optional)</span></code></pre>
+├── pet.json                                   <span class="text-white/40"># manifest (id, display_name)</span>
+├── spritesheet.webp                           <span class="text-white/40"># Tier 1 — Codex         (required)</span>
+├── codogotchi-lite-basic-spritesheet.webp     <span class="text-white/40"># Tier 2 — Lite-Basic    (optional)</span>
+├── codogotchi-lite-enhanced-spritesheet.webp  <span class="text-white/40"># Tier 3 — Lite-Enhanced (optional, requires Basic)</span>
+└── codogotchi-soa-spritesheet.webp            <span class="text-white/40"># Tier 4 — SoA           (optional)</span></code></pre>
         </div>
+        <p class="text-sm text-on-surface-variant mt-3">
+          The old <code class="font-mono">codogotchi-lite-spritesheet.webp</code> (single 8×11 sheet) is deprecated —
+          the app still loads it during a migration window but new pets should target the two split files above.
+        </p>
       </section>
 
       <!-- Grid & timing -->
@@ -146,22 +162,23 @@ const soaRows = [
         </div>
       </section>
 
-      <!-- Tier 2 -->
+      <!-- Tier 2 — Lite-Basic -->
       <section id="tier-2" class="scroll-mt-24">
         <div class="sticker-card bg-surface-container-lowest rounded-2xl p-6">
           <div class="flex justify-between items-start border-b-2 border-dashed border-surface-variant pb-3 mb-4">
             <div>
               <span class="bg-secondary-container text-on-secondary-container text-xs font-bold px-2 py-1 rounded">Tier 2 · optional</span>
-              <h2 class="font-display text-2xl font-bold mt-2">Lite — codogotchi-lite-spritesheet.webp</h2>
+              <h2 class="font-display text-2xl font-bold mt-2">Lite-Basic — codogotchi-lite-basic-spritesheet.webp</h2>
             </div>
             <div class="text-right font-mono text-sm text-outline">
-              <div>Grid: 8 × 11</div>
-              <div>1536 × 2288 px</div>
+              <div>Grid: 8 × 9</div>
+              <div>1536 × 1872 px</div>
             </div>
           </div>
           <p class="text-on-surface-variant text-sm mb-4">
-            Replaces Codex's generic "running" with per-activity art — all agent hook states
-            plus idle mood escalation. When present, it wins over Codex for those rows.
+            The minimal "alive/dead" tier — every published pet ships this. Replaces Codex's
+            generic fallback rows with per-activity art for the core agent hook states, plus a
+            <code class="font-mono">dead</code> pose at 0 HP. States not listed here fall back to Codex.
           </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
@@ -175,7 +192,7 @@ const soaRows = [
               </thead>
               <tbody class="font-mono text-xs">
                 {
-                  liteRows.map((r, i) => (
+                  liteBasicRows.map((r, i) => (
                     <tr class="border-b border-charcoal-ink/10">
                       <td class="py-1.5 pr-3 text-outline">{i}</td>
                       <td class="py-1.5 pr-3 font-bold text-primary">{r[0]}</td>
@@ -190,12 +207,58 @@ const soaRows = [
         </div>
       </section>
 
-      <!-- Tier 3 -->
+      <!-- Tier 3 — Lite-Enhanced -->
       <section id="tier-3" class="scroll-mt-24">
         <div class="sticker-card bg-surface-container-lowest rounded-2xl p-6">
           <div class="flex justify-between items-start border-b-2 border-dashed border-surface-variant pb-3 mb-4">
             <div>
-              <span class="bg-gold-leaf/40 text-on-secondary-fixed-variant text-xs font-bold px-2 py-1 rounded border border-gold-leaf">Tier 3 · optional</span>
+              <span class="bg-secondary-container text-on-secondary-container text-xs font-bold px-2 py-1 rounded">Tier 3 · optional</span>
+              <h2 class="font-display text-2xl font-bold mt-2">Lite-Enhanced — codogotchi-lite-enhanced-spritesheet.webp</h2>
+            </div>
+            <div class="text-right font-mono text-sm text-outline">
+              <div>Grid: 8 × 8</div>
+              <div>1536 × 1664 px</div>
+            </div>
+          </div>
+          <p class="text-on-surface-variant text-sm mb-4">
+            Polish extension adding heuristic-state art and idle mood escalation.
+            <strong>Requires Lite-Basic</strong> — cannot be installed without it.
+            The app looks here first; misses fall through to Basic, then Codex.
+            States not listed here are covered by Basic or Codex.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr class="text-left text-on-surface-variant border-b-2 border-charcoal-ink/20">
+                  <th class="py-2 pr-3 font-bold w-12">Row</th>
+                  <th class="py-2 pr-3 font-bold">Animation</th>
+                  <th class="py-2 pr-3 font-bold">ActivityState / trigger</th>
+                  <th class="py-2 font-bold">Notes</th>
+                </tr>
+              </thead>
+              <tbody class="font-mono text-xs">
+                {
+                  liteEnhancedRows.map((r, i) => (
+                    <tr class="border-b border-charcoal-ink/10">
+                      <td class="py-1.5 pr-3 text-outline">{i}</td>
+                      <td class="py-1.5 pr-3 font-bold text-primary">{r[0]}</td>
+                      <td class="py-1.5 pr-3 text-tertiary">{r[1]}</td>
+                      <td class="py-1.5 font-body text-on-surface-variant">{r[2]}</td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tier 4 — SoA -->
+      <section id="tier-4" class="scroll-mt-24">
+        <div class="sticker-card bg-surface-container-lowest rounded-2xl p-6">
+          <div class="flex justify-between items-start border-b-2 border-dashed border-surface-variant pb-3 mb-4">
+            <div>
+              <span class="bg-gold-leaf/40 text-on-secondary-fixed-variant text-xs font-bold px-2 py-1 rounded border border-gold-leaf">Tier 4 · optional</span>
               <h2 class="font-display text-2xl font-bold mt-2">SoA — codogotchi-soa-spritesheet.webp</h2>
             </div>
             <div class="text-right font-mono text-sm text-outline">
@@ -241,12 +304,12 @@ const soaRows = [
           <h2 class="font-display text-2xl font-bold mb-2">Resolution order</h2>
           <p class="text-sm text-on-primary-fixed-variant mb-4">
             The renderer resolves which row to animate using this priority — first match wins.
-            Gate art shows only while active; otherwise the hook state shows through; Codex is the
-            universal fallback.
+            Gate art shows only while active; Enhanced falls through to Basic on a miss; Codex is
+            the universal fallback.
           </p>
           <div class="flex flex-wrap gap-2 items-center font-mono text-xs">
             {
-              ["SoA (gate.json)", "Lite", "Codex", "Codex idle"].map((s, i, a) => (
+              ["SoA (gate.json)", "Lite-Enhanced", "Lite-Basic", "Codex", "Codex idle"].map((s, i, a) => (
                 <>
                   <span class="bg-surface px-3 py-1.5 rounded border-2 border-charcoal-ink">{s}</span>
                   {i < a.length - 1 && <span class="material-symbols-outlined text-[18px]">arrow_forward</span>}
@@ -265,11 +328,11 @@ const soaRows = [
             {
               [
                 "pet.json has at minimum an id (lowercase slug) and display_name.",
-                "spritesheet.webp present, 8 columns × 9 rows, cell aspect matches all tiers.",
+                "spritesheet.webp present, 8 × 9 (Codex); cell aspect matches all tiers.",
                 "imageWidth % 8 == 0 and imageHeight % rowCount == 0 for every sheet.",
-                "Lite sheet (if present) is 8 × 11; SoA sheet (if present) is 8 × 10.",
-                "WebP lossless recommended (PNG also accepted); 8 frames per row.",
-                "Folder installed at ~/.codogotchi/pets/<pet_id>/, then restart the app.",
+                "Lite-Basic (if present): 8 × 9. Lite-Enhanced (if present): 8 × 8 and requires Basic. SoA (if present): 8 × 10.",
+                "WebP lossless recommended (PNG also accepted); 8 frames per row; all cells RGBA.",
+                "Folder installed at ~/.codogotchi/pets/<pet_id>/, then quit and reopen the app.",
               ].map((c) => (
                 <li class="flex items-start gap-2">
                   <span class="material-symbols-outlined text-jade-sage text-[20px]">check_circle</span>
