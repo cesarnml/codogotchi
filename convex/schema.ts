@@ -1,5 +1,6 @@
 import { HP_OVERLAY_STATES, type HpOverlay } from "@codogotchi/contracts";
 import type { LootSource, LootTier } from "@codogotchi/engine";
+import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
@@ -56,11 +57,28 @@ const configSnapshot = v.object({
 });
 
 export default defineSchema({
+  // auth-managed tables from @convex-dev/auth — replaces vestigial `users` table.
+  // users is inlined here to add username + rpgHandle custom fields.
+  ...authTables,
   users: defineTable({
-    handle: v.string(),
-    profile_id: v.string(),
-    created_at: v.number(),
-  }).index("by_handle", ["handle"]),
+    // Base fields from authTables.users (all optional per auth library contract)
+    name: v.optional(v.string()),
+    image: v.optional(v.string()),
+    email: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phone: v.optional(v.string()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+    // Required unique public authorship handle.
+    // Uniqueness enforced by createOrUpdateUser callback via by_username index lookup.
+    username: v.string(),
+    // Nullable seam for RPG profiles.handle — unused this phase, present so a
+    // future phase can reconcile RPG ↔ marketplace identity without a schema break.
+    rpgHandle: v.union(v.string(), v.null()),
+  })
+    .index("email", ["email", "_creationTime"])
+    .index("phone", ["phone", "_creationTime"])
+    .index("by_username", ["username"]),
 
   profiles: defineTable({
     profile_id: v.string(),
@@ -94,4 +112,24 @@ export default defineSchema({
     .index("by_profile_id", ["profile_id"])
     .index("by_profile_id_ts", ["profile_id", "ts"])
     .index("by_ts", ["ts"]),
+
+  // Gallery marketplace pets uploaded by creators.
+  pets: defineTable({
+    petId: v.string(), // unique slug (uniqueness enforced by createPet via by_petId lookup)
+    displayName: v.string(),
+    description: v.string(),
+    authorUserId: v.id("users"),
+    authorUsername: v.string(), // denormalized for list queries
+    tiers: v.array(v.string()),
+    zipStorageId: v.id("_storage"),
+    thumbnailStorageId: v.union(v.id("_storage"), v.null()),
+    sizes: v.any(), // { width, height } per-frame dimensions from atlas metadata
+    downloadCount: v.number(),
+    listed: v.boolean(), // operator kill-switch: false = unlisted/hidden
+    reported: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_petId", ["petId"])
+    .index("by_listed_createdAt", ["listed", "createdAt"]),
 });
