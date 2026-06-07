@@ -1,31 +1,44 @@
 import GitHub from "@auth/core/providers/github";
 import Google from "@auth/core/providers/google";
+import { normalizeUsername } from "@codogotchi/contracts";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
 import type { DataModel } from "./_generated/dataModel";
+import { ResendOTP } from "./ResendOTP";
 
 // Credentials read from Convex environment variables at runtime — never
 // hardcode secrets in source. Required vars:
 //   AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET
 //   AUTH_GITHUB_ID, AUTH_GITHUB_SECRET
-// Actual OAuth app creation + Resend domain auth is deferred to P11.07.
-// This ticket wires the providers; credentials can be absent in dev/test.
+//   AUTH_RESEND_KEY, AUTH_EMAIL_FROM   (email verification)
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     Google,
     GitHub,
     Password<DataModel>({
+      // Email/password sign-up requires email verification via the Resend OTP
+      // provider before the account becomes usable.
+      verify: ResendOTP,
       profile(params) {
-        // For password sign-up, derive username from the provided email.
-        // A unique suffix is appended in createOrUpdateUser if needed.
+        // For password sign-up, prefer the username the user chose on the form
+        // (normalized to its canonical comparison form). Fall back to the email
+        // local-part; createOrUpdateUser appends a unique suffix on collision.
+        const provided = (params.username as string | undefined)?.trim();
+        const hasProvided = !!provided && provided.length > 0;
         const rawUsername = (params.email as string)
           .split("@")[0]
           .toLowerCase()
           .replace(/[^a-z0-9_]/g, "_");
+        const username = normalizeUsername(
+          hasProvided ? provided : rawUsername,
+        );
         return {
           email: params.email as string,
-          username: (params.username as string | undefined) ?? rawUsername,
+          username,
+          // The register form requires a username, so password signups are
+          // always self-chosen. Social signups never reach this profile().
+          usernameSet: hasProvided,
           rpgHandle: null as string | null,
         };
       },
@@ -101,12 +114,17 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         username = `${base}_${attempt}`;
       }
 
+      // Password signups carry usernameSet:true (form-chosen handle); social
+      // signups have no such flag, so they start false and the UI prompts.
+      const usernameSet = (profile.usernameSet as boolean | undefined) ?? false;
+
       return await ctx.db.insert("users", {
         email: profileEmail,
         name: profileName,
         image: profileImage,
         username,
         rpgHandle: null,
+        usernameSet,
       });
     },
   },

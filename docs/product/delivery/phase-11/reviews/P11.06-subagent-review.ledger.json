@@ -25,9 +25,7 @@
       "terminatedReason": "completed",
       "findings": [],
       "probedSurfaces": [],
-      "patches": [
-        "3587a32"
-      ],
+      "patches": ["3587a32"],
       "schemaVersion": 1,
       "primaryAgent": "claude",
       "runnerSelfReport": null,
@@ -41,9 +39,7 @@
       "terminatedReason": "completed",
       "findings": [],
       "probedSurfaces": [],
-      "patches": [
-        "5055366"
-      ],
+      "patches": ["5055366"],
       "schemaVersion": 1,
       "primaryAgent": "claude",
       "runnerSelfReport": null,
@@ -57,9 +53,7 @@
       "terminatedReason": "completed",
       "findings": [],
       "probedSurfaces": [],
-      "patches": [
-        "5055366"
-      ],
+      "patches": ["5055366"],
       "schemaVersion": 1,
       "primaryAgent": "claude",
       "runnerSelfReport": null,

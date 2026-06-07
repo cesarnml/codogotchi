@@ -30,14 +30,17 @@
     "@codogotchi/engine": "workspace:*",
     "@codogotchi/pets": "workspace:*",
     "@convex-dev/auth": "^0.0.93",
+    "@oslojs/crypto": "^1.0.1",
     "image-size": "^1.2.1",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "resend": "^6.12.4"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
     "@types/bun": "latest",
     "convex": "^1.17.0",
-    "convex-test": "^0.0.52"
+    "convex-test": "^0.0.52",
+    "jose": "^6.2.3"
   },
   "peerDependencies": {
     "typescript": "^5"

@@ -1,8 +1,28 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { paginationOptsValidator } from "convex/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
+
+// Auth-gated upload URL: the /upload client POSTs the raw pet zip (and optional
+// thumbnail) here to obtain storage ids, then calls the uploadPet action. Gating
+// the URL means only signed-in users can stage upload blobs.
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new ConvexError("You must be signed in to upload a pet.");
+    }
+    return await ctx.storage.generateUploadUrl();
+  },
+});
 
 // Shared visibility guard: returns null for unlisted or missing pets.
 // Used by getPet and claimDownload; enforces the operator kill-switch on every read path.

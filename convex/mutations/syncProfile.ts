@@ -1,16 +1,17 @@
 import { hpToOverlay, type SyncProfileResponse } from "@codogotchi/contracts";
+// Import pure compute functions from their specific engine submodules rather
+// than the package barrel. The barrel re-exports node-only source readers
+// (sources/jsonl-parser uses node:fs); pulling it into a Convex V8-runtime
+// mutation breaks the deploy bundle. Deep imports keep node IO out of Convex.
+import { type ProfileHealth, tickHealth } from "@codogotchi/engine/health";
 import {
-  computeXp,
   type LootEvent,
   type LootTier,
-  type ProfileHealth,
-  type RawSignals,
   rollLootDrop,
   rollPRLootDropWithQuality,
   scorePR,
-  stageForXp,
-  tickHealth,
-} from "@codogotchi/engine";
+} from "@codogotchi/engine/loot";
+import { computeXp, type RawSignals, stageForXp } from "@codogotchi/engine/xp";
 import { v } from "convex/values";
 import { mutation } from "../_generated/server";
 

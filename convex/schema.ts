@@ -75,9 +75,15 @@ export default defineSchema({
     // Nullable seam for RPG profiles.handle — unused this phase, present so a
     // future phase can reconcile RPG ↔ marketplace identity without a schema break.
     rpgHandle: v.union(v.string(), v.null()),
+    // True once the user has explicitly chosen their public handle. Password
+    // signups set it from the form; social signups start false so the UI can
+    // prompt "choose your username" on first sign-in.
+    usernameSet: v.optional(v.boolean()),
   })
-    .index("email", ["email", "_creationTime"])
-    .index("phone", ["phone", "_creationTime"])
+    // _creationTime is auto-appended by Convex; mirror authTables' index shape
+    // (["email"] / ["phone"]) — declaring _creationTime explicitly is rejected.
+    .index("email", ["email"])
+    .index("phone", ["phone"])
     .index("by_username", ["username"]),
 
   profiles: defineTable({
