@@ -5,7 +5,7 @@ Delivery plan: [`docs/product/delivery/phase-11/implementation-plan.md`](../deli
 
 ## Scope delivered
 
-Tickets P11.01 → P11.08 (8/8) landed on stacked branches `agents/p11-01` through `agents/p11-08`, opening PRs [#106](https://github.com/cesarnml/codogotchi/pull/106) through [#113](https://github.com/cesarnml/codogotchi/pull/113) (P11.08 PR pending at closeout). Delivered:
+Tickets P11.01 → P11.08 (8/8) were delivered as a stacked branch set `agents/p11-01` through `agents/p11-08`, opening PRs [#106](https://github.com/cesarnml/codogotchi/pull/106) through [#113](https://github.com/cesarnml/codogotchi/pull/113); P11.01 → P11.07 landed/are in review and P11.08 (#113) is pending at closeout. Delivered:
 
 - Pure-JS pet-package validator + canonical repack (`@codogotchi/pets`, `jszip` + `image-size`, no native deps) with fixture tests as the drift guard against `validate_atlas.py` (P11.01);
 - Convex Auth (Google / GitHub / email-password) + unified `users` identity replacing the vestigial table, plus the `pets` schema and listing queries (P11.02);

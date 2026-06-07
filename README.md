@@ -128,7 +128,7 @@ which land the package in `${CODOGOTCHI_HOME:-~/.codogotchi}/pets/<pet-id>/`, re
 **Settings → Pet**:
 
 ```bash
-npx codogotchi add <pet-id>     # the bare `codogotchi` npm package — add-only surface
+npx codogotchi add <pet-id>     # the bare `codogotchi` npm package — minimal install/status surface
 # or a curl one-liner / direct .zip download from the pet's detail page
 ```
 
