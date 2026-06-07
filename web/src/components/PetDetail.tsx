@@ -5,8 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { buildInstallStrings } from "../lib/installStrings";
 import { sliceFrames } from "../lib/spriteFrames";
 
-// 8 cols per row, Codex tier (9 rows); we animate the first row (idle cycle)
+// Codex spritesheet layout constants from packages/pets/src/pet-contract.ts
 const SHEET_COLS = 8;
+const CODEX_ROWS = 9;
 
 const TIER_LABELS: Record<string, string> = {
   codex: "Codex",
@@ -44,7 +45,7 @@ function SpriteAnimation({
   totalCols: number;
 }) {
   const [frame, setFrame] = useState(0);
-  // One complete idle row = SHEET_COLS frames
+  // Animate the first row only: SHEET_COLS frames at y=0 (idle cycle)
   const frames = sliceFrames(frameW * totalCols, frameH, totalCols, 1);
 
   useEffect(() => {
@@ -82,10 +83,12 @@ export default function PetDetail({
   const install = buildInstallStrings(petId, apiBase);
 
   const [sheetUrl, setSheetUrl] = useState<string | null>(null);
+  const [frameSize, setFrameSize] = useState<{ frameW: number; frameH: number } | null>(null);
   const [sheetLoading, setSheetLoading] = useState(false);
   const objectUrlRef = useRef<string | null>(null);
 
-  // Fetch + unzip the sprite sheet once when the detail mounts
+  // Fetch + unzip the Codex sprite sheet; derive frame dimensions from natural image size
+  // rather than pet.sizes (which stores fileSizes, not frame dimensions).
   useEffect(() => {
     let cancelled = false;
     async function loadSheet() {
@@ -101,10 +104,25 @@ export default function PetDetail({
           type: "image/webp",
         });
         const url = URL.createObjectURL(blob);
+
+        // Derive frame dimensions by loading the image — avoids relying on pet.sizes
+        // which currently stores { fileSizes } not { width, height }.
+        const dims = await new Promise<{ frameW: number; frameH: number }>((resolve) => {
+          const img = new Image();
+          img.onload = () =>
+            resolve({
+              frameW: Math.floor(img.naturalWidth / SHEET_COLS),
+              frameH: Math.floor(img.naturalHeight / CODEX_ROWS),
+            });
+          img.onerror = () => resolve({ frameW: 0, frameH: 0 });
+          img.src = url;
+        });
+
         if (!cancelled) {
           if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
           objectUrlRef.current = url;
           setSheetUrl(url);
+          setFrameSize(dims.frameW > 0 ? dims : null);
         } else {
           URL.revokeObjectURL(url);
         }
@@ -135,14 +153,16 @@ export default function PetDetail({
     return (
       <div className="max-w-2xl mx-auto px-6 py-16 text-center">
         <p className="text-on-surface-variant mb-4">Pet "{petId}" not found.</p>
-        <button type="button" onClick={onBack} className="squishy-btn bg-primary text-on-primary font-bold px-6 py-3 rounded-xl">
+        <button
+          type="button"
+          onClick={onBack}
+          className="squishy-btn bg-primary text-on-primary font-bold px-6 py-3 rounded-xl"
+        >
           Back to gallery
         </button>
       </div>
     );
   }
-
-  const sizes = pet.sizes as { width: number; height: number } | null;
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-10">
@@ -159,19 +179,17 @@ export default function PetDetail({
       <div className="sticker-card bg-surface-container-lowest rounded-2xl p-6 flex flex-col gap-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-6 items-start">
-          {/* Sprite animation / thumbnail */}
+          {/* Sprite animation */}
           <div className="menubar-inset rounded-xl w-40 h-40 flex items-center justify-center overflow-hidden flex-shrink-0">
-            {sheetUrl && sizes ? (
+            {sheetUrl && frameSize ? (
               <SpriteAnimation
                 sheetUrl={sheetUrl}
-                frameW={sizes.width}
-                frameH={sizes.height}
+                frameW={frameSize.frameW}
+                frameH={frameSize.frameH}
                 totalCols={SHEET_COLS}
               />
             ) : (
-              <span className="text-5xl">
-                {sheetLoading ? "⏳" : "🐾"}
-              </span>
+              <span className="text-5xl">{sheetLoading ? "⏳" : "🐾"}</span>
             )}
           </div>
 
@@ -250,11 +268,11 @@ export default function PetDetail({
           </div>
         </div>
 
-        {/* Per-tier sizes */}
-        {sizes && (
+        {/* Frame size readout (from loaded image) */}
+        {frameSize && (
           <div className="border-t border-outline-variant pt-4">
             <p className="text-xs text-on-surface-variant">
-              Frame size: {sizes.width} × {sizes.height} px
+              Frame size: {frameSize.frameW} × {frameSize.frameH} px
             </p>
           </div>
         )}
