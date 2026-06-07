@@ -51,6 +51,18 @@ export async function validateAndRepackPet(
       continue;
     }
 
+    // Pre-check: skip decompression if jszip has the uncompressed size available.
+    // Prevents zip-bomb allocation before the cap fires.
+    const knownSize = (
+      file as unknown as { _data?: { uncompressedSize?: number } }
+    )._data?.uncompressedSize;
+    if (knownSize !== undefined && knownSize > MAX_FILE_BYTES) {
+      errors.push(
+        `${name} exceeds per-file size cap (${knownSize} > ${MAX_FILE_BYTES})`,
+      );
+      continue;
+    }
+
     const content = await file.async("uint8array");
     const key = name as AllowlistedFile;
 
