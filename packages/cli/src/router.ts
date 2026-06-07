@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { runAdd } from "./add-command";
 import { ConfigReadError, getCodogotchiHome, readConfig } from "./config";
 import {
   ConfigCommandError,
@@ -86,9 +87,16 @@ Commands:
                    Print the codogotchi CLI version.
   help, --help     Show this message.
 
+  add <pet-id>     Download and install a pet from the Codogotchi marketplace
+                   into ~/.codogotchi/pets/<id>/. Uses --force to overwrite
+                   existing files. Re-validates the package on arrival.
+
   Note: setup, hooks install, and hooks uninstall are app-managed commands.
   Use Codogotchi.app → Settings → General to install or remove hooks.
   These commands remain callable for internal use.
+
+Flags (add):
+  --force          Overwrite existing pet files.
 
 Flags (rpg):
   --force          Overwrite an existing ~/.codogotchi/config.json.
@@ -575,6 +583,30 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       "Usage: codogotchi hooks <install|uninstall|status> [--json]\n",
     );
     return { exitCode: 2 };
+  }
+
+  if (command === "add") {
+    const petId = rest.find((a) => !a.startsWith("-"));
+    const force = rest.includes("--force");
+    if (!petId) {
+      process.stderr.write("Usage: codogotchi add <pet-id> [--force]\n");
+      return { exitCode: 2 };
+    }
+    const apiUrl =
+      process.env.CODOGOTCHI_API_URL?.trim() ||
+      "https://careful-bat-587.convex.cloud";
+    const result = await runAdd(
+      { home: getCodogotchiHome(), fetch, apiUrl },
+      { petId, force },
+    );
+    if (!result.ok) {
+      process.stderr.write(`${result.message}\n`);
+      return { exitCode: result.code === "not_found" ? 2 : 1 };
+    }
+    process.stdout.write(
+      `Pet '${petId}' installed.\nOpen Codogotchi.app → Settings → Pet to switch to this pet.\n`,
+    );
+    return { exitCode: 0 };
   }
 
   process.stderr.write(`Unknown command: ${command}\n${USAGE}`);
