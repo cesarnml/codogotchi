@@ -1,6 +1,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvex } from "convex/react";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "~convex/_generated/api";
 import { validateUsername } from "../lib/username";
 
@@ -138,7 +139,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[100] overflow-y-auto bg-charcoal-ink/50"
       onClick={onClose}
@@ -298,6 +299,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
         )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

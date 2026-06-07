@@ -1,6 +1,7 @@
 import { ConvexAuthProvider, useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "~convex/_generated/api";
 import { convex } from "../lib/convex";
 import { validateUsername } from "../lib/username";
@@ -40,37 +41,40 @@ function UsernamePrompt({ suggested }: { suggested: string }) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-charcoal-ink/50 p-4">
-      <form
-        onSubmit={submit}
-        className="w-full max-w-md bg-surface-container-lowest border-2 border-charcoal-ink rounded-2xl shadow-[0_8px_0_0_var(--color-charcoal-ink)] p-6 flex flex-col gap-4"
-      >
-        <h2 className="font-display text-2xl font-extrabold">Choose your username</h2>
-        <p className="text-sm text-on-surface-variant">
-          This is your public handle on pets you publish.
-        </p>
-        {error && (
-          <p className="text-sm bg-error-container text-on-error-container border border-charcoal-ink/30 rounded-lg px-3 py-2">
-            {error}
-          </p>
-        )}
-        <input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Username"
-          autoComplete="username"
-          className="bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl py-3 px-4 focus:outline-none focus:border-secondary-container"
-        />
-        <button
-          type="submit"
-          disabled={busy}
-          className="squishy-btn bg-primary-container text-on-primary-container font-display font-bold py-3 rounded-xl disabled:opacity-60"
+  return createPortal(
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-charcoal-ink/50">
+      <div className="flex min-h-full items-start justify-center p-4 sm:pt-[15vh] sm:pb-12">
+        <form
+          onSubmit={submit}
+          className="w-full max-w-md bg-surface-container-lowest border-2 border-charcoal-ink rounded-2xl shadow-[0_8px_0_0_var(--color-charcoal-ink)] p-6 flex flex-col gap-4"
         >
-          {busy ? "Saving…" : "Save username"}
-        </button>
-      </form>
-    </div>
+          <h2 className="font-display text-2xl font-extrabold">Choose your username</h2>
+          <p className="text-sm text-on-surface-variant">
+            This is your public handle on pets you publish.
+          </p>
+          {error && (
+            <p className="text-sm bg-error-container text-on-error-container border border-charcoal-ink/30 rounded-lg px-3 py-2">
+              {error}
+            </p>
+          )}
+          <input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Username"
+            autoComplete="username"
+            className="bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl py-3 px-4 focus:outline-none focus:border-secondary-container"
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="squishy-btn bg-primary-container text-on-primary-container font-display font-bold py-3 rounded-xl disabled:opacity-60"
+          >
+            {busy ? "Saving…" : "Save username"}
+          </button>
+        </form>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
