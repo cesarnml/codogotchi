@@ -11,8 +11,6 @@ describe("users — identity + uniqueness", () => {
       username: "alice",
       rpgHandle: null,
     });
-    // Stub does NOT check uniqueness, so this will succeed and the test
-    // expectation below (expects throw) will FAIL — correct red behaviour.
     await expect(
       t.mutation(internal.users.createUser, {
         username: "alice",
@@ -25,7 +23,6 @@ describe("users — identity + uniqueness", () => {
 describe("migrations/p11_02 — idempotency", () => {
   test("migration is idempotent — no-op on already-migrated deployment", async () => {
     const t = convexTest(schema, convexTestModules);
-    // Stub throws, so both calls fail — test will FAIL (red).
     const r1 = await t.mutation(
       internal.migrations.p11_02.migrateDropLegacyUsers,
       {},
