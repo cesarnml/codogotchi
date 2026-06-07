@@ -6,6 +6,12 @@
      its own orchestrator to build itself (ouroboros), so these docs double as live
      delivery guidance for this repo and as the shipped template layer for all consumers. -->
 
+## New to the codebase?
+
+Start with [`docs/how-son-of-anton-works.md`](how-son-of-anton-works.md) — a
+newcomer's mental model of the whole system (no prior knowledge assumed), with a
+concept→file map. Then follow the reading order below.
+
 ## Recommended Reading Order
 
 1. `docs/template/overview/start-here.md` — onboarding and immediate next action
