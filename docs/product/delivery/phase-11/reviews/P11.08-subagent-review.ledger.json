@@ -1,0 +1,22 @@
+{
+  "ticket": "P11.08",
+  "invocations": [
+    {
+      "runnerKind": "codex-cli",
+      "reviewedHeadSha": "a7eaaecc46b9cdf1164dc4b15766e5cf50b639c2",
+      "outcome": "clean",
+      "completedAt": "2026-06-07T14:35:41.012Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-11/reviews/P11.08-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-11/reviews/P11.08-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": "completed",
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}
