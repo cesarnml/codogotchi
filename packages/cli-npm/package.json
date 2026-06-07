@@ -1,0 +1,26 @@
+{
+  "name": "codogotchi",
+  "version": "0.1.0",
+  "description": "Install Codogotchi pets from the marketplace",
+  "bin": {
+    "codogotchi": "./dist/codogotchi.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup"
+  },
+  "keywords": [
+    "codogotchi",
+    "cli",
+    "pets"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@codogotchi/cli": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1"
+  }
+}
