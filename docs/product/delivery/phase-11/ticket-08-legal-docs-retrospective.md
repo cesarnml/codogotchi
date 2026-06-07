@@ -34,8 +34,8 @@ Red: skip
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: N/A — doc-only ticket
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [any deviation from the ticket metadata contract]
+Red first: N/A — doc-only ticket (no automated test; PR review is the gate).
+Why this path: Privacy/Terms are written as static Astro pages reusing the site's existing `Base` layout + sidebar/section pattern (mirroring `docs/spritesheet.astro`), so they inherit the nav, footer, and design tokens for free and need no new infra. Copy is original and adapted to codogotchi's actual data handling (Convex storage, Google/GitHub/email auth, Resend verification, aggregate download counts, no analytics) rather than copied from the codex-pets references. The community-content disclaimer + `admin@codogotchi.app` takedown line was lifted from the gallery page into the global `Footer.astro` so it appears site-wide alongside the new Privacy/Terms links.
+Alternative considered: A single combined `/legal` page — rejected; separate `/privacy` and `/terms` routes are the conventional shape, easier to deep-link from the footer, and match user expectation.
+Deferred: A cookie/consent banner (none needed — no tracking cookies or third-party analytics); a per-pet in-app "Report" button (takedowns intentionally route through `admin@codogotchi.app` email per the product plan); GIF-file export and other deferrals tracked in the implementation plan.
+Contract note: The ticket's "update `docs/template/overview/start-here.md`" line was **not** applied — in this consumer repo that file lives under the `.son-of-anton/` git subtree and is generic SoA orchestrator workflow documentation (zero codogotchi/marketplace content). Editing subtree content would create drift clobbered on the next `soa update`. The equivalent user-visible product documentation (`README.md` + `plugins/hatch-codogotchi/README.md`) was updated instead. The launch-readiness checklist is recorded at `docs/runbooks/phase-11-launch-readiness.md` and is explicit that it gates the *public announcement*, not the code merge.

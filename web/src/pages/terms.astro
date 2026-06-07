@@ -1,0 +1,221 @@
+---
+import Base from "../layouts/Base.astro";
+
+const updated = "June 7, 2026";
+
+const toc = [
+  { id: "acceptance", label: "Acceptance" },
+  { id: "accounts", label: "Accounts" },
+  { id: "uploads", label: "Uploading pets" },
+  { id: "license", label: "Content & license" },
+  { id: "community-content", label: "Community content" },
+  { id: "acceptable-use", label: "Acceptable use" },
+  { id: "operator-rights", label: "Operator rights" },
+  { id: "disclaimer", label: "Disclaimer" },
+  { id: "changes", label: "Changes" },
+  { id: "contact", label: "Contact" },
+];
+---
+
+<Base
+  active=""
+  title="Terms of Service — Codogotchi"
+  description="The terms for using the Codogotchi pet gallery: account rules, what you may upload, the license you grant, and the operator's right to unlist any pet."
+>
+  <div class="max-w-7xl w-full mx-auto px-6 py-8 flex flex-col md:flex-row gap-6">
+    <!-- Sidebar -->
+    <aside class="hidden md:block w-60 flex-shrink-0">
+      <div class="sticker-card bg-surface-container-lowest rounded-2xl p-5 sticky top-24">
+        <h3 class="font-display text-lg font-bold mb-4 flex items-center gap-2">
+          <span class="material-symbols-outlined text-secondary">gavel</span>
+          Terms
+        </h3>
+        <ul class="flex flex-col gap-2">
+          {
+            toc.map((t) => (
+              <li>
+                <a
+                  href={`#${t.id}`}
+                  class="text-sm text-on-surface-variant hover:text-primary font-medium"
+                >
+                  {t.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <div class="flex-grow min-w-0 flex flex-col gap-8">
+      <!-- Hero -->
+      <section
+        class="sticker-card bg-surface-container-low rounded-2xl p-8 relative overflow-hidden"
+      >
+        <span
+          class="material-symbols-outlined absolute -top-3 -right-3 text-6xl text-surface-variant opacity-40 rotate-12"
+          >gavel</span
+        >
+        <h1 class="font-display text-3xl md:text-4xl font-extrabold mb-3">
+          Terms of Service
+        </h1>
+        <p class="text-on-surface-variant max-w-2xl mb-2">
+          These terms cover the Codogotchi pet
+          <a href="/gallery" class="text-primary font-bold underline">gallery</a> —
+          a community marketplace where creators upload and share desktop-pet
+          packages. By using the gallery you agree to them. They are written in
+          plain language for a small, owner-operated project; please read our
+          <a href="/privacy" class="text-primary font-bold underline">Privacy Policy</a
+          > alongside them.
+        </p>
+        <p class="text-xs text-on-surface-variant/70">Last updated: {updated}</p>
+      </section>
+
+      <!-- Acceptance -->
+      <section id="acceptance" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">Acceptance</h2>
+        <p class="text-on-surface-variant leading-relaxed">
+          By browsing, downloading, or uploading pets you accept these terms. If
+          you do not agree, do not use the gallery. You must be old enough to form a
+          binding agreement in your jurisdiction to create an account.
+        </p>
+      </section>
+
+      <!-- Accounts -->
+      <section id="accounts" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">Accounts</h2>
+        <p class="text-on-surface-variant leading-relaxed">
+          You may browse and install pets without an account. To upload a pet you
+          sign in with Google, GitHub, or an email and password, and choose a public
+          username. You are responsible for activity under your account and for
+          keeping your credentials secure. Pick a username that does not impersonate
+          someone else.
+        </p>
+      </section>
+
+      <!-- Uploads -->
+      <section id="uploads" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">Uploading pets</h2>
+        <p class="text-on-surface-variant leading-relaxed mb-3">
+          When you upload a pet you confirm that you created it or otherwise have the
+          right to share it, and that it does not infringe anyone's intellectual
+          property or other rights.
+        </p>
+        <p class="text-on-surface-variant leading-relaxed">
+          Every upload is validated on the server, stripped to an allowlist of
+          expected files, and re-packed into a canonical package before it is stored
+          or made available for download. Uploads that fail validation are rejected.
+          This protects downloaders, but it does not make us the author of, or
+          responsible for, the artwork or content you submit.
+        </p>
+      </section>
+
+      <!-- License -->
+      <section id="license" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">Content &amp; license</h2>
+        <p class="text-on-surface-variant leading-relaxed">
+          You keep ownership of the pets you create. By publishing a pet to the
+          gallery you grant Codogotchi a non-exclusive, worldwide, royalty-free
+          license to host, store, reformat (including the server re-pack and
+          thumbnail generation), display, and distribute that pet so that others can
+          view and install it. This license lasts while the pet is listed and ends
+          when the pet is removed, except for copies already downloaded by others.
+        </p>
+      </section>
+
+      <!-- Community content -->
+      <section id="community-content" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">Community content</h2>
+        <p class="text-on-surface-variant leading-relaxed">
+          Pets in the gallery are community-shared and may be inspired by existing
+          characters or brands. Codogotchi does not claim rights to any character
+          designs shown here, and listing a pet is not an endorsement. If you believe
+          a pet infringes your rights, email
+          <a href="mailto:admin@codogotchi.app" class="text-primary font-bold underline"
+            >admin@codogotchi.app</a
+          > with enough detail to identify the pet and we will review and, where
+          appropriate, unlist it.
+        </p>
+      </section>
+
+      <!-- Acceptable use -->
+      <section id="acceptable-use" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">Acceptable use</h2>
+        <p class="text-on-surface-variant leading-relaxed mb-2">You agree not to:</p>
+        <ul
+          class="flex flex-col gap-2 text-on-surface-variant leading-relaxed list-disc pl-5"
+        >
+          <li>
+            Upload malware, exploits, or anything designed to harm a downloader's
+            machine.
+          </li>
+          <li>Upload content you do not have the right to share.</li>
+          <li>
+            Upload illegal, hateful, harassing, or sexually explicit content, or
+            content that targets or endangers others.
+          </li>
+          <li>
+            Impersonate another person or misrepresent your affiliation with anyone.
+          </li>
+          <li>
+            Abuse, probe, or attempt to disrupt the service, or evade the upload
+            validation and re-pack pipeline.
+          </li>
+        </ul>
+      </section>
+
+      <!-- Operator rights -->
+      <section id="operator-rights" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">Operator rights</h2>
+        <p class="text-on-surface-variant leading-relaxed">
+          We may unlist or remove any pet, and suspend or remove any account, at any
+          time and at our discretion — for example for a takedown request, a terms
+          violation, or a safety concern. Unlisting is immediate: the pet disappears
+          from the gallery and its download endpoints. We are not obligated to host
+          any particular pet.
+        </p>
+      </section>
+
+      <!-- Disclaimer -->
+      <section id="disclaimer" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">Disclaimer</h2>
+        <p class="text-on-surface-variant leading-relaxed">
+          The gallery and all pets are provided <strong>as is</strong>, without
+          warranties of any kind. Pets are made by the community; we validate
+          packages for structural safety but do not guarantee their quality,
+          accuracy, or fitness for any purpose. To the maximum extent permitted by
+          law, Codogotchi is not liable for any damages arising from your use of the
+          gallery or any pet you install.
+        </p>
+      </section>
+
+      <!-- Changes -->
+      <section id="changes" class="scroll-mt-24">
+        <h2 class="font-display text-2xl font-bold mb-4">Changes</h2>
+        <p class="text-on-surface-variant leading-relaxed">
+          We may update these terms as the project evolves. When we do, we will
+          update the date at the top of this page. Continued use after a change means
+          you accept the updated terms.
+        </p>
+      </section>
+
+      <!-- Contact -->
+      <section id="contact" class="scroll-mt-24">
+        <div
+          class="bg-primary-fixed text-on-primary-fixed-variant rounded-xl border-2 border-charcoal-ink p-5 flex items-start gap-3"
+        >
+          <span class="material-symbols-outlined">mail</span>
+          <p class="text-sm">
+            Questions or takedowns:
+            <a href="mailto:admin@codogotchi.app" class="font-bold underline"
+              >admin@codogotchi.app</a
+            >. See also our <a href="/privacy" class="font-bold underline"
+              >Privacy Policy</a
+            >.
+          </p>
+        </div>
+      </section>
+    </div>
+  </div>
+</Base>
