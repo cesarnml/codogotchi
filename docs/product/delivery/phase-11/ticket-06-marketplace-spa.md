@@ -41,8 +41,8 @@ Red: skip
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first — or N/A, UI-scaffold ticket]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [any deviation from the ticket metadata contract]
+Red first: N/A — UI-scaffold ticket (Red: skip). Unit tests for the three pure utilities ship in the green commit.
+Why this path: Hash-based routing (`/gallery#<petId>`) avoids the need for a hosting-level SPA rewrite rule while preserving static output and clean pet-detail URLs. The Vite `~convex` alias resolves the generated Convex API types from outside the web package without pulling web into the monorepo workspaces. `listPetsForGallery` resolves thumbnail storage URLs server-side to avoid N+1 round-trips in the gallery. `client:only="react"` on the island ensures Convex WebSocket setup never runs during SSG.
+Alternative considered: Path-based routing (`/gallery/[petId].astro`) — rejected because Astro's static output can't pre-render unknown pet IDs at build time, which would require either an SSR adapter (breaks static hosting) or a host rewrite rule (infra dependency not yet in place).
+Deferred: Hosting-level SPA rewrite rule (needed for path-based routing); likes/views/comments; tag/category filters; Collections/Creators; GIF-file export; web utility tests are not run by root CI (`bun test packages convex`) — run with `cd web && bun test src/lib/` separately.
+Contract note: `listPetsForGallery` added to convex/pets.ts (requires `npx convex deploy` after merge for the web SPA to return live data). The `~convex` Vite alias is configured in astro.config.mjs; web/tsconfig.json includes `../convex/_generated/**` for TypeScript resolution.
