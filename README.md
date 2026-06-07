@@ -1,308 +1,92 @@
 # Codogotchi
 
-A macOS desktop companion that reacts to your AI agent's activity in real time — idle, thinking, coding, testing, even dying when your HP runs out. The pet lives on your menu bar and optionally floats on screen. Your agent writes `~/.codogotchi/state.json`; the app reads it and animates.
+A macOS desktop companion that reacts to your AI coding agent in real time — idle, thinking, coding, testing, even dying when you neglect it. The pet lives on your menu bar and can float on your desktop while you work.
 
-**[Download at codogotchi.app](https://codogotchi.app)** · Browse pets at [/gallery](https://codogotchi.app/gallery) · Publish yours at [/upload](https://codogotchi.app/upload)
+**[⬇ Download for macOS](https://codogotchi.app/download)** · [Browse pets](https://codogotchi.app/gallery) · [codogotchi.app](https://codogotchi.app)
 
-**Status:** Phase 11 shipped — the **[pet gallery marketplace](#pet-gallery-marketplace-phase-11)** at
-`codogotchi.app/gallery`: signed-in creators upload pets, anyone installs them with
-`npx codogotchi add <id>`. Phase 10: free local RPG tier (hearts, level 1–100, floating HUD);
-Phase 09: native hooks for GitHub Copilot (VS Code Agent) and Google Antigravity (five-platform
-support); Phase 08: Lite-and-SoA v1 release. The `.app` is self-contained: it bundles the
-`codogotchi` binary so no PATH prerequisite exists. Settings (General / Pet / Developer / RPG / About)
-is the control plane for hooks and pet selection. Hook install/update/remove live only in
-Settings → General. Maew ships with a four-tier spritesheet set (Codex + Lite-Basic + Lite-Enhanced +
-SoA) — see the [spritesheet reference](https://codogotchi.app/docs/spritesheet).
+![Codogotchi animating beside an AI coding session](web/public/assets/hero-maew.gif)
 
-## What ships in Phase 01
-
-- A Bun-powered CLI (`codogotchi`) with `setup`, `sync`, `status`, `loot`,
-  `config`, `vacation`.
-- A hook binary (`codogotchi-hook`) that writes a documented animation-state
-  vocabulary to `~/.codogotchi/state.json` on every Claude Code / Codex
-  lifecycle event.
-- XP / Health / Loot engine wired through the CLI and re-used inside Convex's
-  `syncProfile` mutation, so XP is computed server-side and the CLI is a dumb
-  pipe + cache reader.
-- Four signal sources: Claude Code JSONL, Codex JSONL, GitHub merged PRs (with
-  `scorePR` quality enrichment), Wakatime hours. **Forward-only:** each source
-  reads activity since the last sync (or since install time on first sync)—no
-  historical backfill. Per-source XP **accumulates** on each successful sync.
-- Convex Cloud schema covering `profiles` (with HP fields), `loot_events`,
-  `users`; a `syncProfile` mutation; an HTTP action receiving signals from
-  the CLI.
-- Scheduled-sync installers for launchd and cron, a `scorePR` debug log, and a
-  validation runbook.
-
-Public surface (web armory, leaderboard, OAuth, OG image, install script,
-macOS pet, visible loot rendering) is intentionally deferred. See
-[`docs/product/plans/phase-01-cli-convex-plumbing.md#explicit-deferrals`](docs/product/plans/phase-01-cli-convex-plumbing.md#explicit-deferrals).
-
-## Repo layout
-
-```
-packages/
-  cli/        # codogotchi + codogotchi-hook bins (Bun-only)
-  engine/     # XP / Health / Loot pure logic + Bun-only sources/
-  contracts/  # zod + types: IPC, signals, SoA event feed
-convex/       # Convex schema, mutations, HTTP action
-apps/
-  menubar/    # Codogotchi macOS app — menu bar + floating pet (Swift / SpriteKit)
-plugins/
-  hatch-codogotchi/  # AI spritesheet generation skills + scripts
-web/          # codogotchi.app site (Astro)
-docs/
-  contracts/  # animation-state-vocabulary, soa-event-feed, convex-deployment
-  product/    # plans, delivery, retrospectives
-  runbooks/   # phase validation runbooks, scheduled-sync install
-```
+---
 
 ## Install
 
-**Download the DMG from [codogotchi.app](https://codogotchi.app).** Open it, drag **Codogotchi** to
-`/Applications`, then clear the macOS quarantine flag:
+1. **[Download Codogotchi.dmg](https://codogotchi.app/download)**, open it, and drag **Codogotchi** to your Applications folder.
+2. Clear the macOS quarantine flag (one-time — the build isn't notarized yet):
+   ```bash
+   xattr -cr /Applications/Codogotchi.app
+   ```
+3. Launch it. On first run, approve the **Welcome to Codogotchi** sheet to turn on agent animations.
 
-```bash
-xattr -cr /Applications/Codogotchi.app
-```
+That's it. No Terminal setup, no global installs — everything Codogotchi needs is inside the app.
 
-> The build is not yet notarized. The `xattr -cr` command removes the quarantine attribute that
-> macOS attaches to unsigned downloads — it is equivalent to right-clicking → Open in Finder.
-> This step will go away once the app is notarized.
+> **Using Cursor, VS Code, or another editor?** After enabling hooks, **restart your editor** once so it picks them up.
 
-Double-click to launch. **No PATH prerequisite** — the `.app` bundles its own `codogotchi` binary.
+---
 
-On first launch the app presents a **Welcome to Codogotchi** consent sheet. Approve to install
-hooks. Open **Settings → General** to install, update, or remove hooks at any time;
-**Settings → Pet** to switch pets.
+## How it works
 
-### Source build (contributors)
+Your AI agent fires lifecycle events as it works. Codogotchi listens and animates the matching mood — coding, reading, testing, waiting, erroring, and more. Stay active and your pet thrives; neglect it and its hearts drain. It's a Tamagotchi for your coding sessions.
 
-```bash
-bun install
-bun run mac:build
-open "$(find ~/Library/Developer/Xcode/DerivedData -name 'Codogotchi.app' -path '*/Build/Products/*' | head -1)"
-```
+**Works with:** Claude Code · Codex · Cursor · GitHub Copilot (VS Code) · Google Antigravity
 
-See [`docs/runbooks/phase-08-lite-install.md`](docs/runbooks/phase-08-lite-install.md) for the full validation walk-through.
+Turn hooks on or off for any editor anytime in **Settings → General → Install / Update hooks**.
 
-## Tiers (animation vs local RPG vs cloud)
+---
 
-| Tier | Config | Network | Progression |
-|---|---|---|---|
-| **Free RPG (local)** | `features.rpg_enabled: true` + `rpg_hud_enabled: true` — **the v1 install default** (no Convex fields required) | No | Hearts, level 1–100, XP ring via local JSONL + hooks; HUD opt-out: set `features.rpg_hud_enabled: false` in **Settings → RPG** |
-| **Animation-only** | `features.rpg_enabled: false` (opt-out via `codogotchi config set features.rpg_enabled false`) | No | Hook-driven pet animation only |
-| **Alive + sync** | `rpg_enabled: true` + cloud profile fields | Yes (when configured) | `sync`, leaderboard — Phase 11+ |
+## Getting a pet
 
-`codogotchi setup` provisions local RPG by default (`rpg_enabled: true`, HUD on) — fully local, no Convex URL, no network. New users see the Tamagotchi loop on first run and can hide the HUD in **Settings → RPG**. `codogotchi rpg` (interactive) is the separate opt-in for cloud/social enrollment. Cloud-backed commands (`sync`, `status`, `loot`, `vacation`) still require an enrolled cloud profile when implemented; local progression does not need a Convex URL.
+Codogotchi ships with **Maew**, a cute-flirty buddy animated across every agent state. Want something else? Four ways to get one:
 
-## CLI surface
+| | How |
+|---|---|
+| 🐾 **Meet Maew** | The default pet — already in the app. |
+| ✨ **Hatch your own** | Describe a character or drop a seed image and let AI draw a full animated pet. → [codogotchi.app/hatch](https://codogotchi.app/hatch) |
+| 👥 **Adopt a community pet** | Browse pets made by other developers and install them in a click. → [codogotchi.app/gallery](https://codogotchi.app/gallery) |
+| 🎨 **Draw your own** | Hand-draw a spritesheet using the reference spec. → [codogotchi.app/docs/spritesheet](https://codogotchi.app/docs/spritesheet) |
 
-Phase 08 trimmed the public CLI to read/diagnostic commands. Hook management and onboarding live in
-**Settings → General** (app-owned). `setup`, `hooks install`, and `hooks uninstall` are still callable
-internally (the app spawns them as subprocesses) but are hidden from `--help`.
+Switch between installed pets anytime in **Settings → Pet**. To publish a pet you made for others to adopt, sign in at [codogotchi.app/upload](https://codogotchi.app/upload).
 
-```
-codogotchi rpg                                Cloud/social enrollment (handle + Convex); local RPG is already on by default after `setup`
-codogotchi hooks status [--json]              Print per-platform hook install + firing status
-codogotchi status                             Cached profile, HP, recent loot — requires rpg_enabled: true
+---
 
-codogotchi sync                               One sync cycle — requires rpg_enabled: true
-codogotchi loot [--limit N] [--tier T]        Loot history — requires rpg_enabled: true
-codogotchi config get <key>                   Read a dotted config key
-codogotchi config set <key> <value>           Write a typed value
-codogotchi config list                        Full config as JSON (secrets redacted)
-codogotchi vacation on [--until YYYY-MM-DD]   Pause HP decay — requires rpg_enabled: true
-codogotchi vacation off                       Resume HP decay
-codogotchi vacation status                    Show vacation state
-```
+## Hearts & levels
 
-Environment overrides:
+Codogotchi includes a free, fully local RPG layer — hearts, levels 1–100, and an XP ring that fills as you code. It runs entirely on your machine; nothing is uploaded. Prefer just the animations? Hide the heart HUD in **Settings → RPG**.
 
-| Var | Default | Effect |
-|---|---|---|
-| `CODOGOTCHI_HOME` | `~/.codogotchi` | Config / cache / log root |
-| `CODOGOTCHI_USER_ROOT` | OS home | Home dir used for hook installation |
+---
 
-## Pet gallery marketplace (Phase 11)
+## FAQ
 
-[`codogotchi.app/gallery`](https://codogotchi.app/gallery) is a community marketplace for Codogotchi
-pets. A logged-out visitor can browse, search, and open any pet, then install it three ways — all of
-which land the package in `${CODOGOTCHI_HOME:-~/.codogotchi}/pets/<pet-id>/`, ready to pick in
-**Settings → Pet**:
+**Do I need to install anything besides the app?**
+No. The app is self-contained — drag, drop, approve the welcome sheet.
 
-```bash
-npx codogotchi add <pet-id>     # the bare `codogotchi` npm package — minimal install/status surface
-# or a curl one-liner / direct .zip download from the pet's detail page
-```
+**Where are my pets stored?**
+In `~/.codogotchi/pets/`. Use the menu bar's **Reveal pet folder** item to open it in Finder.
 
-> The npm `codogotchi` package is a **separate, minimal node build** published over the bare name. Its
-> only commands are `add`, `status`, and `--version` — app-owned write commands (`setup`,
-> `hooks install`) are not exposed, preserving the Phase-08 app-owned-writes boundary. The full command
-> set above lives in the bun-compiled binary bundled inside the `.app`. Installs are **no-overwrite** by
-> default (`--force` to override) and the download is re-validated against the pet contract before it
-> lands.
+**My pet isn't animating.**
+Make sure hooks are installed (**Settings → General**) and, if you use Cursor or VS Code, that you restarted the editor afterward.
 
-To **publish** a pet, sign in at [`/upload`](https://codogotchi.app/upload) with Google, GitHub, or
-email/password and choose a public username. Every upload is server-validated, stripped to an
-allowlist, and re-packed into a canonical zip — the trust boundary is at upload, so curl/npx/download
-are all safe. Minimum bar: a **Codex + Lite-Basic** pet (see
-[`hatch-codogotchi`](plugins/hatch-codogotchi/README.md) to generate one). The operator can unlist any
-pet instantly; takedowns and privacy/deletion requests go to `admin@codogotchi.app`
-([Privacy](https://codogotchi.app/privacy) · [Terms](https://codogotchi.app/terms)).
+**Is my activity sent anywhere?**
+No. The hearts/levels layer is local-only by default. Cloud sync and leaderboards are opt-in and not required to use Codogotchi.
 
-## Cursor install paths
+**Why the `xattr` command?**
+The app isn't notarized by Apple yet, so macOS quarantines the download. `xattr -cr` clears that flag — the same as right-click → Open. It'll go away once the app is notarized.
 
-Codogotchi has **first-class native Cursor hooks** (`~/.cursor/hooks.json`). Install via
-**Settings → General → Install hooks** (writes Codex, Claude Code, and Cursor), then **restart Cursor**.
+---
 
-Events fire with `source_origin: "cursor"`. `codogotchi hooks status` reports `cursor: native` when
-`~/.cursor/hooks.json` contains Codogotchi entries.
+## Links
 
-CLI-only install:
+- 🌐 Website — [codogotchi.app](https://codogotchi.app)
+- 🖼 Pet gallery — [codogotchi.app/gallery](https://codogotchi.app/gallery)
+- ✨ Hatch a pet — [codogotchi.app/hatch](https://codogotchi.app/hatch)
+- 📖 Spritesheet reference — [codogotchi.app/docs/spritesheet](https://codogotchi.app/docs/spritesheet)
+- 🔒 [Privacy](https://codogotchi.app/privacy) · [Terms](https://codogotchi.app/terms)
+- ✉️ Support & takedowns — admin@codogotchi.app
 
-```bash
-codogotchi hooks install --platform cursor
-```
+---
 
-### Bridge fallback (optional)
+## Contributing & development
 
-If native Cursor hooks are not installed but Claude Code hooks are, Cursor's **Third-party skills**
-feature can route tool calls through Claude Code hooks. Events then show `source_origin: "claude_code"`.
-`codogotchi hooks status` reports `cursor: bridge` in that case.
-
-### GitHub Copilot (VS Code) and Antigravity (Phase 09)
-
-Native hooks for **GitHub Copilot / VS Code Agent** and **Google Antigravity** shipped in Phase 09.
-Install via:
-
-```bash
-codogotchi hooks install --platform vscode       # writes ~/.copilot/hooks/codogotchi.json
-codogotchi hooks install --platform antigravity  # writes ~/.gemini/config/hooks.json
-```
-
-Events fire with `source_origin: "vscode"` and `source_origin: "antigravity"` respectively. The
-animation badge and attention bubble show the correct platform logo for all five supported origins.
-`codogotchi hooks status` reports each platform's install and firing state.
-
-**`vscode`/`copilot` alias:** The canonical `source_origin` is `vscode`; `copilot` is accepted as a
-`CODOGOTCHI_ORIGIN` alias in manual overrides but the installer always writes `vscode`.
-
-**Bridge caveat:** VS Code may animate via the `.claude/settings.json` bridge if only Claude Code hooks
-are installed — events then show `source_origin: "claude_code"` (mislabeled). Prefer native install.
-
-See the [`platform parity matrix`](docs/runbooks/phase-09-platform-parity.md) for full event sets,
-config paths, tool-name mappings, and support levels across all five platforms.
-
-## Where data lives
-
-| Path | Owner | Purpose |
-| --- | --- | --- |
-| `~/.codogotchi/config.json` | `setup`, `config` | Credentials, health knobs, and pet name |
-| `~/.codogotchi/profile.json` | `sync` | Local cache of Convex profile |
-| `~/.codogotchi/state.json` | `codogotchi-hook` | Animation state for renderers (`schema_version: 4`, v4 19-state enum) |
-| `~/.codogotchi/gate.json` | son-of-anton Phase 17 | Active delivery gate state (written by SoA, read by renderer; `expires_at`-bounded) |
-| `~/.codogotchi/app-state.json` | Codogotchi app | Floating pet visibility, position, size (`schema_version: 1`) |
-| `~/.codogotchi/state-transitions.log` | Codogotchi app | NDJSON log of state changes and heartbeats |
-| `~/.codogotchi/sync.log` | `sync` | Per-source success / failure (rotated) |
-| `~/.codogotchi/loot.log` | `sync` (via Convex) | Loot history (for `loot`) |
-| `~/.codogotchi/scorePR.log` | `sync` | `scorePR` heuristic decisions |
-| `~/.codogotchi/pets/<name>/` | app / user | Canonical pet assets — Maew seeded from bundle on first launch (`pet.json`, `spritesheet.webp`, `codogotchi-lite-basic-spritesheet.webp`, `codogotchi-lite-enhanced-spritesheet.webp`, `codogotchi-soa-spritesheet.webp`) |
-| Convex `profiles`, `loot_events`, `users` | server | Canonical state |
-
-## Health semantics
-
-Three knobs in `~/.codogotchi/config.json`:
-
-- `health.weekend_decay` — when `false` (default), HP does not drop Sat/Sun in
-  the local timezone.
-- `health.grace_days` — days of inactivity before HP starts decaying.
-- `health.vacation_until` — ISO date through which HP decay is suspended; set
-  via `codogotchi vacation on`.
-
-## macOS app (Phase 08)
-
-The **Codogotchi** app (`apps/menubar/`) is an `LSUIElement` menu bar agent with an optional
-float-on-top desktop pet and a Settings window (General / Pet / Developer / About tabs). The `.app`
-bundles its own `codogotchi` binary — no PATH prerequisite.
-
-On first launch the app seeds Maew from the bundle (`~/.codogotchi/pets/maew/`), presents a
-**Welcome to Codogotchi** consent sheet, and installs hooks on approval. After onboarding,
-**Settings → General** is the only user-facing surface for Install / Update / Remove hooks.
-**Settings → Pet** enumerates and switches pets. **Settings → Developer** shows live `state.json`,
-`gate.json`, last-5 transitions, schema version, and the Cursor-bridge explainer (read-only).
-
-Build:
-
-```bash
-bun run mac:build
-# For validation, see docs/runbooks/phase-08-lite-install.md
-```
-
-Menu items include **Settings…**, **Show/Hide Floating Pet**, **Open log folder**, **Reveal pet
-folder** (opens `~/.codogotchi/pets/` in Finder), and **Quit Codogotchi**.
-
-**Demo mode** (`CODOGOTCHI_DEMO=1` or `--demo` launch argument) cycles activity
-states from a fixture without touching live `~/.codogotchi/state.json`. This is
-a **developer QA tool only** — it is not a user-facing Lite feature and should
-not be presented as one.
-
-## Pet configuration (Phase 05+)
-
-The Codogotchi app resolves the active pet from `~/.codogotchi/config.json`:
-
-```json
-{ "pet": "maew" }
-```
-
-The `pet` key selects asset directories under `~/.codogotchi/pets/<name>/`
-(canonical store). Maew is bundle-seeded on first launch; no manual copy needed.
-The compiled-in default is `"maew"`. A missing, malformed, or `pet`-key-absent
-config falls back to `"maew"` silently. The menu bar's **Reveal pet folder**
-item opens `~/.codogotchi/pets/` in Finder so you can inspect or swap the
-active pet.
-
-The env var `CODOGOTCHI_HOME` overrides the config file path for the menubar
-app and is the test-isolation mechanism used in `PetConfigTests`.
-
-## Contracts to read before extending
-
-- [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md) —
-  closed-enum state vocabulary the hook writes and the Codogotchi app reads
-  (Swift `StateJsonReader` in `apps/menubar/`).
-- [`docs/contracts/soa-event-feed.md`](docs/contracts/soa-event-feed.md) —
-  NDJSON event feed Son-of-Anton emits that the hook consumes for explicit
-  delivery-gate signals.
-- [`docs/contracts/convex-deployment.md`](docs/contracts/convex-deployment.md) —
-  deployment topology.
-
-## Development
-
-```bash
-bun install
-bun test                       # engine tests (fast)
-bun run verify:quiet           # biome check (lint + format)
-bun run spellcheck             # cspell
-bun run ci:quiet               # publication gate (verify + spellcheck + mac:test)
-bun run mac:build              # Codogotchi macOS app — xcodebuild
-bun run mac:test               # Codogotchi macOS app — xcodebuild test
-```
-
-`mac:build` and `mac:test` shell out to `xcodebuild` against
-`apps/menubar/Codogotchi.xcodeproj`. `bun run ci` and `bun run ci:quiet`
-chain `mac:test` after biome + cspell so Swift compile / test
-failures gate the orchestrator's `post-red` and `open-pr` steps in
-the same place TS regressions are caught. `apps/**` is still
-excluded from biome and from cspell's non-md scan per the toolchain
-seam decision; only `mac:test` crosses the boundary. See
-[`docs/product/plans/phase-02-as-shipped-ci-macos-tests.md`](docs/product/plans/phase-02-as-shipped-ci-macos-tests.md)
-for the divergence from the original "ci stays TS-only" Phase 02
-plan.
-
-Multi-ticket phase delivery is driven via the Son-of-Anton orchestrator
-checked in under `.son-of-anton/`. See `AGENTS.md` for skill triggers and
-`.son-of-anton/docs/template/delivery/delivery-orchestrator.md` for the
-command surface.
+Codogotchi is open source. If you want to build from source, work on the macOS app, or understand the internals, see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## License
 
