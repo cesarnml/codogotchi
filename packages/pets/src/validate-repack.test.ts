@@ -1,6 +1,6 @@
-import JSZip from "jszip";
 import { describe, expect, it } from "bun:test";
-import { MAX_FILE_BYTES, TIER_ROW_COUNTS, CELL_COLS } from "./pet-contract";
+import JSZip from "jszip";
+import { CELL_COLS, MAX_FILE_BYTES, TIER_ROW_COUNTS } from "./pet-contract";
 import { validateAndRepackPet } from "./validate-repack";
 
 // --- minimal PNG helper ---
