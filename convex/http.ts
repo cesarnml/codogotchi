@@ -1,6 +1,6 @@
 import { syncProfileRequestSchema } from "@codogotchi/contracts";
 import { httpRouter } from "convex/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
 
@@ -43,6 +43,46 @@ http.route({
       parsed.data,
     );
     return jsonOk(result);
+  }),
+});
+
+// GET /pets/<petId>/download — streams the canonical zip and increments downloadCount.
+// All three install paths (npx, curl, direct download) hit this single endpoint.
+http.route({
+  pathPrefix: "/pets/",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const segments = url.pathname.split("/").filter(Boolean);
+    // Expect: ["pets", "<petId>", "download"]
+    if (
+      segments.length !== 3 ||
+      segments[0] !== "pets" ||
+      segments[2] !== "download"
+    ) {
+      return jsonError(404, { error: "not_found" });
+    }
+    const petId = segments[1];
+
+    const pet = await ctx.runQuery(internal.pets.getPetForDownload, { petId });
+    if (!pet) {
+      return jsonError(404, { error: "not_found" });
+    }
+
+    const blob = await ctx.storage.get(pet.zipStorageId);
+    if (!blob) {
+      return jsonError(500, { error: "storage_error" });
+    }
+
+    await ctx.runMutation(internal.pets.incrementDownloadCount, { petId });
+
+    return new Response(blob, {
+      status: 200,
+      headers: {
+        "content-type": "application/zip",
+        "content-disposition": `attachment; filename="${petId}.codogotchi-pet.zip"`,
+      },
+    });
   }),
 });
 
