@@ -17,10 +17,8 @@
     "pets"
   ],
   "license": "MIT",
-  "dependencies": {
-    "@codogotchi/cli": "workspace:*"
-  },
   "devDependencies": {
+    "@codogotchi/cli": "workspace:*",
     "tsup": "^8.5.1"
   }
 }
