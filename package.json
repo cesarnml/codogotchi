@@ -28,7 +28,10 @@
     "@auth/core": "^0.37.0",
     "@codogotchi/contracts": "workspace:*",
     "@codogotchi/engine": "workspace:*",
-    "@convex-dev/auth": "^0.0.93"
+    "@codogotchi/pets": "workspace:*",
+    "@convex-dev/auth": "^0.0.93",
+    "image-size": "^1.2.1",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
