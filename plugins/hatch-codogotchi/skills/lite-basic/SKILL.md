@@ -15,6 +15,8 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 
 **Prerequisite:** a valid Codex `spritesheet.webp` for the pet (the character reference is extracted from it).
 
+**Execution model:** Codex should use its built-in `image_gen` tool to generate **each Lite-Basic frame as a separate image** in `frames/lite-basic/<row>/f01.png` … `f08.png`. After a row's frames are present, use the local scripts to stitch and validate that row, then compose the finished atlas. Do **not** request a complete strip or complete spritesheet directly from image generation.
+
 **Which skill?**
 - No Codex sheet yet → `SKILL-codex-and-lite-basic.md` (generates both).
 - Want Basic **and** Enhanced added to an existing pet → run this, then `SKILL-lite-enhanced.md`.
@@ -46,7 +48,7 @@ python scripts/extract_seed_from_codex.py \
 python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
   --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-basic --style auto --chroma 00ff00
 
-# 3. For each of the 9 rows, in order, frame-first:
+# 3. For each of the 9 rows, in order, use built-in image_gen frame-first:
 #    render f01..f08 individually on #00ff00 into frames/lite-basic/<row>/,
 #    prop clearly drawn + identical across frames, character constant size,
 #    seed.png attached as the character reference. Then:

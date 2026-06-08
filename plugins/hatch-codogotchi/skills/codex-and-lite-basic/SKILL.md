@@ -21,6 +21,8 @@ Generate a **brand-new** Codogotchi pet from scratch — produces the **Codex** 
 
 Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
+**Execution model:** Codex should use its built-in `image_gen` tool to generate **each frame as a standalone image** (`f01.png` … `f08.png`) for one row at a time. After each row's frames exist on disk, use the local scripts to stitch the row, inspect it, and later compose the final atlas. Do **not** generate an entire row strip or a whole spritesheet in one image-gen call.
+
 ---
 
 ## Read first — the two doctrines (full text in `README.md` + `references/animation-rows-lite.md`)
@@ -52,8 +54,9 @@ python scripts/prepare_pet_run.py --seed path/to/seed.png \
   --pet-name "My Pet" --style auto --chroma 00ff00 --tier codex   # then --tier lite-basic
 # (or --tier all to prep every tier; you generate only codex + lite-basic here)
 
-# 2. Generate frames ONE ROW AT A TIME, frame-first: render f01..f08 individually
-#    into frames/<tier>/<row>/, prop clearly drawn + identical, character constant size.
+# 2. Use Codex's built-in image_gen tool to generate frames ONE ROW AT A TIME,
+#    frame-first: render f01..f08 individually into frames/<tier>/<row>/.
+#    Do not ask for a whole strip or whole sheet in one pass.
 
 # 3. Stitch each row → inspect (gate) before the next row
 python scripts/stitch_row.py    --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png --chroma 00ff00

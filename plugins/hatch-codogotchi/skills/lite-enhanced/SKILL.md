@@ -19,6 +19,8 @@ Add the **Lite-Enhanced** sheet (Tier 3) to a pet — the 8-row polish extension
 
 The Lite-Basic sheet is also used as an **extra style reference** alongside the seed, so Enhanced matches Basic exactly.
 
+**Execution model:** Codex should use its built-in `image_gen` tool to generate **each Lite-Enhanced frame as a standalone image** (`f01.png` … `f08.png`) for one row at a time. Once the frames exist, the local scripts stitch the row strip, inspect it, and later compose the final atlas. Do **not** request an already-stitched strip or whole spritesheet from image generation.
+
 ---
 
 ## Read first — the two doctrines (full text in `README.md` + `references/animation-rows-lite.md`)
@@ -44,7 +46,7 @@ python scripts/extract_seed_from_codex.py \
 python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
   --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-enhanced --style auto --chroma 00ff00
 
-# 3. For each of the 8 rows, in order, frame-first:
+# 3. For each of the 8 rows, in order, use built-in image_gen frame-first:
 #    render f01..f08 individually on #00ff00 into frames/lite-enhanced/<row>/.
 #    Attach BOTH seed.png AND the finished codogotchi-lite-basic-spritesheet.webp as references.
 python scripts/stitch_row.py    --row-dir run/<pet-id>/frames/lite-enhanced/<row>/ --out run/<pet-id>/rows/lite-enhanced/<row>.png --chroma 00ff00

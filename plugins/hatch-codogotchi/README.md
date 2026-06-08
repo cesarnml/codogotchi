@@ -6,6 +6,19 @@ Analogous to the `openai/skills/.curated/hatch-pet` skill, adapted for Codogotch
 
 > **Publish your pet:** once you have a **Codex + Lite-Basic** pet (the gallery's minimum bar), share it on the [Codogotchi pet gallery](https://codogotchi.app/gallery) — sign in at [`/upload`](https://codogotchi.app/upload), and others install it with `npx codogotchi add <id>`. Uploads are server-validated and re-packed, so the package you generate here is the package the gallery distributes.
 
+## Codex execution model
+
+This plugin is designed to be run by Codex in two explicit stages:
+
+1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **each animation frame as a standalone image**, one row at a time, saving `f01.png` … `f08.png` into `run/<pet>/frames/<tier>/<row>/`.
+2. **Local assembly stage:** the Python scripts in `scripts/` stitch those frames into row strips, inspect/validate them, then compose the validated row strips into the final spritesheet atlas.
+
+The plugin does **not** mean "ask image generation for a whole row strip" or "ask for the entire sheet in one pass." The intended workflow is always **frame-first**:
+
+`image_gen` frame generation → `stitch_row.py` → `inspect_frames.py` → `compose_atlas.py` → `validate_atlas.py`
+
+Every skill below assumes that division of labor: **Codex generates frames; local scripts assemble and validate them.**
+
 ---
 
 ## Skills
@@ -57,7 +70,8 @@ Tier 1 is required. Resolution order per render moment: **SoA → Enhanced → B
 python scripts/prepare_pet_run.py \
   --seed my-pet-seed.png --pet-name "Beemo" --style plush
 
-# 2. Generate frames one row at a time — see SKILL-codex-and-lite-basic.md
+# 2. Use Codex's built-in image_gen tool to generate frames one row at a time
+#    as standalone images — NOT a prebuilt strip and NOT the whole sheet.
 #    Save as run/beemo/frames/<tier>/<row>/f01.png … f08.png
 
 # 3. Stitch + inspect each row
@@ -98,7 +112,8 @@ python scripts/extract_seed_from_codex.py \
 python scripts/prepare_pet_run.py \
   --seed run/maew/seed.png --pet-id maew --pet-name "Maew" --tier lite-basic
 
-# 3-5. Generate, stitch, inspect, compose, validate (same pipeline)
+# 3-5. Use built-in image_gen for frame generation, then stitch, inspect,
+#      compose, and validate with the local scripts (same pipeline)
 #      lite-enhanced is a separate run and REQUIRES the lite-basic sheet to exist first.
 
 # 6. Install only the new sheet — don't overwrite spritesheet.webp or pet.json

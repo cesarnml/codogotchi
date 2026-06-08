@@ -11,6 +11,8 @@ Generate the **Tier 4 (SoA)** sprite sheet for an existing Codogotchi pet — th
 
 **Prerequisite:** the pet must already have a valid `spritesheet.webp` (Codex, Tier 1) installed. The character reference is derived directly from that sheet — no separate seed image or description is needed. The SoA sheet needs **only** the Codex sheet — it is independent of the Lite tiers (Basic/Enhanced).
 
+**Execution model:** Codex should use its built-in `image_gen` tool to generate **each SoA frame as a separate image** in `frames/soa/<row>/f01.png` … `f08.png`, one row at a time. After those frame files exist, use the local scripts to stitch, inspect, compose, and validate the atlas. Do **not** use image generation to output a preassembled row strip or the entire SoA spritesheet in one shot.
+
 ---
 
 ## What this produces
@@ -115,7 +117,7 @@ run/<pet-id>/
 For **each** of the 10 SoA rows, in the order below, complete the full cycle before starting the next:
 
 1. Read motion description in `prompts/soa/<row-label>.txt`.
-2. **Generate 8 frames** — each a separate 192 × 208 render on `#00ff00`. Attach `seed.png` as the character reference. Character must be genuinely in that frame's distinct pose.
+2. **Use built-in `image_gen` to generate 8 frames** — each a separate 192 × 208 render on `#00ff00`. Attach `seed.png` as the character reference. Character must be genuinely in that frame's distinct pose.
 3. After each frame, compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
 4. Save as `run/<pet-id>/frames/soa/<row-label>/f01.png` … `f08.png`.
 

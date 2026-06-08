@@ -20,6 +20,8 @@ Generate a **brand-new** Codogotchi pet from scratch with the **full lite set** 
 
 Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
+**Execution model:** for every tier, Codex uses its built-in `image_gen` tool to generate **individual frames**, one row at a time, saved as `f01.png` … `f08.png`. The local Python scripts then stitch those frames into row strips, inspect them, and compose the finished atlas. Do **not** use image generation to output a preassembled row strip or an entire spritesheet.
+
 ---
 
 ## Read first — the two doctrines (full text in `README.md` + `references/animation-rows-lite.md`)
@@ -38,21 +40,24 @@ Use the same pipeline per sheet — prepare → generate frame-first → stitch 
 ```bash
 # ---- Tier 1: Codex ----
 python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --tier codex --chroma 00ff00
-#   generate 9 codex rows frame-first → stitch+inspect each → compose
+#   use built-in image_gen to generate 9 codex rows frame-first
+#   as standalone frames → stitch+inspect each → compose
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/codex/ --tier codex --out run/<slug>/spritesheet.png
 cwebp -lossless -exact run/<slug>/spritesheet.png -o run/<slug>/spritesheet.webp
 python scripts/validate_atlas.py --atlas run/<slug>/spritesheet.webp --tier codex
 
 # ---- Tier 2: Lite-Basic (uses Codex/seed as style ref) ----
 python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-basic --chroma 00ff00
-#   generate 9 lite-basic rows frame-first → stitch+inspect each → compose
+#   use built-in image_gen to generate 9 lite-basic rows frame-first
+#   as standalone frames → stitch+inspect each → compose
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-basic/ --tier lite-basic --out run/<slug>/codogotchi-lite-basic-spritesheet.png
 cwebp -lossless -exact run/<slug>/codogotchi-lite-basic-spritesheet.png -o run/<slug>/codogotchi-lite-basic-spritesheet.webp
 python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
 
 # ---- Tier 3: Lite-Enhanced (REQUIRES the Basic sheet; attach BOTH seed.png AND the Basic sheet as refs) ----
 python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-enhanced --chroma 00ff00
-#   generate 8 lite-enhanced rows frame-first → stitch+inspect each → compose
+#   use built-in image_gen to generate 8 lite-enhanced rows frame-first
+#   as standalone frames → stitch+inspect each → compose
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-enhanced/ --tier lite-enhanced --out run/<slug>/codogotchi-lite-enhanced-spritesheet.png
 cwebp -lossless -exact run/<slug>/codogotchi-lite-enhanced-spritesheet.png -o run/<slug>/codogotchi-lite-enhanced-spritesheet.webp
 python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
