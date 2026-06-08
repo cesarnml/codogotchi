@@ -29,6 +29,7 @@ The Lite-Basic sheet is also used as an **extra style reference** alongside the 
    - idle-impatient → **wristwatch** · idle-frustrated → **steam puffs** · cramming → **tall stack of books** · editing → **pencil + paper** · git-ops → **GitHub cat icon** · verifying → **checklist + green ✓ stamp** · searching → **magnifying glass + file folder** · web-search → **deerstalker hat + magnifying glass + globe**.
    - Keep props distinct from Basic: `cramming` (stack) ≠ `reading` (one book); `editing` (pencil+paper) ≠ `implementing` (laptop); `searching` (local folder) ≠ `web-search` (globe).
 2. **Scale consistency.** Same character size across all 8 frames of a row (±15% of the row median; `inspect_frames.py` hard-fails drift).
+3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as `seed.png` and the Basic sheet. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
 
 Plus: don't fake frames; **frame-first**, one row at a time; don't draw-and-slice; match the Basic + Codex style exactly.
 
@@ -50,8 +51,8 @@ python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
 #    render f01..f08 individually on the chroma named in the prompt into frames/lite-enhanced/<row>/.
 #    `verifying` and `web-search` switch to #ff00ff automatically to avoid keying out green details.
 #    Attach BOTH seed.png AND the finished codogotchi-lite-basic-spritesheet.webp as references.
-python scripts/stitch_row.py    --row-dir run/<pet-id>/frames/lite-enhanced/<row>/ --out run/<pet-id>/rows/lite-enhanced/<row>.png
-python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-enhanced/<row>.png   # gate before next row
+python scripts/stitch_row.py     --row-dir run/<pet-id>/frames/lite-enhanced/<row>/ --out run/<pet-id>/rows/lite-enhanced/<row>.png
+python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-enhanced/<row>.png --seed run/<pet-id>/seed.png   # gate before next row
 
 # 4. Compose + encode (after all 8 rows)
 python scripts/compose_atlas.py --rows-dir run/<pet-id>/rows/lite-enhanced/ --tier lite-enhanced --out run/<pet-id>/codogotchi-lite-enhanced-spritesheet.png
@@ -71,6 +72,10 @@ Quit and reopen Codogotchi, or re-select the pet in Settings → Pet.
 Row order (see `references/animation-rows-lite.md`):
 `idle-impatient, idle-frustrated, cramming, editing, git-ops, verifying, searching, web-search`
 
+### Replace One Frame
+
+If one frame fails visual QA or inspection, regenerate only that standalone frame, replace `run/<pet-id>/frames/lite-enhanced/<row>/fNN.png`, then rerun `stitch_row.py` and `inspect_frames.py --seed run/<pet-id>/seed.png` for that row. Do not regenerate the whole row or transform another frame when a single-frame cut-and-replace is enough.
+
 ---
 
 ## Acceptance criteria
@@ -81,6 +86,7 @@ Row order (see `references/animation-rows-lite.md`):
 - [ ] No static rows; each row distinct motion; loop closes
 - [ ] **Each row shows its single named prop clearly in all 8 frames, distinct from the Basic props**
 - [ ] **No frame's content height deviates >15% from its row median**
+- [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as `seed.png` and the Basic sheet
 - [ ] Style/palette/proportions match the Basic + Codex sheets
 - [ ] `spritesheet.webp`, the Basic sheet, and `pet.json` unchanged; app shows Enhanced animations after quit-reopen
 

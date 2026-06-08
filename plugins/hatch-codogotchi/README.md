@@ -69,7 +69,7 @@ Do you have a Codex spritesheet.webp already?
 | Tier | File | Grid | Dimensions | States |
 |------|------|------|-----------|--------|
 | 1 — Codex | `spritesheet.webp` | 8×9 | 1536×1872 | idle, interactions, errored, fallbacks. **Required.** |
-| 2 — Lite-Basic | `codogotchi-lite-basic-spritesheet.webp` | 8×**9** | 1536×1872 | minimal "alive/dead": idle, standby, thinking, reading, implementing, testing, errored, waiting, **dead** |
+| 2 — Lite-Basic | `codogotchi-lite-basic-spritesheet.webp` | 8×**9** | 1536×1872 | minimal "alive/dead": revive, standby, thinking, reading, implementing, testing, errored, waiting, **dead** |
 | 3 — Lite-Enhanced | `codogotchi-lite-enhanced-spritesheet.webp` | 8×**8** | 1536×1664 | polish: idle-impatient/-frustrated, cramming, editing, git-ops, verifying, searching, web-search. **Requires Tier 2.** |
 | 4 — SoA | `codogotchi-soa-spritesheet.webp` | 8×10 | 1536×2080 | delivery gate moments (Son-of-Anton) |
 
@@ -94,7 +94,7 @@ python scripts/prepare_pet_run.py \
 
 # 3. Stitch + inspect each row
 python scripts/stitch_row.py     --row-dir run/beemo/frames/lite/implementing/ --out run/beemo/rows/lite/implementing.png
-python scripts/inspect_frames.py --row run/beemo/rows/lite/implementing.png
+python scripts/inspect_frames.py --row run/beemo/rows/lite/implementing.png --seed run/beemo/seed.png
 
 # 4. Compose + encode (after ALL rows validated)
 python scripts/compose_atlas.py --rows-dir run/beemo/rows/codex/      --tier codex      --out run/beemo/spritesheet.png
@@ -183,7 +183,13 @@ hatch-codogotchi/
 
 6. **Per-frame scale drift** — Historically ~15% of frames render the character noticeably larger/smaller than its rowmates (e.g. the old `errored` row). `stitch_row.py` only prevents clipping; it does **not** equalize size. `inspect_frames.py` / `validate_atlas.py` now **hard-fail** any frame whose content height deviates >15% from the row median — regenerate that frame at the row's shared size; do not rescale.
 
-> Validation does not catch failures 1–4. Eyeball every row. Failures 5–6 are now gated by the scripts, but still eyeball.
+7. **Character identity drift** — Automated checks cannot fully judge style. After every frame and every stitched row, compare against `seed.png` and verify the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework. `inspect_frames.py --seed run/<pet>/seed.png` prints advisory bbox, area, centroid, and rough silhouette-deviation metrics to help spot drift, but visual review is still required.
+
+## Frame replacement recovery
+
+If exactly one frame fails visual QA or automated inspection, regenerate only that standalone frame. Replace `frames/<tier>/<row>/fNN.png`, rerun `stitch_row.py` for that row, rerun `inspect_frames.py --seed run/<pet>/seed.png`, and eyeball the restitched row. Do not regenerate an entire row when a surgical frame replacement is enough, and do not transform neighboring frames to patch the failure.
+
+> Validation does not catch failures 1–4. Eyeball every row. Failures 5–6 are gated by scripts; failure 7 is aided by seed-comparison metrics but still needs visual judgment.
 
 ---
 

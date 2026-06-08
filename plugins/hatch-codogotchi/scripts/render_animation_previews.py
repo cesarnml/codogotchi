@@ -18,6 +18,14 @@ TIER_ROW_LABELS = {
         "idle", "running-right", "running-left", "standby", "jump",
         "errored", "waiting-for-input", "implementing-fallback", "thinking-fallback",
     ],
+    "lite-basic": [
+        "revive", "standby", "thinking", "reading", "implementing",
+        "testing", "errored", "waiting-for-input", "dead",
+    ],
+    "lite-enhanced": [
+        "idle-impatient", "idle-frustrated", "cramming", "editing",
+        "git-ops", "verifying", "searching", "web-search",
+    ],
     "lite": [
         "idle", "idle-impatient", "idle-frustrated", "standby",
         "thinking", "reading", "implementing", "testing",
@@ -30,7 +38,7 @@ TIER_ROW_LABELS = {
     ],
 }
 
-TIER_ROWS = {"codex": 9, "lite": 11, "soa": 10}
+TIER_ROWS = {"codex": 9, "lite-basic": 9, "lite-enhanced": 8, "lite": 11, "soa": 10}
 
 # 1.5 s / 8 frames = 187.5 ms; GIF duration in centiseconds
 FRAME_DURATION_CS = 19  # 187.5 ms ≈ 19 centiseconds (GIF granularity)

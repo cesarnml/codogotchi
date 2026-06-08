@@ -3,7 +3,7 @@
 inspect_frames.py — Validate a single row strip before composing it into the atlas.
 
 Checks: dimensions, padding, chroma residue, transparent-RGB residue, static-row detection.
-Also reports per-frame content bounds for eyeballing.
+Also reports per-frame content bounds and optional seed-comparison metrics for eyeballing.
 """
 
 import argparse
@@ -22,11 +22,95 @@ def chroma_residue_mask(arr: np.ndarray) -> np.ndarray:
     return green_mask | magenta_mask
 
 
+def visible_mask(img: Image.Image) -> np.ndarray:
+    """Return visible subject pixels, treating green/magenta chroma as background."""
+    arr = np.array(img.convert("RGBA"))
+    alpha_visible = arr[:, :, 3] > 0
+    return alpha_visible & ~chroma_residue_mask(arr)
+
+
+def mask_bounds(mask: np.ndarray) -> tuple[int, int, int, int] | None:
+    rows_used = np.any(mask, axis=1)
+    cols_used = np.any(mask, axis=0)
+    if not rows_used.any():
+        return None
+    top = int(rows_used.argmax())
+    bottom = int(len(rows_used) - rows_used[::-1].argmax())
+    left = int(cols_used.argmax())
+    right = int(len(cols_used) - cols_used[::-1].argmax())
+    return left, top, right, bottom
+
+
+def mask_metrics(mask: np.ndarray) -> dict | None:
+    bounds = mask_bounds(mask)
+    if bounds is None:
+        return None
+    left, top, right, bottom = bounds
+    ys, xs = np.nonzero(mask)
+    return {
+        "bounds": {"left": left, "top": top, "right": right, "bottom": bottom},
+        "bbox_w": right - left,
+        "bbox_h": bottom - top,
+        "area": int(mask.sum()),
+        "centroid": {"x": float(xs.mean()), "y": float(ys.mean())},
+    }
+
+
+def normalized_bbox_mask(mask: np.ndarray, size: int = 64) -> np.ndarray | None:
+    bounds = mask_bounds(mask)
+    if bounds is None:
+        return None
+    left, top, right, bottom = bounds
+    cropped = mask[top:bottom, left:right]
+    if cropped.size == 0:
+        return None
+    img = Image.fromarray((cropped * 255).astype(np.uint8), "L")
+    return np.array(img.resize((size, size), Image.NEAREST)) > 0
+
+
+def silhouette_deviation(frame_mask: np.ndarray, seed_mask: np.ndarray) -> float | None:
+    frame_norm = normalized_bbox_mask(frame_mask)
+    seed_norm = normalized_bbox_mask(seed_mask)
+    if frame_norm is None or seed_norm is None:
+        return None
+    intersection = np.logical_and(frame_norm, seed_norm).sum()
+    union = np.logical_or(frame_norm, seed_norm).sum()
+    if union == 0:
+        return None
+    return float(1.0 - (intersection / union))
+
+
+def seed_comparison_report(frame_mask: np.ndarray, seed_mask: np.ndarray) -> dict | None:
+    frame = mask_metrics(frame_mask)
+    seed = mask_metrics(seed_mask)
+    if frame is None or seed is None:
+        return None
+
+    def ratio(value: float, reference: float) -> float | None:
+        return float(value / reference) if reference else None
+
+    frame_centroid = frame["centroid"]
+    seed_centroid = seed["centroid"]
+    return {
+        "seed_bbox": {"w": seed["bbox_w"], "h": seed["bbox_h"]},
+        "frame_bbox": {"w": frame["bbox_w"], "h": frame["bbox_h"]},
+        "bbox_w_ratio": ratio(frame["bbox_w"], seed["bbox_w"]),
+        "bbox_h_ratio": ratio(frame["bbox_h"], seed["bbox_h"]),
+        "area_ratio": ratio(frame["area"], seed["area"]),
+        "centroid_delta_px": {
+            "x": float(frame_centroid["x"] - seed_centroid["x"]),
+            "y": float(frame_centroid["y"] - seed_centroid["y"]),
+        },
+        "rough_silhouette_deviation": silhouette_deviation(frame_mask, seed_mask),
+    }
+
+
 def inspect_row(
     row_path: Path,
     cell_w: int = 192,
     cell_h: int = 208,
     padding: int = 8,
+    seed_path: Path | None = None,
     out_json: Path | None = None,
 ) -> bool:
     img = Image.open(row_path).convert("RGBA")
@@ -34,6 +118,7 @@ def inspect_row(
     arr = np.array(img)
     errors: list[str] = []
     warnings: list[str] = []
+    seed_mask = visible_mask(Image.open(seed_path)) if seed_path else None
 
     # Dimension checks
     if h != cell_h:
@@ -87,6 +172,10 @@ def inspect_row(
                 "content_size": {"w": content_w, "h": content_h},
                 "padding": {"top": pad_top, "bottom": pad_bottom, "left": pad_left, "right": pad_right},
             })
+            if seed_mask is not None:
+                comparison = seed_comparison_report(cell_alpha > 0, seed_mask)
+                if comparison is not None:
+                    report["seed_comparison"] = comparison
 
             for side, val in [("top", pad_top), ("bottom", pad_bottom), ("left", pad_left), ("right", pad_right)]:
                 if val < padding:
@@ -131,6 +220,7 @@ def inspect_row(
         "errors": errors,
         "warnings": warnings,
         "frames": frame_reports,
+        "seed": str(seed_path) if seed_path else None,
     }
 
     if out_json:
@@ -155,6 +245,27 @@ def inspect_row(
         hs = ", ".join(str(h_val) for h_val in content_heights)
         print(f"  Content heights: [{hs}]")
 
+    comparisons = [
+        (report["frame"], report["seed_comparison"])
+        for report in frame_reports
+        if "seed_comparison" in report
+    ]
+    if comparisons:
+        print("  Seed comparison (advisory; does not judge style, outfit, or props):")
+        for frame_num, comparison in comparisons:
+            frame_bbox = comparison["frame_bbox"]
+            seed_bbox = comparison["seed_bbox"]
+            silhouette = comparison["rough_silhouette_deviation"]
+            silhouette_text = "n/a" if silhouette is None else f"{silhouette:.2f}"
+            print(
+                "    "
+                f"f{frame_num:02d}: bbox {frame_bbox['w']}x{frame_bbox['h']} "
+                f"(seed {seed_bbox['w']}x{seed_bbox['h']}, "
+                f"w x{comparison['bbox_w_ratio']:.2f}, h x{comparison['bbox_h_ratio']:.2f}), "
+                f"area x{comparison['area_ratio']:.2f}, "
+                f"silhouette deviation {silhouette_text}"
+            )
+
     return len(errors) == 0
 
 
@@ -164,10 +275,11 @@ def main() -> None:
     parser.add_argument("--cell-w", type=int, default=192)
     parser.add_argument("--cell-h", type=int, default=208)
     parser.add_argument("--padding", type=int, default=8)
+    parser.add_argument("--seed", type=Path, default=None, help="Optional seed image for advisory bbox/silhouette comparison")
     parser.add_argument("--out-json", type=Path, default=None)
     args = parser.parse_args()
 
-    ok = inspect_row(args.row, args.cell_w, args.cell_h, args.padding, args.out_json)
+    ok = inspect_row(args.row, args.cell_w, args.cell_h, args.padding, args.seed, args.out_json)
     sys.exit(0 if ok else 1)
 
 

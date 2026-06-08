@@ -196,6 +196,16 @@ def validate_strip(strip: Image.Image, cell_w: int, cell_h: int, padding: int = 
     return errors
 
 
+def zero_transparent_rgb(img: Image.Image) -> Image.Image:
+    """Set RGB to 0 wherever alpha is 0 after resize/paste operations."""
+    arr = np.array(img.convert("RGBA"))
+    mask = arr[:, :, 3] == 0
+    arr[mask, 0] = 0
+    arr[mask, 1] = 0
+    arr[mask, 2] = 0
+    return Image.fromarray(arr, "RGBA")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stitch 8 frames into one row strip for a Codogotchi spritesheet.")
     parser.add_argument("--row-dir", required=True, type=Path, help="Directory containing f01.png … f08.png")
@@ -229,6 +239,7 @@ def main() -> None:
 
     print("Stitching row …")
     strip = stitch_row(keyed, args.cell_w, args.cell_h, args.padding)
+    strip = zero_transparent_rgb(strip)
 
     print("Validating strip …")
     errors = validate_strip(strip, args.cell_w, args.cell_h, args.padding)

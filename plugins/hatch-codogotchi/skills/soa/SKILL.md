@@ -51,6 +51,8 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` backgrou
 
 4. **Style drift from the Codex sheet.** After each row, compare a frame side-by-side with a Codex cell. Regenerate if the style, palette, or proportions have shifted.
 
+5. **Visual identity drift.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
+
 > **Validation does not catch failures 1–2.** Eyeball every finished row for actual motion before proceeding to the next.
 
 ---
@@ -134,10 +136,12 @@ python scripts/stitch_row.py \
 ### Step 4 — Inspect and approve each row
 
 ```bash
-python scripts/inspect_frames.py --row run/<pet-id>/rows/soa/<row-label>.png
+python scripts/inspect_frames.py --row run/<pet-id>/rows/soa/<row-label>.png --seed run/<pet-id>/seed.png
 ```
 
 Do not proceed to the next row until this passes **and** you have eyeballed the strip for genuine animated motion.
+
+If one frame fails visual QA or inspection, regenerate only that standalone frame, replace `run/<pet-id>/frames/soa/<row-label>/fNN.png`, then rerun `stitch_row.py` and `inspect_frames.py --seed run/<pet-id>/seed.png` for that row. Do not regenerate the whole row or transform another frame when a single-frame cut-and-replace is enough.
 
 ### Step 5 — Compose the atlas
 
@@ -227,6 +231,7 @@ Key distinctions to preserve:
 - [ ] No transparent pixel with nonzero RGB
 - [ ] No row has all 8 frames pixel-identical
 - [ ] Each row shows distinct motion and reads as its named emotional beat (eyeball check)
+- [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`
 - [ ] Loop closes: frame 8 flows back to frame 1
 - [ ] All 10 rows have meaningfully distinct visual language from each other
 - [ ] Installed as `codogotchi-soa-spritesheet.webp` beside existing `spritesheet.webp`

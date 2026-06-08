@@ -28,6 +28,7 @@ Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 1. **Prop doctrine — NOT charades.** Emotion states (`idle`, `errored`→sad, celebrations) lead with expression; **every other state is carried by one clearly-visible prop** — never mimed/"invisible", never an A/B prop choice. Same prop, all 8 frames.
 2. **Scale consistency.** Same character size in all 8 frames of a row (±15% of row median; `inspect_frames.py` hard-fails drift).
+3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
 
 Plus: don't fake frames from the seed; **frame-first**, one row at a time (~1–2 h per sheet); don't draw-and-slice.
 
@@ -71,8 +72,8 @@ cp run/<slug>/spritesheet.webp run/<slug>/codogotchi-lite-basic-spritesheet.webp
 
 Per-row stitch + inspect (run for every row before moving on):
 ```bash
-python scripts/stitch_row.py    --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
-python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png
+python scripts/stitch_row.py     --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
+python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png --seed run/<slug>/seed.png
 ```
 
 ---
@@ -80,10 +81,14 @@ python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png
 ## Row generation order
 
 - **Codex (9):** `idle, running-right, running-left, standby, jump, errored, waiting-for-input, implementing-fallback, thinking-fallback`
-- **Lite-Basic (9):** `idle, standby, thinking, reading, implementing, testing, errored, waiting-for-input, dead`
+- **Lite-Basic (9):** `revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, dead`
 - **Lite-Enhanced (8):** `idle-impatient, idle-frustrated, cramming, editing, git-ops, verifying, searching, web-search`
 
 See `references/animation-rows-codex.md` and `references/animation-rows-lite.md` for per-row motion + props.
+
+### Replace One Frame
+
+If one frame fails visual QA or inspection, regenerate only that standalone frame, replace `run/<slug>/frames/<tier>/<row>/fNN.png`, then rerun `stitch_row.py` and `inspect_frames.py --seed run/<slug>/seed.png` for that row. Do not regenerate the whole row or transform another frame when a single-frame cut-and-replace is enough.
 
 ## Acceptance criteria
 
@@ -91,6 +96,7 @@ See `references/animation-rows-codex.md` and `references/animation-rows-lite.md`
 - [ ] All cells padded `[8,184]×[8,200]`; zero likely green/magenta chroma residue; no transparent-RGB residue; no static rows; loops close
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
 - [ ] **No frame's content height deviates >15% from its row median**
+- [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`
 - [ ] Character consistent across all 26 rows; `pet.json` present; app shows pet + all tiers after quit-reopen
 
 ## Related

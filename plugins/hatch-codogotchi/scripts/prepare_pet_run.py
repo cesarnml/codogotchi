@@ -70,9 +70,10 @@ CODEX_PROMPTS: dict[str, str] = {
 # VISIBLE prop (no charades, no A/B prop choice) — see the prop doctrine in the
 # frame-prompt builders below.
 LITE_BASIC_PROMPTS: dict[str, str] = {
-    "idle": (
-        "Calm neutral breathing loop (emotion-led, no prop). Gentle inhale/sway up, soft eye-blink, slow "
-        "exhale/settle. Character barely moves. Frame 1 ≈ seed pose. Tone: still, peaceful, grounded. 8 frames."
+    "revive": (
+        "Health gained; pure joy (emotion-led, no prop). Right arm raised in a fist-pump, left arm cocked, "
+        "small weight-shift bounce, open smile throughout. Frame 1 ≈ seed pose with celebratory arm position. "
+        "Loops for the renderer's short revive TTL, then falls through to the Codex idle row. 8 frames."
     ),
     "standby": (
         "Turn finished — handing control back to YOU. PROP: a small handbell, held and visible every frame. "
@@ -330,7 +331,7 @@ FRAME CONSTRAINTS (apply to every frame):
 - No #{chroma} or near-chroma contamination on character/effects
 - The character must be GENUINELY IN THIS FRAME'S DISTINCT POSE
 
-After completing the idle row: save frame 1 of idle as seed.png and attach it to ALL subsequent generation calls alongside this prompt, to anchor character consistency.
+After completing the Codex idle row: save frame 1 of idle as seed.png and attach it to ALL subsequent generation calls alongside this prompt, to anchor character consistency.
 
 Loop contract: frame 8 pose ≈ frame 1 pose so the row plays as a seamless continuous loop.
 """
@@ -472,7 +473,7 @@ def main() -> None:
     print(f"Character source: {character_source}")
     if args.description:
         print(f"Description: {args.description[:80]}{'…' if len(args.description) > 80 else ''}")
-        print("NOTE (description mode): generate idle row FIRST; save f01 as seed.png; attach to all subsequent calls.")
+        print("NOTE (description mode): generate Codex idle row FIRST; save f01 as seed.png; attach to all subsequent calls.")
     print(f"Total frames to generate: {total_frames}")
     print(f"Job manifest: {jobs_path}")
     if args.chroma == "auto":

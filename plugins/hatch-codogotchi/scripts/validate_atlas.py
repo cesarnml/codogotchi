@@ -37,7 +37,7 @@ TIER_ROW_LABELS = {
         "errored", "waiting-for-input", "implementing-fallback", "thinking-fallback",
     ],
     "lite-basic": [
-        "idle", "standby", "thinking", "reading", "implementing",
+        "revive", "standby", "thinking", "reading", "implementing",
         "testing", "errored", "waiting-for-input", "dead",
     ],
     "lite-enhanced": [

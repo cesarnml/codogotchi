@@ -30,6 +30,7 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 
 1. **Prop doctrine — NOT charades.** Emotion-mappable states (`revive`, `errored`→sad) lead with expression; **every other state is carried by one clearly-visible prop** — never subtle hand gestures, never a mimed/"invisible" prop ("invisible keyboard", "unseen screen"), never an A/B choice (the old `reading` "page/tablet" drew both). Same prop, all 8 frames. Per-row props are in `references/animation-rows-lite.md`.
 2. **Scale consistency.** Same character size across all 8 frames of a row (±15% of the row median). `stitch_row.py` only prevents clipping; `inspect_frames.py` **hard-fails** drift — regenerate the frame, don't rescale.
+3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as `seed.png`. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual judgment.
 
 Plus the standing failure modes: don't fake frames by transforming the seed; **frame-first**, one row at a time (~1–2 h); don't draw-and-slice; don't drift from the Codex sheet's style.
 
@@ -53,8 +54,8 @@ python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
 #    usually #00ff00; green-sensitive rows would switch to #ff00ff automatically,
 #    prop clearly drawn + identical across frames, character constant size,
 #    seed.png attached as the character reference. Then:
-python scripts/stitch_row.py    --row-dir run/<pet-id>/frames/lite-basic/<row>/ --out run/<pet-id>/rows/lite-basic/<row>.png
-python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-basic/<row>.png   # gate before next row
+python scripts/stitch_row.py     --row-dir run/<pet-id>/frames/lite-basic/<row>/ --out run/<pet-id>/rows/lite-basic/<row>.png
+python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-basic/<row>.png --seed run/<pet-id>/seed.png   # gate before next row
 
 # 4. Compose + encode (after all 9 rows)
 python scripts/compose_atlas.py --rows-dir run/<pet-id>/rows/lite-basic/ --tier lite-basic --out run/<pet-id>/codogotchi-lite-basic-spritesheet.png
@@ -74,6 +75,10 @@ Quit and reopen Codogotchi, or re-select the pet in Settings → Pet.
 Row order (see `references/animation-rows-lite.md`):
 `revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, dead`
 
+### Replace One Frame
+
+If one frame fails visual QA or inspection, regenerate only that standalone frame, replace `run/<pet-id>/frames/lite-basic/<row>/fNN.png`, then rerun `stitch_row.py` and `inspect_frames.py --seed run/<pet-id>/seed.png` for that row. Do not regenerate the whole row or transform another frame when a single-frame cut-and-replace is enough.
+
 ---
 
 ## Acceptance criteria
@@ -83,6 +88,7 @@ Row order (see `references/animation-rows-lite.md`):
 - [ ] No static rows; each row distinct motion; loop closes
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
 - [ ] **No frame's content height deviates >15% from its row median**
+- [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as `seed.png`
 - [ ] Style/palette/proportions match the existing `spritesheet.webp`
 - [ ] `spritesheet.webp` and `pet.json` unchanged; app shows Lite animations after quit-reopen
 

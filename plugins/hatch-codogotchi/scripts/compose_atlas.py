@@ -36,7 +36,7 @@ TIER_CONFIG = {
     "lite-basic": {
         "rows": 9,
         "row_labels": [
-            "idle",
+            "revive",
             "standby",
             "thinking",
             "reading",
@@ -117,7 +117,7 @@ def find_row_strip(rows_dir: Path, label: str) -> Path | None:
         rows_dir / f"{label}.png",
         rows_dir / f"{label}.PNG",
     ]
-    # Also try index prefix e.g. "00-idle.png"
+    # Also try index prefix e.g. "00-revive.png"
     for p in rows_dir.glob("*.png"):
         if label in p.stem:
             candidates.append(p)
