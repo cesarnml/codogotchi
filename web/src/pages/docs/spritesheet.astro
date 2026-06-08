@@ -12,6 +12,20 @@ const toc = [
   { id: "checklist", label: "Compliance Checklist" },
 ];
 
+// Tier 1 (Codex) rows — the upstream Codex pet format (codexpet.xyz/spec).
+// [row label, recommended frame count, what it drives in Codogotchi]
+const codexRows = [
+  ["idle", "6", "idle"],
+  ["running-right", "8", "Drag-right (floating pet)"],
+  ["running-left", "8", "Drag-left (floating pet)"],
+  ["waving", "4", "standby"],
+  ["jumping", "5", "Click-hold (floating pet)"],
+  ["failed", "8", "errored"],
+  ["waiting", "6", "waiting_for_input"],
+  ["running", "6", "implementing / testing (fallback)"],
+  ["review", "6", "thinking / reading (fallback)"],
+];
+
 // Tier 2 (Lite-Basic) rows — minimal "alive/dead" tier, every pet ships this
 const liteBasicRows = [
   ["idle", "idle", "Calm neutral breathing loop"],
@@ -154,11 +168,45 @@ const soaRows = [
               <div>1536 × 1872 px</div>
             </div>
           </div>
-          <p class="text-on-surface-variant text-sm">
-            The required base sheet and fallback for every state. Carries idle, mouse
-            interactions, errored, waiting, and fallback poses. If Lite and SoA are absent,
-            the whole pet renders from here.
+          <p class="text-on-surface-variant text-sm mb-4">
+            The required base sheet and universal fallback. This is the upstream
+            <strong>Codex pet format</strong> — a Codogotchi pet's Tier 1 sheet is a standard
+            Codex sheet, so any Codex-compatible pet works as a base. It carries idle, mouse
+            interactions, errored, waiting, and the fallback poses used when no Lite sheet is
+            present. If Lite and SoA are absent, the whole pet renders from here.
           </p>
+          <div class="bg-tertiary-container/40 text-on-surface rounded-xl border-2 border-charcoal-ink/20 p-3 flex items-start gap-2 mb-4 text-sm">
+            <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+            <p>
+              Tier 1 follows the canonical Codex pet spec at
+              <a href="https://codexpet.xyz/spec/" target="_blank" rel="noopener noreferrer" class="font-bold underline">codexpet.xyz/spec</a>.
+              Frame counts are <strong>recommendations</strong> — a row may animate fewer than 8 of the 8 columns.
+            </p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr class="text-left text-on-surface-variant border-b-2 border-charcoal-ink/20">
+                  <th class="py-2 pr-3 font-bold w-12">Row</th>
+                  <th class="py-2 pr-3 font-bold">State (Codex)</th>
+                  <th class="py-2 pr-3 font-bold">Rec. frames</th>
+                  <th class="py-2 font-bold">Drives in Codogotchi</th>
+                </tr>
+              </thead>
+              <tbody class="font-mono text-xs">
+                {
+                  codexRows.map((r, i) => (
+                    <tr class="border-b border-charcoal-ink/10">
+                      <td class="py-1.5 pr-3 text-outline">{i}</td>
+                      <td class="py-1.5 pr-3 font-bold text-primary">{r[0]}</td>
+                      <td class="py-1.5 pr-3 text-tertiary">{r[1]}</td>
+                      <td class="py-1.5 font-body text-on-surface-variant">{r[2]}</td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
