@@ -147,6 +147,61 @@ final class GateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(result, .errored, "absent gate must render hook state unchanged")
 	}
 
+	// MARK: - resolveReviveState (v6 revive override)
+
+	func testFutureReviveUntilOverridesToTicketStarted() {
+		// A revive window in the future borrows the ticket_started row (placeholder
+		// art) regardless of the base state. codogotchiPet nil → sheet guard passes.
+		let result = resolveReviveState(
+			base: .implementing, reviveUntil: futureDate(), now: Date())
+		XCTAssertEqual(result, .ticketStarted, "active revive window must render the placeholder revive row")
+	}
+
+	func testFutureReviveUntilWholeSecondsFormOverrides() {
+		// Whole-seconds ISO 8601 (no fractional millis) must also parse.
+		let result = resolveReviveState(
+			base: .idle, reviveUntil: "2099-01-01T00:00:00Z", now: Date())
+		XCTAssertEqual(result, .ticketStarted, "whole-seconds revive_until must parse and override")
+	}
+
+	func testExpiredReviveUntilRendersBaseState() {
+		let result = resolveReviveState(
+			base: .implementing, reviveUntil: pastDate(), now: Date())
+		XCTAssertEqual(result, .implementing, "lapsed revive window must fall through to the base state")
+	}
+
+	func testNilReviveUntilRendersBaseState() {
+		let result = resolveReviveState(base: .thinking, reviveUntil: nil, now: Date())
+		XCTAssertEqual(result, .thinking, "absent revive_until must leave the base state unchanged")
+	}
+
+	func testUnparseableReviveUntilRendersBaseState() {
+		let result = resolveReviveState(base: .editing, reviveUntil: "not-a-date", now: Date())
+		XCTAssertEqual(result, .editing, "unparseable revive_until must not override")
+	}
+
+	func testReviveWithSoaSheetAbsentDoesNotOverride() throws {
+		// Placeholder art lives on the SoA sheet; lite-only users (sheet absent)
+		// keep their base animation rather than rendering a blank ticket_started row.
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("no-soa-sheet-revive-\(UUID().uuidString)")
+		try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+		let petJson = """
+			{"id":"test","display_name":"Test","description":"","spritesheet_path":"spritesheet.webp"}
+			"""
+		try petJson.data(using: .utf8)!.write(to: tmp.appendingPathComponent("pet.json"))
+
+		let pet = try CodogotchiPet(petDirectory: tmp.path)
+		XCTAssertNil(pet.soaSheet, "fixture must have no SoA sheet for this test to be meaningful")
+
+		let result = resolveReviveState(
+			base: .implementing, reviveUntil: futureDate(), codogotchiPet: pet, now: Date())
+		XCTAssertEqual(
+			result, .implementing,
+			"revive must not override when the SoA sheet (placeholder art source) is absent")
+	}
+
 	// MARK: - Persistent gate badge
 
 	func testGateWithoutTicketIdDoesNotProducePartialBadge() {

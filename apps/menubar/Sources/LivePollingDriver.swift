@@ -255,8 +255,16 @@ final class LivePollingDriver {
 		let deliveryContext = deliveryContextPath.flatMap { deliveryContextReader($0) }
 		switch result {
 		case .success(let snapshot):
-			let state = resolveActivityState(
+			let resolved = resolveActivityState(
 				gate: gate, hookState: snapshot.activityState, codogotchiPet: codogotchiPet)
+			// v6 revive: a fresh half-heart gain plays the revive celebration for
+			// its 5s TTL, overriding the gate/hook state. Falls through to `resolved`
+			// once the window lapses.
+			let state = resolveReviveState(
+				base: resolved,
+				reviveUntil: snapshot.reviveUntil,
+				codogotchiPet: codogotchiPet,
+				now: now())
 			let gateBadge = resolveGateBadgeContent(
 				deliveryContext: deliveryContext,
 				sourceEvent: snapshot.sourceEvent

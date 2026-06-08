@@ -134,6 +134,43 @@ func resolveActivityState(
 	return gateState
 }
 
+/// Revive override: while `revive_until` is parseable and strictly in the
+/// future, the renderer plays the revive celebration on top of whatever state
+/// the gate/hook resolver produced.
+///
+/// Placeholder art: until the Tier 2/3 codogotchi sheets ship a dedicated
+/// `revive` row, the celebration borrows the SoA `ticket_started` row. Because
+/// that row lives on the SoA sheet, the override only applies when the sheet is
+/// loaded (mirroring `resolveActivityState`'s sheet guard) — lite-only users
+/// without the SoA sheet keep their normal animation rather than rendering a
+/// blank row. Swap the returned `.ticketStarted` for a `.revive` case here once
+/// the dedicated art exists.
+func resolveReviveState(
+	base: ActivityState,
+	reviveUntil: String?,
+	codogotchiPet: CodogotchiPet? = nil,
+	now: Date = Date()
+) -> ActivityState {
+	guard let reviveUntil,
+		let expiry = parseGateISO8601Date(reviveUntil),
+		expiry > now,
+		codogotchiPet == nil || codogotchiPet?.soaSheet != nil
+	else {
+		return base
+	}
+	return .ticketStarted
+}
+
+/// Two-pass ISO 8601 parse (fractional-seconds first, whole-seconds fallback)
+/// matching the writer's output and the rest of the renderer's date handling.
+private func parseGateISO8601Date(_ string: String) -> Date? {
+	let formatter = ISO8601DateFormatter()
+	formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+	if let date = formatter.date(from: string) { return date }
+	formatter.formatOptions = [.withInternetDateTime]
+	return formatter.date(from: string)
+}
+
 func resolveGateBadgeContent(
 	deliveryContext: DeliveryContextSnapshot?,
 	sourceEvent: SourceEvent?,

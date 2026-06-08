@@ -182,7 +182,7 @@ final class LivePollingTests: XCTestCase {
 		XCTAssertEqual(recorder.renders.map { $0.1 }, [.desaturated])
 		XCTAssertEqual(
 			recorder.tooltips,
-			[LivePollingTooltips.schemaNewer(got: 99, expected: 5)],
+			[LivePollingTooltips.schemaNewer(got: 99, expected: 6)],
 			"schema-newer tooltip must format both version integers via the canonical template"
 		)
 		// Spot-check the literal substring so an accidental template-string drift
@@ -190,8 +190,38 @@ final class LivePollingTests: XCTestCase {
 		// without needing to re-implement the template assembly here.
 		XCTAssertEqual(
 			recorder.tooltips.first ?? nil,
-			"state.json schema_version is v99; this app supports v5. Update the menu bar app."
+			"state.json schema_version is v99; this app supports v6. Update the menu bar app."
 		)
+	}
+
+	func testFutureReviveUntilRendersTicketStartedPlaceholderRow() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		// v6 payload with an active revive window; base activity is implementing.
+		try #"{"schema_version":6,"activity_state":"implementing","updated_at":"2026-06-08T00:00:00.000Z","level":3,"level_fraction":0.5,"half_hearts":4,"last_activity_at":"2026-06-08T00:00:00.000Z","revive_until":"2099-01-01T00:00:00.000Z"}"#
+			.write(to: target, atomically: true, encoding: .utf8)
+		let driver = makeDriver(target: target, recorder: recorder)
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(
+			recorder.renders.map { $0.0 }, [.ticketStarted],
+			"an active revive window must render the ticket_started placeholder row over the hook state")
+		XCTAssertEqual(recorder.renders.map { $0.1 }, [.normal])
+	}
+
+	func testExpiredReviveUntilRendersBaseHookState() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		try #"{"schema_version":6,"activity_state":"implementing","updated_at":"2026-06-08T00:00:00.000Z","level":3,"level_fraction":0.5,"half_hearts":4,"last_activity_at":"2026-06-08T00:00:00.000Z","revive_until":"2020-01-01T00:00:00.000Z"}"#
+			.write(to: target, atomically: true, encoding: .utf8)
+		let driver = makeDriver(target: target, recorder: recorder)
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(
+			recorder.renders.map { $0.0 }, [.implementing],
+			"a lapsed revive window must fall through to the hook state")
 	}
 
 	func testSchemaMissingRendersIdleDesaturatedWithSchemaMissingTooltip() throws {

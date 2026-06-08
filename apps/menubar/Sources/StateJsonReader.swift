@@ -5,7 +5,7 @@ import Foundation
 /// is refused; equal or lower versions parse best-effort and tolerate extra
 /// fields. Bump deliberately when the renderer gains support for a newer
 /// schema; do not silently widen.
-let EXPECTED_STATE_SCHEMA_VERSION = 5
+let EXPECTED_STATE_SCHEMA_VERSION = 6
 
 /// Error cases surfaced by `StateJsonReader.read(at:)`.
 ///
@@ -83,7 +83,8 @@ enum StateJsonReader {
 				activeMinutes: payload.activeMinutes ?? 0,
 				// `?? nil` coerces String?? → String?: maps both absent key (.none outer)
 				// and explicit JSON null (.some(.none) inner) to nil. Do not remove.
-				lastActivityAt: payload.lastActivityAt ?? nil
+				lastActivityAt: payload.lastActivityAt ?? nil,
+				reviveUntil: payload.reviveUntil ?? nil
 			)
 			return .success(
 				StateSnapshot(
@@ -97,7 +98,8 @@ enum StateJsonReader {
 					levelFraction: raw.levelFraction,
 					halfHearts: raw.halfHearts,
 					activeMinutes: raw.activeMinutes,
-					lastActivityAt: raw.lastActivityAt
+					lastActivityAt: raw.lastActivityAt,
+					reviveUntil: raw.reviveUntil
 				)
 			)
 		} catch {
@@ -160,4 +162,8 @@ private struct StatePayload: Decodable {
 	/// writer decodes as nil. Wall-clock elapsed is computed in
 	/// `HalfHeartDecayEngine` using `Date` after parsing.
 	let lastActivityAt: String??
+	/// v6 `revive_until` — ISO 8601 datetime or null. `String??` distinguishes
+	/// absent key (≤v5 payloads, outer .none) from explicit JSON null
+	/// (.some(.none)); both collapse to nil at the snapshot boundary.
+	let reviveUntil: String??
 }

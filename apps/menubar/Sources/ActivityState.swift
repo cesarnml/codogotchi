@@ -181,6 +181,11 @@ struct StateSnapshot: Equatable {
 	/// ISO 8601 datetime string or nil. Nil means no activity recorded yet
 	/// (fresh install / null from writer) — the decay engine treats nil as "no decay".
 	let lastActivityAt: String?
+	/// v6 revive hint (P-revive). ISO 8601 datetime the writer sets to now+5s on a
+	/// half-heart *gain*; nil when no gain occurred on this write. While it parses
+	/// and is in the future the renderer plays the revive celebration. Absent for
+	/// ≤v5 payloads — defaults to nil.
+	let reviveUntil: String?
 
 	init(
 		schemaVersion: Int,
@@ -193,7 +198,8 @@ struct StateSnapshot: Equatable {
 		levelFraction: Double = 0.0,
 		halfHearts: Int = 6,
 		activeMinutes: Int = 0,
-		lastActivityAt: String? = nil
+		lastActivityAt: String? = nil,
+		reviveUntil: String? = nil
 	) {
 		self.schemaVersion = schemaVersion
 		self.activityState = activityState
@@ -206,6 +212,7 @@ struct StateSnapshot: Equatable {
 		self.halfHearts = halfHearts
 		self.activeMinutes = activeMinutes
 		self.lastActivityAt = lastActivityAt
+		self.reviveUntil = reviveUntil
 	}
 }
 

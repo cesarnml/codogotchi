@@ -104,11 +104,11 @@ final class StateJsonReaderTests: XCTestCase {
 			return
 		}
 		XCTAssertEqual(got, 99)
-		XCTAssertEqual(expected, 5)
+		XCTAssertEqual(expected, 6)
 	}
 
-	func testExpectedSchemaVersionIs5() {
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 5)
+	func testExpectedSchemaVersionIs6() {
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 6)
 	}
 
 	func testSchemaVersion4ParsesSuccessfullyAfterV4Bump() throws {
@@ -292,8 +292,8 @@ final class StateJsonReaderTests: XCTestCase {
 	// MARK: - Schema v4 vocabulary (P7.01 — [red])
 
 	func testExpectedSchemaVersionIsV4() {
-		// Updated to v5 in P10.06
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 5)
+		// Updated to v5 in P10.06, then v6 for the revive_until bump
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 6)
 	}
 
 	func testTicketStartedIsAValidV4State() {
@@ -353,15 +353,66 @@ final class StateJsonReaderTests: XCTestCase {
 	// MARK: - Schema v5 RPG fields (P10.06 — [red])
 
 	func testExpectedSchemaVersionIsV5() {
-		// [red] EXPECTED_STATE_SCHEMA_VERSION must be 5 after the v5 bump
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 5)
+		// Bumped to v6 for the revive_until additive field
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 6)
 	}
 
-	func testSchemaVersion6FailsWithSchemaNewer() throws {
-		// [red] v6 must be refused with schemaNewer(6, 5) after the v5 bump
+	func testSchemaVersion6ParsesSuccessfullyAfterV6Bump() throws {
+		// v6 adds the optional revive_until field; the reader accepts it and
+		// tolerates the extra key (Decodable ignores it).
 		let tmp = FileManager.default.temporaryDirectory
 			.appendingPathComponent("schema-v6-\(UUID().uuidString).json")
-		try #"{"schema_version": 6, "activity_state": "idle", "updated_at": "x"}"#
+		try #"{"schema_version": 6, "activity_state": "idle", "updated_at": "2026-06-08T00:00:00.000Z", "level": 1, "level_fraction": 0.0, "half_hearts": 6, "last_activity_at": null, "revive_until": "2026-06-08T00:00:05.000Z"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.schemaVersion, 6)
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	func testV6PayloadDecodesReviveUntil() throws {
+		// revive_until is carried onto the snapshot so the driver can play the
+		// revive celebration during its TTL.
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("v6-revive-\(UUID().uuidString).json")
+		try #"{"schema_version": 6, "activity_state": "implementing", "updated_at": "2026-06-08T00:00:00.000Z", "level": 1, "level_fraction": 0.0, "half_hearts": 6, "last_activity_at": null, "revive_until": "2026-06-08T00:00:05.000Z"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.reviveUntil, "2026-06-08T00:00:05.000Z")
+	}
+
+	func testV6PayloadWithNullReviveUntilDecodesNil() throws {
+		// Explicit JSON null and an absent key both collapse to nil.
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("v6-revive-null-\(UUID().uuidString).json")
+		try #"{"schema_version": 6, "activity_state": "idle", "updated_at": "2026-06-08T00:00:00.000Z", "level": 1, "level_fraction": 0.0, "half_hearts": 6, "last_activity_at": null, "revive_until": null}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertNil(snapshot.reviveUntil)
+	}
+
+	func testSchemaVersion7FailsWithSchemaNewer() throws {
+		// [red] v7 must be refused with schemaNewer(7, 6) after the v6 bump
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("schema-v7-\(UUID().uuidString).json")
+		try #"{"schema_version": 7, "activity_state": "idle", "updated_at": "x"}"#
 			.write(to: tmp, atomically: true, encoding: .utf8)
 		defer { try? FileManager.default.removeItem(at: tmp) }
 
@@ -374,8 +425,8 @@ final class StateJsonReaderTests: XCTestCase {
 			XCTFail("expected schemaNewer, got \(error)")
 			return
 		}
-		XCTAssertEqual(got, 6)
-		XCTAssertEqual(expected, 5)
+		XCTAssertEqual(got, 7)
+		XCTAssertEqual(expected, 6)
 	}
 
 	func testV5PayloadDecodesLevelHalfHeartsAndLevelFraction() throws {
