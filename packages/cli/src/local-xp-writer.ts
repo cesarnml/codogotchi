@@ -30,6 +30,12 @@ export type LocalXpCache = {
   active_minutes: number;
   // Current half-hearts value — persisted so decay accumulates correctly.
   half_hearts: number;
+  // ISO timestamp the active revive window expires at (5 s after a health gain),
+  // or null. Persisted so a gain's window survives the frequent non-gain hook
+  // writes that follow during active coding: each non-gain write preserves an
+  // unexpired value instead of nulling it, so the renderer's 1 Hz poll reliably
+  // catches the revive animation. Lapses on its own once the timestamp passes.
+  revive_until: string | null;
 };
 
 export type V5Fields = {
@@ -78,6 +84,7 @@ function defaultCache(): LocalXpCache {
     last_active_credit_at: null,
     active_minutes: 0,
     half_hearts: MAX_HALF_HEARTS,
+    revive_until: null,
   };
 }
 
@@ -110,6 +117,7 @@ export async function readLocalXpCache(home: string): Promise<LocalXpCache> {
         typeof p.active_minutes === "number" ? p.active_minutes : 0,
       half_hearts:
         typeof p.half_hearts === "number" ? p.half_hearts : MAX_HALF_HEARTS,
+      revive_until: typeof p.revive_until === "string" ? p.revive_until : null,
     };
   } catch {
     return defaultCache();
@@ -237,16 +245,30 @@ export async function computeAndPersistV5Fields(
     now,
   );
 
-  // Signal the renderer to play the revive animation for 5 s when hearts go up.
-  const revive_until =
-    newHalfHearts > prevHalfHearts
-      ? new Date(now.getTime() + 5_000).toISOString()
-      : null;
+  // Signal the renderer to play the revive animation for 5 s after a health gain.
+  // A gain (re)arms the window. A non-gain write PRESERVES an unexpired window
+  // rather than nulling it — otherwise the frequent hook writes during active
+  // coding clobber the gain's window before the renderer's 1 Hz poll can catch
+  // it (the bug that made revive only ever show at full health). The window
+  // lapses on its own once `now` passes the stored expiry.
+  let revive_until: string | null;
+  if (newHalfHearts > prevHalfHearts) {
+    revive_until = new Date(now.getTime() + 5_000).toISOString();
+  } else {
+    const priorExpiry = cache.revive_until
+      ? Date.parse(cache.revive_until)
+      : Number.NaN;
+    revive_until =
+      Number.isFinite(priorExpiry) && priorExpiry > now.getTime()
+        ? cache.revive_until
+        : null;
+  }
 
   // Persist updated cache. Carry forward remainder active minutes so partial
   // heal-progress is not lost between events.
   cache.half_hearts = newHalfHearts;
   cache.active_minutes = cache.active_minutes % 60;
+  cache.revive_until = revive_until;
 
   await writeLocalXpCache(home, cache);
 
