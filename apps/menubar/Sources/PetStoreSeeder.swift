@@ -11,6 +11,7 @@ enum PetStoreSeeder {
 	static let requiredAssets: [String] = [
 		"pet.json",
 		"spritesheet.webp",
+		"codogotchi-lite-basic-spritesheet.webp",
 		"codogotchi-lite-spritesheet.webp",
 		"codogotchi-soa-spritesheet.webp",
 	]

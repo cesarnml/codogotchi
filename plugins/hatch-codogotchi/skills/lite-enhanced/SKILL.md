@@ -21,6 +21,8 @@ The Lite-Basic sheet is also used as an **extra style reference** alongside the 
 
 **Execution model:** Codex should use its built-in `image_gen` tool to generate **each Lite-Enhanced frame as a standalone image** (`f01.png` … `f08.png`) for one row at a time. Once the frames exist, the local scripts stitch the row strip, inspect it, and later compose the final atlas. Do **not** request an already-stitched strip or whole spritesheet from image generation.
 
+**Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that still feels polished**. Many Enhanced rows can be produced faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is guidance, not dogma.
+
 ---
 
 ## Read first — the two doctrines (full text in `README.md` + `references/animation-rows-lite.md`)
@@ -32,6 +34,11 @@ The Lite-Basic sheet is also used as an **extra style reference** alongside the 
 3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as `seed.png` and the Basic sheet. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
 
 Plus: don't fake frames; **frame-first**, one row at a time; don't draw-and-slice; match the Basic + Codex style exactly.
+
+Quality caveats for the recommended pattern:
+- Enhanced rows often carry more nuanced motion, so be quicker to add extra distinct frames if mirrored/reused closure feels stiff.
+- Do not trade away prop clarity, row distinctness, or polish just to reduce generation count.
+- Script validation plus human visual review can still reject a mirrored/reused closure if it reads as cheap or obviously repetitive.
 
 ---
 
@@ -48,9 +55,11 @@ python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
   --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-enhanced --style auto --chroma auto
 
 # 3. For each of the 8 rows, in order, use built-in image_gen frame-first:
-#    render f01..f08 individually on the chroma named in the prompt into frames/lite-enhanced/<row>/.
-#    `verifying` and `web-search` switch to #ff00ff automatically to avoid keying out green details.
-#    Attach BOTH seed.png AND the finished codogotchi-lite-basic-spritesheet.webp as references.
+#    render the distinct keyframes you actually need first, then fill f01..f08
+#    with reused/mirrored closures only when the row still feels polished.
+#    `verifying` and `web-search` switch to #ff00ff automatically to avoid
+#    keying out green details. Attach BOTH seed.png AND the finished
+#    codogotchi-lite-basic-spritesheet.webp as references.
 python scripts/stitch_row.py     --row-dir run/<pet-id>/frames/lite-enhanced/<row>/ --out run/<pet-id>/rows/lite-enhanced/<row>.png
 python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-enhanced/<row>.png --seed run/<pet-id>/seed.png   # gate before next row
 

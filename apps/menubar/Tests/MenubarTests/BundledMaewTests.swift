@@ -32,6 +32,12 @@ final class PetStoreSeederTests: XCTestCase {
 			"requiredAssets must include codogotchi-lite-spritesheet.webp")
 	}
 
+	func testRequiredAssetsContainsLiteBasicSpritesheet() {
+		XCTAssertTrue(
+			PetStoreSeeder.requiredAssets.contains("codogotchi-lite-basic-spritesheet.webp"),
+			"requiredAssets must include codogotchi-lite-basic-spritesheet.webp")
+	}
+
 	func testRequiredAssetsContainsSoaSpritesheet() {
 		XCTAssertTrue(
 			PetStoreSeeder.requiredAssets.contains("codogotchi-soa-spritesheet.webp"),

@@ -1,21 +1,23 @@
 ---
 name: hatch-codogotchi-lite-basic
-description: "Add the Lite-Basic (Tier 2) sprite atlas to an EXISTING Codogotchi pet that already has a Codex `spritesheet.webp`. Produces the 9-row minimal alive/dead sheet (revive, standby, thinking, reading, implementing, testing, errored, waiting, dead). Row 0 is the revive fist-pump animation (renderer-selected, 5 s TTL on health gain). Idle falls through to the Codex sheet. Use when a user has a Codex pet and wants the baseline Codogotchi lite animations added."
+description: "Add the Lite-Basic (Tier 2) sprite atlas to an EXISTING Codogotchi pet that already has a Codex `spritesheet.webp`. Produces the 9-row minimal alive/ghost sheet (revive, standby, thinking, reading, implementing, testing, errored, waiting, ghost). Row 0 is the revive fist-pump animation (renderer-selected, 5 s TTL on health gain). Idle falls through to the Codex sheet. Use when a user has a Codex pet and wants the baseline Codogotchi lite animations added."
 ---
 
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
 
 # hatch-codogotchi-lite-basic
 
-Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `spritesheet.webp` — the 9-row minimal "alive/dead" tier every codogotchi ships.
+Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `spritesheet.webp` — the 9-row minimal "alive/ghost" tier every codogotchi ships.
 
 | File | Tier | Grid | Dimensions (Maew) | Rows |
 |------|------|------|-------------------|------|
-| `codogotchi-lite-basic-spritesheet.webp` | 2 — Lite-Basic | 8 × 9 | 1536 × 1872 | revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, **dead** |
+| `codogotchi-lite-basic-spritesheet.webp` | 2 — Lite-Basic | 8 × 9 | 1536 × 1872 | revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, **ghost** |
 
 **Prerequisite:** a valid Codex `spritesheet.webp` for the pet (the character reference is extracted from it).
 
 **Execution model:** Codex should use its built-in `image_gen` tool to generate **each Lite-Basic frame as a separate image** in `frames/lite-basic/<row>/f01.png` … `f08.png`. After a row's frames are present, use the local scripts to stitch and validate that row, then compose the finished atlas. Do **not** request a complete strip or complete spritesheet directly from image generation.
+
+**Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that produces a clean result**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended speedup, not a hard requirement.
 
 **Which skill?**
 - No Codex sheet yet → `SKILL-codex-and-lite-basic.md` (generates both).
@@ -34,6 +36,11 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 
 Plus the standing failure modes: don't fake frames by transforming the seed; **frame-first**, one row at a time (~1–2 h); don't draw-and-slice; don't drift from the Codex sheet's style.
 
+Quality caveats for the recommended pattern:
+- Some rows need more unique motion than others; generate extra distinct frames whenever the action or emotion reads weakly.
+- Reused/mirrored closures are acceptable only if the prop stays obvious, the row does not feel static, and the loop does not visibly pop.
+- Script validation is necessary but not sufficient; human visual review can still reject a row that passes mechanically if the motion looks cheap.
+
 ---
 
 ## Workflow
@@ -50,9 +57,11 @@ python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
   --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-basic --style auto --chroma auto
 
 # 3. For each of the 9 rows, in order, use built-in image_gen frame-first:
-#    render f01..f08 individually on the chroma named in the prompt into frames/lite-basic/<row>/,
-#    usually #00ff00; green-sensitive rows would switch to #ff00ff automatically,
-#    prop clearly drawn + identical across frames, character constant size,
+#    render the distinct keyframes you actually need first, then fill f01..f08
+#    with reused/mirrored closures only when the loop still looks clean.
+#    Use the chroma named in the prompt, usually #00ff00; green-sensitive rows
+#    switch to #ff00ff automatically. Prop must stay clearly drawn + identical
+#    across frames, character constant size,
 #    seed.png attached as the character reference. Then:
 python scripts/stitch_row.py     --row-dir run/<pet-id>/frames/lite-basic/<row>/ --out run/<pet-id>/rows/lite-basic/<row>.png
 python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-basic/<row>.png --seed run/<pet-id>/seed.png   # gate before next row
@@ -73,7 +82,7 @@ cp run/<pet-id>/codogotchi-lite-basic-spritesheet.webp "${CODOGOTCHI_HOME:-$HOME
 Quit and reopen Codogotchi, or re-select the pet in Settings → Pet.
 
 Row order (see `references/animation-rows-lite.md`):
-`revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, dead`
+`revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, ghost`
 
 ### Replace One Frame
 

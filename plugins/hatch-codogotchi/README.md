@@ -19,6 +19,14 @@ The plugin does **not** mean "ask image generation for a whole row strip" or "as
 
 Every skill below assumes that division of labor: **Codex generates frames; local scripts assemble and validate them.**
 
+**Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that still looks good in motion**. In practice, many rows can be produced faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a speed optimization, not a hard rule.
+
+Caveats:
+- Use it only when the row still reads clearly at a glance and the prop remains obvious in every frame.
+- Do **not** use mirrored/reused closures if they create visible popping, robotic timing, or "cheap" looking loops.
+- Some rows need more unique motion than others; generate extra distinct frames whenever the row's action or emotion demands it.
+- Validation plus human visual review can still reject a mirrored/reused closure even if the row passes script checks.
+
 ## Chroma-key policy
 
 The plugin no longer assumes `#00ff00` is safe for every row. Default behavior is now `--chroma auto`:
@@ -39,7 +47,7 @@ This avoids the failure mode where an intended green checkmark, green stamp, or 
 
 ## Skills
 
-The lite sheet is **split in two**: `codogotchi-lite-basic-spritesheet.webp` (9 rows, incl. `dead`) is the minimal "alive/dead" tier every pet ships; `codogotchi-lite-enhanced-spritesheet.webp` (8 rows) is a polish extension. **Dependencies: Codex is always required · Lite-Basic is required before Lite-Enhanced · SoA needs only Codex.**
+The lite sheet is **split in two**: `codogotchi-lite-basic-spritesheet.webp` (9 rows, incl. `ghost`) is the minimal "alive/ghost" tier every pet ships; `codogotchi-lite-enhanced-spritesheet.webp` (8 rows) is a polish extension. **Dependencies: Codex is always required · Lite-Basic is required before Lite-Enhanced · SoA needs only Codex.**
 
 | Skill file | Starting point | Produces |
 |------------|----------------|----------|
@@ -69,7 +77,7 @@ Do you have a Codex spritesheet.webp already?
 | Tier | File | Grid | Dimensions | States |
 |------|------|------|-----------|--------|
 | 1 — Codex | `spritesheet.webp` | 8×9 | 1536×1872 | idle, interactions, errored, fallbacks. **Required.** |
-| 2 — Lite-Basic | `codogotchi-lite-basic-spritesheet.webp` | 8×**9** | 1536×1872 | minimal "alive/dead": revive, standby, thinking, reading, implementing, testing, errored, waiting, **dead** |
+| 2 — Lite-Basic | `codogotchi-lite-basic-spritesheet.webp` | 8×**9** | 1536×1872 | minimal "alive/ghost": revive, standby, thinking, reading, implementing, testing, errored, waiting, **ghost** |
 | 3 — Lite-Enhanced | `codogotchi-lite-enhanced-spritesheet.webp` | 8×**8** | 1536×1664 | polish: idle-impatient/-frustrated, cramming, editing, git-ops, verifying, searching, web-search. **Requires Tier 2.** |
 | 4 — SoA | `codogotchi-soa-spritesheet.webp` | 8×10 | 1536×2080 | delivery gate moments (Son-of-Anton) |
 

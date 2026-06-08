@@ -82,7 +82,7 @@ final class FloatingPetScene: SKScene {
 	private var currentMode: VisualMode = .normal
 	/// When true (pet at 0 hearts), the sprite is rendered grayscale regardless of
 	/// `currentMode`. Driven by the RPG path, not the activity-state visual mode.
-	private var isDead = false
+	private var isGhosted = false
 	private var currentInteraction: FloatingInteraction?
 	private var currentFrames: [CodexPet.Frame] = [] {
 		didSet { opaqueBoxDirty = true }
@@ -173,24 +173,24 @@ final class FloatingPetScene: SKScene {
 		}
 	}
 
-	/// Lock the pet to the dead animation when it hits 0 hearts: force grayscale
-	/// (independent of the activity-state `VisualMode`) and freeze the sprite on
-	/// the dead row. While dead the scene ignores activity-state frame swaps, mouse
-	/// interactions, and idle escalation — dead means dead until revived. Reviving
-	/// resumes the current activity-state animation.
-	func setDead(_ dead: Bool) {
-		guard dead != isDead else { return }
-		isDead = dead
-		if dead {
+	/// Lock the pet to the 0-HP ghost animation: force grayscale (independent of
+	/// the activity-state `VisualMode`) and freeze the sprite on the dedicated
+	/// ghost row when available. While ghosted the scene ignores activity-state
+	/// frame swaps, mouse interactions, and idle escalation until the pet revives.
+	func setGhosted(_ ghosted: Bool) {
+		guard ghosted != isGhosted else { return }
+		isGhosted = ghosted
+		if ghosted {
 			// Drop any in-flight mouse interaction and idle escalation, then lock to
-			// the dead row. Activity-state changes still reach the badge (panel-owned)
-			// but never touch the sprite or the idle clock until revival.
+			// the ghost row. Activity-state changes still reach the badge
+			// (panel-owned) but never touch the sprite or the idle clock until
+			// revival.
 			currentInteraction = nil
 			if currentEscalation != .none {
 				currentEscalation = .none
 				onIdleEscalationChange?(.none)
 			}
-			let resolved = resolveDeadFrames()
+			let resolved = resolveGhostFrames()
 			currentFrames = resolved.frames
 			currentSource = resolved.source
 			frameIndex = 0
@@ -214,10 +214,10 @@ final class FloatingPetScene: SKScene {
 		currentState = state
 		currentMode = visualMode
 
-		// While dead the pet is locked to the dead animation. The latest activity
-		// state is still stored — the panel badge reflects it and revival resumes
+		// While ghosted the pet is locked to the 0-HP animation. The latest
+		// activity state is still stored — the panel badge reflects it and revival resumes
 		// from it — but it never swaps the sprite or arms the idle clock.
-		if isDead {
+		if isGhosted {
 			return
 		}
 
@@ -259,9 +259,9 @@ final class FloatingPetScene: SKScene {
 	/// activity-state animation remains in place. Passing `nil` restores the
 	/// ordinary activity-state animation.
 	func setInteraction(_ interaction: FloatingInteraction?) {
-		// Mouse interactions are suppressed while dead — the pet stays on the dead
-		// animation regardless of drag / click-hold gestures.
-		guard !isDead else { return }
+		// Mouse interactions are suppressed while ghosted — the pet stays on the
+		// ghost animation regardless of drag / click-hold gestures.
+		guard !isGhosted else { return }
 		guard let interaction else {
 			guard currentInteraction != nil else { return }
 			currentInteraction = nil
@@ -344,7 +344,7 @@ final class FloatingPetScene: SKScene {
 	// MARK: - Test access
 
 	var currentStateForTesting: ActivityState { currentState }
-	var isDeadForTesting: Bool { isDead }
+	var isGhostedForTesting: Bool { isGhosted }
 	var currentIdleEscalationForTesting: IdleEscalation { currentEscalation }
 	var currentInteractionForTesting: FloatingInteraction? { currentInteraction }
 	var currentFrameIndexForTesting: Int { frameIndex }
@@ -438,8 +438,8 @@ final class FloatingPetScene: SKScene {
 	/// (idle always animates, so this fires regularly while idle). No-op unless
 	/// the agent is continuously idle and not mid-interaction.
 	private func maybeEscalateIdle() {
-		// Dead means dead until revived: no idle → impatient → frustrated progression.
-		guard !isDead else { return }
+		// No idle → impatient → frustrated progression while the pet is ghosted.
+		guard !isGhosted else { return }
 		guard currentState == .idle, currentInteraction == nil else {
 			return
 		}
@@ -500,10 +500,12 @@ final class FloatingPetScene: SKScene {
 		currentState == .idle ? currentIdleFrames() : resolveFrames(for: currentState)
 	}
 
-	/// Frames for the dead presentation (0 hearts). Interim mapping: reuse the
-	/// lite `errored` row until a dedicated dead row ships in the lite-basic sheet.
-	/// Codex-only pets (no lite sheet) fall back to the Codex idle row.
-	private func resolveDeadFrames() -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {
+	/// Frames for the 0-HP ghost presentation. Prefer the dedicated Lite-Basic
+	/// ghost row; if absent, fall back to the legacy lite `errored` row; and if
+	/// no lite art exists at all, fall back to the Codex idle row.
+	private func resolveGhostFrames() -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {
+		let liteGhost = codogotchiPet?.floatingGhostFrames() ?? []
+		if !liteGhost.isEmpty { return (liteGhost, .codogotchi) }
 		let liteErrored = codogotchiPet?.floatingFrames(for: .errored) ?? []
 		if !liteErrored.isEmpty { return (liteErrored, .codogotchi) }
 		return (codexPet.floatingFrames(for: .idle), .idleFallback)
@@ -530,9 +532,9 @@ final class FloatingPetScene: SKScene {
 		let frame = currentFrames[frameIndex % currentFrames.count]
 		let textureImage: CGImage
 		let colorBlendFactor: CGFloat
-		// Death (0 hearts) forces grayscale regardless of the activity-state mode,
+		// 0 HP forces grayscale regardless of the activity-state mode,
 		// matching the failure-mode desaturation path.
-		if isDead || currentMode == .desaturated {
+		if isGhosted || currentMode == .desaturated {
 			if let desaturated = desaturateFrame(frame) {
 				textureImage = desaturated
 				colorBlendFactor = 0

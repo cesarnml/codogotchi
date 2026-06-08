@@ -3,10 +3,12 @@ import XCTest
 
 @testable import Codogotchi
 
-/// Behavior contract for `CodogotchiPet` — the two-sheet loader for all 19 v4
+/// Behavior contract for `CodogotchiPet` — the tiered loader for all 19 v4
 /// ActivityState values. P8.06 replaces the P7 single-sheet (24 cols × 9 rows)
-/// with two 8-frame sheets:
+/// with the lite + SoA 8-frame sheets, and later work may add optional
+/// supporting sheets such as Lite-Basic:
 ///   - `codogotchi-lite-spritesheet.webp` (1536×2288, 11 rows) — 9 hook states
+///   - `codogotchi-lite-basic-spritesheet.webp` (1536×1872, 9 rows) — dedicated `ghost` row
 ///   - `codogotchi-soa-spritesheet.webp`  (1536×2080, 10 rows) — 10 SoA gate states
 ///
 /// Fixtures live at `apps/menubar/Fixtures/maew/` so tests run on machines
@@ -171,8 +173,19 @@ final class CodogotchiPetTests: XCTestCase {
 
 	func testLoaderLoadsBothSheetsFromFixture() throws {
 		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		XCTAssertNotNil(
+			pet.liteBasicSheet,
+			"codogotchi-lite-basic-spritesheet.webp must load from fixture")
 		XCTAssertNotNil(pet.liteSheet, "codogotchi-lite-spritesheet.webp must load from fixture")
 		XCTAssertNotNil(pet.soaSheet, "codogotchi-soa-spritesheet.webp must load from fixture")
+	}
+
+	func testGhostRowReturns8FloatingFramesFromLiteBasicSheet() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		XCTAssertEqual(
+			pet.floatingGhostFrames().count,
+			8,
+			"ghost row must return 8 source-cell frames from the lite-basic sheet")
 	}
 
 	// MARK: - Cell dimension validation

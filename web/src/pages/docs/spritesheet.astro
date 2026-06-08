@@ -26,7 +26,7 @@ const codexRows = [
   ["review", "6", "thinking / reading (fallback)"],
 ];
 
-// Tier 2 (Lite-Basic) rows — minimal "alive/dead" tier, every pet ships this
+// Tier 2 (Lite-Basic) rows — minimal "alive/ghost" tier, every pet ships this
 const liteBasicRows = [
   ["revive", "(renderer — revive_until > now)", "Health gained — fist-pump celebration, 5 s TTL"],
   ["standby", "standby", "Done, handing control back — rings a handbell"],
@@ -36,7 +36,7 @@ const liteBasicRows = [
   ["testing", "testing", "Lab-experiment — flask + test tube"],
   ["errored", "errored", "Distressed — red ✗ badge"],
   ["waiting-for-input", "waiting_for_input", `Blocked, awaiting your input — "?" sign`],
-  ["dead", "(renderer — 0 HP)", "Knocked out — X-eyes + spirit-puff"],
+  ["ghost", "(renderer — 0 HP)", "0 HP ghost form — spectral idle silhouette"],
 ];
 
 // Tier 3 (Lite-Enhanced) rows — polish extension, requires Lite-Basic
@@ -224,9 +224,9 @@ const soaRows = [
             </div>
           </div>
           <p class="text-on-surface-variant text-sm mb-4">
-            The minimal "alive/dead" tier — every published pet ships this. Replaces Codex's
+            The minimal "alive/ghost" tier — every published pet ships this. Replaces Codex's
             generic fallback rows with per-activity art for the core agent hook states, plus a
-            <code class="font-mono">dead</code> pose at 0 HP and a <code class="font-mono">revive</code>
+            <code class="font-mono">ghost</code> pose at 0 HP and a <code class="font-mono">revive</code>
             celebration at row 0 (5 s TTL, renderer-selected on any health gain). The resting
             <code class="font-mono">idle</code> state falls through to the Codex sheet.
             States not listed here fall back to Codex.

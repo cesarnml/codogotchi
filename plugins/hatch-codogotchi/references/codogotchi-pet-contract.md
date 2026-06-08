@@ -47,7 +47,7 @@ Always required. Acts as fallback for all states when optional sheets are absent
 
 ### `codogotchi-lite-basic-spritesheet.webp` — Tier 2 (Lite-Basic)
 
-Minimal "alive/dead" tier: agent hook states + the `dead` (0-HP) pose. Every codogotchi ships this. When present, replaces Codex rows for those states.
+Minimal "alive/ghost" tier: agent hook states + the `ghost` (0-HP) pose. Every codogotchi ships this. When present, replaces Codex rows for those states.
 
 | Property | Value |
 |----------|-------|
@@ -104,7 +104,7 @@ The app resolves which row to animate using this priority order (first match win
 
 1. SoA sheet row (`soaRowMap`) — if gate active and SoA sheet loaded
 2. Lite-Enhanced row — if Enhanced sheet loaded
-3. Lite-Basic row (incl. `dead` at 0 HP) — if Basic sheet loaded
+3. Lite-Basic row (incl. `ghost` at 0 HP) — if Basic sheet loaded
 4. Codex sheet row — always available as fallback
 5. Codex idle row — final fallback for any unknown state
 

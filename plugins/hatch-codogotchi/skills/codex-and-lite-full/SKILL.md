@@ -1,6 +1,6 @@
 ---
 name: hatch-codogotchi-codex-and-lite-full
-description: "Generate a brand-new Codogotchi pet with the FULL lite set from scratch: Codex (Tier 1), Lite-Basic (Tier 2), and Lite-Enhanced (Tier 3) sprite atlases plus `pet.json`, generated in tier order. Use when a user wants a complete new Codogotchi pet that includes the enhanced / polish animation rows, not just the minimal alive/dead set."
+description: "Generate a brand-new Codogotchi pet with the FULL lite set from scratch: Codex (Tier 1), Lite-Basic (Tier 2), and Lite-Enhanced (Tier 3) sprite atlases plus `pet.json`, generated in tier order. Use when a user wants a complete new Codogotchi pet that includes the enhanced / polish animation rows, not just the minimal alive/ghost set."
 ---
 
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
@@ -12,7 +12,7 @@ Generate a **brand-new** Codogotchi pet from scratch with the **full lite set** 
 | File | Tier | Grid | Dimensions | Rows |
 |------|------|------|-----------|------|
 | `spritesheet.webp` | 1 — Codex | 8 × 9 | 1536 × 1872 | 9 |
-| `codogotchi-lite-basic-spritesheet.webp` | 2 — Lite-Basic | 8 × 9 | 1536 × 1872 | 9 (incl. `dead`) |
+| `codogotchi-lite-basic-spritesheet.webp` | 2 — Lite-Basic | 8 × 9 | 1536 × 1872 | 9 (incl. `ghost`) |
 | `codogotchi-lite-enhanced-spritesheet.webp` | 3 — Lite-Enhanced | 8 × 8 | 1536 × 1664 | 8 |
 | `pet.json` | — | — | — | — |
 
@@ -21,6 +21,8 @@ Generate a **brand-new** Codogotchi pet from scratch with the **full lite set** 
 Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 **Execution model:** for every tier, Codex uses its built-in `image_gen` tool to generate **individual frames**, one row at a time, saved as `f01.png` … `f08.png`. The local Python scripts then stitch those frames into row strips, inspect them, and compose the finished atlas. Do **not** use image generation to output a preassembled row strip or an entire spritesheet.
+
+**Recommended production pattern:** for each row, generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that preserves motion quality**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended acceleration pattern, not a hard requirement.
 
 ---
 
@@ -32,6 +34,11 @@ Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 Plus: don't fake frames from the seed; **frame-first**, one row at a time (~1–2 h per sheet); don't draw-and-slice.
 
+Quality caveats for the recommended pattern:
+- Some rows and some tiers need more unique motion than others; add distinct frames whenever the loop reads weakly.
+- Reuse/mirroring is only acceptable if the prop remains clear, the row stays visibly animated, and loop closure does not feel cheap.
+- Script validation and human visual review both matter; either can reject a mechanically valid but visually weak mirrored closure.
+
 ---
 
 ## Workflow (three sheets, in order)
@@ -42,7 +49,8 @@ Use the same pipeline per sheet — prepare → generate frame-first → stitch 
 # ---- Tier 1: Codex ----
 python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --tier codex --chroma auto
 #   use built-in image_gen to generate 9 codex rows frame-first
-#   as standalone frames → stitch+inspect each → compose
+#   as standalone frames; distinct keyframes first, then reused/mirrored closure
+#   only when the loop still reads cleanly → stitch+inspect each → compose
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/codex/ --tier codex --out run/<slug>/spritesheet.png
 cwebp -lossless -exact run/<slug>/spritesheet.png -o run/<slug>/spritesheet.webp
 python scripts/validate_atlas.py --atlas run/<slug>/spritesheet.webp --tier codex
@@ -50,7 +58,8 @@ python scripts/validate_atlas.py --atlas run/<slug>/spritesheet.webp --tier code
 # ---- Tier 2: Lite-Basic (uses Codex/seed as style ref) ----
 python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-basic --chroma auto
 #   use built-in image_gen to generate 9 lite-basic rows frame-first
-#   as standalone frames → stitch+inspect each → compose
+#   as standalone frames; distinct keyframes first, then reused/mirrored closure
+#   only when the row still looks good in motion → stitch+inspect each → compose
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-basic/ --tier lite-basic --out run/<slug>/codogotchi-lite-basic-spritesheet.png
 cwebp -lossless -exact run/<slug>/codogotchi-lite-basic-spritesheet.png -o run/<slug>/codogotchi-lite-basic-spritesheet.webp
 python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
@@ -58,7 +67,8 @@ python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-basic-sprite
 # ---- Tier 3: Lite-Enhanced (REQUIRES the Basic sheet; attach BOTH seed.png AND the Basic sheet as refs) ----
 python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-enhanced --chroma auto
 #   use built-in image_gen to generate 8 lite-enhanced rows frame-first
-#   as standalone frames → stitch+inspect each → compose
+#   as standalone frames; distinct keyframes first, then reused/mirrored closure
+#   only when the row still feels polished → stitch+inspect each → compose
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-enhanced/ --tier lite-enhanced --out run/<slug>/codogotchi-lite-enhanced-spritesheet.png
 cwebp -lossless -exact run/<slug>/codogotchi-lite-enhanced-spritesheet.png -o run/<slug>/codogotchi-lite-enhanced-spritesheet.webp
 python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
@@ -81,7 +91,7 @@ python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png --seed r
 ## Row generation order
 
 - **Codex (9):** `idle, running-right, running-left, standby, jump, errored, waiting-for-input, implementing-fallback, thinking-fallback`
-- **Lite-Basic (9):** `revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, dead`
+- **Lite-Basic (9):** `revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, ghost`
 - **Lite-Enhanced (8):** `idle-impatient, idle-frustrated, cramming, editing, git-ops, verifying, searching, web-search`
 
 See `references/animation-rows-codex.md` and `references/animation-rows-lite.md` for per-row motion + props.

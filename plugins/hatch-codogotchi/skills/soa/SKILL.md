@@ -13,6 +13,8 @@ Generate the **Tier 4 (SoA)** sprite sheet for an existing Codogotchi pet — th
 
 **Execution model:** Codex should use its built-in `image_gen` tool to generate **each SoA frame as a separate image** in `frames/soa/<row>/f01.png` … `f08.png`, one row at a time. After those frame files exist, use the local scripts to stitch, inspect, compose, and validate the atlas. Do **not** use image generation to output a preassembled row strip or the entire SoA spritesheet in one shot.
 
+**Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that preserves the emotional beat**. Many SoA rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a preferred optimization, not a universal law.
+
 ---
 
 ## What this produces
@@ -54,6 +56,8 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` backgrou
 5. **Visual identity drift.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
 
 > **Validation does not catch failures 1–2.** Eyeball every finished row for actual motion before proceeding to the next.
+>
+> Mirrored/reused closure is allowed only if it still reads as lively and intentional. If the row's celebration or reaction looks flattened, repetitive, or cheap, generate more distinct frames.
 
 ---
 

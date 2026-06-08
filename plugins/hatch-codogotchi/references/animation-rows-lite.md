@@ -4,7 +4,7 @@ The single 11-row lite sheet is **split into two sheets**:
 
 | Tier | File | Grid | Dimensions (Maew) | Rows |
 |------|------|------|-------------------|------|
-| **Lite-Basic** | `codogotchi-lite-basic-spritesheet.webp` | 8 × **9** | 1536 × 1872 | minimal "alive/dead" — every pet ships this |
+| **Lite-Basic** | `codogotchi-lite-basic-spritesheet.webp` | 8 × **9** | 1536 × 1872 | minimal "alive/ghost" — every pet ships this |
 | **Lite-Enhanced** | `codogotchi-lite-enhanced-spritesheet.webp` | 8 × **8** | 1536 × 1664 | polish extension — **requires Lite-Basic** |
 
 All rows: **192 × 208 cell**, **8 frames**, **1.5 s / ~187.5 ms per frame**, **continuous loop** (frame 8 → frame 1). Row 0 = top strip.
@@ -36,9 +36,9 @@ Codogotchi animations are **not charades**. A user must read the state at a glan
 | 5 | testing | `testing` | prop | lab coat + flask (blue) + test tube (red) |
 | 6 | errored | `errored` | emotion (sad) | red ✗ badge |
 | 7 | waiting-for-input | `waiting_for_input` | prop | held-up "?" sign |
-| 8 | dead | *(renderer — 0 HP / `half_hearts == 0`)* | emotion | X-eyes + spirit-puff |
+| 8 | ghost | *(renderer — 0 HP / `half_hearts == 0`)* | emotion | spectral idle form |
 
-`dead` and `revive` are both **renderer-selected**, not `state.json` activity_state values. `revive` fires when `revive_until > now`; `dead` fires when `half_hearts == 0`. `idle` is not present in Tier 2 — the renderer falls through to the Codex sheet's idle row (row 0) for the resting state. States not covered by Basic (`editing`, `searching`, `web_search`, `verifying`, `git_ops`, `cramming`) alias at the app level to their closest Basic row until Enhanced is installed.
+`ghost` and `revive` are both **renderer-selected**, not `state.json` activity_state values. `revive` fires when `revive_until > now`; `ghost` fires when `half_hearts == 0`. `idle` is not present in Tier 2 — the renderer falls through to the Codex sheet's idle row (row 0) for the resting state. States not covered by Basic (`editing`, `searching`, `web_search`, `verifying`, `git_ops`, `cramming`) alias at the app level to their closest Basic row until Enhanced is installed.
 
 ### Motion descriptions (Basic)
 
@@ -50,7 +50,7 @@ Codogotchi animations are **not charades**. A user must read the state at a glan
 - **testing** — Lab-experiment metaphor. Wears a **lab coat**; **Erlenmeyer flask of blue** in one hand, **test tube of red** in the other. Pours red into blue → small "poof" → soot smudge on a cheek → blink and steady.
 - **errored** — Dismay (sad, not panicked). A bold, easily viewable (not too small) **red ✗ badge** pops by her head; recoil with widening eyes, hand to forehead, shoulders sag, recover toward neutral to loop.
 - **waiting-for-input** — Blocked, waiting on YOU. Holds up a small **"?" sign** aimed at the viewer; patient head-tilt, one foot-tap with eyes on the viewer, lower and settle. Directional toward the user.
-- **dead** — Knocked out at 0 HP, cute not gory. Lies on her back, eyes as little **X's**; a tiny translucent **spirit-puff** drifts up and settles in a slow loop. **No tombstone** — the app draws that separately.
+- **ghost** — 0 HP spectral form. A cute **ghost** version of idle: still upright and vertical, softly glowing, slightly translucent, with a gentle floating sway and a small wispy aura/tail. Reads as a friendly spirit form, not a collapsed body.
 
 ---
 
@@ -91,8 +91,8 @@ Codogotchi animations are **not charades**. A user must read the state at a glan
 | searching vs web-search | searching: magnifier + local folder; web-search: deerstalker + globe |
 | revive vs standby | revive: fist-pump joy, no prop, short TTL; standby: calm readiness, handbell |
 | waiting-for-input vs standby | waiting faces the viewer with a "?" sign; standby is general readiness |
-| errored vs dead | errored: standing, sad, red ✗; dead: lying down, X-eyes, spirit-puff |
-| revive vs dead | revive: upright, celebration; dead: lying down, X-eyes. Revive fires on health gain, not on revival from 0 specifically. |
+| errored vs ghost | errored: standing, sad, red ✗; ghost: upright spectral idle form |
+| revive vs ghost | revive: upright celebration; ghost: upright spectral idle. Revive fires on health gain, not on revival from 0 specifically. |
 
 ## Pixel spec (Maew reference)
 

@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 # ---------------------------------------------------------------------------
 # Motion descriptions (referenced from the SKILL-*.md entrypoints). Each non-emotional
 # state is carried by ONE clearly-visible prop — see the prop doctrine in the
-# frame-prompt builders below. Lite is split into lite-basic (incl. `dead`) + lite-enhanced.
+# frame-prompt builders below. Lite is split into lite-basic (incl. `ghost`) + lite-enhanced.
 # ---------------------------------------------------------------------------
 
 CODEX_PROMPTS: dict[str, str] = {
@@ -65,7 +65,7 @@ CODEX_PROMPTS: dict[str, str] = {
     ),
 }
 
-# Tier 2 — Lite-Basic (9 rows incl. `dead`). Minimal "alive/dead" tier every
+# Tier 2 — Lite-Basic (9 rows incl. `ghost`). Minimal "alive/ghost" tier every
 # codogotchi pet ships. Each non-emotional state is carried by ONE clearly
 # VISIBLE prop (no charades, no A/B prop choice) — see the prop doctrine in the
 # frame-prompt builders below.
@@ -110,10 +110,11 @@ LITE_BASIC_PROMPTS: dict[str, str] = {
         "(same sign every frame). Patient head-tilt, a single foot-tap with eyes on the viewer, lower the sign and "
         "settle. Directional toward the user — distinct from standby. 8 frames."
     ),
-    "dead": (
-        "Knocked out at 0 HP. Cute, NOT gory. She lies on her back, eyes drawn as little X's; a tiny translucent "
-        "spirit-puff drifts up from her and settles back down in a slow loop. Do NOT draw a tombstone (the app draws "
-        "that separately). PROP: X-eyes + spirit-puff. 8 frames."
+    "ghost": (
+        "0 HP spectral form. Cute, gentle, and upright — NOT scary, NOT morbid. She appears as a ghostly version of "
+        "the idle pose, still standing vertically like the rest of the sheet. Pale translucent body, soft cyan-white "
+        "glow, faint floating/swaying motion, and a tiny wispy spirit tail or aura beneath her. Read this as a cute "
+        "ghost form of idle, not a collapsed body. 8 frames."
     ),
 }
 
@@ -222,7 +223,7 @@ TIER_ROW_ORDER = {
     "soa": list(SOA_PROMPTS.keys()),
 }
 
-# `dead` and the idle-escalation rows are renderer/HP-selected, not state.json
+# `ghost` and the idle-escalation rows are renderer/HP-selected, not state.json
 # values — but they still need real art rows. They live in TIER_ROW_ORDER above.
 
 ALL_PROMPTS = {**CODEX_PROMPTS, **LITE_BASIC_PROMPTS, **LITE_ENHANCED_PROMPTS, **SOA_PROMPTS}

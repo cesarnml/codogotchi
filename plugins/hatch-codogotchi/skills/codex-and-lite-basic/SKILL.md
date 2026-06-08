@@ -12,7 +12,7 @@ Generate a **brand-new** Codogotchi pet from scratch — produces the **Codex** 
 | File | Tier | Grid | Dimensions | Rows |
 |------|------|------|-----------|------|
 | `spritesheet.webp` | 1 — Codex | 8 × 9 | 1536 × 1872 | 9 |
-| `codogotchi-lite-basic-spritesheet.webp` | 2 — Lite-Basic | 8 × 9 | 1536 × 1872 | 9 (incl. `dead`) |
+| `codogotchi-lite-basic-spritesheet.webp` | 2 — Lite-Basic | 8 × 9 | 1536 × 1872 | 9 (incl. `ghost`) |
 | `pet.json` | — | — | — | — |
 
 **Which skill?**
@@ -23,6 +23,8 @@ Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 **Execution model:** Codex should use its built-in `image_gen` tool to generate **each frame as a standalone image** (`f01.png` … `f08.png`) for one row at a time. After each row's frames exist on disk, use the local scripts to stitch the row, inspect it, and later compose the final atlas. Do **not** generate an entire row strip or a whole spritesheet in one image-gen call.
 
+**Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that still looks good in motion**. In practice, many rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. Treat this as a production shortcut, not a rigid rule.
+
 ---
 
 ## Read first — the two doctrines (full text in `README.md` + `references/animation-rows-lite.md`)
@@ -32,6 +34,11 @@ Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
 
 Plus: don't fake frames by transforming the seed; **frame-first**, one row at a time (~1–2 h); don't draw-and-slice; no chroma-colour contamination.
+
+Quality caveats for the recommended pattern:
+- Add more unique frames whenever a row's action, emotion, or prop motion reads weakly with mirrored/reused closure.
+- Never let the speedup hide a prop, flatten the row into near-static motion, or introduce an obvious pop at loop closure.
+- Passing the scripts does not automatically make the row acceptable; human visual review can still reject cheap-looking closure reuse.
 
 ---
 
@@ -56,10 +63,11 @@ python scripts/prepare_pet_run.py --seed path/to/seed.png \
 # (or --tier all to prep every tier; you generate only codex + lite-basic here)
 
 # 2. Use Codex's built-in image_gen tool to generate frames ONE ROW AT A TIME,
-#    frame-first: render f01..f08 individually into frames/<tier>/<row>/.
+#    frame-first: render the distinct keyframes you actually need, then fill
+#    f01..f08 with reused/mirrored closures only when the loop still reads well.
 #    Use the chroma named in each generated prompt file; green-sensitive rows
-#    switch to #ff00ff automatically.
-#    Do not ask for a whole strip or whole sheet in one pass.
+#    switch to #ff00ff automatically. Do not ask for a whole strip or whole
+#    sheet in one pass.
 
 # 3. Stitch each row → inspect (gate) before the next row
 python scripts/stitch_row.py     --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
@@ -93,7 +101,7 @@ Quit and reopen Codogotchi, or re-select the pet in Settings → Pet.
 `idle, running-right, running-left, standby, jump, errored, waiting-for-input, implementing-fallback, thinking-fallback`
 
 **Lite-Basic (9)** — see `references/animation-rows-lite.md`:
-`revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, dead`
+`revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, ghost`
 
 ### Replace One Frame
 

@@ -31,7 +31,7 @@ TIER_CONFIG = {
         ],
         "output_suffix": "spritesheet",
     },
-    # Tier 2 — minimal "alive/dead" tier (incl. `dead`). Every codogotchi pet
+    # Tier 2 — minimal "alive/ghost" tier (incl. `ghost`). Every codogotchi pet
     # ships this. 9 rows → 1536×1872 at Maew scale.
     "lite-basic": {
         "rows": 9,
@@ -44,7 +44,7 @@ TIER_CONFIG = {
             "testing",
             "errored",
             "waiting-for-input",
-            "dead",
+            "ghost",
         ],
         "output_suffix": "codogotchi-lite-basic-spritesheet",
     },

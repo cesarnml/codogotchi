@@ -69,97 +69,98 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertNotNil(scene.overlayLayerForTesting.parent)
 	}
 
-	func testSetDeadRendersGrayscaleAndClearsOnRevive() throws {
-		// A desaturate that fails routes the death path to the gray fallback
+	func testSetGhostedRendersGrayscaleAndClearsOnRevive() throws {
+		// A desaturate that fails routes the 0-HP path to the gray fallback
 		// (colorBlendFactor == 1) — a deterministic signal desaturation was asked
 		// for, independent of pixel inspection.
 		let scene = try makeScene(desaturateFrame: { _ in nil })
 		scene.update(state: .idle, visualMode: .normal)
-		XCTAssertFalse(scene.isDeadForTesting)
+		XCTAssertFalse(scene.isGhostedForTesting)
 		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 0)
 
-		scene.setDead(true)
-		XCTAssertTrue(scene.isDeadForTesting)
+		scene.setGhosted(true)
+		XCTAssertTrue(scene.isGhostedForTesting)
 		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 1)
 
-		scene.setDead(false)
-		XCTAssertFalse(scene.isDeadForTesting)
+		scene.setGhosted(false)
+		XCTAssertFalse(scene.isGhostedForTesting)
 		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 0)
 	}
 
-	// MARK: - Death lock
+	// MARK: - Ghost lock
 
-	func testDeadLocksToLiteErroredRowSource() throws {
-		let scene = try makeScene()
+	func testGhostLocksToLiteBasicGhostRowSource() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		XCTAssertTrue(pet.hasLiteBasicSheet)
+		XCTAssertEqual(pet.floatingGhostFrames().count, 8)
+		let scene = try makeScene(codogotchiPet: pet)
 		scene.update(state: .implementing, visualMode: .normal)
 		XCTAssertEqual(scene.currentFrameSourceForTesting, "codogotchi")
 
-		scene.setDead(true)
+		scene.setGhosted(true)
 
-		// Dead reuses the lite sheet's errored row (interim until a dedicated dead
-		// row ships): still a codogotchi source with the full 8-frame loop.
-		XCTAssertTrue(scene.isDeadForTesting)
+		XCTAssertTrue(scene.isGhostedForTesting)
 		XCTAssertEqual(scene.currentFrameSourceForTesting, "codogotchi")
 		XCTAssertEqual(scene.currentFramesForTesting.count, 8)
 	}
 
-	func testActivityStateUpdatesIgnoredWhileDead() throws {
+	func testActivityStateUpdatesIgnoredWhileGhosted() throws {
 		let scene = try makeScene()
 		scene.update(state: .implementing, visualMode: .normal)
-		scene.setDead(true)
-		let deadFrames = scene.currentFramesForTesting.map(ObjectIdentifier.init)
+		scene.setGhosted(true)
+		let ghostFrames = scene.currentFramesForTesting.map(ObjectIdentifier.init)
 
 		// A live activity change still advances the stored state (the panel badge
-		// reads it) but must not swap the locked dead sprite.
+		// reads it) but must not swap the locked ghost sprite.
 		scene.update(state: .thinking, visualMode: .normal)
 
 		XCTAssertEqual(scene.currentStateForTesting, .thinking)
 		XCTAssertEqual(
 			scene.currentFramesForTesting.map(ObjectIdentifier.init),
-			deadFrames,
-			"sprite frames must stay locked to the dead animation while dead"
+			ghostFrames,
+			"sprite frames must stay locked to the ghost animation while ghosted"
 		)
 	}
 
-	func testMouseInteractionsSuppressedWhileDead() throws {
+	func testMouseInteractionsSuppressedWhileGhosted() throws {
 		let scene = try makeScene()
 		scene.update(state: .implementing, visualMode: .normal)
-		scene.setDead(true)
-		let deadFrames = scene.currentFramesForTesting.map(ObjectIdentifier.init)
+		scene.setGhosted(true)
+		let ghostFrames = scene.currentFramesForTesting.map(ObjectIdentifier.init)
 
 		scene.setInteraction(.jumping)
 
 		XCTAssertNil(scene.currentInteractionForTesting)
 		XCTAssertEqual(
 			scene.currentFramesForTesting.map(ObjectIdentifier.init),
-			deadFrames,
-			"mouse interactions must not disturb the dead animation"
+			ghostFrames,
+			"mouse interactions must not disturb the ghost animation"
 		)
 	}
 
 	func testReviveRestoresActivityAnimation() throws {
 		let scene = try makeScene()
 		scene.update(state: .implementing, visualMode: .normal)
-		scene.setDead(true)
+		scene.setGhosted(true)
 
-		scene.setDead(false)
+		scene.setGhosted(false)
 
-		XCTAssertFalse(scene.isDeadForTesting)
+		XCTAssertFalse(scene.isGhostedForTesting)
 		XCTAssertEqual(scene.currentStateForTesting, .implementing)
 		XCTAssertEqual(scene.currentFrameSourceForTesting, "codogotchi")
 		XCTAssertEqual(scene.currentFramesForTesting.count, 8)
 	}
 
-	func testCodexOnlyPetDeadFallsBackToIdle() throws {
+	func testCodexOnlyPetGhostFallsBackToIdle() throws {
 		let missingPet = try CodogotchiPet(petDirectory: missingCodogotchiPetDirectory())
 		XCTAssertFalse(missingPet.hasLiteSheet)
 		let scene = try makeScene(codogotchiPet: missingPet)
 		scene.update(state: .idle, visualMode: .normal)
 
-		scene.setDead(true)
+		scene.setGhosted(true)
 
-		// No lite sheet → dead falls back to the Codex idle row.
-		XCTAssertTrue(scene.isDeadForTesting)
+		// No lite/basic sheet → ghost falls back to the Codex idle row.
+		XCTAssertTrue(scene.isGhostedForTesting)
 		XCTAssertEqual(scene.currentFrameSourceForTesting, "idle-fallback")
 		XCTAssertFalse(scene.currentFramesForTesting.isEmpty)
 	}
@@ -352,7 +353,7 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
 	}
 
-	func testIdleEscalationFrozenWhileDead() throws {
+	func testIdleEscalationFrozenWhileGhosted() throws {
 		var now = Date(timeIntervalSince1970: 1_000_000)
 		let scene = try makeEscalationScene(clock: { now })
 
@@ -364,12 +365,11 @@ final class FloatingPetSceneTests: XCTestCase {
 		// Dying resets escalation to none and emits the change.
 		var emitted: [IdleEscalation] = []
 		scene.onIdleEscalationChange = { emitted.append($0) }
-		scene.setDead(true)
+		scene.setGhosted(true)
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 		XCTAssertEqual(emitted, [.none])
 
-		// Frame ticks with elapsed idle time must NOT re-escalate while dead —
-		// dead means dead until revived.
+		// Frame ticks with elapsed idle time must NOT re-escalate while ghosted.
 		now = now.addingTimeInterval(10_000)
 		scene.advanceFrameForTesting()
 		scene.advanceFrameForTesting()
@@ -377,7 +377,7 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertEqual(emitted, [.none])
 
 		// After revival the idle clock re-arms from zero and escalates normally.
-		scene.setDead(false)
+		scene.setGhosted(false)
 		now = now.addingTimeInterval(61)
 		scene.advanceFrameForTesting()
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
