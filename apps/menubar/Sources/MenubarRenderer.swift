@@ -123,7 +123,7 @@ final class MenubarRenderer {
 
 	/// Populate `currentFrames` via composite resolution.
 	private func resolveFrames(for state: ActivityState) {
-		// CodogotchiPet covers SoA gate states (soaRowMap) and hook/lite states (liteRowMap).
+		// CodogotchiPet covers SoA gate states and Lite-Basic hook states.
 		let codogotchiFrames = codogotchiPet?.frames(for: state) ?? []
 		if !codogotchiFrames.isEmpty {
 			currentFrames = codogotchiFrames

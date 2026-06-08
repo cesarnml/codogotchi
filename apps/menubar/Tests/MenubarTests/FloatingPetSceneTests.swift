@@ -153,7 +153,6 @@ final class FloatingPetSceneTests: XCTestCase {
 
 	func testCodexOnlyPetGhostFallsBackToIdle() throws {
 		let missingPet = try CodogotchiPet(petDirectory: missingCodogotchiPetDirectory())
-		XCTAssertFalse(missingPet.hasLiteSheet)
 		let scene = try makeScene(codogotchiPet: missingPet)
 		scene.update(state: .idle, visualMode: .normal)
 
@@ -328,104 +327,69 @@ final class FloatingPetSceneTests: XCTestCase {
 		)
 	}
 
-	func testInitialIdleAgeLaunchesAlreadyFrustratedThenBumpsNormally() throws {
-		// Backdates the idle clock past the frustrated threshold (the `tcib`
-		// demo): she starts frustrated, and click-hold de-escalation then behaves
-		// under the normal production-shaped timing.
+	func testInitialIdleAgeDoesNotEscalateLiteBasicIdle() throws {
 		var now = Date(timeIntervalSince1970: 1_000_000)
 		let scene = try makeEscalationScene(clock: { now }, initialIdleAge: 130)
 
 		scene.update(state: .idle, visualMode: .normal)
 		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
-
-		// First bump → impatient, stable; second bump → none.
-		scene.decrementIdleEscalation()
-		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
-		scene.decrementIdleEscalation()
-		scene.advanceFrameForTesting()
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 
-		// And she re-escalates from zero on the normal cadence afterward.
 		now = now.addingTimeInterval(61)
 		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 	}
 
-	func testIdleEscalationFrozenWhileGhosted() throws {
+	func testGhostingKeepsLiteBasicIdleEscalationAtNone() throws {
 		var now = Date(timeIntervalSince1970: 1_000_000)
 		let scene = try makeEscalationScene(clock: { now })
-
-		scene.update(state: .idle, visualMode: .normal)
-		now = now.addingTimeInterval(130) // past frustratedAfter (120)
-		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
-
-		// Dying resets escalation to none and emits the change.
 		var emitted: [IdleEscalation] = []
 		scene.onIdleEscalationChange = { emitted.append($0) }
-		scene.setGhosted(true)
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
-		XCTAssertEqual(emitted, [.none])
 
-		// Frame ticks with elapsed idle time must NOT re-escalate while ghosted.
+		scene.update(state: .idle, visualMode: .normal)
 		now = now.addingTimeInterval(10_000)
 		scene.advanceFrameForTesting()
+		scene.setGhosted(true)
 		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
-		XCTAssertEqual(emitted, [.none])
-
-		// After revival the idle clock re-arms from zero and escalates normally.
 		scene.setGhosted(false)
-		now = now.addingTimeInterval(61)
-		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+		XCTAssertTrue(emitted.isEmpty)
 	}
 
-	func testIdleEscalatesImpatientThenFrustratedByElapsedTime() throws {
+	func testLiteBasicIdleDoesNotEscalateByElapsedTime() throws {
 		var now = Date(timeIntervalSince1970: 1_000_000)
 		let scene = try makeEscalationScene(clock: { now })
 
 		scene.update(state: .idle, visualMode: .normal)
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 
-		now = now.addingTimeInterval(61)
+		now = now.addingTimeInterval(121)
 		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
-
-		now = now.addingTimeInterval(60) // 121s total idle
-		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 	}
 
-	func testTransitionResetsIdleEscalationAndReArmsOnReturnToIdle() throws {
+	func testStateTransitionsLeaveLiteBasicIdleEscalationAtNone() throws {
 		var now = Date(timeIntervalSince1970: 1_000_000)
 		let scene = try makeEscalationScene(clock: { now })
 
 		scene.update(state: .idle, visualMode: .normal)
-		now = now.addingTimeInterval(130)
+		now = now.addingTimeInterval(10_000)
 		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
-
-		// Any real transition clears escalation immediately (last_until_next_transition).
 		scene.update(state: .implementing, visualMode: .normal)
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 
-		// Returning to idle re-arms the clock from zero rather than reusing stale elapsed.
-		now = now.addingTimeInterval(10_000)
 		scene.update(state: .idle, visualMode: .normal)
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 		now = now.addingTimeInterval(61)
 		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 	}
 
-	func testCodexOnlyPetWithoutLiteSheetDoesNotEscalateIdle() throws {
+	func testCodexOnlyPetWithoutLiteBasicDoesNotEscalateIdle() throws {
 		let mali = maliFixtureDirectory()
 		var now = Date(timeIntervalSince1970: 1_000_000)
 		let codogotchiPet = try CodogotchiPet(petDirectory: mali)
-		XCTAssertFalse(codogotchiPet.hasLiteSheet)
+		XCTAssertFalse(codogotchiPet.hasLiteBasicSheet)
 		let scene = try FloatingPetScene(
 			size: CGSize(width: 180, height: 140),
 			codexPet: CodexPet(petDirectory: mali),
@@ -447,68 +411,19 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertTrue(emitted.isEmpty)
 	}
 
-	func testDecrementStepsFrustratedToImpatientAndStaysPutAcrossFrameTicks() throws {
+	func testDecrementIdleEscalationIsNoOpWithoutIdleEscalationFrames() throws {
 		var now = Date(timeIntervalSince1970: 1_000_000)
 		let scene = try makeEscalationScene(clock: { now })
 
 		scene.update(state: .idle, visualMode: .normal)
-		now = now.addingTimeInterval(130) // > frustratedAfter (120)
+		now = now.addingTimeInterval(10_000)
 		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
-
-		// One bump: frustrated → impatient, and it must survive the next frame
-		// tick rather than the elapsed-time recompute demoting it back to idle.
 		scene.decrementIdleEscalation()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
-		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
 
-		// Second bump: impatient → none, also stable across a tick.
-		scene.decrementIdleEscalation()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
-		scene.advanceFrameForTesting()
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 	}
 
-	func testDecrementToImpatientReEscalatesToFrustratedAfterRemainingTime() throws {
-		var now = Date(timeIntervalSince1970: 1_000_000)
-		let scene = try makeEscalationScene(clock: { now })
-
-		scene.update(state: .idle, visualMode: .normal)
-		now = now.addingTimeInterval(130)
-		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
-
-		// Bump down to impatient: the clock is re-anchored to the impatient floor,
-		// so re-escalation to frustrated takes (frustratedAfter - impatientAfter).
-		scene.decrementIdleEscalation()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
-
-		now = now.addingTimeInterval(59) // still short of the 60s remaining window
-		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
-
-		now = now.addingTimeInterval(2) // crosses the frustrated threshold
-		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
-	}
-
-	func testIdleEscalationEmitsLevelChangesToObserver() throws {
-		var now = Date(timeIntervalSince1970: 1_000_000)
-		let scene = try makeEscalationScene(clock: { now })
-		var emitted: [IdleEscalation] = []
-		scene.onIdleEscalationChange = { emitted.append($0) }
-
-		scene.update(state: .idle, visualMode: .normal)
-		now = now.addingTimeInterval(61)
-		scene.advanceFrameForTesting()
-		now = now.addingTimeInterval(60)
-		scene.advanceFrameForTesting()
-
-		XCTAssertEqual(emitted, [.impatient, .frustrated])
-	}
-
-	func testClearingInteractionRestoresEscalatedIdleFrames() throws {
+	func testClearingInteractionRestoresPlainIdleFramesWithoutEscalation() throws {
 		var now = Date(timeIntervalSince1970: 1_000_000)
 		let codogotchiPet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
 		let scene = try FloatingPetScene(
@@ -524,19 +439,11 @@ final class FloatingPetSceneTests: XCTestCase {
 		scene.update(state: .idle, visualMode: .normal)
 		now = now.addingTimeInterval(61)
 		scene.advanceFrameForTesting()
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 
-		let impatientFirstFrame = try XCTUnwrap(
-			codogotchiPet.floatingFrames(forIdleEscalation: .impatient).first?.image
-				.tiffRepresentation
-		)
 		let plainIdleFirstFrame = try XCTUnwrap(
-			codogotchiPet.floatingFrames(for: .idle).first?.image.tiffRepresentation
-		)
-		XCTAssertNotEqual(
-			impatientFirstFrame,
-			plainIdleFirstFrame,
-			"fixture must distinguish plain and escalated idle rows for this regression test"
+			CodexPet(petDirectory: maliFixtureDirectory()).floatingFrames(for: .idle).first?.image
+				.tiffRepresentation
 		)
 
 		scene.setInteraction(.jumping)
@@ -544,11 +451,11 @@ final class FloatingPetSceneTests: XCTestCase {
 		scene.setInteraction(nil)
 
 		XCTAssertNil(scene.currentInteractionForTesting)
-		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 		XCTAssertEqual(
 			try XCTUnwrap(scene.currentFramesForTesting.first?.tiffRepresentation),
-			impatientFirstFrame,
-			"ending drag/resize must restore the rendered idle-escalation row, not plain idle"
+			plainIdleFirstFrame,
+			"ending drag/resize must restore plain Codex idle when Lite-Basic has no escalation rows"
 		)
 	}
 

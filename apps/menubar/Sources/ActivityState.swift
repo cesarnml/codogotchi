@@ -175,7 +175,7 @@ struct StateSnapshot: Equatable {
 	let levelFraction: Double
 	let halfHearts: Int
 	/// Active-minute carry toward the next half-heart (0…59). Drives the revival
-	/// progress meter shown while the pet is dead: fraction = activeMinutes / 60.
+	/// progress meter shown while the pet is ghosted: fraction = activeMinutes / 60.
 	/// Absent for ≤v4 payloads and older v5 writers — defaults to 0.
 	let activeMinutes: Int
 	/// ISO 8601 datetime string or nil. Nil means no activity recorded yet

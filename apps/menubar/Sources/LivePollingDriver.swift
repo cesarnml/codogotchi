@@ -434,7 +434,7 @@ final class LivePollingDriver {
 				return last.halfHearts != rpg.halfHearts
 					|| last.levelFraction != rpg.levelFraction
 					|| last.level != rpg.level
-					// Revival progress: while dead, halfHearts stays 0 but the
+					// Revival progress: while ghosted, halfHearts stays 0 but the
 					// active-minute carry climbs each minute. Without this the
 					// regeneration meter would never advance until the pet revived.
 					|| last.activeMinutes != rpg.activeMinutes

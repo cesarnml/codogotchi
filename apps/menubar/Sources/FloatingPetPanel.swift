@@ -47,12 +47,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// the HUD is visible — keeps the HUD alive until the pointer also exits the
 	/// HUD panel itself.
 	private var hudHoverMonitor: Any?
-	// Death (0 hearts): the pet renders grayscale and a persistent tombstone is
+	// Ghosted (0 hearts): the pet renders grayscale and a persistent tombstone is
 	// shown to the right of the pet. Both are part of the RPG HUD — they clear
 	// when at least a half-heart returns *or* the HUD is disabled. The active
-	// decision lives in `rpgHUDViewModel.showsDeathPresentation`.
+	// decision lives in `rpgHUDViewModel.showsGhostPresentation`.
 	private var tombstonePanel: TombstonePanel?
-	/// Regeneration meter shown beside the tombstone while dead, visualizing how
+	/// Regeneration meter shown beside the tombstone while ghosted, visualizing how
 	/// close the pet is to reviving (active-minute carry toward the first
 	/// half-heart). Shares the tombstone's lifecycle via `showsReviveMeter`.
 	private var regenMeterPanel: RegenMeterPanel?
@@ -73,7 +73,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// HUD forced visible (sweep demo or runtime pin) regardless of hover.
 	private var hudForcedVisible: Bool { hudDemoActive || hudPinned }
 	/// True while the user is actively dragging the pet. The RPG HUD (hearts,
-	/// heart-regen bar, XP ring + its content) and the death chrome (tombstone +
+	/// heart-regen bar, XP ring + its content) and the ghost chrome (tombstone +
 	/// revival meter) are fully ordered out for the duration so they neither render
 	/// nor re-anchor each drag tick — repositioning them per `mouseDragged` was the
 	/// main source of drag lag. The correct presentation is restored on mouse-up.
@@ -144,7 +144,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			repositionAndShowGateBadge()
 		}
 		repositionAndShowAnimationBadge()
-		updateDeathPresentation()
+		updateGhostPresentation()
 	}
 
 	func hide() {
@@ -238,7 +238,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			activeMinutes: activeMinutes,
 			hudEnabled: hudEnabled
 		)
-		updateDeathPresentation()
+		updateGhostPresentation()
 		guard isPanelShown else { return }
 		guard rpgHUDViewModel.isHUDEnabled else {
 			cancelHUDAutoHide()
@@ -260,8 +260,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	func setRPGHUDEnabled(_ enabled: Bool) {
 		rpgHUDViewModel.setHUDEnabled(enabled)
 		// The tombstone + grayscale are part of the HUD: disabling recolors the pet
-		// and drops the tombstone even mid-death; re-enabling restores them if dead.
-		updateDeathPresentation()
+		// and drops the tombstone even mid-ghost; re-enabling restores them if ghosted.
+		updateGhostPresentation()
 		guard isPanelShown else { return }
 		guard rpgHUDViewModel.isHUDEnabled else {
 			cancelHUDAutoHide()
@@ -327,13 +327,13 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		badge.orderFrontRegardless()
 	}
 
-	/// Apply the 0-HP presentation: grayscale the sprite and show a persistent
+	/// Apply the 0-HP ghost presentation: grayscale the sprite and show a persistent
 	/// tombstone to the right of the pet, or clear both when alive or when the
 	/// HUD is disabled (the tombstone + grayscale belong to the RPG HUD).
 	/// The sprite grayscale is applied even while hidden so it is correct on the
 	/// next show; the tombstone panel is only ordered in while the pet is visible.
-	private func updateDeathPresentation() {
-		let active = rpgHUDViewModel.showsDeathPresentation
+	private func updateGhostPresentation() {
+		let active = rpgHUDViewModel.showsGhostPresentation
 		scene?.setGhosted(active)
 		guard isPanelShown, active else {
 			tombstonePanel?.orderOut(nil)
@@ -544,7 +544,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	}
 
 	/// Drag begin/end notification from the interaction view. Hides the RPG HUD and
-	/// death chrome for the duration of a drag (a pure perf win — see `isDraggingPet`)
+	/// ghost chrome for the duration of a drag (a pure perf win — see `isDraggingPet`)
 	/// and restores the correct presentation on mouse-up.
 	private func setPetDragging(_ dragging: Bool) {
 		guard isDraggingPet != dragging else { return }
@@ -558,7 +558,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			regenMeterPanel?.orderOut(nil)
 		} else {
 			// Restore whatever should be on screen now that the drag has ended.
-			updateDeathPresentation()
+			updateGhostPresentation()
 			if isHoveringPet || hudForcedVisible {
 				showHUDForHover()
 			}
@@ -590,7 +590,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
-		// While dragging the pet, the HUD + death chrome are ordered out for perf
+		// While dragging the pet, the HUD + ghost chrome are ordered out for perf
 		// (see `isDraggingPet`); skip re-anchoring them entirely until mouse-up.
 		guard !isDraggingPet else { return }
 		// Keep the HUD glued to the pet on non-drag live moves (e.g. resize) while
@@ -607,8 +607,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 				visibleFrame: visibleFrameProvider()
 			)
 		}
-		// The tombstone is persistent while dead — keep it glued to the pet too.
-		if rpgHUDViewModel.showsDeathPresentation {
+		// The tombstone is persistent while ghosted — keep it glued to the pet too.
+		if rpgHUDViewModel.showsGhostPresentation {
 			tombstonePanel?.reposition(
 				relativeTo: lastPanelFrame,
 				spriteAnchor: currentSpriteAnchorGlobal(),
@@ -1763,7 +1763,7 @@ private final class FloatingPetInteractionView: NSView {
 	/// runs per `mouseDragged`; persistence stays on `frameChangeHandler`.
 	var liveFrameChangeHandler: ((CGRect) -> Void)?
 	/// Fired when a pet drag begins (`true`) and ends (`false`). Lets the panel
-	/// suppress the RPG HUD + death chrome for the duration of the drag. Resize
+	/// suppress the RPG HUD + ghost chrome for the duration of the drag. Resize
 	/// drags do not fire this — only translation of the pet body.
 	var onDragStateChange: ((Bool) -> Void)?
 	/// Fired when the user holds a stationary click on the pet body for ≥5 s.

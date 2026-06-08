@@ -179,7 +179,7 @@ final class MenubarRendererTests: XCTestCase {
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count,
 			codogotchiPet.frames(for: .thinking).count,
-			".thinking is in liteRowMap — must resolve from lite sheet (CodogotchiPet first)"
+			".thinking is in liteBasicRowMap — must resolve from lite-basic sheet (CodogotchiPet first)"
 		)
 		XCTAssertEqual(
 			renderer.currentFramesForTesting.count, 8,

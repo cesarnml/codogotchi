@@ -23,7 +23,7 @@ let RPG_MILESTONE_LEVELS: Set<Int> = [10, 25, 50, 75, 100]
 
 /// Active coding minutes needed to earn one half-heart. Mirrors contracts
 /// `ACTIVE_MINUTES_PER_HALF_HEART = 60`. Drives the revival meter denominator:
-/// reviving a dead pet (0 → 1 half-heart) is exactly one full block of these.
+/// bringing a ghosted pet (0 → 1 half-heart) back is exactly one full block of these.
 let ACTIVE_MINUTES_PER_HALF_HEART: Int = 60
 
 /// View-model that converts raw `StateSnapshot` RPG fields into display-ready
@@ -39,25 +39,25 @@ final class RPGHUDViewModel {
 	private(set) var isHUDEnabled: Bool = true
 
 	/// Active-minute carry toward the next half-heart (0…59) from the latest
-	/// snapshot. While dead this is the raw progress toward revival.
+	/// snapshot. While ghosted this is the raw progress toward revival.
 	private(set) var activeMinutes: Int = 0
 
-	/// The pet is dead when every heart slot is empty (0 half-hearts). False
-	/// before the first snapshot (no hearts yet) so death visuals never flash on.
-	var isDead: Bool { !hearts.isEmpty && hearts.allSatisfy { $0 == .empty } }
+	/// The pet is ghosted when every heart slot is empty (0 half-hearts). False
+	/// before the first snapshot (no hearts yet) so the ghost presentation never flashes on.
+	var isGhosted: Bool { !hearts.isEmpty && hearts.allSatisfy { $0 == .empty } }
 
 	/// The pet is at max health when all three slots are full (6 half-hearts).
 	/// False before the first snapshot so the regen bar never shows pre-data.
 	var isFull: Bool { hearts.count == 3 && hearts.allSatisfy { $0 == .full } }
 
-	/// Whether the death presentation (grayscale pet + tombstone) should show. The
+	/// Whether the ghost presentation (grayscale pet + tombstone) should show. The
 	/// tombstone is part of the RPG HUD — alongside the hearts, XP ring, and level
 	/// label — so it (and the grayscale) only appear while the HUD is enabled.
-	var showsDeathPresentation: Bool { isDead && isHUDEnabled }
+	var showsGhostPresentation: Bool { isGhosted && isHUDEnabled }
 
-	/// Revival progress as a 0.0…1.0 fraction: how close the dead pet is to
+	/// Revival progress as a 0.0…1.0 fraction: how close the ghosted pet is to
 	/// earning its first half-heart back. `activeMinutes / 60`, clamped. Only
-	/// meaningful while dead — the meter consumer gates on `showsReviveMeter`.
+	/// meaningful while ghosted — the meter consumer gates on `showsReviveMeter`.
 	var reviveProgress: Double {
 		let raw = Double(activeMinutes) / Double(ACTIVE_MINUTES_PER_HALF_HEART)
 		return min(1.0, max(0.0, raw))
@@ -65,9 +65,9 @@ final class RPGHUDViewModel {
 
 	/// Whether the regeneration meter should show. It lives alongside the
 	/// tombstone, so it appears under exactly the same condition — while the pet
-	/// is dead and the HUD is enabled — and vanishes the instant the pet revives
-	/// (regains a half-heart → `isDead` flips false).
-	var showsReviveMeter: Bool { showsDeathPresentation }
+	/// is ghosted and the HUD is enabled — and vanishes the instant the pet revives
+	/// (regains a half-heart → `isGhosted` flips false).
+	var showsReviveMeter: Bool { showsGhostPresentation }
 
 	/// Progress toward the *next* half-heart earned by active coding, as a 0…1
 	/// fraction. Identical math to `reviveProgress` (`activeMinutes / 60`); this
@@ -76,11 +76,11 @@ final class RPGHUDViewModel {
 	var heartRegenProgress: Double { reviveProgress }
 
 	/// Whether the alive-state heart-regen bar should show. Only while the HUD is
-	/// enabled, the pet is alive (not dead), and not already at max health: at
-	/// full health there is nothing to regen, and while dead the green revival
+	/// enabled, the pet is alive (not ghosted), and not already at max health: at
+	/// full health there is nothing to regen, and while ghosted the green revival
 	/// meter owns the progress display instead. False before the first snapshot.
 	var showsHeartRegenBar: Bool {
-		isHUDEnabled && !hearts.isEmpty && !isDead && !isFull
+		isHUDEnabled && !hearts.isEmpty && !isGhosted && !isFull
 	}
 
 	/// Called (on the caller's thread) whenever a flash event fires.

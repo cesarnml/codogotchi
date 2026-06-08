@@ -275,14 +275,14 @@ final class HUDDemoDriver {
 			secondsPerLevel: secondsPerLevel,
 			secondsPerHalfHeartStep: secondsPerHalfHeartStep)
 		// Synthesize a revival-meter carry from progress within the current
-		// half-heart step so the meter visibly fills while the demo pet is dead
+		// half-heart step so the meter visibly fills while the demo pet is ghosted
 		// (halfHearts == 0). Not part of the unit-tested `snapshot` shape.
 		let t = max(0, min(Self.totalDuration, elapsed))
 		let stepProgress =
 			t.truncatingRemainder(dividingBy: secondsPerHalfHeartStep) / secondsPerHalfHeartStep
 		let demoActiveMinutes = Int(stepProgress * Double(ACTIVE_MINUTES_PER_HALF_HEART))
 		// `heartsFull` pins hearts at max so only the level/XP-ring sweep shows
-		// (the leveling demo). Full hearts → not dead → revive meter stays hidden.
+		// (the leveling demo). Full hearts → not ghosted → revive meter stays hidden.
 		let hearts = heartsFull ? Self.maxHalfHearts : snap.halfHearts
 		let active = heartsFull ? 0 : demoActiveMinutes
 		apply(hearts, snap.levelFraction, snap.level, active)

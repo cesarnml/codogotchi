@@ -218,48 +218,48 @@ final class RPGHUDViewModelTests: XCTestCase {
 		XCTAssertTrue(flashes.isEmpty, "visibility toggle must not emit flash events")
 	}
 
-	// MARK: - Death state
+	// MARK: - Ghost state
 
-	func testIsDeadOnlyWhenAllHeartsEmpty() {
+	func testIsGhostedOnlyWhenAllHeartsEmpty() {
 		let vm = RPGHUDViewModel()
-		XCTAssertFalse(vm.isDead, "no snapshot yet → not dead")
+		XCTAssertFalse(vm.isGhosted, "no snapshot yet → not ghosted")
 		vm.update(halfHearts: 1, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
-		XCTAssertFalse(vm.isDead, "a half-heart remains → alive")
+		XCTAssertFalse(vm.isGhosted, "a half-heart remains → alive")
 		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
-		XCTAssertTrue(vm.isDead, "0 half-hearts → dead")
+		XCTAssertTrue(vm.isGhosted, "0 half-hearts → ghosted")
 	}
 
 	/// The tombstone + grayscale belong to the RPG HUD: when the HUD is disabled
-	/// the death presentation must be off even while the pet is dead, and it must
+	/// the ghost presentation must be off even while the pet is ghosted, and it must
 	/// return when the HUD is re-enabled.
-	func testShowsDeathPresentationGatedByHUDEnabled() {
+	func testShowsGhostPresentationGatedByHUDEnabled() {
 		let vm = RPGHUDViewModel()
 		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
-		XCTAssertTrue(vm.showsDeathPresentation, "dead + HUD enabled → death visuals show")
+		XCTAssertTrue(vm.showsGhostPresentation, "ghosted + HUD enabled → ghost visuals show")
 
-		// Live toggle off → death visuals suppressed though still dead.
+		// Live toggle off → ghost visuals suppressed though still ghosted.
 		vm.setHUDEnabled(false)
-		XCTAssertTrue(vm.isDead)
-		XCTAssertFalse(vm.showsDeathPresentation, "HUD off must recolor pet + drop tombstone")
+		XCTAssertTrue(vm.isGhosted)
+		XCTAssertFalse(vm.showsGhostPresentation, "HUD off must recolor pet + drop tombstone")
 
-		// Re-enable → death visuals return (still dead).
+		// Re-enable → ghost visuals return (still ghosted).
 		vm.setHUDEnabled(true)
-		XCTAssertTrue(vm.showsDeathPresentation)
+		XCTAssertTrue(vm.showsGhostPresentation)
 
-		// A poll arriving with the HUD opted out also suppresses death visuals.
+		// A poll arriving with the HUD opted out also suppresses ghost visuals.
 		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: false)
-		XCTAssertFalse(vm.showsDeathPresentation)
+		XCTAssertFalse(vm.showsGhostPresentation)
 	}
 
-	func testShowsDeathPresentationFalseWhenAlive() {
+	func testShowsGhostPresentationFalseWhenAlive() {
 		let vm = RPGHUDViewModel()
 		vm.update(halfHearts: 4, levelFraction: 0.2, level: 3, activeMinutes: 0, hudEnabled: true)
-		XCTAssertFalse(vm.showsDeathPresentation)
+		XCTAssertFalse(vm.showsGhostPresentation)
 	}
 
 	// MARK: - Revival meter
 
-	/// While dead, the meter fraction tracks active-minute carry toward the first
+	/// While ghosted, the meter fraction tracks active-minute carry toward the first
 	/// half-heart: 0/60 → 0.0, 30/60 → 0.5, and it clamps at 60/60 → 1.0.
 	func testReviveProgressTracksActiveMinutes() {
 		let vm = RPGHUDViewModel()
@@ -272,25 +272,25 @@ final class RPGHUDViewModelTests: XCTestCase {
 		XCTAssertEqual(vm.reviveProgress, 1.0, accuracy: 1e-9)
 	}
 
-	/// The meter shows under exactly the death-presentation condition (dead + HUD
+	/// The meter shows under exactly the ghost-presentation condition (ghosted + HUD
 	/// enabled) and vanishes the instant a half-heart returns — the revival event.
-	func testShowsReviveMeterMatchesDeathAndVanishesOnRevival() {
+	func testShowsReviveMeterMatchesGhostStateAndVanishesOnRevival() {
 		let vm = RPGHUDViewModel()
 		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 45, hudEnabled: true)
-		XCTAssertTrue(vm.showsReviveMeter, "dead + HUD enabled → meter shows")
+		XCTAssertTrue(vm.showsReviveMeter, "ghosted + HUD enabled → meter shows")
 
 		// Earning the first half-heart revives the pet → meter (and tombstone) go.
 		vm.update(halfHearts: 1, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
-		XCTAssertFalse(vm.isDead)
+		XCTAssertFalse(vm.isGhosted)
 		XCTAssertFalse(vm.showsReviveMeter, "revived → meter vanishes")
 	}
 
-	/// The meter belongs to the HUD: opting the HUD out hides it even mid-death.
+	/// The meter belongs to the HUD: opting the HUD out hides it even mid-ghost.
 	func testShowsReviveMeterGatedByHUDEnabled() {
 		let vm = RPGHUDViewModel()
 		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 20, hudEnabled: false)
-		XCTAssertTrue(vm.isDead)
-		XCTAssertFalse(vm.showsReviveMeter, "HUD off → no meter even while dead")
+		XCTAssertTrue(vm.isGhosted)
+		XCTAssertFalse(vm.showsReviveMeter, "HUD off → no meter even while ghosted")
 	}
 
 	// MARK: - Heart-regen bar (alive-state)
@@ -330,9 +330,9 @@ final class RPGHUDViewModelTests: XCTestCase {
 		vm.update(halfHearts: 6, levelFraction: 0, level: 1, activeMinutes: 0, hudEnabled: true)
 		XCTAssertFalse(vm.showsHeartRegenBar, "full health → bar hidden")
 
-		// Dead → hidden (the green revival meter owns the display).
+		// Ghosted → hidden (the green revival meter owns the display).
 		vm.update(halfHearts: 0, levelFraction: 0, level: 1, activeMinutes: 20, hudEnabled: true)
-		XCTAssertFalse(vm.showsHeartRegenBar, "dead → bar hidden")
+		XCTAssertFalse(vm.showsHeartRegenBar, "ghosted → bar hidden")
 	}
 
 	/// The bar belongs to the HUD: opting the HUD out hides it even when alive and

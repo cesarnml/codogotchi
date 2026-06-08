@@ -429,9 +429,9 @@ final class FloatingPetScene: SKScene {
 		paintCurrentFrame()
 	}
 
-	/// Lite sheet only — Codex-only pets stay on row-0 idle without Impatient/Frustrated.
+	/// Lite-Basic has no idle-escalation rows, so idle escalation is disabled for this tier.
 	private var supportsIdleEscalation: Bool {
-		codogotchiPet?.hasLiteSheet == true
+		false
 	}
 
 	/// Recompute idle escalation from elapsed time. Runs on the frame timer
@@ -501,18 +501,15 @@ final class FloatingPetScene: SKScene {
 	}
 
 	/// Frames for the 0-HP ghost presentation. Prefer the dedicated Lite-Basic
-	/// ghost row; if absent, fall back to the legacy lite `errored` row; and if
-	/// no lite art exists at all, fall back to the Codex idle row.
+	/// ghost row; if absent, fall back to the Codex idle row.
 	private func resolveGhostFrames() -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {
 		let liteGhost = codogotchiPet?.floatingGhostFrames() ?? []
 		if !liteGhost.isEmpty { return (liteGhost, .codogotchi) }
-		let liteErrored = codogotchiPet?.floatingFrames(for: .errored) ?? []
-		if !liteErrored.isEmpty { return (liteErrored, .codogotchi) }
 		return (codexPet.floatingFrames(for: .idle), .idleFallback)
 	}
 
 	private func resolveFrames(for state: ActivityState) -> (frames: [CodexPet.Frame], source: FloatingFrameSource) {
-		// CodogotchiPet covers SoA gate states (soaRowMap) and hook/lite states (liteRowMap).
+		// CodogotchiPet covers SoA gate states and Lite-Basic hook states.
 		let codogotchiFrames = codogotchiPet?.floatingFrames(for: state) ?? []
 		if !codogotchiFrames.isEmpty { return (codogotchiFrames, .codogotchi) }
 

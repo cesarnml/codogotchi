@@ -24,12 +24,12 @@ final class PetStoreSeederTests: XCTestCase {
 		return tmp
 	}
 
-	// MARK: - requiredAssets (P8.06: two-sheet contract)
+	// MARK: - requiredAssets
 
-	func testRequiredAssetsContainsLiteSpritesheet() {
-		XCTAssertTrue(
+	func testRequiredAssetsDoesNotContainDeprecatedLiteSpritesheet() {
+		XCTAssertFalse(
 			PetStoreSeeder.requiredAssets.contains("codogotchi-lite-spritesheet.webp"),
-			"requiredAssets must include codogotchi-lite-spritesheet.webp")
+			"requiredAssets must not include deprecated codogotchi-lite-spritesheet.webp")
 	}
 
 	func testRequiredAssetsContainsLiteBasicSpritesheet() {

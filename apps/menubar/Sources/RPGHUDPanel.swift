@@ -115,7 +115,7 @@ enum RPGHUDLayout {
 		return CGRect(x: cx, y: cy, width: hudSize.width, height: hudSize.height)
 	}
 
-	/// Death-marker (tombstone) geometry: a `ringDiameter`-sized square placed to
+	/// Ghost marker (tombstone) geometry: a `ringDiameter`-sized square placed to
 	/// the **right** of the pet, vertically centered on the HUD's XP ring. Mirrors
 	/// the HUD's anchor/scale/gap mechanics but offsets right instead of left, so
 	/// it never smashes into the pet. Clamped on-screen.
@@ -145,7 +145,7 @@ enum RPGHUDLayout {
 	/// Regeneration-meter geometry: a tall, narrow vertical bar (plus a rotated
 	/// "REGENERATION" label band) placed to the **right of the tombstone**, its
 	/// height matching the tombstone so the two read as a pair. Shown only while
-	/// the pet is dead, it visualizes revival progress (active-minute carry toward
+	/// the pet is ghosted, it visualizes revival progress (active-minute carry toward
 	/// the first half-heart). Anchored off `tombstoneFrame` so it tracks the same
 	/// scale/anchor mechanics. Clamped on-screen.
 	static func regenMeterFrame(
@@ -546,7 +546,7 @@ final class RPGRingView: NSView {
 /// dark segmented track that visually rhymes with the vertical REGENERATION
 /// gauge. Pure layer drawing — no asset. Driven by `configure(progress:)` where
 /// `progress` is the 0…1 `heartRegenProgress` fraction. Hidden by the content
-/// view at full health and while dead.
+/// view at full health and while ghosted.
 final class RPGRegenBarView: NSView {
 	private let trackContainer = CALayer()
 	private let trackBackground = CALayer()
@@ -862,9 +862,9 @@ final class RPGHUDPanel: NSPanel {
 
 // MARK: - Tombstone panel
 
-/// Persistent floating overlay that marks the pet as dead (0 hearts): a
+/// Persistent floating overlay that marks the pet as ghosted (0 hearts): a
 /// tombstone shown to the right of the pet at the XP-ring's vertical level.
-/// Visible whenever the pet is dead, independent of hover. Fully transparent and
+/// Visible whenever the pet is ghosted, independent of hover. Fully transparent and
 /// click-through, matching the other floating chrome panels.
 @MainActor
 final class TombstonePanel: NSPanel {
@@ -906,7 +906,7 @@ final class TombstonePanel: NSPanel {
 
 // MARK: - Regeneration meter
 
-/// Custom-drawn vertical gauge showing how close a dead pet is to reviving:
+/// Custom-drawn vertical gauge showing how close a ghosted pet is to reviving:
 /// a dark segmented track with a green fill from the bottom (= revival progress)
 /// and a rotated "REGENERATION" label. Pure layer drawing — no asset. Driven by
 /// `configure(progress:)` where `progress` is the 0…1 `reviveProgress` fraction.
@@ -1037,7 +1037,7 @@ final class RegenMeterView: NSView {
 }
 
 /// Persistent floating overlay hosting the `RegenMeterView`, shown to the right
-/// of the tombstone while the pet is dead. Click-through and chrome-free like the
+/// of the tombstone while the pet is ghosted. Click-through and chrome-free like the
 /// other floating panels; vanishes together with the tombstone on revival.
 @MainActor
 final class RegenMeterPanel: NSPanel {
