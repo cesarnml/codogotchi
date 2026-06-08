@@ -18,7 +18,7 @@ Use this checklist after composing each atlas and again after final installation
 
 ### Transparency
 
-- [ ] Zero `#00ff00` (chroma-key green) pixels anywhere in any sheet
+- [ ] Zero likely chroma-key residue pixels anywhere in any sheet (`#00ff00` or `#ff00ff`, depending on row)
 - [ ] No transparent pixel with nonzero RGB — all `(r, g, b, 0)` must be `(0, 0, 0, 0)`
 - [ ] Unused cells (rows beyond the sheet's row count) are fully transparent
 

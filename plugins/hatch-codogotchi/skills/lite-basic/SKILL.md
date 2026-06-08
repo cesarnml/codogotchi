@@ -46,13 +46,14 @@ python scripts/extract_seed_from_codex.py \
 
 # 2. Prepare the Lite-Basic run (each prompt embeds the prop doctrine + scale rule)
 python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
-  --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-basic --style auto --chroma 00ff00
+  --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-basic --style auto --chroma auto
 
 # 3. For each of the 9 rows, in order, use built-in image_gen frame-first:
-#    render f01..f08 individually on #00ff00 into frames/lite-basic/<row>/,
+#    render f01..f08 individually on the chroma named in the prompt into frames/lite-basic/<row>/,
+#    usually #00ff00; green-sensitive rows would switch to #ff00ff automatically,
 #    prop clearly drawn + identical across frames, character constant size,
 #    seed.png attached as the character reference. Then:
-python scripts/stitch_row.py    --row-dir run/<pet-id>/frames/lite-basic/<row>/ --out run/<pet-id>/rows/lite-basic/<row>.png --chroma 00ff00
+python scripts/stitch_row.py    --row-dir run/<pet-id>/frames/lite-basic/<row>/ --out run/<pet-id>/rows/lite-basic/<row>.png
 python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-basic/<row>.png   # gate before next row
 
 # 4. Compose + encode (after all 9 rows)
@@ -78,7 +79,7 @@ Row order (see `references/animation-rows-lite.md`):
 ## Acceptance criteria
 
 - [ ] `codogotchi-lite-basic-spritesheet.webp` — 1536 × 1872; 9 × 8; cell 192 × 208 (or matches Codex cell)
-- [ ] Every used cell's alpha bbox within `[8, cell_w−8] × [8, cell_h−8]`; zero `#00ff00`; no transparent-RGB residue
+- [ ] Every used cell's alpha bbox within `[8, cell_w−8] × [8, cell_h−8]`; zero likely green/magenta chroma residue; no transparent-RGB residue
 - [ ] No static rows; each row distinct motion; loop closes
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
 - [ ] **No frame's content height deviates >15% from its row median**

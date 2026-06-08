@@ -37,7 +37,7 @@ python scripts/extract_seed_from_codex.py \
   --out run/<pet-id>/seed.png
 ```
 
-This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` background. Inspect `seed.png`; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every frame generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet.
+This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` background. Inspect `seed.png`; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every frame generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. For generated SoA frames, default chroma mode is `auto`: `#00ff00` normally, `#ff00ff` for green-sensitive rows like `green-tdd` and `review-clean`.
 
 ---
 
@@ -59,13 +59,13 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` backgrou
 
 Identical to `hatch-codogotchi-lite`:
 
-- **Background:** solid `#00ff00` — do NOT request RGBA directly.
+- **Background:** use the solid chroma named in the prompt (`#00ff00` normally, `#ff00ff` for green-sensitive rows) — do NOT request RGBA directly.
 - **Padding:** ≥ 8 px all sides; nothing touches an edge.
 - **Scale registration:** one shared scale per row (tallest frame sets it).
 - **Baseline registration:** feet on same y-line — `baseline_y = 208 − 8 − scaled_h`.
 - **Loop closure:** frame 8 pose ≈ frame 1 pose.
 - **Character fidelity:** seed image is sole style reference.
-- **No contamination:** no near-green on character, props, or effects.
+- **No contamination:** no chroma-colour contamination on character, props, or effects.
 
 SoA rows are **expressive and energetic** — these are delivery gate celebrations, not idle loops. Each row should read as a distinct emotional beat at a glance.
 
@@ -99,7 +99,7 @@ python scripts/prepare_pet_run.py \
   --pet-id  "<existing pet id>" \
   --tier soa \
   --style auto \
-  --chroma 00ff00
+  --chroma auto
 ```
 
 Creates:
@@ -117,7 +117,7 @@ run/<pet-id>/
 For **each** of the 10 SoA rows, in the order below, complete the full cycle before starting the next:
 
 1. Read motion description in `prompts/soa/<row-label>.txt`.
-2. **Use built-in `image_gen` to generate 8 frames** — each a separate 192 × 208 render on `#00ff00`. Attach `seed.png` as the character reference. Character must be genuinely in that frame's distinct pose.
+2. **Use built-in `image_gen` to generate 8 frames** — each a separate 192 × 208 render on the chroma named in the prompt. `green-tdd` and `review-clean` switch to `#ff00ff` automatically so green checkmark effects survive keying. Attach `seed.png` as the character reference. Character must be genuinely in that frame's distinct pose.
 3. After each frame, compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
 4. Save as `run/<pet-id>/frames/soa/<row-label>/f01.png` … `f08.png`.
 
@@ -127,7 +127,6 @@ For **each** of the 10 SoA rows, in the order below, complete the full cycle bef
 python scripts/stitch_row.py \
   --row-dir run/<pet-id>/frames/soa/<row-label>/ \
   --out     run/<pet-id>/rows/soa/<row-label>.png \
-  --chroma  00ff00 \
   --cell-w  192 \
   --cell-h  208
 ```
@@ -224,7 +223,7 @@ Key distinctions to preserve:
 
 - [ ] `codogotchi-soa-spritesheet.webp` — exact 1536 × 2080; 10 rows × 8 cols; cell 192 × 208
 - [ ] Every used cell's alpha bbox within `[8, 184] × [8, 200]` (≥ 8 px padding)
-- [ ] Zero `#00ff00` pixels anywhere
+- [ ] Zero likely green/magenta chroma residue pixels anywhere
 - [ ] No transparent pixel with nonzero RGB
 - [ ] No row has all 8 frames pixel-identical
 - [ ] Each row shows distinct motion and reads as its named emotional beat (eyeball check)

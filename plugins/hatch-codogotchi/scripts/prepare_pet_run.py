@@ -243,9 +243,27 @@ STYLE_PRESETS = {
     "auto": "infer style from seed image",
 }
 
+DEFAULT_CHROMA = "00ff00"
+GREEN_SENSITIVE_CHROMA = "ff00ff"
+GREEN_SENSITIVE_ROWS = {
+    "green-tdd",
+    "review-clean",
+    "verifying",
+    "web-search",
+}
+
 
 def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9-]", "-", name.lower().strip()).strip("-")
+
+
+def resolve_chroma(row_label: str, chroma: str) -> str:
+    """Pick a row-safe chroma. 'auto' switches green-sensitive rows to magenta."""
+    if chroma != "auto":
+        return chroma.lower().lstrip("#")
+    if row_label in GREEN_SENSITIVE_ROWS:
+        return GREEN_SENSITIVE_CHROMA
+    return DEFAULT_CHROMA
 
 
 def build_frame_prompt_seed(row_label: str, style_desc: str, chroma: str) -> str:
@@ -274,7 +292,7 @@ FRAME CONSTRAINTS (apply to every frame):
 - SCALE CONSISTENCY: draw the character at the SAME apparent size as the other frames in this row — same head
   height, same body scale. A frame drawn noticeably larger/smaller than its rowmates is a REJECT — regenerate it.
 - No floor line, shadow, border, guide, label, number, or text
-- No #{chroma} or near-green on character/effects
+- No #{chroma} or near-chroma contamination on character/effects
 - The character must be GENUINELY IN THIS FRAME'S DISTINCT POSE — do not copy-transform the seed
 
 Loop contract: frame 8 pose ≈ frame 1 pose so the row plays as a seamless continuous loop.
@@ -309,7 +327,7 @@ FRAME CONSTRAINTS (apply to every frame):
 - SCALE CONSISTENCY: draw the character at the SAME apparent size as the other frames in this row — same head
   height, same body scale. A frame drawn noticeably larger/smaller than its rowmates is a REJECT — regenerate it.
 - No floor line, shadow, border, guide, label, number, or text
-- No #{chroma} or near-green on character/effects
+- No #{chroma} or near-chroma contamination on character/effects
 - The character must be GENUINELY IN THIS FRAME'S DISTINCT POSE
 
 After completing the idle row: save frame 1 of idle as seed.png and attach it to ALL subsequent generation calls alongside this prompt, to anchor character consistency.
@@ -336,7 +354,12 @@ def main() -> None:
     parser.add_argument("--pet-name", default="My Pet", help="Display name for the pet")
     parser.add_argument("--pet-id", default=None, help="Pet ID slug (derived from --pet-name if not provided)")
     parser.add_argument("--style", default="auto", choices=list(STYLE_PRESETS.keys()))
-    parser.add_argument("--chroma", default="00ff00", help="Chroma-key hex colour (no #)")
+    parser.add_argument(
+        "--chroma",
+        default="auto",
+        help="Chroma-key hex colour (no #), or 'auto' to use row-safe defaults "
+             "(00ff00 normally, ff00ff for green-sensitive rows)",
+    )
     parser.add_argument("--tier",
                         choices=["codex", "lite-basic", "lite-enhanced", "soa", "all"], default="all",
                         help="Which tier(s) to prepare prompts for (default: all). "
@@ -395,7 +418,8 @@ def main() -> None:
     # Write prompt files
     for tier in tiers:
         for label in TIER_ROW_ORDER[tier]:
-            prompt_text = build_frame_prompt(label, style_desc, args.chroma, description=args.description)
+            row_chroma = resolve_chroma(label, args.chroma)
+            prompt_text = build_frame_prompt(label, style_desc, row_chroma, description=args.description)
             p = run_dir / "prompts" / tier / f"{label}.txt"
             p.write_text(prompt_text)
 
@@ -410,6 +434,7 @@ def main() -> None:
                     "row_label": label,
                     "row_index": row_idx,
                     "frame_number": frame_num,
+                    "chroma": resolve_chroma(label, args.chroma),
                     "out_path": f"frames/{tier}/{label}/f{frame_num:02d}.png",
                     "prompt_path": f"prompts/{tier}/{label}.txt",
                     "status": "pending",
@@ -428,6 +453,9 @@ def main() -> None:
         "style": args.style,
         "style_desc": style_desc,
         "chroma": args.chroma,
+        "default_chroma": DEFAULT_CHROMA,
+        "green_sensitive_chroma": GREEN_SENSITIVE_CHROMA,
+        "green_sensitive_rows": sorted(GREEN_SENSITIVE_ROWS),
         "tiers": tiers,
         "cell_w": 192,
         "cell_h": 208,
@@ -447,6 +475,13 @@ def main() -> None:
         print("NOTE (description mode): generate idle row FIRST; save f01 as seed.png; attach to all subsequent calls.")
     print(f"Total frames to generate: {total_frames}")
     print(f"Job manifest: {jobs_path}")
+    if args.chroma == "auto":
+        sensitive = ", ".join(sorted(GREEN_SENSITIVE_ROWS))
+        print(
+            f"Chroma mode: auto ({DEFAULT_CHROMA} normally; {GREEN_SENSITIVE_CHROMA} for green-sensitive rows: {sensitive})"
+        )
+    else:
+        print(f"Chroma mode: fixed #{args.chroma.lower().lstrip('#')}")
     print("\nNext: generate frames ONE ROW AT A TIME using the prompts in prompts/<tier>/")
     print("      Then stitch each row with: python scripts/stitch_row.py --row-dir frames/<tier>/<label>/ --out rows/<tier>/<label>.png")
 

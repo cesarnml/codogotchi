@@ -19,6 +19,22 @@ The plugin does **not** mean "ask image generation for a whole row strip" or "as
 
 Every skill below assumes that division of labor: **Codex generates frames; local scripts assemble and validate them.**
 
+## Chroma-key policy
+
+The plugin no longer assumes `#00ff00` is safe for every row. Default behavior is now `--chroma auto`:
+
+- `#00ff00` for normal rows
+- `#ff00ff` for rows whose intended prop/effect is likely to contain green and would be damaged by a green key
+
+Today the green-sensitive rows are:
+
+- `green-tdd`
+- `review-clean`
+- `verifying`
+- `web-search`
+
+This avoids the failure mode where an intended green checkmark, green stamp, or green globe detail gets keyed out before the strip is assembled.
+
 ---
 
 ## Skills
@@ -72,6 +88,8 @@ python scripts/prepare_pet_run.py \
 
 # 2. Use Codex's built-in image_gen tool to generate frames one row at a time
 #    as standalone images — NOT a prebuilt strip and NOT the whole sheet.
+#    The generated prompts use row-safe chroma automatically:
+#    #00ff00 normally, #ff00ff for green-sensitive rows.
 #    Save as run/beemo/frames/<tier>/<row>/f01.png … f08.png
 
 # 3. Stitch + inspect each row

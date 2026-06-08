@@ -14,6 +14,7 @@ import numpy as np
 
 
 CHROMA_DEFAULT = (0, 255, 0)
+CHROMA_MAGENTA = (255, 0, 255)
 CHROMA_TOLERANCE = 10
 
 
@@ -21,6 +22,31 @@ def parse_hex_color(s: str) -> tuple[int, int, int]:
     s = s.lstrip("#")
     r, g, b = int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
     return (r, g, b)
+
+
+def detect_frame_chroma(img: Image.Image) -> tuple[int, int, int]:
+    """Detect the flat chroma key from the frame border/corners."""
+    img = img.convert("RGBA")
+    arr = np.array(img)
+    h, w = arr.shape[:2]
+    samples = [
+        tuple(int(v) for v in arr[0, 0, :3]),
+        tuple(int(v) for v in arr[0, w - 1, :3]),
+        tuple(int(v) for v in arr[h - 1, 0, :3]),
+        tuple(int(v) for v in arr[h - 1, w - 1, :3]),
+    ]
+    counts: dict[tuple[int, int, int], int] = {}
+    for sample in samples:
+        counts[sample] = counts.get(sample, 0) + 1
+    return max(counts.items(), key=lambda item: item[1])[0]
+
+
+def chroma_residue_mask(arr: np.ndarray) -> np.ndarray:
+    """Flag likely unremoved green or magenta chroma residue."""
+    r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
+    green_mask = (g > 200) & (r < 100) & (b < 100) & (a > 0)
+    magenta_mask = (r > 200) & (b > 200) & (g < 100) & (a > 0)
+    return green_mask | magenta_mask
 
 
 def remove_chroma(img: Image.Image, chroma: tuple[int, int, int], tol: int = CHROMA_TOLERANCE) -> Image.Image:
@@ -125,11 +151,11 @@ def validate_strip(strip: Image.Image, cell_w: int, cell_h: int, padding: int = 
     arr = np.array(strip)
     n_frames = strip.width // cell_w
 
-    # Check for green residue
+    # Check for likely key-colour residue
     r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
-    green_mask = (g > 200) & (r < 100) & (b < 100) & (a > 0)
-    if green_mask.any():
-        errors.append(f"Chroma residue: {green_mask.sum()} near-green pixels remain")
+    residue_mask = chroma_residue_mask(arr)
+    if residue_mask.any():
+        errors.append(f"Chroma residue: {residue_mask.sum()} likely key-colour pixels remain")
 
     # Check transparent-RGB residue
     bad_transparent = (a == 0) & ((r > 0) | (g > 0) | (b > 0))
@@ -174,20 +200,29 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Stitch 8 frames into one row strip for a Codogotchi spritesheet.")
     parser.add_argument("--row-dir", required=True, type=Path, help="Directory containing f01.png … f08.png")
     parser.add_argument("--out", required=True, type=Path, help="Output row strip PNG path")
-    parser.add_argument("--chroma", default="00ff00", help="Chroma-key hex colour (default: 00ff00)")
+    parser.add_argument(
+        "--chroma",
+        default="auto",
+        help="Chroma-key hex colour, or 'auto' to detect the flat background from the frame corners",
+    )
     parser.add_argument("--cell-w", type=int, default=192, help="Cell width in pixels (default: 192)")
     parser.add_argument("--cell-h", type=int, default=208, help="Cell height in pixels (default: 208)")
     parser.add_argument("--padding", type=int, default=8, help="Minimum padding in pixels (default: 8)")
     parser.add_argument("--frames", type=int, default=8, help="Expected number of frames (default: 8)")
     args = parser.parse_args()
 
-    chroma = parse_hex_color(args.chroma)
-
     print(f"Loading frames from {args.row_dir} …")
     raw_frames = load_frames(args.row_dir, args.frames)
     if not raw_frames:
         sys.exit(f"ERROR: no frames found in {args.row_dir}")
     print(f"  Loaded {len(raw_frames)} frames")
+
+    if args.chroma == "auto":
+        detected = detect_frame_chroma(raw_frames[0])
+        chroma = detected
+        print(f"Auto-detected chroma key → #{detected[0]:02x}{detected[1]:02x}{detected[2]:02x}")
+    else:
+        chroma = parse_hex_color(args.chroma)
 
     print("Removing chroma key …")
     keyed = [remove_chroma(f, chroma) for f in raw_frames]

@@ -156,7 +156,7 @@ On the happy-path delivery flow, `review_clean` fires and then `record_review` f
 | Sheet height | 2080 px |
 | Columns | 8 |
 | Rows | 10 |
-| Chroma-key | `#00ff00` |
+| Chroma-key | `auto` (`#00ff00` normally; `#ff00ff` for green-sensitive rows such as `green-tdd` and `review-clean`) |
 | Padding (min) | 8 px all sides |
 | Feet-off-baseline | ≤ 12 px for jump rows |
 | Loop | Continuous, 1.5 s / 8 frames |

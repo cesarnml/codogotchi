@@ -24,6 +24,13 @@ TIER_SPECS = {
     "soa":           {"rows": 10, "ref_w": 1536, "ref_h": 2080},
 }
 
+
+def chroma_residue_mask(arr: np.ndarray) -> np.ndarray:
+    r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
+    green_mask = (g > 200) & (r < 100) & (b < 100) & (a > 0)
+    magenta_mask = (r > 200) & (b > 200) & (g < 100) & (a > 0)
+    return green_mask | magenta_mask
+
 TIER_ROW_LABELS = {
     "codex": [
         "idle", "running-right", "running-left", "standby", "jump",
@@ -76,9 +83,9 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
 
     # --- Chroma residue ---
     r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
-    chroma_mask = (g > 200) & (r < 100) & (b < 100) & (a > 0)
+    chroma_mask = chroma_residue_mask(arr)
     if chroma_mask.any():
-        errors.append(f"Chroma residue: {chroma_mask.sum()} near-green pixels (g>200, r<100, b<100)")
+        errors.append(f"Chroma residue: {chroma_mask.sum()} likely green/magenta key pixels remain")
 
     # --- Transparent-RGB residue ---
     bad_transparent = (a == 0) & ((r > 0) | (g > 0) | (b > 0))

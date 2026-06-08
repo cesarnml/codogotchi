@@ -30,18 +30,18 @@ Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 1. **Prop doctrine — NOT charades.** Emotion-mappable states (`idle`, `errored`→sad) lead with expression; **every other state is carried by one clearly-visible prop** — never mimed/"invisible" props, never an A/B prop choice. Same prop, all 8 frames.
 2. **Scale consistency.** Same character size in all 8 frames of a row (±15% of the row median, gated by `inspect_frames.py`).
 
-Plus: don't fake frames by transforming the seed; **frame-first**, one row at a time (~1–2 h); don't draw-and-slice; no near-green contamination.
+Plus: don't fake frames by transforming the seed; **frame-first**, one row at a time (~1–2 h); don't draw-and-slice; no chroma-colour contamination.
 
 ---
 
 ## Character source
 
-- **Seed image (recommended):** a 192 × 208 neutral standing pose on solid `#00ff00`.
+- **Seed image (recommended):** a 192 × 208 neutral standing pose on a solid chroma background. Row prompts use `#00ff00` normally and switch to `#ff00ff` automatically for green-sensitive rows.
 - **Text description:** generate the Codex `idle` row first, save its frame 1 as `seed.png`, and attach it to every subsequent call as the character anchor.
 
 ## Standing constraints (every frame)
 
-Solid `#00ff00` bg · ≥ 8 px padding all sides · one shared scale per row, per-frame height within ±15% of median · baseline `y = 208 − 8 − scaled_h` · loop closes (frame 8 ≈ frame 1) · seed is sole style reference.
+Solid prompt-selected chroma bg (`#00ff00` normally, `#ff00ff` for green-sensitive rows) · ≥ 8 px padding all sides · one shared scale per row, per-frame height within ±15% of median · baseline `y = 208 − 8 − scaled_h` · loop closes (frame 8 ≈ frame 1) · seed is sole style reference.
 
 ---
 
@@ -51,15 +51,17 @@ Solid `#00ff00` bg · ≥ 8 px padding all sides · one shared scale per row, pe
 # 1. Prepare (seed or --description). Codex + Lite-Basic prompt files are written;
 #    each prompt already embeds the prop doctrine + scale rule.
 python scripts/prepare_pet_run.py --seed path/to/seed.png \
-  --pet-name "My Pet" --style auto --chroma 00ff00 --tier codex   # then --tier lite-basic
+  --pet-name "My Pet" --style auto --chroma auto --tier codex   # then --tier lite-basic
 # (or --tier all to prep every tier; you generate only codex + lite-basic here)
 
 # 2. Use Codex's built-in image_gen tool to generate frames ONE ROW AT A TIME,
 #    frame-first: render f01..f08 individually into frames/<tier>/<row>/.
+#    Use the chroma named in each generated prompt file; green-sensitive rows
+#    switch to #ff00ff automatically.
 #    Do not ask for a whole strip or whole sheet in one pass.
 
 # 3. Stitch each row → inspect (gate) before the next row
-python scripts/stitch_row.py    --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png --chroma 00ff00
+python scripts/stitch_row.py    --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
 python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png   # hard-fails >15% scale drift
 
 # 4. Compose + encode (after ALL rows in a tier)
@@ -96,7 +98,7 @@ Quit and reopen Codogotchi, or re-select the pet in Settings → Pet.
 
 - [ ] `spritesheet.webp` — 1536 × 1872; 9 × 8; cell 192 × 208
 - [ ] `codogotchi-lite-basic-spritesheet.webp` — 1536 × 1872; 9 × 8; cell 192 × 208
-- [ ] Every used cell's alpha bbox within `[8, 184] × [8, 200]`; zero `#00ff00`; no transparent-RGB residue
+- [ ] Every used cell's alpha bbox within `[8, 184] × [8, 200]`; zero likely green/magenta chroma residue; no transparent-RGB residue
 - [ ] No static rows; each row distinct motion; loop closes
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
 - [ ] **No frame's content height deviates >15% from its row median**

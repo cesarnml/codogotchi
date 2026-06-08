@@ -44,12 +44,13 @@ python scripts/extract_seed_from_codex.py \
 
 # 2. Prepare the Lite-Enhanced run
 python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
-  --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-enhanced --style auto --chroma 00ff00
+  --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-enhanced --style auto --chroma auto
 
 # 3. For each of the 8 rows, in order, use built-in image_gen frame-first:
-#    render f01..f08 individually on #00ff00 into frames/lite-enhanced/<row>/.
+#    render f01..f08 individually on the chroma named in the prompt into frames/lite-enhanced/<row>/.
+#    `verifying` and `web-search` switch to #ff00ff automatically to avoid keying out green details.
 #    Attach BOTH seed.png AND the finished codogotchi-lite-basic-spritesheet.webp as references.
-python scripts/stitch_row.py    --row-dir run/<pet-id>/frames/lite-enhanced/<row>/ --out run/<pet-id>/rows/lite-enhanced/<row>.png --chroma 00ff00
+python scripts/stitch_row.py    --row-dir run/<pet-id>/frames/lite-enhanced/<row>/ --out run/<pet-id>/rows/lite-enhanced/<row>.png
 python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-enhanced/<row>.png   # gate before next row
 
 # 4. Compose + encode (after all 8 rows)
@@ -76,7 +77,7 @@ Row order (see `references/animation-rows-lite.md`):
 
 - [ ] `codogotchi-lite-basic-spritesheet.webp` already exists for this pet (prerequisite)
 - [ ] `codogotchi-lite-enhanced-spritesheet.webp` — 1536 × 1664; 8 × 8; cell 192 × 208 (or matches Codex cell)
-- [ ] Every used cell padded `[8, cell_w−8] × [8, cell_h−8]`; zero `#00ff00`; no transparent-RGB residue
+- [ ] Every used cell padded `[8, cell_w−8] × [8, cell_h−8]`; zero likely green/magenta chroma residue; no transparent-RGB residue
 - [ ] No static rows; each row distinct motion; loop closes
 - [ ] **Each row shows its single named prop clearly in all 8 frames, distinct from the Basic props**
 - [ ] **No frame's content height deviates >15% from its row median**

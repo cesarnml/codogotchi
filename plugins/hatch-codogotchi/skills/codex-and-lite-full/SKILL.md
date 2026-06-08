@@ -35,11 +35,11 @@ Plus: don't fake frames from the seed; **frame-first**, one row at a time (~1–
 
 ## Workflow (three sheets, in order)
 
-Use the same pipeline per sheet — prepare → generate frame-first → stitch → inspect → compose → validate → install. Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on `#00ff00`, or a `--description` (generate Codex `idle` first, save its frame 1 as `seed.png`).
+Use the same pipeline per sheet — prepare → generate frame-first → stitch → inspect → compose → validate → install. Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on a solid chroma background, or a `--description` (generate Codex `idle` first, save its frame 1 as `seed.png`). Default chroma mode is `auto`: `#00ff00` normally, `#ff00ff` for green-sensitive rows such as `green-tdd`, `review-clean`, `verifying`, and `web-search`.
 
 ```bash
 # ---- Tier 1: Codex ----
-python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --tier codex --chroma 00ff00
+python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --tier codex --chroma auto
 #   use built-in image_gen to generate 9 codex rows frame-first
 #   as standalone frames → stitch+inspect each → compose
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/codex/ --tier codex --out run/<slug>/spritesheet.png
@@ -47,7 +47,7 @@ cwebp -lossless -exact run/<slug>/spritesheet.png -o run/<slug>/spritesheet.webp
 python scripts/validate_atlas.py --atlas run/<slug>/spritesheet.webp --tier codex
 
 # ---- Tier 2: Lite-Basic (uses Codex/seed as style ref) ----
-python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-basic --chroma 00ff00
+python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-basic --chroma auto
 #   use built-in image_gen to generate 9 lite-basic rows frame-first
 #   as standalone frames → stitch+inspect each → compose
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-basic/ --tier lite-basic --out run/<slug>/codogotchi-lite-basic-spritesheet.png
@@ -55,7 +55,7 @@ cwebp -lossless -exact run/<slug>/codogotchi-lite-basic-spritesheet.png -o run/<
 python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
 
 # ---- Tier 3: Lite-Enhanced (REQUIRES the Basic sheet; attach BOTH seed.png AND the Basic sheet as refs) ----
-python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-enhanced --chroma 00ff00
+python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-enhanced --chroma auto
 #   use built-in image_gen to generate 8 lite-enhanced rows frame-first
 #   as standalone frames → stitch+inspect each → compose
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-enhanced/ --tier lite-enhanced --out run/<slug>/codogotchi-lite-enhanced-spritesheet.png
@@ -71,7 +71,7 @@ cp run/<slug>/spritesheet.webp run/<slug>/codogotchi-lite-basic-spritesheet.webp
 
 Per-row stitch + inspect (run for every row before moving on):
 ```bash
-python scripts/stitch_row.py    --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png --chroma 00ff00
+python scripts/stitch_row.py    --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
 python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png
 ```
 
@@ -88,7 +88,7 @@ See `references/animation-rows-codex.md` and `references/animation-rows-lite.md`
 ## Acceptance criteria
 
 - [ ] Codex 1536 × 1872 (9×8); Lite-Basic 1536 × 1872 (9×8); Lite-Enhanced 1536 × 1664 (8×8); cell 192 × 208
-- [ ] All cells padded `[8,184]×[8,200]`; zero `#00ff00`; no transparent-RGB residue; no static rows; loops close
+- [ ] All cells padded `[8,184]×[8,200]`; zero likely green/magenta chroma residue; no transparent-RGB residue; no static rows; loops close
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
 - [ ] **No frame's content height deviates >15% from its row median**
 - [ ] Character consistent across all 26 rows; `pet.json` present; app shows pet + all tiers after quit-reopen

@@ -102,7 +102,7 @@ Codogotchi animations are **not charades**. A user must read the state at a glan
 | Rows | 9 | 8 |
 | Cell | 192 × 208 | 192 × 208 |
 | Columns | 8 | 8 |
-| Chroma-key | `#00ff00` | `#00ff00` |
+| Chroma-key | `auto` (`#00ff00` normally; `#ff00ff` for green-sensitive rows) | `auto` (`#00ff00` normally; `#ff00ff` for `verifying` and `web-search`) |
 | Padding (min) | 8 px all sides | 8 px all sides |
 | Scale | one shared scale per row; ≤15% per-frame deviation | same |
 | Loop | continuous, 1.5 s / 8 frames | same |
