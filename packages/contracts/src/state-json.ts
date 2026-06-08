@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { activityStateSchema, hpOverlaySchema } from "./animation-state";
 
-export const STATE_JSON_SCHEMA_VERSION = 5;
+export const STATE_JSON_SCHEMA_VERSION = 6;
 
 // Forward-compat policy from docs/contracts/animation-state-vocabulary.md:
 // renderers accept any `schema_version` ≤ EXPECTED_VERSION (this constant),
@@ -78,6 +78,10 @@ export const stateJsonV1Schema = z
       })
       .optional(),
     tool_command: z.string().optional(),
+    // v6 revive animation hint — present and non-null for 5 s after a health gain.
+    // Renderer shows the `revive` row while Date.now() < Date.parse(revive_until).
+    // Absent (or null) when no health gain occurred on this write.
+    revive_until: z.string().datetime({ offset: true }).nullable().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.schema_version >= 5) {

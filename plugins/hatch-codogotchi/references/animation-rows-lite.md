@@ -28,7 +28,7 @@ Codogotchi animations are **not charades**. A user must read the state at a glan
 
 | Row | Label | `activity_state` / trigger | Lead | Single prop |
 |----:|-------|----------------------------|------|-------------|
-| 0 | idle | `idle` | emotion | — |
+| 0 | revive | *(renderer — `revive_until > now`, 5 s TTL)* | emotion | — |
 | 1 | standby | `standby` | prop | handbell |
 | 2 | thinking | `thinking` | prop | thought-bubble + lightbulb |
 | 3 | reading | `reading` | prop | one open book |
@@ -38,11 +38,11 @@ Codogotchi animations are **not charades**. A user must read the state at a glan
 | 7 | waiting-for-input | `waiting_for_input` | prop | held-up "?" sign |
 | 8 | dead | *(renderer — 0 HP / `half_hearts == 0`)* | emotion | X-eyes + spirit-puff |
 
-`dead` is **renderer/HP-selected**, not a `state.json` value — but it still needs a real art row here. States not covered by Basic (`editing`, `searching`, `web_search`, `verifying`, `git_ops`, `cramming`) alias at the app level to their closest Basic row until Enhanced is installed.
+`dead` and `revive` are both **renderer-selected**, not `state.json` activity_state values. `revive` fires when `revive_until > now`; `dead` fires when `half_hearts == 0`. `idle` is not present in Tier 2 — the renderer falls through to the Codex sheet's idle row (row 0) for the resting state. States not covered by Basic (`editing`, `searching`, `web_search`, `verifying`, `git_ops`, `cramming`) alias at the app level to their closest Basic row until Enhanced is installed.
 
 ### Motion descriptions (Basic)
 
-- **idle** — Calm neutral breathing loop (no prop). Inhale/sway up, soft eye-blink, slow exhale/settle. Frame 1 ≈ seed pose. Still, peaceful.
+- **revive** — Health gained; pure joy. Seed pose: right arm raised fist-pump, left arm cocked, bag on shoulder (from seed image). Frame 1 ≈ seed pose. Animation: arm pumps down and back up, weight shifts to one leg in a small bounce, open smile throughout. No prop — expression alone. Loops for the full 5 s TTL (renderer holds until `revive_until` expires, then falls through to the idle row from the Codex sheet).
 - **standby** — Turn finished, handing control back to you. Holds a small **handbell** every frame: bright ready stance, one clear upward bell-ring toward the viewer (bell lifts, tiny sound-spark), a friendly nod, lower, settle. Distinct from idle.
 - **thinking** — Pondering. A **thought-bubble with a glowing lightbulb** floats above her head every frame; taps chin, bulb flickers brighter as an idea forms, small "hmm" head-tilt, settle.
 - **reading** — Light reading. Holds **one open book** (never a tablet), identical book every frame. Eyes track a line left-to-right, a single page turns, eyes track the next line, settle.
@@ -89,9 +89,10 @@ Codogotchi animations are **not charades**. A user must read the state at a glan
 | reading vs cramming | reading: one book; cramming: tall stack, faster, intense |
 | implementing vs editing | implementing: laptop typing; editing: pencil + paper, erase/rewrite |
 | searching vs web-search | searching: magnifier + local folder; web-search: deerstalker + globe |
-| idle vs standby | idle: breathing, no prop; standby: rings a handbell toward you |
+| revive vs standby | revive: fist-pump joy, no prop, short TTL; standby: calm readiness, handbell |
 | waiting-for-input vs standby | waiting faces the viewer with a "?" sign; standby is general readiness |
 | errored vs dead | errored: standing, sad, red ✗; dead: lying down, X-eyes, spirit-puff |
+| revive vs dead | revive: upright, celebration; dead: lying down, X-eyes. Revive fires on health gain, not on revival from 0 specifically. |
 
 ## Pixel spec (Maew reference)
 

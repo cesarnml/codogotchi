@@ -2073,13 +2073,13 @@ describe("runHook v5 local RPG fields", () => {
     else process.env.CODOGOTCHI_CODEX_ROOT = origCodexRoot;
   });
 
-  it("claude hook event writes v5 state with level, level_fraction, half_hearts, last_activity_at", async () => {
+  it("claude hook event writes v6 state with level, level_fraction, half_hearts, last_activity_at", async () => {
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(5);
+    expect(state.schema_version).toBe(6);
     expect(state.level).toBe(EXPECTED_LEVEL);
     expect(state.level_fraction).toBeCloseTo(EXPECTED_LEVEL_FRACTION, 6);
     expect(state.half_hearts).toBe(6);
@@ -2136,7 +2136,7 @@ describe("runHook v5 local RPG fields", () => {
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(5);
+    expect(state.schema_version).toBe(6);
     expect(state.level).toBeDefined();
     expect(state.half_hearts).toBeDefined();
     expect(state.last_activity_at).toBeDefined();

@@ -1128,7 +1128,7 @@ export async function runHook(
 
     const state: StateJsonV1 = v5
       ? {
-          schema_version: 5,
+          schema_version: 6,
           activity_state: activityState,
           hp_overlay,
           hp,
@@ -1139,6 +1139,7 @@ export async function runHook(
           half_hearts: v5.half_hearts,
           active_minutes: v5.active_minutes,
           last_activity_at: v5.last_activity_at,
+          ...(v5.revive_until !== null && { revive_until: v5.revive_until }),
           ...(attention !== undefined && { attention }),
           ...(toolCommand !== undefined && { tool_command: toolCommand }),
         }

@@ -21,8 +21,8 @@ const baseV1Payload = {
 };
 
 describe("STATE_JSON_SCHEMA_VERSION", () => {
-  it("is 5 after the Phase 10 v5 bump", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(5);
+  it("is 6 after the revive v6 bump", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(6);
   });
 });
 
@@ -167,8 +167,8 @@ describe("schema v5 — RPG progression fields (P10.03)", () => {
     last_activity_at: "2026-06-03T00:00:00.000Z",
   };
 
-  it("STATE_JSON_SCHEMA_VERSION is 5", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(5);
+  it("STATE_JSON_SCHEMA_VERSION is 6", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(6);
   });
 
   it("parseStateJson accepts a v5 payload with all four new fields", () => {
@@ -225,6 +225,46 @@ describe("schema v5 — RPG progression fields (P10.03)", () => {
   });
 });
 
+describe("schema v6 — revive_until field", () => {
+  const baseV6Payload = {
+    schema_version: 6 as number,
+    activity_state: "idle",
+    hp_overlay: "thriving",
+    hp: 100,
+    updated_at: "2026-06-08T00:00:00.000Z",
+    source_event: { origin: "manual", kind: "cli", name: "manual-poke" },
+    level: 1,
+    level_fraction: 0,
+    half_hearts: 6,
+    last_activity_at: "2026-06-08T00:00:00.000Z",
+  };
+
+  it("accepts a v6 payload without revive_until (field is optional)", () => {
+    expect(() => parseStateJson(baseV6Payload)).not.toThrow();
+  });
+
+  it("accepts revive_until as a valid ISO datetime string", () => {
+    expect(() =>
+      parseStateJson({
+        ...baseV6Payload,
+        revive_until: "2026-06-08T00:00:05.000Z",
+      }),
+    ).not.toThrow();
+  });
+
+  it("accepts revive_until: null", () => {
+    expect(() =>
+      parseStateJson({ ...baseV6Payload, revive_until: null }),
+    ).not.toThrow();
+  });
+
+  it("rejects revive_until as a non-datetime string", () => {
+    expect(() =>
+      parseStateJson({ ...baseV6Payload, revive_until: "not-a-date" }),
+    ).toThrow();
+  });
+});
+
 describe("sourceEventOriginSchema — P9.01 vscode/antigravity origins", () => {
   it("accepts vscode as a valid source_event origin", () => {
     expect(sourceEventOriginSchema.safeParse("vscode").success).toBe(true);
@@ -236,15 +276,15 @@ describe("sourceEventOriginSchema — P9.01 vscode/antigravity origins", () => {
 });
 
 describe("forward-compat refusal", () => {
-  it("rejects schema_version 6 (one ahead of v5)", () => {
-    const payload = { ...baseV1Payload, schema_version: 6 };
+  it("rejects schema_version 7 (one ahead of v6)", () => {
+    const payload = { ...baseV1Payload, schema_version: 7 };
     expect(() => parseStateJson(payload)).toThrow();
   });
 });
 
 describe("schema v4 vocabulary", () => {
-  it("STATE_JSON_SCHEMA_VERSION is 5 (v4 vocabulary still tested below)", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(5);
+  it("STATE_JSON_SCHEMA_VERSION is 6 (v4 vocabulary still tested below)", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(6);
   });
 
   it("v4 hook states are members of ACTIVITY_STATES", () => {
@@ -294,10 +334,10 @@ describe("schema v4 vocabulary", () => {
     expect(() => parseStateJson(payload)).not.toThrow();
   });
 
-  it("parseStateJson rejects schema_version 6 (one past max)", () => {
+  it("parseStateJson rejects schema_version 7 (one past max)", () => {
     const payload = {
       ...baseV1Payload,
-      schema_version: 6,
+      schema_version: 7,
       activity_state: "idle",
     };
     expect(() => parseStateJson(payload)).toThrow();

@@ -28,7 +28,7 @@ const codexRows = [
 
 // Tier 2 (Lite-Basic) rows — minimal "alive/dead" tier, every pet ships this
 const liteBasicRows = [
-  ["idle", "idle", "Calm neutral breathing loop"],
+  ["revive", "(renderer — revive_until > now)", "Health gained — fist-pump celebration, 5 s TTL"],
   ["standby", "standby", "Done, handing control back — rings a handbell"],
   ["thinking", "thinking", "Pondering — thought-bubble + lightbulb"],
   ["reading", "reading", "Light reading — one open book"],
@@ -226,7 +226,10 @@ const soaRows = [
           <p class="text-on-surface-variant text-sm mb-4">
             The minimal "alive/dead" tier — every published pet ships this. Replaces Codex's
             generic fallback rows with per-activity art for the core agent hook states, plus a
-            <code class="font-mono">dead</code> pose at 0 HP. States not listed here fall back to Codex.
+            <code class="font-mono">dead</code> pose at 0 HP and a <code class="font-mono">revive</code>
+            celebration at row 0 (5 s TTL, renderer-selected on any health gain). The resting
+            <code class="font-mono">idle</code> state falls through to the Codex sheet.
+            States not listed here fall back to Codex.
           </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">

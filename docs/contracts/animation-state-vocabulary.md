@@ -1,11 +1,11 @@
-# Animation State Vocabulary (v5)
+# Animation State Vocabulary (v6)
 
 The contract for the data the codogotchi hook binary writes to
 `~/.codogotchi/state.json` on every relevant Claude Code / Codex / Cursor lifecycle event,
 and which any future renderer (macOS app, web preview, CLI ascii) consumes.
 
 This doc defines the **closed enums** of activity states and HP overlay states,
-the v5 `state.json` schema (with `schema_version: 5` when local RPG is enabled), and the mapping table from
+the v6 `state.json` schema (with `schema_version: 6` when local RPG is enabled), and the mapping table from
 raw signal classes to activity states. Closed enums mean a renderer can switch
 exhaustively without a `default:` catch-all; adding a state is a deliberate
 schema bump, not a runtime surprise.
@@ -51,6 +51,14 @@ Phase 10 (P10.03 / P10.05) is the formal v5 bump for **local RPG**: when
 v4 payloads unchanged; v5 fields are required only when `schema_version >= 5`.
 Swift applies local decay to `half_hearts` from `last_activity_at`; XP/heal are
 owned by the CLI writer, not recomputed in the renderer.
+
+The **v6 bump** adds the optional `revive_until` field: an ISO-8601 datetime
+string set to `now + 5 s` whenever a hook write detects a half-heart gain
+(`newHalfHearts > prevHalfHearts`). Renderers that understand v6 show the Tier 2
+`revive` row (row 0) while `Date.now() < Date.parse(revive_until)`, then fall
+through to the Codex idle row. Renderers that don't understand v6 refuse the
+payload per the forward-compat policy. `revive_until` is absent (not `null`)
+when no health gain occurred; renderers treat absence as "no revive animation".
 
 ### Forward-compatibility policy
 
@@ -175,7 +183,7 @@ every relevant lifecycle event. Schema:
 
 ```json
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "activity_state": "testing",
   "hp_overlay": "thriving",
   "hp": 87,
@@ -184,6 +192,7 @@ every relevant lifecycle event. Schema:
   "half_hearts": 5,
   "last_activity_at": "2026-06-03T04:00:00.000Z",
   "updated_at": "2026-06-03T04:00:01.000Z",
+  "revive_until": "2026-06-03T04:00:06.000Z",
   "source_event": {
     "origin": "claude_code",
     "kind": "tool_use",
@@ -192,6 +201,10 @@ every relevant lifecycle event. Schema:
   "tool_command": "bun test packages/contracts"
 }
 ```
+
+v6 changes from v5:
+
+- `revive_until` — optional ISO-8601 datetime. Present when the hook detected a half-heart gain on this write (`newHalfHearts > prevHalfHearts`); set to `now + 5 s`. Absent when no gain occurred. Renderer shows the Tier 2 `revive` row (row 0) while `Date.now() < Date.parse(revive_until)`.
 
 v5 changes from v4 (local RPG only — writer emits v4 when `rpg_enabled` is false):
 

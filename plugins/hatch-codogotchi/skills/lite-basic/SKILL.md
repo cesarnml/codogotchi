@@ -1,6 +1,6 @@
 ---
 name: hatch-codogotchi-lite-basic
-description: "Add the Lite-Basic (Tier 2) sprite atlas to an EXISTING Codogotchi pet that already has a Codex `spritesheet.webp`. Produces the 9-row minimal alive/dead sheet (idle, standby, thinking, reading, implementing, testing, errored, waiting, dead). Use when a user has a Codex pet and wants the baseline Codogotchi lite animations added."
+description: "Add the Lite-Basic (Tier 2) sprite atlas to an EXISTING Codogotchi pet that already has a Codex `spritesheet.webp`. Produces the 9-row minimal alive/dead sheet (revive, standby, thinking, reading, implementing, testing, errored, waiting, dead). Row 0 is the revive fist-pump animation (renderer-selected, 5 s TTL on health gain). Idle falls through to the Codex sheet. Use when a user has a Codex pet and wants the baseline Codogotchi lite animations added."
 ---
 
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
@@ -11,7 +11,7 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 
 | File | Tier | Grid | Dimensions (Maew) | Rows |
 |------|------|------|-------------------|------|
-| `codogotchi-lite-basic-spritesheet.webp` | 2 — Lite-Basic | 8 × 9 | 1536 × 1872 | idle, standby, thinking, reading, implementing, testing, errored, waiting-for-input, **dead** |
+| `codogotchi-lite-basic-spritesheet.webp` | 2 — Lite-Basic | 8 × 9 | 1536 × 1872 | revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, **dead** |
 
 **Prerequisite:** a valid Codex `spritesheet.webp` for the pet (the character reference is extracted from it).
 
@@ -26,7 +26,7 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 
 ## Read first — the two doctrines (full text in `README.md` + `references/animation-rows-lite.md`)
 
-1. **Prop doctrine — NOT charades.** Emotion-mappable states (`idle`, `errored`→sad) lead with expression; **every other state is carried by one clearly-visible prop** — never subtle hand gestures, never a mimed/"invisible" prop ("invisible keyboard", "unseen screen"), never an A/B choice (the old `reading` "page/tablet" drew both). Same prop, all 8 frames. Per-row props are in `references/animation-rows-lite.md`.
+1. **Prop doctrine — NOT charades.** Emotion-mappable states (`revive`, `errored`→sad) lead with expression; **every other state is carried by one clearly-visible prop** — never subtle hand gestures, never a mimed/"invisible" prop ("invisible keyboard", "unseen screen"), never an A/B choice (the old `reading` "page/tablet" drew both). Same prop, all 8 frames. Per-row props are in `references/animation-rows-lite.md`.
 2. **Scale consistency.** Same character size across all 8 frames of a row (±15% of the row median). `stitch_row.py` only prevents clipping; `inspect_frames.py` **hard-fails** drift — regenerate the frame, don't rescale.
 
 Plus the standing failure modes: don't fake frames by transforming the seed; **frame-first**, one row at a time (~1–2 h); don't draw-and-slice; don't drift from the Codex sheet's style.
@@ -69,7 +69,7 @@ cp run/<pet-id>/codogotchi-lite-basic-spritesheet.webp "${CODOGOTCHI_HOME:-$HOME
 Quit and reopen Codogotchi, or re-select the pet in Settings → Pet.
 
 Row order (see `references/animation-rows-lite.md`):
-`idle, standby, thinking, reading, implementing, testing, errored, waiting-for-input, dead`
+`revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, dead`
 
 ---
 

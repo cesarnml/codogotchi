@@ -1064,6 +1064,10 @@ final class AnimationBadgePanel: NSPanel {
 /// behind the transparent pet frame.
 enum AnimationBadgeChrome {
 	static let textColor = NSColor(calibratedWhite: 0.95, alpha: 1.0)
+	/// Dark overlay layered above the frosted material to guarantee a readable
+	/// dark floor when the pet sits over a light desktop or app background.
+	/// Matches the opacity level of the SoA gate badge's neutral dark pill.
+	static let badgeTint = NSColor(calibratedWhite: 0.0, alpha: 0.55)
 
 	static func makeEffectView() -> NSVisualEffectView {
 		let view = NSVisualEffectView(frame: .zero)
@@ -1076,9 +1080,24 @@ enum AnimationBadgeChrome {
 		return view
 	}
 
-	static func apply(to host: NSView, effect: NSVisualEffectView, cornerRadius: CGFloat) {
+	static func makeTintView() -> NSView {
+		let view = NSView(frame: .zero)
+		view.wantsLayer = true
+		view.layer?.backgroundColor = badgeTint.cgColor
+		view.translatesAutoresizingMaskIntoConstraints = false
+		return view
+	}
+
+	static func apply(
+		to host: NSView,
+		effect: NSVisualEffectView,
+		tint: NSView? = nil,
+		cornerRadius: CGFloat
+	) {
 		effect.layer?.cornerRadius = cornerRadius
 		effect.layer?.masksToBounds = true
+		tint?.layer?.cornerRadius = cornerRadius
+		tint?.layer?.masksToBounds = true
 		host.layer?.cornerRadius = cornerRadius
 		host.layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
 		host.layer?.borderWidth = 1
@@ -1094,6 +1113,7 @@ enum AnimationBadgeChrome {
 /// to the badge text color so it reads on both light and dark backdrops.
 private final class PlatformChipView: NSView {
 	private let effectView = AnimationBadgeChrome.makeEffectView()
+	private let tintView = AnimationBadgeChrome.makeTintView()
 	private let imageView = NSImageView()
 	private var metrics = GateBadgeLayout.metrics(
 		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
@@ -1107,6 +1127,7 @@ private final class PlatformChipView: NSView {
 		layer?.masksToBounds = false
 
 		addSubview(effectView)
+		addSubview(tintView)
 
 		imageView.imageScaling = .scaleProportionallyUpOrDown
 		imageView.contentTintColor = AnimationBadgeChrome.textColor
@@ -1128,6 +1149,10 @@ private final class PlatformChipView: NSView {
 			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
 			effectView.topAnchor.constraint(equalTo: topAnchor),
 			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			tintView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			tintView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			tintView.topAnchor.constraint(equalTo: topAnchor),
+			tintView.bottomAnchor.constraint(equalTo: bottomAnchor),
 			side,
 			height,
 		] + glyphInsetConstraints)
@@ -1155,7 +1180,7 @@ private final class PlatformChipView: NSView {
 		for constraint in glyphInsetConstraints {
 			constraint.constant = (constraint.constant < 0 ? -1 : 1) * metrics.verticalPadding
 		}
-		AnimationBadgeChrome.apply(to: self, effect: effectView, cornerRadius: metrics.cornerRadius)
+		AnimationBadgeChrome.apply(to: self, effect: effectView, tint: tintView, cornerRadius: metrics.cornerRadius)
 	}
 }
 
@@ -1174,6 +1199,7 @@ private final class AnimationLabelPillView: NSView {
 	private static let shimmerAnimationKey = "codogotchi.badge.shimmer"
 
 	private let effectView = AnimationBadgeChrome.makeEffectView()
+	private let tintView = AnimationBadgeChrome.makeTintView()
 	private let label = NSTextField(labelWithString: "")
 	/// Overlay clipped to the glyph shapes (`glyphMask`). It hosts the moving
 	/// `shimmerBand`; everything outside the band reads through to the dimmed base
@@ -1209,6 +1235,7 @@ private final class AnimationLabelPillView: NSView {
 		layer?.masksToBounds = false
 
 		addSubview(effectView)
+		addSubview(tintView)
 
 		label.lineBreakMode = .byTruncatingTail
 		label.maximumNumberOfLines = 1
@@ -1245,6 +1272,10 @@ private final class AnimationLabelPillView: NSView {
 			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
 			effectView.topAnchor.constraint(equalTo: topAnchor),
 			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			tintView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			tintView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			tintView.topAnchor.constraint(equalTo: topAnchor),
+			tintView.bottomAnchor.constraint(equalTo: bottomAnchor),
 			label.centerXAnchor.constraint(equalTo: centerXAnchor),
 			label.centerYAnchor.constraint(equalTo: centerYAnchor),
 		])
@@ -1406,7 +1437,7 @@ private final class AnimationLabelPillView: NSView {
 	}
 
 	private func applyMetrics() {
-		AnimationBadgeChrome.apply(to: self, effect: effectView, cornerRadius: metrics.cornerRadius)
+		AnimationBadgeChrome.apply(to: self, effect: effectView, tint: tintView, cornerRadius: metrics.cornerRadius)
 		// Mirror the label's resolved frame so the overlay glyph stencil registers
 		// exactly on top of the dimmed base glyphs. Disable implicit animation so
 		// the overlay does not lag the pill during drag/reposition.

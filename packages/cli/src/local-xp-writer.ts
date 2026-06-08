@@ -41,6 +41,9 @@ export type V5Fields = {
   // remainder). Surfaced so the renderer can draw revival progress while the
   // pet is dead: fraction = active_minutes / ACTIVE_MINUTES_PER_HALF_HEART.
   active_minutes: number;
+  // ISO timestamp until which the renderer should show the `revive` animation
+  // row (5 s after a health gain). Null when no health gain occurred this write.
+  revive_until: string | null;
 };
 
 export function localXpCachePath(home: string): string {
@@ -220,6 +223,9 @@ export async function computeAndPersistV5Fields(
     xpFromCodexTokens(cache.cumulative_codex_tokens);
   const lp = levelProgress(totalXp);
 
+  // Snapshot before resolving so we can detect a health gain below.
+  const prevHalfHearts = cache.half_hearts;
+
   // Compute half_hearts using the PREVIOUS last_activity_at so that idle
   // time since the last event is counted as decay, not zeroed out.
   const newHalfHearts = resolveHalfHearts(
@@ -230,6 +236,12 @@ export async function computeAndPersistV5Fields(
     },
     now,
   );
+
+  // Signal the renderer to play the revive animation for 5 s when hearts go up.
+  const revive_until =
+    newHalfHearts > prevHalfHearts
+      ? new Date(now.getTime() + 5_000).toISOString()
+      : null;
 
   // Persist updated cache. Carry forward remainder active minutes so partial
   // heal-progress is not lost between events.
@@ -246,5 +258,6 @@ export async function computeAndPersistV5Fields(
     // Post-`%60` carry: 0 immediately after a half-heart is earned, climbing
     // toward 60 as active minutes accrue. This is the live revival progress.
     active_minutes: cache.active_minutes,
+    revive_until,
   };
 }
