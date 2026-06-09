@@ -27,6 +27,15 @@ Caveats:
 - Some rows need more unique motion than others; generate extra distinct frames whenever the row's action or emotion demands it.
 - Validation plus human visual review can still reject a mirrored/reused closure even if the row passes script checks.
 
+## Alignment doctrine
+
+Every row must keep the pet visually stable inside each **192 × 208** cell:
+
+- **Stable horizontal axis:** horizontally center the character/content in every cell so the pet does not hop left/right during playback. If a large side prop skews the alpha bbox, prefer the character body's visual center over blindly centering the prop-heavy bbox.
+- **Stable bottom baseline:** vertically align frames to a shared foot/ground baseline near the bottom of the cell, normally `y = cell_h - 8 - scaled_h`. Do **not** vertically center ordinary standing rows; that makes the pet float too far above the badge/panel.
+- **Validation guard:** `inspect_frames.py` and `validate_atlas.py` fail obvious per-frame horizontal center drift. Human visual review still has final say because laptops, thought bubbles, signs, and lab props can fool simple bbox math.
+- **Jump exception:** explicit jump/leap rows may leave the baseline briefly, but they still need a deliberate takeoff/landing and a stable horizontal axis.
+
 ## Chroma-key policy
 
 The plugin no longer assumes `#00ff00` is safe for every row. Default behavior is now `--chroma auto`:
@@ -191,13 +200,17 @@ hatch-codogotchi/
 
 6. **Per-frame scale drift** — Historically ~15% of frames render the character noticeably larger/smaller than its rowmates (e.g. the old `errored` row). `stitch_row.py` only prevents clipping; it does **not** equalize size. `inspect_frames.py` / `validate_atlas.py` now **hard-fail** any frame whose content height deviates >15% from the row median — regenerate that frame at the row's shared size; do not rescale.
 
-7. **Character identity drift** — Automated checks cannot fully judge style. After every frame and every stitched row, compare against `seed.png` and verify the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework. `inspect_frames.py --seed run/<pet>/seed.png` prints advisory bbox, area, centroid, and rough silhouette-deviation metrics to help spot drift, but visual review is still required.
+7. **Horizontal alignment drift** — The pet must not hop left/right inside the frame. `stitch_row.py` centers cropped content horizontally, and `inspect_frames.py` / `validate_atlas.py` hard-fail obvious bbox-center drift across a row. For large side props, use human review to confirm the character body, not the prop-heavy bbox, stays on a stable x-axis.
+
+8. **Vertical float from center alignment** — Ordinary standing rows should use a shared bottom baseline near `cell_h - 8`, not vertical centering. Centering the full bbox vertically can make the pet hover too far above the `AnimationBadgePanel`. Jump/leap rows are the exception, and they must visibly take off and land.
+
+9. **Character identity drift** — Automated checks cannot fully judge style. After every frame and every stitched row, compare against `seed.png` and verify the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework. `inspect_frames.py --seed run/<pet>/seed.png` prints advisory bbox, area, centroid, and rough silhouette-deviation metrics to help spot drift, but visual review is still required.
 
 ## Frame replacement recovery
 
 If exactly one frame fails visual QA or automated inspection, regenerate only that standalone frame. Replace `frames/<tier>/<row>/fNN.png`, rerun `stitch_row.py` for that row, rerun `inspect_frames.py --seed run/<pet>/seed.png`, and eyeball the restitched row. Do not regenerate an entire row when a surgical frame replacement is enough, and do not transform neighboring frames to patch the failure.
 
-> Validation does not catch failures 1–4. Eyeball every row. Failures 5–6 are gated by scripts; failure 7 is aided by seed-comparison metrics but still needs visual judgment.
+> Validation does not catch failures 1–4. Eyeball every row. Failures 5–7 are gated by scripts; failures 8–9 still need visual judgment.
 
 ---
 

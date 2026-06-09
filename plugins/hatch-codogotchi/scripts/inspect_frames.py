@@ -2,7 +2,7 @@
 """
 inspect_frames.py — Validate a single row strip before composing it into the atlas.
 
-Checks: dimensions, padding, chroma residue, transparent-RGB residue, static-row detection.
+Checks: dimensions, padding, chroma residue, transparent-RGB residue, alignment drift, static-row detection.
 Also reports per-frame content bounds and optional seed-comparison metrics for eyeballing.
 """
 
@@ -110,6 +110,7 @@ def inspect_row(
     cell_w: int = 192,
     cell_h: int = 208,
     padding: int = 8,
+    horizontal_center_tolerance: float = 16.0,
     seed_path: Path | None = None,
     out_json: Path | None = None,
 ) -> bool:
@@ -161,6 +162,7 @@ def inspect_row(
             right_edge = cell_w - int(cols_used[::-1].argmax())
             content_h = bottom - top
             content_w = right_edge - left_edge
+            content_center_x = (left_edge + right_edge) / 2.0
 
             pad_top = top
             pad_bottom = cell_h - bottom
@@ -170,6 +172,7 @@ def inspect_row(
             report.update({
                 "content_bounds": {"left": left_edge, "top": top, "right": right_edge, "bottom": bottom},
                 "content_size": {"w": content_w, "h": content_h},
+                "content_center": {"x": content_center_x},
                 "padding": {"top": pad_top, "bottom": pad_bottom, "left": pad_left, "right": pad_right},
             })
             if seed_mask is not None:
@@ -212,10 +215,32 @@ def inspect_row(
                     f"from row median {median_h:.0f} — scale drift; regenerate this frame at the row's shared size"
                 )
 
+    # Alignment consistency — the character should keep a stable horizontal axis
+    # across the row. The whole alpha bbox is an imperfect proxy when a side prop
+    # is large, so human review still matters; this catches obvious "pet hops
+    # left/right inside the 192x208 cell" failures.
+    center_reports = [
+        (r["frame"], float(r["content_center"]["x"]))
+        for r in frame_reports
+        if r.get("has_content") and "content_center" in r
+    ]
+    if len(center_reports) > 1:
+        centers = [center_x for _, center_x in center_reports]
+        median_center_x = float(np.median(centers))
+        for frame_num, center_x in center_reports:
+            delta = abs(center_x - median_center_x)
+            if delta > horizontal_center_tolerance:
+                errors.append(
+                    f"Frame {frame_num}: horizontal content center {center_x:.1f}px deviates "
+                    f">{horizontal_center_tolerance:.0f}px from row median {median_center_x:.1f}px — "
+                    "alignment drift; restitch with a stable character x-axis"
+                )
+
     result = {
         "row": str(row_path),
         "dimensions": {"width": w, "height": h},
         "cell_size": {"width": cell_w, "height": cell_h},
+        "horizontal_center_tolerance": horizontal_center_tolerance,
         "n_frames": n_frames,
         "errors": errors,
         "warnings": warnings,
@@ -244,6 +269,14 @@ def inspect_row(
     if content_heights:
         hs = ", ".join(str(h_val) for h_val in content_heights)
         print(f"  Content heights: [{hs}]")
+    if len(frame_reports) > 1:
+        centers = [
+            f"{float(report['content_center']['x']):.1f}"
+            for report in frame_reports
+            if report.get("has_content") and "content_center" in report
+        ]
+        if centers:
+            print(f"  Content center x: [{', '.join(centers)}]")
 
     comparisons = [
         (report["frame"], report["seed_comparison"])
@@ -275,11 +308,20 @@ def main() -> None:
     parser.add_argument("--cell-w", type=int, default=192)
     parser.add_argument("--cell-h", type=int, default=208)
     parser.add_argument("--padding", type=int, default=8)
+    parser.add_argument("--horizontal-center-tolerance", type=float, default=16.0)
     parser.add_argument("--seed", type=Path, default=None, help="Optional seed image for advisory bbox/silhouette comparison")
     parser.add_argument("--out-json", type=Path, default=None)
     args = parser.parse_args()
 
-    ok = inspect_row(args.row, args.cell_w, args.cell_h, args.padding, args.seed, args.out_json)
+    ok = inspect_row(
+        args.row,
+        args.cell_w,
+        args.cell_h,
+        args.padding,
+        args.horizontal_center_tolerance,
+        args.seed,
+        args.out_json,
+    )
     sys.exit(0 if ok else 1)
 
 

@@ -68,7 +68,8 @@ Identical to `hatch-codogotchi-lite`:
 - **Background:** use the solid chroma named in the prompt (`#00ff00` normally, `#ff00ff` for green-sensitive rows) — do NOT request RGBA directly.
 - **Padding:** ≥ 8 px all sides; nothing touches an edge.
 - **Scale registration:** one shared scale per row (tallest frame sets it).
-- **Baseline registration:** feet on same y-line — `baseline_y = 208 − 8 − scaled_h`.
+- **Horizontal registration:** character/content stays on a stable x-axis in every 192×208 cell; no left/right hopping. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
+- **Baseline registration:** feet on same y-line — `baseline_y = 208 − 8 − scaled_h`. Do not vertically center ordinary standing rows; they should sit near the bottom of the cell. Explicit jump/leap rows may leave the baseline briefly but must visibly take off and land.
 - **Loop closure:** frame 8 pose ≈ frame 1 pose.
 - **Character fidelity:** seed image is sole style reference.
 - **No contamination:** no chroma-colour contamination on character, props, or effects.
@@ -231,6 +232,7 @@ Key distinctions to preserve:
 
 - [ ] `codogotchi-soa-spritesheet.webp` — exact 1536 × 2080; 10 rows × 8 cols; cell 192 × 208
 - [ ] Every used cell's alpha bbox within `[8, 184] × [8, 200]` (≥ 8 px padding)
+- [ ] Character/content horizontal center is stable across each row; non-jump poses share a bottom foot baseline near `cell_h - 8`
 - [ ] Zero likely green/magenta chroma residue pixels anywhere
 - [ ] No transparent pixel with nonzero RGB
 - [ ] No row has all 8 frames pixel-identical

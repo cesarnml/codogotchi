@@ -3,7 +3,7 @@
 validate_atlas.py — Final validation of a composed Codogotchi spritesheet atlas.
 
 Checks: exact dimensions, grid integrity, chroma residue, transparent-RGB residue,
-non-empty used cells, and static-row detection.
+non-empty used cells, alignment drift, and static-row detection.
 """
 
 import argparse
@@ -96,9 +96,11 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
     padding = 8
     cell_reports: list[dict] = []
     scale_tolerance = 0.15  # frame content height may deviate ≤15% from the row median
+    horizontal_center_tolerance = 16.0
     for row_idx in range(n_rows):
         label = labels[row_idx] if row_idx < len(labels) else f"row-{row_idx}"
         row_content_heights: list[tuple[int, int]] = []  # (col_idx, content_height)
+        row_content_centers: list[tuple[int, float]] = []  # (col_idx, bbox center x)
         for col_idx in range(8):
             y0 = row_idx * cell_h
             x0 = col_idx * cell_w
@@ -120,6 +122,7 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
                 bottom = cell_h - int(rows_used[::-1].argmax())
                 left = int(cols_used.argmax())
                 right = cell_w - int(cols_used[::-1].argmax())
+                content_center_x = (left + right) / 2.0
 
                 pad_top = top
                 pad_bottom = cell_h - bottom
@@ -132,8 +135,10 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
                     "pad_left": pad_left,
                     "pad_right": pad_right,
                     "content_h": bottom - top,
+                    "content_center_x": content_center_x,
                 })
                 row_content_heights.append((col_idx, bottom - top))
+                row_content_centers.append((col_idx, content_center_x))
 
                 if pad_top < padding:
                     errors.append(f"Row {row_idx} ({label}) col {col_idx}: top padding {pad_top} < {padding}")
@@ -153,16 +158,31 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
         # clipping; it does NOT equalize character size, so drift passes through.
         # Flag any frame whose content height deviates >15% from the row median.
         if len(row_content_heights) > 1:
-            heights = [h for _, h in row_content_heights]
+            heights = [content_h for _, content_h in row_content_heights]
             median_h = float(np.median(heights))
             if median_h > 0:
-                for col_idx, h in row_content_heights:
-                    if abs(h - median_h) > scale_tolerance * median_h:
+                for col_idx, content_h in row_content_heights:
+                    if abs(content_h - median_h) > scale_tolerance * median_h:
                         errors.append(
-                            f"Row {row_idx} ({label}) col {col_idx}: content height {h} deviates "
+                            f"Row {row_idx} ({label}) col {col_idx}: content height {content_h} deviates "
                             f">{int(scale_tolerance * 100)}% from row median {median_h:.0f} — "
                             f"scale drift; regenerate this frame at the row's shared size"
                         )
+
+        # --- Per-row horizontal alignment consistency ---
+        # Keep the pet's visual x-axis stable inside the cell so the animation
+        # does not hop left/right. The whole alpha bbox is an imperfect proxy for
+        # prop-heavy rows, but it catches obvious composition drift.
+        if len(row_content_centers) > 1:
+            centers = [center_x for _, center_x in row_content_centers]
+            median_center_x = float(np.median(centers))
+            for col_idx, center_x in row_content_centers:
+                if abs(center_x - median_center_x) > horizontal_center_tolerance:
+                    errors.append(
+                        f"Row {row_idx} ({label}) col {col_idx}: horizontal content center {center_x:.1f}px "
+                        f"deviates >{horizontal_center_tolerance:.0f}px from row median {median_center_x:.1f}px — "
+                        "alignment drift; restitch with a stable character x-axis"
+                    )
 
         # --- Static-row detection ---
         frames = [arr[row_idx * cell_h:(row_idx + 1) * cell_h, c * cell_w:(c + 1) * cell_w, :] for c in range(8)]

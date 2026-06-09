@@ -25,13 +25,14 @@ The Lite-Basic sheet is also used as an **extra style reference** alongside the 
 
 ---
 
-## Read first — the two doctrines (full text in `README.md` + `references/animation-rows-lite.md`)
+## Read first — the doctrines (full text in `README.md` + `references/animation-rows-lite.md`)
 
 1. **Prop doctrine — NOT charades.** Every Enhanced state is prop-led — one clearly-visible prop, the same object in all 8 frames, never an A/B choice:
    - idle-impatient → **wristwatch** · idle-frustrated → **steam puffs** · cramming → **tall stack of books** · editing → **pencil + paper** · git-ops → **GitHub cat icon** · verifying → **checklist + green ✓ stamp** · searching → **magnifying glass + file folder** · web-search → **deerstalker hat + magnifying glass + globe**.
    - Keep props distinct from Basic: `cramming` (stack) ≠ `reading` (one book); `editing` (pencil+paper) ≠ `implementing` (laptop); `searching` (local folder) ≠ `web-search` (globe).
 2. **Scale consistency.** Same character size across all 8 frames of a row (±15% of the row median; `inspect_frames.py` hard-fails drift).
 3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as `seed.png` and the Basic sheet. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
+4. **Alignment stability.** Keep the character on a stable horizontal axis in every 192×208 cell; the pet must not hop left/right between frames. Vertically align ordinary standing rows to a shared bottom baseline near `cell_h - 8`, not to the vertical center. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
 
 Plus: don't fake frames; **frame-first**, one row at a time; don't draw-and-slice; match the Basic + Codex style exactly.
 
@@ -92,6 +93,7 @@ If one frame fails visual QA or inspection, regenerate only that standalone fram
 - [ ] `codogotchi-lite-basic-spritesheet.webp` already exists for this pet (prerequisite)
 - [ ] `codogotchi-lite-enhanced-spritesheet.webp` — 1536 × 1664; 8 × 8; cell 192 × 208 (or matches Codex cell)
 - [ ] Every used cell padded `[8, cell_w−8] × [8, cell_h−8]`; zero likely green/magenta chroma residue; no transparent-RGB residue
+- [ ] Character/content horizontal center is stable across the row; ordinary standing rows share a bottom foot baseline near `cell_h - 8`
 - [ ] No static rows; each row distinct motion; loop closes
 - [ ] **Each row shows its single named prop clearly in all 8 frames, distinct from the Basic props**
 - [ ] **No frame's content height deviates >15% from its row median**

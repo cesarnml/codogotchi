@@ -36,6 +36,10 @@ Use this checklist after composing each atlas and again after final installation
 
 - [ ] No frame's content height deviates **>15%** from its row median (the image model historically renders ~15% of frames off-size — e.g. the old `errored` row). Regenerate the offending frame at the row's shared size; do **not** rescale.
 
+### Horizontal-alignment detection (now gated by `inspect_frames.py` / `validate_atlas.py`)
+
+- [ ] No frame's visible content center drifts far from the row median x-axis. The pet should not hop left/right inside the 192×208 cell. For prop-heavy rows, use this as a guardrail and verify by eye that the character body, not the prop-heavy bbox, stays horizontally stable.
+
 ---
 
 ## Eyeball checks (manual — cannot be automated)
@@ -47,7 +51,8 @@ For each row in each sheet:
 - [ ] **Real motion:** frames show distinct poses, not the same image repeated
 - [ ] **Loop closure:** frame 8 flows naturally back into frame 1 (no jump cut)
 - [ ] **Scale consistency:** character does not pulse or resize between frames (one shared scale per row)
-- [ ] **Baseline consistency:** feet stay on the same y-line across all 8 frames
+- [ ] **Horizontal stability:** character stays on the same visual x-axis across all 8 frames
+- [ ] **Baseline consistency:** feet stay on the same y-line across all 8 frames, near the bottom of the cell; do not vertically center ordinary standing rows
 - [ ] **Character fidelity:** character matches the seed image — same proportions, outfit, hair, palette, linework
 - [ ] **Clean edges:** no chroma fringe, no hard box outline around the character
 

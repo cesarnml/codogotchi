@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-stitch_row.py — Chroma-key, crop, scale, baseline-align, and stitch 8 frames into one row strip.
+stitch_row.py — Chroma-key, crop, scale, horizontally register, baseline-align, and stitch 8 frames into one row strip.
 
 Post-processes real generated frames; must NEVER invent motion or transform a single seed.
 """
@@ -110,7 +110,8 @@ def stitch_row(
       1. Crop to alpha bounds.
       2. Compute one shared scale across all frames (tallest content sets it).
       3. Resize each cropped frame at shared scale.
-      4. Baseline-align: y = cell_h - padding - scaled_h.
+      4. Horizontally center the cropped content in its 192 px cell.
+      5. Baseline-align: y = cell_h - padding - scaled_h.
       5. Paste onto transparent cell canvas.
     Returns a 1536 × cell_h strip (8 cells wide).
     """
@@ -135,7 +136,8 @@ def stitch_row(
         scaled_h = max(1, round(cropped_frame.height * scale))
         resized = cropped_frame.resize((scaled_w, scaled_h), Image.LANCZOS)
 
-        # Baseline alignment: feet at cell_h - padding
+        # Horizontal registration plus bottom baseline: avoid left/right hopping
+        # and keep ordinary standing rows near the badge/panel.
         y = max(0, cell_h - padding - scaled_h)
         strip_x = i * cell_w + (cell_w - scaled_w) // 2
         strip_x = max(i * cell_w, min(strip_x, (i + 1) * cell_w - scaled_w))
