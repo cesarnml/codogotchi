@@ -429,9 +429,9 @@ final class FloatingPetScene: SKScene {
 		paintCurrentFrame()
 	}
 
-	/// Lite-Basic has no idle-escalation rows, so idle escalation is disabled for this tier.
+	/// Idle escalation is available only when the Lite-Enhanced sheet is installed.
 	private var supportsIdleEscalation: Bool {
-		false
+		codogotchiPet?.hasLiteEnhancedSheet == true
 	}
 
 	/// Recompute idle escalation from elapsed time. Runs on the frame timer

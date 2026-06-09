@@ -5,7 +5,8 @@ import XCTest
 
 /// Behavior contract for `CodogotchiPet` — the tiered loader for all 19 v4
 /// ActivityState values:
-///   - `codogotchi-lite-basic-spritesheet.webp` (1536×1872, 9 rows) — canonical Lite tier
+///   - `codogotchi-lite-basic-spritesheet.webp` (1536×1872, 9 rows) — canonical Lite-Basic tier
+///   - `codogotchi-lite-enhanced-spritesheet.webp` (1536×1664, 8 rows) — additive Lite-Enhanced tier
 ///   - `codogotchi-soa-spritesheet.webp`  (1536×2080, 10 rows) — 10 SoA gate states
 ///
 /// Fixtures live at `apps/menubar/Fixtures/maew/` so tests run on machines
@@ -45,16 +46,15 @@ final class CodogotchiPetTests: XCTestCase {
 
 	// MARK: - liteBasicRowMap coverage
 
-	func testLiteBasicRowMapHasExactly14HookStates() {
-		XCTAssertEqual(CodogotchiPet.liteBasicRowMap.count, 14)
+	func testLiteBasicRowMapHasExactly8HookStates() {
+		XCTAssertEqual(CodogotchiPet.liteBasicRowMap.count, 8)
 	}
 
-	func testLiteBasicRowMapCoversReviveAndNonIdleHookStates() {
+	func testLiteBasicRowMapCoversReviveAndCoreHookStates() {
 		let expected: Set<ActivityState> = [
 			.revive,
 			.standby, .errored, .waitingForInput,
-			.implementing, .editing, .searching, .webSearch, .verifying, .gitOps,
-			.testing, .thinking, .reading, .cramming,
+			.implementing, .testing, .thinking, .reading,
 		]
 		XCTAssertEqual(Set(CodogotchiPet.liteBasicRowMap.keys), expected)
 	}
@@ -91,6 +91,30 @@ final class CodogotchiPetTests: XCTestCase {
 	}
 	func testLiteBasicRowWaitingForInputIsRow7() {
 		XCTAssertEqual(CodogotchiPet.liteBasicRowMap[.waitingForInput]?.rowIndex, 7)
+	}
+
+	// MARK: - liteEnhancedRowMap coverage
+
+	func testLiteEnhancedRowMapHasExactly6EnhancedStates() {
+		XCTAssertEqual(CodogotchiPet.liteEnhancedRowMap.count, 6)
+	}
+
+	func testLiteEnhancedRowMapCoversAllEnhancedHookStates() {
+		let expected: Set<ActivityState> = [
+			.cramming, .editing, .gitOps, .verifying, .searching, .webSearch,
+		]
+		XCTAssertEqual(Set(CodogotchiPet.liteEnhancedRowMap.keys), expected)
+	}
+
+	func testAllLiteEnhancedRowsHave8Frames() {
+		for (state, spec) in CodogotchiPet.liteEnhancedRowMap {
+			XCTAssertEqual(spec.frameCount, 8, "\(state) enhanced row must have 8 frames")
+		}
+	}
+
+	func testLiteEnhancedIdleEscalationRowsAreTopTwoRows() {
+		XCTAssertEqual(CodogotchiPet.idleImpatientEnhancedRow.rowIndex, 0)
+		XCTAssertEqual(CodogotchiPet.idleFrustratedEnhancedRow.rowIndex, 1)
 	}
 
 	// MARK: - soaRowMap coverage (10 SoA gate states)
@@ -144,20 +168,28 @@ final class CodogotchiPetTests: XCTestCase {
 	// MARK: - Complete schema-v4 coverage (all 19 states)
 
 	func testAllNonIdleSchemaV4StatesCoveredByMaps() {
-		let covered = Set(CodogotchiPet.liteBasicRowMap.keys).union(Set(CodogotchiPet.soaRowMap.keys))
+		let covered = Set(CodogotchiPet.liteBasicRowMap.keys)
+			.union(Set(CodogotchiPet.liteEnhancedRowMap.keys))
+			.union(Set(CodogotchiPet.soaRowMap.keys))
 		for state in ActivityState.allCases {
 			if state == .idle { continue }
 			XCTAssertTrue(
 				covered.contains(state),
-				"ActivityState.\(state) is not in liteBasicRowMap or soaRowMap"
+				"ActivityState.\(state) is not in liteBasicRowMap, liteEnhancedRowMap, or soaRowMap"
 			)
 		}
 	}
 
-	func testLiteBasicAndSoaMapsAreDisjoint() {
+	func testLiteBasicLiteEnhancedAndSoaMapsAreDisjoint() {
+		let liteOverlap = Set(CodogotchiPet.liteBasicRowMap.keys).intersection(
+			Set(CodogotchiPet.liteEnhancedRowMap.keys))
 		let overlap = Set(CodogotchiPet.liteBasicRowMap.keys).intersection(
 			Set(CodogotchiPet.soaRowMap.keys))
+		let enhancedSoaOverlap = Set(CodogotchiPet.liteEnhancedRowMap.keys).intersection(
+			Set(CodogotchiPet.soaRowMap.keys))
+		XCTAssertTrue(liteOverlap.isEmpty, "liteBasicRowMap and liteEnhancedRowMap must not share states: \(liteOverlap)")
 		XCTAssertTrue(overlap.isEmpty, "liteBasicRowMap and soaRowMap must not share states: \(overlap)")
+		XCTAssertTrue(enhancedSoaOverlap.isEmpty, "liteEnhancedRowMap and soaRowMap must not share states: \(enhancedSoaOverlap)")
 	}
 
 	// MARK: - No placeholder rows (P7 placeholders removed)
@@ -175,11 +207,14 @@ final class CodogotchiPetTests: XCTestCase {
 
 	// MARK: - Loader
 
-	func testLoaderLoadsLiteBasicAndSoaSheetsFromFixture() throws {
+	func testLoaderLoadsLiteBasicLiteEnhancedAndSoaSheetsFromFixture() throws {
 		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
 		XCTAssertNotNil(
 			pet.liteBasicSheet,
 			"codogotchi-lite-basic-spritesheet.webp must load from fixture")
+		XCTAssertNotNil(
+			pet.liteEnhancedSheet,
+			"codogotchi-lite-enhanced-spritesheet.webp must load from fixture")
 		XCTAssertNotNil(pet.soaSheet, "codogotchi-soa-spritesheet.webp must load from fixture")
 	}
 
@@ -221,6 +256,20 @@ final class CodogotchiPetTests: XCTestCase {
 		)
 	}
 
+	func testLiteEnhancedSheetWidthIsDivisibleBy8() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		guard let sheet = pet.liteEnhancedSheet,
+			let cg = sheet.cgImage(forProposedRect: nil, context: nil, hints: nil)
+		else {
+			XCTFail("lite-enhanced sheet must be loaded from fixture")
+			return
+		}
+		XCTAssertEqual(
+			cg.width % CodogotchiPet.gridColumns, 0,
+			"Lite-Enhanced sheet width (\(cg.width)) must be divisible by \(CodogotchiPet.gridColumns)"
+		)
+	}
+
 	// MARK: - Frame extraction: 8 frames, correct sheets
 
 	func testIdleReturnsEmptySoCodexOwnsIdle() throws {
@@ -247,6 +296,14 @@ final class CodogotchiPetTests: XCTestCase {
 		for state in CodogotchiPet.liteBasicRowMap.keys {
 			let frames = pet.frames(for: state)
 			XCTAssertEqual(frames.count, 8, "\(state) must return 8 menubar frames from lite-basic sheet")
+		}
+	}
+
+	func testAllLiteEnhancedStatesReturn8MenubarFrames() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		for state in CodogotchiPet.liteEnhancedRowMap.keys {
+			let frames = pet.frames(for: state)
+			XCTAssertEqual(frames.count, 8, "\(state) must return 8 menubar frames from lite-enhanced sheet")
 		}
 	}
 
@@ -341,6 +398,34 @@ final class CodogotchiPetTests: XCTestCase {
 		XCTAssertGreaterThan(first.cgImage.height, 44)
 	}
 
+	func testFloatingFramesForEditingUseLiteEnhancedSourceCellResolution() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		let frames = pet.floatingFrames(for: .editing)
+		XCTAssertEqual(frames.count, 8, ".editing floating frames must be 8")
+		let first = try XCTUnwrap(frames.first)
+
+		let sheet = try XCTUnwrap(pet.liteEnhancedSheet, "lite-enhanced sheet must be loaded")
+		let sheetCG = try XCTUnwrap(sheet.cgImage(forProposedRect: nil, context: nil, hints: nil))
+		let cellW = sheetCG.width / CodogotchiPet.gridColumns
+		let cellH = sheetCG.height / 8
+
+		XCTAssertEqual(first.cgImage.width, cellW)
+		XCTAssertEqual(first.cgImage.height, cellH)
+		XCTAssertGreaterThan(first.cgImage.height, 44)
+	}
+
+	func testIdleEscalationFramesReturn8FloatingFramesFromLiteEnhancedSheet() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		XCTAssertEqual(
+			pet.floatingFrames(forIdleEscalation: .impatient).count,
+			8,
+			"idle-impatient row must return 8 source-cell frames from the lite-enhanced sheet")
+		XCTAssertEqual(
+			pet.floatingFrames(forIdleEscalation: .frustrated).count,
+			8,
+			"idle-frustrated row must return 8 source-cell frames from the lite-enhanced sheet")
+	}
+
 	// MARK: - Helpers
 
 	private func cgImagesPixelEqual(_ a: CGImage, _ b: CGImage) -> Bool {
@@ -388,8 +473,10 @@ final class CrossLoaderRowMapTests: XCTestCase {
 	}
 
 	func testCodogotchiLiteBasicAndSoaMapsCoverEveryNonIdleState() {
-		let all = Set(CodogotchiPet.liteBasicRowMap.keys).union(Set(CodogotchiPet.soaRowMap.keys))
+		let all = Set(CodogotchiPet.liteBasicRowMap.keys)
+			.union(Set(CodogotchiPet.liteEnhancedRowMap.keys))
+			.union(Set(CodogotchiPet.soaRowMap.keys))
 		XCTAssertEqual(all.count, ActivityState.allCases.count - 1,
-			"lite-basic + soa maps together must cover every non-idle v4 state")
+			"lite-basic + lite-enhanced + soa maps together must cover every non-idle v4 state")
 	}
 }

@@ -8,14 +8,18 @@ import Foundation
 ///     is the canonical Lite tier: revive + 7 core hook states + the dedicated
 ///     0-HP `ghost` row. States not painted in Lite-Basic alias to the closest
 ///     core row at the app level.
+///   - `codogotchi-lite-enhanced-spritesheet.webp` (1536×1664, 8 cols × 8 rows)
+///     is the additive Tier 3 sheet: idle-impatient, idle-frustrated, cramming,
+///     editing, git-ops, verifying, searching, web-search.
 ///   - `codogotchi-lite-spritesheet.webp` is deprecated and ignored by the renderer.
 ///   - `codogotchi-soa-spritesheet.webp` (1536×2080, 8 cols × 10 rows)
 ///     covers the 10 SoA gate states.
 ///
 /// Resolution for `frames(for:)`:
 ///   1. SoA sheet — checked first via `soaRowMap`.
-///   2. Lite-Basic sheet — checked second via `liteBasicRowMap`.
-///   3. Empty array — callers fall through to the Codex sheet (hook animation
+///   2. Lite-Enhanced sheet — checked second via `liteEnhancedRowMap`.
+///   3. Lite-Basic sheet — checked third via `liteBasicRowMap`.
+///   4. Empty array — callers fall through to the Codex sheet (hook animation
 ///      fallback; Phase 07 contract preserved).
 ///
 /// Either or both sheets may be absent (soft degrade): `init` succeeds,
@@ -29,6 +33,8 @@ final class CodogotchiPet {
 
 	/// Loaded lite-basic spritesheet. Nil when absent at load time (soft degrade).
 	let liteBasicSheet: NSImage?
+	/// Loaded lite-enhanced spritesheet. Nil when absent at load time (soft degrade).
+	let liteEnhancedSheet: NSImage?
 	/// Loaded SoA spritesheet. Nil when absent at load time (soft degrade).
 	let soaSheet: NSImage?
 
@@ -42,16 +48,25 @@ final class CodogotchiPet {
 		.thinking: RowSpec(rowIndex: 2, frameCount: 8),
 		.reading: RowSpec(rowIndex: 3, frameCount: 8),
 		.implementing: RowSpec(rowIndex: 4, frameCount: 8),
-		.editing: RowSpec(rowIndex: 4, frameCount: 8),
-		.gitOps: RowSpec(rowIndex: 4, frameCount: 8),
 		.testing: RowSpec(rowIndex: 5, frameCount: 8),
-		.verifying: RowSpec(rowIndex: 5, frameCount: 8),
 		.errored: RowSpec(rowIndex: 6, frameCount: 8),
 		.waitingForInput: RowSpec(rowIndex: 7, frameCount: 8),
-		.searching: RowSpec(rowIndex: 2, frameCount: 8),
-		.webSearch: RowSpec(rowIndex: 3, frameCount: 8),
-		.cramming: RowSpec(rowIndex: 3, frameCount: 8),
 	]
+
+	/// Lite-Enhanced row map: additive Tier 3 rows that override Lite-Basic
+	/// fallbacks when the enhanced sheet is installed.
+	static let liteEnhancedRowMap: [ActivityState: RowSpec] = [
+		.cramming: RowSpec(rowIndex: 2, frameCount: 8),
+		.editing: RowSpec(rowIndex: 3, frameCount: 8),
+		.gitOps: RowSpec(rowIndex: 4, frameCount: 8),
+		.verifying: RowSpec(rowIndex: 5, frameCount: 8),
+		.searching: RowSpec(rowIndex: 6, frameCount: 8),
+		.webSearch: RowSpec(rowIndex: 7, frameCount: 8),
+	]
+
+	/// Renderer-selected idle escalation rows on the Lite-Enhanced sheet.
+	static let idleImpatientEnhancedRow = RowSpec(rowIndex: 0, frameCount: 8)
+	static let idleFrustratedEnhancedRow = RowSpec(rowIndex: 1, frameCount: 8)
 
 	/// Dedicated 0-HP row on the Lite-Basic sheet.
 	static let ghostBasicRow = RowSpec(rowIndex: 8, frameCount: 8)
@@ -82,9 +97,12 @@ final class CodogotchiPet {
 	// MARK: - Internal
 
 	private let cgLiteBasicSheet: CGImage?
+	private let cgLiteEnhancedSheet: CGImage?
 	private let cgSoaSheet: CGImage?
 	private let liteBasicFrameWidth: Int
 	private let liteBasicFrameHeight: Int
+	private let liteEnhancedFrameWidth: Int
+	private let liteEnhancedFrameHeight: Int
 	private let soaFrameWidth: Int
 	private let soaFrameHeight: Int
 
@@ -155,6 +173,38 @@ final class CodogotchiPet {
 			self.liteBasicFrameHeight = 0
 		}
 
+		// Load lite-enhanced sheet (soft degrade when absent).
+		let liteEnhancedURL = dirURL.appendingPathComponent("codogotchi-lite-enhanced-spritesheet.webp")
+		if FileManager.default.fileExists(atPath: liteEnhancedURL.path) {
+			guard let img = NSImage(contentsOfFile: liteEnhancedURL.path) else {
+				throw CodexPetLoadError.spritesheetUnreadable
+			}
+			guard let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+				throw CodexPetLoadError.spritesheetUnreadable
+			}
+			let liteEnhancedRows = 8
+			guard
+				cg.width >= CodogotchiPet.gridColumns,
+				cg.height >= liteEnhancedRows,
+				cg.width % CodogotchiPet.gridColumns == 0,
+				cg.height % liteEnhancedRows == 0
+			else {
+				throw CodexPetLoadError.spritesheetIncompatibleGrid
+			}
+			self.liteEnhancedSheet = img
+			self.cgLiteEnhancedSheet = cg
+			self.liteEnhancedFrameWidth = cg.width / CodogotchiPet.gridColumns
+			self.liteEnhancedFrameHeight = cg.height / liteEnhancedRows
+		} else {
+			NSLog(
+				"CodogotchiPet: lite-enhanced sheet absent at %@ — enhanced states will fall through to lite-basic/Codex",
+				liteEnhancedURL.path)
+			self.liteEnhancedSheet = nil
+			self.cgLiteEnhancedSheet = nil
+			self.liteEnhancedFrameWidth = 0
+			self.liteEnhancedFrameHeight = 0
+		}
+
 		// Load SoA sheet (soft degrade when absent).
 		let soaURL = dirURL.appendingPathComponent("codogotchi-soa-spritesheet.webp")
 		if FileManager.default.fileExists(atPath: soaURL.path) {
@@ -189,6 +239,7 @@ final class CodogotchiPet {
 	}
 
 	var hasLiteBasicSheet: Bool { cgLiteBasicSheet != nil }
+	var hasLiteEnhancedSheet: Bool { cgLiteEnhancedSheet != nil }
 
 	// MARK: - Frame access
 
@@ -199,6 +250,11 @@ final class CodogotchiPet {
 		if let spec = CodogotchiPet.soaRowMap[state], let cg = cgSoaSheet {
 			return sliceFrames(
 				spec: spec, cgSheet: cg, fw: soaFrameWidth, fh: soaFrameHeight, output: .menubar)
+		}
+		if let spec = CodogotchiPet.liteEnhancedRowMap[state], let cg = cgLiteEnhancedSheet {
+			return sliceFrames(
+				spec: spec, cgSheet: cg, fw: liteEnhancedFrameWidth, fh: liteEnhancedFrameHeight,
+				output: .menubar)
 		}
 		if let spec = CodogotchiPet.liteBasicRowMap[state], let cg = cgLiteBasicSheet {
 			return sliceFrames(
@@ -217,6 +273,11 @@ final class CodogotchiPet {
 				spec: spec, cgSheet: cg, fw: soaFrameWidth, fh: soaFrameHeight,
 				output: .sourceCell)
 		}
+		if let spec = CodogotchiPet.liteEnhancedRowMap[state], let cg = cgLiteEnhancedSheet {
+			return sliceFrames(
+				spec: spec, cgSheet: cg, fw: liteEnhancedFrameWidth, fh: liteEnhancedFrameHeight,
+				output: .sourceCell)
+		}
 		if let spec = CodogotchiPet.liteBasicRowMap[state], let cg = cgLiteBasicSheet {
 			return sliceFrames(
 				spec: spec, cgSheet: cg, fw: liteBasicFrameWidth, fh: liteBasicFrameHeight,
@@ -225,11 +286,25 @@ final class CodogotchiPet {
 		return []
 	}
 
-	/// Lite-Basic intentionally has no idle-escalation rows. Idle falls through
-	/// to the Codex sheet for this tier.
+	/// Lite-Enhanced supplies the renderer-selected idle escalation rows.
 	func floatingFrames(forIdleEscalation level: IdleEscalation) -> [CodexPet.Frame] {
-		_ = level
-		return []
+		guard let cg = cgLiteEnhancedSheet else { return [] }
+		let spec: RowSpec
+		switch level {
+		case .none:
+			return []
+		case .impatient:
+			spec = CodogotchiPet.idleImpatientEnhancedRow
+		case .frustrated:
+			spec = CodogotchiPet.idleFrustratedEnhancedRow
+		}
+		return sliceFrames(
+			spec: spec,
+			cgSheet: cg,
+			fw: liteEnhancedFrameWidth,
+			fh: liteEnhancedFrameHeight,
+			output: .sourceCell
+		)
 	}
 
 	/// Source-cell frames for the dedicated 0-HP `ghost` row when the Lite-Basic
