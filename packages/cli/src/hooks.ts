@@ -117,6 +117,7 @@ async function resolveHookCommand(execPath?: string): Promise<string> {
 const CODOGOTCHI_EVENTS = [
   "UserPromptSubmit",
   "PreToolUse",
+  "PostToolUseFailure",
   "PermissionRequest",
   "Stop",
   "StopFailure",
@@ -135,6 +136,7 @@ const CURSOR_CODOGOTCHI_EVENTS = [
   "beforeShellExecution",
   "beforeMCPExecution",
   "afterShellExecution",
+  "postToolUseFailure",
   "stop",
   "sessionEnd",
 ] as const;
@@ -247,7 +249,9 @@ function cursorAnyWired(hooks: CursorHooksJson): boolean {
 const COPILOT_CODOGOTCHI_EVENTS = [
   "userPromptSubmitted",
   "preToolUse",
+  "postToolUseFailure",
   "agentStop",
+  "sessionEnd",
   "errorOccurred",
   "permissionRequest",
 ] as const;

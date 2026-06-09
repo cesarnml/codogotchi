@@ -58,7 +58,7 @@ final class DemoModeTests: XCTestCase {
 			apply: { state in observed.append(state) }
 		)
 
-		for _ in 0..<26 {
+		for _ in 0..<27 {
 			try driver.tickForTesting()
 		}
 
@@ -66,10 +66,10 @@ final class DemoModeTests: XCTestCase {
 			observed.first, .idle, "cycle must start at .idle"
 		)
 		XCTAssertEqual(
-			observed[24], .idle, "cycle must loop back to .idle after all 24 states"
+			observed[25], .idle, "cycle must loop back to .idle after all 25 states"
 		)
 		XCTAssertEqual(
-			observed[25], .implementing, "second wrap must resume at .implementing"
+			observed[26], .implementing, "second wrap must resume at .implementing"
 		)
 	}
 
@@ -178,10 +178,10 @@ final class DemoModeTests: XCTestCase {
 
 	// MARK: - P7.01: demo cycle covers all activity states
 
-	func testCycleDriverExposes24StatesInRotation() {
+	func testCycleDriverExposes25StatesInRotation() {
 		XCTAssertEqual(
-			DemoCycleDriver.cycle.count, 24,
-			"demo cycle must cover all 24 activity states"
+			DemoCycleDriver.cycle.count, 25,
+			"demo cycle must cover all 25 activity states"
 		)
 	}
 

@@ -268,7 +268,9 @@ could apply, the earlier row wins.
 | ------------------------------------------------------------------------------------------- | ------------------ |
 | `StopFailure` hook event (any error value)                                                  | `errored`          |
 | Cursor `postToolUseFailure` with `is_interrupt: false` (or absent)                          | `errored`          |
-| Cursor `postToolUseFailure` with `is_interrupt: true`                                       | `thinking`         |
+| `PostToolUseFailure` / Cursor `postToolUseFailure` with `is_interrupt: true`                | `idle`             |
+| Cursor `stop` with `status: aborted` / `canceled` / `cancelled`                             | `idle`             |
+| Copilot `sessionEnd` with `reason: abort` / `user_exit`                                     | `idle`             |
 | `Stop` / Cursor `stop` with `is_error: true`, `stop_reason: max_tokens`, or `status: error`| `errored`          |
 | `Stop` (success) / Cursor `stop` (success)                                                  | `standby`          |
 | `UserPromptSubmit` / Cursor `beforeSubmitPrompt` / Codex `user_prompt_submit`               | `thinking`         |

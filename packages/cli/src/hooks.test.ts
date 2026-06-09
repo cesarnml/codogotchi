@@ -652,6 +652,7 @@ describe("cursor hooks", () => {
       "beforeMCPExecution",
       "afterShellExecution",
       "beforeSubmitPrompt",
+      "postToolUseFailure",
       "stop",
       "sessionEnd",
     ]) {
@@ -815,8 +816,9 @@ describe("P7.03 StopFailure registration", () => {
     else process.env.CODOGOTCHI_USER_ROOT = prevUserRoot;
   });
 
-  it("Claude installer writes StopFailure hook slot", async () => {
-    // StopFailure must be in CODOGOTCHI_EVENTS and written to settings.json
+  it("Claude installer writes PostToolUseFailure and StopFailure hook slots", async () => {
+    // PostToolUseFailure (user interrupt during tools) and StopFailure must be
+    // in CODOGOTCHI_EVENTS and written to settings.json.
     await installHooks({
       home: "/home/user/.codogotchi",
     });
@@ -824,6 +826,7 @@ describe("P7.03 StopFailure registration", () => {
       join(userRoot, ".claude", "settings.json"),
       "utf8",
     );
+    expect(raw).toContain("PostToolUseFailure");
     expect(raw).toContain("StopFailure");
   });
 

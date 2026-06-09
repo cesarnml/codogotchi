@@ -211,6 +211,38 @@ final class FloatingPetControllerTests: XCTestCase {
 		)
 	}
 
+	func testResizeAffordanceRevealZoneIsLargerThanGrabTarget() {
+		let bounds = CGRect(x: 0, y: 0, width: 160, height: 160)
+		let grab = FloatingInteractionPolicy.resizeAffordanceRect(in: bounds)
+		let reveal = FloatingInteractionPolicy.resizeAffordanceRevealRect(in: bounds)
+
+		XCTAssertEqual(grab.size, FloatingInteractionPolicy.resizeAffordanceSize)
+		XCTAssertEqual(
+			reveal.size,
+			CGSize(
+				width: grab.width * FloatingInteractionPolicy.resizeAffordanceRevealMultiplier,
+				height: grab.height * FloatingInteractionPolicy.resizeAffordanceRevealMultiplier
+			)
+		)
+		XCTAssertEqual(reveal.maxX, bounds.maxX, accuracy: 0.001)
+		XCTAssertEqual(reveal.minY, bounds.minY, accuracy: 0.001)
+		XCTAssertTrue(reveal.contains(grab))
+	}
+
+	func testRevealZoneDoesNotWidenResizeGrabHitTest() {
+		let bounds = CGRect(x: 0, y: 0, width: 160, height: 160)
+		let reveal = FloatingInteractionPolicy.resizeAffordanceRevealRect(in: bounds)
+		let grab = FloatingInteractionPolicy.resizeAffordanceRect(in: bounds)
+		// Inside reveal, outside the 28×28 grab rect — should still drag, not resize.
+		let nearCorner = CGPoint(x: reveal.minX + 4, y: reveal.minY + 4)
+		XCTAssertTrue(reveal.contains(nearCorner))
+		XCTAssertFalse(grab.contains(nearCorner))
+		XCTAssertEqual(
+			FloatingInteractionPolicy.hitTest(point: nearCorner, in: bounds),
+			.dragRegion
+		)
+	}
+
 	func testPointerInBoundsUsesViewCoordinateSpace() {
 		let bounds = CGRect(x: 0, y: 0, width: 160, height: 160)
 		XCTAssertTrue(FloatingInteractionPolicy.pointerInBounds(CGPoint(x: 80, y: 80), bounds: bounds))

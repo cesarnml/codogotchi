@@ -1905,7 +1905,7 @@ describe("P7.03 terminal failure parity", () => {
     expect(out.state).toBe("errored");
   });
 
-  it("classifies Cursor postToolUseFailure (is_interrupt:true) as thinking", () => {
+  it("classifies Cursor postToolUseFailure (is_interrupt:true) as idle", () => {
     const out = classifyEvent(
       {
         hook_event_name: "postToolUseFailure",
@@ -1913,21 +1913,44 @@ describe("P7.03 terminal failure parity", () => {
       } as HookInput,
       { readRun: 0 },
     );
-    expect(out.state).toBe("thinking");
+    expect(out.state).toBe("idle");
     expect(out.state).not.toBe("errored");
   });
 
-  it("classifies Cursor postToolUseFailure (is_interrupt:true, tool_name Bash) as thinking", () => {
+  it("classifies Claude PostToolUseFailure (is_interrupt:true) as idle", () => {
     const out = classifyEvent(
       {
-        hook_event_name: "postToolUseFailure",
+        hook_event_name: "PostToolUseFailure",
         is_interrupt: true,
         tool_name: "Bash",
       } as HookInput,
       { readRun: 0 },
     );
-    expect(out.state).toBe("thinking");
+    expect(out.state).toBe("idle");
     expect(out.state).not.toBe("implementing");
+  });
+
+  it("classifies Cursor stop with status:aborted as idle", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "stop",
+        status: "aborted",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("idle");
+  });
+
+  it("classifies Copilot sessionEnd with reason:abort as idle", () => {
+    const out = classifyEvent(
+      {
+        hook_event_name: "sessionEnd",
+        reason: "abort",
+        origin: "vscode",
+      } as HookInput,
+      { readRun: 0 },
+    );
+    expect(out.state).toBe("idle");
   });
 
   it("normal Stop success still produces standby (no regression)", () => {

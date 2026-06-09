@@ -84,6 +84,8 @@ export type HookInput = {
   fullyIdle?: boolean;
   // Antigravity termination reason, e.g. "ERROR" (uppercase) on failure.
   terminationReason?: string;
+  // Copilot sessionEnd reason: complete | error | abort | timeout | user_exit.
+  reason?: string;
   // Antigravity workspace roots (camelCase; Cursor uses snake_case above).
   workspacePaths?: string[];
 };
@@ -511,6 +513,22 @@ function isFailureStopReason(reason: string | undefined): boolean {
   return reason !== undefined && FAILURE_STOP_REASONS.has(reason);
 }
 
+const USER_ABORT_STOP_STATUSES = new Set(["aborted", "canceled", "cancelled"]);
+
+function isUserAbortStopStatus(status: string | undefined): boolean {
+  return (
+    status !== undefined && USER_ABORT_STOP_STATUSES.has(status.toLowerCase())
+  );
+}
+
+const USER_ABORT_SESSION_REASONS = new Set(["abort", "user_exit"]);
+
+function isUserAbortSessionReason(reason: string | undefined): boolean {
+  return (
+    reason !== undefined && USER_ABORT_SESSION_REASONS.has(reason.toLowerCase())
+  );
+}
+
 // Output-only pipe stages (tail/head/grep filtering test output) must not
 // override the intent of the left-hand command in compound pipelines.
 const PIPE_OUTPUT_FILTER_PREFIXES = [
@@ -717,9 +735,10 @@ export function classifyEvent(
   if (rawEventName === "posttoolusefailure" && input.is_interrupt !== true) {
     return { state: "errored", sourceEvent, readRun: 0 };
   }
-  // User-interrupted tool calls are not failures; avoid Bash/Shell implementing fallback.
+  // User-interrupted tool calls are not failures — return to idle so the pet
+  // does not linger on implementing/editing from the interrupted PreToolUse.
   if (rawEventName === "posttoolusefailure" && input.is_interrupt === true) {
-    return { state: "thinking", sourceEvent, readRun: 0 };
+    return { state: "idle", sourceEvent, readRun: 0 };
   }
   // Antigravity Stop: fullyIdle semantics differ from Claude/Cursor.
   // fullyIdle===false means background tasks are still running — do not assert standby.
@@ -744,8 +763,11 @@ export function classifyEvent(
     return { state: "thinking", sourceEvent, readRun: 0 };
   }
 
-  // Stop: success → standby; failure (is_error, stop_reason, or Cursor status:error) → errored.
+  // Stop: user abort → idle; success → standby; failure → errored.
   if (rawEventName === "stop") {
+    if (isUserAbortStopStatus(input.status)) {
+      return { state: "idle", sourceEvent, readRun: 0 };
+    }
     if (
       input.is_error === true ||
       isFailureStopReason(input.stop_reason) ||
@@ -788,8 +810,18 @@ export function classifyEvent(
     return { state: "thinking", sourceEvent, readRun: 0 };
   }
 
-  // Copilot agentStop / sessionEnd: clean turn finish → standby.
-  if (rawEventName === "agentstop" || rawEventName === "sessionend") {
+  // Copilot sessionEnd: user abort/exit → idle; API error → errored; else standby.
+  if (rawEventName === "sessionend") {
+    if (isUserAbortSessionReason(input.reason)) {
+      return { state: "idle", sourceEvent, readRun: 0 };
+    }
+    if (input.reason?.toLowerCase() === "error") {
+      return { state: "errored", sourceEvent, readRun: 0 };
+    }
+    return { state: "standby", sourceEvent, readRun: 0 };
+  }
+  // Copilot agentStop: clean turn finish → standby.
+  if (rawEventName === "agentstop") {
     return { state: "standby", sourceEvent, readRun: 0 };
   }
 

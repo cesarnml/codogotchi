@@ -1578,6 +1578,10 @@ enum FloatingInteractionHitTarget: Equatable {
 
 enum FloatingInteractionPolicy {
 	static let resizeAffordanceSize = CGSize(width: 28, height: 28)
+	/// Enlarged hover/reveal zone (frame bottom-right anchored). Grab hit-testing
+	/// stays on `resizeAffordanceRect` so accidental resizes near the corner are
+	/// unlikely.
+	static let resizeAffordanceRevealMultiplier: CGFloat = 3
 
 	static func hitTest(point: CGPoint, in bounds: CGRect) -> FloatingInteractionHitTarget {
 		if resizeAffordanceRect(in: bounds).contains(point) {
@@ -1592,6 +1596,20 @@ enum FloatingInteractionPolicy {
 			y: bounds.minY,
 			width: resizeAffordanceSize.width,
 			height: resizeAffordanceSize.height
+		)
+	}
+
+	/// Bottom-right anchored zone used for hover/reveal and affordance tracking.
+	/// Larger than `resizeAffordanceRect` so the handle lights up when the cursor
+	/// is nearby; does not widen the grab target.
+	static func resizeAffordanceRevealRect(in bounds: CGRect) -> CGRect {
+		let revealWidth = resizeAffordanceSize.width * resizeAffordanceRevealMultiplier
+		let revealHeight = resizeAffordanceSize.height * resizeAffordanceRevealMultiplier
+		return CGRect(
+			x: bounds.maxX - revealWidth,
+			y: bounds.minY,
+			width: revealWidth,
+			height: revealHeight
 		)
 	}
 
@@ -2238,9 +2256,9 @@ private final class FloatingPetInteractionView: NSView {
 		addTrackingArea(boundsArea)
 		boundsTrackingArea = boundsArea
 
-		let affordanceRect = FloatingInteractionPolicy.resizeAffordanceRect(in: bounds)
+		let affordanceRevealRect = FloatingInteractionPolicy.resizeAffordanceRevealRect(in: bounds)
 		let affordanceArea = NSTrackingArea(
-			rect: affordanceRect,
+			rect: affordanceRevealRect,
 			options: [
 				.activeAlways,
 				.mouseEnteredAndExited,
@@ -2267,21 +2285,21 @@ private final class FloatingPetInteractionView: NSView {
 			return
 		}
 		let inBounds = FloatingInteractionPolicy.pointerInBounds(localPoint, bounds: bounds)
-		let inAffordanceRect = FloatingInteractionPolicy.resizeAffordanceRect(in: bounds)
+		let inRevealRect = FloatingInteractionPolicy.resizeAffordanceRevealRect(in: bounds)
 			.contains(localPoint)
 		let wasInBounds = pointerInsideFrame
 		pointerInsideFrame = inBounds
 		if inBounds != wasInBounds {
 			onHoverChange?(inBounds)
 		}
-		if inAffordanceRect {
+		if inRevealRect {
 			affordanceHoverActive = true
 		} else if !isResizing {
 			affordanceHoverActive = false
 		}
 		updateOverlayVisuals(
 			localPoint: localPoint,
-			pointerInAffordance: affordanceHoverActive || inAffordanceRect,
+			pointerInAffordance: affordanceHoverActive || inRevealRect,
 			reason: reason
 		)
 		onPointerUpdate?()

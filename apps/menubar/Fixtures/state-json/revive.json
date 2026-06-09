@@ -1,0 +1,10 @@
+{
+  "schema_version": 6,
+  "activity_state": "idle",
+  "updated_at": "2026-06-08T00:00:00.000Z",
+  "level": 1,
+  "level_fraction": 0.0,
+  "half_hearts": 6,
+  "last_activity_at": null,
+  "revive_until": "2099-01-01T00:00:00.000Z"
+}
