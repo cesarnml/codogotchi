@@ -1581,7 +1581,7 @@ enum FloatingInteractionPolicy {
 	/// Enlarged hover/reveal zone (frame bottom-right anchored). Grab hit-testing
 	/// stays on `resizeAffordanceRect` so accidental resizes near the corner are
 	/// unlikely.
-	static let resizeAffordanceRevealMultiplier: CGFloat = 3
+	static let resizeAffordanceRevealMultiplier: CGFloat = 2
 
 	static func hitTest(point: CGPoint, in bounds: CGRect) -> FloatingInteractionHitTarget {
 		if resizeAffordanceRect(in: bounds).contains(point) {
