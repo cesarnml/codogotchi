@@ -149,19 +149,17 @@ final class GateJsonReaderTests: XCTestCase {
 
 	// MARK: - resolveReviveState (v6 revive override)
 
-	func testFutureReviveUntilOverridesToTicketStarted() {
-		// A revive window in the future borrows the ticket_started row (placeholder
-		// art) regardless of the base state. codogotchiPet nil → sheet guard passes.
+	func testFutureReviveUntilOverridesToRevive() {
 		let result = resolveReviveState(
 			base: .implementing, reviveUntil: futureDate(), now: Date())
-		XCTAssertEqual(result, .ticketStarted, "active revive window must render the placeholder revive row")
+		XCTAssertEqual(result, .revive, "active revive window must render the dedicated revive row")
 	}
 
 	func testFutureReviveUntilWholeSecondsFormOverrides() {
 		// Whole-seconds ISO 8601 (no fractional millis) must also parse.
 		let result = resolveReviveState(
 			base: .idle, reviveUntil: "2099-01-01T00:00:00Z", now: Date())
-		XCTAssertEqual(result, .ticketStarted, "whole-seconds revive_until must parse and override")
+		XCTAssertEqual(result, .revive, "whole-seconds revive_until must parse and override")
 	}
 
 	func testExpiredReviveUntilRendersBaseState() {
@@ -180,11 +178,9 @@ final class GateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(result, .editing, "unparseable revive_until must not override")
 	}
 
-	func testReviveWithSoaSheetAbsentDoesNotOverride() throws {
-		// Placeholder art lives on the SoA sheet; lite-only users (sheet absent)
-		// keep their base animation rather than rendering a blank ticket_started row.
+	func testReviveWithLiteBasicSheetAbsentDoesNotOverride() throws {
 		let tmp = FileManager.default.temporaryDirectory
-			.appendingPathComponent("no-soa-sheet-revive-\(UUID().uuidString)")
+			.appendingPathComponent("no-lite-basic-sheet-revive-\(UUID().uuidString)")
 		try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
 		defer { try? FileManager.default.removeItem(at: tmp) }
 		let petJson = """
@@ -193,13 +189,14 @@ final class GateJsonReaderTests: XCTestCase {
 		try petJson.data(using: .utf8)!.write(to: tmp.appendingPathComponent("pet.json"))
 
 		let pet = try CodogotchiPet(petDirectory: tmp.path)
-		XCTAssertNil(pet.soaSheet, "fixture must have no SoA sheet for this test to be meaningful")
+		XCTAssertNil(
+			pet.liteBasicSheet, "fixture must have no Lite-Basic sheet for this test to be meaningful")
 
 		let result = resolveReviveState(
 			base: .implementing, reviveUntil: futureDate(), codogotchiPet: pet, now: Date())
 		XCTAssertEqual(
 			result, .implementing,
-			"revive must not override when the SoA sheet (placeholder art source) is absent")
+			"revive must not override when the Lite-Basic revive row is absent")
 	}
 
 	// MARK: - Persistent gate badge

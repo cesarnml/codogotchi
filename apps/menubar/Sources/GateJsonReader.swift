@@ -138,13 +138,9 @@ func resolveActivityState(
 /// future, the renderer plays the revive celebration on top of whatever state
 /// the gate/hook resolver produced.
 ///
-/// Placeholder art: until the Tier 2/3 codogotchi sheets ship a dedicated
-/// `revive` row, the celebration borrows the SoA `ticket_started` row. Because
-/// that row lives on the SoA sheet, the override only applies when the sheet is
-/// loaded (mirroring `resolveActivityState`'s sheet guard) — lite-only users
-/// without the SoA sheet keep their normal animation rather than rendering a
-/// blank row. Swap the returned `.ticketStarted` for a `.revive` case here once
-/// the dedicated art exists.
+/// The celebration uses the dedicated Lite-Basic `revive` row when that sheet
+/// is loaded; otherwise the base state is preserved so the renderer does not
+/// point at a missing row.
 func resolveReviveState(
 	base: ActivityState,
 	reviveUntil: String?,
@@ -154,11 +150,11 @@ func resolveReviveState(
 	guard let reviveUntil,
 		let expiry = parseGateISO8601Date(reviveUntil),
 		expiry > now,
-		codogotchiPet == nil || codogotchiPet?.soaSheet != nil
+		codogotchiPet == nil || codogotchiPet?.liteBasicSheet != nil
 	else {
 		return base
 	}
-	return .ticketStarted
+	return .revive
 }
 
 /// Two-pass ISO 8601 parse (fractional-seconds first, whole-seconds fallback)

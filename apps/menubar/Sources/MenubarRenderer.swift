@@ -19,7 +19,7 @@ enum VisualMode: Equatable {
 /// `NSStatusItem`, painting a single static hero frame per active state.
 ///
 /// Resolution order for any `ActivityState`:
-/// 1. `CodogotchiPet` (SoA sheet → lite sheet) — checked first.
+/// 1. `CodogotchiPet` (SoA sheet → Lite-Basic sheet) — checked first.
 /// 2. `CodexPet` (Codex sheet) — fallback when CodogotchiPet returns empty.
 /// 3. Idle fallback — `.idle` frames from the Codex sheet when both return empty.
 ///

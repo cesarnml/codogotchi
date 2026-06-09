@@ -45,12 +45,13 @@ final class CodogotchiPetTests: XCTestCase {
 
 	// MARK: - liteBasicRowMap coverage
 
-	func testLiteBasicRowMapHasExactly13HookStates() {
-		XCTAssertEqual(CodogotchiPet.liteBasicRowMap.count, 13)
+	func testLiteBasicRowMapHasExactly14HookStates() {
+		XCTAssertEqual(CodogotchiPet.liteBasicRowMap.count, 14)
 	}
 
-	func testLiteBasicRowMapCoversNonIdleHookStates() {
+	func testLiteBasicRowMapCoversReviveAndNonIdleHookStates() {
 		let expected: Set<ActivityState> = [
+			.revive,
 			.standby, .errored, .waitingForInput,
 			.implementing, .editing, .searching, .webSearch, .verifying, .gitOps,
 			.testing, .thinking, .reading, .cramming,
@@ -66,6 +67,9 @@ final class CodogotchiPetTests: XCTestCase {
 
 	func testLiteBasicDoesNotClaimIdle() {
 		XCTAssertNil(CodogotchiPet.liteBasicRowMap[.idle])
+	}
+	func testLiteBasicRowReviveIsRow0() {
+		XCTAssertEqual(CodogotchiPet.liteBasicRowMap[.revive]?.rowIndex, 0)
 	}
 	func testLiteBasicRowStandbyIsRow1() {
 		XCTAssertEqual(CodogotchiPet.liteBasicRowMap[.standby]?.rowIndex, 1)
@@ -223,6 +227,12 @@ final class CodogotchiPetTests: XCTestCase {
 		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
 		XCTAssertEqual(
 			pet.frames(for: .idle).count, 0, ".idle must fall through to the Codex sheet")
+	}
+
+	func testReviveReturns8FramesFromLiteBasicSheet() throws {
+		let pet = try CodogotchiPet(petDirectory: maewFixtureDirectory())
+		XCTAssertEqual(
+			pet.frames(for: .revive).count, 8, ".revive must return 8 frames from the lite-basic sheet")
 	}
 
 	func testTicketStartedReturns8FramesFromSoaSheet() throws {

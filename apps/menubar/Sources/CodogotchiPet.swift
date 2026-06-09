@@ -34,9 +34,10 @@ final class CodogotchiPet {
 
 	// MARK: - Row maps
 
-	/// Lite-Basic row map: revive is renderer-selected and idle falls through to
-	/// the Codex sheet, so only non-idle activity states are mapped here.
+	/// Lite-Basic row map: idle falls through to the Codex sheet, while revive
+	/// and the non-idle activity states are mapped here.
 	static let liteBasicRowMap: [ActivityState: RowSpec] = [
+		.revive: RowSpec(rowIndex: 0, frameCount: 8),
 		.standby: RowSpec(rowIndex: 1, frameCount: 8),
 		.thinking: RowSpec(rowIndex: 2, frameCount: 8),
 		.reading: RowSpec(rowIndex: 3, frameCount: 8),

@@ -13,6 +13,7 @@ import Foundation
 enum ActivityState: String, Equatable, Codable, CaseIterable {
 	// Floor / hook states
 	case idle = "idle"
+	case revive = "revive"
 	case standby = "standby"
 	case errored = "errored"
 	case waitingForInput = "waiting_for_input"
@@ -51,6 +52,7 @@ enum ActivityState: String, Equatable, Codable, CaseIterable {
 	var displayLabel: String {
 		switch self {
 		case .idle: return "Idle"
+		case .revive: return "Revive"
 		case .standby: return "Standby"
 		case .errored: return "Error"
 		case .waitingForInput: return "Waiting"

@@ -194,7 +194,7 @@ final class LivePollingTests: XCTestCase {
 		)
 	}
 
-	func testFutureReviveUntilRendersTicketStartedPlaceholderRow() throws {
+	func testFutureReviveUntilRendersReviveRow() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
 		// v6 payload with an active revive window; base activity is implementing.
@@ -205,8 +205,8 @@ final class LivePollingTests: XCTestCase {
 		driver.tickForTesting()
 
 		XCTAssertEqual(
-			recorder.renders.map { $0.0 }, [.ticketStarted],
-			"an active revive window must render the ticket_started placeholder row over the hook state")
+			recorder.renders.map { $0.0 }, [.revive],
+			"an active revive window must render the dedicated revive row over the hook state")
 		XCTAssertEqual(recorder.renders.map { $0.1 }, [.normal])
 	}
 
