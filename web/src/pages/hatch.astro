@@ -31,11 +31,32 @@ const steps = [
   description="hatch-codogotchi is a Codex/Claude skill that generates a complete animated Codogotchi from a seed image or a plain-text description."
 >
   <section class="max-w-5xl mx-auto px-6 pt-12 pb-6 text-center flex flex-col items-center gap-5">
-    <div
-      class="relative w-40 h-40 rounded-full bg-surface-container-highest sticker-card flex items-center justify-center overflow-hidden -rotate-2"
-    >
-      <span class="text-7xl">🥚</span>
-      <span class="material-symbols-outlined absolute top-3 right-4 text-3xl text-gold-leaf animate-bounce">auto_awesome</span>
+    <div class="hatch-hero relative w-60 h-60 md:w-72 md:h-72 flex items-center justify-center">
+      <div
+        class="relative w-48 h-48 md:w-56 md:h-56 rounded-full bg-surface-container-highest sticker-card overflow-hidden -rotate-2 z-10"
+      >
+        <img
+          src="/assets/hatch-maew.webp"
+          alt="Maew the Codogotchi bursting out of a cracked egg in a shower of golden sparkles"
+          width="640"
+          height="640"
+          class="w-full h-full object-cover"
+          loading="eager"
+          decoding="async"
+        />
+      </div>
+
+      <!-- sparkle storm: inline SVG, no icon font -->
+      <svg class="sparkle text-gold-leaf" style="top:-6%;left:50%;width:34px;animation-delay:0s" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 0c1 7.2 3.8 10 11 12-7.2 1-10 3.8-11 12-1-8.2-3.8-11-11-12 7.2-2 10-4.8 11-12Z"/></svg>
+      <svg class="sparkle text-gold-leaf" style="top:14%;left:-8%;width:22px;animation-delay:.5s" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 0c1 7.2 3.8 10 11 12-7.2 1-10 3.8-11 12-1-8.2-3.8-11-11-12 7.2-2 10-4.8 11-12Z"/></svg>
+      <svg class="sparkle text-gold-leaf" style="top:6%;left:104%;width:28px;animation-delay:1.1s" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 0c1 7.2 3.8 10 11 12-7.2 1-10 3.8-11 12-1-8.2-3.8-11-11-12 7.2-2 10-4.8 11-12Z"/></svg>
+      <svg class="sparkle text-gold-leaf" style="top:48%;left:-12%;width:16px;animation-delay:.8s" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 0c1 7.2 3.8 10 11 12-7.2 1-10 3.8-11 12-1-8.2-3.8-11-11-12 7.2-2 10-4.8 11-12Z"/></svg>
+      <svg class="sparkle text-gold-leaf" style="top:52%;left:108%;width:20px;animation-delay:1.6s" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 0c1 7.2 3.8 10 11 12-7.2 1-10 3.8-11 12-1-8.2-3.8-11-11-12 7.2-2 10-4.8 11-12Z"/></svg>
+      <svg class="sparkle text-gold-leaf" style="top:90%;left:8%;width:26px;animation-delay:.3s" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 0c1 7.2 3.8 10 11 12-7.2 1-10 3.8-11 12-1-8.2-3.8-11-11-12 7.2-2 10-4.8 11-12Z"/></svg>
+      <svg class="sparkle text-gold-leaf" style="top:96%;left:54%;width:18px;animation-delay:1.3s" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 0c1 7.2 3.8 10 11 12-7.2 1-10 3.8-11 12-1-8.2-3.8-11-11-12 7.2-2 10-4.8 11-12Z"/></svg>
+      <svg class="sparkle text-gold-leaf" style="top:86%;left:96%;width:24px;animation-delay:1.9s" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 0c1 7.2 3.8 10 11 12-7.2 1-10 3.8-11 12-1-8.2-3.8-11-11-12 7.2-2 10-4.8 11-12Z"/></svg>
+      <svg class="sparkle text-gold-leaf" style="top:30%;left:96%;width:13px;animation-delay:.65s" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 0c1 7.2 3.8 10 11 12-7.2 1-10 3.8-11 12-1-8.2-3.8-11-11-12 7.2-2 10-4.8 11-12Z"/></svg>
+      <svg class="sparkle text-gold-leaf" style="top:72%;left:-6%;width:13px;animation-delay:2.1s" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 0c1 7.2 3.8 10 11 12-7.2 1-10 3.8-11 12-1-8.2-3.8-11-11-12 7.2-2 10-4.8 11-12Z"/></svg>
     </div>
     <h1 class="font-display text-3xl md:text-4xl font-extrabold text-primary">
       Hatch a pet — no pixel-art skills required.
@@ -164,6 +185,24 @@ const steps = [
       <span class="material-symbols-outlined">arrow_forward</span>
     </a>
   </section>
+
+  <style>
+    .hatch-hero .sparkle {
+      position: absolute;
+      transform: translate(-50%, -50%) scale(0.4);
+      opacity: 0;
+      filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-gold-leaf, #d4af37) 60%, transparent));
+      animation: sparkle-twinkle 2.6s ease-in-out infinite;
+      will-change: transform, opacity;
+    }
+    @keyframes sparkle-twinkle {
+      0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(0deg); }
+      50% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(45deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hatch-hero .sparkle { animation: none; opacity: 0.9; transform: translate(-50%, -50%) scale(0.85); }
+    }
+  </style>
 
   <script>
     document.querySelectorAll<HTMLButtonElement>(".copy-btn").forEach((btn) => {
