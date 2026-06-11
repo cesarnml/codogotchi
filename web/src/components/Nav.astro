@@ -22,7 +22,7 @@ const links = [
   >
     <a
       href="/"
-      class="font-display text-2xl text-primary font-extrabold flex items-center gap-2 hover:scale-105 transition-transform"
+      class="font-display text-xl md:text-2xl text-primary font-extrabold flex items-center gap-2 hover:scale-105 transition-transform shrink-0"
     >
       <span class="material-symbols-outlined fill text-[28px]">pets</span>
       Codogotchi
@@ -46,20 +46,22 @@ const links = [
       }
     </div>
 
-    <div class="hidden md:flex items-center gap-3">
+    <!-- Single AuthWidget for all viewports: each instance mounts its own
+         ConvexAuthProvider, and two providers racing setAuth on the shared
+         client leaves one stuck in isLoading (blank widget). Keep exactly one. -->
+    <div class="flex items-center gap-3">
       <AuthWidget client:only="react" />
       <a
         href="/download"
-        class="squishy-btn bg-primary-container text-on-primary-container font-display font-bold text-sm px-5 py-2 rounded-full flex items-center gap-1.5"
+        class="hidden md:flex squishy-btn bg-primary-container text-on-primary-container font-display font-bold text-sm px-5 py-2 rounded-full items-center gap-1.5"
       >
         <span class="material-symbols-outlined text-[18px]">download</span>
         Download
       </a>
+      <button class="md:hidden text-charcoal-ink" aria-label="Menu" id="menu-toggle">
+        <span class="material-symbols-outlined">menu</span>
+      </button>
     </div>
-
-    <button class="md:hidden text-charcoal-ink" aria-label="Menu" id="menu-toggle">
-      <span class="material-symbols-outlined">menu</span>
-    </button>
   </div>
 
   <div
@@ -77,9 +79,6 @@ const links = [
         </a>
       ))
     }
-    <div class="mt-2">
-      <AuthWidget client:only="react" />
-    </div>
     <a
       href="/download"
       class="mt-2 squishy-btn bg-primary-container text-on-primary-container font-display font-bold text-sm px-5 py-2 rounded-full text-center"

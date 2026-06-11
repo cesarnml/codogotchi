@@ -95,7 +95,7 @@ function AuthWidgetInner() {
         <button
           type="button"
           onClick={() => setModalOpen(true)}
-          className="squishy-btn bg-surface-container-lowest border-2 border-charcoal-ink font-display font-bold text-sm px-5 py-2 rounded-full flex items-center gap-1.5"
+          className="squishy-btn bg-surface-container-lowest border-2 border-charcoal-ink font-display font-bold text-sm px-4 md:px-5 py-2 rounded-full flex items-center gap-1.5 whitespace-nowrap"
         >
           <span className="material-symbols-outlined text-[18px]">login</span>
           Sign in
@@ -115,7 +115,7 @@ function AuthWidgetInner() {
       <button
         type="button"
         onClick={() => setMenuOpen((o) => !o)}
-        className="squishy-btn bg-surface-container-lowest border-2 border-charcoal-ink font-display font-bold text-sm px-4 py-2 rounded-full flex items-center gap-1.5"
+        className="squishy-btn bg-surface-container-lowest border-2 border-charcoal-ink font-display font-bold text-sm px-4 py-2 rounded-full flex items-center gap-1.5 whitespace-nowrap"
       >
         <span className="material-symbols-outlined text-[18px]">person</span>
         {currentUser ? `@${currentUser.username}` : "Account"}
