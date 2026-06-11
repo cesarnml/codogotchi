@@ -128,26 +128,33 @@ function AuthWidgetInner() {
         {currentUser ? `@${currentUser.username}` : "Account"}
       </button>
       {menuOpen && (
-        <div className="absolute right-0 mt-2 w-44 bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl shadow-[0_4px_0_0_var(--color-charcoal-ink)] py-2 flex flex-col">
-          <a
-            href="/upload"
-            className="px-4 py-2 text-sm font-medium hover:bg-surface-container flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-[18px]">upload</span>
-            Upload a pet
-          </a>
-          <button
-            type="button"
-            onClick={() => {
-              setMenuOpen(false);
-              void signOut();
-            }}
-            className="px-4 py-2 text-sm font-medium text-left hover:bg-surface-container flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-[18px]">logout</span>
-            Sign out
-          </button>
-        </div>
+        <>
+          <div
+            className="fixed inset-0 z-0"
+            onClick={() => setMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="absolute right-0 mt-2 w-44 z-10 bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl shadow-[0_4px_0_0_var(--color-charcoal-ink)] py-2 flex flex-col">
+            <a
+              href="/upload"
+              className="px-4 py-2 text-sm font-medium hover:bg-surface-container flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">upload</span>
+              Upload a pet
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                void signOut();
+              }}
+              className="px-4 py-2 text-sm font-medium text-left hover:bg-surface-container flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">logout</span>
+              Sign out
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

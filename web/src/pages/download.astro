@@ -3,6 +3,7 @@ import Base from "../layouts/Base.astro";
 
 const GITHUB_RELEASE_URL =
   "https://github.com/cesarnml/codogotchi/releases/latest/download/Codogotchi.dmg";
+const CONVEX_SITE = "https://careful-bat-587.convex.site";
 const VERSION = "1.0.0";
 ---
 
@@ -35,6 +36,7 @@ const VERSION = "1.0.0";
     <!-- Primary CTA -->
     <a
       href={GITHUB_RELEASE_URL}
+      id="dmg-download-btn"
       class="squishy-btn bg-primary text-on-primary font-display font-bold text-lg px-10 py-4 rounded-full flex items-center gap-3 shadow-[4px_4px_0_0_var(--color-charcoal-ink)]"
     >
       <span class="material-symbols-outlined text-[24px]">download</span>
@@ -152,6 +154,12 @@ const VERSION = "1.0.0";
           }
         } catch {}
       });
+    });
+  </script>
+
+  <script is:inline define:vars={{ CONVEX_SITE }}>
+    document.getElementById("dmg-download-btn")?.addEventListener("click", () => {
+      fetch(`${CONVEX_SITE}/track-dmg-download`, { method: "POST" }).catch(() => {});
     });
   </script>
 </Base>

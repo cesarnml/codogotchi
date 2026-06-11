@@ -110,5 +110,9 @@ const structuredData = [
       <slot />
     </main>
     <Footer active={active} />
+    <script>
+      import { inject } from "@vercel/analytics";
+      inject();
+    </script>
   </body>
 </html>

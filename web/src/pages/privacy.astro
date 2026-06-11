@@ -1,7 +1,7 @@
 ---
 import Base from "../layouts/Base.astro";
 
-const updated = "June 7, 2026";
+const updated = "June 11, 2026";
 
 const toc = [
   { id: "what-we-collect", label: "What we collect" },
@@ -103,6 +103,23 @@ const toc = [
           </div>
           <div class="sticker-card bg-surface-container-lowest rounded-xl p-5">
             <h3 class="font-display font-bold text-on-surface mb-1">
+              Site analytics
+            </h3>
+            <p>
+              This site uses <a
+                href="https://vercel.com/analytics"
+                class="text-primary font-bold underline"
+                rel="noopener noreferrer"
+                target="_blank">Vercel Web Analytics</a
+              > to collect aggregate page-view and visitor counts. Vercel Analytics
+              is cookieless and does not track individuals across sites — it uses
+              hashed, anonymised signals rather than persistent identifiers. No
+              personal data is shared with Vercel beyond what your browser sends in
+              a normal HTTP request.
+            </p>
+          </div>
+          <div class="sticker-card bg-surface-container-lowest rounded-xl p-5">
+            <h3 class="font-display font-bold text-on-surface mb-1">
               What we do <em>not</em> collect
             </h3>
             <p>
@@ -110,9 +127,11 @@ const toc = [
                 >npx codogotchi add</code
               >, curl, or direct <code class="font-mono text-sm text-primary">.zip</code
               > does not require an account and is not tied to your identity — we
-              count downloads in aggregate only. We do not run advertising or
-              third-party analytics, and the gallery sets no tracking cookies. The
-              desktop app's local RPG data stays on your machine under
+              count downloads in aggregate only. Clicking the macOS DMG download
+              button records a single timestamp (no IP address or other identifier)
+              so we can count installs. We do not run advertising or behavioural
+              tracking, and the gallery sets no tracking cookies. The desktop app's
+              local RPG data stays on your machine under
               <code class="font-mono text-sm text-primary">~/.codogotchi</code> and
               is governed by the app, not this gallery.
             </p>
