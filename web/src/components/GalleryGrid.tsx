@@ -1,6 +1,14 @@
 import { usePaginatedQuery } from "convex/react";
 import { api } from "~convex/_generated/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  CODEX_ROWS,
+  type LoadedSheet,
+  loadPetSheets,
+  previewZipUrl,
+  SHEET_COLS,
+} from "../lib/petSheets";
+import SpriteAnimation from "./SpriteAnimation";
 
 const TIER_LABELS: Record<string, string> = {
   codex: "Codex",
@@ -26,9 +34,69 @@ type GalleryPet = {
   thumbnailUrl: string | null;
 };
 
+// Animated idle-cycle thumbnail for a gallery card. Falls back to the static
+// thumbnail (if uploaded) and finally the paw placeholder while loading.
+function CardSprite({
+  petId,
+  apiBase,
+  displayName,
+  thumbnailUrl,
+}: {
+  petId: string;
+  apiBase: string;
+  displayName: string;
+  thumbnailUrl: string | null;
+}) {
+  const [sheet, setSheet] = useState<LoadedSheet | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadPetSheets(previewZipUrl(petId, apiBase))
+      .then((loaded) => {
+        if (cancelled) return;
+        const codex = loaded.codex ?? null;
+        setSheet(codex);
+        if (!codex) setFailed(true);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [petId, apiBase]);
+
+  if (sheet) {
+    return (
+      <SpriteAnimation
+        sheetUrl={sheet.url}
+        frameW={sheet.frameW}
+        frameH={sheet.frameH}
+        totalCols={SHEET_COLS}
+        totalRows={CODEX_ROWS}
+        row={0}
+        displaySize={144}
+      />
+    );
+  }
+  if (failed && thumbnailUrl) {
+    return (
+      <img
+        src={thumbnailUrl}
+        alt={displayName}
+        className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+      />
+    );
+  }
+  return <span className="text-5xl group-hover:scale-110 transition-transform">🐾</span>;
+}
+
 export default function GalleryGrid({
+  apiBase,
   onSelectPet,
 }: {
+  apiBase: string;
   onSelectPet: (petId: string) => void;
 }) {
   const [search, setSearch] = useState("");
@@ -93,15 +161,12 @@ export default function GalleryGrid({
           >
             {/* Thumbnail */}
             <div className="menubar-inset rounded-xl h-44 flex items-center justify-center relative overflow-hidden">
-              {pet.thumbnailUrl ? (
-                <img
-                  src={pet.thumbnailUrl}
-                  alt={pet.displayName}
-                  className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                />
-              ) : (
-                <span className="text-5xl group-hover:scale-110 transition-transform">🐾</span>
-              )}
+              <CardSprite
+                petId={pet.petId}
+                apiBase={apiBase}
+                displayName={pet.displayName}
+                thumbnailUrl={pet.thumbnailUrl}
+              />
             </div>
 
             {/* Info */}

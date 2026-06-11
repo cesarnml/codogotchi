@@ -70,9 +70,13 @@ http.route({
     }
     const petId = segments[1];
 
-    // Atomic check: verifies listed + increments downloadCount in one mutation.
-    // Returns null for unlisted or missing pets; returns { zipStorageId } otherwise.
-    const claim = await ctx.runMutation(internal.pets.claimDownload, { petId });
+    // ?preview=1 — in-browser animation previews (gallery cards, detail page).
+    // Skips the downloadCount increment so page views never skew install
+    // metrics, and is cacheable since it's a pure read.
+    const isPreview = url.searchParams.get("preview") === "1";
+    const claim = isPreview
+      ? await ctx.runQuery(internal.pets.getZipForPreview, { petId })
+      : await ctx.runMutation(internal.pets.claimDownload, { petId });
     if (!claim) {
       return jsonError(404, { error: "not_found" });
     }
@@ -87,9 +91,10 @@ http.route({
       headers: {
         "content-type": "application/zip",
         "content-disposition": `attachment; filename="${petId}.codogotchi-pet.zip"`,
-        // Public, unauthenticated asset: lets the gallery detail page fetch
-        // the zip in-browser to render animation previews.
+        // Public, unauthenticated asset: lets the gallery pages fetch the zip
+        // in-browser to render animation previews.
         "access-control-allow-origin": "*",
+        ...(isPreview ? { "cache-control": "public, max-age=3600" } : {}),
       },
     });
   }),

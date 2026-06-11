@@ -112,6 +112,22 @@ export const claimDownload = internalMutation({
   },
 });
 
+// Read-only zip lookup for in-browser animation previews (gallery cards and
+// the detail page). Unlike claimDownload it does NOT increment downloadCount,
+// so page views and card renders never skew install metrics.
+export const getZipForPreview = internalQuery({
+  args: { petId: v.string() },
+  returns: v.union(v.object({ zipStorageId: v.id("_storage") }), v.null()),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ zipStorageId: Id<"_storage"> } | null> => {
+    const pet = await getListedPet(ctx, args.petId);
+    if (!pet) return null;
+    return { zipStorageId: pet.zipStorageId };
+  },
+});
+
 // Counts recent pets by a given author within a time window for rate limiting.
 export const countRecentPetsByAuthor = internalQuery({
   args: { authorUserId: v.id("users"), since: v.number() },

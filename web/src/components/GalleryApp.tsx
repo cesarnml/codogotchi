@@ -24,7 +24,10 @@ export default function GalleryApp() {
   return (
     <ConvexAuthProvider client={convex}>
       {view.type === "gallery" ? (
-        <GalleryGrid onSelectPet={(petId) => navigate({ type: "detail", petId })} />
+        <GalleryGrid
+          apiBase={API_BASE}
+          onSelectPet={(petId) => navigate({ type: "detail", petId })}
+        />
       ) : (
         <PetDetail
           petId={view.petId}
