@@ -111,7 +111,14 @@ function AuthWidgetInner() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center gap-2">
+      <a
+        href="/upload"
+        className="squishy-btn bg-secondary-container text-on-secondary-container border-2 border-charcoal-ink font-display font-bold text-sm px-4 py-2 rounded-full hidden sm:flex items-center gap-1.5 whitespace-nowrap"
+      >
+        <span className="material-symbols-outlined text-[18px]">upload</span>
+        Upload pet
+      </a>
       <button
         type="button"
         onClick={() => setMenuOpen((o) => !o)}
