@@ -58,25 +58,46 @@ This avoids the failure mode where an intended green checkmark, green stamp, or 
 
 The lite sheet is **split in two**: `codogotchi-lite-basic-spritesheet.webp` (9 rows, incl. `ghost`) is the minimal "alive/ghost" tier every pet ships; `codogotchi-lite-enhanced-spritesheet.webp` (8 rows) is a polish extension. **Dependencies: Codex is always required · Lite-Basic is required before Lite-Enhanced · SoA needs only Codex.**
 
-| Skill file | Starting point | Produces |
-|------------|----------------|----------|
-| `SKILL-codex-and-lite-basic.md` | nothing (seed image / description) | Codex + Lite-Basic |
-| `SKILL-codex-and-lite-full.md` | nothing (seed image / description) | Codex + Lite-Basic + Lite-Enhanced |
-| `SKILL-lite-basic.md` | existing Codex `spritesheet.webp` | Lite-Basic |
-| `SKILL-lite-enhanced.md` | existing Codex **+ Lite-Basic** | Lite-Enhanced |
-| `SKILL-soa.md` | existing Codex `spritesheet.webp` | SoA |
+| Skill | Starting point | Produces |
+|-------|----------------|----------|
+| `hatch-codogotchi-codex-and-lite-basic` | nothing (seed image / description) | Codex + Lite-Basic |
+| `hatch-codogotchi-codex-and-lite-full` | nothing (seed image / description) | Codex + Lite-Basic + Lite-Enhanced |
+| `hatch-codogotchi-lite-basic` | existing Codex `spritesheet.webp` | Lite-Basic |
+| `hatch-codogotchi-lite-enhanced` | existing Codex **+ Lite-Basic** | Lite-Enhanced |
+| `hatch-codogotchi-soa` | existing Codex `spritesheet.webp` | SoA |
 
-> To add the full lite set to an existing pet, run `SKILL-lite-basic.md` then `SKILL-lite-enhanced.md`. The old single 11-row `codogotchi-lite-spritesheet.webp` is deprecated (back-compat only).
+Each skill lives at `skills/<short-name>/SKILL.md` (e.g. `skills/codex-and-lite-basic/SKILL.md`).
+
+> To add the full lite set to an existing pet, run `hatch-codogotchi-lite-basic` then `hatch-codogotchi-lite-enhanced`. The old single 11-row `codogotchi-lite-spritesheet.webp` is deprecated (back-compat only).
 
 ### Which skill to use?
 
 ```
 Do you have a Codex spritesheet.webp already?
-  No  → want full lite?  yes → SKILL-codex-and-lite-full   (Codex + Basic + Enhanced)
-                          no  → SKILL-codex-and-lite-basic  (Codex + Basic)
-  Yes → add Lite-Basic?      → SKILL-lite-basic
-        add Lite-Enhanced?   → SKILL-lite-enhanced   (requires Lite-Basic first)
-        add SoA gates?       → SKILL-soa             (needs only Codex)
+  No  → want full lite?  yes → hatch-codogotchi-codex-and-lite-full   (Codex + Basic + Enhanced)
+                          no  → hatch-codogotchi-codex-and-lite-basic (Codex + Basic)
+  Yes → add Lite-Basic?      → hatch-codogotchi-lite-basic
+        add Lite-Enhanced?   → hatch-codogotchi-lite-enhanced   (requires Lite-Basic first)
+        add SoA gates?       → hatch-codogotchi-soa             (needs only Codex)
+```
+
+### Canonical prompts
+
+Name the skill explicitly on the first line, then say what to hatch:
+
+```
+Use the hatch-codogotchi-codex-and-lite-basic skill.
+Hatch a new Codogotchi named "Mochi" from this description: a chibi orange tabby in a tiny yellow hoodie, round head, warm pastel palette. Plush style.
+```
+
+```
+Use the hatch-codogotchi-lite-basic skill.
+Hatch a Codogotchi from my existing Codex pet in ~/.codex/pets/<pet-name>.
+```
+
+```
+Use the hatch-codogotchi-codex-and-lite-basic skill.
+Hatch a new Codogotchi named "Mochi" from this seed image.
 ```
 
 ---
@@ -162,11 +183,12 @@ cp run/maew/codogotchi-lite-basic-spritesheet.webp ~/.codogotchi/pets/maew/
 ```
 hatch-codogotchi/
   README.md                           ← this file
-  SKILL-codex-and-lite-basic.md       ← new pet: Codex + Lite-Basic from scratch
-  SKILL-codex-and-lite-full.md        ← new pet: Codex + Lite-Basic + Lite-Enhanced
-  SKILL-lite-basic.md                 ← existing Codex pet: add Lite-Basic
-  SKILL-lite-enhanced.md              ← existing Codex + Basic pet: add Lite-Enhanced
-  SKILL-soa.md                        ← existing Codex pet: add SoA
+  skills/
+    codex-and-lite-basic/SKILL.md     ← new pet: Codex + Lite-Basic from scratch
+    codex-and-lite-full/SKILL.md      ← new pet: Codex + Lite-Basic + Lite-Enhanced
+    lite-basic/SKILL.md               ← existing Codex pet: add Lite-Basic
+    lite-enhanced/SKILL.md            ← existing Codex + Basic pet: add Lite-Enhanced
+    soa/SKILL.md                      ← existing Codex pet: add SoA
   references/
     animation-rows-codex.md           ← Codex row specs and motion descriptions
     animation-rows-lite.md            ← Lite-Basic + Lite-Enhanced row specs, props
