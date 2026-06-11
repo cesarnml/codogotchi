@@ -49,6 +49,8 @@ Always required. Acts as fallback for all states when optional sheets are absent
 
 Minimal "alive/ghost" tier: agent hook states + the `ghost` (0-HP) pose. Every codogotchi ships this. When present, replaces Codex rows for those states.
 
+> **Marketplace note:** this file is optional for the local app contract (the app runs without it, falling back to Codex rows), but it is **required for gallery/marketplace upload** — the upload validator rejects packages missing `codogotchi-lite-basic-spritesheet.webp`.
+
 | Property | Value |
 |----------|-------|
 | Format | WebP (lossless recommended) or PNG |

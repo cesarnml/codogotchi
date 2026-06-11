@@ -22,9 +22,6 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Install tsup
-        run: cd packages/cli-npm && bun add -d tsup
-
       - name: Build npm artifact
         run: cd packages/cli-npm && bun run build
 

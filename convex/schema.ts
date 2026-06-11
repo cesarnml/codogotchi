@@ -129,7 +129,7 @@ export default defineSchema({
     tiers: v.array(v.string()),
     zipStorageId: v.id("_storage"),
     thumbnailStorageId: v.union(v.id("_storage"), v.null()),
-    sizes: v.any(), // { width, height } per-frame dimensions from atlas metadata
+    sizes: v.any(), // { fileSizes: Record<string, number> } — per-spritesheet byte sizes from upload metadata
     downloadCount: v.number(),
     listed: v.boolean(), // operator kill-switch: false = unlisted/hidden
     reported: v.boolean(),
