@@ -1,6 +1,7 @@
 ---
 import Base from "../layouts/Base.astro";
-import GalleryApp from "../components/GalleryApp";
+// Under construction — re-import GalleryApp when the gallery reopens.
+// import GalleryApp from "../components/GalleryApp";
 ---
 
 <Base
@@ -32,8 +33,33 @@ import GalleryApp from "../components/GalleryApp";
 
   <div class="squiggle max-w-7xl mx-auto w-full opacity-50 my-4"></div>
 
-  <!-- React SPA island — hash-based routing handles /gallery and /gallery#<petId> -->
-  <GalleryApp client:only="react" />
+  <!-- Under construction — gallery temporarily disabled. Restore the island below when ready. -->
+  <!-- <GalleryApp client:only="react" /> -->
+  <section class="max-w-7xl mx-auto px-6 py-10">
+    <div
+      class="max-w-xl mx-auto flex flex-col items-center text-center gap-5 bg-surface-container border-2 border-dashed border-gold-leaf rounded-3xl px-8 py-10"
+    >
+      <img
+        src="/assets/construction-maew.webp"
+        alt="Maew wearing a hard hat, surrounded by construction cones and tools"
+        class="w-56 md:w-64 rounded-2xl"
+        loading="lazy"
+      />
+      <div
+        class="inline-flex items-center gap-2 bg-gold-leaf/20 border-2 border-gold-leaf text-on-secondary-fixed-variant px-3 py-1 rounded-full text-xs font-bold -rotate-2"
+      >
+        <span class="material-symbols-outlined text-[14px] text-gold-leaf">construction</span>
+        Under construction 🚧
+      </div>
+      <h2 class="font-display text-2xl font-extrabold text-on-surface">
+        The pet gallery isn't open yet
+      </h2>
+      <p class="text-on-surface-variant leading-relaxed">
+        Maew is still building this corner of Codogotchi. Browsing and installing community pets
+        isn't available yet — check back soon!
+      </p>
+    </div>
+  </section>
 
   <!-- Footer disclaimer -->
   <footer class="max-w-7xl mx-auto px-6 pb-10 mt-6">
