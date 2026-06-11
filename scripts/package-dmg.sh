@@ -31,6 +31,18 @@ echo "==> Built: $APP_PATH"
 
 echo "==> Staging DMG contents in ${BUILD_DIR}..."
 cp -R "$APP_PATH" "$BUILD_DIR/Codogotchi.app"
+
+# Dev-tool droppings (e.g. Antigravity's .antigravitycli symlink farm) can ride
+# along from the checkout into bundled folder references like Resources/maew.
+# Broken symlinks inside the bundle make users' `xattr -cr` error out.
+find "$BUILD_DIR/Codogotchi.app" -name ".antigravitycli" -prune -exec rm -rf {} +
+DANGLING=$(find "$BUILD_DIR/Codogotchi.app" -type l ! -exec test -e {} \; -print)
+if [[ -n "$DANGLING" ]]; then
+  echo "ERROR: broken symlinks in staged app bundle:" >&2
+  echo "$DANGLING" >&2
+  exit 1
+fi
+
 ln -s /Applications "$BUILD_DIR/Applications"
 
 echo "==> Creating DMG..."
@@ -49,3 +61,4 @@ echo "Done! DMG at: $DMG_OUT"
 echo ""
 echo "Share with your friend. After they drag to /Applications they run:"
 echo "  xattr -d com.apple.quarantine /Applications/Codogotchi.app"
+

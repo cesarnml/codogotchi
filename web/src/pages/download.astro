@@ -4,7 +4,7 @@ import Base from "../layouts/Base.astro";
 const GITHUB_RELEASE_URL =
   "https://github.com/cesarnml/codogotchi/releases/latest/download/Codogotchi.dmg";
 const CONVEX_SITE = "https://careful-bat-587.convex.site";
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 ---
 
 <Base
@@ -80,13 +80,13 @@ const VERSION = "1.0.0";
           <div class="menubar-inset rounded-xl p-4 relative group">
             <button
               class="absolute top-2 right-2 text-white/40 hover:text-gold-leaf transition-colors copy-btn"
-              data-copy="xattr -cr /Applications/Codogotchi.app"
+              data-copy="xattr -d com.apple.quarantine /Applications/Codogotchi.app"
               aria-label="Copy command"
             >
               <span class="material-symbols-outlined text-[18px]">content_copy</span>
             </button>
             <code class="font-mono text-sm text-jade-sage">
-              xattr -cr /Applications/Codogotchi.app
+              xattr -d com.apple.quarantine /Applications/Codogotchi.app
             </code>
           </div>
         </div>
