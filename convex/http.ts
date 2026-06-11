@@ -4,6 +4,11 @@ import { api, internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
 
+const ALLOWED_ORIGINS = [
+  "https://codogotchi.app",
+  "https://www.codogotchi.app",
+];
+
 const http = httpRouter();
 
 // Mount @convex-dev/auth HTTP routes (sign-in, sign-out, session refresh, etc.)
@@ -82,6 +87,45 @@ http.route({
       headers: {
         "content-type": "application/zip",
         "content-disposition": `attachment; filename="${petId}.codogotchi-pet.zip"`,
+      },
+    });
+  }),
+});
+
+// POST /track-dmg-download — fire-and-forget counter for DMG installs.
+// No auth required; no personal data collected.
+http.route({
+  path: "/track-dmg-download",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("origin") ?? "";
+    const corsHeaders: Record<string, string> = {
+      "access-control-allow-origin": ALLOWED_ORIGINS.includes(origin)
+        ? origin
+        : ALLOWED_ORIGINS[0],
+      "access-control-allow-methods": "POST, OPTIONS",
+    };
+    await ctx.runMutation(
+      internal.mutations.trackDmgDownload.trackDmgDownload,
+      {},
+    );
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }),
+});
+
+http.route({
+  path: "/track-dmg-download",
+  method: "OPTIONS",
+  handler: httpAction(async (_ctx, request) => {
+    const origin = request.headers.get("origin") ?? "";
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "access-control-allow-origin": ALLOWED_ORIGINS.includes(origin)
+          ? origin
+          : ALLOWED_ORIGINS[0],
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-max-age": "86400",
       },
     });
   }),

@@ -139,4 +139,9 @@ export default defineSchema({
     .index("by_petId", ["petId"])
     .index("by_listed_createdAt", ["listed", "createdAt"])
     .index("by_author_createdAt", ["authorUserId", "createdAt"]),
+
+  // Aggregate-only DMG download counter. No personal data stored.
+  dmg_downloads: defineTable({
+    downloadedAt: v.number(),
+  }),
 });
