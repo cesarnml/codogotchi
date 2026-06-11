@@ -64,7 +64,7 @@ async function makeTestZip(
 
 const VALID_PET_JSON = JSON.stringify({
   id: "test-cat",
-  display_name: "Test Cat",
+  displayName: "Test Cat",
 });
 const CODEX_SHEET = buildMinimalPng(CELL_COLS, TIER_ROW_COUNTS.codex);
 const LITE_BASIC_SHEET = buildMinimalPng(CELL_COLS, TIER_ROW_COUNTS.liteBasic);

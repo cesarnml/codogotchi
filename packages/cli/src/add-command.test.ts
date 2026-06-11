@@ -63,7 +63,7 @@ const LITE_BASIC_SHEET = buildMinimalPng(8, 9);
 
 async function makeValidPetZip(petId = "test-pet"): Promise<Uint8Array> {
   const zip = new JSZip();
-  zip.file("pet.json", JSON.stringify({ id: petId, display_name: "Test Pet" }));
+  zip.file("pet.json", JSON.stringify({ id: petId, displayName: "Test Pet" }));
   zip.file("spritesheet.webp", CODEX_SHEET);
   zip.file("codogotchi-lite-basic-spritesheet.webp", LITE_BASIC_SHEET);
   return zip.generateAsync({ type: "uint8array" });
@@ -119,7 +119,7 @@ describe("runAdd", () => {
     const petId = "existing-pet";
     const petDir = join(home, "pets", petId);
     await mkdir(petDir, { recursive: true });
-    const originalContent = JSON.stringify({ id: petId, display_name: "Old" });
+    const originalContent = JSON.stringify({ id: petId, displayName: "Old" });
     writeFileSync(join(petDir, "pet.json"), originalContent, "utf8");
 
     const zip = await makeValidPetZip(petId);
@@ -140,13 +140,13 @@ describe("runAdd", () => {
     await mkdir(petDir, { recursive: true });
     writeFileSync(
       join(petDir, "pet.json"),
-      JSON.stringify({ id: petId, display_name: "Old" }),
+      JSON.stringify({ id: petId, displayName: "Old" }),
       "utf8",
     );
 
-    // Build a zip whose pet.json has a different display_name
+    // Build a zip whose pet.json has a different displayName
     const zip = new JSZip();
-    zip.file("pet.json", JSON.stringify({ id: petId, display_name: "New" }));
+    zip.file("pet.json", JSON.stringify({ id: petId, displayName: "New" }));
     zip.file("spritesheet.webp", CODEX_SHEET);
     zip.file("codogotchi-lite-basic-spritesheet.webp", LITE_BASIC_SHEET);
     const zipBytes = await zip.generateAsync({ type: "uint8array" });
@@ -158,7 +158,7 @@ describe("runAdd", () => {
 
     expect(result.ok).toBe(true);
     const afterContent = readFileSync(join(petDir, "pet.json"), "utf8");
-    expect(JSON.parse(afterContent).display_name).toBe("New");
+    expect(JSON.parse(afterContent).displayName).toBe("New");
   });
 
   it("rejects a corrupt/invalid zip and leaves no partial pet dir", async () => {

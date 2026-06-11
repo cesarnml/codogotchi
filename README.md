@@ -86,8 +86,8 @@ The app isn't notarized by Apple yet, so macOS quarantines the download. `xattr 
 
 ## Contributing & development
 
-Codogotchi is open source. If you want to build from source, work on the macOS app, or understand the internals, see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+Codogotchi is open source. New to the codebase? **[START-HERE.md](START-HERE.md)** gives you the mental model in five minutes. To build from source or work on the macOS app, see **[CONTRIBUTING.md](CONTRIBUTING.md)**. We expect everyone to follow the **[Code of Conduct](CODE_OF_CONDUCT.md)**.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[PolyForm Noncommercial 1.0.0](LICENSE) — free for personal and noncommercial use.

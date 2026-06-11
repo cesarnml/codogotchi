@@ -104,10 +104,10 @@ export async function validateAndRepackPet(
       if (
         typeof parsed !== "object" ||
         parsed === null ||
-        !("display_name" in parsed) ||
-        typeof (parsed as Record<string, unknown>).display_name !== "string"
+        !("displayName" in parsed) ||
+        typeof (parsed as Record<string, unknown>).displayName !== "string"
       ) {
-        errors.push("pet.json missing required key: display_name");
+        errors.push("pet.json missing required key: displayName");
       }
     } catch {
       errors.push("pet.json is not valid JSON");

@@ -67,7 +67,7 @@ async function makeTestZip(
 
 const VALID_PET_JSON = JSON.stringify({
   id: "test-pet",
-  display_name: "Test Pet",
+  displayName: "Test Pet",
 });
 
 // valid sheets at minimum dimensions divisible by col/row counts

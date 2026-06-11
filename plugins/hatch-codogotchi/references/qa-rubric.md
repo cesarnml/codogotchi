@@ -112,7 +112,7 @@ Do not fix padding/scale failures by code-transforming the existing frames — t
 
 ## Pre-install checklist
 
-- [ ] `pet.json` present with at minimum `"id"` and `"display_name"`
+- [ ] `pet.json` present with at minimum `"id"` and `"displayName"`
 - [ ] `spritesheet.webp` present (Tier 1 — Codex, required)
 - [ ] Optional sheets have exact filenames: `codogotchi-lite-basic-spritesheet.webp`, `codogotchi-lite-enhanced-spritesheet.webp`, `codogotchi-soa-spritesheet.webp`
 - [ ] Lite-Enhanced is only installed alongside Lite-Basic (Enhanced requires Basic)

@@ -119,7 +119,7 @@ If one frame fails visual QA or inspection, regenerate only that standalone fram
 - [ ] **No frame's content height deviates >15% from its row median**
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`
 - [ ] Character consistent across all 18 rows
-- [ ] `pet.json` present with `"id"` + `"display_name"`; app shows pet after quit-reopen
+- [ ] `pet.json` present with `"id"` + `"displayName"`; app shows pet after quit-reopen
 
 ## Related
 `SKILL-codex-and-lite-full.md` · `SKILL-lite-basic.md` · `SKILL-lite-enhanced.md` · `SKILL-soa.md` · `references/animation-rows-lite.md`

@@ -261,3 +261,4 @@ builds
 
 # Local WakaTime API response dumps (debug artifacts)
 wakatime-*.json
+.claude/launch.json

@@ -23,7 +23,7 @@ Manifest. Must contain at minimum:
 ```json
 {
   "id": "my-pet",
-  "display_name": "My Pet"
+  "displayName": "My Pet"
 }
 ```
 

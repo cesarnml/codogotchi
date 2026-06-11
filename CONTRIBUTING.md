@@ -2,6 +2,8 @@
 
 This is the developer reference. If you just want to *use* Codogotchi, see the [README](README.md) — download the app, drag it to Applications, done. This document is for building from source, working on the macOS app, or understanding the internals.
 
+First time in the codebase? Read [START-HERE.md](START-HERE.md) for the mental model. All participation is covered by the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ---
 
 ## Architecture at a glance

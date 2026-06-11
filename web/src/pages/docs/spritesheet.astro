@@ -118,7 +118,7 @@ const soaRows = [
         <h2 class="font-display text-2xl font-bold mb-4">File Layout</h2>
         <div class="menubar-inset rounded-xl p-5 font-mono text-sm text-jade-sage overflow-x-auto">
           <pre class="leading-relaxed"><code>${`{CODOGOTCHI_HOME:-~/.codogotchi}`}/pets/&lt;pet_id&gt;/
-├── pet.json                                   <span class="text-white/40"># manifest (id, display_name)</span>
+├── pet.json                                   <span class="text-white/40"># manifest (id, displayName)</span>
 ├── spritesheet.webp                           <span class="text-white/40"># Tier 1 — Codex         (required)</span>
 ├── codogotchi-lite-basic-spritesheet.webp     <span class="text-white/40"># Tier 2 — Lite-Basic    (optional)</span>
 ├── codogotchi-lite-enhanced-spritesheet.webp  <span class="text-white/40"># Tier 3 — Lite-Enhanced (optional, requires Basic)</span>
@@ -378,7 +378,7 @@ const soaRows = [
           <ul class="flex flex-col gap-3 text-sm">
             {
               [
-                "pet.json has at minimum an id (lowercase slug) and display_name.",
+                "pet.json has at minimum an id (lowercase slug) and displayName.",
                 "spritesheet.webp present, 8 × 9 (Codex); cell aspect matches all tiers.",
                 "imageWidth % 8 == 0 and imageHeight % rowCount == 0 for every sheet.",
                 "Lite-Basic (if present): 8 × 9. Lite-Enhanced (if present): 8 × 8 and requires Basic. SoA (if present): 8 × 10.",
