@@ -16,6 +16,94 @@ const TIER_LABELS: Record<string, string> = {
   soa: "SoA",
 };
 
+interface SheetState {
+  row: number;
+  label: string;
+  frameCount: number;
+}
+
+interface SheetSection {
+  tier: string;
+  file: string;
+  rows: number;
+  states: SheetState[];
+}
+
+// Row→state maps mirror the renderer's row tables in
+// apps/menubar/Sources/CodexPet.swift and CodogotchiPet.swift.
+const SHEET_SECTIONS: SheetSection[] = [
+  {
+    tier: "codex",
+    file: "spritesheet.webp",
+    rows: 9,
+    states: [
+      { row: 0, label: "Idle", frameCount: 8 },
+      { row: 1, label: "Run right", frameCount: 8 },
+      { row: 2, label: "Run left", frameCount: 8 },
+      { row: 3, label: "Standby", frameCount: 8 },
+      { row: 4, label: "Jumping", frameCount: 5 },
+      { row: 5, label: "Errored", frameCount: 8 },
+      { row: 6, label: "Waiting", frameCount: 8 },
+      { row: 7, label: "Working", frameCount: 6 },
+      { row: 8, label: "Thinking", frameCount: 4 },
+    ],
+  },
+  {
+    tier: "liteBasic",
+    file: "codogotchi-lite-basic-spritesheet.webp",
+    rows: 9,
+    states: [
+      { row: 0, label: "Revive", frameCount: 8 },
+      { row: 1, label: "Standby", frameCount: 8 },
+      { row: 2, label: "Thinking", frameCount: 8 },
+      { row: 3, label: "Reading", frameCount: 8 },
+      { row: 4, label: "Implementing", frameCount: 8 },
+      { row: 5, label: "Testing", frameCount: 8 },
+      { row: 6, label: "Errored", frameCount: 8 },
+      { row: 7, label: "Waiting for input", frameCount: 8 },
+      { row: 8, label: "Ghost", frameCount: 8 },
+    ],
+  },
+  {
+    tier: "liteEnhanced",
+    file: "codogotchi-lite-enhanced-spritesheet.webp",
+    rows: 8,
+    states: [
+      { row: 0, label: "Idle (impatient)", frameCount: 8 },
+      { row: 1, label: "Idle (frustrated)", frameCount: 8 },
+      { row: 2, label: "Cramming", frameCount: 8 },
+      { row: 3, label: "Editing", frameCount: 8 },
+      { row: 4, label: "Git ops", frameCount: 8 },
+      { row: 5, label: "Verifying", frameCount: 8 },
+      { row: 6, label: "Searching", frameCount: 8 },
+      { row: 7, label: "Web search", frameCount: 8 },
+    ],
+  },
+  {
+    tier: "soa",
+    file: "codogotchi-soa-spritesheet.webp",
+    rows: 10,
+    states: [
+      { row: 0, label: "Ticket started", frameCount: 8 },
+      { row: 1, label: "Red TDD", frameCount: 8 },
+      { row: 2, label: "Green TDD", frameCount: 8 },
+      { row: 3, label: "Adversarial review", frameCount: 8 },
+      { row: 4, label: "Open PR", frameCount: 8 },
+      { row: 5, label: "Poll review", frameCount: 8 },
+      { row: 6, label: "Review clean", frameCount: 8 },
+      { row: 7, label: "Record review", frameCount: 8 },
+      { row: 8, label: "Advance", frameCount: 8 },
+      { row: 9, label: "Ticket completed", frameCount: 8 },
+    ],
+  },
+];
+
+interface LoadedSheet {
+  url: string;
+  frameW: number;
+  frameH: number;
+}
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -38,32 +126,44 @@ function SpriteAnimation({
   frameW,
   frameH,
   totalCols,
+  totalRows = 1,
+  row = 0,
+  frameCount = totalCols,
+  displaySize,
 }: {
   sheetUrl: string;
   frameW: number;
   frameH: number;
   totalCols: number;
+  totalRows?: number;
+  row?: number;
+  frameCount?: number;
+  displaySize?: number;
 }) {
   const [frame, setFrame] = useState(0);
-  // Animate the first row only: SHEET_COLS frames at y=0 (idle cycle)
-  const frames = sliceFrames(frameW * totalCols, frameH, totalCols, 1);
+  const frames = sliceFrames(frameW * totalCols, frameH * totalRows, totalCols, totalRows).slice(
+    row * totalCols,
+    row * totalCols + frameCount,
+  );
 
   useEffect(() => {
     const id = setInterval(() => {
       setFrame((f) => (f + 1) % frames.length);
-    }, 125); // ~8 fps
+    }, 188); // 1.5 s / 8 frames, matching the menu-bar renderer cadence
     return () => clearInterval(id);
   }, [frames.length]);
 
-  const { x, y } = frames[frame];
+  const { x, y } = frames[frame % frames.length];
+  const scale = displaySize ? displaySize / Math.max(frameW, frameH) : 1;
   return (
     <div
       style={{
-        width: frameW,
-        height: frameH,
+        width: frameW * scale,
+        height: frameH * scale,
         backgroundImage: `url(${sheetUrl})`,
         backgroundRepeat: "no-repeat",
-        backgroundPosition: `-${x}px -${y}px`,
+        backgroundSize: `${frameW * totalCols * scale}px ${frameH * totalRows * scale}px`,
+        backgroundPosition: `-${x * scale}px -${y * scale}px`,
         imageRendering: "pixelated",
       }}
     />
@@ -82,64 +182,71 @@ export default function PetDetail({
   const pet = useQuery(api.pets.getPet, { petId });
   const install = buildInstallStrings(petId, apiBase);
 
-  const [sheetUrl, setSheetUrl] = useState<string | null>(null);
-  const [frameSize, setFrameSize] = useState<{ frameW: number; frameH: number } | null>(null);
+  const [sheets, setSheets] = useState<Record<string, LoadedSheet>>({});
   const [sheetLoading, setSheetLoading] = useState(false);
-  const objectUrlRef = useRef<string | null>(null);
+  const objectUrlsRef = useRef<string[]>([]);
 
-  // Fetch + unzip the Codex sprite sheet; derive frame dimensions from natural image size
-  // rather than pet.sizes (which stores fileSizes, not frame dimensions).
+  // Fetch + unzip every tier sprite sheet present in the pet zip; derive frame
+  // dimensions from natural image size rather than pet.sizes (which stores
+  // fileSizes, not frame dimensions).
   useEffect(() => {
     let cancelled = false;
-    async function loadSheet() {
+    async function loadSheets() {
       setSheetLoading(true);
       try {
         const res = await fetch(install.zipUrl);
         if (!res.ok) return;
         const buf = await res.arrayBuffer();
         const zip = await JSZip.loadAsync(buf);
-        const sheet = zip.file("spritesheet.webp");
-        if (!sheet) return;
-        const blob = new Blob([await sheet.async("arraybuffer")], {
-          type: "image/webp",
-        });
-        const url = URL.createObjectURL(blob);
 
-        // Derive frame dimensions by loading the image — avoids relying on pet.sizes
-        // which currently stores { fileSizes } not { width, height }.
-        const dims = await new Promise<{ frameW: number; frameH: number }>((resolve) => {
-          const img = new Image();
-          img.onload = () =>
-            resolve({
-              frameW: Math.floor(img.naturalWidth / SHEET_COLS),
-              frameH: Math.floor(img.naturalHeight / CODEX_ROWS),
-            });
-          img.onerror = () => resolve({ frameW: 0, frameH: 0 });
-          img.src = url;
-        });
+        const loaded: Record<string, LoadedSheet> = {};
+        const urls: string[] = [];
+        for (const section of SHEET_SECTIONS) {
+          const entry = zip.file(section.file);
+          if (!entry) continue;
+          const blob = new Blob([await entry.async("arraybuffer")], {
+            type: "image/webp",
+          });
+          const url = URL.createObjectURL(blob);
+          const dims = await new Promise<{ frameW: number; frameH: number }>((resolve) => {
+            const img = new Image();
+            img.onload = () =>
+              resolve({
+                frameW: Math.floor(img.naturalWidth / SHEET_COLS),
+                frameH: Math.floor(img.naturalHeight / section.rows),
+              });
+            img.onerror = () => resolve({ frameW: 0, frameH: 0 });
+            img.src = url;
+          });
+          if (dims.frameW > 0) {
+            loaded[section.tier] = { url, ...dims };
+            urls.push(url);
+          } else {
+            URL.revokeObjectURL(url);
+          }
+        }
 
         if (!cancelled) {
-          if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-          objectUrlRef.current = url;
-          setSheetUrl(url);
-          setFrameSize(dims.frameW > 0 ? dims : null);
+          for (const old of objectUrlsRef.current) URL.revokeObjectURL(old);
+          objectUrlsRef.current = urls;
+          setSheets(loaded);
         } else {
-          URL.revokeObjectURL(url);
+          for (const url of urls) URL.revokeObjectURL(url);
         }
       } finally {
         if (!cancelled) setSheetLoading(false);
       }
     }
-    void loadSheet();
+    void loadSheets();
     return () => {
       cancelled = true;
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = null;
-      }
+      for (const url of objectUrlsRef.current) URL.revokeObjectURL(url);
+      objectUrlsRef.current = [];
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [petId]);
+
+  const codexSheet = sheets.codex ?? null;
 
   if (pet === undefined) {
     return (
@@ -181,12 +288,13 @@ export default function PetDetail({
         <div className="flex flex-col sm:flex-row gap-6 items-start">
           {/* Sprite animation */}
           <div className="menubar-inset rounded-xl w-40 h-40 flex items-center justify-center overflow-hidden flex-shrink-0">
-            {sheetUrl && frameSize ? (
+            {codexSheet ? (
               <SpriteAnimation
-                sheetUrl={sheetUrl}
-                frameW={frameSize.frameW}
-                frameH={frameSize.frameH}
+                sheetUrl={codexSheet.url}
+                frameW={codexSheet.frameW}
+                frameH={codexSheet.frameH}
                 totalCols={SHEET_COLS}
+                totalRows={CODEX_ROWS}
               />
             ) : (
               <span className="text-5xl">{sheetLoading ? "⏳" : "🐾"}</span>
@@ -268,11 +376,56 @@ export default function PetDetail({
           </div>
         </div>
 
+        {/* Animation states — one animated tile per spritesheet row, per tier */}
+        {SHEET_SECTIONS.some((s) => sheets[s.tier]) && (
+          <div className="flex flex-col gap-6 border-t border-outline-variant pt-6">
+            <h2 className="font-display font-bold text-lg flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">animation</span>
+              Animation states
+            </h2>
+            {SHEET_SECTIONS.map((section) => {
+              const sheet = sheets[section.tier];
+              if (!sheet) return null;
+              return (
+                <div key={section.tier} className="flex flex-col gap-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                    {TIER_LABELS[section.tier] ?? section.tier}
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {section.states.map((state) => (
+                      <div
+                        key={state.row}
+                        className="menubar-inset rounded-xl p-3 flex flex-col items-center gap-2"
+                      >
+                        <div className="h-24 flex items-center justify-center">
+                          <SpriteAnimation
+                            sheetUrl={sheet.url}
+                            frameW={sheet.frameW}
+                            frameH={sheet.frameH}
+                            totalCols={SHEET_COLS}
+                            totalRows={section.rows}
+                            row={state.row}
+                            frameCount={state.frameCount}
+                            displaySize={88}
+                          />
+                        </div>
+                        <span className="text-xs text-on-surface-variant text-center">
+                          {state.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Frame size readout (from loaded image) */}
-        {frameSize && (
+        {codexSheet && (
           <div className="border-t border-outline-variant pt-4">
             <p className="text-xs text-on-surface-variant">
-              Frame size: {frameSize.frameW} × {frameSize.frameH} px
+              Frame size: {codexSheet.frameW} × {codexSheet.frameH} px
             </p>
           </div>
         )}

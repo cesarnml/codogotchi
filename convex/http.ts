@@ -87,6 +87,9 @@ http.route({
       headers: {
         "content-type": "application/zip",
         "content-disposition": `attachment; filename="${petId}.codogotchi-pet.zip"`,
+        // Public, unauthenticated asset: lets the gallery detail page fetch
+        // the zip in-browser to render animation previews.
+        "access-control-allow-origin": "*",
       },
     });
   }),
