@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 🎨 Pet & Sprite Showcase, Requests, and Contributions
+    url: https://github.com/cesarnml/codogotchi/issues/118
+    about: Request new pets, contribute sprite art, or show off your setup.
+  - name: 🧪 Platform & Agent Compatibility reports
+    url: https://github.com/cesarnml/codogotchi/issues/120
+    about: Tell us your OS + agent CLI combo and whether it worked.

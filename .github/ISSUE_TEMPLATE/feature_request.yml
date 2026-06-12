@@ -1,0 +1,22 @@
+name: 💡 Feature Request
+description: Suggest an improvement or new capability for Codogotchi.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: The need behind the idea, not just the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: How would you expect it to work?
+    validations:
+      required: true
+  - type: input
+    id: tools
+    attributes:
+      label: Tools or agents it should work with
+      placeholder: Claude Code, Codex, Cursor...
