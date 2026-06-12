@@ -194,6 +194,10 @@
   font-feature-settings: "liga";
   font-variation-settings: "FILL" 0, "wght" 500, "GRAD" 0, "opsz" 24;
   line-height: 1;
+  /* Icon glyphs advance exactly 1em; pinning the box stops the ligature name
+     text from reserving extra width before the font loads (font-swap CLS). */
+  width: 1em;
+  overflow: hidden;
 }
 .material-symbols-outlined.fill {
   font-variation-settings: "FILL" 1;

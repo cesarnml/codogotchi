@@ -9,6 +9,19 @@ import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/700.css";
 import "../styles/global.css";
+// Preloaded below so above-the-fold text/icons don't reflow when fonts swap
+// in (font-swap CLS). Keep in sync with the families used in the hero/nav.
+import jakarta700Url from "@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-700-normal.woff2?url";
+import jakarta800Url from "@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-800-normal.woff2?url";
+import vietnam400Url from "@fontsource/be-vietnam-pro/files/be-vietnam-pro-latin-400-normal.woff2?url";
+import vietnam700Url from "@fontsource/be-vietnam-pro/files/be-vietnam-pro-latin-700-normal.woff2?url";
+const preloadFonts = [
+  jakarta700Url,
+  jakarta800Url,
+  vietnam400Url,
+  vietnam700Url,
+  "/assets/material-symbols-subset.woff2",
+];
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
 import SpeedInsights from "@vercel/speed-insights/astro";
@@ -73,6 +86,11 @@ const structuredData = [
     <link rel="icon" type="image/webp" href="/favicon.webp" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="canonical" href={canonicalUrl} />
+    {
+      preloadFonts.map((href) => (
+        <link rel="preload" as="font" type="font/woff2" href={href} crossorigin="anonymous" />
+      ))
+    }
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta name="robots" content={robots} />
