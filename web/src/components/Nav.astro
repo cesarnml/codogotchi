@@ -57,7 +57,9 @@ const links = [
     <!-- Single AuthWidget for all viewports: each instance mounts its own
          ConvexAuthProvider, and two providers racing setAuth on the shared
          client leaves one stuck in isLoading (blank widget). Keep exactly one. -->
-    <div class="flex items-center gap-3">
+    <!-- min-h-11 reserves the hydrated AuthWidget button height (44px) so the
+         nav doesn't grow and push the page down when the island mounts (CLS). -->
+    <div class="flex items-center gap-3 min-h-11">
       <AuthWidget client:only="react" />
       <a
         href="/download"

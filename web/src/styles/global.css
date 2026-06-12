@@ -169,9 +169,7 @@
 
 /* Material Symbols — self-hosted subset containing only the icon glyphs the
    site uses. After adding a new icon name anywhere in src/, regenerate with:
-   uvx --from "fonttools[woff]" pyftsubset node_modules/material-symbols/material-symbols-outlined.woff2 \
-     --text="<all icon names concatenated>" --layout-features='liga,calt,rlig' \
-     --flavor=woff2 --output-file=public/assets/material-symbols-subset.woff2 */
+   uvx --from "fonttools[woff]" --with brotli python3 scripts/subset-icons.py */
 @font-face {
   font-family: "Material Symbols Outlined";
   font-style: normal;
