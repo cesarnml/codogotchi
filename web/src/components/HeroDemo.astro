@@ -1,10 +1,10 @@
 ---
 // Draft hero animation: the real Codogotchi floating pet (Maew) recorded from
-// the running app, framed inside a dark "menubar inset" window. The GIF already
-// carries the in-app HUD — hearts, level, and the live activity status pill —
-// so no synthetic HUD is layered on top. Swap public/assets/hero-maew.gif to
-// update the reel (or drop in a higher-fidelity capture later).
-const src = "/assets/hero-maew.gif";
+// the running app, framed inside a dark "menubar inset" window. The capture
+// already carries the in-app HUD — hearts, level, and the live activity status
+// pill — so no synthetic HUD is layered on top. The source GIF capture is
+// served as MP4/WebM (≈80% smaller); regenerate both with ffmpeg when swapping
+// in a new reel.
 ---
 
 <div class="hero-demo w-full max-w-md mx-auto select-none">
@@ -29,15 +29,19 @@ const src = "/assets/hero-maew.gif";
     <div
       class="relative flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_center,rgba(240,130,78,0.18),transparent_70%)]"
     >
-      <img
-        src={src}
-        alt="Codogotchi's pet Maew animating in the macOS app — hearts, level, and live coding status."
+      <video
+        autoplay
+        loop
+        muted
+        playsinline
         width="350"
         height="300"
         class="w-full max-w-[360px] h-auto"
-        loading="eager"
-        decoding="async"
-      />
+        aria-label="Codogotchi's pet Maew animating in the macOS app — hearts, level, and live coding status."
+      >
+        <source src="/assets/hero-maew.webm" type="video/webm" />
+        <source src="/assets/hero-maew.mp4" type="video/mp4" />
+      </video>
     </div>
   </div>
 

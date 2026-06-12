@@ -13,11 +13,15 @@
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.93",
+    "@fontsource/be-vietnam-pro": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/plus-jakarta-sans": "^5.2.8",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "astro": "6.4.4",
     "convex": "^1.40.0",
     "jszip": "^3.10.1",
+    "material-symbols": "^0.45.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
