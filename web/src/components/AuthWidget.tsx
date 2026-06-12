@@ -1,11 +1,40 @@
 import { ConvexAuthProvider, useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "~convex/_generated/api";
 import { convex } from "../lib/convex";
 import { validateUsername } from "../lib/username";
 import AuthModal from "./AuthModal";
+
+// Cached last-known auth state so the widget can paint the right UI instantly
+// on each full page load, instead of a blank gap while Convex re-validates.
+const AUTH_CACHE_KEY = "codogotchi:authCache";
+
+type AuthCache = { username: string };
+
+function readAuthCache(): AuthCache | null {
+  try {
+    const raw = localStorage.getItem(AUTH_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AuthCache>;
+    return typeof parsed.username === "string" ? { username: parsed.username } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeAuthCache(cache: AuthCache | null) {
+  try {
+    if (cache) {
+      localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(cache));
+    } else {
+      localStorage.removeItem(AUTH_CACHE_KEY);
+    }
+  } catch {
+    // Storage unavailable (private mode) — fall back to loading placeholder.
+  }
+}
 
 function mutationError(err: unknown): string {
   if (err !== null && typeof err === "object" && "data" in err) {
@@ -84,12 +113,24 @@ function AuthWidgetInner() {
   const currentUser = useQuery(api.users.currentUser, isAuthenticated ? {} : "skip");
   const [modalOpen, setModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [cache] = useState(readAuthCache);
 
-  if (isLoading) {
-    return <div className="w-20 h-9" aria-hidden="true" />;
-  }
+  // Keep the cache in sync once auth actually resolves, so the next page
+  // load paints the correct state immediately.
+  useEffect(() => {
+    if (isLoading) return;
+    if (!isAuthenticated) {
+      writeAuthCache(null);
+    } else if (currentUser && currentUser.usernameSet !== false) {
+      writeAuthCache({ username: currentUser.username });
+    }
+  }, [isLoading, isAuthenticated, currentUser]);
 
-  if (!isAuthenticated) {
+  // While auth is resolving, optimistically render the last-known state.
+  const showSignedIn = isLoading ? cache !== null : isAuthenticated;
+  const username = currentUser?.username ?? cache?.username ?? null;
+
+  if (!showSignedIn) {
     return (
       <>
         <button
@@ -106,7 +147,7 @@ function AuthWidgetInner() {
   }
 
   // Authenticated but username not yet chosen (social sign-up) — prompt for it.
-  if (currentUser && currentUser.usernameSet === false) {
+  if (!isLoading && currentUser && currentUser.usernameSet === false) {
     return <UsernamePrompt suggested={currentUser.username} />;
   }
 
@@ -125,7 +166,7 @@ function AuthWidgetInner() {
         className="squishy-btn bg-surface-container-lowest border-2 border-charcoal-ink font-display font-bold text-sm px-4 py-2 rounded-full flex items-center gap-1.5 whitespace-nowrap"
       >
         <span className="material-symbols-outlined text-[18px]">person</span>
-        {currentUser ? `@${currentUser.username}` : "Account"}
+        {username ? `@${username}` : "Account"}
       </button>
       {menuOpen && (
         <>
