@@ -562,8 +562,23 @@ function matchesPrefixWithBoundary(
 function splitShellPipes(segment: string): string[] {
   const parts: string[] = [];
   let current = "";
+  // Track the open quote char so a `|` inside a quoted argument (e.g. a
+  // `rg`/`grep` regex alternation `'a|b'`) is not mistaken for a shell pipe.
+  // Splitting mid-regex would orphan the leading `rg`/`grep` token and defeat
+  // the searching/pipe-output-filter heuristics downstream.
+  let quote: '"' | "'" | null = null;
   for (let i = 0; i < segment.length; i++) {
     const ch = segment[i];
+    if (quote !== null) {
+      if (ch === quote) quote = null;
+      current += ch;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      current += ch;
+      continue;
+    }
     if (ch === "|") {
       if (segment[i + 1] === "|") {
         current += "||";

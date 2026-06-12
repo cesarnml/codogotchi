@@ -1864,6 +1864,56 @@ describe("shellCommandSegments", () => {
   it("preserves a lone command when every segment is neutral", () => {
     expect(shellCommandSegments("cd /repo")).toEqual(["cd /repo"]);
   });
+
+  it("does not split on a | inside a quoted regex/glob argument", () => {
+    // Real commands from ~/.codogotchi/state-transitions.log that were
+    // shredded mid-regex by the quote-blind pipe splitter and fell through to
+    // the `implementing` catch-all instead of `searching`.
+    expect(shellCommandSegments("rg -n 'sizes\\.|fileSizes' .")).toEqual([
+      "rg -n 'sizes\\.|fileSizes' .",
+    ]);
+    expect(
+      shellCommandSegments(
+        "rg -n 'createOrUpdateUser|existingUserId' node_modules -g '*.ts'",
+      ),
+    ).toEqual([
+      "rg -n 'createOrUpdateUser|existingUserId' node_modules -g '*.ts'",
+    ]);
+    expect(
+      shellCommandSegments('grep -n "db.query.*users\\|from_users" convex/ -r'),
+    ).toEqual(['grep -n "db.query.*users\\|from_users" convex/ -r']);
+  });
+
+  it("still splits a real pipe that follows a quoted argument", () => {
+    expect(
+      shellCommandSegments("rg --files convex test | rg '^(convex/schema.ts)'"),
+    ).toEqual(["rg --files convex test", "rg '^(convex/schema.ts)'"]);
+  });
+});
+
+describe("quoted-pipe search commands classify as searching", () => {
+  // Regression for the quote-blind splitShellPipes bug: search-intent commands
+  // whose regex/glob contained `|` were misrouted to `implementing`.
+  const searchCommands = [
+    "rg -n 'createOrUpdateUser|existingUserId' node_modules -g '*.ts'",
+    'rg -n "validateAndRepackPet|sizes|zipStorageId" convex test docs',
+    "rg -n 'sizes\\.|fileSizes' .",
+    'grep -n "db.query.*users\\|from_users" /repo/convex/ -r 2>&1',
+    'grep -r "convex-dev/auth\\|convex_dev_auth" /repo/ --include="*.ts" -l',
+  ];
+  for (const command of searchCommands) {
+    it(`classifies ${command.slice(0, 48)}… as searching`, () => {
+      const out = classifyEvent(
+        {
+          hook_event_name: "PreToolUse",
+          tool_name: "Bash",
+          tool_input: { command },
+        } as HookInput,
+        { readRun: 0 },
+      );
+      expect(out.state).toBe("searching");
+    });
+  }
 });
 
 describe("P7.03 terminal failure parity", () => {

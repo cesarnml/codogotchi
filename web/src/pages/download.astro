@@ -4,7 +4,7 @@ import Base from "../layouts/Base.astro";
 const GITHUB_RELEASE_URL =
   "https://github.com/cesarnml/codogotchi/releases/latest/download/Codogotchi.dmg";
 const CONVEX_SITE = "https://careful-bat-587.convex.site";
-const VERSION = "1.0.1";
+const VERSION = "1.0.2";
 ---
 
 <Base
@@ -15,7 +15,14 @@ const VERSION = "1.0.1";
   <section class="max-w-3xl mx-auto px-6 pt-16 pb-8 flex flex-col items-center gap-8 text-center">
     <!-- Badge -->
     <div class="relative w-32 h-32 rounded-full bg-surface-container-highest sticker-card flex items-center justify-center overflow-hidden -rotate-2">
-      <span class="text-6xl">🐾</span>
+      <img
+        src="/assets/hatch-maew-badge.webp"
+        alt="Maew hatching from an egg"
+        width="128"
+        height="128"
+        class="w-full h-full object-cover"
+        decoding="async"
+      />
       <span class="material-symbols-outlined absolute top-3 right-4 text-2xl text-gold-leaf">download</span>
     </div>
 
