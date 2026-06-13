@@ -20,6 +20,11 @@ const TIER_LABELS: Record<string, string> = {
   soa: "SoA",
 };
 
+// Maew ships bundled with the app, so her detail page must not pitch the
+// community-install flow (npx / curl / .zip) — that contradicts "she's already
+// in the app." The default pet gets a "just download the app" CTA instead.
+const DEFAULT_PET_ID = "maew";
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -48,6 +53,7 @@ export default function PetDetail({
 }) {
   const pet = useQuery(api.pets.getPet, { petId });
   const install = buildInstallStrings(petId, apiBase);
+  const isDefaultPet = petId === DEFAULT_PET_ID;
 
   const codexSheetUrl = pet?.codexSheetUrl ?? null;
 
@@ -172,52 +178,75 @@ export default function PetDetail({
           <p className="text-on-surface-variant text-sm leading-relaxed">{pet.description}</p>
         )}
 
-        {/* Install card */}
-        <div className="flex flex-col gap-4">
-          <h2 className="font-display font-bold text-lg flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">download</span>
-            Install this pet
-          </h2>
-
-          {/* npx */}
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-              npx (Node required)
-            </span>
-            <div className="menubar-inset rounded-xl p-3 flex items-center justify-between">
-              <code className="font-mono text-sm text-jade-sage break-all">{install.npx}</code>
-              <CopyButton text={install.npx} />
-            </div>
-          </div>
-
-          {/* curl */}
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-              curl (macOS / Linux)
-            </span>
-            <div className="menubar-inset rounded-xl p-3 flex items-start justify-between gap-2">
-              <code className="font-mono text-sm text-jade-sage break-all">{install.curl}</code>
-              <CopyButton text={install.curl} />
-            </div>
-          </div>
-
-          {/* Direct download */}
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-              Direct .zip download
-            </span>
+        {/* Install card — the default pet ships in the app, so skip the
+            community-install flow and point at the app download instead. */}
+        {isDefaultPet ? (
+          <div className="flex flex-col gap-4">
+            <h2 className="font-display font-bold text-lg flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">favorite</span>
+              She ships with the app
+            </h2>
+            <p className="text-on-surface-variant text-sm leading-relaxed">
+              {pet.displayName} is the default companion — install Codogotchi and
+              she's already there, hatched and ready. No extra steps.
+            </p>
             <div className="flex items-center gap-2">
               <a
-                href={install.zipUrl}
-                download
-                className="squishy-btn bg-surface-container text-primary font-bold px-5 py-2 rounded-xl border-2 border-charcoal-ink flex items-center gap-2 text-sm"
+                href="/download"
+                className="squishy-btn bg-primary-container text-on-primary-container font-display font-bold px-6 py-3 rounded-xl border-2 border-charcoal-ink flex items-center gap-2 text-sm"
               >
                 <span className="material-symbols-outlined text-[18px]">download</span>
-                Download .zip
+                Download the app
               </a>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <h2 className="font-display font-bold text-lg flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">download</span>
+              Install this pet
+            </h2>
+
+            {/* npx */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                npx (Node required)
+              </span>
+              <div className="menubar-inset rounded-xl p-3 flex items-center justify-between">
+                <code className="font-mono text-sm text-jade-sage break-all">{install.npx}</code>
+                <CopyButton text={install.npx} />
+              </div>
+            </div>
+
+            {/* curl */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                curl (macOS / Linux)
+              </span>
+              <div className="menubar-inset rounded-xl p-3 flex items-start justify-between gap-2">
+                <code className="font-mono text-sm text-jade-sage break-all">{install.curl}</code>
+                <CopyButton text={install.curl} />
+              </div>
+            </div>
+
+            {/* Direct download */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                Direct .zip download
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={install.zipUrl}
+                  download
+                  className="squishy-btn bg-surface-container text-primary font-bold px-5 py-2 rounded-xl border-2 border-charcoal-ink flex items-center gap-2 text-sm"
+                >
+                  <span className="material-symbols-outlined text-[18px]">download</span>
+                  Download .zip
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Animation states — one animated tile per spritesheet row, per tier */}
         {SHEET_SECTIONS.some((s) => sheets[s.tier]) && (
