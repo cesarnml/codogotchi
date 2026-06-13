@@ -129,6 +129,12 @@ export default defineSchema({
     tiers: v.array(v.string()),
     zipStorageId: v.id("_storage"),
     thumbnailStorageId: v.union(v.id("_storage"), v.null()),
+    // Standalone copy of the codex spritesheet.webp, stored outside the zip so
+    // gallery cards and detail headers can animate from a single cached CDN
+    // image instead of downloading + unzipping the whole multi-tier package.
+    // Optional: predates the field for pets uploaded before P11.04 (backfilled
+    // by migrations/p11_04.ts; gallery falls back to the zip path when absent).
+    codexSheetStorageId: v.optional(v.id("_storage")),
     sizes: v.any(), // { fileSizes: Record<string, number> } — per-spritesheet byte sizes from upload metadata
     downloadCount: v.number(),
     listed: v.boolean(), // operator kill-switch: false = unlisted/hidden

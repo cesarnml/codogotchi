@@ -6,7 +6,12 @@ import { api } from "~convex/_generated/api";
 import type { Id } from "~convex/_generated/dataModel";
 import { convex } from "../lib/convex";
 import { generateThumbnailBlob } from "../lib/thumbnail";
-import { buildUploadArgs, mapUploadError } from "../lib/uploadMapper";
+import {
+  buildPetPackage,
+  buildUploadArgs,
+  mapUploadError,
+  validateLooseSelection,
+} from "../lib/uploadMapper";
 import AuthModal from "./AuthModal";
 
 // Codex base sheet layout (packages/pets/src/pet-contract.ts): 8 cols × 9 rows.
@@ -26,10 +31,10 @@ async function uploadBlob(uploadUrl: string, blob: Blob): Promise<string> {
   return storageId;
 }
 
-// Best-effort client thumbnail: decode the codex sheet from the zip and crop
+// Best-effort client thumbnail: decode the codex sheet from the package and crop
 // idle frame 1. Returns null on any failure — the server treats the thumbnail
 // as optional and cosmetic, so a missing one must not block a valid upload.
-async function generateThumbnailFromZip(file: File): Promise<Blob | null> {
+async function generateThumbnailFromZip(file: Blob): Promise<Blob | null> {
   try {
     const zip = await JSZip.loadAsync(file);
     const sheet = zip.file(CODEX_SHEET);
@@ -58,7 +63,7 @@ function UploadForm() {
   const generateUploadUrl = useMutation(api.pets.generateUploadUrl);
   const uploadPet = useAction(api.actions.uploadPet.uploadPet);
 
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
   const [petId, setPetId] = useState("");
@@ -68,19 +73,30 @@ function UploadForm() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    if (!file) {
-      setError("Choose a pet package (.zip) to upload.");
+    if (files.length === 0) {
+      setError("Choose a .zip — or drop in pet.json and your spritesheet(s).");
+      return;
+    }
+    // Front-run the server's required-sheet check for loose selections so the
+    // user gets an immediate, product-framed message (no upload round-trip).
+    const looseError = validateLooseSelection(files);
+    if (looseError) {
+      setError(looseError);
       return;
     }
     setBusy(true);
     try {
-      // 1. Stage the raw zip.
+      // 0. Normalize loose files into the zip the server expects (or pass a
+      //    single .zip straight through).
+      const packageBlob = await buildPetPackage(files);
+
+      // 1. Stage the raw package.
       const rawUrl = await generateUploadUrl();
-      const rawZipStorageId = await uploadBlob(rawUrl, file);
+      const rawZipStorageId = await uploadBlob(rawUrl, packageBlob);
 
       // 2. Best-effort client thumbnail (cosmetic, low-trust, server-capped).
       let thumbnailStorageId: string | undefined;
-      const thumb = await generateThumbnailFromZip(file);
+      const thumb = await generateThumbnailFromZip(packageBlob);
       if (thumb) {
         try {
           const thumbUrl = await generateUploadUrl();
@@ -125,16 +141,38 @@ function UploadForm() {
       )}
 
       <label className="flex flex-col gap-1.5">
-        <span className="font-bold text-sm">Pet package (.zip)</span>
+        <span className="font-bold text-sm">Pet files</span>
         <input
           type="file"
-          accept=".zip,application/zip"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          multiple
+          accept=".zip,application/zip,.json,application/json,.webp,image/webp"
+          onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
           className="bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl py-2.5 px-3 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-container file:text-on-primary-container file:font-bold file:px-3 file:py-1.5"
         />
         <span className="text-xs text-on-surface-variant">
-          Must contain pet.json and the codex spritesheet.webp.
+          Upload a <code className="font-mono">.zip</code>, or just select the
+          loose files — we'll package them for you.
         </span>
+        <ul className="text-xs text-on-surface-variant list-disc pl-4 space-y-0.5">
+          <li>
+            <strong>Required:</strong> <code className="font-mono">pet.json</code>,{" "}
+            <code className="font-mono">spritesheet.webp</code> (Codex), and{" "}
+            <code className="font-mono">codogotchi-lite-basic-spritesheet.webp</code>{" "}
+            (Lite-Basic).
+          </li>
+          <li>
+            <strong>Optional:</strong> the Lite-Enhanced and SoA tier sheets.
+          </li>
+          <li>
+            A Lite-Basic sheet is what makes a pet a true Codogotchi companion —
+            codex-only packages are rejected.
+          </li>
+        </ul>
+        {files.length > 0 && (
+          <span className="text-xs text-on-surface-variant">
+            Selected: {files.map((f) => f.name).join(", ")}
+          </span>
+        )}
       </label>
 
       <label className="flex flex-col gap-1.5">

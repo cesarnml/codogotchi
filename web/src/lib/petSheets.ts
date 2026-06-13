@@ -97,6 +97,29 @@ export function previewZipUrl(petId: string, apiBase: string): string {
   return `${apiBase}/pets/${petId}/download?preview=1`;
 }
 
+/**
+ * Loads a single spritesheet straight from a CDN image URL (e.g. the gallery's
+ * `codexSheetUrl`) and derives frame dimensions from its natural size. This is
+ * the fast path for cards and detail headers — one cached image, no zip
+ * download and no client-side unzip. `rows` defaults to the codex layout.
+ */
+export function loadSheetFromUrl(
+  url: string,
+  rows: number = CODEX_ROWS,
+): Promise<LoadedSheet | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () =>
+      resolve({
+        url,
+        frameW: Math.floor(img.naturalWidth / SHEET_COLS),
+        frameH: Math.floor(img.naturalHeight / rows),
+      });
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
 // Module-level cache so the gallery grid and detail page share one fetch per
 // pet. Object URLs live for the page lifetime — bounded by the pet count.
 const sheetCache = new Map<string, Promise<Record<string, LoadedSheet>>>();

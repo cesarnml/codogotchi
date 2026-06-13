@@ -6,6 +6,7 @@ import {
   CODEX_ROWS,
   type LoadedSheet,
   loadPetSheets,
+  loadSheetFromUrl,
   previewZipUrl,
   SHEET_COLS,
   SHEET_SECTIONS,
@@ -48,8 +49,25 @@ export default function PetDetail({
   const pet = useQuery(api.pets.getPet, { petId });
   const install = buildInstallStrings(petId, apiBase);
 
+  const codexSheetUrl = pet?.codexSheetUrl ?? null;
+
+  // Header sprite: fast path from the standalone codex sheet (one cached image).
+  const [headerSheet, setHeaderSheet] = useState<LoadedSheet | null>(null);
+  // Full per-tier sheets for the animation-states grid; loaded lazily from the
+  // zip since that section genuinely needs every tier.
   const [sheets, setSheets] = useState<Record<string, LoadedSheet>>({});
   const [sheetLoading, setSheetLoading] = useState(true);
+
+  useEffect(() => {
+    if (!codexSheetUrl) return;
+    let cancelled = false;
+    loadSheetFromUrl(codexSheetUrl, CODEX_ROWS).then((loaded) => {
+      if (!cancelled && loaded) setHeaderSheet(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [codexSheetUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +85,9 @@ export default function PetDetail({
     };
   }, [petId, apiBase]);
 
-  const codexSheet = sheets.codex ?? null;
+  // Prefer the fast standalone sheet; fall back to the zip's codex sheet for
+  // pre-P11.04 pets that have no codexSheetUrl yet.
+  const codexSheet = headerSheet ?? sheets.codex ?? null;
 
   if (pet === undefined) {
     return (
@@ -108,7 +128,7 @@ export default function PetDetail({
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-6 items-start">
           {/* Sprite animation */}
-          <div className="menubar-inset rounded-xl w-40 h-40 flex items-center justify-center overflow-hidden flex-shrink-0">
+          <div className="menubar-inset rounded-xl w-40 h-40 flex items-center justify-center overflow-hidden flex-shrink-0 relative">
             {codexSheet ? (
               <SpriteAnimation
                 sheetUrl={codexSheet.url}
@@ -117,8 +137,10 @@ export default function PetDetail({
                 totalCols={SHEET_COLS}
                 totalRows={CODEX_ROWS}
               />
+            ) : sheetLoading ? (
+              <div className="pet-shimmer" aria-hidden="true" />
             ) : (
-              <span className="text-5xl">{sheetLoading ? "⏳" : "🐾"}</span>
+              <span className="text-5xl">🐾</span>
             )}
           </div>
 

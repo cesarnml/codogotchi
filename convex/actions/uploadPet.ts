@@ -3,6 +3,7 @@
 import { validateAndRepackPet } from "@codogotchi/pets";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
+import JSZip from "jszip";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { type ActionCtx, action } from "../_generated/server";
@@ -97,6 +98,23 @@ export const uploadPet = action({
         new Blob([result.canonicalZip], { type: "application/zip" }),
       );
 
+      // Store the codex spritesheet as a standalone blob so gallery cards and
+      // detail headers can animate from one cached CDN image instead of
+      // downloading + unzipping the whole package. Best-effort: a failure here
+      // is cosmetic (gallery falls back to the zip path), so it must not fail
+      // the upload — but if the row write later throws, the outer cleanup drops it.
+      let codexSheetStorageId: Id<"_storage"> | undefined;
+      try {
+        const codexBytes = await extractCodexSheet(result.canonicalZip);
+        if (codexBytes) {
+          codexSheetStorageId = await ctx.storage.store(
+            new Blob([codexBytes], { type: "image/webp" }),
+          );
+        }
+      } catch {
+        codexSheetStorageId = undefined;
+      }
+
       // Accept thumbnail only if present and within size cap; treat as cosmetic.
       // Oversized thumbnails are deleted to avoid orphaned storage blobs.
       let resolvedThumbnailId = args.thumbnailStorageId ?? null;
@@ -118,13 +136,15 @@ export const uploadPet = action({
           tiers: result.metadata.tiers,
           zipStorageId: canonicalZipStorageId,
           thumbnailStorageId: resolvedThumbnailId,
+          codexSheetStorageId,
           sizes: { fileSizes: result.metadata.fileSizes },
           listed: true,
         });
       } catch (err) {
-        // Row write failed — drop the canonical zip we just stored. The raw zip
-        // and thumbnail are handled by the outer catch below.
+        // Row write failed — drop the canonical zip and standalone codex sheet
+        // we just stored. The raw zip and thumbnail are handled by the outer catch.
         await deleteBlob(ctx, canonicalZipStorageId);
+        await deleteBlob(ctx, codexSheetStorageId);
         throw err;
       }
 
@@ -140,6 +160,18 @@ export const uploadPet = action({
     }
   },
 });
+
+// Pulls the codex spritesheet.webp out of a canonical pet zip. Returns null if
+// the entry is somehow absent (it is validated as required upstream, so this is
+// purely defensive). Shares the JSZip dependency already loaded for this action.
+async function extractCodexSheet(
+  canonicalZip: Uint8Array,
+): Promise<Uint8Array | null> {
+  const zip = await JSZip.loadAsync(canonicalZip);
+  const entry = zip.file("spritesheet.webp");
+  if (!entry) return null;
+  return await entry.async("uint8array");
+}
 
 function sanitizePetId(raw: string): string | null {
   const slug = raw

@@ -71,6 +71,12 @@ export const listPetsForGallery = query({
         thumbnailUrl: pet.thumbnailStorageId
           ? await ctx.storage.getUrl(pet.thumbnailStorageId)
           : null,
+        // Direct CDN URL to the standalone codex sheet — lets cards animate from
+        // one cached image. Null for un-backfilled pets; the card falls back to
+        // unzipping the full package in that case.
+        codexSheetUrl: pet.codexSheetStorageId
+          ? await ctx.storage.getUrl(pet.codexSheetStorageId)
+          : null,
       })),
     );
     return { ...result, page };
@@ -84,7 +90,14 @@ export const getPet = query({
   handler: async (ctx, args) => {
     const pet = await getListedPet(ctx, args.petId);
     if (!pet) return null;
-    return { ...pet, downloadUrl: `/pets/${pet.petId}/download` };
+    const codexSheetUrl = pet.codexSheetStorageId
+      ? await ctx.storage.getUrl(pet.codexSheetStorageId)
+      : null;
+    return {
+      ...pet,
+      codexSheetUrl,
+      downloadUrl: `/pets/${pet.petId}/download`,
+    };
   },
 });
 
@@ -128,6 +141,33 @@ export const getZipForPreview = internalQuery({
   },
 });
 
+// Lists pets missing a standalone codex sheet — drives the P11.04 backfill.
+export const listPetsMissingCodexSheet = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("pets").collect();
+    return rows
+      .filter((p) => p.codexSheetStorageId === undefined)
+      .map((p) => ({
+        _id: p._id,
+        petId: p.petId,
+        zipStorageId: p.zipStorageId,
+      }));
+  },
+});
+
+// Backfill setter for the P11.04 migration: attaches an extracted codex sheet
+// blob to an existing pet row. Idempotent — re-running is a no-op-equivalent patch.
+export const setCodexSheet = internalMutation({
+  args: { petId: v.id("pets"), codexSheetStorageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.petId, {
+      codexSheetStorageId: args.codexSheetStorageId,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 // Counts recent pets by a given author within a time window for rate limiting.
 export const countRecentPetsByAuthor = internalQuery({
   args: { authorUserId: v.id("users"), since: v.number() },
@@ -154,6 +194,7 @@ export const createPet = internalMutation({
     tiers: v.array(v.string()),
     zipStorageId: v.id("_storage"),
     thumbnailStorageId: v.union(v.id("_storage"), v.null()),
+    codexSheetStorageId: v.optional(v.id("_storage")),
     sizes: v.any(),
     listed: v.boolean(),
   },

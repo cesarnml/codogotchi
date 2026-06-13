@@ -5,6 +5,7 @@ import {
   CODEX_ROWS,
   type LoadedSheet,
   loadPetSheets,
+  loadSheetFromUrl,
   previewZipUrl,
   SHEET_COLS,
 } from "../lib/petSheets";
@@ -32,40 +33,53 @@ type GalleryPet = {
   tiers: string[];
   downloadCount: number;
   thumbnailUrl: string | null;
+  codexSheetUrl: string | null;
 };
 
-// Animated idle-cycle thumbnail for a gallery card. Falls back to the static
-// thumbnail (if uploaded) and finally the paw placeholder while loading.
+// Animated idle-cycle thumbnail for a gallery card. Fast path: animate the
+// standalone codex sheet (one cached CDN image). Fallback for pre-P11.04 pets:
+// unzip the full package. A shimmer covers the load; the static thumbnail and
+// paw emoji are the final fallbacks.
 function CardSprite({
   petId,
   apiBase,
   displayName,
   thumbnailUrl,
+  codexSheetUrl,
 }: {
   petId: string;
   apiBase: string;
   displayName: string;
   thumbnailUrl: string | null;
+  codexSheetUrl: string | null;
 }) {
   const [sheet, setSheet] = useState<LoadedSheet | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    loadPetSheets(previewZipUrl(petId, apiBase))
-      .then((loaded) => {
-        if (cancelled) return;
-        const codex = loaded.codex ?? null;
-        setSheet(codex);
-        if (!codex) setFailed(true);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
+    setSheet(null);
+    setFailed(false);
+
+    const settle = (loaded: LoadedSheet | null) => {
+      if (cancelled) return;
+      if (loaded) setSheet(loaded);
+      else setFailed(true);
+    };
+
+    if (codexSheetUrl) {
+      // Fast path: one image, no zip, no unzip.
+      loadSheetFromUrl(codexSheetUrl, CODEX_ROWS).then(settle);
+    } else {
+      // Legacy path: download + unzip the whole package, use the codex sheet.
+      loadPetSheets(previewZipUrl(petId, apiBase))
+        .then((loaded) => settle(loaded.codex ?? null))
+        .catch(() => settle(null));
+    }
     return () => {
       cancelled = true;
     };
-  }, [petId, apiBase]);
+  }, [petId, apiBase, codexSheetUrl]);
 
   if (sheet) {
     return (
@@ -89,7 +103,11 @@ function CardSprite({
       />
     );
   }
-  return <span className="text-5xl group-hover:scale-110 transition-transform">🐾</span>;
+  if (failed) {
+    return <span className="text-5xl group-hover:scale-110 transition-transform">🐾</span>;
+  }
+  // Still loading — shimmer placeholder.
+  return <div className="pet-shimmer" aria-hidden="true" />;
 }
 
 export default function GalleryGrid({
@@ -166,6 +184,7 @@ export default function GalleryGrid({
                 apiBase={apiBase}
                 displayName={pet.displayName}
                 thumbnailUrl={pet.thumbnailUrl}
+                codexSheetUrl={pet.codexSheetUrl}
               />
             </div>
 

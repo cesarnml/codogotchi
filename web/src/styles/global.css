@@ -159,6 +159,32 @@
     box-shadow: inset 0 4px 14px rgba(0, 0, 0, 0.55);
   }
 
+  /* Loading shimmer — sweeps a soft highlight across a placeholder while a pet
+     sprite is still loading. Sits inside the dark .menubar-inset, so the sweep
+     is a faint light band over the terminal void. */
+  .pet-shimmer {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.08) 45%,
+      rgba(255, 255, 255, 0.16) 50%,
+      rgba(255, 255, 255, 0.08) 55%,
+      transparent 70%
+    );
+    background-size: 220% 100%;
+    animation: pet-shimmer-sweep 1.25s ease-in-out infinite;
+  }
+  @keyframes pet-shimmer-sweep {
+    0% {
+      background-position: 180% 0;
+    }
+    100% {
+      background-position: -80% 0;
+    }
+  }
+
   /* Hand-drawn squiggle divider */
   .squiggle {
     height: 12px;
