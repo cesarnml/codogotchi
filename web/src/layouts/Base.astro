@@ -17,6 +17,10 @@ import vietnam400Url from "@fontsource/be-vietnam-pro/files/be-vietnam-pro-latin
 import vietnam500Url from "@fontsource/be-vietnam-pro/files/be-vietnam-pro-latin-500-normal.woff2?url";
 import vietnam700Url from "@fontsource/be-vietnam-pro/files/be-vietnam-pro-latin-700-normal.woff2?url";
 import mono400Url from "@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2?url";
+// Self-hosted Material Symbols subset. Imported (not a literal public/ path) so
+// Vite fingerprints the URL — regenerating the subset emits a new filename and
+// busts the long-lived `immutable` cache, instead of pinning stale icon sets.
+import msSubsetUrl from "../assets/material-symbols-subset.woff2?url";
 const preloadFonts = [
   jakarta700Url,
   jakarta800Url,
@@ -24,7 +28,7 @@ const preloadFonts = [
   vietnam500Url,
   vietnam700Url,
   mono400Url,
-  "/assets/material-symbols-subset.woff2",
+  msSubsetUrl,
 ];
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
@@ -95,6 +99,9 @@ const structuredData = [
         <link rel="preload" as="font" type="font/woff2" href={href} crossorigin="anonymous" />
       ))
     }
+    <style
+      set:html={`@font-face{font-family:"Material Symbols Outlined";font-style:normal;font-weight:100 700;font-display:block;src:url("${msSubsetUrl}") format("woff2");}`}
+    />
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta name="robots" content={robots} />

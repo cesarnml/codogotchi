@@ -1,7 +1,12 @@
-# Regenerates public/assets/material-symbols-subset.woff2 with only the icon
+# Regenerates src/assets/material-symbols-subset.woff2 with only the icon
 # glyphs the site uses. Run from web/ after adding or removing an icon:
 #
 #   uvx --from "fonttools[woff]" --with brotli python3 scripts/subset-icons.py
+#
+# The font lives under src/assets/ (not public/) so Vite fingerprints the
+# emitted filename. That cache-busts the long-lived `immutable` response on
+# every regeneration — a stable public/ filename would otherwise pin stale
+# subsets in browser caches for a year and drop newly added icons.
 #
 # Icon names are collected from two source patterns:
 #   1. literal text inside <span class="material-symbols-outlined">name</span>
@@ -16,7 +21,7 @@ from fontTools.ttLib import TTFont
 
 WEB = Path(__file__).resolve().parent.parent
 SOURCE_FONT = WEB / "node_modules/material-symbols/material-symbols-outlined.woff2"
-OUTPUT = WEB / "public/assets/material-symbols-subset.woff2"
+OUTPUT = WEB / "src/assets/material-symbols-subset.woff2"
 
 TEXT_NODE = re.compile(
     r'material-symbols-outlined[^>]*>\s*\{?"?([a-z_0-9]+)"?\}?\s*<', re.S

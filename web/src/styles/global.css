@@ -195,14 +195,9 @@
 
 /* Material Symbols — self-hosted subset containing only the icon glyphs the
    site uses. After adding a new icon name anywhere in src/, regenerate with:
-   uvx --from "fonttools[woff]" --with brotli python3 scripts/subset-icons.py */
-@font-face {
-  font-family: "Material Symbols Outlined";
-  font-style: normal;
-  font-weight: 100 700;
-  font-display: block;
-  src: url("/assets/material-symbols-subset.woff2") format("woff2");
-}
+   uvx --from "fonttools[woff]" --with brotli python3 scripts/subset-icons.py
+   The @font-face lives in Base.astro so the woff2 URL is the Vite-fingerprinted
+   one (cache-busts on every regenerate); only the glyph styling lives here. */
 .material-symbols-outlined {
   font-family: "Material Symbols Outlined";
   font-weight: normal;
