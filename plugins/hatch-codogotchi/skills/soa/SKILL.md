@@ -55,9 +55,11 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` backgrou
 
 5. **Visual identity drift.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
 
-> **Validation does not catch failures 1–2.** Eyeball every finished row for actual motion before proceeding to the next.
+6. **Jerky / over-animated motion (the stability killer).** Because the 8 frames are generated independently, big or whole-body motion comes back incoherent — legs swing, props teleport, the pet hops. **Stability beats expressiveness even on these celebration rows:** anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. Sell the beat with pose and face, not with the body roaming the cell. A mild stable loop beats a busy jittery one. The scripts cannot detect this — it is purely an eyeball check.
+
+> **Validation does not catch failures 1–2 or 6.** Eyeball every finished row for genuine *but stable* motion before proceeding to the next.
 >
-> Mirrored/reused closure is allowed only if it still reads as lively and intentional. If the row's celebration or reaction looks flattened, repetitive, or cheap, generate more distinct frames.
+> Mirrored/reused closure is allowed only if it still reads as lively and intentional. If the row's reaction looks flattened or repetitive, add a distinct frame — but never buy expressiveness with jitter or limb flailing; a calm readable beat wins.
 
 ---
 
@@ -70,11 +72,12 @@ Identical to `hatch-codogotchi-lite`:
 - **Scale registration:** one shared scale per row (tallest frame sets it).
 - **Horizontal registration:** character/content stays on a stable x-axis in every 192×208 cell; no left/right hopping. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
 - **Baseline registration:** feet on same y-line — `baseline_y = 208 − 8 − scaled_h`. Do not vertically center ordinary standing rows; they should sit near the bottom of the cell. Explicit jump/leap rows may leave the baseline briefly but must visibly take off and land.
+- **Motion restraint (paramount):** stability beats expressiveness. The 8 frames are generated *independently*, so keep the torso, head, hips, and **both feet** anchored in nearly the same place and confine motion to **one element** (the prop, one arm, the expression) at low amplitude with short smooth arcs. Legs do not swing or restage between frames. Props travel a little and consistently — never roaming around the cell.
 - **Loop closure:** frame 8 pose ≈ frame 1 pose.
 - **Character fidelity:** seed image is sole style reference.
 - **No contamination:** no chroma-colour contamination on character, props, or effects.
 
-SoA rows are **expressive and energetic** — these are delivery gate celebrations, not idle loops. Each row should read as a distinct emotional beat at a glance.
+SoA rows are **expressive** — these are delivery gate reactions, not idle loops — but expressiveness comes from a **clear pose and face**, not from the body roaming the cell or limbs flailing. Each row should read as a distinct emotional beat at a glance while staying stable frame-to-frame. The **only** sanctioned big motion is `ticket-completed`'s leap (feet off baseline ≤ 12 px, with a clean takeoff and landing on a stable x-axis); every other row sells its emotion from a planted stance. When expressiveness and stability conflict, choose stability.
 
 ---
 
@@ -236,7 +239,8 @@ Key distinctions to preserve:
 - [ ] Zero likely green/magenta chroma residue pixels anywhere
 - [ ] No transparent pixel with nonzero RGB
 - [ ] No row has all 8 frames pixel-identical
-- [ ] Each row shows distinct motion and reads as its named emotional beat (eyeball check)
+- [ ] **Stable motion (paramount):** body/feet anchored, one element moves at low amplitude, no jitter/hopping/limb-swing; emotion sold from a planted stance (only `ticket-completed` leaves the baseline)
+- [ ] Each row shows *subtle* distinct motion (a floor, not big motion) and reads as its named emotional beat (eyeball check)
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`
 - [ ] Loop closes: frame 8 flows back to frame 1
 - [ ] All 10 rows have meaningfully distinct visual language from each other

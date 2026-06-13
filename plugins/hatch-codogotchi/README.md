@@ -27,14 +27,21 @@ Caveats:
 - Some rows need more unique motion than others; generate extra distinct frames whenever the row's action or emotion demands it.
 - Validation plus human visual review can still reject a mirrored/reused closure even if the row passes script checks.
 
-## Alignment doctrine
+## Motion & alignment doctrine
 
-Every row must keep the pet visually stable inside each **192 × 208** cell:
+**Stability over expressiveness — the paramount rule.** A calm pet with small, smooth motion always beats an expressive one that jitters. When the two conflict, **choose stability.** The frames are generated *independently* by image-gen, so any large or whole-body motion you describe comes back inconsistent between frames — legs swing, props teleport, the pet hops. A mild, stable loop is the goal; expressiveness is a distant second.
+
+- **Anchor the body.** Torso, head position, hips, and **both feet** stay in nearly the same place across all 8 frames. In standing rows the legs do **not** walk, swing, or restage — feet stay planted in the same stance on the baseline.
+- **Move one thing at a time.** Confine motion to a single element — the named prop, one arm/hand, or the eyes/expression — plus at most a gentle ≤few-px bob. Avoid simultaneous whole-body motion; that is what reads as erratic once the frames are rendered separately.
+- **Low amplitude, short smooth arcs.** Gestures are gentle and small; a prop travels a little and consistently, never roaming around the cell between frames. Big described motions (punch, leap, big swing) become popping when each frame is independent — keep arcs short and the change between adjacent frames small.
+- **"No static rows" is a floor, not a target.** The floor is *subtle, smooth* life — a breath, a small sway, blinking eyes, one quiet prop beat — just enough that the 8 frames differ. It is **not** a push toward big motion. A barely-moving-but-stable row **passes**; a busy-but-jittery row is a **reject**.
+
+Alignment specifics (these serve the rule above):
 
 - **Stable horizontal axis:** horizontally center the character/content in every cell so the pet does not hop left/right during playback. If a large side prop skews the alpha bbox, prefer the character body's visual center over blindly centering the prop-heavy bbox.
 - **Stable bottom baseline:** vertically align frames to a shared foot/ground baseline near the bottom of the cell, normally `y = cell_h - 8 - scaled_h`. Do **not** vertically center ordinary standing rows; that makes the pet float too far above the badge/panel.
-- **Validation guard:** `inspect_frames.py` and `validate_atlas.py` fail obvious per-frame horizontal center drift. Human visual review still has final say because laptops, thought bubbles, signs, and lab props can fool simple bbox math.
-- **Jump exception:** explicit jump/leap rows may leave the baseline briefly, but they still need a deliberate takeoff/landing and a stable horizontal axis.
+- **Validation guard:** `inspect_frames.py` and `validate_atlas.py` fail obvious per-frame horizontal center drift. Human visual review still has final say because laptops, thought bubbles, signs, and lab props can fool simple bbox math — and because the scripts cannot measure jitter or limb flailing.
+- **Jump exception:** the only sanctioned big motion is an explicit jump/leap row (Codex `jump`, SoA `ticket-completed`). It may leave the baseline briefly but must still take off and land cleanly on a stable horizontal axis — controlled, not flailing.
 
 ## Chroma-key policy
 
@@ -218,21 +225,23 @@ hatch-codogotchi/
 
 4. **Style drift from the Codex sheet** *(Lite and SoA only)* — Compare every row against the existing Codex cells. Same character, same palette, same linework.
 
-5. **Mime / charades (the readability killer)** — Codogotchi animations must be readable at a glance. States that don't map to a plain human emotion must be carried by **one clearly-visible prop**, never subtle hand gestures or an *invisible* prop ("invisible keyboard", "unseen screen"). Use **exactly the prop named — never an A/B choice** (the old `reading` "page/tablet" drew a tablet in some frames and a book in others). Same prop, all 8 frames. See `references/animation-rows-lite.md` → *prop doctrine*.
+5. **Jerky / over-animated motion (the stability killer)** — The single worst outcome. Because each of the 8 frames is generated independently, big or whole-body described motion comes back incoherent: legs swing, props jump around, the pet hops. **Stability beats expressiveness every time** — anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. A mild stable loop is a pass; a busy jittery one is a reject. "No static rows" is a floor (subtle smooth life), not a target. See *Motion & alignment doctrine* above and `references/animation-rows-lite.md` → *motion restraint*.
 
-6. **Per-frame scale drift** — Historically ~15% of frames render the character noticeably larger/smaller than its rowmates (e.g. the old `errored` row). `stitch_row.py` only prevents clipping; it does **not** equalize size. `inspect_frames.py` / `validate_atlas.py` now **hard-fail** any frame whose content height deviates >15% from the row median — regenerate that frame at the row's shared size; do not rescale.
+6. **Mime / charades (the readability killer)** — Codogotchi animations must be readable at a glance. States that don't map to a plain human emotion must be carried by **one clearly-visible prop**, never subtle hand gestures or an *invisible* prop ("invisible keyboard", "unseen screen"). Use **exactly the prop named — never an A/B choice** (the old `reading` "page/tablet" drew a tablet in some frames and a book in others). Same prop, all 8 frames. See `references/animation-rows-lite.md` → *prop doctrine*.
 
-7. **Horizontal alignment drift** — The pet must not hop left/right inside the frame. `stitch_row.py` centers cropped content horizontally, and `inspect_frames.py` / `validate_atlas.py` hard-fail obvious bbox-center drift across a row. For large side props, use human review to confirm the character body, not the prop-heavy bbox, stays on a stable x-axis.
+7. **Per-frame scale drift** — Historically ~15% of frames render the character noticeably larger/smaller than its rowmates (e.g. the old `errored` row). `stitch_row.py` only prevents clipping; it does **not** equalize size. `inspect_frames.py` / `validate_atlas.py` now **hard-fail** any frame whose content height deviates >15% from the row median — regenerate that frame at the row's shared size; do not rescale.
 
-8. **Vertical float from center alignment** — Ordinary standing rows should use a shared bottom baseline near `cell_h - 8`, not vertical centering. Centering the full bbox vertically can make the pet hover too far above the `AnimationBadgePanel`. Jump/leap rows are the exception, and they must visibly take off and land.
+8. **Horizontal alignment drift** — The pet must not hop left/right inside the frame. `stitch_row.py` centers cropped content horizontally, and `inspect_frames.py` / `validate_atlas.py` hard-fail obvious bbox-center drift across a row. For large side props, use human review to confirm the character body, not the prop-heavy bbox, stays on a stable x-axis.
 
-9. **Character identity drift** — Automated checks cannot fully judge style. After every frame and every stitched row, compare against `seed.png` and verify the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework. `inspect_frames.py --seed run/<pet>/seed.png` prints advisory bbox, area, centroid, and rough silhouette-deviation metrics to help spot drift, but visual review is still required.
+9. **Vertical float from center alignment** — Ordinary standing rows should use a shared bottom baseline near `cell_h - 8`, not vertical centering. Centering the full bbox vertically can make the pet hover too far above the `AnimationBadgePanel`. Jump/leap rows are the exception, and they must visibly take off and land.
+
+10. **Character identity drift** — Automated checks cannot fully judge style. After every frame and every stitched row, compare against `seed.png` and verify the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework. `inspect_frames.py --seed run/<pet>/seed.png` prints advisory bbox, area, centroid, and rough silhouette-deviation metrics to help spot drift, but visual review is still required.
 
 ## Frame replacement recovery
 
 If exactly one frame fails visual QA or automated inspection, regenerate only that standalone frame. Replace `frames/<tier>/<row>/fNN.png`, rerun `stitch_row.py` for that row, rerun `inspect_frames.py --seed run/<pet>/seed.png`, and eyeball the restitched row. Do not regenerate an entire row when a surgical frame replacement is enough, and do not transform neighboring frames to patch the failure.
 
-> Validation does not catch failures 1–4. Eyeball every row. Failures 5–7 are gated by scripts; failures 8–9 still need visual judgment.
+> Validation does not catch failures 1–5. Eyeball every row — **jerky over-animation (#5) is invisible to the scripts** and is the most common reason a mechanically-valid row still looks bad. Failures 6–8 are gated by scripts; failures 9–10 still need visual judgment.
 
 ---
 

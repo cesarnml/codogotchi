@@ -32,6 +32,8 @@ Use this checklist after composing each atlas and again after final installation
 - [ ] No row in any sheet has all 8 frames pixel-identical
 - [ ] Frame-to-frame pixel difference is non-trivial for every row
 
+> This gate only ensures the frames *differ* — it is a **floor**, not a target. Subtle smooth motion (a breath, a small sway, one prop beat) clears it. Do **not** add big or whole-body motion to satisfy it; that trades a passing script check for a jittery row, which the eyeball checks below will reject. Stability outranks expressiveness.
+
 ### Scale-drift detection (now gated by `inspect_frames.py` / `validate_atlas.py`)
 
 - [ ] No frame's content height deviates **>15%** from its row median (the image model historically renders ~15% of frames off-size — e.g. the old `errored` row). Regenerate the offending frame at the row's shared size; do **not** rescale.
@@ -46,9 +48,15 @@ Use this checklist after composing each atlas and again after final installation
 
 ### Per-row animation quality
 
+**Stability is paramount — a jittery row is a reject even if every other check passes.** A mild, stable loop beats an expressive but jerky one. These checks are not script-detectable; they are the most important thing to eyeball.
+
 For each row in each sheet:
 
-- [ ] **Real motion:** frames show distinct poses, not the same image repeated
+- [ ] **Stable motion (no jitter):** the loop reads smooth, not poppy — frame-to-frame change is small. No erratic jumps between adjacent frames.
+- [ ] **Body anchored:** torso, head position, hips, and **both feet** stay in nearly the same place across all 8 frames. Legs do **not** walk, swing, or restage in standing rows.
+- [ ] **One element moves:** motion is confined to the named prop, one arm/hand, or the expression — not the whole body at once.
+- [ ] **Low amplitude:** gestures are gentle and small; the prop travels a little and consistently and never roams around the cell.
+- [ ] **Real motion (floor, not target):** the 8 frames differ subtly — not the same image repeated — but subtle smooth life is enough; big motion is **not** required and usually wrong.
 - [ ] **Loop closure:** frame 8 flows naturally back into frame 1 (no jump cut)
 - [ ] **Scale consistency:** character does not pulse or resize between frames (one shared scale per row)
 - [ ] **Horizontal stability:** character stays on the same visual x-axis across all 8 frames

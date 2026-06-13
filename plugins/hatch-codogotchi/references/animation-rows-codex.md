@@ -29,6 +29,8 @@ When the Tier 2 Lite sheet is present, rows 7–8 are only used for states not c
 
 ## Motion descriptions
 
+> **Motion restraint — stability over expressiveness (paramount).** The 8 frames are generated *independently*, so big or whole-body motion comes back jerky. For the **standing/expression rows** (`idle`, `standby`, `errored`, `waiting-for-input`, the two fallbacks): anchor the torso, head, hips, and **both feet**, move **one element** (one arm, the eyes/expression, a ≤few-px bob) at low amplitude, and keep frame-to-frame change small. Read every verb (*bounce, nod, tap, recoil, lean*) as **small and gentle** — `idle` already says "character barely moves," and that restraint is the model for the others. The **only** designed-motion rows are the three locomotion ones — `running-right`, `running-left` (a clean stride cycle), and `jump` (controlled takeoff/land, feet off baseline ≤ 12 px) — and even they must stay on a stable x-axis with smooth, non-erratic frame-to-frame change. When expressiveness and stability conflict, choose stability.
+
 ### Row 0 — idle
 
 Calm neutral breathing loop. Gentle inhale (body and head barely rise), soft eye-blink mid-cycle, slow exhale-and-settle. Character barely moves. Frame 1 ≈ the seed pose.

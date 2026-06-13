@@ -24,6 +24,23 @@ Codogotchi animations are **not charades**. A user must read the state at a glan
 
 ---
 
+## Motion restraint — stability over expressiveness (read before generating)
+
+**This is the paramount rule — it outranks the prop and expression goals below.** A calm pet with small, smooth motion always beats an expressive one that jitters. When the two conflict, **choose stability.**
+
+The 8 frames are generated *independently* by image-gen, so any large or whole-body motion you describe comes back incoherent between frames — legs swing, props teleport, the pet hops left/right. That jerk is the single worst outcome; a mild, barely-moving loop is far better.
+
+How to read every motion description below:
+
+- **Anchor the body.** Torso, head position, hips, and **both feet** stay in nearly the same place across all 8 frames. In standing rows the legs do **not** walk, swing, or restage — feet stay planted in the same stance on the baseline.
+- **Move one thing.** Pick a single element to animate — the named prop, one arm/hand, or the eyes/expression — plus at most a gentle ≤few-px bob. Do not animate the whole body at once.
+- **Low amplitude, short smooth arcs.** Verbs like *bounce, shift weight, tap, pump, lean* mean **small and gentle**, not athletic. Keep the change between adjacent frames small so the loop reads smooth, not poppy. A prop moves a little and consistently — it never roams the cell.
+- **Treat the descriptions as the *upper* bound of motion.** If a row reads clearly with less movement, use less. "No static rows" only requires that the 8 frames differ subtly — it is **not** a call for big motion. A stable, barely-moving row passes; a busy, jittery one is a reject.
+
+The one exception is an explicit jump/leap row, which may leave the baseline briefly but must still take off and land cleanly on a stable x-axis — controlled, not flailing.
+
+---
+
 # Tier 2 — Lite-Basic (9 rows)
 
 | Row | Label | `activity_state` / trigger | Lead | Single prop |
@@ -41,6 +58,8 @@ Codogotchi animations are **not charades**. A user must read the state at a glan
 `ghost` and `revive` are both **renderer-selected**, not `state.json` activity_state values. `revive` fires when `revive_until > now`; `ghost` fires when `half_hearts == 0`. `idle` is not present in Tier 2 — the renderer falls through to the Codex sheet's idle row (row 0) for the resting state. States not covered by Basic (`editing`, `searching`, `web_search`, `verifying`, `git_ops`, `cramming`) alias at the app level to their closest Basic row until Enhanced is installed.
 
 ### Motion descriptions (Basic)
+
+> Read every verb below as **small and gentle** — these describe the *upper* bound of motion. Anchor the body and both feet, move one element at a time, keep amplitude low. Stability outranks expressiveness (see *Motion restraint* above).
 
 - **revive** — Health gained; pure joy. Seed pose: right arm raised fist-pump, left arm cocked, bag on shoulder (from seed image). Frame 1 ≈ seed pose. Animation: arm pumps down and back up, weight shifts to one leg in a small bounce, open smile throughout. No prop — expression alone. Loops for the full 5 s TTL (renderer holds until `revive_until` expires, then falls through to the idle row from the Codex sheet).
 - **standby** — Turn finished, handing control back to you. Holds a small **handbell** every frame: bright ready stance, one clear upward bell-ring toward the viewer (bell lifts, tiny sound-spark), a friendly nod, lower, settle. Distinct from idle.
@@ -70,6 +89,8 @@ Codogotchi animations are **not charades**. A user must read the state at a glan
 | 7 | web-search | `web_search` | deerstalker hat + magnifying glass + globe |
 
 ### Motion descriptions (Enhanced)
+
+> Read every verb below as **small and gentle** — these describe the *upper* bound of motion. Anchor the body and both feet, move one element at a time, keep amplitude low. Stability outranks expressiveness (see *Motion restraint* above). Note `idle-frustrated`'s "foot taps faster" still means a small planted tap — not a stomping or shifting stance.
 
 - **idle-impatient** — Restless (after ~5 min idle). Taps a **wristwatch** on her raised wrist (visible every frame), glances at it, single toe-tap, lowers, settles.
 - **idle-frustrated** — Agitated (after ~10 min idle). Two small **steam puffs** vent from the top of her head; arms crossed, eye-roll, foot taps faster, settle to tense neutral.
