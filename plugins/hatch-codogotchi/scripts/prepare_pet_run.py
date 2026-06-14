@@ -387,7 +387,7 @@ def main() -> None:
         config = json.loads(config_path.read_text())
         pet_json = {
             "id": config["pet_id"],
-            "display_name": config["pet_name"],
+            "displayName": config["pet_name"],
         }
         out = run_dir / "pet.json"
         out.write_text(json.dumps(pet_json, indent=2) + "\n")
