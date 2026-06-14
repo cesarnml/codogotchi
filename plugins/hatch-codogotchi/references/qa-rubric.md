@@ -136,6 +136,6 @@ After installation and app reload:
 1. **Codex idle:** open Codogotchi — pet should appear in the menubar animating.
 2. **Lite-Basic states (if installed):** trigger agent activity (e.g. run Claude Code with tool use) — pet should transition through `implementing`, `thinking`, `reading`, etc.
 3. **Ghost state (if Lite-Basic installed):** drive `half_hearts` to 0 — pet should lock to the `ghost` row.
-4. **Idle escalation (if Lite-Enhanced installed):** leave the app idle 5+ minutes — `idle-impatient` art should appear.
+4. **Idle escalation (if Lite-Enhanced installed):** leave the app idle 10+ minutes — `idle-impatient` art should appear; 30+ minutes for `idle-frustrated`.
 5. **SoA gate (if installed):** write a `gate.json` with a valid gate state and a future `expires_at` — pet should switch to SoA art.
 6. **macOS Console check:** filter by `Codogotchi` — look for any `lite sheet absent`, `SoA sheet absent`, `spritesheetIncompatibleGrid`, or `spritesheetUnreadable` messages that indicate a load failure.

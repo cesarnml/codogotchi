@@ -79,8 +79,8 @@ The one exception is an explicit jump/leap row, which may leave the baseline bri
 
 | Row | Label | `activity_state` / trigger | Single prop |
 |----:|-------|----------------------------|-------------|
-| 0 | idle-impatient | *(renderer — ~5 min idle)* | wristwatch |
-| 1 | idle-frustrated | *(renderer — ~10 min idle)* | steam puffs |
+| 0 | idle-impatient | *(renderer — 10 min idle)* | wristwatch |
+| 1 | idle-frustrated | *(renderer — 30 min idle)* | steam puffs |
 | 2 | cramming | `cramming` | tall stack of books |
 | 3 | editing | `editing` | pencil + paper |
 | 4 | git-ops | `git_ops` | GitHub cat icon |
@@ -92,8 +92,8 @@ The one exception is an explicit jump/leap row, which may leave the baseline bri
 
 > Read every verb below as **small and gentle** — these describe the *upper* bound of motion. Anchor the body and both feet, move one element at a time, keep amplitude low. Stability outranks expressiveness (see *Motion restraint* above). Note `idle-frustrated`'s "foot taps faster" still means a small planted tap — not a stomping or shifting stance.
 
-- **idle-impatient** — Restless (after ~5 min idle). Taps a **wristwatch** on her raised wrist (visible every frame), glances at it, single toe-tap, lowers, settles.
-- **idle-frustrated** — Agitated (after ~10 min idle). Two small **steam puffs** vent from the top of her head; arms crossed, eye-roll, foot taps faster, settle to tense neutral.
+- **idle-impatient** — Restless (after 10 min idle). Taps a **wristwatch** on her raised wrist (visible every frame), glances at it, single toe-tap, lowers, settles.
+- **idle-frustrated** — Agitated (after 30 min idle). Two small **steam puffs** vent from the top of her head; arms crossed, eye-roll, foot taps faster, settle to tense neutral.
 - **cramming** — Heavy study. Hugs a **tall stack of books** (distinct from reading's single book), flips the top book fast, eyes scanning intensely, quick lean-in, settle.
 - **editing** — Targeted edit. A sheet of **paper** + a large **pencil** (distinct from implementing's laptop): erases a line with the eraser end, flips the pencil, rewrites it, blows away dust, settle.
 - **git-ops** — Shipping to the repo. Holds a round **GitHub cat (Octocat) icon** between both hands at her chest, winds up, launches it upward/forward with a whoosh / motion trail, follows through, resets.
