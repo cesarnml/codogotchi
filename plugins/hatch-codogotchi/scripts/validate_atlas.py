@@ -19,8 +19,6 @@ TIER_SPECS = {
     "codex":         {"rows": 9, "ref_w": 1536, "ref_h": 1872},
     "lite-basic":    {"rows": 9, "ref_w": 1536, "ref_h": 1872},
     "lite-enhanced": {"rows": 8, "ref_w": 1536, "ref_h": 1664},
-    # Deprecated single 11-row lite sheet — back-compat only.
-    "lite":          {"rows": 11, "ref_w": 1536, "ref_h": 2288},
     "soa":           {"rows": 10, "ref_w": 1536, "ref_h": 2080},
 }
 
@@ -43,11 +41,6 @@ TIER_ROW_LABELS = {
     "lite-enhanced": [
         "idle-impatient", "idle-frustrated", "cramming", "editing",
         "git-ops", "verifying", "searching", "web-search",
-    ],
-    "lite": [
-        "idle", "idle-impatient", "idle-frustrated", "standby",
-        "thinking", "reading", "implementing", "testing",
-        "cramming", "errored", "waiting-for-input",
     ],
     "soa": [
         "ticket-started", "red-tdd", "green-tdd", "adversarial-review",

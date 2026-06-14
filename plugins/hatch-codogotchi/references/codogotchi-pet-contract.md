@@ -71,8 +71,6 @@ Polish extension: heuristic states + idle-mood escalation. **Requires Lite-Basic
 | Cell size | 192 × 208 px (must match Tier 1 cell) |
 | Pixel validation | `imageWidth % 8 == 0`, `imageHeight % 8 == 0` |
 
-> **App-load note:** the menubar app currently still loads the legacy single `codogotchi-lite-spritesheet.webp` (8×11). The basic/enhanced split is wired app-side separately (see `notes/private/spritesheet-tier-split-proposal.md`); until then, generate the split sheets for forward-compat but expect the old filename to be what the running app reads.
-
 ### `codogotchi-soa-spritesheet.webp` — Tier 4 (SoA sheet)
 
 Delivery gate states. Shown only when `~/.codogotchi/gate.json` is active and unexpired.
@@ -110,8 +108,6 @@ The app resolves which row to animate using this priority order (first match win
 4. Codex sheet row — always available as fallback
 5. Codex idle row — final fallback for any unknown state
 
-(On the legacy single lite sheet, steps 2–3 collapse to one `liteRowMap` lookup.)
-
 ---
 
 ## Tile animation contract
@@ -143,7 +139,6 @@ The app reads these exact filenames. Custom paths in `pet.json` are ignored.
 | `codogotchi-lite-basic-spritesheet.webp` | No |
 | `codogotchi-lite-enhanced-spritesheet.webp` | No (requires Basic) |
 | `codogotchi-soa-spritesheet.webp` | No |
-| `codogotchi-lite-spritesheet.webp` | No (deprecated — legacy single lite sheet) |
 
 ---
 

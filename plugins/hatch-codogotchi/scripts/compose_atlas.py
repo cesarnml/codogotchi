@@ -64,25 +64,6 @@ TIER_CONFIG = {
         ],
         "output_suffix": "codogotchi-lite-enhanced-spritesheet",
     },
-    # Deprecated single 11-row lite sheet — kept for back-compat with pets/sheets
-    # generated before the basic/enhanced split. Prefer lite-basic + lite-enhanced.
-    "lite": {
-        "rows": 11,
-        "row_labels": [
-            "idle",
-            "idle-impatient",
-            "idle-frustrated",
-            "standby",
-            "thinking",
-            "reading",
-            "implementing",
-            "testing",
-            "cramming",
-            "errored",
-            "waiting-for-input",
-        ],
-        "output_suffix": "codogotchi-lite-spritesheet",
-    },
     "soa": {
         "rows": 10,
         "row_labels": [
@@ -175,7 +156,7 @@ def compose(rows_dir: Path, tier: str, out: Path, cell_w: int = 192, cell_h: int
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compose Codogotchi spritesheet atlas from row strips.")
     parser.add_argument("--rows-dir", required=True, type=Path, help="Directory of validated row strip PNGs")
-    parser.add_argument("--tier", required=True, choices=list(TIER_CONFIG.keys()), help="Sheet tier: codex, lite, or soa")
+    parser.add_argument("--tier", required=True, choices=list(TIER_CONFIG.keys()), help="Sheet tier: codex, lite-basic, lite-enhanced, or soa")
     parser.add_argument("--out", required=True, type=Path, help="Output atlas PNG path")
     parser.add_argument("--cell-w", type=int, default=192)
     parser.add_argument("--cell-h", type=int, default=208)

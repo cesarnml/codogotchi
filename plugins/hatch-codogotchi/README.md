@@ -75,8 +75,6 @@ The lite sheet is **split in two**: `codogotchi-lite-basic-spritesheet.webp` (9 
 
 Each skill lives at `skills/<short-name>/SKILL.md` (e.g. `skills/codex-and-lite-basic/SKILL.md`).
 
-> To add the full lite set to an existing pet, run `hatch-codogotchi-lite-basic` then `hatch-codogotchi-lite-enhanced`. The old single 11-row `codogotchi-lite-spritesheet.webp` is deprecated (back-compat only).
-
 ### Which skill to use?
 
 ```
@@ -120,7 +118,7 @@ Hatch a new Codogotchi named "Mochi" from this seed image.
 
 All tiers: **192×208 px cell**, **8 frames/row**, **187.5 ms/frame**, **continuous loop**.
 
-Tier 1 is required. Resolution order per render moment: **SoA → Enhanced → Basic → Codex**. Enhanced cannot be installed without Basic. (Deprecated: the old single 8×11 `codogotchi-lite-spritesheet.webp`.)
+Tier 1 is required. Resolution order per render moment: **SoA → Enhanced → Basic → Codex**. Enhanced cannot be installed without Basic.
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "name": "hatch-codogotchi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Codex-native skills that draw Codogotchi-compatible sprite atlases (Codex, Lite-Basic, Lite-Enhanced, and Son-of-Anton tiers) from a seed image, a text description, or an existing Codex sheet.",
   "author": {
     "name": "Cesar Mejia",

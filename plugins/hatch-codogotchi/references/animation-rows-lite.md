@@ -9,8 +9,6 @@ The single 11-row lite sheet is **split into two sheets**:
 
 All rows: **192 × 208 cell**, **8 frames**, **1.5 s / ~187.5 ms per frame**, **continuous loop** (frame 8 → frame 1). Row 0 = top strip.
 
-> Replaces the deprecated single `codogotchi-lite-spritesheet.webp` (8 × 11). The app keeps loading the old file during a migration window, but new pets target the two sheets above.
-
 ---
 
 ## The prop doctrine — read before generating

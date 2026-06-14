@@ -25,11 +25,6 @@ TIER_ROW_LABELS = {
         "idle-impatient", "idle-frustrated", "cramming", "editing",
         "git-ops", "verifying", "searching", "web-search",
     ],
-    "lite": [
-        "idle", "idle-impatient", "idle-frustrated", "standby",
-        "thinking", "reading", "implementing", "testing",
-        "cramming", "errored", "waiting-for-input",
-    ],
     "soa": [
         "ticket-started", "red-tdd", "green-tdd", "adversarial-review",
         "open-pr", "poll-review", "review-clean", "record-review",
@@ -37,7 +32,7 @@ TIER_ROW_LABELS = {
     ],
 }
 
-TIER_ROWS = {"codex": 9, "lite-basic": 9, "lite-enhanced": 8, "lite": 11, "soa": 10}
+TIER_ROWS = {"codex": 9, "lite-basic": 9, "lite-enhanced": 8, "soa": 10}
 
 CHECKER_LIGHT = (200, 200, 200, 255)
 CHECKER_DARK  = (160, 160, 160, 255)

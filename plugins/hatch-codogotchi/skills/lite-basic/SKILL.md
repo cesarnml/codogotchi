@@ -24,8 +24,6 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 - Want Basic **and** Enhanced added to an existing pet → run this, then `SKILL-lite-enhanced.md`.
 - Add only the SoA gate sheet → `SKILL-soa.md` (needs only the Codex sheet).
 
-> Deprecated: the old single 8×11 `codogotchi-lite-spritesheet.webp`. Don't target it.
-
 ---
 
 ## Read first — the doctrines (full text in `README.md` + `references/animation-rows-lite.md`)
