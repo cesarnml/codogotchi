@@ -41,10 +41,15 @@ describe("validateLooseSelection", () => {
     expect(validateLooseSelection(files)).toBeNull();
   });
 
-  it("rejects a codex-only loose selection with the gallery's framing", () => {
-    const msg = validateLooseSelection([fileOf("pet.json"), fileOf(CODEX)]);
-    expect(msg).toContain("Lite-Basic");
-    expect(msg).toContain("codex-pets.net");
+  it("allows a partial loose selection (pet.json + just a new tier) for updates", () => {
+    // A progressive update may upload only pet.json + the new SoA sheet; the
+    // server merges it into the existing package. The client only requires
+    // pet.json and defers the codex/lite-basic requirement to the server.
+    const files = [
+      fileOf("pet.json"),
+      fileOf("codogotchi-soa-spritesheet.webp"),
+    ];
+    expect(validateLooseSelection(files)).toBeNull();
   });
 
   it("reports a missing pet.json", () => {
@@ -87,31 +92,20 @@ describe("buildPetPackage", () => {
 });
 
 describe("buildUploadArgs", () => {
-  it("builds the upload action payload from form fields and storage ids", () => {
-    const args = buildUploadArgs(
-      { displayName: "Maew", description: "a cat", petId: "maew" },
-      { rawZipStorageId: "kg123", thumbnailStorageId: "kg456" },
-    );
+  it("builds the upload action payload from storage ids only", () => {
+    const args = buildUploadArgs({
+      rawZipStorageId: "kg123",
+      thumbnailStorageId: "kg456",
+    });
     expect(args).toEqual({
       rawZipStorageId: "kg123",
       thumbnailStorageId: "kg456",
-      displayName: "Maew",
-      description: "a cat",
-      petId: "maew",
     });
   });
 
   it("omits thumbnailStorageId when no thumbnail was generated", () => {
-    const args = buildUploadArgs(
-      { displayName: "Boba", description: "a dog", petId: "boba" },
-      { rawZipStorageId: "kg789" },
-    );
-    expect(args).toEqual({
-      rawZipStorageId: "kg789",
-      displayName: "Boba",
-      description: "a dog",
-      petId: "boba",
-    });
+    const args = buildUploadArgs({ rawZipStorageId: "kg789" });
+    expect(args).toEqual({ rawZipStorageId: "kg789" });
     expect("thumbnailStorageId" in args).toBe(false);
   });
 });

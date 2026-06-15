@@ -65,19 +65,58 @@ async function makeTestZip(
 const VALID_PET_JSON = JSON.stringify({
   id: "test-cat",
   displayName: "Test Cat",
+  description: "A valid pet",
 });
 const CODEX_SHEET = buildMinimalPng(CELL_COLS, TIER_ROW_COUNTS.codex);
 const LITE_BASIC_SHEET = buildMinimalPng(CELL_COLS, TIER_ROW_COUNTS.liteBasic);
+const LITE_ENHANCED_SHEET = buildMinimalPng(
+  CELL_COLS,
+  TIER_ROW_COUNTS.liteEnhanced,
+);
+const SOA_SHEET = buildMinimalPng(CELL_COLS, TIER_ROW_COUNTS.soa);
+
+// A complete create package: pet.json + the two required tier sheets.
+async function makeValidPackage(): Promise<Uint8Array> {
+  return makeTestZip({
+    "pet.json": VALID_PET_JSON,
+    "spritesheet.webp": CODEX_SHEET,
+    "codogotchi-lite-basic-spritesheet.webp": LITE_BASIC_SHEET,
+  });
+}
 
 async function seedUser(
   t: ReturnType<typeof convexTest>,
+  username = "testcreator",
 ): Promise<Id<"users">> {
   return await t.run(async (ctx) => {
     return await ctx.db.insert("users", {
-      username: "testcreator",
+      username,
       rpgHandle: null,
     });
   });
+}
+
+// Stage a package blob and run uploadPet as the given user; returns the result.
+async function uploadAs(
+  t: ReturnType<typeof convexTest>,
+  userId: Id<"users">,
+  pkg: Uint8Array,
+): Promise<{ petId: string; created: boolean }> {
+  const rawZipStorageId = await seedBlob(t, pkg);
+  return (await t
+    .withIdentity({ subject: `${userId}|test-session` })
+    .action(api.actions.uploadPet.uploadPet, {
+      rawZipStorageId,
+    })) as { petId: string; created: boolean };
+}
+
+function petBySlug(t: ReturnType<typeof convexTest>, slug: string) {
+  return t.run(async (ctx) =>
+    ctx.db
+      .query("pets")
+      .withIndex("by_petId", (q) => q.eq("petId", slug))
+      .unique(),
+  );
 }
 
 async function seedBlob(
@@ -96,21 +135,32 @@ async function seedBlob(
 describe("uploadPet action", () => {
   test("rejects unauthenticated call", async () => {
     const t = convexTest(schema, convexTestModules);
-    const validZip = await makeTestZip({
-      "pet.json": VALID_PET_JSON,
-      "spritesheet.webp": CODEX_SHEET,
-      "codogotchi-lite-basic-spritesheet.webp": LITE_BASIC_SHEET,
-    });
-    const rawZipStorageId = await seedBlob(t, validZip);
+    const rawZipStorageId = await seedBlob(t, await makeValidPackage());
 
     await expect(
       t.action(api.actions.uploadPet.uploadPet, {
         rawZipStorageId,
-        displayName: "Test Cat",
-        description: "A test pet",
-        petId: "test-cat",
       }),
     ).rejects.toThrow(/not authenticated/i);
+  });
+
+  test("rejects a package with no pet.json id", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const userId = await seedUser(t);
+    const noManifest = await makeTestZip({
+      "spritesheet.webp": CODEX_SHEET,
+      "codogotchi-lite-basic-spritesheet.webp": LITE_BASIC_SHEET,
+    });
+    const rawZipStorageId = await seedBlob(t, noManifest);
+
+    await expect(
+      t
+        .withIdentity({ subject: `${userId}|test-session` })
+        .action(api.actions.uploadPet.uploadPet, { rawZipStorageId }),
+    ).rejects.toThrow(/pet\.json/i);
+
+    const pets = await t.run(async (ctx) => ctx.db.query("pets").collect());
+    expect(pets).toHaveLength(0);
   });
 
   test("rejects invalid package missing Lite-Basic and stores nothing", async () => {
@@ -126,12 +176,7 @@ describe("uploadPet action", () => {
     await expect(
       t
         .withIdentity({ subject: `${userId}|test-session` })
-        .action(api.actions.uploadPet.uploadPet, {
-          rawZipStorageId,
-          displayName: "Bad Pet",
-          description: "Missing lite-basic",
-          petId: "bad-pet",
-        }),
+        .action(api.actions.uploadPet.uploadPet, { rawZipStorageId }),
     ).rejects.toThrow(/lite.basic|invalid/i);
 
     const pets = await t.run(async (ctx) => ctx.db.query("pets").collect());
@@ -141,12 +186,7 @@ describe("uploadPet action", () => {
   test("valid authenticated upload stores canonical zip + thumbnail and creates listed pets row", async () => {
     const t = convexTest(schema, convexTestModules);
     const userId = await seedUser(t);
-    const validZip = await makeTestZip({
-      "pet.json": VALID_PET_JSON,
-      "spritesheet.webp": CODEX_SHEET,
-      "codogotchi-lite-basic-spritesheet.webp": LITE_BASIC_SHEET,
-    });
-    const rawZipStorageId = await seedBlob(t, validZip);
+    const rawZipStorageId = await seedBlob(t, await makeValidPackage());
     const thumbnailStorageId = await seedBlob(
       t,
       new Uint8Array([137, 80, 78, 71]), // PNG magic bytes (fake thumbnail)
@@ -157,23 +197,19 @@ describe("uploadPet action", () => {
       .action(api.actions.uploadPet.uploadPet, {
         rawZipStorageId,
         thumbnailStorageId,
-        displayName: "Test Cat",
-        description: "A valid pet",
-        petId: "test-cat",
       });
 
     expect((result as { petId: string }).petId).toBe("test-cat");
+    expect((result as { created: boolean }).created).toBe(true);
 
-    const pet = await t.run(async (ctx) =>
-      ctx.db
-        .query("pets")
-        .withIndex("by_petId", (q) => q.eq("petId", "test-cat"))
-        .unique(),
-    );
+    const pet = await petBySlug(t, "test-cat");
     expect(pet).not.toBeNull();
     expect(pet?.listed).toBe(true);
     expect(pet?.authorUserId).toBe(userId);
     expect(pet?.authorUsername).toBe("testcreator");
+    // display fields derived from pet.json, not from form args
+    expect(pet?.displayName).toBe("Test Cat");
+    expect(pet?.description).toBe("A valid pet");
     // canonical zip stored under a new storageId (raw was re-packed)
     expect(pet?.zipStorageId).not.toBe(rawZipStorageId);
     expect(pet?.thumbnailStorageId).toBe(thumbnailStorageId);
@@ -181,36 +217,84 @@ describe("uploadPet action", () => {
     expect(pet?.tiers).toContain("liteBasic");
   });
 
-  test("duplicate petId returns clear error", async () => {
+  test("re-upload by the owner adds a new tier (progressive merge)", async () => {
     const t = convexTest(schema, convexTestModules);
     const userId = await seedUser(t);
-    const validZip = await makeTestZip({
+
+    const created = await uploadAs(t, userId, await makeValidPackage());
+    expect(created.created).toBe(true);
+    const before = await petBySlug(t, "test-cat");
+    expect(before?.tiers).not.toContain("soa");
+    expect(before?.soaSheetStorageId).toBeUndefined();
+    const oldZipId = before?.zipStorageId;
+
+    // Partial re-upload: pet.json + just the SoA sheet. The server merges it
+    // into the existing package (which carries codex + lite-basic).
+    const partial = await makeTestZip({
+      "pet.json": VALID_PET_JSON,
+      "codogotchi-soa-spritesheet.webp": SOA_SHEET,
+    });
+    const updated = await uploadAs(t, userId, partial);
+    expect(updated.petId).toBe("test-cat");
+    expect(updated.created).toBe(false);
+
+    const after = await petBySlug(t, "test-cat");
+    expect(after?._id).toBe(before?._id); // same row, not a new pet
+    expect(after?.tiers).toContain("codex");
+    expect(after?.tiers).toContain("liteBasic");
+    expect(after?.tiers).toContain("soa");
+    expect(after?.soaSheetStorageId).toBeDefined();
+    // canonical zip was re-stored; old one superseded
+    expect(after?.zipStorageId).not.toBe(oldZipId);
+
+    // exactly one pets row exists
+    const all = await t.run(async (ctx) => ctx.db.query("pets").collect());
+    expect(all).toHaveLength(1);
+  });
+
+  test("re-upload by the owner replaces an existing tier", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const userId = await seedUser(t);
+
+    await uploadAs(t, userId, await makeValidPackage());
+    const before = await petBySlug(t, "test-cat");
+    const oldLiteBasicId = before?.liteBasicSheetStorageId;
+    const oldZipId = before?.zipStorageId;
+
+    // Full re-upload with a fresh lite-basic sheet replaces it.
+    const replacement = await makeTestZip({
       "pet.json": VALID_PET_JSON,
       "spritesheet.webp": CODEX_SHEET,
       "codogotchi-lite-basic-spritesheet.webp": LITE_BASIC_SHEET,
+      "codogotchi-lite-enhanced-spritesheet.webp": LITE_ENHANCED_SHEET,
     });
+    const updated = await uploadAs(t, userId, replacement);
+    expect(updated.created).toBe(false);
 
-    const zip1 = await seedBlob(t, validZip);
-    await t
-      .withIdentity({ subject: `${userId}|test-session` })
-      .action(api.actions.uploadPet.uploadPet, {
-        rawZipStorageId: zip1,
-        displayName: "My Cat",
-        description: "First upload",
-        petId: "my-cat",
-      });
+    const after = await petBySlug(t, "test-cat");
+    expect(after?.tiers).toContain("liteEnhanced");
+    // sheets + zip re-stored under fresh ids
+    expect(after?.liteBasicSheetStorageId).not.toBe(oldLiteBasicId);
+    expect(after?.zipStorageId).not.toBe(oldZipId);
+    // old canonical zip blob was deleted
+    expect(oldZipId).toBeDefined();
+    if (oldZipId) expect(await blobExists(t, oldZipId)).toBe(false);
+  });
 
-    const zip2 = await seedBlob(t, validZip);
-    await expect(
-      t
-        .withIdentity({ subject: `${userId}|test-session` })
-        .action(api.actions.uploadPet.uploadPet, {
-          rawZipStorageId: zip2,
-          displayName: "My Cat Again",
-          description: "Duplicate slug",
-          petId: "my-cat",
-        }),
-    ).rejects.toThrow(/already in use|duplicate/i);
+  test("re-upload of another creator's slug is rejected", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const owner = await seedUser(t, "owner");
+    const other = await seedUser(t, "interloper");
+
+    await uploadAs(t, owner, await makeValidPackage());
+
+    await expect(uploadAs(t, other, await makeValidPackage())).rejects.toThrow(
+      /another creator/i,
+    );
+
+    // Original pet untouched, still authored by the owner
+    const pet = await petBySlug(t, "test-cat");
+    expect(pet?.authorUserId).toBe(owner);
   });
 
   async function blobExists(
@@ -240,9 +324,6 @@ describe("uploadPet action", () => {
         .action(api.actions.uploadPet.uploadPet, {
           rawZipStorageId,
           thumbnailStorageId,
-          displayName: "Bad Pet",
-          description: "Missing lite-basic",
-          petId: "bad-pet",
         }),
     ).rejects.toThrow(/lite.basic|invalid/i);
 
@@ -277,22 +358,12 @@ describe("uploadPet action", () => {
         });
       });
     }
-    const validZip = await makeTestZip({
-      "pet.json": VALID_PET_JSON,
-      "spritesheet.webp": CODEX_SHEET,
-      "codogotchi-lite-basic-spritesheet.webp": LITE_BASIC_SHEET,
-    });
-    const rawZipStorageId = await seedBlob(t, validZip);
+    const rawZipStorageId = await seedBlob(t, await makeValidPackage());
 
     await expect(
       t
         .withIdentity({ subject: `${userId}|test-session` })
-        .action(api.actions.uploadPet.uploadPet, {
-          rawZipStorageId,
-          displayName: "Rate Limited",
-          description: "Over limit",
-          petId: "rl-pet",
-        }),
+        .action(api.actions.uploadPet.uploadPet, { rawZipStorageId }),
     ).rejects.toThrow(/rate limit/i);
 
     expect(await blobExists(t, rawZipStorageId)).toBe(false);
@@ -326,22 +397,12 @@ describe("uploadPet action", () => {
       });
     }
 
-    const validZip = await makeTestZip({
-      "pet.json": VALID_PET_JSON,
-      "spritesheet.webp": CODEX_SHEET,
-      "codogotchi-lite-basic-spritesheet.webp": LITE_BASIC_SHEET,
-    });
-    const rawZipStorageId = await seedBlob(t, validZip);
+    const rawZipStorageId = await seedBlob(t, await makeValidPackage());
 
     await expect(
       t
         .withIdentity({ subject: `${userId}|test-session` })
-        .action(api.actions.uploadPet.uploadPet, {
-          rawZipStorageId,
-          displayName: "Rate Limited",
-          description: "Over limit",
-          petId: "rate-limited-pet",
-        }),
+        .action(api.actions.uploadPet.uploadPet, { rawZipStorageId }),
     ).rejects.toThrow(/rate limit/i);
   });
 });

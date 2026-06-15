@@ -10,36 +10,22 @@ export function isSingleZip(files: File[]): boolean {
   return files.length === 1 && /\.zip$/i.test(files[0].name);
 }
 
-// The two sheets the gallery requires on top of pet.json. Codex alone makes a
-// codex-pets.net pet, not a Codogotchi companion — the Lite-Basic sheet is the
-// differentiator, so both are mandatory. Mirrors the server validator in
-// packages/pets/src/validate-repack.ts; kept in sync intentionally.
-const REQUIRED_LOOSE_FILES = [
-  "pet.json",
-  "spritesheet.webp",
-  "codogotchi-lite-basic-spritesheet.webp",
-] as const;
-
-// Fast client-side guard for a LOOSE-file selection (not a .zip): returns a
-// product-framed error naming what's missing, or null if the selection is
-// complete. Zip uploads return null — the server unpacks and validates those.
-// This only front-runs the server's check for a friendlier, round-trip-free
-// message; the server remains the authority.
+// Fast client-side guard for a LOOSE-file selection (not a .zip): pet.json is
+// always required because it carries the pet's id (which keys create-vs-update)
+// plus the display name and description. The Codex + Lite-Basic sheet
+// requirement is enforced server-side instead — a progressive update may upload
+// just a new tier (e.g. the SoA sheet) and have it merged into the existing
+// package, so the client cannot know whether those sheets are mandatory for
+// this particular upload. Zip uploads return null — the server unpacks them.
 export function validateLooseSelection(files: File[]): string | null {
   if (files.length === 0 || isSingleZip(files)) return null;
   const names = new Set(
     files.map((f) => (f.name.split("/").pop() ?? f.name).toLowerCase()),
   );
-  const missing = REQUIRED_LOOSE_FILES.filter((req) => !names.has(req));
-  if (missing.length === 0) return null;
-  if (missing.includes("codogotchi-lite-basic-spritesheet.webp")) {
-    return (
-      "Add codogotchi-lite-basic-spritesheet.webp — a Lite-Basic sheet is " +
-      "required for the Codogotchi gallery (a codex-only pet belongs on " +
-      "codex-pets.net)."
-    );
+  if (!names.has("pet.json")) {
+    return "Include pet.json — it carries your pet's id, display name, and description.";
   }
-  return `Missing required file${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}.`;
+  return null;
 }
 
 // Normalizes the file picker selection into the zip the server expects. A single
@@ -58,12 +44,6 @@ export async function buildPetPackage(files: File[]): Promise<Blob> {
   return await zip.generateAsync({ type: "blob" });
 }
 
-export interface UploadFormInput {
-  displayName: string;
-  description: string;
-  petId: string;
-}
-
 export interface UploadStorageIds {
   rawZipStorageId: string;
   /** Omitted when the client could not generate a thumbnail. */
@@ -73,25 +53,17 @@ export interface UploadStorageIds {
 export interface UploadActionArgs {
   rawZipStorageId: string;
   thumbnailStorageId?: string;
-  displayName: string;
-  description: string;
-  petId: string;
 }
 
 /**
- * Builds the `uploadPet` action payload. `thumbnailStorageId` is only included
- * when a thumbnail was generated — the action arg is optional and a missing
- * thumbnail must not block a valid upload.
+ * Builds the `uploadPet` action payload. Identity and display metadata are
+ * derived server-side from the package's pet.json (the single source of truth),
+ * so the client sends only the staged storage ids. `thumbnailStorageId` is
+ * included only when a thumbnail was generated — it is optional and cosmetic.
  */
-export function buildUploadArgs(
-  form: UploadFormInput,
-  ids: UploadStorageIds,
-): UploadActionArgs {
+export function buildUploadArgs(ids: UploadStorageIds): UploadActionArgs {
   const args: UploadActionArgs = {
     rawZipStorageId: ids.rawZipStorageId,
-    displayName: form.displayName,
-    description: form.description,
-    petId: form.petId,
   };
   if (ids.thumbnailStorageId !== undefined) {
     args.thumbnailStorageId = ids.thumbnailStorageId;

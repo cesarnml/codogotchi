@@ -64,9 +64,6 @@ function UploadForm() {
   const uploadPet = useAction(api.actions.uploadPet.uploadPet);
 
   const [files, setFiles] = useState<File[]>([]);
-  const [displayName, setDisplayName] = useState("");
-  const [description, setDescription] = useState("");
-  const [petId, setPetId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -77,8 +74,8 @@ function UploadForm() {
       setError("Choose a .zip — or drop in pet.json and your spritesheet(s).");
       return;
     }
-    // Front-run the server's required-sheet check for loose selections so the
-    // user gets an immediate, product-framed message (no upload round-trip).
+    // Front-run the server's pet.json check for loose selections so the user
+    // gets an immediate, product-framed message (no upload round-trip).
     const looseError = validateLooseSelection(files);
     if (looseError) {
       setError(looseError);
@@ -95,6 +92,7 @@ function UploadForm() {
       const rawZipStorageId = await uploadBlob(rawUrl, packageBlob);
 
       // 2. Best-effort client thumbnail (cosmetic, low-trust, server-capped).
+      //    Skipped server-side on updates; harmless to send.
       let thumbnailStorageId: string | undefined;
       const thumb = await generateThumbnailFromZip(packageBlob);
       if (thumb) {
@@ -106,11 +104,9 @@ function UploadForm() {
         }
       }
 
-      // 3. Validate + repack + store via the P11.03 action.
-      const args = buildUploadArgs(
-        { displayName, description, petId },
-        { rawZipStorageId, thumbnailStorageId },
-      );
+      // 3. Validate + repack + store via the upload action. Identity and
+      //    display fields are derived server-side from the package's pet.json.
+      const args = buildUploadArgs({ rawZipStorageId, thumbnailStorageId });
       // Storage ids come back from the upload POST as plain strings; they are
       // genuine _storage ids, so brand them for the action's validators.
       const result = await uploadPet({
@@ -121,7 +117,7 @@ function UploadForm() {
           | undefined,
       });
 
-      // 4. Route to the new pet's gallery detail view.
+      // 4. Route to the pet's gallery detail view.
       window.location.href = `/gallery#${result.petId}`;
     } catch (err) {
       setError(mapUploadError(err));
@@ -167,43 +163,23 @@ function UploadForm() {
             A Lite-Basic sheet is what makes a pet a true Codogotchi companion —
             codex-only packages are rejected.
           </li>
+          <li>
+            Your <code className="font-mono">pet.json</code> carries the{" "}
+            <strong>id</strong>, <strong>display name</strong>, and{" "}
+            <strong>description</strong> — no separate fields to fill in.
+          </li>
+          <li>
+            Already published this pet? Re-upload with the same{" "}
+            <code className="font-mono">id</code> to <strong>add or replace
+            tiers</strong> — you can drop in just the new sheet (e.g. SoA) and
+            we'll merge it into your existing pet.
+          </li>
         </ul>
         {files.length > 0 && (
           <span className="text-xs text-on-surface-variant">
             Selected: {files.map((f) => f.name).join(", ")}
           </span>
         )}
-      </label>
-
-      <label className="flex flex-col gap-1.5">
-        <span className="font-bold text-sm">Display name</span>
-        <input
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Maew the Cat"
-          className="bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl py-3 px-4 focus:outline-none focus:border-secondary-container"
-        />
-      </label>
-
-      <label className="flex flex-col gap-1.5">
-        <span className="font-bold text-sm">Pet ID (URL slug)</span>
-        <input
-          value={petId}
-          onChange={(e) => setPetId(e.target.value)}
-          placeholder="maew"
-          className="bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl py-3 px-4 font-mono focus:outline-none focus:border-secondary-container"
-        />
-      </label>
-
-      <label className="flex flex-col gap-1.5">
-        <span className="font-bold text-sm">Description</span>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="A chibi companion for your menubar."
-          rows={3}
-          className="bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl py-3 px-4 focus:outline-none focus:border-secondary-container resize-none"
-        />
       </label>
 
       <button

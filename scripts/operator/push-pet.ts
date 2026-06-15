@@ -11,9 +11,9 @@
  * The script:
  *   1. Reads pet.json + spritesheets from <pet-dir>
  *   2. Packs and validates via validateAndRepackPet
- *   3. Uploads the canonical zip to Convex storage (operator internal mutation)
- *   4. Extracts and uploads the standalone codex sheet
- *   5. Inserts the pet row via mutations/operatorUpload:createPet
+ *   3. Uploads the canonical zip + per-tier sheets to Convex storage in parallel
+ *   4. Upserts the pet row via mutations/operatorUpload:upsertPet — re-running
+ *      for an existing pet replaces its sheets (progressive add/replace tiers).
  */
 
 import { readFileSync } from "node:fs";
@@ -205,8 +205,8 @@ for (const item of uploadResults.slice(1) as { field: string; id: string }[]) {
   sheetStorageIds[item.field] = item.id;
 }
 
-// Insert pet row
-console.log("\n🐾  Creating pet row...");
+// Upsert pet row (create, or full-replace if the slug already exists)
+console.log("\n🐾  Upserting pet row...");
 const insertArgs: Record<string, unknown> = {
   petId: petJson.id,
   displayName: petJson.displayName,
@@ -219,6 +219,13 @@ const insertArgs: Record<string, unknown> = {
   ...sheetStorageIds,
 };
 
-const newId = await convexRun("mutations/operatorUpload:createPet", insertArgs);
-console.log(`  inserted _id: ${newId}`);
-console.log(`\n✅  ${petJson.id} is live at /gallery#pet/${petJson.id}\n`);
+const upserted = (await convexRun(
+  "mutations/operatorUpload:upsertPet",
+  insertArgs,
+)) as { _id: string; created: boolean };
+console.log(
+  `  ${upserted.created ? "created" : "updated"} _id: ${upserted._id}`,
+);
+console.log(
+  `\n✅  ${petJson.id} (${upserted.created ? "created" : "updated"}, tiers: ${result.metadata.tiers.join(", ")}) is live at /gallery#${petJson.id}\n`,
+);

@@ -231,6 +231,60 @@ export const setCodexSheet = internalMutation({
   },
 });
 
+// Full pet row by slug regardless of `listed` — drives the progressive-upload
+// (update) path. The owner must be able to update a pet even if an operator has
+// unlisted it via the kill-switch; the update preserves `listed` as-is. Returns
+// null when the slug is unknown.
+export const getPetForUpdate = internalQuery({
+  args: { petId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("pets")
+      .withIndex("by_petId", (q) => q.eq("petId", args.petId))
+      .unique();
+  },
+});
+
+// Applies a progressive update to an existing pet: swaps in the freshly stored
+// canonical zip + per-tier CDN blobs, and refreshes tiers/sizes plus the
+// pet.json-derived display fields. Only the sheet ids actually provided are
+// patched; `listed`, author, downloadCount, etc. are left untouched. Blob
+// cleanup of the superseded storage ids is the caller's responsibility (the
+// action holds the old ids and deletes them after this patch succeeds).
+export const applyPetUpdate = internalMutation({
+  args: {
+    petId: v.id("pets"),
+    displayName: v.string(),
+    description: v.string(),
+    tiers: v.array(v.string()),
+    zipStorageId: v.id("_storage"),
+    codexSheetStorageId: v.optional(v.id("_storage")),
+    liteBasicSheetStorageId: v.optional(v.id("_storage")),
+    liteEnhancedSheetStorageId: v.optional(v.id("_storage")),
+    soaSheetStorageId: v.optional(v.id("_storage")),
+    sizes: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const patch: Record<string, unknown> = {
+      displayName: args.displayName,
+      description: args.description,
+      tiers: args.tiers,
+      zipStorageId: args.zipStorageId,
+      sizes: args.sizes,
+      updatedAt: Date.now(),
+    };
+    if (args.codexSheetStorageId !== undefined)
+      patch.codexSheetStorageId = args.codexSheetStorageId;
+    if (args.liteBasicSheetStorageId !== undefined)
+      patch.liteBasicSheetStorageId = args.liteBasicSheetStorageId;
+    if (args.liteEnhancedSheetStorageId !== undefined)
+      patch.liteEnhancedSheetStorageId = args.liteEnhancedSheetStorageId;
+    if (args.soaSheetStorageId !== undefined)
+      patch.soaSheetStorageId = args.soaSheetStorageId;
+    await ctx.db.patch(args.petId, patch);
+  },
+});
+
 // Counts recent pets by a given author within a time window for rate limiting.
 export const countRecentPetsByAuthor = internalQuery({
   args: { authorUserId: v.id("users"), since: v.number() },
