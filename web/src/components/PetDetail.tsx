@@ -7,9 +7,11 @@ import {
   type LoadedSheet,
   loadPetSheets,
   loadSheetFromUrl,
+  loadSheetsFromUrls,
   previewZipUrl,
   SHEET_COLS,
   SHEET_SECTIONS,
+  TIER_SHEET_URL_KEYS,
 } from "../lib/petSheets";
 import SpriteAnimation from "./SpriteAnimation";
 
@@ -59,8 +61,7 @@ export default function PetDetail({
 
   // Header sprite: fast path from the standalone codex sheet (one cached image).
   const [headerSheet, setHeaderSheet] = useState<LoadedSheet | null>(null);
-  // Full per-tier sheets for the animation-states grid; loaded lazily from the
-  // zip since that section genuinely needs every tier.
+  // Full per-tier sheets for the animation-states grid.
   const [sheets, setSheets] = useState<Record<string, LoadedSheet>>({});
   const [sheetLoading, setSheetLoading] = useState(true);
 
@@ -76,9 +77,24 @@ export default function PetDetail({
   }, [codexSheetUrl]);
 
   useEffect(() => {
+    if (!pet) return;
     let cancelled = false;
     setSheetLoading(true);
-    loadPetSheets(previewZipUrl(petId, apiBase))
+
+    // Fast path: if all present tiers have standalone CDN URLs (P12.01+),
+    // load directly — no zip download or client-side decompression needed.
+    const hasFastPath = SHEET_SECTIONS.every((s) => {
+      const urlField = TIER_SHEET_URL_KEYS[s.tier]?.urlField;
+      const url = urlField ? (pet as Record<string, unknown>)[urlField] : null;
+      // Fast-path only if every tier the pet ships has a direct URL
+      return !pet.tiers.includes(s.tier) || !!url;
+    });
+
+    const load = hasFastPath
+      ? loadSheetsFromUrls(pet as unknown as Record<string, string | null>)
+      : loadPetSheets(previewZipUrl(petId, apiBase));
+
+    load
       .then((loaded) => {
         if (!cancelled) setSheets(loaded);
       })
@@ -89,7 +105,7 @@ export default function PetDetail({
     return () => {
       cancelled = true;
     };
-  }, [petId, apiBase]);
+  }, [pet, petId, apiBase]);
 
   // Prefer the fast standalone sheet; fall back to the zip's codex sheet for
   // pre-P11.04 pets that have no codexSheetUrl yet.
@@ -248,48 +264,81 @@ export default function PetDetail({
           </div>
         )}
 
-        {/* Animation states — one animated tile per spritesheet row, per tier */}
-        {SHEET_SECTIONS.some((s) => sheets[s.tier]) && (
+        {/* Animation states — one animated tile per spritesheet row, per tier.
+            Shows a shimmer placeholder grid while sheets are loading so the
+            user always sees immediate feedback. */}
+        {(sheetLoading || SHEET_SECTIONS.some((s) => sheets[s.tier])) && (
           <div className="flex flex-col gap-6 border-t border-outline-variant pt-6">
             <h2 className="font-display font-bold text-lg flex items-center gap-2">
               <span className="material-symbols-outlined text-primary">animation</span>
               Animation states
             </h2>
-            {SHEET_SECTIONS.map((section) => {
-              const sheet = sheets[section.tier];
-              if (!sheet) return null;
-              return (
-                <div key={section.tier} className="flex flex-col gap-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-                    {TIER_LABELS[section.tier] ?? section.tier}
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {section.states.map((state) => (
-                      <div
-                        key={state.row}
-                        className="bg-surface-container rounded-xl border border-outline-variant p-3 flex flex-col items-center gap-2"
-                      >
-                        <div className="h-24 flex items-center justify-center">
-                          <SpriteAnimation
-                            sheetUrl={sheet.url}
-                            frameW={sheet.frameW}
-                            frameH={sheet.frameH}
-                            totalCols={SHEET_COLS}
-                            totalRows={section.rows}
-                            row={state.row}
-                            frameCount={state.frameCount}
-                            displaySize={88}
-                          />
+
+            {sheetLoading ? (
+              // Shimmer placeholder: one section per tier the pet ships
+              <div className="flex flex-col gap-6">
+                {SHEET_SECTIONS.filter((s) =>
+                  (pet?.tiers as string[] | undefined)?.includes(s.tier),
+                ).map((section) => (
+                  <div key={section.tier} className="flex flex-col gap-3">
+                    <div className="h-4 w-24 rounded bg-surface-container-high relative overflow-hidden">
+                      <div className="pet-shimmer" aria-hidden="true" />
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {section.states.map((state) => (
+                        <div
+                          key={state.row}
+                          className="bg-surface-container rounded-xl border border-outline-variant p-3 flex flex-col items-center gap-2"
+                        >
+                          <div className="menubar-inset rounded-xl w-[88px] h-24 relative overflow-hidden flex-shrink-0">
+                            <div className="pet-shimmer" aria-hidden="true" />
+                          </div>
+                          <span className="text-xs font-bold text-on-surface-variant text-center">
+                            {state.label}
+                          </span>
                         </div>
-                        <span className="text-xs font-bold text-on-surface text-center">
-                          {state.label}
-                        </span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            ) : (
+              SHEET_SECTIONS.map((section) => {
+                const sheet = sheets[section.tier];
+                if (!sheet) return null;
+                return (
+                  <div key={section.tier} className="flex flex-col gap-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                      {TIER_LABELS[section.tier] ?? section.tier}
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {section.states.map((state) => (
+                        <div
+                          key={state.row}
+                          className="bg-surface-container rounded-xl border border-outline-variant p-3 flex flex-col items-center gap-2"
+                        >
+                          <div className="h-24 flex items-center justify-center">
+                            <SpriteAnimation
+                              sheetUrl={sheet.url}
+                              frameW={sheet.frameW}
+                              frameH={sheet.frameH}
+                              totalCols={SHEET_COLS}
+                              totalRows={section.rows}
+                              row={state.row}
+                              frameCount={state.frameCount}
+                              displaySize={88}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-on-surface text-center">
+                            {state.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
 

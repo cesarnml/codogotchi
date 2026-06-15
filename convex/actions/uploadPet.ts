@@ -98,22 +98,17 @@ export const uploadPet = action({
         new Blob([result.canonicalZip], { type: "application/zip" }),
       );
 
-      // Store the codex spritesheet as a standalone blob so gallery cards and
-      // detail headers can animate from one cached CDN image instead of
-      // downloading + unzipping the whole package. Best-effort: a failure here
-      // is cosmetic (gallery falls back to the zip path), so it must not fail
-      // the upload — but if the row write later throws, the outer cleanup drops it.
-      let codexSheetStorageId: Id<"_storage"> | undefined;
-      try {
-        const codexBytes = await extractCodexSheet(result.canonicalZip);
-        if (codexBytes) {
-          codexSheetStorageId = await ctx.storage.store(
-            new Blob([codexBytes], { type: "image/webp" }),
-          );
-        }
-      } catch {
-        codexSheetStorageId = undefined;
-      }
+      // Store each tier spritesheet as a standalone blob so the detail page can
+      // animate every tier from cached CDN images without downloading + unzipping
+      // the multi-tier package. Best-effort per sheet: any failure is cosmetic
+      // (detail page falls back to the zip path), so it must not fail the upload.
+      // If the row write later throws, the outer cleanup drops all stored blobs.
+      const {
+        codexSheetStorageId,
+        liteBasicSheetStorageId,
+        liteEnhancedSheetStorageId,
+        soaSheetStorageId,
+      } = await extractAndStoreTierSheets(ctx, result.canonicalZip);
 
       // Accept thumbnail only if present and within size cap; treat as cosmetic.
       // Oversized thumbnails are deleted to avoid orphaned storage blobs.
@@ -137,14 +132,22 @@ export const uploadPet = action({
           zipStorageId: canonicalZipStorageId,
           thumbnailStorageId: resolvedThumbnailId,
           codexSheetStorageId,
+          liteBasicSheetStorageId,
+          liteEnhancedSheetStorageId,
+          soaSheetStorageId,
           sizes: { fileSizes: result.metadata.fileSizes },
           listed: true,
         });
       } catch (err) {
-        // Row write failed — drop the canonical zip and standalone codex sheet
-        // we just stored. The raw zip and thumbnail are handled by the outer catch.
-        await deleteBlob(ctx, canonicalZipStorageId);
-        await deleteBlob(ctx, codexSheetStorageId);
+        // Row write failed — drop the canonical zip and all standalone tier
+        // sheets we just stored. Raw zip and thumbnail are in the outer catch.
+        await Promise.all([
+          deleteBlob(ctx, canonicalZipStorageId),
+          deleteBlob(ctx, codexSheetStorageId),
+          deleteBlob(ctx, liteBasicSheetStorageId),
+          deleteBlob(ctx, liteEnhancedSheetStorageId),
+          deleteBlob(ctx, soaSheetStorageId),
+        ]);
         throw err;
       }
 
@@ -161,16 +164,54 @@ export const uploadPet = action({
   },
 });
 
-// Pulls the codex spritesheet.webp out of a canonical pet zip. Returns null if
-// the entry is somehow absent (it is validated as required upstream, so this is
-// purely defensive). Shares the JSZip dependency already loaded for this action.
-async function extractCodexSheet(
+// Extracts all tier spritesheets from a canonical pet zip and stores each as a
+// standalone CDN blob. Returns storage IDs for each tier present; undefined for
+// tiers absent from the zip. All operations are best-effort — callers must not
+// fail the upload if a sheet can't be stored.
+async function extractAndStoreTierSheets(
+  ctx: ActionCtx,
   canonicalZip: Uint8Array,
-): Promise<Uint8Array | null> {
-  const zip = await JSZip.loadAsync(canonicalZip);
-  const entry = zip.file("spritesheet.webp");
-  if (!entry) return null;
-  return await entry.async("uint8array");
+): Promise<{
+  codexSheetStorageId?: Id<"_storage">;
+  liteBasicSheetStorageId?: Id<"_storage">;
+  liteEnhancedSheetStorageId?: Id<"_storage">;
+  soaSheetStorageId?: Id<"_storage">;
+}> {
+  const TIER_FILES: Record<string, string> = {
+    codexSheetStorageId: "spritesheet.webp",
+    liteBasicSheetStorageId: "codogotchi-lite-basic-spritesheet.webp",
+    liteEnhancedSheetStorageId: "codogotchi-lite-enhanced-spritesheet.webp",
+    soaSheetStorageId: "codogotchi-soa-spritesheet.webp",
+  };
+
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(canonicalZip);
+  } catch {
+    return {};
+  }
+
+  const result: Record<string, Id<"_storage"> | undefined> = {};
+  await Promise.all(
+    Object.entries(TIER_FILES).map(async ([field, filename]) => {
+      try {
+        const entry = zip.file(filename);
+        if (!entry) return;
+        const bytes = await entry.async("uint8array");
+        result[field] = await ctx.storage.store(
+          new Blob([bytes], { type: "image/webp" }),
+        );
+      } catch {
+        // best-effort: leave undefined
+      }
+    }),
+  );
+  return result as {
+    codexSheetStorageId?: Id<"_storage">;
+    liteBasicSheetStorageId?: Id<"_storage">;
+    liteEnhancedSheetStorageId?: Id<"_storage">;
+    soaSheetStorageId?: Id<"_storage">;
+  };
 }
 
 function sanitizePetId(raw: string): string | null {

@@ -120,6 +120,46 @@ export function loadSheetFromUrl(
   });
 }
 
+// Mapping from tier key → { SheetSection rows, direct CDN URL field name }.
+// Used by the direct-URL fast path to load each tier from a cached CDN image.
+export const TIER_SHEET_URL_KEYS: Record<
+  string,
+  { rows: number; urlField: string }
+> = {
+  codex: { rows: CODEX_ROWS, urlField: "codexSheetUrl" },
+  liteBasic: { rows: 9, urlField: "liteBasicSheetUrl" },
+  liteEnhanced: { rows: 8, urlField: "liteEnhancedSheetUrl" },
+  soa: { rows: 10, urlField: "soaSheetUrl" },
+};
+
+/**
+ * Fast path: loads tier sheets from direct CDN URLs returned by `getPet`.
+ * Parallel fetches with no zip download or client-side decompression.
+ * Returns only the tiers whose URL is non-null in the provided map.
+ */
+export async function loadSheetsFromUrls(
+  tierUrls: Partial<Record<string, string | null>>,
+): Promise<Record<string, LoadedSheet>> {
+  const entries = Object.entries(TIER_SHEET_URL_KEYS).flatMap(
+    ([tier, { rows, urlField }]) => {
+      const url = tierUrls[urlField];
+      if (!url) return [];
+      return [{ tier, url, rows }];
+    },
+  );
+
+  const loaded = await Promise.all(
+    entries.map(async ({ tier, url, rows }) => {
+      const sheet = await loadSheetFromUrl(url, rows);
+      return sheet ? { tier, sheet } : null;
+    }),
+  );
+
+  return Object.fromEntries(
+    loaded.flatMap((r) => (r ? [[r.tier, r.sheet]] : [])),
+  );
+}
+
 // Module-level cache so the gallery grid and detail page share one fetch per
 // pet. Object URLs live for the page lifetime — bounded by the pet count.
 const sheetCache = new Map<string, Promise<Record<string, LoadedSheet>>>();

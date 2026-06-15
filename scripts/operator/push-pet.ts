@@ -146,43 +146,63 @@ if (!result.ok) {
 console.log(`  tiers: ${result.metadata.tiers.join(", ")}`);
 console.log(`  total: ${(result.metadata.totalBytes / 1024).toFixed(1)} KB`);
 
-// Extract standalone codex sheet from canonical zip
+// Extract all tier sheets from the canonical zip
+const TIER_SHEET_FILES: Record<string, string> = {
+  codexSheetStorageId: "spritesheet.webp",
+  liteBasicSheetStorageId: "codogotchi-lite-basic-spritesheet.webp",
+  liteEnhancedSheetStorageId: "codogotchi-lite-enhanced-spritesheet.webp",
+  soaSheetStorageId: "codogotchi-soa-spritesheet.webp",
+};
+
 const canonical = await JSZip.loadAsync(result.canonicalZip);
-const codexEntry = canonical.file("spritesheet.webp");
-const codexBytes = codexEntry ? await codexEntry.async("uint8array") : null;
+const tierBytes: Record<string, Uint8Array> = {};
+for (const [field, filename] of Object.entries(TIER_SHEET_FILES)) {
+  const entry = canonical.file(filename);
+  if (entry) tierBytes[field] = await entry.async("uint8array");
+}
 
-// Get upload URLs
+// Get upload URLs for zip + all sheets in parallel
 console.log("\n☁️   Getting upload URLs...");
-const zipUploadUrl = (await convexRun(
-  "mutations/operatorUpload:generateUploadUrl",
-  {},
-)) as string;
-const codexUploadUrl = codexBytes
-  ? ((await convexRun(
-      "mutations/operatorUpload:generateUploadUrl",
-      {},
-    )) as string)
-  : null;
-
-// Upload canonical zip
-console.log("  Uploading zip...");
-const zipStorageId = await uploadToStorage(
-  zipUploadUrl,
-  result.canonicalZip,
-  "application/zip",
+const urlKeys = ["zip", ...Object.keys(tierBytes)];
+const uploadUrls = await Promise.all(
+  urlKeys.map(
+    () =>
+      convexRun(
+        "mutations/operatorUpload:generateUploadUrl",
+        {},
+      ) as Promise<string>,
+  ),
 );
-console.log(`  zip storageId: ${zipStorageId}`);
+const uploadUrlMap = Object.fromEntries(
+  urlKeys.map((k, i) => [k, uploadUrls[i]]),
+);
 
-// Upload codex sheet
-let codexSheetStorageId: string | undefined;
-if (codexBytes && codexUploadUrl) {
-  console.log("  Uploading codex sheet...");
-  codexSheetStorageId = await uploadToStorage(
-    codexUploadUrl,
-    codexBytes,
-    "image/webp",
-  );
-  console.log(`  codex storageId: ${codexSheetStorageId}`);
+// Upload zip + all sheets in parallel
+console.log("  Uploading zip + tier sheets in parallel...");
+const uploadResults = await Promise.all([
+  uploadToStorage(
+    uploadUrlMap.zip,
+    result.canonicalZip,
+    "application/zip",
+  ).then((id) => {
+    console.log(
+      `  ✓ zip (${(result.canonicalZip.length / 1024).toFixed(0)} KB) → ${id}`,
+    );
+    return id;
+  }),
+  ...Object.entries(tierBytes).map(async ([field, bytes]) => {
+    const id = await uploadToStorage(uploadUrlMap[field], bytes, "image/webp");
+    console.log(
+      `  ✓ ${TIER_SHEET_FILES[field]} (${(bytes.length / 1024).toFixed(0)} KB) → ${id}`,
+    );
+    return { field, id };
+  }),
+]);
+
+const zipStorageId = uploadResults[0] as string;
+const sheetStorageIds: Record<string, string> = {};
+for (const item of uploadResults.slice(1) as { field: string; id: string }[]) {
+  sheetStorageIds[item.field] = item.id;
 }
 
 // Insert pet row
@@ -196,9 +216,9 @@ const insertArgs: Record<string, unknown> = {
   zipStorageId,
   sizes: { fileSizes: result.metadata.fileSizes },
   operatorEmail: OPERATOR_EMAIL,
+  ...sheetStorageIds,
 };
-if (codexSheetStorageId) insertArgs.codexSheetStorageId = codexSheetStorageId;
 
 const newId = await convexRun("mutations/operatorUpload:createPet", insertArgs);
 console.log(`  inserted _id: ${newId}`);
-console.log(`\n✅  meaw is live at /gallery#pet/${petJson.id}\n`);
+console.log(`\n✅  ${petJson.id} is live at /gallery#pet/${petJson.id}\n`);

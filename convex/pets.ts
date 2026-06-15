@@ -84,18 +84,36 @@ export const listPetsForGallery = query({
 });
 
 // Returns the pet detail payload for a listed pet; null for unlisted or missing.
-// Includes a deterministic downloadUrl for the detail page.
+// Includes a deterministic downloadUrl and direct CDN URLs for all tier sheets
+// present (null when a sheet has not yet been extracted from the zip).
 export const getPet = query({
   args: { petId: v.string() },
   handler: async (ctx, args) => {
     const pet = await getListedPet(ctx, args.petId);
     if (!pet) return null;
-    const codexSheetUrl = pet.codexSheetStorageId
-      ? await ctx.storage.getUrl(pet.codexSheetStorageId)
-      : null;
+    const [
+      codexSheetUrl,
+      liteBasicSheetUrl,
+      liteEnhancedSheetUrl,
+      soaSheetUrl,
+    ] = await Promise.all([
+      pet.codexSheetStorageId
+        ? ctx.storage.getUrl(pet.codexSheetStorageId)
+        : null,
+      pet.liteBasicSheetStorageId
+        ? ctx.storage.getUrl(pet.liteBasicSheetStorageId)
+        : null,
+      pet.liteEnhancedSheetStorageId
+        ? ctx.storage.getUrl(pet.liteEnhancedSheetStorageId)
+        : null,
+      pet.soaSheetStorageId ? ctx.storage.getUrl(pet.soaSheetStorageId) : null,
+    ]);
     return {
       ...pet,
       codexSheetUrl,
+      liteBasicSheetUrl,
+      liteEnhancedSheetUrl,
+      soaSheetUrl,
       downloadUrl: `/pets/${pet.petId}/download`,
     };
   },
@@ -138,6 +156,51 @@ export const getZipForPreview = internalQuery({
     const pet = await getListedPet(ctx, args.petId);
     if (!pet) return null;
     return { zipStorageId: pet.zipStorageId };
+  },
+});
+
+// Lists pets missing any of the three non-codex tier sheets — drives P12.01 backfill.
+export const listPetsMissingTierSheets = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("pets").collect();
+    return rows
+      .filter(
+        (p) =>
+          p.liteBasicSheetStorageId === undefined ||
+          p.liteEnhancedSheetStorageId === undefined ||
+          p.soaSheetStorageId === undefined,
+      )
+      .map((p) => ({
+        _id: p._id,
+        petId: p.petId,
+        zipStorageId: p.zipStorageId,
+        hasLiteBasic: p.liteBasicSheetStorageId !== undefined,
+        hasLiteEnhanced: p.liteEnhancedSheetStorageId !== undefined,
+        hasSoa: p.soaSheetStorageId !== undefined,
+      }));
+  },
+});
+
+// Backfill setter for the P12.01 migration: attaches extracted non-codex tier
+// sheet blobs to an existing pet row. Fields are only patched when provided so
+// partial backfills (e.g. only liteBasic/liteEnhanced, no soa) are safe.
+export const setTierSheets = internalMutation({
+  args: {
+    petId: v.id("pets"),
+    liteBasicSheetStorageId: v.optional(v.id("_storage")),
+    liteEnhancedSheetStorageId: v.optional(v.id("_storage")),
+    soaSheetStorageId: v.optional(v.id("_storage")),
+  },
+  handler: async (ctx, args) => {
+    const patch: Record<string, unknown> = { updatedAt: Date.now() };
+    if (args.liteBasicSheetStorageId !== undefined)
+      patch.liteBasicSheetStorageId = args.liteBasicSheetStorageId;
+    if (args.liteEnhancedSheetStorageId !== undefined)
+      patch.liteEnhancedSheetStorageId = args.liteEnhancedSheetStorageId;
+    if (args.soaSheetStorageId !== undefined)
+      patch.soaSheetStorageId = args.soaSheetStorageId;
+    await ctx.db.patch(args.petId, patch);
   },
 });
 
@@ -195,6 +258,9 @@ export const createPet = internalMutation({
     zipStorageId: v.id("_storage"),
     thumbnailStorageId: v.union(v.id("_storage"), v.null()),
     codexSheetStorageId: v.optional(v.id("_storage")),
+    liteBasicSheetStorageId: v.optional(v.id("_storage")),
+    liteEnhancedSheetStorageId: v.optional(v.id("_storage")),
+    soaSheetStorageId: v.optional(v.id("_storage")),
     sizes: v.any(),
     listed: v.boolean(),
   },
