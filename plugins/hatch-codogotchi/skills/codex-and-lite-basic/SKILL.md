@@ -21,7 +21,7 @@ Generate a **brand-new** Codogotchi pet from scratch — produces the **Codex** 
 
 Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
-**Execution model:** Codex should use its built-in `image_gen` tool to generate **each frame as a standalone image** (`f01.png` … `f08.png`) for one row at a time. After each row's frames exist on disk, use the local scripts to stitch the row, inspect it, and later compose the final atlas. Do **not** generate an entire row strip or a whole spritesheet in one image-gen call.
+**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 3×3 animation sheet per row**: exact 576×624 px, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `f01.png` … `f08.png`; stitch and inspect the row before moving on. Do **not** generate a whole atlas or an unconstrained horizontal strip.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that still looks good in motion**. In practice, many rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. Treat this as a production shortcut, not a rigid rule.
 
@@ -36,7 +36,7 @@ Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
 4. **Alignment stability.** Keep the character on a stable horizontal axis in every 192×208 cell; the pet must not hop left/right between frames. Vertically align ordinary standing rows to a shared bottom baseline near `cell_h - 8`, not to the vertical center. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
 
-Plus: don't fake frames by transforming the seed; **frame-first**, one row at a time (~1–2 h); don't draw-and-slice; no chroma-colour contamination.
+Plus: don't fake frames by transforming the seed; **sheet-first**, one row at a time; never whole-atlas generation; no unbounded strips; no chroma-colour contamination.
 
 Quality caveats for the recommended pattern:
 - Add more unique frames whenever a row's action, emotion, or prop motion reads weakly with mirrored/reused closure.
@@ -52,7 +52,7 @@ Quality caveats for the recommended pattern:
 
 ## Standing constraints (every frame)
 
-Solid prompt-selected chroma bg (`#00ff00` normally, `#ff00ff` for green-sensitive rows) · ≥ 8 px padding all sides · one shared scale per row, per-frame height within ±15% of median · baseline `y = 208 − 8 − scaled_h` · loop closes (frame 8 ≈ frame 1) · seed is sole style reference.
+Solid prompt-selected chroma bg (`#00ff00` normally, `#ff00ff` for green-sensitive rows) · perfectly flat key with no falloff/shadow/texture/halo · 3×3 sheet cells strictly respect 192×208 boundaries · cell 9 empty · ≥ 8 px padding all sides · one shared scale per row, per-frame height within ±15% of median · baseline `y = 208 − 8 − scaled_h` · loop closes (frame 8 ≈ frame 1) · seed is sole style reference.
 
 ---
 
@@ -65,14 +65,14 @@ python scripts/prepare_pet_run.py --seed path/to/seed.png \
   --pet-name "My Pet" --style auto --chroma auto --tier codex   # then --tier lite-basic
 # (or --tier all to prep every tier; you generate only codex + lite-basic here)
 
-# 2. Use Codex's built-in image_gen tool to generate frames ONE ROW AT A TIME,
-#    frame-first: render the distinct keyframes you actually need, then fill
-#    f01..f08 with reused/mirrored closures only when the loop still reads well.
-#    Use the chroma named in each generated prompt file; green-sensitive rows
-#    switch to #ff00ff automatically. Do not ask for a whole strip or whole
-#    sheet in one pass.
+# 2. Use Codex's built-in image_gen tool to generate ONE 3x3 row sheet at a time.
+#    Use sheet-prompts/<tier>/<row>.txt. Save each result to
+#    run/<slug>/sheets/<tier>/<row>.png. The prompt-selected chroma is #00ff00
+#    normally and #ff00ff for green-sensitive rows. Do not ask for a whole atlas
+#    or an unconstrained horizontal strip.
 
-# 3. Stitch each row → inspect (gate) before the next row
+# 3. Slice each 3x3 sheet → stitch row → inspect (gate) before the next row
+python scripts/slice_animation_sheet.py --sheet run/<slug>/sheets/<tier>/<row>.png --out-dir run/<slug>/frames/<tier>/<row>/ --chroma <00ff00-or-ff00ff>
 python scripts/stitch_row.py     --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
 python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png --seed run/<slug>/seed.png   # hard-fails >15% scale drift; reports seed comparison
 
@@ -108,7 +108,7 @@ Quit and reopen Codogotchi, or re-select the pet in Settings → Pet.
 
 ### Replace One Frame
 
-If one frame fails visual QA or inspection, regenerate only that standalone frame, replace `run/<slug>/frames/<tier>/<row>/fNN.png`, then rerun `stitch_row.py` and `inspect_frames.py --seed run/<slug>/seed.png` for that row. Do not regenerate the whole row or transform another frame when a single-frame cut-and-replace is enough.
+If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/<tier>/<row>.txt`, replace `run/<slug>/frames/<tier>/<row>/fNN.png`, then rerun `stitch_row.py` and `inspect_frames.py --seed run/<slug>/seed.png` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
 
 ## Acceptance criteria
 

@@ -344,6 +344,92 @@ def build_frame_prompt(row_label: str, style_desc: str, chroma: str, description
     return build_frame_prompt_seed(row_label, style_desc, chroma)
 
 
+def build_sheet_prompt_seed(row_label: str, style_desc: str, chroma: str) -> str:
+    """Prompt for sheet-first generation from an attached seed image."""
+    motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
+    return f"""You are generating ONE COMPLETE 8-frame animation row for a desktop Codogotchi pet.
+
+OUTPUT FORMAT:
+- A single 3 × 3 grid image, exact size 576 × 624 px.
+- Each cell is exactly 192 × 208 px.
+- Cells 1–8 contain animation frames in reading order: left-to-right, top-to-bottom.
+- Cell 9 is intentionally EMPTY and contains only the flat chroma background.
+- Every frame must stay fully inside its own 192 × 208 cell. No body part, hair, prop, effect, outline,
+  shadow, halo, glow, label, or antialiasing may cross a cell boundary.
+
+SEED IMAGE: attached. Use ONLY as style/character reference — infer exact proportions, outfit, hair,
+skin tone, linework, and palette from it. Do NOT restyle or invent details.
+
+STYLE: {style_desc}
+
+ANIMATION ROW:
+{motion}
+
+PROP DOCTRINE (read this — codogotchi animations are NOT charades):
+- If the motion names a PROP, that prop MUST be clearly drawn and readable in every populated cell.
+- Use EXACTLY the prop named — never an A/B choice. The prop is the SAME object, same design, in all 8 frames.
+- Emotion-led rows may lead with expression; everything else is prop-led.
+
+CELL CONSTRAINTS:
+- Background: one flat RGB #{chroma} color in every cell, including the empty ninth cell.
+- The background must be perfectly flat: no lighting falloff, vignette, texture, noise, gradient, shadow,
+  glow, halo, outline, or antialias spill into the key color.
+- No transparency/RGBA output. Use the chroma background, not transparent pixels.
+- Padding: at least 8 px on all sides inside each 192 × 208 cell.
+- Same character scale and baseline across all 8 populated cells.
+- No #{chroma} or near-#{chroma} contamination on character, props, or effects.
+- Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
+"""
+
+
+def build_sheet_prompt_description(row_label: str, description: str, style_desc: str, chroma: str) -> str:
+    """Prompt for sheet-first generation from a text description."""
+    motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
+    return f"""You are generating ONE COMPLETE 8-frame animation row for a desktop Codogotchi pet.
+
+CHARACTER DESCRIPTION: {description}
+
+Render the character exactly as described. Do not add, remove, or change described features.
+
+OUTPUT FORMAT:
+- A single 3 × 3 grid image, exact size 576 × 624 px.
+- Each cell is exactly 192 × 208 px.
+- Cells 1–8 contain animation frames in reading order: left-to-right, top-to-bottom.
+- Cell 9 is intentionally EMPTY and contains only the flat chroma background.
+- Every frame must stay fully inside its own 192 × 208 cell. No body part, hair, prop, effect, outline,
+  shadow, halo, glow, label, or antialiasing may cross a cell boundary.
+
+STYLE: {style_desc}
+
+ANIMATION ROW:
+{motion}
+
+PROP DOCTRINE (read this — codogotchi animations are NOT charades):
+- If the motion names a PROP, that prop MUST be clearly drawn and readable in every populated cell.
+- Use EXACTLY the prop named — never an A/B choice. The prop is the SAME object, same design, in all 8 frames.
+- Emotion-led rows may lead with expression; everything else is prop-led.
+
+CELL CONSTRAINTS:
+- Background: one flat RGB #{chroma} color in every cell, including the empty ninth cell.
+- The background must be perfectly flat: no lighting falloff, vignette, texture, noise, gradient, shadow,
+  glow, halo, outline, or antialias spill into the key color.
+- No transparency/RGBA output. Use the chroma background, not transparent pixels.
+- Padding: at least 8 px on all sides inside each 192 × 208 cell.
+- Same character scale and baseline across all 8 populated cells.
+- No #{chroma} or near-#{chroma} contamination on character, props, or effects.
+- Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
+
+After completing the Codex idle row: save frame 1 of idle as seed.png and attach it to ALL subsequent
+generation calls alongside this prompt, to anchor character consistency.
+"""
+
+
+def build_sheet_prompt(row_label: str, style_desc: str, chroma: str, description: str | None = None) -> str:
+    if description:
+        return build_sheet_prompt_description(row_label, description, style_desc, chroma)
+    return build_sheet_prompt_seed(row_label, style_desc, chroma)
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -366,6 +452,12 @@ def main() -> None:
                         choices=["codex", "lite-basic", "lite-enhanced", "soa", "all"], default="all",
                         help="Which tier(s) to prepare prompts for (default: all). "
                              "lite-enhanced requires a valid lite-basic sheet for the same pet first.")
+    parser.add_argument(
+        "--generation-mode",
+        choices=["sheet-first", "frame-first"],
+        default="sheet-first",
+        help="Prompt/job mode. sheet-first writes 3x3 row prompts by default; frame-first preserves the old f01..f08 flow.",
+    )
     parser.add_argument("--out-dir", type=Path, default=Path("run"),
                         help="Base output directory (default: ./run)")
     parser.add_argument("--write-pet-json", action="store_true",
@@ -403,6 +495,8 @@ def main() -> None:
     # Create directory structure
     for tier in tiers:
         (run_dir / "prompts" / tier).mkdir(parents=True, exist_ok=True)
+        (run_dir / "sheet-prompts" / tier).mkdir(parents=True, exist_ok=True)
+        (run_dir / "sheets" / tier).mkdir(parents=True, exist_ok=True)
         for label in TIER_ROW_ORDER[tier]:
             (run_dir / "frames" / tier / label).mkdir(parents=True, exist_ok=True)
         (run_dir / "rows" / tier).mkdir(parents=True, exist_ok=True)
@@ -424,23 +518,40 @@ def main() -> None:
             prompt_text = build_frame_prompt(label, style_desc, row_chroma, description=args.description)
             p = run_dir / "prompts" / tier / f"{label}.txt"
             p.write_text(prompt_text)
+            sheet_prompt_text = build_sheet_prompt(label, style_desc, row_chroma, description=args.description)
+            sheet_p = run_dir / "sheet-prompts" / tier / f"{label}.txt"
+            sheet_p.write_text(sheet_prompt_text)
 
     # Write imagegen job manifests
     jobs: list[dict] = []
     for tier in tiers:
         for row_idx, label in enumerate(TIER_ROW_ORDER[tier]):
-            for frame_num in range(1, 9):
+            if args.generation_mode == "sheet-first":
                 jobs.append({
-                    "id": f"{tier}/{label}/f{frame_num:02d}",
+                    "id": f"{tier}/{label}/sheet",
                     "tier": tier,
                     "row_label": label,
                     "row_index": row_idx,
-                    "frame_number": frame_num,
+                    "mode": "sheet-first",
                     "chroma": resolve_chroma(label, args.chroma),
-                    "out_path": f"frames/{tier}/{label}/f{frame_num:02d}.png",
-                    "prompt_path": f"prompts/{tier}/{label}.txt",
+                    "out_path": f"sheets/{tier}/{label}.png",
+                    "prompt_path": f"sheet-prompts/{tier}/{label}.txt",
                     "status": "pending",
                 })
+            else:
+                for frame_num in range(1, 9):
+                    jobs.append({
+                        "id": f"{tier}/{label}/f{frame_num:02d}",
+                        "tier": tier,
+                        "row_label": label,
+                        "row_index": row_idx,
+                        "frame_number": frame_num,
+                        "mode": "frame-first",
+                        "chroma": resolve_chroma(label, args.chroma),
+                        "out_path": f"frames/{tier}/{label}/f{frame_num:02d}.png",
+                        "prompt_path": f"prompts/{tier}/{label}.txt",
+                        "status": "pending",
+                    })
 
     jobs_path = run_dir / "imagegen-jobs.json"
     jobs_path.write_text(json.dumps({"jobs": jobs}, indent=2) + "\n")
@@ -458,6 +569,7 @@ def main() -> None:
         "default_chroma": DEFAULT_CHROMA,
         "green_sensitive_chroma": GREEN_SENSITIVE_CHROMA,
         "green_sensitive_rows": sorted(GREEN_SENSITIVE_ROWS),
+        "generation_mode": args.generation_mode,
         "tiers": tiers,
         "cell_w": 192,
         "cell_h": 208,
@@ -468,14 +580,19 @@ def main() -> None:
     }
     (run_dir / "run-config.json").write_text(json.dumps(config, indent=2) + "\n")
 
-    total_frames = sum(len(TIER_ROW_ORDER[t]) for t in tiers) * 8
+    total_rows = sum(len(TIER_ROW_ORDER[t]) for t in tiers)
+    total_frames = total_rows * 8
     print(f"\nRun folder: {run_dir}")
     print(f"Tiers: {tiers}")
     print(f"Character source: {character_source}")
     if args.description:
         print(f"Description: {args.description[:80]}{'…' if len(args.description) > 80 else ''}")
         print("NOTE (description mode): generate Codex idle row FIRST; save f01 as seed.png; attach to all subsequent calls.")
-    print(f"Total frames to generate: {total_frames}")
+    print(f"Generation mode: {args.generation_mode}")
+    if args.generation_mode == "sheet-first":
+        print(f"Total row sheets to generate: {total_rows} (slices to {total_frames} frames)")
+    else:
+        print(f"Total frames to generate: {total_frames}")
     print(f"Job manifest: {jobs_path}")
     if args.chroma == "auto":
         sensitive = ", ".join(sorted(GREEN_SENSITIVE_ROWS))
@@ -484,8 +601,14 @@ def main() -> None:
         )
     else:
         print(f"Chroma mode: fixed #{args.chroma.lower().lstrip('#')}")
-    print("\nNext: generate frames ONE ROW AT A TIME using the prompts in prompts/<tier>/")
-    print("      Then stitch each row with: python scripts/stitch_row.py --row-dir frames/<tier>/<label>/ --out rows/<tier>/<label>.png")
+    if args.generation_mode == "sheet-first":
+        print("\nNext: generate one 3x3 row sheet at a time using sheet-prompts/<tier>/<label>.txt")
+        print("      Save to sheets/<tier>/<label>.png, then slice:")
+        print("      python scripts/slice_animation_sheet.py --sheet sheets/<tier>/<label>.png --out-dir frames/<tier>/<label>/ --chroma <job chroma>")
+        print("      Then stitch/inspect that row with stitch_row.py and inspect_frames.py.")
+    else:
+        print("\nNext: generate frames ONE ROW AT A TIME using the prompts in prompts/<tier>/")
+        print("      Then stitch each row with: python scripts/stitch_row.py --row-dir frames/<tier>/<label>/ --out rows/<tier>/<label>.png")
 
 
 if __name__ == "__main__":

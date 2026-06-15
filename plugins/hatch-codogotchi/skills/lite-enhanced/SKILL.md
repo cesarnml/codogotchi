@@ -19,7 +19,7 @@ Add the **Lite-Enhanced** sheet (Tier 3) to a pet — the 8-row polish extension
 
 The Lite-Basic sheet is also used as an **extra style reference** alongside the seed, so Enhanced matches Basic exactly.
 
-**Execution model:** Codex should use its built-in `image_gen` tool to generate **each Lite-Enhanced frame as a standalone image** (`f01.png` … `f08.png`) for one row at a time. Once the frames exist, the local scripts stitch the row strip, inspect it, and later compose the final atlas. Do **not** request an already-stitched strip or whole spritesheet from image generation.
+**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 3×3 Lite-Enhanced animation sheet per row**: exact 576×624 px, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `f01.png` … `f08.png`. Do **not** request a complete atlas or an unconstrained horizontal strip.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that still feels polished**. Many Enhanced rows can be produced faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is guidance, not dogma.
 
@@ -36,7 +36,7 @@ The Lite-Basic sheet is also used as an **extra style reference** alongside the 
 3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as `seed.png` and the Basic sheet. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
 4. **Alignment stability.** Keep the character on a stable horizontal axis in every 192×208 cell; the pet must not hop left/right between frames. Vertically align ordinary standing rows to a shared bottom baseline near `cell_h - 8`, not to the vertical center. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
 
-Plus: don't fake frames; **frame-first**, one row at a time; don't draw-and-slice; match the Basic + Codex style exactly.
+Plus: don't fake frames; **sheet-first**, one row at a time; never whole-atlas generation; no unbounded strips; match the Basic + Codex style exactly.
 
 Quality caveats for the recommended pattern:
 - Enhanced rows often carry more nuanced motion, so be quicker to add extra distinct frames if mirrored/reused closure feels stiff.
@@ -57,12 +57,12 @@ python scripts/extract_seed_from_codex.py \
 python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
   --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-enhanced --style auto --chroma auto
 
-# 3. For each of the 8 rows, in order, use built-in image_gen frame-first:
-#    render the distinct keyframes you actually need first, then fill f01..f08
-#    with reused/mirrored closures only when the row still feels polished.
-#    `verifying` and `web-search` switch to #ff00ff automatically to avoid
-#    keying out green details. Attach BOTH seed.png AND the finished
-#    codogotchi-lite-basic-spritesheet.webp as references.
+# 3. For each of the 8 rows, in order, use built-in image_gen sheet-first:
+#    generate one exact 576x624 3x3 row sheet into sheets/lite-enhanced/<row>.png.
+#    Cells 1-8 are the animation; cell 9 is empty. `verifying` and `web-search`
+#    switch to #ff00ff automatically to avoid keying out green details. Attach
+#    BOTH seed.png AND the finished codogotchi-lite-basic-spritesheet.webp.
+python scripts/slice_animation_sheet.py --sheet run/<pet-id>/sheets/lite-enhanced/<row>.png --out-dir run/<pet-id>/frames/lite-enhanced/<row>/ --chroma <00ff00-or-ff00ff>
 python scripts/stitch_row.py     --row-dir run/<pet-id>/frames/lite-enhanced/<row>/ --out run/<pet-id>/rows/lite-enhanced/<row>.png
 python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-enhanced/<row>.png --seed run/<pet-id>/seed.png   # gate before next row
 
@@ -86,7 +86,7 @@ Row order (see `references/animation-rows-lite.md`):
 
 ### Replace One Frame
 
-If one frame fails visual QA or inspection, regenerate only that standalone frame, replace `run/<pet-id>/frames/lite-enhanced/<row>/fNN.png`, then rerun `stitch_row.py` and `inspect_frames.py --seed run/<pet-id>/seed.png` for that row. Do not regenerate the whole row or transform another frame when a single-frame cut-and-replace is enough.
+If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/lite-enhanced/<row>.txt`, replace `run/<pet-id>/frames/lite-enhanced/<row>/fNN.png`, then rerun `stitch_row.py` and `inspect_frames.py --seed run/<pet-id>/seed.png` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
 
 ---
 

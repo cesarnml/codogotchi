@@ -10,14 +10,14 @@ Analogous to the `openai/skills/.curated/hatch-pet` skill, adapted for Codogotch
 
 This plugin is designed to be run by Codex in two explicit stages:
 
-1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **each animation frame as a standalone image**, one row at a time, saving `f01.png` … `f08.png` into `run/<pet>/frames/<tier>/<row>/`.
-2. **Local assembly stage:** the Python scripts in `scripts/` stitch those frames into row strips, inspect/validate them, then compose the validated row strips into the final spritesheet atlas.
+1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one 3×3 animation sheet per row**, saving `run/<pet>/sheets/<tier>/<row>.png`. Each generated sheet is exactly 576×624 px: eight populated 192×208 cells plus one empty ninth cell.
+2. **Local assembly stage:** the Python scripts in `scripts/` slice that row sheet into exact `f01.png` … `f08.png` cells, normalize the chroma background, stitch those frames into row strips, inspect/validate them, then compose the validated row strips into the final spritesheet atlas.
 
-The plugin does **not** mean "ask image generation for a whole row strip" or "ask for the entire sheet in one pass." The intended workflow is always **frame-first**:
+The plugin does **not** mean "ask image generation for a whole atlas" or "ask for an unconstrained strip." The intended default workflow is now **sheet-first**:
 
-`image_gen` frame generation → `stitch_row.py` → `inspect_frames.py` → `compose_atlas.py` → `validate_atlas.py`
+`image_gen` 3×3 row sheet → `slice_animation_sheet.py` → `stitch_row.py` → `inspect_frames.py` → `compose_atlas.py` → `validate_atlas.py`
 
-Every skill below assumes that division of labor: **Codex generates frames; local scripts assemble and validate them.**
+Every skill below assumes that division of labor: **Codex generates one bounded row sheet; local scripts slice, key, assemble, and validate it.** The old frame-first path remains the recovery path for selective repair when one cell fails.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that still looks good in motion**. In practice, many rows can be produced faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a speed optimization, not a hard rule.
 
@@ -45,7 +45,9 @@ Alignment specifics (these serve the rule above):
 
 ## Chroma-key policy
 
-The plugin no longer assumes `#00ff00` is safe for every row. Default behavior is now `--chroma auto`:
+The plugin treats chroma as a machine-validated matte, not an aesthetic suggestion. Prompt-level "flat green" is not trusted by itself because image generation may add falloff, shadows, texture, or inconsistent key areas.
+
+Default behavior is `--chroma auto`:
 
 - `#00ff00` for normal rows
 - `#ff00ff` for rows whose intended prop/effect is likely to contain green and would be damaged by a green key
@@ -58,6 +60,14 @@ Today the green-sensitive rows are:
 - `web-search`
 
 This avoids the failure mode where an intended green checkmark, green stamp, or green globe detail gets keyed out before the strip is assembled.
+
+Hardening rules:
+
+- Prompts require one flat RGB key color for the entire 3×3 row sheet, including the empty ninth cell.
+- `slice_animation_sheet.py` detects border-connected background per cell and normalizes only that connected background region to the exact key color.
+- Foreground pixels that still look like the active key color are a hard failure unless `--allow-foreground-key` is explicitly passed.
+- The ninth cell must stay empty; if content leaks into it, the sheet fails.
+- After slicing, `stitch_row.py`, `inspect_frames.py`, and `validate_atlas.py` still enforce zero likely green/magenta residue and zero transparent-RGB residue.
 
 ---
 
@@ -129,15 +139,15 @@ Tier 1 is required. Resolution order per render moment: **SoA → Enhanced → B
 python scripts/prepare_pet_run.py \
   --seed my-pet-seed.png --pet-name "Beemo" --style plush
 
-# 2. Use Codex's built-in image_gen tool to generate frames one row at a time
-#    as standalone images — NOT a prebuilt strip and NOT the whole sheet.
-#    The generated prompts use row-safe chroma automatically:
+# 2. Use Codex's built-in image_gen tool to generate one 3x3 row sheet at a time.
+#    Use sheet-prompts/<tier>/<row>.txt. The generated prompts use row-safe chroma:
 #    #00ff00 normally, #ff00ff for green-sensitive rows.
-#    Save as run/beemo/frames/<tier>/<row>/f01.png … f08.png
+#    Save as run/beemo/sheets/<tier>/<row>.png
 
-# 3. Stitch + inspect each row
-python scripts/stitch_row.py     --row-dir run/beemo/frames/lite/implementing/ --out run/beemo/rows/lite/implementing.png
-python scripts/inspect_frames.py --row run/beemo/rows/lite/implementing.png --seed run/beemo/seed.png
+# 3. Slice, stitch, and inspect each row
+python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma 00ff00
+python scripts/stitch_row.py     --row-dir run/beemo/frames/lite-basic/implementing/ --out run/beemo/rows/lite-basic/implementing.png
+python scripts/inspect_frames.py --row run/beemo/rows/lite-basic/implementing.png --seed run/beemo/seed.png
 
 # 4. Compose + encode (after ALL rows validated)
 python scripts/compose_atlas.py --rows-dir run/beemo/rows/codex/      --tier codex      --out run/beemo/spritesheet.png
@@ -203,6 +213,7 @@ hatch-codogotchi/
   scripts/
     extract_seed_from_codex.py        ← Extract reference cell from existing spritesheet
     prepare_pet_run.py                ← Bootstrap run folder + prompt files
+    slice_animation_sheet.py          ← Validate/slice a 3×3 row sheet → f01..f08 frames
     stitch_row.py                     ← Chroma-key + crop + scale + stitch 8 frames → row strip
     inspect_frames.py                 ← Validate a single row strip before composing
     compose_atlas.py                  ← Stack row strips → atlas PNG
@@ -217,9 +228,9 @@ hatch-codogotchi/
 
 1. **Faking frames by transforming the seed** — Do not crop/warp/rotate/scale/re-composite a seed. Every frame must be a genuine render in that pose.
 
-2. **Rushing the whole sheet in one pass** — One row at a time, **frame-first**: render the 8 individual frames → stitch into a row strip → inspect → repeat for the next row → only then stitch the rows into the sheet. ~1–2 hours. 8-min runs are wrong.
+2. **Rushing the whole atlas in one pass** — One row at a time, **sheet-first**: render a single 3×3 row sheet → slice into exact cells → stitch into a row strip → inspect → repeat for the next row → only then compose the atlas.
 
-3. **Drawing a strip and slicing it** — Generate each frame standalone; stitch in code.
+3. **Unbounded strips / clipped cells** — Do not request a 1×8/1×9 strip or whole atlas from image generation. The only multi-frame generation format is a strict 3×3 sheet with 192×208 cells and an empty ninth cell. If any foreground crosses a boundary or enters cell 9, reject the sheet.
 
 4. **Style drift from the Codex sheet** *(Lite and SoA only)* — Compare every row against the existing Codex cells. Same character, same palette, same linework.
 
@@ -237,7 +248,7 @@ hatch-codogotchi/
 
 ## Frame replacement recovery
 
-If exactly one frame fails visual QA or automated inspection, regenerate only that standalone frame. Replace `frames/<tier>/<row>/fNN.png`, rerun `stitch_row.py` for that row, rerun `inspect_frames.py --seed run/<pet>/seed.png`, and eyeball the restitched row. Do not regenerate an entire row when a surgical frame replacement is enough, and do not transform neighboring frames to patch the failure.
+If exactly one frame fails visual QA or automated inspection, regenerate only that standalone frame using `prompts/<tier>/<row>.txt`. Replace `frames/<tier>/<row>/fNN.png`, rerun `stitch_row.py` for that row, rerun `inspect_frames.py --seed run/<pet>/seed.png`, and eyeball the restitched row. Do not regenerate an entire row when a surgical frame replacement is enough, and do not transform neighboring frames to patch the failure.
 
 > Validation does not catch failures 1–5. Eyeball every row — **jerky over-animation (#5) is invisible to the scripts** and is the most common reason a mechanically-valid row still looks bad. Failures 6–8 are gated by scripts; failures 9–10 still need visual judgment.
 

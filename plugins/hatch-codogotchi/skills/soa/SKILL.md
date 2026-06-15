@@ -11,7 +11,7 @@ Generate the **Tier 4 (SoA)** sprite sheet for an existing Codogotchi pet — th
 
 **Prerequisite:** the pet must already have a valid `spritesheet.webp` (Codex, Tier 1) installed. The character reference is derived directly from that sheet — no separate seed image or description is needed. The SoA sheet needs **only** the Codex sheet — it is independent of the Lite tiers (Basic/Enhanced).
 
-**Execution model:** Codex should use its built-in `image_gen` tool to generate **each SoA frame as a separate image** in `frames/soa/<row>/f01.png` … `f08.png`, one row at a time. After those frame files exist, use the local scripts to stitch, inspect, compose, and validate the atlas. Do **not** use image generation to output a preassembled row strip or the entire SoA spritesheet in one shot.
+**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 3×3 SoA animation sheet per row**: exact 576×624 px, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `frames/soa/<row>/f01.png` … `f08.png`. Do **not** use image generation to output a complete atlas or an unconstrained horizontal strip.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that preserves the emotional beat**. Many SoA rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a preferred optimization, not a universal law.
 
@@ -47,9 +47,9 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` backgrou
 
 1. **Faking frames by transforming the seed.** Each frame must be a **genuine image-generation render** of the character in that distinct pose. Code (Pillow) is post-processing only.
 
-2. **Rushing the whole sheet in one pass.** One row at a time, to completion. ~1–2 hours for a quality sheet. ~8-min completion = shortcut = reject.
+2. **Rushing the whole atlas in one pass.** One row at a time, to completion. Whole-atlas generation is a shortcut = reject.
 
-3. **Drawing a multi-frame strip and slicing it.** Generate each frame as its own isolated **192 × 208** image; stitch in code.
+3. **Unbounded strips / clipped cells.** The only multi-frame generation format is a strict 3×3 row sheet with exact **192 × 208** cells and an empty ninth cell. If foreground crosses a boundary or enters cell 9, reject the sheet.
 
 4. **Style drift from the Codex sheet.** After each row, compare a frame side-by-side with a Codex cell. Regenerate if the style, palette, or proportions have shifted.
 
@@ -67,7 +67,7 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` backgrou
 
 Identical to `hatch-codogotchi-lite`:
 
-- **Background:** use the solid chroma named in the prompt (`#00ff00` normally, `#ff00ff` for green-sensitive rows) — do NOT request RGBA directly.
+- **Background:** use the solid chroma named in the prompt (`#00ff00` normally, `#ff00ff` for green-sensitive rows) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
 - **Padding:** ≥ 8 px all sides; nothing touches an edge.
 - **Scale registration:** one shared scale per row (tallest frame sets it).
 - **Horizontal registration:** character/content stays on a stable x-axis in every 192×208 cell; no left/right hopping. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
@@ -116,24 +116,31 @@ Creates:
 ```
 run/<pet-id>/
   prompts/soa/       # One prompt file per SoA row
+  sheet-prompts/soa/ # One 3x3 sheet prompt file per SoA row
+  sheets/soa/        # Empty; generated 3x3 row sheets land here
   frames/soa/        # Empty; frames land here
   rows/soa/          # Empty; validated strips land here
   imagegen-jobs.json
   run-config.json
 ```
 
-### Step 3 — Generate frames (one row at a time)
+### Step 3 — Generate row sheets (one row at a time)
 
 For **each** of the 10 SoA rows, in the order below, complete the full cycle before starting the next:
 
-1. Read motion description in `prompts/soa/<row-label>.txt`.
-2. **Use built-in `image_gen` to generate 8 frames** — each a separate 192 × 208 render on the chroma named in the prompt. `green-tdd` and `review-clean` switch to `#ff00ff` automatically so green checkmark effects survive keying. Attach `seed.png` as the character reference. Character must be genuinely in that frame's distinct pose.
-3. After each frame, compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
-4. Save as `run/<pet-id>/frames/soa/<row-label>/f01.png` … `f08.png`.
+1. Read motion description in `sheet-prompts/soa/<row-label>.txt`.
+2. **Use built-in `image_gen` to generate one 3×3 row sheet** — exact 576×624 px, cells 1–8 populated, cell 9 empty, on the chroma named in the prompt. `green-tdd` and `review-clean` switch to `#ff00ff` automatically so green checkmark effects survive keying. Attach `seed.png` as the character reference.
+3. Compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
+4. Save as `run/<pet-id>/sheets/soa/<row-label>.png`.
 
-### Step 3 — Post-process each row
+### Step 3 — Slice and post-process each row
 
 ```bash
+python scripts/slice_animation_sheet.py \
+  --sheet   run/<pet-id>/sheets/soa/<row-label>.png \
+  --out-dir run/<pet-id>/frames/soa/<row-label>/ \
+  --chroma  <00ff00-or-ff00ff>
+
 python scripts/stitch_row.py \
   --row-dir run/<pet-id>/frames/soa/<row-label>/ \
   --out     run/<pet-id>/rows/soa/<row-label>.png \
@@ -149,7 +156,7 @@ python scripts/inspect_frames.py --row run/<pet-id>/rows/soa/<row-label>.png --s
 
 Do not proceed to the next row until this passes **and** you have eyeballed the strip for genuine animated motion.
 
-If one frame fails visual QA or inspection, regenerate only that standalone frame, replace `run/<pet-id>/frames/soa/<row-label>/fNN.png`, then rerun `stitch_row.py` and `inspect_frames.py --seed run/<pet-id>/seed.png` for that row. Do not regenerate the whole row or transform another frame when a single-frame cut-and-replace is enough.
+If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/soa/<row-label>.txt`, replace `run/<pet-id>/frames/soa/<row-label>/fNN.png`, then rerun `stitch_row.py` and `inspect_frames.py --seed run/<pet-id>/seed.png` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
 
 ### Step 5 — Compose the atlas
 
