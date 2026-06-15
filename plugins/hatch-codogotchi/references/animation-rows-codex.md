@@ -29,7 +29,7 @@ When the Tier 2 Lite sheet is present, rows 7–8 are only used for states not c
 
 ## Motion descriptions
 
-> **Motion restraint — stability over expressiveness (paramount).** The 8 frames are generated *independently*, so big or whole-body motion comes back jerky. For the **standing/expression rows** (`idle`, `standby`, `errored`, `waiting-for-input`, the two fallbacks): anchor the torso, head, hips, and **both feet**, move **one element** (one arm, the eyes/expression, a ≤few-px bob) at low amplitude, and keep frame-to-frame change small. Read every verb (*bounce, nod, tap, recoil, lean*) as **small and gentle** — `idle` already says "character barely moves," and that restraint is the model for the others. The **only** designed-motion rows are the three locomotion ones — `running-right`, `running-left` (a clean stride cycle), and `jump` (controlled takeoff/land, feet off baseline ≤ 12 px) — and even they must stay on a stable x-axis with smooth, non-erratic frame-to-frame change. When expressiveness and stability conflict, choose stability.
+> **Motion restraint — row-kind aware.** The 8 frames are generated *independently*, so unconstrained whole-body motion comes back jerky. For the **standing/expression rows** (`idle`, `standby`, `errored`, `waiting-for-input`, the two fallbacks): anchor the torso, head, hips, and **both feet**, move **one element** (one arm, the eyes/expression, a ≤few-px bob) at low amplitude, and keep frame-to-frame change small. Read every verb (*bounce, nod, tap, recoil, lean*) as **small and gentle** — `idle` already says "character barely moves," and that restraint is the model for the others. For **locomotion rows** (`running-right`, `running-left`), use progress stability instead of planted-feet stability: stable scale, baseline, facing direction, stride rhythm, and small even x-progress per frame. Avoid the common failure mode of 2–3 static frames followed by one large teleport jump. `jump` is its own controlled takeoff/land row with feet off baseline ≤ 12 px. When expressiveness and stability conflict, choose the stability rule for that row kind.
 
 ### Row 0 — idle
 
@@ -45,6 +45,8 @@ Pet trots or runs toward the right. Clear stride cycle with alternating legs and
 
 **Tone:** playful, quick.
 
+**Locomotion rule:** allow visible rightward progress and leg/arm cycling, but keep scale, baseline, and facing direction stable. Each frame should advance a small, even amount; reject rows that hold almost still for several frames and then jump.
+
 ---
 
 ### Row 2 — running-left
@@ -52,6 +54,8 @@ Pet trots or runs toward the right. Clear stride cycle with alternating legs and
 Mirror image of running-right. Facing: **left**. Do not merely flip row 1 if the character is asymmetric (bag, hair part, etc.) — redraw or verify that mirroring reads correctly. The `derive_running_left.py` script can generate a mirrored version; mark the decision in the run manifest.
 
 **Tone:** same as running-right, opposite direction.
+
+**Locomotion rule:** allow visible leftward progress and leg/arm cycling, but keep scale, baseline, and facing direction stable. Each frame should advance a small, even amount; reject rows that hold almost still for several frames and then jump.
 
 ---
 

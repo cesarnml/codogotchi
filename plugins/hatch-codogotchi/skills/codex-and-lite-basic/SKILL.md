@@ -29,7 +29,7 @@ Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 ## Read first — the doctrines (full text in `README.md` + `references/animation-rows-lite.md`)
 
-**0. Motion restraint — stability over expressiveness (paramount).** A calm pet with small, smooth motion always beats an expressive one that jitters; when they conflict, **choose stability**. The 8 frames are generated *independently*, so big or whole-body described motion comes back incoherent — legs swing, props teleport, the pet hops. Anchor the torso, head, hips, and **both feet** in nearly the same place across all 8 frames (legs don't walk or swing in standing rows); confine motion to **one element** — the named prop, one arm, or the expression — at low amplitude with short, smooth arcs. "No static rows" is a *floor* (subtle smooth life so frames differ), **not** a push toward big motion: a barely-moving stable row passes; a busy jittery row is a reject.
+**0. Motion restraint — row-kind aware (paramount).** For standing/status rows, a calm pet with small, smooth motion always beats an expressive one that jitters; when they conflict, **choose stability**. Anchor the torso, head, hips, and **both feet** in nearly the same place across all 8 frames; confine motion to **one element** — the named prop, one arm, or the expression — at low amplitude with short, smooth arcs. For locomotion rows (`running-right`, `running-left`), use **progress stability** instead: stable character identity, scale, baseline, facing direction, stride rhythm, and small even x-progress per frame. Do not force planted feet on locomotion rows, and reject the failure mode where 2–3 frames are static followed by a large jump. "No static rows" is a *floor* (subtle smooth life so frames differ), **not** a push toward uncontrolled motion.
 
 1. **Prop doctrine — NOT charades.** Emotion-mappable states (`idle`, `errored`→sad) lead with expression; **every other state is carried by one clearly-visible prop** — never mimed/"invisible" props, never an A/B prop choice. Same prop, all 8 frames.
 2. **Scale consistency.** Same character size in all 8 frames of a row (±15% of the row median, gated by `inspect_frames.py`).
@@ -50,9 +50,13 @@ Quality caveats for the recommended pattern:
 - **Seed image (recommended):** a 192 × 208 neutral standing pose on a solid chroma background. Row prompts use `#00ff00` normally and switch to `#ff00ff` automatically for green-sensitive rows.
 - **Text description:** generate the Codex `idle` row first, save its frame 1 as `seed.png`, and attach it to every subsequent call as the character anchor.
 
-## Standing constraints (every frame)
+## Row-kind constraints
 
-Solid prompt-selected chroma bg (`#00ff00` normally, `#ff00ff` for green-sensitive rows) · perfectly flat key with no falloff/shadow/texture/halo · 3×3 sheet cells strictly respect 192×208 boundaries · cell 9 empty · ≥ 8 px padding all sides · one shared scale per row, per-frame height within ±15% of median · baseline `y = 208 − 8 − scaled_h` · loop closes (frame 8 ≈ frame 1) · seed is sole style reference.
+All rows: solid prompt-selected chroma bg (`#00ff00` normally, `#ff00ff` for green-sensitive rows) · perfectly flat key with no falloff/shadow/texture/halo · 3×3 sheet cells strictly respect 192×208 boundaries · cell 9 empty · ≥ 8 px padding all sides · one shared scale per row, per-frame height within ±15% of median · seed is sole style reference.
+
+Standing/status rows: shared bottom baseline `y = 208 − 8 − scaled_h`, body and feet anchored, one small moving element, loop closes (frame 8 ≈ frame 1).
+
+Locomotion rows (`running-right`, `running-left`): stable scale/baseline/facing direction and a clean stride cycle with small even x-progress. Do not pin the feet in place; do reject teleport jumps or static-static-static-jump timing.
 
 ---
 
@@ -115,8 +119,8 @@ If one cell fails after `slice_animation_sheet.py`, inspect the failure contact 
 - [ ] `spritesheet.webp` — 1536 × 1872; 9 × 8; cell 192 × 208
 - [ ] `codogotchi-lite-basic-spritesheet.webp` — 1536 × 1872; 9 × 8; cell 192 × 208
 - [ ] Every used cell's alpha bbox within `[8, 184] × [8, 200]`; zero likely green/magenta chroma residue; no transparent-RGB residue
-- [ ] Character/content horizontal center is stable across each row; ordinary standing rows share a bottom foot baseline near `cell_h - 8`
-- [ ] **Stable motion (paramount):** body/feet anchored, one element moves at low amplitude, no jitter/hopping/limb-swing
+- [ ] Character/content horizontal center is stable for standing/status rows; locomotion rows have stable scale, baseline, facing direction, and even progress
+- [ ] **Stable motion (paramount):** standing rows anchor body/feet with one low-amplitude moving element; locomotion rows use smooth progress stability with no teleport frame
 - [ ] No static rows; each row has *subtle* distinct motion (a floor, not big motion); loop closes
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
 - [ ] **No frame's content height deviates >15% from its row median**

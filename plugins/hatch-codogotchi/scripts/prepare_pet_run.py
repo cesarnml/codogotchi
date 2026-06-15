@@ -254,6 +254,16 @@ GREEN_SENSITIVE_ROWS = {
     "web-search",
 }
 
+LOCOMOTION_ROWS = {
+    "running-right",
+    "running-left",
+}
+
+JUMP_ROWS = {
+    "jump",
+    "ticket-completed",
+}
+
 
 def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9-]", "-", name.lower().strip()).strip("-")
@@ -268,9 +278,39 @@ def resolve_chroma(row_label: str, chroma: str) -> str:
     return DEFAULT_CHROMA
 
 
+def row_kind(row_label: str) -> str:
+    if row_label in LOCOMOTION_ROWS:
+        return "locomotion"
+    if row_label in JUMP_ROWS:
+        return "jump"
+    return "standing/status"
+
+
+def motion_doctrine(row_label: str) -> str:
+    kind = row_kind(row_label)
+    if kind == "locomotion":
+        return """ROW KIND: locomotion.
+- Use progress stability, not planted-feet stability.
+- The character may visibly advance in the named direction and legs/arms may cycle.
+- Keep identity, scale, bottom baseline, facing direction, and stride rhythm stable across all 8 frames.
+- Each frame should advance a small, even amount; reject static-static-static-teleport timing.
+- Frame 8 should connect cleanly back to frame 1 as a continuous stride cycle."""
+    if kind == "jump":
+        return """ROW KIND: controlled jump.
+- The character may leave the baseline briefly, but takeoff, peak, descent, and landing must read as one smooth arc.
+- Keep identity, scale, horizontal axis, and landing baseline stable; no flailing or teleport frame.
+- Frame 8 should settle cleanly back toward frame 1."""
+    return """ROW KIND: standing/status.
+- Stability over expressiveness: anchor torso, head, hips, and both feet in nearly the same place.
+- Legs do not walk, swing, or restage; feet stay planted on the shared baseline.
+- Move one element at low amplitude: the named prop, one arm/hand, or the expression.
+- Keep frame-to-frame change small; subtle smooth motion is enough."""
+
+
 def build_frame_prompt_seed(row_label: str, style_desc: str, chroma: str) -> str:
     """Prompt for seed-image-based generation (image attached to generation call)."""
     motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
+    doctrine = motion_doctrine(row_label)
     return f"""You are generating ONE FRAME of a sprite animation for a desktop Codogotchi pet.
 
 SEED IMAGE: attached. Use ONLY as style/character reference — infer exact proportions, outfit, hair, skin tone, linework, colour from it. Do NOT restyle or invent details.
@@ -279,6 +319,9 @@ STYLE: {style_desc}
 
 MOTION THIS FRAME IS PART OF:
 {motion}
+
+MOTION DOCTRINE:
+{doctrine}
 
 PROP DOCTRINE (read this — codogotchi animations are NOT charades):
 - If the motion names a PROP, that prop MUST be clearly drawn and readable in this frame. The user must grok the
@@ -304,6 +347,7 @@ Loop contract: frame 8 pose ≈ frame 1 pose so the row plays as a seamless cont
 def build_frame_prompt_description(row_label: str, description: str, style_desc: str, chroma: str) -> str:
     """Prompt for text-description-based generation (no seed image)."""
     motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
+    doctrine = motion_doctrine(row_label)
     return f"""You are generating ONE FRAME of a sprite animation for a desktop Codogotchi pet.
 
 CHARACTER DESCRIPTION: {description}
@@ -314,6 +358,9 @@ STYLE: {style_desc}
 
 MOTION THIS FRAME IS PART OF:
 {motion}
+
+MOTION DOCTRINE:
+{doctrine}
 
 PROP DOCTRINE (read this — codogotchi animations are NOT charades):
 - If the motion names a PROP, that prop MUST be clearly drawn and readable in this frame. The user must grok the
@@ -347,6 +394,7 @@ def build_frame_prompt(row_label: str, style_desc: str, chroma: str, description
 def build_sheet_prompt_seed(row_label: str, style_desc: str, chroma: str) -> str:
     """Prompt for sheet-first generation from an attached seed image."""
     motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
+    doctrine = motion_doctrine(row_label)
     return f"""You are generating ONE COMPLETE 8-frame animation row for a desktop Codogotchi pet.
 
 OUTPUT FORMAT:
@@ -364,6 +412,9 @@ STYLE: {style_desc}
 
 ANIMATION ROW:
 {motion}
+
+MOTION DOCTRINE:
+{doctrine}
 
 PROP DOCTRINE (read this — codogotchi animations are NOT charades):
 - If the motion names a PROP, that prop MUST be clearly drawn and readable in every populated cell.
@@ -385,6 +436,7 @@ CELL CONSTRAINTS:
 def build_sheet_prompt_description(row_label: str, description: str, style_desc: str, chroma: str) -> str:
     """Prompt for sheet-first generation from a text description."""
     motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
+    doctrine = motion_doctrine(row_label)
     return f"""You are generating ONE COMPLETE 8-frame animation row for a desktop Codogotchi pet.
 
 CHARACTER DESCRIPTION: {description}
@@ -403,6 +455,9 @@ STYLE: {style_desc}
 
 ANIMATION ROW:
 {motion}
+
+MOTION DOCTRINE:
+{doctrine}
 
 PROP DOCTRINE (read this — codogotchi animations are NOT charades):
 - If the motion names a PROP, that prop MUST be clearly drawn and readable in every populated cell.

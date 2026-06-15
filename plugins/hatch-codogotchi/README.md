@@ -29,19 +29,21 @@ Caveats:
 
 ## Motion & alignment doctrine
 
-**Stability over expressiveness — the paramount rule.** A calm pet with small, smooth motion always beats an expressive one that jitters. When the two conflict, **choose stability.** The frames are generated *independently* by image-gen, so any large or whole-body motion you describe comes back inconsistent between frames — legs swing, props teleport, the pet hops. A mild, stable loop is the goal; expressiveness is a distant second.
+**Stability over expressiveness — the paramount rule for standing/status rows.** A calm pet with small, smooth motion always beats an expressive one that jitters. When the two conflict, **choose stability.** The frames are generated *independently* by image-gen, so any large or whole-body motion you describe comes back inconsistent between frames — legs swing, props teleport, the pet hops. A mild, stable loop is the goal for standing/status rows; expressiveness is a distant second.
 
 - **Anchor the body.** Torso, head position, hips, and **both feet** stay in nearly the same place across all 8 frames. In standing rows the legs do **not** walk, swing, or restage — feet stay planted in the same stance on the baseline.
 - **Move one thing at a time.** Confine motion to a single element — the named prop, one arm/hand, or the eyes/expression — plus at most a gentle ≤few-px bob. Avoid simultaneous whole-body motion; that is what reads as erratic once the frames are rendered separately.
 - **Low amplitude, short smooth arcs.** Gestures are gentle and small; a prop travels a little and consistently, never roaming around the cell between frames. Big described motions (punch, leap, big swing) become popping when each frame is independent — keep arcs short and the change between adjacent frames small.
 - **"No static rows" is a floor, not a target.** The floor is *subtle, smooth* life — a breath, a small sway, blinking eyes, one quiet prop beat — just enough that the 8 frames differ. It is **not** a push toward big motion. A barely-moving-but-stable row **passes**; a busy-but-jittery row is a **reject**.
 
+**Locomotion carve-out.** Mouse interaction rows such as Codex `running-right` and `running-left` are not standing/status loops. They use **progress stability** instead of planted-feet stability: preserve the same character identity, scale, baseline, facing direction, and stride rhythm, but allow controlled x-progress and alternating legs/arms. The row should advance in small, even increments across all 8 frames with no 2–3 static frames followed by a teleport jump. Frame 8 should return cleanly to frame 1 as a stride cycle.
+
 Alignment specifics (these serve the rule above):
 
-- **Stable horizontal axis:** horizontally center the character/content in every cell so the pet does not hop left/right during playback. If a large side prop skews the alpha bbox, prefer the character body's visual center over blindly centering the prop-heavy bbox.
+- **Stable horizontal axis:** for standing/status rows, horizontally center the character/content in every cell so the pet does not hop left/right during playback. For locomotion rows, judge the repeated stride cycle instead: scale, baseline, facing direction, and per-frame progress must be smooth and even.
 - **Stable bottom baseline:** vertically align frames to a shared foot/ground baseline near the bottom of the cell, normally `y = cell_h - 8 - scaled_h`. Do **not** vertically center ordinary standing rows; that makes the pet float too far above the badge/panel.
 - **Validation guard:** `inspect_frames.py` and `validate_atlas.py` fail obvious per-frame horizontal center drift. Human visual review still has final say because laptops, thought bubbles, signs, and lab props can fool simple bbox math — and because the scripts cannot measure jitter or limb flailing.
-- **Jump exception:** the only sanctioned big motion is an explicit jump/leap row (Codex `jump`, SoA `ticket-completed`). It may leave the baseline briefly but must still take off and land cleanly on a stable horizontal axis — controlled, not flailing.
+- **Jump exception:** explicit jump/leap rows (Codex `jump`, SoA `ticket-completed`) may leave the baseline briefly but must still take off and land cleanly on a stable horizontal axis — controlled, not flailing.
 
 ## Chroma-key policy
 
@@ -234,7 +236,7 @@ hatch-codogotchi/
 
 4. **Style drift from the Codex sheet** *(Lite and SoA only)* — Compare every row against the existing Codex cells. Same character, same palette, same linework.
 
-5. **Jerky / over-animated motion (the stability killer)** — The single worst outcome. Because each of the 8 frames is generated independently, big or whole-body described motion comes back incoherent: legs swing, props jump around, the pet hops. **Stability beats expressiveness every time** — anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. A mild stable loop is a pass; a busy jittery one is a reject. "No static rows" is a floor (subtle smooth life), not a target. See *Motion & alignment doctrine* above and `references/animation-rows-lite.md` → *motion restraint*.
+5. **Jerky / over-animated motion (the stability killer)** — The single worst outcome. Because each of the 8 frames is generated independently, big or whole-body described motion comes back incoherent: legs swing, props jump around, the pet hops. For standing/status rows, **stability beats expressiveness every time** — anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. For locomotion rows, require progress stability instead: smooth stride increments, stable scale/baseline/direction, and no static frames followed by a teleport jump. "No static rows" is a floor (subtle smooth life), not a target. See *Motion & alignment doctrine* above and `references/animation-rows-lite.md` → *motion restraint*.
 
 6. **Mime / charades (the readability killer)** — Codogotchi animations must be readable at a glance. States that don't map to a plain human emotion must be carried by **one clearly-visible prop**, never subtle hand gestures or an *invisible* prop ("invisible keyboard", "unseen screen"). Use **exactly the prop named — never an A/B choice** (the old `reading` "page/tablet" drew a tablet in some frames and a book in others). Same prop, all 8 frames. See `references/animation-rows-lite.md` → *prop doctrine*.
 
