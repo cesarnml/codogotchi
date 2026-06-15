@@ -14,6 +14,7 @@ import type * as auth from "../auth.js";
 import type * as http from "../http.js";
 import type * as migrations_p11_02 from "../migrations/p11_02.js";
 import type * as migrations_p11_04 from "../migrations/p11_04.js";
+import type * as mutations_operatorUpload from "../mutations/operatorUpload.js";
 import type * as mutations_syncProfile from "../mutations/syncProfile.js";
 import type * as mutations_trackDmgDownload from "../mutations/trackDmgDownload.js";
 import type * as pets from "../pets.js";
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "migrations/p11_02": typeof migrations_p11_02;
   "migrations/p11_04": typeof migrations_p11_04;
+  "mutations/operatorUpload": typeof mutations_operatorUpload;
   "mutations/syncProfile": typeof mutations_syncProfile;
   "mutations/trackDmgDownload": typeof mutations_trackDmgDownload;
   pets: typeof pets;
