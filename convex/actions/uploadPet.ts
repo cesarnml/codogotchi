@@ -9,7 +9,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import JSZip from "jszip";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { type ActionCtx, action } from "../_generated/server";
 
 // Best-effort delete of a staged storage blob. Deleting a missing/already-
@@ -88,45 +88,36 @@ export const uploadPet = action({
           `Pet slug "${petIdSlug}" belongs to another creator (@${existingPet.authorUsername}).`,
         );
       }
-      const isUpdate = existingPet !== null;
-
-      // Rate limit applies to NEW pets only — re-uploading your own pet to add or
-      // replace tiers does not create a row, so it does not count against the cap.
-      if (!isUpdate) {
-        const recentCount = await ctx.runQuery(
-          internal.pets.countRecentPetsByAuthor,
-          { authorUserId: userId, since: Date.now() - RATE_LIMIT_WINDOW_MS },
-        );
-        if (recentCount >= RATE_LIMIT_MAX) {
-          throw new ConvexError(
-            "Upload rate limit exceeded. Try again in 24 hours.",
-          );
-        }
+      // UPDATE: the upload merges into the owned pet's existing package (so a
+      // partial upload — e.g. just the SoA sheet — keeps the required Codex +
+      // Lite-Basic sheets). pet.json in the upload, if present, refreshes the
+      // display fields; identity + ownership are already resolved above.
+      if (existingPet !== null) {
+        await deleteBlob(ctx, args.rawZipStorageId);
+        rawDeleted = true;
+        // Thumbnail is derived from the codex idle frame and unchanged on a
+        // tier-add; drop any staged thumbnail and keep the existing one.
+        await deleteBlob(ctx, args.thumbnailStorageId);
+        return await applyOwnedUpdate(ctx, existingPet, rawBytes);
       }
 
-      // For updates, merge the (possibly partial) upload into the existing
-      // canonical package so the required Codex + Lite-Basic sheets carried by
-      // the existing pet survive — the creator can re-upload just the new tier.
-      let effectivePackage = rawBytes;
-      if (isUpdate) {
-        const existingZipBlob = await ctx.storage.get(existingPet.zipStorageId);
-        if (!existingZipBlob) {
-          throw new ConvexError(
-            "Existing pet package is missing from storage; cannot update.",
-          );
-        }
-        const existingZipBytes = new Uint8Array(
-          await existingZipBlob.arrayBuffer(),
+      // CREATE: rate-limited, since it mints a new row.
+      const recentCount = await ctx.runQuery(
+        internal.pets.countRecentPetsByAuthor,
+        { authorUserId: userId, since: Date.now() - RATE_LIMIT_WINDOW_MS },
+      );
+      if (recentCount >= RATE_LIMIT_MAX) {
+        throw new ConvexError(
+          "Upload rate limit exceeded. Try again in 24 hours.",
         );
-        effectivePackage = await mergePetPackages(existingZipBytes, rawBytes);
       }
 
-      // Raw upload is no longer needed once merged/read; drop it now so the
-      // success path leaves nothing staged. The catch handles earlier throws.
+      // Raw upload is no longer needed once read; drop it now so the success
+      // path leaves nothing staged. The catch handles earlier throws.
       await deleteBlob(ctx, args.rawZipStorageId);
       rawDeleted = true;
 
-      const result = await validateAndRepackPet(effectivePackage);
+      const result = await validateAndRepackPet(rawBytes);
       if (!result.ok) {
         throw new ConvexError(
           `Invalid pet package: ${result.errors.join("; ")}`,
@@ -157,44 +148,7 @@ export const uploadPet = action({
         soaSheetStorageId,
       ];
 
-      if (isUpdate) {
-        // Thumbnail is auto-derived from the codex idle frame and is unchanged on
-        // a tier-add update; ignore (and clean up) any staged thumbnail to keep
-        // the existing one. A partial upload (e.g. SoA only) has no codex frame
-        // to derive from anyway.
-        await deleteBlob(ctx, args.thumbnailStorageId);
-
-        try {
-          await ctx.runMutation(internal.pets.applyPetUpdate, {
-            petId: existingPet._id,
-            displayName: manifest.displayName,
-            description: manifest.description,
-            tiers: result.metadata.tiers,
-            zipStorageId: canonicalZipStorageId,
-            codexSheetStorageId,
-            liteBasicSheetStorageId,
-            liteEnhancedSheetStorageId,
-            soaSheetStorageId,
-            sizes: { fileSizes: result.metadata.fileSizes },
-          });
-        } catch (err) {
-          await Promise.all(newBlobs.map((id) => deleteBlob(ctx, id)));
-          throw err;
-        }
-
-        // Patch committed — drop the superseded old package + per-tier blobs.
-        await Promise.all([
-          deleteBlob(ctx, existingPet.zipStorageId),
-          deleteBlob(ctx, existingPet.codexSheetStorageId),
-          deleteBlob(ctx, existingPet.liteBasicSheetStorageId),
-          deleteBlob(ctx, existingPet.liteEnhancedSheetStorageId),
-          deleteBlob(ctx, existingPet.soaSheetStorageId),
-        ]);
-
-        return { petId: petIdSlug, created: false };
-      }
-
-      // CREATE path — accept thumbnail only if present and within size cap.
+      // Accept thumbnail only if present and within size cap.
       // Oversized thumbnails are deleted to avoid orphaned storage blobs.
       let resolvedThumbnailId = args.thumbnailStorageId ?? null;
       if (resolvedThumbnailId !== null) {
@@ -227,7 +181,7 @@ export const uploadPet = action({
         throw err;
       }
 
-      return { petId: petIdSlug, created: true };
+      return { petId: petIdSlug, created: true, tiers: result.metadata.tiers };
     } catch (err) {
       // Any failure: drop the client-staged blobs so rejected uploads do not
       // leak storage. Idempotent — deleteBlob swallows already-deleted ids.
@@ -239,6 +193,140 @@ export const uploadPet = action({
     }
   },
 });
+
+// Update an existing pet by explicit petId — no pet.json required. Identity is
+// the selected petId; ownership is the session. This is the "update an existing
+// pet" path: a signed-in creator drops in just the new tier sheet(s) and we
+// merge them into the pet they already own. (Create still goes through
+// uploadPet, where pet.json mints the slug + name + description.)
+//
+// If the upload happens to include a pet.json, its id must match the target pet
+// — otherwise the embedded id and the row's slug would drift.
+export const updatePetSheets = action({
+  args: {
+    petId: v.string(),
+    rawZipStorageId: v.id("_storage"),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const userId = await getAuthUserId(ctx);
+      if (!userId) {
+        throw new ConvexError("Not authenticated");
+      }
+
+      const existingPet = await ctx.runQuery(internal.pets.getPetForUpdate, {
+        petId: args.petId,
+      });
+      if (existingPet === null) {
+        throw new ConvexError(`No pet found with id "${args.petId}".`);
+      }
+      if (existingPet.authorUserId !== userId) {
+        throw new ConvexError(
+          `Pet "${args.petId}" belongs to another creator (@${existingPet.authorUsername}).`,
+        );
+      }
+
+      const rawBlob = await ctx.storage.get(args.rawZipStorageId);
+      if (!rawBlob) {
+        throw new ConvexError("Uploaded sheet package not found in storage");
+      }
+      const rawBytes = new Uint8Array(await rawBlob.arrayBuffer());
+
+      // pet.json is optional here. If present, its id must match the target so
+      // the package's embedded id can't drift from the gallery slug.
+      const uploadedManifest = await parsePetManifest(rawBytes);
+      if (
+        uploadedManifest &&
+        sanitizePetId(uploadedManifest.id) !== existingPet.petId
+      ) {
+        throw new ConvexError(
+          `The pet.json id "${uploadedManifest.id}" does not match the pet you're updating ("${existingPet.petId}"). Omit pet.json, or use a matching id.`,
+        );
+      }
+
+      const out = await applyOwnedUpdate(ctx, existingPet, rawBytes);
+      await deleteBlob(ctx, args.rawZipStorageId);
+      return out;
+    } catch (err) {
+      // Drop the client-staged package on any failure (incl. errors thrown from
+      // within applyOwnedUpdate, which cleans up its own freshly stored blobs).
+      await deleteBlob(ctx, args.rawZipStorageId);
+      throw err;
+    }
+  },
+});
+
+// Shared update core for both uploadPet (owned re-upload) and updatePetSheets.
+// Merges the staged bytes into the owned pet's existing canonical package,
+// re-validates, re-stores every tier blob, patches the row, and drops the
+// superseded blobs. Display fields come from the merged pet.json — which is the
+// upload's if it carried one, otherwise the existing pet's — so metadata
+// refreshes when provided and is preserved otherwise.
+async function applyOwnedUpdate(
+  ctx: ActionCtx,
+  existingPet: Doc<"pets">,
+  rawBytes: Uint8Array,
+): Promise<{ petId: string; created: false; tiers: string[] }> {
+  const existingZipBlob = await ctx.storage.get(existingPet.zipStorageId);
+  if (!existingZipBlob) {
+    throw new ConvexError(
+      "Existing pet package is missing from storage; cannot update.",
+    );
+  }
+  const existingZipBytes = new Uint8Array(await existingZipBlob.arrayBuffer());
+  const merged = await mergePetPackages(existingZipBytes, rawBytes);
+
+  const result = await validateAndRepackPet(merged);
+  if (!result.ok) {
+    throw new ConvexError(`Invalid pet package: ${result.errors.join("; ")}`);
+  }
+
+  const canonicalZipStorageId = await ctx.storage.store(
+    new Blob([result.canonicalZip], { type: "application/zip" }),
+  );
+  const sheetIds = await extractAndStoreTierSheets(ctx, result.canonicalZip);
+  const newBlobs: (Id<"_storage"> | undefined)[] = [
+    canonicalZipStorageId,
+    sheetIds.codexSheetStorageId,
+    sheetIds.liteBasicSheetStorageId,
+    sheetIds.liteEnhancedSheetStorageId,
+    sheetIds.soaSheetStorageId,
+  ];
+
+  // Refresh-if-provided, else preserve: the merged pet.json is the upload's when
+  // it carried one, otherwise the existing pet's (mergePetPackages overlay wins).
+  const manifest = await parsePetManifest(result.canonicalZip);
+
+  try {
+    await ctx.runMutation(internal.pets.applyPetUpdate, {
+      petId: existingPet._id,
+      displayName: manifest?.displayName ?? existingPet.displayName,
+      description: manifest?.description ?? existingPet.description,
+      tiers: result.metadata.tiers,
+      zipStorageId: canonicalZipStorageId,
+      ...sheetIds,
+      sizes: { fileSizes: result.metadata.fileSizes },
+    });
+  } catch (err) {
+    await Promise.all(newBlobs.map((id) => deleteBlob(ctx, id)));
+    throw err;
+  }
+
+  // Patch committed — drop the superseded old package + per-tier blobs.
+  await Promise.all([
+    deleteBlob(ctx, existingPet.zipStorageId),
+    deleteBlob(ctx, existingPet.codexSheetStorageId),
+    deleteBlob(ctx, existingPet.liteBasicSheetStorageId),
+    deleteBlob(ctx, existingPet.liteEnhancedSheetStorageId),
+    deleteBlob(ctx, existingPet.soaSheetStorageId),
+  ]);
+
+  return {
+    petId: existingPet.petId,
+    created: false,
+    tiers: result.metadata.tiers,
+  };
+}
 
 // Extracts all tier spritesheets from a canonical pet zip and stores each as a
 // standalone CDN blob. Returns storage IDs for each tier present; undefined for

@@ -110,6 +110,22 @@ async function uploadAs(
     })) as { petId: string; created: boolean };
 }
 
+// Stage a package blob and run updatePetSheets as the given user.
+async function updateAs(
+  t: ReturnType<typeof convexTest>,
+  userId: Id<"users">,
+  petId: string,
+  pkg: Uint8Array,
+): Promise<{ petId: string; created: boolean; tiers: string[] }> {
+  const rawZipStorageId = await seedBlob(t, pkg);
+  return (await t
+    .withIdentity({ subject: `${userId}|test-session` })
+    .action(api.actions.uploadPet.updatePetSheets, {
+      petId,
+      rawZipStorageId,
+    })) as { petId: string; created: boolean; tiers: string[] };
+}
+
 function petBySlug(t: ReturnType<typeof convexTest>, slug: string) {
   return t.run(async (ctx) =>
     ctx.db
@@ -404,5 +420,107 @@ describe("uploadPet action", () => {
         .withIdentity({ subject: `${userId}|test-session` })
         .action(api.actions.uploadPet.uploadPet, { rawZipStorageId }),
     ).rejects.toThrow(/rate limit/i);
+  });
+});
+
+describe("updatePetSheets action", () => {
+  // pet.json-free package containing just one tier sheet — the canonical
+  // "add the SoA sheet later" upload.
+  function soaOnlyPackage(): Promise<Uint8Array> {
+    return makeTestZip({
+      "codogotchi-soa-spritesheet.webp": SOA_SHEET,
+    });
+  }
+
+  test("owner adds a tier with no pet.json (identity from selection)", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const userId = await seedUser(t);
+    await uploadAs(t, userId, await makeValidPackage());
+
+    const before = await petBySlug(t, "test-cat");
+    expect(before?.tiers).not.toContain("soa");
+    const oldZipId = before?.zipStorageId;
+
+    const result = await updateAs(
+      t,
+      userId,
+      "test-cat",
+      await soaOnlyPackage(),
+    );
+    expect(result.petId).toBe("test-cat");
+    expect(result.created).toBe(false);
+    expect(result.tiers).toContain("soa");
+
+    const after = await petBySlug(t, "test-cat");
+    expect(after?._id).toBe(before?._id);
+    expect(after?.tiers).toContain("soa");
+    expect(after?.soaSheetStorageId).toBeDefined();
+    expect(after?.zipStorageId).not.toBe(oldZipId);
+    // metadata preserved (no pet.json in the upload)
+    expect(after?.displayName).toBe("Test Cat");
+    expect(after?.description).toBe("A valid pet");
+  });
+
+  test("rejects update of a pet the caller does not own", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const owner = await seedUser(t, "owner");
+    const other = await seedUser(t, "interloper");
+    await uploadAs(t, owner, await makeValidPackage());
+
+    await expect(
+      updateAs(t, other, "test-cat", await soaOnlyPackage()),
+    ).rejects.toThrow(/another creator/i);
+  });
+
+  test("rejects update of an unknown pet", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const userId = await seedUser(t);
+    await expect(
+      updateAs(t, userId, "ghost-pet", await soaOnlyPackage()),
+    ).rejects.toThrow(/no pet found/i);
+  });
+
+  test("rejects an embedded pet.json id that does not match the target", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const userId = await seedUser(t);
+    await uploadAs(t, userId, await makeValidPackage());
+
+    const mismatched = await makeTestZip({
+      "pet.json": JSON.stringify({ id: "other-cat", displayName: "Other" }),
+      "codogotchi-soa-spritesheet.webp": SOA_SHEET,
+    });
+    await expect(updateAs(t, userId, "test-cat", mismatched)).rejects.toThrow(
+      /does not match/i,
+    );
+  });
+
+  test("rejects unauthenticated update", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const rawZipStorageId = await seedBlob(t, await soaOnlyPackage());
+    await expect(
+      t.action(api.actions.uploadPet.updatePetSheets, {
+        petId: "test-cat",
+        rawZipStorageId,
+      }),
+    ).rejects.toThrow(/not authenticated/i);
+  });
+});
+
+describe("listMyPets query", () => {
+  test("returns the caller's pets and [] when unauthenticated", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const userId = await seedUser(t);
+    await uploadAs(t, userId, await makeValidPackage());
+
+    const mine = await t
+      .withIdentity({ subject: `${userId}|test-session` })
+      .query(api.pets.listMyPets, {});
+    expect(mine).toHaveLength(1);
+    expect(mine[0].petId).toBe("test-cat");
+    expect(mine[0].displayName).toBe("Test Cat");
+    expect(mine[0].tiers).toContain("codex");
+
+    const anon = await t.query(api.pets.listMyPets, {});
+    expect(anon).toEqual([]);
   });
 });

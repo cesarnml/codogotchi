@@ -47,6 +47,27 @@ export const listPets = query({
   },
 });
 
+// Pets owned by the signed-in user — drives the "update an existing pet" picker
+// in the upload UI. Returns [] when unauthenticated. Includes unlisted pets so
+// the owner can still push new tiers to a pet an operator has hidden.
+export const listMyPets = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const rows = await ctx.db
+      .query("pets")
+      .withIndex("by_author_createdAt", (q) => q.eq("authorUserId", userId))
+      .order("desc")
+      .collect();
+    return rows.map((p) => ({
+      petId: p.petId,
+      displayName: p.displayName,
+      tiers: p.tiers,
+    }));
+  },
+});
+
 // Gallery-optimized paginated list: same order as listPets, with thumbnailUrl
 // resolved from storage so the React SPA can render cards without an extra round-trip.
 export const listPetsForGallery = query({
