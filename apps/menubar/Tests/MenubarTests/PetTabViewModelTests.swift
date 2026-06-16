@@ -194,6 +194,77 @@ final class PetTabViewModelTests: XCTestCase {
 		// After import, felix should appear in canonical list.
 		XCTAssertTrue(vm.allPetIds().contains("felix"))
 	}
+
+	// MARK: - catalog: state derivation + sorting
+
+	private func entry(_ catalog: [PetCatalogEntry], _ id: String) -> PetCatalogEntry? {
+		catalog.first { $0.id == id }
+	}
+
+	func testCatalogMarksActiveCanonicalPetSelected() {
+		let (vm, _) = makeViewModel(canonical: ["felix"], activePetId: "felix")
+		let catalog = vm.catalog()
+		XCTAssertEqual(entry(catalog, "felix")?.state, .selected)
+	}
+
+	func testCatalogMarksNonActiveCanonicalPetInstalled() {
+		let (vm, _) = makeViewModel(canonical: ["felix", "luna"], activePetId: "felix")
+		let catalog = vm.catalog()
+		XCTAssertEqual(entry(catalog, "luna")?.state, .installed)
+	}
+
+	func testCatalogMarksCodexOnlyPetImportable() {
+		let (vm, _) = makeViewModel(codex: ["alexander"], canonical: [])
+		let catalog = vm.catalog()
+		XCTAssertEqual(entry(catalog, "alexander")?.state, .importable)
+	}
+
+	func testCatalogTreatsBundledMaewAsInstalledEvenWhenNotSeeded() {
+		// maew present only under ~/.codex must never read as importable —
+		// it is the bundled default and is always installed.
+		let (vm, _) = makeViewModel(codex: ["maew"], canonical: [])
+		let catalog = vm.catalog()
+		XCTAssertNotEqual(entry(catalog, DEFAULT_PET_NAME)?.state, .importable)
+		XCTAssertTrue(entry(catalog, DEFAULT_PET_NAME)?.isDefault ?? false)
+	}
+
+	func testCatalogSortsSelectedThenInstalledThenImportable() {
+		let (vm, _) = makeViewModel(
+			codex: ["zeta"], canonical: ["felix", "alpha"], activePetId: "felix")
+		let states = vm.catalog().map(\.state)
+		// First entry is the selected pet; importable pets sort last.
+		XCTAssertEqual(states.first, .selected)
+		XCTAssertEqual(states.last, .importable)
+		// Within the installed tier, ordering is alphabetical by display name —
+		// no importable entry may appear before an installed one.
+		let firstImportable = states.firstIndex(of: .importable) ?? states.count
+		let lastInstalled = states.lastIndex(of: .installed) ?? -1
+		XCTAssertLessThan(lastInstalled, firstImportable)
+	}
+
+	func testCatalogReadsDisplayNameAndDescriptionFromPetJson() throws {
+		let roots = makePets(canonical: [])
+		let dir = roots.canonicalRoot.appendingPathComponent("rocky")
+		try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		let json = #"{"id":"rocky","displayName":"Rocky","description":"A steady rock."}"#
+		try Data(json.utf8).write(to: dir.appendingPathComponent("pet.json"))
+		let configURL = tmp.appendingPathComponent("config.json")
+		let vm = PetTabViewModel(
+			codexPetsRoot: roots.codexRoot,
+			canonicalPetsRoot: roots.canonicalRoot,
+			configURL: configURL,
+			initialActivePetId: DEFAULT_PET_NAME
+		)
+		let e = entry(vm.catalog(), "rocky")
+		XCTAssertEqual(e?.displayName, "Rocky")
+		XCTAssertEqual(e?.description, "A steady rock.")
+	}
+
+	func testCatalogFallsBackToIdWhenPetJsonHasNoDisplayName() {
+		// makePets writes `{}` — display name must fall back to the directory id.
+		let (vm, _) = makeViewModel(canonical: ["felix"])
+		XCTAssertEqual(entry(vm.catalog(), "felix")?.displayName, "felix")
+	}
 }
 
 // MARK: - PetConfig.write

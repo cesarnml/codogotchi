@@ -567,16 +567,43 @@ private final class UpdateBannerView: NSView {
 
 // MARK: - PetTabView
 
-/// Pet tab — lists all pets from three sources (bundled Maew, Codex, canonical store),
-/// shows the active pet, and provides Select / Import actions per pet.
-private final class PetTabView: NSView {
+/// Pet tab — a single flat grid of pet cards. Every pet appears once,
+/// deduplicated across the bundled, Codex, and canonical-store sources, in one
+/// of three states keyed purely on where it lives:
+///
+/// - `Selected` — the active pet (disabled button, accent border, Default badge
+///   for bundled Maew).
+/// - `Installed` — in `~/.codogotchi/pets/`, offers a `Select` action.
+/// - `Importable` — present only under `~/.codex/pets/`, offers an `Import`
+///   action that copies it into the canonical store (after which it becomes an
+///   ordinary installed pet — no auto-select).
+///
+/// A search field filters by display name / ID, and a footer reports installed
+/// vs. importable counts. Thumbnails are the static idle first frame.
+private final class PetTabView: NSView, NSSearchFieldDelegate {
 	private var viewModel: PetTabViewModel
 	private let onImportPet: (String) -> Void
 	private let onSelectPet: (String) -> Void
 
-	private let petListScrollView = NSScrollView()
-	private let petListStack = NSStackView()
+	private let searchField = NSSearchField()
+	private let gridScrollView = NSScrollView()
+	private let gridStack = NSStackView()
+	private let emptyLabel = NSTextField(labelWithString: "")
+	private let footerLabel = NSTextField(labelWithString: "")
 	private let feedbackLabel = NSTextField(wrappingLabelWithString: "")
+
+	/// Idle-frame thumbnails are sliced once and cached by spritesheet path so
+	/// repeated grid rebuilds (resize, select, search) don't re-decode WebP.
+	private var thumbnailCache: [String: NSImage?] = [:]
+	/// Column count last laid out — guards `layout()` from rebuilding the grid
+	/// on every resize tick, only when the responsive column count changes.
+	private var lastColumnCount = 0
+	private var currentEntries: [PetCatalogEntry] = []
+
+	private let cardHeight: CGFloat = 104
+	private let cardSpacing: CGFloat = 12
+	private let minCardWidth: CGFloat = 220
+	private let maxColumns = 3
 
 	init(
 		viewModel: PetTabViewModel,
@@ -588,6 +615,7 @@ private final class PetTabView: NSView {
 		self.onSelectPet = onSelectPet
 		super.init(frame: .zero)
 		setupViews()
+		reloadEntries()
 	}
 
 	@available(*, unavailable)
@@ -603,19 +631,10 @@ private final class PetTabView: NSView {
 		feedbackLabel.textColor = .systemRed
 	}
 
-	/// Rebuild the pet list rows from the current ViewModel state.
+	/// Rebuild the grid from the current ViewModel state (after import/select).
 	func refreshPetList(viewModel: PetTabViewModel) {
 		self.viewModel = viewModel
-		// `removeArrangedSubview` only unmanages the layout; the view stays in the
-		// hierarchy at its old frame and the rebuilt rows paint on top of it
-		// (Import/Select and "(active)"/Active overlap). Tear the row out of the
-		// hierarchy too.
-		for view in petListStack.arrangedSubviews {
-			petListStack.removeArrangedSubview(view)
-			view.removeFromSuperview()
-		}
-		buildPetRows()
-		refreshPetListScrollContentSize()
+		reloadEntries()
 	}
 
 	private func setupViews() {
@@ -623,29 +642,49 @@ private final class PetTabView: NSView {
 		addSubview(title)
 
 		let storeNote = settingsBodyLabel(
-			"Pets are loaded from ~/.codogotchi/pets/. "
-				+ "Import from ~/.codex/pets/ to make them available here."
+			"Installed pets live in ~/.codogotchi/pets/. "
+				+ "Pets in ~/.codex/pets/ show an Import action."
 		)
 		addSubview(storeNote)
 
-		petListStack.orientation = .vertical
-		petListStack.alignment = .leading
-		petListStack.spacing = 6
-		petListStack.translatesAutoresizingMaskIntoConstraints = false
-		buildPetRows()
+		searchField.placeholderString = "Search pets…"
+		searchField.delegate = self
+		searchField.sendsWholeSearchString = false
+		searchField.sendsSearchStringImmediately = true
+		searchField.translatesAutoresizingMaskIntoConstraints = false
+		searchField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+		addSubview(searchField)
 
-		petListScrollView.hasVerticalScroller = true
-		petListScrollView.hasHorizontalScroller = false
-		petListScrollView.autohidesScrollers = true
-		petListScrollView.borderType = .noBorder
-		petListScrollView.drawsBackground = false
-		petListScrollView.translatesAutoresizingMaskIntoConstraints = false
-		petListScrollView.documentView = petListStack
-		addSubview(petListScrollView)
+		gridStack.orientation = .vertical
+		gridStack.alignment = .leading
+		gridStack.spacing = cardSpacing
+		gridStack.translatesAutoresizingMaskIntoConstraints = false
+
+		gridScrollView.hasVerticalScroller = true
+		gridScrollView.hasHorizontalScroller = false
+		gridScrollView.autohidesScrollers = true
+		gridScrollView.borderType = .noBorder
+		gridScrollView.drawsBackground = false
+		gridScrollView.translatesAutoresizingMaskIntoConstraints = false
+		gridScrollView.documentView = gridStack
+		addSubview(gridScrollView)
 
 		NSLayoutConstraint.activate([
-			petListStack.widthAnchor.constraint(equalTo: petListScrollView.contentView.widthAnchor),
+			gridStack.widthAnchor.constraint(equalTo: gridScrollView.contentView.widthAnchor),
 		])
+
+		emptyLabel.font = .systemFont(ofSize: 12)
+		emptyLabel.textColor = .secondaryLabelColor
+		emptyLabel.alignment = .center
+		emptyLabel.isHidden = true
+		emptyLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(emptyLabel)
+
+		footerLabel.font = .systemFont(ofSize: 11)
+		footerLabel.textColor = .tertiaryLabelColor
+		footerLabel.alignment = .center
+		footerLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(footerLabel)
 
 		feedbackLabel.isEditable = false
 		feedbackLabel.isBordered = false
@@ -658,94 +697,275 @@ private final class PetTabView: NSView {
 		NSLayoutConstraint.activate([
 			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
 			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			searchField.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+			searchField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			searchField.leadingAnchor.constraint(
+				greaterThanOrEqualTo: title.trailingAnchor, constant: 16),
+			searchField.widthAnchor.constraint(equalToConstant: 200),
 
 			storeNote.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
 			storeNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			storeNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			petListScrollView.topAnchor.constraint(equalTo: storeNote.bottomAnchor, constant: 12),
-			petListScrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			petListScrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			gridScrollView.topAnchor.constraint(equalTo: storeNote.bottomAnchor, constant: 12),
+			gridScrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			gridScrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			feedbackLabel.topAnchor.constraint(equalTo: petListScrollView.bottomAnchor, constant: 8),
+			emptyLabel.centerXAnchor.constraint(equalTo: gridScrollView.centerXAnchor),
+			emptyLabel.centerYAnchor.constraint(equalTo: gridScrollView.centerYAnchor),
+
+			feedbackLabel.topAnchor.constraint(equalTo: gridScrollView.bottomAnchor, constant: 8),
 			feedbackLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			feedbackLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
-			feedbackLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -16),
+
+			footerLabel.topAnchor.constraint(equalTo: feedbackLabel.bottomAnchor, constant: 6),
+			footerLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			footerLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			footerLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14),
 		])
 	}
 
 	override func layout() {
 		super.layout()
-		refreshPetListScrollContentSize()
+		// Rebuild only when the responsive column count actually changes, so
+		// resize drags don't thrash the grid.
+		let columns = columnCount(forWidth: gridScrollView.contentView.bounds.width)
+		if columns != lastColumnCount {
+			rebuildGrid()
+		}
+		sizeDocumentToFit()
 	}
 
-	private func refreshPetListScrollContentSize() {
-		petListStack.layoutSubtreeIfNeeded()
-		let fitting = petListStack.fittingSize
-		var frame = petListStack.frame
-		frame.size = CGSize(
-			width: max(fitting.width, petListScrollView.contentView.bounds.width),
-			height: fitting.height
-		)
-		petListStack.frame = frame
+	// MARK: - Data
+
+	/// Pull a fresh catalog from the view model and rebuild. Footer counts use
+	/// the full (unfiltered) catalog; the grid honors the current search text.
+	private func reloadEntries() {
+		currentEntries = viewModel.catalog()
+		updateFooter()
+		rebuildGrid()
 	}
 
-	private func buildPetRows() {
-		let fm = FileManager.default
-		let codexIds = Set(
-			(try? fm.contentsOfDirectory(
-				at: viewModel.codexPetsRoot,
-				includingPropertiesForKeys: [.isDirectoryKey], options: []
-			))?.compactMap { url -> String? in
-				let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-				return isDir ? url.lastPathComponent : nil
-			} ?? []
-		)
+	private func updateFooter() {
+		let total = currentEntries.count
+		let installed = currentEntries.filter { $0.state != .importable }.count
+		let importable = total - installed
+		footerLabel.stringValue =
+			"\(total) PETS — \(installed) INSTALLED · \(importable) IMPORTABLE"
+	}
 
-		for petId in viewModel.allPetIds() {
-			let isActive = petId == viewModel.activePetId
-			let isInCodexOnly = codexIds.contains(petId) && !isCanonical(petId)
-
-			let nameLabel = NSTextField(labelWithString: isActive ? "\(petId) (active)" : petId)
-			nameLabel.font = isActive ? NSFont.boldSystemFont(ofSize: 13) : NSFont.systemFont(ofSize: 13)
-
-			let actionButton: NSButton
-			if isInCodexOnly {
-				actionButton = NSButton(title: "Import", target: nil, action: nil)
-				actionButton.bezelStyle = .rounded
-				actionButton.target = self
-				let capturedId = petId
-				actionButton.action = #selector(petRowAction(_:))
-				objc_setAssociatedObject(actionButton, &actionKey, ("import", capturedId), .OBJC_ASSOCIATION_RETAIN)
-			} else {
-				actionButton = NSButton(title: isActive ? "Active" : "Select", target: nil, action: nil)
-				actionButton.bezelStyle = .rounded
-				actionButton.isEnabled = !isActive
-				let capturedId = petId
-				actionButton.action = #selector(petRowAction(_:))
-				actionButton.target = self
-				objc_setAssociatedObject(actionButton, &actionKey, ("select", capturedId), .OBJC_ASSOCIATION_RETAIN)
-			}
-
-			let row = NSStackView(views: [nameLabel, actionButton])
-			row.orientation = .horizontal
-			row.spacing = 8
-			row.alignment = .centerY
-			petListStack.addArrangedSubview(row)
+	private var filteredEntries: [PetCatalogEntry] {
+		let query = searchField.stringValue.trimmingCharacters(in: .whitespaces).lowercased()
+		guard !query.isEmpty else { return currentEntries }
+		return currentEntries.filter {
+			$0.displayName.lowercased().contains(query) || $0.id.lowercased().contains(query)
 		}
 	}
 
-	private func isCanonical(_ petId: String) -> Bool {
-		let petDir = viewModel.canonicalPetsRoot.appendingPathComponent(petId)
-		var isDir: ObjCBool = false
-		guard FileManager.default.fileExists(atPath: petDir.path, isDirectory: &isDir), isDir.boolValue
-		else { return false }
-		return FileManager.default.fileExists(
-			atPath: petDir.appendingPathComponent("pet.json").path)
+	// MARK: - Grid
+
+	private func columnCount(forWidth width: CGFloat) -> Int {
+		guard width > 0 else { return 1 }
+		let columns = Int((width + cardSpacing) / (minCardWidth + cardSpacing))
+		return max(1, min(maxColumns, columns))
 	}
 
-	@objc private func petRowAction(_ sender: NSButton) {
+	private func rebuildGrid() {
+		for view in gridStack.arrangedSubviews {
+			gridStack.removeArrangedSubview(view)
+			view.removeFromSuperview()
+		}
+
+		let entries = filteredEntries
+		if entries.isEmpty {
+			let query = searchField.stringValue.trimmingCharacters(in: .whitespaces)
+			emptyLabel.stringValue =
+				query.isEmpty ? "No pets available." : "No pets match “\(query)”."
+			emptyLabel.isHidden = false
+			lastColumnCount = columnCount(forWidth: gridScrollView.contentView.bounds.width)
+			sizeDocumentToFit()
+			return
+		}
+		emptyLabel.isHidden = true
+
+		let columns = columnCount(forWidth: gridScrollView.contentView.bounds.width)
+		lastColumnCount = columns
+
+		var index = 0
+		while index < entries.count {
+			let slice = entries[index..<min(index + columns, entries.count)]
+			var rowViews: [NSView] = slice.map { makeCard(for: $0) }
+			// Pad the final row with invisible spacers so `.fillEqually` keeps
+			// the real cards at one-column width instead of stretching them.
+			while rowViews.count < columns {
+				let spacer = NSView()
+				spacer.translatesAutoresizingMaskIntoConstraints = false
+				rowViews.append(spacer)
+			}
+			let row = NSStackView(views: rowViews)
+			row.orientation = .horizontal
+			row.distribution = .fillEqually
+			row.alignment = .top
+			row.spacing = cardSpacing
+			row.translatesAutoresizingMaskIntoConstraints = false
+			row.widthAnchor.constraint(equalTo: gridStack.widthAnchor).isActive = true
+			gridStack.addArrangedSubview(row)
+			index += columns
+		}
+		sizeDocumentToFit()
+	}
+
+	private func sizeDocumentToFit() {
+		gridStack.layoutSubtreeIfNeeded()
+		let fitting = gridStack.fittingSize
+		var frame = gridStack.frame
+		frame.size = CGSize(
+			width: gridScrollView.contentView.bounds.width,
+			height: fitting.height
+		)
+		gridStack.frame = frame
+	}
+
+	private func makeCard(for entry: PetCatalogEntry) -> NSView {
+		let card = NSView()
+		card.translatesAutoresizingMaskIntoConstraints = false
+		card.wantsLayer = true
+		card.layer?.cornerRadius = 10
+		card.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.5).cgColor
+		card.layer?.borderWidth = entry.state == .selected ? 2 : 1
+		card.layer?.borderColor =
+			(entry.state == .selected ? NSColor.controlAccentColor : NSColor.separatorColor).cgColor
+		card.heightAnchor.constraint(equalToConstant: cardHeight).isActive = true
+
+		let thumb = NSImageView()
+		thumb.translatesAutoresizingMaskIntoConstraints = false
+		thumb.imageScaling = .scaleProportionallyUpOrDown
+		thumb.image = thumbnail(for: entry)
+		card.addSubview(thumb)
+
+		let nameLabel = NSTextField(labelWithString: entry.displayName)
+		nameLabel.font = .systemFont(ofSize: 13, weight: .medium)
+		nameLabel.lineBreakMode = .byTruncatingTail
+		nameLabel.translatesAutoresizingMaskIntoConstraints = false
+		nameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+		let nameRow = NSStackView(views: [nameLabel])
+		nameRow.orientation = .horizontal
+		nameRow.spacing = 6
+		nameRow.alignment = .centerY
+		nameRow.translatesAutoresizingMaskIntoConstraints = false
+		if entry.isDefault {
+			nameRow.addArrangedSubview(makeBadge(text: "Default", tint: .systemGreen))
+		}
+		if entry.state == .importable {
+			nameRow.addArrangedSubview(makeBadge(text: "~/.codex", tint: .secondaryLabelColor))
+		}
+		card.addSubview(nameRow)
+
+		let descLabel = NSTextField(wrappingLabelWithString: entry.description)
+		descLabel.font = .systemFont(ofSize: 11)
+		descLabel.textColor = .secondaryLabelColor
+		descLabel.maximumNumberOfLines = 2
+		descLabel.lineBreakMode = .byTruncatingTail
+		descLabel.translatesAutoresizingMaskIntoConstraints = false
+		descLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+		card.addSubview(descLabel)
+
+		let button = makeActionButton(for: entry)
+		card.addSubview(button)
+
+		NSLayoutConstraint.activate([
+			thumb.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
+			thumb.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
+			thumb.widthAnchor.constraint(equalToConstant: 40),
+			thumb.heightAnchor.constraint(equalToConstant: 40),
+
+			nameRow.leadingAnchor.constraint(equalTo: thumb.trailingAnchor, constant: 10),
+			nameRow.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
+			nameRow.trailingAnchor.constraint(lessThanOrEqualTo: card.trailingAnchor, constant: -12),
+
+			descLabel.leadingAnchor.constraint(equalTo: nameRow.leadingAnchor),
+			descLabel.topAnchor.constraint(equalTo: nameRow.bottomAnchor, constant: 3),
+			descLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12),
+
+			button.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12),
+			button.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -10),
+			button.leadingAnchor.constraint(
+				greaterThanOrEqualTo: thumb.trailingAnchor, constant: 10),
+			button.topAnchor.constraint(
+				greaterThanOrEqualTo: descLabel.bottomAnchor, constant: 4),
+		])
+
+		return card
+	}
+
+	private func makeActionButton(for entry: PetCatalogEntry) -> NSButton {
+		let button: NSButton
+		switch entry.state {
+		case .selected:
+			button = NSButton(title: "Selected", target: nil, action: nil)
+			button.bezelStyle = .rounded
+			button.isEnabled = false
+		case .installed:
+			button = NSButton(title: "Select", target: self, action: #selector(petCardAction(_:)))
+			button.bezelStyle = .rounded
+			objc_setAssociatedObject(
+				button, &actionKey, ("select", entry.id), .OBJC_ASSOCIATION_RETAIN)
+		case .importable:
+			button = NSButton(title: "Import", target: self, action: #selector(petCardAction(_:)))
+			button.bezelStyle = .rounded
+			objc_setAssociatedObject(
+				button, &actionKey, ("import", entry.id), .OBJC_ASSOCIATION_RETAIN)
+		}
+		button.translatesAutoresizingMaskIntoConstraints = false
+		button.setContentHuggingPriority(.required, for: .horizontal)
+		return button
+	}
+
+	private func makeBadge(text: String, tint: NSColor) -> NSView {
+		let label = NSTextField(labelWithString: text)
+		label.font = .systemFont(ofSize: 10, weight: .medium)
+		label.textColor = tint
+		label.alignment = .center
+		label.translatesAutoresizingMaskIntoConstraints = false
+		label.wantsLayer = true
+		label.drawsBackground = true
+		label.backgroundColor = tint.withAlphaComponent(0.14)
+		label.layer?.cornerRadius = 5
+		label.layer?.masksToBounds = true
+		label.setContentHuggingPriority(.required, for: .horizontal)
+		label.setContentCompressionResistancePriority(.required, for: .horizontal)
+		let container = NSView()
+		container.translatesAutoresizingMaskIntoConstraints = false
+		container.addSubview(label)
+		NSLayoutConstraint.activate([
+			label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 5),
+			label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -5),
+			label.topAnchor.constraint(equalTo: container.topAnchor, constant: 1),
+			label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -1),
+		])
+		container.setContentHuggingPriority(.required, for: .horizontal)
+		return container
+	}
+
+	private func thumbnail(for entry: PetCatalogEntry) -> NSImage? {
+		guard let sheet = entry.spritesheetURL else { return nil }
+		let key = sheet.path
+		if let cached = thumbnailCache[key] { return cached }
+		let image = PetThumbnail.idleFirstFrame(spritesheetURL: sheet)
+		thumbnailCache[key] = image
+		return image
+	}
+
+	// MARK: - Actions
+
+	func controlTextDidChange(_ obj: Notification) {
+		guard (obj.object as? NSSearchField) === searchField else { return }
+		rebuildGrid()
+	}
+
+	@objc private func petCardAction(_ sender: NSButton) {
 		guard let (action, petId) = objc_getAssociatedObject(sender, &actionKey) as? (String, String)
 		else { return }
 		switch action {
