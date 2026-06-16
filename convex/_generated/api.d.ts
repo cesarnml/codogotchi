@@ -19,6 +19,7 @@ import type * as mutations_operatorUpload from "../mutations/operatorUpload.js";
 import type * as mutations_syncProfile from "../mutations/syncProfile.js";
 import type * as mutations_trackDmgDownload from "../mutations/trackDmgDownload.js";
 import type * as pets from "../pets.js";
+import type * as seed from "../seed.js";
 import type * as users from "../users.js";
 
 import type {
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/syncProfile": typeof mutations_syncProfile;
   "mutations/trackDmgDownload": typeof mutations_trackDmgDownload;
   pets: typeof pets;
+  seed: typeof seed;
   users: typeof users;
 }>;
 
