@@ -31,6 +31,7 @@
 		49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */; };
 		4AA0492AB89E3CFCC1550BFA /* AboutViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4D4D8341FA731AE0AE8723E /* AboutViewModel.swift */; };
 		4AA882970E413D5E8CA15AD2 /* HalfHeartDecayEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05DA62A749E277B164B28878 /* HalfHeartDecayEngine.swift */; };
+		4ADBB1DD081EE5B9CE110363 /* CodogotchiFolders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CC4170BD102B13FAEADA8B /* CodogotchiFolders.swift */; };
 		4C800549CEEB194A42237701 /* PetImportHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */; };
 		4EF5166A016D9F70390B8829 /* GeneralTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A2902FB13A70CEF8221A21A /* GeneralTabViewModelTests.swift */; };
 		50F12FB03948E281C4BDFFE1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0D359A7765F7ACDDA24C16CB /* Assets.xcassets */; };
@@ -79,6 +80,7 @@
 		E404CD73DA9AE54A6860F17D /* DeveloperTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B22EF406588604AA7D68817 /* DeveloperTabViewModel.swift */; };
 		E8712303792CE42D957E76EA /* AttentionBubblePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8503B3E0903814CC7FC6DF40 /* AttentionBubblePanel.swift */; };
 		E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */; };
+		E8F5637F5C520B780E4D73D3 /* CodogotchiFoldersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FA942D11A38DA6F0B232D9 /* CodogotchiFoldersTests.swift */; };
 		E93167AF2416BE06B2BAA308 /* PlatformAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EB23CFF7BEBC442A06A8B1 /* PlatformAttributionTests.swift */; };
 		EA37D54D592388A3D881C2B2 /* DemoCycleDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B49E0C3473A936DCB90AFE2A /* DemoCycleDriver.swift */; };
 		ED9CBE0028B28AFCEB8987C9 /* PetThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C42B8E74290342FE905D0AB /* PetThumbnail.swift */; };
@@ -116,6 +118,7 @@
 		15F8B7A0E0B770D28C7486B7 /* LockstepPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockstepPolicyTests.swift; sourceTree = "<group>"; };
 		16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetImportHelper.swift; sourceTree = "<group>"; };
 		19D23A5CD119A7DB5B530305 /* PlatformAttribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformAttribution.swift; sourceTree = "<group>"; };
+		24FA942D11A38DA6F0B232D9 /* CodogotchiFoldersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiFoldersTests.swift; sourceTree = "<group>"; };
 		2E496AEDA38E70CA0C7D4E4F /* MenubarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarTests.swift; sourceTree = "<group>"; };
 		30E7A608633EF3BA15E7E2EA /* RPGHUDViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDViewModel.swift; sourceTree = "<group>"; };
 		31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiPet.swift; sourceTree = "<group>"; };
@@ -137,6 +140,7 @@
 		712A24CF66C43196AE34459D /* OnboardingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingController.swift; sourceTree = "<group>"; };
 		72DE062B5722F00B659A555C /* CodogotchiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodogotchiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		73B325A85B9C3A8AFB02C5BA /* SettingsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsController.swift; sourceTree = "<group>"; };
+		74CC4170BD102B13FAEADA8B /* CodogotchiFolders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiFolders.swift; sourceTree = "<group>"; };
 		78115EE1CE4F0AFD41CC1231 /* RPGHUDViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDViewModelTests.swift; sourceTree = "<group>"; };
 		7AC107DCBD46F0F6DBA5B3B6 /* maew */ = {isa = PBXFileReference; lastKnownFileType = folder; name = maew; path = Fixtures/maew; sourceTree = SOURCE_ROOT; };
 		7C42B8E74290342FE905D0AB /* PetThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetThumbnail.swift; sourceTree = "<group>"; };
@@ -195,6 +199,7 @@
 				1445A1864D6A3164B047FB24 /* AttentionSubtitleFormattingTests.swift */,
 				9E7256729C3F274DFB3A5204 /* BundledMaewTests.swift */,
 				4610C19ADA41987592CEE748 /* CodexPetTests.swift */,
+				24FA942D11A38DA6F0B232D9 /* CodogotchiFoldersTests.swift */,
 				E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */,
 				489C5364D39974B530891975 /* DemoModeTests.swift */,
 				A3B9E962BBA7B8B1B05F9F77 /* DeveloperTabViewModelTests.swift */,
@@ -244,6 +249,7 @@
 				8503B3E0903814CC7FC6DF40 /* AttentionBubblePanel.swift */,
 				7CFB15552DA5880C593A2C60 /* AttentionSubtitleFormatting.swift */,
 				E6829E3A0570398A50A596E4 /* CodexPet.swift */,
+				74CC4170BD102B13FAEADA8B /* CodogotchiFolders.swift */,
 				31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */,
 				BFDA2FD41708D0AEB3230327 /* ConfigBootstrap.swift */,
 				09112F189EA04FABD5D4833E /* DemoConfig.swift */,
@@ -438,6 +444,7 @@
 				E8712303792CE42D957E76EA /* AttentionBubblePanel.swift in Sources */,
 				64CF81E02A4ED90F47B5A796 /* AttentionSubtitleFormatting.swift in Sources */,
 				F7D1881F6D3DB1D5BFC19B63 /* CodexPet.swift in Sources */,
+				4ADBB1DD081EE5B9CE110363 /* CodogotchiFolders.swift in Sources */,
 				A28BAB9D5F23FFBE6C429720 /* CodogotchiPet.swift in Sources */,
 				17A4A67B836C574013DB2CDA /* ConfigBootstrap.swift in Sources */,
 				D82CE832ED27D2C047026D62 /* DemoConfig.swift in Sources */,
@@ -489,6 +496,7 @@
 				541D53E7148183452D2632E0 /* AttentionSubtitleFormattingTests.swift in Sources */,
 				99C8B80FE0466C9BB1B58C51 /* BundledMaewTests.swift in Sources */,
 				C81091A2187453263DAF99B7 /* CodexPetTests.swift in Sources */,
+				E8F5637F5C520B780E4D73D3 /* CodogotchiFoldersTests.swift in Sources */,
 				38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */,
 				7DC659F8DECEC6D8932E49DE /* DemoModeTests.swift in Sources */,
 				D4B25DD9B2E2825856181DBC /* DeveloperTabViewModelTests.swift in Sources */,

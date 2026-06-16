@@ -586,6 +586,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 	private let onSelectPet: (String) -> Void
 
 	private let searchField = NSSearchField()
+	private let openFolderButton = NSButton(title: "Open pet folder", target: nil, action: nil)
 	private let gridScrollView = NSScrollView()
 	/// Flipped so a short grid (few search results) anchors to the TOP of the
 	/// scroll area. A default non-flipped document view sinks short content to
@@ -658,6 +659,13 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		searchField.setContentHuggingPriority(.defaultLow, for: .horizontal)
 		addSubview(searchField)
 
+		openFolderButton.bezelStyle = .rounded
+		openFolderButton.target = self
+		openFolderButton.action = #selector(openPetFolder)
+		openFolderButton.translatesAutoresizingMaskIntoConstraints = false
+		openFolderButton.setContentHuggingPriority(.required, for: .horizontal)
+		addSubview(openFolderButton)
+
 		gridStack.orientation = .vertical
 		gridStack.alignment = .leading
 		gridStack.spacing = cardSpacing
@@ -703,9 +711,13 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 
 			searchField.centerYAnchor.constraint(equalTo: title.centerYAnchor),
 			searchField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
-			searchField.leadingAnchor.constraint(
-				greaterThanOrEqualTo: title.trailingAnchor, constant: 16),
 			searchField.widthAnchor.constraint(equalToConstant: 200),
+
+			openFolderButton.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+			openFolderButton.trailingAnchor.constraint(
+				equalTo: searchField.leadingAnchor, constant: -8),
+			openFolderButton.leadingAnchor.constraint(
+				greaterThanOrEqualTo: title.trailingAnchor, constant: 16),
 
 			storeNote.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
 			storeNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
@@ -971,6 +983,10 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		rebuildGrid()
 	}
 
+	@objc private func openPetFolder() {
+		CodogotchiFolders.reveal(CodogotchiFolders.petFolderURL())
+	}
+
 	@objc private func petCardAction(_ sender: NSButton) {
 		guard let (action, petId) = objc_getAssociatedObject(sender, &actionKey) as? (String, String)
 		else { return }
@@ -1051,6 +1067,7 @@ private final class DeveloperTabView: NSView {
 	private let scrollView = NSScrollView()
 	private let textView = NSTextView()
 	private let refreshButton = NSButton(title: "Refresh", target: nil, action: nil)
+	private let openDataButton = NSButton(title: "Open data folder", target: nil, action: nil)
 
 	init(viewModel: DeveloperTabViewModel) {
 		self.viewModel = viewModel
@@ -1072,6 +1089,12 @@ private final class DeveloperTabView: NSView {
 		refreshButton.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(refreshButton)
 
+		openDataButton.bezelStyle = .rounded
+		openDataButton.target = self
+		openDataButton.action = #selector(openDataFolder)
+		openDataButton.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(openDataButton)
+
 		textView.isEditable = false
 		textView.isSelectable = true
 		textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
@@ -1089,6 +1112,10 @@ private final class DeveloperTabView: NSView {
 
 			refreshButton.centerYAnchor.constraint(equalTo: title.centerYAnchor),
 			refreshButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			openDataButton.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+			openDataButton.trailingAnchor.constraint(
+				equalTo: refreshButton.leadingAnchor, constant: -8),
 
 			scrollView.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 10),
 			scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
@@ -1172,6 +1199,10 @@ private final class DeveloperTabView: NSView {
 
 	@objc private func refresh() {
 		renderContent()
+	}
+
+	@objc private func openDataFolder() {
+		CodogotchiFolders.reveal(CodogotchiFolders.dataFolderURL())
 	}
 }
 
