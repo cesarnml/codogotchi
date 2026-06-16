@@ -82,7 +82,7 @@ The app isn't notarized by Apple yet, so macOS quarantines the download. `xattr 
 - 🔒 [Privacy](https://codogotchi.app/privacy) · [Terms](https://codogotchi.app/terms)
 - ✉️ Support & takedowns — admin@codogotchi.app
 <br/>
-<a href="https://www.producthunt.com/products/codogotchi/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_source=badge-codogotchi" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1245819&theme=light" alt="Codogotchi - Codogotchi&#0032;–&#0032;Your&#0032;pet&#0032;that&#0032;reacts&#0032;to&#0032;your&#0032;actual&#0032;coding | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+<a href="https://www.producthunt.com/products/codogotchi?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-codogotchi" target="_blank" rel="noopener noreferrer"><img alt="Codogotchi - Codogotchi – Your pet that reacts to your actual coding | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1169813&amp;theme=light&amp;t=1781651017802"></a>
 
 ---
 
