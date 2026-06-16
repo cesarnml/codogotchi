@@ -96,7 +96,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	// MARK: - Private
 
 	private func openWindow() {
-		let frame = CGRect(x: 0, y: 0, width: 540, height: 560)
+		// Width sized so the Pet tab grid shows three columns by default
+		// (each card needs ~300pt; see PetTabView.minCardWidth/maxColumns).
+		let frame = CGRect(x: 0, y: 0, width: 1020, height: 680)
 		let w = NSWindow(
 			contentRect: frame,
 			styleMask: [.titled, .closable, .miniaturizable, .resizable],
