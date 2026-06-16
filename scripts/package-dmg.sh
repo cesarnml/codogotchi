@@ -43,6 +43,9 @@ if [[ -n "$DANGLING" ]]; then
   exit 1
 fi
 
+echo "==> Verifying staged app bundle..."
+"$REPO_ROOT/scripts/verify-macos-app-bundle.sh" "$BUILD_DIR/Codogotchi.app"
+
 ln -s /Applications "$BUILD_DIR/Applications"
 
 echo "==> Creating DMG..."
@@ -61,4 +64,3 @@ echo "Done! DMG at: $DMG_OUT"
 echo ""
 echo "Share with your friend. After they drag to /Applications they run:"
 echo "  xattr -d com.apple.quarantine /Applications/Codogotchi.app"
-
