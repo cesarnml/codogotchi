@@ -37,19 +37,16 @@ export const seedPreview = action({
     const sourceSite = sourceUrl.replace(".convex.cloud", ".convex.site");
     const client = new ConvexHttpClient(sourceUrl);
 
-    // Page through listed pets; thumbnail URLs are only exposed here.
-    const cards: { petId: string; thumbnailUrl: string | null }[] = [];
-    let cursor: string | null = null;
-    for (;;) {
-      const res = await client.query(api.pets.listPetsForGallery, {
-        paginationOpts: { numItems: 50, cursor },
-      });
-      for (const p of res.page) {
-        cards.push({ petId: p.petId, thumbnailUrl: p.thumbnailUrl });
-      }
-      if (res.isDone) break;
-      cursor = res.continueCursor;
-    }
+    // Cap the seed at the newest N listed pets. listPetsForGallery is ordered
+    // newest-first, so a single page is the most recent pets — enough to make
+    // the gallery real without cloning the whole (growing) catalog + its blobs
+    // into every fresh preview. Thumbnail URLs are only exposed by this query.
+    const SEED_LIMIT = 10;
+    const res = await client.query(api.pets.listPetsForGallery, {
+      paginationOpts: { numItems: SEED_LIMIT, cursor: null },
+    });
+    const cards: { petId: string; thumbnailUrl: string | null }[] =
+      res.page.map((p) => ({ petId: p.petId, thumbnailUrl: p.thumbnailUrl }));
     if (cards.length === 0) {
       console.log("[seed] source has no listed pets — nothing to seed");
       return;
