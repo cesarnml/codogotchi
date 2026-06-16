@@ -10,12 +10,12 @@ Analogous to the `openai/skills/.curated/hatch-pet` skill, adapted for Codogotch
 
 This plugin is designed to be run by Codex in two explicit stages:
 
-1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one row candidate per animation row**, saving `run/<pet>/sheets/<tier>/<row>.png`. Preferred source layout is exact `3×3` (`576×624`: eight populated 192×208 cells plus one empty ninth cell). Accepted fallback source layout is `4×2` (`768×416`: eight populated 192×208 cells, no ninth cell).
+1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one row candidate per animation row**, saving `run/<pet>/sheets/<tier>/<row>.png`. Each row candidate is a `4×2` sheet (`768×416`: eight populated 192×208 cells, no empty cell).
 2. **Local assembly stage:** the Python scripts in `scripts/` first normalize the generated row candidate into the exact canonical `3×3` sheet geometry, then slice that canonical sheet into exact `f01.png` … `f08.png` cells, normalize the chroma background, stitch those frames into row strips, inspect/validate them, and finally compose the validated row strips into the final spritesheet atlas.
 
 The plugin does **not** mean "ask image generation for a whole atlas" or "ask for an unconstrained strip." The intended default workflow is now **sheet-first**:
 
-`image_gen` row candidate (`3×3` preferred, `4×2` accepted) → `normalize_generated_sheet.py` → `slice_animation_sheet.py` → `stitch_row.py` → `inspect_frames.py` → `compose_atlas.py` → `validate_atlas.py` → `make_contact_sheet.py` → `render_animation_previews.py` → `make_qa_crop_sheet.py` → `pre_install_qa_gate.py`
+`image_gen` row candidate (`4×2`) → `normalize_generated_sheet.py` → `slice_animation_sheet.py` → `stitch_row.py` → `inspect_frames.py` → `compose_atlas.py` → `validate_atlas.py` → `make_contact_sheet.py` → `render_animation_previews.py` → `make_qa_crop_sheet.py` → `pre_install_qa_gate.py`
 
 **Non-negotiable row gate:** generate, normalize, slice, stitch, inspect, and visually review one row before generating the next. Do not batch-generate several rows and sort it out later. Do not compose an atlas until every row has a passing `inspect_frames.py` run and has been eyeballed for style, prop clarity, face/eye integrity, and stable motion.
 
@@ -51,12 +51,13 @@ Alignment specifics (these serve the rule above):
 
 The plugin treats chroma as a machine-validated matte, not an aesthetic suggestion. Prompt-level "flat green" is not trusted by itself because image generation may add falloff, shadows, texture, or inconsistent key areas.
 
-Default behavior is `--chroma auto`:
+`--chroma` defaults to `#00ff00` (green). The agent picks the key per row by one rule — use the key whose hue is **absent** from the pet and its props:
 
-- `#ff00ff` by default for all rows, because green chroma commonly damages greenish anime eyes, brown/green hair highlights, props, and effects.
-- Use fixed `--chroma 00ff00` only when magenta/purple foreground details make magenta unsafe.
+- `#00ff00` (green) — default; cleanest key, used unless the pet has green.
+- `#ff00ff` (magenta) — when the pet has green (greenish eyes, brown/green hair highlights, green props or effects).
+- `#0000ff` (blue) — when the pet has both green and magenta/pink.
 
-Rows known to require magenta-safe handling include:
+Rows whose own green details force a non-green key (use `#ff00ff`):
 
 - `green-tdd`
 - `review-clean`
@@ -67,16 +68,16 @@ This avoids the failure mode where an intended green checkmark, green stamp, or 
 
 Seed-risk note:
 
-- Brown/green-heavy anime seeds are high-risk for green spill and greenish edge antialiasing.
-- For those seeds, keep `--chroma auto` so magenta is used up front rather than trying to force green and repair damaged eyes afterward.
+- If the pet itself is brown/green-heavy, green spill and greenish edge antialiasing are likely.
+- For those pets, choose `#ff00ff` (or `#0000ff`) up front rather than forcing green and repairing damaged edges afterward.
 
 Hardening rules:
 
-- Prompts require one flat RGB key color for the entire row candidate sheet (`3×3` or `4×2`).
+- Prompts require one flat RGB key color for the entire `4×2` row candidate sheet.
 - `slice_animation_sheet.py` detects border-connected background per cell and normalizes only that connected background region to the exact key color.
-- `normalize_generated_sheet.py` is the canonical source-layout bridge: it turns an accepted `3×3` or `4×2` row candidate into the exact final `3×3` sheet before slicing.
+- `normalize_generated_sheet.py` is the canonical bridge: it turns the generated `4×2` row candidate into the exact internal `3×3` canonical sheet before slicing.
 - Foreground pixels that still look like the active key color are a hard failure unless `--allow-foreground-key` is explicitly passed.
-- The ninth cell must stay empty; if content leaks into it, the sheet fails.
+- All 8 cells must be populated; no body part, prop, effect, or antialiasing may cross a cell boundary.
 - After slicing, `stitch_row.py`, `inspect_frames.py`, and `validate_atlas.py` still enforce zero likely green/magenta residue and zero transparent-RGB residue.
 - After composing, `make_qa_crop_sheet.py` creates a face/prop crop sheet and JSON report. Treat warnings about face chroma residue or enclosed transparent pixels as blockers unless you can name the false positive explicitly.
 
@@ -177,12 +178,12 @@ python scripts/prepare_pet_run.py \
 
 # 2. Use Codex's built-in image_gen tool to generate one row candidate at a time.
 #    Use sheet-prompts/<tier>/<row>.txt. The generated prompts use row-safe chroma:
-#    #ff00ff by default; use #00ff00 only when magenta/purple foreground makes magenta unsafe.
+#    #00ff00 (green) by default; switch to #ff00ff/#0000ff per the chroma rule.
 #    Save as run/beemo/sheets/<tier>/<row>.png
 
 # 3. Normalize to exact 3x3, then slice, stitch, and inspect each row
-python scripts/normalize_generated_sheet.py --input run/beemo/sheets/lite-basic/implementing.png --out run/beemo/sheets/lite-basic/implementing.normalized.png --source-layout 3x3 --source-chroma ff00ff --out-chroma ff00ff
-python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.normalized.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma ff00ff
+python scripts/normalize_generated_sheet.py --input run/beemo/sheets/lite-basic/implementing.png --out run/beemo/sheets/lite-basic/implementing.normalized.png --source-layout 4x2 --source-chroma 00ff00 --out-chroma 00ff00
+python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.normalized.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma 00ff00
 python scripts/stitch_row.py     --row-dir run/beemo/frames/lite-basic/implementing/ --out run/beemo/rows/lite-basic/implementing.png
 python scripts/inspect_frames.py --row run/beemo/rows/lite-basic/implementing.png --seed run/beemo/seed.png
 
@@ -258,7 +259,7 @@ hatch-codogotchi/
   scripts/
     extract_seed_from_codex.py        ← Extract reference cell from existing spritesheet
     prepare_pet_run.py                ← Bootstrap run folder + prompt files + sourceLayout manifest fields
-    normalize_generated_sheet.py      ← Normalize accepted 3x3 / 4x2 row candidates → canonical 3x3 sheet
+    normalize_generated_sheet.py      ← Normalize the generated 4x2 row candidate → canonical 3x3 sheet
     slice_animation_sheet.py          ← Validate/slice a 3×3 row sheet → f01..f08 frames
     stitch_row.py                     ← Chroma-key + crop + scale + stitch 8 frames → row strip
     inspect_frames.py                 ← Validate a single row strip before composing
@@ -276,15 +277,15 @@ hatch-codogotchi/
 
 1. **Faking frames by transforming the seed** — Do not crop/warp/rotate/scale/re-composite a seed. Every frame must be a genuine render in that pose.
 
-2. **Rushing the whole atlas in one pass** — One row at a time, **sheet-first**: render a single 3×3 row sheet → slice into exact cells → stitch into a row strip → inspect → repeat for the next row → only then compose the atlas.
+2. **Rushing the whole atlas in one pass** — One row at a time, **sheet-first**: render a single 4×2 row sheet → slice into exact cells → stitch into a row strip → inspect → repeat for the next row → only then compose the atlas.
 
-3. **Unbounded strips / clipped cells** — Do not request a 1×8/1×9 strip or whole atlas from image generation. The only multi-frame generation format is a strict 3×3 sheet with 192×208 cells and an empty ninth cell. If any foreground crosses a boundary or enters cell 9, reject the sheet.
+3. **Unbounded strips / clipped cells** — Do not request a 1×8/1×9 strip or whole atlas from image generation. The only multi-frame generation format is a strict 4×2 sheet (8 cells) with 192×208 cells and no empty cell. If any foreground crosses a cell boundary, reject the sheet.
 
 4. **Style drift from the Codex sheet** *(Lite and SoA only)* — Compare every row against the existing Codex cells. Same character, same palette, same linework.
 
 5. **Jerky / over-animated motion (the stability killer)** — The single worst outcome. Because each of the 8 frames is generated independently, big or whole-body described motion comes back incoherent: legs swing, props jump around, the pet hops. For standing/status rows, **stability beats expressiveness every time** — anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. For locomotion rows, require progress stability instead: smooth stride increments, stable scale/baseline/direction, and no static frames followed by a teleport jump. "No static rows" is a floor (subtle smooth life), not a target. See *Motion & alignment doctrine* above and `references/animation-rows-lite.md` → *motion restraint*.
 
-5a. **Chroma-damaged face/eyes** — Green chroma can key out greenish eyes or highlights before the final atlas ever sees “residue.” Use `--chroma auto` (magenta by default), inspect `qa-crops-<tier>.png`, and reject any frame with key-colour holes, masks, or missing iris/highlight pixels.
+5a. **Chroma-damaged face/eyes** — Green chroma can key out greenish eyes or highlights before the final atlas ever sees “residue.” For greenish eyes/highlights use `#ff00ff` (not green), inspect `qa-crops-<tier>.png`, and reject any frame with key-colour holes, masks, or missing iris/highlight pixels.
 
 6. **Mime / charades (the readability killer)** — Codogotchi animations must be readable at a glance. States that don't map to a plain human emotion must be carried by **one clearly-visible prop**, never subtle hand gestures or an *invisible* prop ("invisible keyboard", "unseen screen"). Use **exactly the prop named — never an A/B choice** (the old `reading` "page/tablet" drew a tablet in some frames and a book in others). Same prop, all 8 frames. See `references/animation-rows-lite.md` → *prop doctrine*.
 

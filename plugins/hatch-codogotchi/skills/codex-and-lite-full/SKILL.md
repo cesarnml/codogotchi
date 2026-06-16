@@ -20,11 +20,11 @@ Generate a **brand-new** Codogotchi pet from scratch with the **full lite set** 
 
 Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
-**Execution model:** for every tier, default to **sheet-first** generation. Codex uses its built-in `image_gen` tool to generate **one row candidate per row**. Preferred source layout is exact `3×3`: `576×624`, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Accepted fallback source layout is `4×2`: `768×416`, eight 192×208 cells, no ninth cell. The local Python scripts then normalize that row candidate into the exact canonical `3×3` sheet, slice it, normalize chroma, stitch those frames into row strips, inspect them, and compose the finished atlas. Do **not** use image generation to output an entire atlas or an unconstrained horizontal strip.
+**Execution model:** for every tier, default to **sheet-first** generation. Codex uses its built-in `image_gen` tool to generate **one row candidate per row**. Generate every row candidate as a `4×2` sheet: `768×416`, eight 192×208 cells (4 columns × 2 rows), all 8 cells populated in reading order, no empty cell. The local Python scripts then normalize that row candidate into the exact canonical `3×3` sheet, slice it, normalize chroma, stitch those frames into row strips, inspect them, and compose the finished atlas. Do **not** use image generation to output an entire atlas or an unconstrained horizontal strip.
 
 **Non-negotiable row gate:** finish one row completely before generating the next: generate → normalize → slice → stitch → `inspect_frames.py` → visual review of the row strip. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
 
-**Chroma default:** `--chroma auto` now means **magenta by default** (`#ff00ff`) to avoid green-key damage to greenish eyes, hair highlights, props, and effects. Use fixed `--chroma 00ff00` only when magenta/purple foreground details make magenta unsafe.
+**Chroma key — agent's choice, default green.** `--chroma` defaults to `#00ff00` (green). Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#ff00ff` (magenta) when the pet has green (greenish eyes, hair highlights, green props/FX); `#0000ff` (blue) when it has both green and magenta/pink.
 
 **Recommended production pattern:** for each row, generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that preserves motion quality**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended acceleration pattern, not a hard requirement.
 
@@ -50,11 +50,11 @@ Quality caveats for the recommended pattern:
 
 ## Workflow (three sheets, in order)
 
-Use the same pipeline per sheet — prepare → generate row candidate (`3×3` preferred, `4×2` accepted) → normalize to canonical `3×3` → slice → stitch → inspect → compose → validate → mandatory QA gate → install. Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on a solid chroma background, or a `--description` (generate Codex `idle` first, save its frame 1 as `seed.png`). Default chroma mode is `auto`: `#ff00ff` to protect greenish eyes/details. Use fixed `#00ff00` only when magenta/purple foreground details make magenta unsafe.
+Use the same pipeline per sheet — prepare → generate `4×2` row candidate → normalize to canonical geometry → slice → stitch → inspect → compose → validate → mandatory QA gate → install. Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on a solid chroma background, or a `--description` (generate Codex `idle` first, save its frame 1 as `seed.png`). Chroma defaults to `#00ff00` (green); switch to `#ff00ff`/`#0000ff` per the chroma rule when the pet clashes.
 
 ```bash
 # ---- Tier 1: Codex ----
-python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --tier codex --chroma auto --source-layout 3x3
+python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --tier codex
 #   use built-in image_gen to generate 9 codex row candidates, then
 #   normalize+slice+stitch+inspect each before composing
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/codex/ --tier codex --out run/<slug>/spritesheet.png
@@ -66,7 +66,7 @@ python scripts/make_qa_crop_sheet.py --atlas run/<slug>/spritesheet.webp --tier 
 python scripts/pre_install_qa_gate.py --atlas run/<slug>/spritesheet.webp --tier codex
 
 # ---- Tier 2: Lite-Basic (uses Codex/seed as style ref) ----
-python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-basic --chroma auto --source-layout 3x3
+python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-basic
 #   use built-in image_gen to generate 9 lite-basic row candidates, then
 #   normalize+slice+stitch+inspect each before composing
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-basic/ --tier lite-basic --out run/<slug>/codogotchi-lite-basic-spritesheet.png
@@ -78,7 +78,7 @@ python scripts/make_qa_crop_sheet.py --atlas run/<slug>/codogotchi-lite-basic-sp
 python scripts/pre_install_qa_gate.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
 
 # ---- Tier 3: Lite-Enhanced (REQUIRES the Basic sheet; attach BOTH seed.png AND the Basic sheet as refs) ----
-python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-enhanced --chroma auto --source-layout 3x3
+python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-enhanced
 #   use built-in image_gen to generate 8 lite-enhanced row candidates, then
 #   normalize+slice+stitch+inspect each before composing
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-enhanced/ --tier lite-enhanced --out run/<slug>/codogotchi-lite-enhanced-spritesheet.png
@@ -130,7 +130,7 @@ If one cell fails after `slice_animation_sheet.py`, inspect the failure contact 
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`
 - [ ] Validation JSON, contact sheet, previews, crop sheet/report, and `pre_install_qa_gate.py` pass for every installed atlas
 - [ ] Character consistent across all 26 rows; `pet.json` present with `"spritesheetPath": "spritesheet.webp"`; app shows pet + all tiers after quit-reopen
-- [ ] Every row candidate declares `sourceLayout` (`3x3` preferred, `4x2` accepted fallback) and is normalized back to canonical `3x3` before slicing
+- [ ] Every row candidate is a `4×2` sheet (8 frames, no empty cell), normalized to the internal canonical geometry before slicing
 
 ## Final response checklist
 

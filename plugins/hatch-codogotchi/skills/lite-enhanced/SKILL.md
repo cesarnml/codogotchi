@@ -19,11 +19,11 @@ Add the **Lite-Enhanced** sheet (Tier 3) to a pet — the 8-row polish extension
 
 The Lite-Basic sheet is also used as an **extra style reference** alongside the seed, so Enhanced matches Basic exactly.
 
-**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 3×3 Lite-Enhanced animation sheet per row**: exact 576×624 px, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `f01.png` … `f08.png`. Do **not** request a complete atlas or an unconstrained horizontal strip.
+**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 4×2 Lite-Enhanced animation sheet per row**: exact 768×416 px, eight 192×208 cells (4 columns × 2 rows), all 8 cells populated in reading order, no empty cell. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `f01.png` … `f08.png`. Do **not** request a complete atlas or an unconstrained horizontal strip.
 
 **Non-negotiable row gate:** finish one row completely before generating the next: generate → slice → stitch → `inspect_frames.py` → visual review of the row strip. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
 
-**Chroma default:** `--chroma auto` now means **magenta by default** (`#ff00ff`) to avoid green-key damage to greenish eyes, hair highlights, props, and effects. Use fixed `--chroma 00ff00` only when magenta/purple foreground details make magenta unsafe.
+**Chroma key — agent's choice, default green.** `--chroma` defaults to `#00ff00` (green). Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#ff00ff` (magenta) when the pet has green (greenish eyes, hair highlights, green props/FX); `#0000ff` (blue) when it has both green and magenta/pink.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that still feels polished**. Many Enhanced rows can be produced faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is guidance, not dogma.
 
@@ -62,9 +62,9 @@ python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
   --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-enhanced --style auto --chroma auto
 
 # 3. For each of the 8 rows, in order, use built-in image_gen sheet-first:
-#    generate one exact 576x624 3x3 row sheet into sheets/lite-enhanced/<row>.png.
-#    Cells 1-8 are the animation; cell 9 is empty. `verifying` and `web-search`
-#    switch to #ff00ff automatically to avoid keying out green details. Attach
+#    generate one exact 768x416 4x2 row sheet into sheets/lite-enhanced/<row>.png.
+#    All 8 cells are the animation; no empty cell. `verifying` and `web-search`
+#    use #ff00ff (their green details would be keyed out by green). Attach
 #    BOTH seed.png AND the finished codogotchi-lite-basic-spritesheet.webp.
 python scripts/slice_animation_sheet.py --sheet run/<pet-id>/sheets/lite-enhanced/<row>.png --out-dir run/<pet-id>/frames/lite-enhanced/<row>/ --chroma <00ff00-or-ff00ff>
 python scripts/stitch_row.py     --row-dir run/<pet-id>/frames/lite-enhanced/<row>/ --out run/<pet-id>/rows/lite-enhanced/<row>.png

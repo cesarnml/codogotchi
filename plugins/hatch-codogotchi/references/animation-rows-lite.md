@@ -121,7 +121,7 @@ The one exception is an explicit jump/leap row, which may leave the baseline bri
 | Rows | 9 | 8 |
 | Cell | 192 × 208 | 192 × 208 |
 | Columns | 8 | 8 |
-| Chroma-key | `auto` (`#ff00ff` by default; fixed `#00ff00` only when magenta/purple foreground makes magenta unsafe) | same |
+| Chroma-key | `#00ff00` green by default; `#ff00ff`/`#0000ff` when the pet/prop clashes (see chroma rule) | same |
 | Padding (min) | 8 px all sides | 8 px all sides |
 | Scale | one shared scale per row; ≤15% per-frame deviation | same |
 | Loop | continuous, 1.5 s / 8 frames | same |

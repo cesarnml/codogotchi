@@ -11,11 +11,11 @@ Generate the **Tier 4 (SoA)** sprite sheet for an existing Codogotchi pet — th
 
 **Prerequisite:** the pet must already have a valid `spritesheet.webp` (Codex, Tier 1) installed. The character reference is derived directly from that sheet — no separate seed image or description is needed. The SoA sheet needs **only** the Codex sheet — it is independent of the Lite tiers (Basic/Enhanced).
 
-**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 3×3 SoA animation sheet per row**: exact 576×624 px, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `frames/soa/<row>/f01.png` … `f08.png`. Do **not** use image generation to output a complete atlas or an unconstrained horizontal strip.
+**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 4×2 SoA animation sheet per row**: exact 768×416 px, eight 192×208 cells (4 columns × 2 rows), all 8 cells populated in reading order, no empty cell. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `frames/soa/<row>/f01.png` … `f08.png`. Do **not** use image generation to output a complete atlas or an unconstrained horizontal strip.
 
 **Non-negotiable row gate:** finish one row completely before generating the next: generate → slice → stitch → `inspect_frames.py` → visual review of the row strip. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
 
-**Chroma default:** `--chroma auto` now means **magenta by default** (`#ff00ff`) to avoid green-key damage to greenish eyes, hair highlights, props, and effects. Use fixed `--chroma 00ff00` only when magenta/purple foreground details make magenta unsafe.
+**Chroma key — agent's choice, default green.** `--chroma` defaults to `#00ff00` (green). Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#ff00ff` (magenta) when the pet has green (greenish eyes, hair highlights, green props/FX); `#0000ff` (blue) when it has both green and magenta/pink.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that preserves the emotional beat**. Many SoA rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a preferred optimization, not a universal law.
 
@@ -43,7 +43,7 @@ python scripts/extract_seed_from_codex.py \
   --out run/<pet-id>/seed.png
 ```
 
-This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` background. Inspect `seed.png`; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every frame generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. For generated SoA frames, default chroma mode is `auto`: `#ff00ff` to protect greenish eyes/details. Use fixed `#00ff00` only when magenta/purple foreground details make magenta unsafe.
+This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` background. Inspect `seed.png`; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every frame generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. For generated SoA frames, chroma defaults to `#00ff00` (green); switch to `#ff00ff`/`#0000ff` per the chroma rule when the pet/prop clashes.
 
 ---
 
@@ -53,7 +53,7 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` backgrou
 
 2. **Rushing the whole atlas in one pass.** One row at a time, to completion. Whole-atlas generation is a shortcut = reject.
 
-3. **Unbounded strips / clipped cells.** The only multi-frame generation format is a strict 3×3 row sheet with exact **192 × 208** cells and an empty ninth cell. If foreground crosses a boundary or enters cell 9, reject the sheet.
+3. **Unbounded strips / clipped cells.** The only multi-frame generation format is a strict 4×2 row sheet (8 cells) with exact **192 × 208** cells and no empty cell. If foreground crosses a cell boundary, reject the sheet.
 
 4. **Style drift from the Codex sheet.** After each row, compare a frame side-by-side with a Codex cell. Regenerate if the style, palette, or proportions have shifted.
 
@@ -133,7 +133,7 @@ run/<pet-id>/
 For **each** of the 10 SoA rows, in the order below, complete the full cycle before starting the next:
 
 1. Read motion description in `sheet-prompts/soa/<row-label>.txt`.
-2. **Use built-in `image_gen` to generate one 3×3 row sheet** — exact 576×624 px, cells 1–8 populated, cell 9 empty, on the chroma named in the prompt. `green-tdd` and `review-clean` switch to `#ff00ff` automatically so green checkmark effects survive keying. Attach `seed.png` as the character reference.
+2. **Use built-in `image_gen` to generate one 4×2 row sheet** — exact 768×416 px, all 8 cells populated, no empty cell, on the chroma named in the prompt. `green-tdd` and `review-clean` use `#ff00ff` so green checkmark effects survive keying. Attach `seed.png` as the character reference.
 3. Compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
 4. Save as `run/<pet-id>/sheets/soa/<row-label>.png`.
 
