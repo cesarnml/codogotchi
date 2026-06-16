@@ -228,18 +228,22 @@ final class PetTabViewModelTests: XCTestCase {
 		XCTAssertTrue(entry(catalog, DEFAULT_PET_NAME)?.isDefault ?? false)
 	}
 
-	func testCatalogSortsSelectedThenInstalledThenImportable() {
+	func testCatalogSortsAlphabeticallyRegardlessOfState() {
+		// Mixed states must interleave by display name, not cluster by tier:
+		// alpha (importable) precedes felix (selected) precedes zeta (installed).
 		let (vm, _) = makeViewModel(
-			codex: ["zeta"], canonical: ["felix", "alpha"], activePetId: "felix")
-		let states = vm.catalog().map(\.state)
-		// First entry is the selected pet; importable pets sort last.
-		XCTAssertEqual(states.first, .selected)
-		XCTAssertEqual(states.last, .importable)
-		// Within the installed tier, ordering is alphabetical by display name —
-		// no importable entry may appear before an installed one.
-		let firstImportable = states.firstIndex(of: .importable) ?? states.count
-		let lastInstalled = states.lastIndex(of: .installed) ?? -1
-		XCTAssertLessThan(lastInstalled, firstImportable)
+			codex: ["alpha"], canonical: ["felix", "zeta"], activePetId: "felix")
+		XCTAssertEqual(vm.catalog().map(\.id), ["alpha", "felix", DEFAULT_PET_NAME, "zeta"])
+	}
+
+	func testCatalogOrderIsStableWhenActiveSelectionChanges() {
+		// Selecting a different pet must not move any card — the ordering is
+		// identical whether felix or zeta is active.
+		let (vmA, _) = makeViewModel(
+			codex: [], canonical: ["felix", "zeta"], activePetId: "felix")
+		let (vmB, _) = makeViewModel(
+			codex: [], canonical: ["felix", "zeta"], activePetId: "zeta")
+		XCTAssertEqual(vmA.catalog().map(\.id), vmB.catalog().map(\.id))
 	}
 
 	func testCatalogReadsDisplayNameAndDescriptionFromPetJson() throws {

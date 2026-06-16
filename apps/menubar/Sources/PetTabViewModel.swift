@@ -81,8 +81,10 @@ final class PetTabViewModel {
 	}
 
 	/// Rich catalog of all pets for the card grid, deduplicated by ID and sorted
-	/// for display: the selected pet first, then other installed pets, then
-	/// importable Codex pets — alphabetically by display name within each tier.
+	/// alphabetically by display name. Sort is deliberately *stable across state
+	/// changes*: a pet's `state` drives its card's button, border, and badge —
+	/// never its position. Importing or selecting a pet must not relocate its
+	/// card out from under the user.
 	///
 	/// Bundled Maew (`DEFAULT_PET_NAME`) is always treated as installed even if
 	/// the canonical directory has not been seeded yet, so it never appears as
@@ -111,16 +113,11 @@ final class PetTabViewModel {
 			)
 		}
 
-		func rank(_ s: PetCatalogEntry.State) -> Int {
-			switch s {
-			case .selected: return 0
-			case .installed: return 1
-			case .importable: return 2
-			}
-		}
 		return entries.sorted { a, b in
-			if rank(a.state) != rank(b.state) { return rank(a.state) < rank(b.state) }
-			return a.displayName.localizedCaseInsensitiveCompare(b.displayName) == .orderedAscending
+			let byName = a.displayName.localizedCaseInsensitiveCompare(b.displayName)
+			if byName != .orderedSame { return byName == .orderedAscending }
+			// Stable tiebreak on id so equal display names keep a fixed order.
+			return a.id < b.id
 		}
 	}
 
