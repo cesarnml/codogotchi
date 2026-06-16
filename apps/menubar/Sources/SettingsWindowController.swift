@@ -604,10 +604,11 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 	private var lastColumnCount = 0
 	private var currentEntries: [PetCatalogEntry] = []
 
-	private let cardHeight: CGFloat = 104
+	private let cardHeight: CGFloat = 128
 	private let cardSpacing: CGFloat = 12
-	private let minCardWidth: CGFloat = 220
+	private let minCardWidth: CGFloat = 300
 	private let maxColumns = 3
+	private let thumbSize: CGFloat = 64
 
 	init(
 		viewModel: PetTabViewModel,
@@ -856,14 +857,19 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 			(entry.state == .selected ? NSColor.controlAccentColor : NSColor.separatorColor).cgColor
 		card.heightAnchor.constraint(equalToConstant: cardHeight).isActive = true
 
+		// Thumbnail on a rounded dark tile, vertically centered (Codex-style).
 		let thumb = NSImageView()
 		thumb.translatesAutoresizingMaskIntoConstraints = false
 		thumb.imageScaling = .scaleProportionallyUpOrDown
 		thumb.image = thumbnail(for: entry)
+		thumb.wantsLayer = true
+		thumb.layer?.cornerRadius = 10
+		thumb.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.22).cgColor
+		thumb.layer?.masksToBounds = true
 		card.addSubview(thumb)
 
 		let nameLabel = NSTextField(labelWithString: entry.displayName)
-		nameLabel.font = .systemFont(ofSize: 13, weight: .medium)
+		nameLabel.font = .systemFont(ofSize: 14, weight: .medium)
 		nameLabel.lineBreakMode = .byTruncatingTail
 		nameLabel.translatesAutoresizingMaskIntoConstraints = false
 		nameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -872,47 +878,62 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		nameRow.orientation = .horizontal
 		nameRow.spacing = 6
 		nameRow.alignment = .centerY
-		nameRow.translatesAutoresizingMaskIntoConstraints = false
 		if entry.isDefault {
 			nameRow.addArrangedSubview(makeBadge(text: "Default", tint: .systemGreen))
 		}
 		if entry.state == .importable {
 			nameRow.addArrangedSubview(makeBadge(text: "~/.codex", tint: .secondaryLabelColor))
 		}
-		card.addSubview(nameRow)
+
+		nameRow.translatesAutoresizingMaskIntoConstraints = false
 
 		let descLabel = NSTextField(wrappingLabelWithString: entry.description)
-		descLabel.font = .systemFont(ofSize: 11)
+		descLabel.font = .systemFont(ofSize: 12)
 		descLabel.textColor = .secondaryLabelColor
-		descLabel.maximumNumberOfLines = 2
-		descLabel.lineBreakMode = .byTruncatingTail
+		descLabel.maximumNumberOfLines = 5
+		// Word-wrap (not truncating-tail, which collapses to one line) capped at
+		// 5 lines, with an ellipsis on the last line when the text overflows.
+		descLabel.lineBreakMode = .byWordWrapping
+		descLabel.cell?.truncatesLastVisibleLine = true
 		descLabel.translatesAutoresizingMaskIntoConstraints = false
 		descLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-		card.addSubview(descLabel)
+
+		// Name + description in a container, vertically centered against the card
+		// so short and long descriptions both stay balanced with the thumbnail
+		// and the action button. The container's leading/trailing are pinned so
+		// the wrapping description has a fixed width to wrap within (a bare
+		// wrapping label in a stack collapses to one truncated line).
+		let textContainer = NSView()
+		textContainer.translatesAutoresizingMaskIntoConstraints = false
+		textContainer.addSubview(nameRow)
+		textContainer.addSubview(descLabel)
+		card.addSubview(textContainer)
 
 		let button = makeActionButton(for: entry)
 		card.addSubview(button)
 
 		NSLayoutConstraint.activate([
-			thumb.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
-			thumb.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
-			thumb.widthAnchor.constraint(equalToConstant: 40),
-			thumb.heightAnchor.constraint(equalToConstant: 40),
+			thumb.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+			thumb.centerYAnchor.constraint(equalTo: card.centerYAnchor),
+			thumb.widthAnchor.constraint(equalToConstant: thumbSize),
+			thumb.heightAnchor.constraint(equalToConstant: thumbSize),
 
-			nameRow.leadingAnchor.constraint(equalTo: thumb.trailingAnchor, constant: 10),
-			nameRow.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
-			nameRow.trailingAnchor.constraint(lessThanOrEqualTo: card.trailingAnchor, constant: -12),
+			textContainer.leadingAnchor.constraint(equalTo: thumb.trailingAnchor, constant: 14),
+			textContainer.trailingAnchor.constraint(equalTo: button.leadingAnchor, constant: -12),
+			textContainer.centerYAnchor.constraint(equalTo: card.centerYAnchor),
+			textContainer.topAnchor.constraint(greaterThanOrEqualTo: card.topAnchor, constant: 12),
 
-			descLabel.leadingAnchor.constraint(equalTo: nameRow.leadingAnchor),
-			descLabel.topAnchor.constraint(equalTo: nameRow.bottomAnchor, constant: 3),
-			descLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12),
+			nameRow.topAnchor.constraint(equalTo: textContainer.topAnchor),
+			nameRow.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor),
+			nameRow.trailingAnchor.constraint(lessThanOrEqualTo: textContainer.trailingAnchor),
 
-			button.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12),
-			button.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -10),
-			button.leadingAnchor.constraint(
-				greaterThanOrEqualTo: thumb.trailingAnchor, constant: 10),
-			button.topAnchor.constraint(
-				greaterThanOrEqualTo: descLabel.bottomAnchor, constant: 4),
+			descLabel.topAnchor.constraint(equalTo: nameRow.bottomAnchor, constant: 4),
+			descLabel.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor),
+			descLabel.trailingAnchor.constraint(equalTo: textContainer.trailingAnchor),
+			descLabel.bottomAnchor.constraint(equalTo: textContainer.bottomAnchor),
+
+			button.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -16),
+			button.centerYAnchor.constraint(equalTo: card.centerYAnchor),
 		])
 
 		return card
@@ -971,7 +992,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		guard let sheet = entry.spritesheetURL else { return nil }
 		let key = sheet.path
 		if let cached = thumbnailCache[key] { return cached }
-		let image = PetThumbnail.idleFirstFrame(spritesheetURL: sheet)
+		let image = PetThumbnail.idleFirstFrame(spritesheetURL: sheet, targetHeight: thumbSize)
 		thumbnailCache[key] = image
 		return image
 	}
