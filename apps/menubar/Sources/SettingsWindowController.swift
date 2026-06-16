@@ -581,6 +581,11 @@ private final class UpdateBannerView: NSView {
 /// A search field filters by display name / ID, and a footer reports installed
 /// vs. importable counts. Thumbnails are the static idle first frame.
 private final class PetTabView: NSView, NSSearchFieldDelegate {
+	/// View identifiers used by layout tests to locate cards and their
+	/// description labels in the rendered hierarchy.
+	static let cardIdentifier = NSUserInterfaceItemIdentifier("petCard")
+	static let descriptionIdentifier = NSUserInterfaceItemIdentifier("petCardDescription")
+
 	private var viewModel: PetTabViewModel
 	private let onImportPet: (String) -> Void
 	private let onSelectPet: (String) -> Void
@@ -856,6 +861,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		card.layer?.borderColor =
 			(entry.state == .selected ? NSColor.controlAccentColor : NSColor.separatorColor).cgColor
 		card.heightAnchor.constraint(equalToConstant: cardHeight).isActive = true
+		card.identifier = PetTabView.cardIdentifier
 
 		// Thumbnail on a rounded dark tile, vertically centered (Codex-style).
 		let thumb = NSImageView()
@@ -895,6 +901,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		// 5 lines, with an ellipsis on the last line when the text overflows.
 		descLabel.lineBreakMode = .byWordWrapping
 		descLabel.cell?.truncatesLastVisibleLine = true
+		descLabel.identifier = PetTabView.descriptionIdentifier
 		descLabel.translatesAutoresizingMaskIntoConstraints = false
 		descLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
