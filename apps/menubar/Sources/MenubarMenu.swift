@@ -28,8 +28,8 @@ extension NSWorkspace: MenuWorkspaceOpening {}
 final class MenubarMenu: NSObject {
 	static let openLogFolderTitle = "Open log folder"
 	static let revealPetFolderTitle = "Reveal pet folder"
-	static let showFloatingPetTitle = "Show Floating Pet"
-	static let hideFloatingPetTitle = "Hide Floating Pet"
+	static let showFloatingPetTitle = "Show Pet"
+	static let hideFloatingPetTitle = "Hide Pet"
 	static let settingsTitle = "Settings…"
 	static let quitTitle = "Quit Codogotchi"
 	static let hooksNotActiveTitle = "⚠ Hooks not active — Retry install"
