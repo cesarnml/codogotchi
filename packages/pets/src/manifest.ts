@@ -9,12 +9,13 @@ export type PetManifest = {
   id: string;
   displayName: string;
   description: string;
+  spritesheetPath: string;
 };
 
 /**
  * Extracts and validates the pet.json manifest from a pet zip. Returns null when
- * pet.json is absent, unparseable, or missing a required string `id`/`displayName`.
- * `description` is optional and defaults to "".
+ * pet.json is absent, unparseable, or missing a required string `id`/`displayName`/
+ * exact `spritesheetPath: "spritesheet.webp"`. `description` is optional and defaults to "".
  *
  * This is a lightweight peek used before full validation (e.g. to resolve the
  * petId and look up an existing pet for the create-vs-update decision). The
@@ -46,11 +47,13 @@ export async function parsePetManifest(
   if (typeof obj.displayName !== "string" || obj.displayName.length === 0) {
     return null;
   }
+  if (obj.spritesheetPath !== "spritesheet.webp") return null;
 
   return {
     id: obj.id,
     displayName: obj.displayName,
     description: typeof obj.description === "string" ? obj.description : "",
+    spritesheetPath: obj.spritesheetPath,
   };
 }
 

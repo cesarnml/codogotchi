@@ -20,7 +20,7 @@ Generate a **brand-new** Codogotchi pet from scratch with the **full lite set** 
 
 Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
-**Execution model:** for every tier, default to **sheet-first** generation. Codex uses its built-in `image_gen` tool to generate **one 3×3 animation sheet per row**: exact 576×624 px, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. The local Python scripts then slice, normalize chroma, stitch those frames into row strips, inspect them, and compose the finished atlas. Do **not** use image generation to output an entire atlas or an unconstrained horizontal strip.
+**Execution model:** for every tier, default to **sheet-first** generation. Codex uses its built-in `image_gen` tool to generate **one row candidate per row**. Preferred source layout is exact `3×3`: `576×624`, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Accepted fallback source layout is `4×2`: `768×416`, eight 192×208 cells, no ninth cell. The local Python scripts then normalize that row candidate into the exact canonical `3×3` sheet, slice it, normalize chroma, stitch those frames into row strips, inspect them, and compose the finished atlas. Do **not** use image generation to output an entire atlas or an unconstrained horizontal strip.
 
 **Recommended production pattern:** for each row, generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that preserves motion quality**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended acceleration pattern, not a hard requirement.
 
@@ -46,29 +46,29 @@ Quality caveats for the recommended pattern:
 
 ## Workflow (three sheets, in order)
 
-Use the same pipeline per sheet — prepare → generate 3×3 row sheet → slice → stitch → inspect → compose → validate → install. Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on a solid chroma background, or a `--description` (generate Codex `idle` first, save its frame 1 as `seed.png`). Default chroma mode is `auto`: `#00ff00` normally, `#ff00ff` for green-sensitive rows such as `green-tdd`, `review-clean`, `verifying`, and `web-search`.
+Use the same pipeline per sheet — prepare → generate row candidate (`3×3` preferred, `4×2` accepted) → normalize to canonical `3×3` → slice → stitch → inspect → compose → validate → install. Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on a solid chroma background, or a `--description` (generate Codex `idle` first, save its frame 1 as `seed.png`). Default chroma mode is `auto`: `#00ff00` normally, `#ff00ff` for green-sensitive rows such as `green-tdd`, `review-clean`, `verifying`, and `web-search`. Brown/green-heavy anime seeds are high-risk for green spill; prefer `--chroma auto` and switch affected rows to magenta early.
 
 ```bash
 # ---- Tier 1: Codex ----
-python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --tier codex --chroma auto
-#   use built-in image_gen to generate 9 codex 3x3 row sheets, then
-#   slice+stitch+inspect each before composing
+python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --tier codex --chroma auto --source-layout 3x3
+#   use built-in image_gen to generate 9 codex row candidates, then
+#   normalize+slice+stitch+inspect each before composing
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/codex/ --tier codex --out run/<slug>/spritesheet.png
 cwebp -lossless -exact run/<slug>/spritesheet.png -o run/<slug>/spritesheet.webp
 python scripts/validate_atlas.py --atlas run/<slug>/spritesheet.webp --tier codex
 
 # ---- Tier 2: Lite-Basic (uses Codex/seed as style ref) ----
-python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-basic --chroma auto
-#   use built-in image_gen to generate 9 lite-basic 3x3 row sheets, then
-#   slice+stitch+inspect each before composing
+python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-basic --chroma auto --source-layout 3x3
+#   use built-in image_gen to generate 9 lite-basic row candidates, then
+#   normalize+slice+stitch+inspect each before composing
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-basic/ --tier lite-basic --out run/<slug>/codogotchi-lite-basic-spritesheet.png
 cwebp -lossless -exact run/<slug>/codogotchi-lite-basic-spritesheet.png -o run/<slug>/codogotchi-lite-basic-spritesheet.webp
 python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
 
 # ---- Tier 3: Lite-Enhanced (REQUIRES the Basic sheet; attach BOTH seed.png AND the Basic sheet as refs) ----
-python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-enhanced --chroma auto
-#   use built-in image_gen to generate 8 lite-enhanced 3x3 row sheets, then
-#   slice+stitch+inspect each before composing
+python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-enhanced --chroma auto --source-layout 3x3
+#   use built-in image_gen to generate 8 lite-enhanced row candidates, then
+#   normalize+slice+stitch+inspect each before composing
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-enhanced/ --tier lite-enhanced --out run/<slug>/codogotchi-lite-enhanced-spritesheet.png
 cwebp -lossless -exact run/<slug>/codogotchi-lite-enhanced-spritesheet.png -o run/<slug>/codogotchi-lite-enhanced-spritesheet.webp
 python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
@@ -80,9 +80,10 @@ cp run/<slug>/spritesheet.webp run/<slug>/codogotchi-lite-basic-spritesheet.webp
    run/<slug>/codogotchi-lite-enhanced-spritesheet.webp run/<slug>/pet.json "$DEST/"
 ```
 
-Per-row slice + stitch + inspect (run for every row before moving on):
+Per-row normalize + slice + stitch + inspect (run for every row before moving on):
 ```bash
-python scripts/slice_animation_sheet.py --sheet run/<slug>/sheets/<tier>/<row>.png --out-dir run/<slug>/frames/<tier>/<row>/ --chroma <00ff00-or-ff00ff>
+python scripts/normalize_generated_sheet.py --input run/<slug>/sheets/<tier>/<row>.png --out run/<slug>/sheets/<tier>/<row>.normalized.png --source-layout <3x3-or-4x2> --source-chroma <00ff00-or-ff00ff> --out-chroma <00ff00-or-ff00ff>
+python scripts/slice_animation_sheet.py --sheet run/<slug>/sheets/<tier>/<row>.normalized.png --out-dir run/<slug>/frames/<tier>/<row>/ --chroma <00ff00-or-ff00ff>
 python scripts/stitch_row.py     --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
 python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png --seed run/<slug>/seed.png
 ```
@@ -111,7 +112,8 @@ If one cell fails after `slice_animation_sheet.py`, inspect the failure contact 
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
 - [ ] **No frame's content height deviates >15% from its row median**
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`
-- [ ] Character consistent across all 26 rows; `pet.json` present; app shows pet + all tiers after quit-reopen
+- [ ] Character consistent across all 26 rows; `pet.json` present with `"spritesheetPath": "spritesheet.webp"`; app shows pet + all tiers after quit-reopen
+- [ ] Every row candidate declares `sourceLayout` (`3x3` preferred, `4x2` accepted fallback) and is normalized back to canonical `3x3` before slicing
 
 ## Related
 `SKILL-codex-and-lite-basic.md` · `SKILL-lite-basic.md` · `SKILL-lite-enhanced.md` · `SKILL-soa.md` · `references/animation-rows-lite.md`

@@ -253,6 +253,22 @@ GREEN_SENSITIVE_ROWS = {
     "verifying",
     "web-search",
 }
+SOURCE_LAYOUTS = {
+    "3x3": {
+        "cols": 3,
+        "rows": 3,
+        "width": 576,
+        "height": 624,
+        "note": "Preferred exact layout: 8 populated cells in a 3x3 sheet with cell 9 empty.",
+    },
+    "4x2": {
+        "cols": 4,
+        "rows": 2,
+        "width": 768,
+        "height": 416,
+        "note": "Accepted fallback layout: 8 populated cells in a 4x2 sheet, then normalize to exact 3x3 before slicing.",
+    },
+}
 
 LOCOMOTION_ROWS = {
     "running-right",
@@ -391,19 +407,33 @@ def build_frame_prompt(row_label: str, style_desc: str, chroma: str, description
     return build_frame_prompt_seed(row_label, style_desc, chroma)
 
 
-def build_sheet_prompt_seed(row_label: str, style_desc: str, chroma: str) -> str:
+def build_sheet_output_format(source_layout: str) -> str:
+    layout = SOURCE_LAYOUTS[source_layout]
+    if source_layout == "3x3":
+        return f"""OUTPUT FORMAT:
+- A single 3 × 3 grid image, exact size {layout["width"]} × {layout["height"]} px.
+- Each cell is exactly 192 × 208 px.
+- Cells 1–8 contain animation frames in reading order: left-to-right, top-to-bottom.
+- Cell 9 is intentionally EMPTY and contains only the flat chroma background.
+- Every frame must stay fully inside its own 192 × 208 cell. No body part, hair, prop, effect, outline,
+  shadow, halo, glow, label, or antialiasing may cross a cell boundary."""
+    return f"""OUTPUT FORMAT:
+- A single 4 × 2 grid image, exact size {layout["width"]} × {layout["height"]} px.
+- Each cell is exactly 192 × 208 px.
+- Cells 1–8 contain animation frames in reading order: left-to-right, top-to-bottom.
+- There is NO ninth cell in this source layout.
+- Every frame must stay fully inside its own 192 × 208 cell. No body part, hair, prop, effect, outline,
+  shadow, halo, glow, label, or antialiasing may cross a cell boundary.
+- This is a source-layout fallback only; the local pipeline will normalize this 4 × 2 sheet into the exact 3 × 3 canonical sheet before slicing."""
+
+
+def build_sheet_prompt_seed(row_label: str, style_desc: str, chroma: str, source_layout: str) -> str:
     """Prompt for sheet-first generation from an attached seed image."""
     motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
     doctrine = motion_doctrine(row_label)
     return f"""You are generating ONE COMPLETE 8-frame animation row for a desktop Codogotchi pet.
 
-OUTPUT FORMAT:
-- A single 3 × 3 grid image, exact size 576 × 624 px.
-- Each cell is exactly 192 × 208 px.
-- Cells 1–8 contain animation frames in reading order: left-to-right, top-to-bottom.
-- Cell 9 is intentionally EMPTY and contains only the flat chroma background.
-- Every frame must stay fully inside its own 192 × 208 cell. No body part, hair, prop, effect, outline,
-  shadow, halo, glow, label, or antialiasing may cross a cell boundary.
+{build_sheet_output_format(source_layout)}
 
 SEED IMAGE: attached. Use ONLY as style/character reference — infer exact proportions, outfit, hair,
 skin tone, linework, and palette from it. Do NOT restyle or invent details.
@@ -433,7 +463,7 @@ CELL CONSTRAINTS:
 """
 
 
-def build_sheet_prompt_description(row_label: str, description: str, style_desc: str, chroma: str) -> str:
+def build_sheet_prompt_description(row_label: str, description: str, style_desc: str, chroma: str, source_layout: str) -> str:
     """Prompt for sheet-first generation from a text description."""
     motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
     doctrine = motion_doctrine(row_label)
@@ -443,13 +473,7 @@ CHARACTER DESCRIPTION: {description}
 
 Render the character exactly as described. Do not add, remove, or change described features.
 
-OUTPUT FORMAT:
-- A single 3 × 3 grid image, exact size 576 × 624 px.
-- Each cell is exactly 192 × 208 px.
-- Cells 1–8 contain animation frames in reading order: left-to-right, top-to-bottom.
-- Cell 9 is intentionally EMPTY and contains only the flat chroma background.
-- Every frame must stay fully inside its own 192 × 208 cell. No body part, hair, prop, effect, outline,
-  shadow, halo, glow, label, or antialiasing may cross a cell boundary.
+{build_sheet_output_format(source_layout)}
 
 STYLE: {style_desc}
 
@@ -479,10 +503,16 @@ generation calls alongside this prompt, to anchor character consistency.
 """
 
 
-def build_sheet_prompt(row_label: str, style_desc: str, chroma: str, description: str | None = None) -> str:
+def build_sheet_prompt(
+    row_label: str,
+    style_desc: str,
+    chroma: str,
+    source_layout: str,
+    description: str | None = None,
+) -> str:
     if description:
-        return build_sheet_prompt_description(row_label, description, style_desc, chroma)
-    return build_sheet_prompt_seed(row_label, style_desc, chroma)
+        return build_sheet_prompt_description(row_label, description, style_desc, chroma, source_layout)
+    return build_sheet_prompt_seed(row_label, style_desc, chroma, source_layout)
 
 
 # ---------------------------------------------------------------------------
@@ -513,6 +543,12 @@ def main() -> None:
         default="sheet-first",
         help="Prompt/job mode. sheet-first writes 3x3 row prompts by default; frame-first preserves the old f01..f08 flow.",
     )
+    parser.add_argument(
+        "--source-layout",
+        choices=sorted(SOURCE_LAYOUTS.keys()),
+        default="3x3",
+        help="Preferred source layout for sheet-first row candidates: exact 3x3 preferred, 4x2 accepted fallback."
+    )
     parser.add_argument("--out-dir", type=Path, default=Path("run"),
                         help="Base output directory (default: ./run)")
     parser.add_argument("--write-pet-json", action="store_true",
@@ -535,6 +571,7 @@ def main() -> None:
         pet_json = {
             "id": config["pet_id"],
             "displayName": config["pet_name"],
+            "spritesheetPath": "spritesheet.webp",
         }
         out = run_dir / "pet.json"
         out.write_text(json.dumps(pet_json, indent=2) + "\n")
@@ -573,7 +610,13 @@ def main() -> None:
             prompt_text = build_frame_prompt(label, style_desc, row_chroma, description=args.description)
             p = run_dir / "prompts" / tier / f"{label}.txt"
             p.write_text(prompt_text)
-            sheet_prompt_text = build_sheet_prompt(label, style_desc, row_chroma, description=args.description)
+            sheet_prompt_text = build_sheet_prompt(
+                label,
+                style_desc,
+                row_chroma,
+                args.source_layout,
+                description=args.description,
+            )
             sheet_p = run_dir / "sheet-prompts" / tier / f"{label}.txt"
             sheet_p.write_text(sheet_prompt_text)
 
@@ -588,9 +631,12 @@ def main() -> None:
                     "row_label": label,
                     "row_index": row_idx,
                     "mode": "sheet-first",
+                    "sourceLayout": args.source_layout,
                     "chroma": resolve_chroma(label, args.chroma),
                     "out_path": f"sheets/{tier}/{label}.png",
                     "prompt_path": f"sheet-prompts/{tier}/{label}.txt",
+                    "normalized_out_path": f"sheets/{tier}/{label}.normalized.png",
+                    "postNormalizationLayout": "3x3",
                     "status": "pending",
                 })
             else:
@@ -625,6 +671,9 @@ def main() -> None:
         "green_sensitive_chroma": GREEN_SENSITIVE_CHROMA,
         "green_sensitive_rows": sorted(GREEN_SENSITIVE_ROWS),
         "generation_mode": args.generation_mode,
+        "sourceLayout": args.source_layout,
+        "allowedSourceLayouts": ["3x3", "4x2"],
+        "postNormalizationLayout": "3x3",
         "tiers": tiers,
         "cell_w": 192,
         "cell_h": 208,
@@ -645,6 +694,13 @@ def main() -> None:
         print("NOTE (description mode): generate Codex idle row FIRST; save f01 as seed.png; attach to all subsequent calls.")
     print(f"Generation mode: {args.generation_mode}")
     if args.generation_mode == "sheet-first":
+        layout = SOURCE_LAYOUTS[args.source_layout]
+        print(
+            f"Source layout: {args.source_layout} ({layout['cols']}x{layout['rows']}, "
+            f"{layout['width']}x{layout['height']})"
+        )
+        print(f"Post-normalization layout: 3x3 (required before slicing)")
+    if args.generation_mode == "sheet-first":
         print(f"Total row sheets to generate: {total_rows} (slices to {total_frames} frames)")
     else:
         print(f"Total frames to generate: {total_frames}")
@@ -657,9 +713,19 @@ def main() -> None:
     else:
         print(f"Chroma mode: fixed #{args.chroma.lower().lstrip('#')}")
     if args.generation_mode == "sheet-first":
-        print("\nNext: generate one 3x3 row sheet at a time using sheet-prompts/<tier>/<label>.txt")
-        print("      Save to sheets/<tier>/<label>.png, then slice:")
-        print("      python scripts/slice_animation_sheet.py --sheet sheets/<tier>/<label>.png --out-dir frames/<tier>/<label>/ --chroma <job chroma>")
+        print(
+            "\nSeed-risk note: for brown/green-heavy anime seeds, prefer --chroma auto or immediate magenta "
+            "fallback because green edge spill is common."
+        )
+        print(f"\nNext: generate one {args.source_layout} row sheet at a time using sheet-prompts/<tier>/<label>.txt")
+        print("      Save to sheets/<tier>/<label>.png, then normalize to exact 3x3:")
+        print(
+            "      python scripts/normalize_generated_sheet.py --input sheets/<tier>/<label>.png "
+            "--out sheets/<tier>/<label>.normalized.png --source-layout <job sourceLayout> "
+            "--source-chroma <job chroma> --out-chroma <job chroma>"
+        )
+        print("      Then slice the normalized 3x3 sheet:")
+        print("      python scripts/slice_animation_sheet.py --sheet sheets/<tier>/<label>.normalized.png --out-dir frames/<tier>/<label>/ --chroma <job chroma>")
         print("      Then stitch/inspect that row with stitch_row.py and inspect_frames.py.")
     else:
         print("\nNext: generate frames ONE ROW AT A TIME using the prompts in prompts/<tier>/")

@@ -66,6 +66,7 @@ const VALID_PET_JSON = JSON.stringify({
   id: "test-cat",
   displayName: "Test Cat",
   description: "A valid pet",
+  spritesheetPath: "spritesheet.webp",
 });
 const CODEX_SHEET = buildMinimalPng(CELL_COLS, TIER_ROW_COUNTS.codex);
 const LITE_BASIC_SHEET = buildMinimalPng(CELL_COLS, TIER_ROW_COUNTS.liteBasic);
@@ -174,6 +175,29 @@ describe("uploadPet action", () => {
         .withIdentity({ subject: `${userId}|test-session` })
         .action(api.actions.uploadPet.uploadPet, { rawZipStorageId }),
     ).rejects.toThrow(/pet\.json/i);
+
+    const pets = await t.run(async (ctx) => ctx.db.query("pets").collect());
+    expect(pets).toHaveLength(0);
+  });
+
+  test("rejects a package with no pet.json spritesheetPath", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const userId = await seedUser(t);
+    const noSpritesheetPath = await makeTestZip({
+      "pet.json": JSON.stringify({
+        id: "test-cat",
+        displayName: "Test Cat",
+      }),
+      "spritesheet.webp": CODEX_SHEET,
+      "codogotchi-lite-basic-spritesheet.webp": LITE_BASIC_SHEET,
+    });
+    const rawZipStorageId = await seedBlob(t, noSpritesheetPath);
+
+    await expect(
+      t
+        .withIdentity({ subject: `${userId}|test-session` })
+        .action(api.actions.uploadPet.uploadPet, { rawZipStorageId }),
+    ).rejects.toThrow(/spritesheetPath/i);
 
     const pets = await t.run(async (ctx) => ctx.db.query("pets").collect());
     expect(pets).toHaveLength(0);
@@ -486,7 +510,11 @@ describe("updatePetSheets action", () => {
     await uploadAs(t, userId, await makeValidPackage());
 
     const mismatched = await makeTestZip({
-      "pet.json": JSON.stringify({ id: "other-cat", displayName: "Other" }),
+      "pet.json": JSON.stringify({
+        id: "other-cat",
+        displayName: "Other",
+        spritesheetPath: "spritesheet.webp",
+      }),
       "codogotchi-soa-spritesheet.webp": SOA_SHEET,
     });
     await expect(updateAs(t, userId, "test-cat", mismatched)).rejects.toThrow(

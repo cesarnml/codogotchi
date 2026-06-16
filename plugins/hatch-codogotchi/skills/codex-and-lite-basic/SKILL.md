@@ -21,7 +21,7 @@ Generate a **brand-new** Codogotchi pet from scratch — produces the **Codex** 
 
 Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
-**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 3×3 animation sheet per row**: exact 576×624 px, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `f01.png` … `f08.png`; stitch and inspect the row before moving on. Do **not** generate a whole atlas or an unconstrained horizontal strip.
+**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one row candidate per row**. Preferred source layout is exact `3×3`: `576×624`, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Accepted fallback source layout is `4×2`: `768×416`, eight 192×208 cells, no ninth cell. Then run `normalize_generated_sheet.py` to convert the row candidate into the exact canonical `3×3` sheet, then `slice_animation_sheet.py` to validate, normalize chroma, and write `f01.png` … `f08.png`; stitch and inspect the row before moving on. Do **not** generate a whole atlas or an unconstrained horizontal strip.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that still looks good in motion**. In practice, many rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. Treat this as a production shortcut, not a rigid rule.
 
@@ -48,6 +48,7 @@ Quality caveats for the recommended pattern:
 ## Character source
 
 - **Seed image (recommended):** a 192 × 208 neutral standing pose on a solid chroma background. Row prompts use `#00ff00` normally and switch to `#ff00ff` automatically for green-sensitive rows.
+- **Seed-risk note:** brown/green-heavy anime seeds are prone to green spill and greenish edge contamination. Prefer `--chroma auto` and switch to `#ff00ff` immediately for affected rows instead of forcing green.
 - **Text description:** generate the Codex `idle` row first, save its frame 1 as `seed.png`, and attach it to every subsequent call as the character anchor.
 
 ## Row-kind constraints
@@ -66,17 +67,19 @@ Locomotion rows (`running-right`, `running-left`): stable scale/baseline/facing 
 # 1. Prepare (seed or --description). Codex + Lite-Basic prompt files are written;
 #    each prompt already embeds the prop doctrine + scale rule.
 python scripts/prepare_pet_run.py --seed path/to/seed.png \
-  --pet-name "My Pet" --style auto --chroma auto --tier codex   # then --tier lite-basic
+  --pet-name "My Pet" --style auto --chroma auto --source-layout 3x3 --tier codex   # then --tier lite-basic
 # (or --tier all to prep every tier; you generate only codex + lite-basic here)
 
-# 2. Use Codex's built-in image_gen tool to generate ONE 3x3 row sheet at a time.
+# 2. Use Codex's built-in image_gen tool to generate ONE row candidate at a time.
 #    Use sheet-prompts/<tier>/<row>.txt. Save each result to
 #    run/<slug>/sheets/<tier>/<row>.png. The prompt-selected chroma is #00ff00
-#    normally and #ff00ff for green-sensitive rows. Do not ask for a whole atlas
-#    or an unconstrained horizontal strip.
+#    normally and #ff00ff for green-sensitive rows. `3x3` is preferred; `4x2`
+#    is an accepted fallback when the model packs 8 frames more reliably that way.
+#    Do not ask for a whole atlas or an unconstrained horizontal strip.
 
-# 3. Slice each 3x3 sheet → stitch row → inspect (gate) before the next row
-python scripts/slice_animation_sheet.py --sheet run/<slug>/sheets/<tier>/<row>.png --out-dir run/<slug>/frames/<tier>/<row>/ --chroma <00ff00-or-ff00ff>
+# 3. Normalize each source layout to canonical 3x3 → slice → stitch → inspect
+python scripts/normalize_generated_sheet.py --input run/<slug>/sheets/<tier>/<row>.png --out run/<slug>/sheets/<tier>/<row>.normalized.png --source-layout <3x3-or-4x2> --source-chroma <00ff00-or-ff00ff> --out-chroma <00ff00-or-ff00ff>
+python scripts/slice_animation_sheet.py --sheet run/<slug>/sheets/<tier>/<row>.normalized.png --out-dir run/<slug>/frames/<tier>/<row>/ --chroma <00ff00-or-ff00ff>
 python scripts/stitch_row.py     --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
 python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png --seed run/<slug>/seed.png   # hard-fails >15% scale drift; reports seed comparison
 
@@ -126,7 +129,8 @@ If one cell fails after `slice_animation_sheet.py`, inspect the failure contact 
 - [ ] **No frame's content height deviates >15% from its row median**
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`
 - [ ] Character consistent across all 18 rows
-- [ ] `pet.json` present with `"id"` + `"displayName"`; app shows pet after quit-reopen
+- [ ] `pet.json` present with `"id"`, `"displayName"`, and `"spritesheetPath": "spritesheet.webp"`; app shows pet after quit-reopen
+- [ ] Every row candidate declares `sourceLayout` (`3x3` preferred, `4x2` accepted fallback) and is normalized back to canonical `3x3` before slicing
 
 ## Related
 `SKILL-codex-and-lite-full.md` · `SKILL-lite-basic.md` · `SKILL-lite-enhanced.md` · `SKILL-soa.md` · `references/animation-rows-lite.md`

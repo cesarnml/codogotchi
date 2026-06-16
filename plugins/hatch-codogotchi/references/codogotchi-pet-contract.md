@@ -23,11 +23,12 @@ Manifest. Must contain at minimum:
 ```json
 {
   "id": "my-pet",
-  "displayName": "My Pet"
+  "displayName": "My Pet",
+  "spritesheetPath": "spritesheet.webp"
 }
 ```
 
-Keys are decoded with snake_case strategy in Swift. Additional keys (`description`, `spritesheetPath`, etc.) are tolerated but not actively used.
+Keys are decoded with snake_case strategy in Swift. `spritesheetPath` is required by both Codogotchi and native Codex consumers and should point to the Tier 1 Codex sheet (`spritesheet.webp`). Additional keys such as `description` are tolerated.
 
 ### `spritesheet.webp` — Tier 1 (Codex sheet)
 
@@ -130,7 +131,7 @@ All sheets must use **RGBA PNG or WebP**. Unused cells and background must be fu
 
 ## File naming (exact)
 
-The app reads these exact filenames. Custom paths in `pet.json` are ignored.
+The app reads these exact filenames. `pet.json` must include `spritesheetPath: "spritesheet.webp"` for the Tier 1 sheet; optional tier sheets still use the exact filenames below.
 
 | File | Required? |
 |------|-----------|

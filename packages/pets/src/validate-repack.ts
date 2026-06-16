@@ -109,6 +109,17 @@ export async function validateAndRepackPet(
       ) {
         errors.push("pet.json missing required key: displayName");
       }
+      if (
+        typeof parsed !== "object" ||
+        parsed === null ||
+        !("spritesheetPath" in parsed) ||
+        (parsed as Record<string, unknown>).spritesheetPath !==
+          "spritesheet.webp"
+      ) {
+        errors.push(
+          'pet.json missing required key: spritesheetPath ("spritesheet.webp")',
+        );
+      }
     } catch {
       errors.push("pet.json is not valid JSON");
     }

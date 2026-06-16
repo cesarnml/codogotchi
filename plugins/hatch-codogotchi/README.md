@@ -10,14 +10,14 @@ Analogous to the `openai/skills/.curated/hatch-pet` skill, adapted for Codogotch
 
 This plugin is designed to be run by Codex in two explicit stages:
 
-1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one 3×3 animation sheet per row**, saving `run/<pet>/sheets/<tier>/<row>.png`. Each generated sheet is exactly 576×624 px: eight populated 192×208 cells plus one empty ninth cell.
-2. **Local assembly stage:** the Python scripts in `scripts/` slice that row sheet into exact `f01.png` … `f08.png` cells, normalize the chroma background, stitch those frames into row strips, inspect/validate them, then compose the validated row strips into the final spritesheet atlas.
+1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one row candidate per animation row**, saving `run/<pet>/sheets/<tier>/<row>.png`. Preferred source layout is exact `3×3` (`576×624`: eight populated 192×208 cells plus one empty ninth cell). Accepted fallback source layout is `4×2` (`768×416`: eight populated 192×208 cells, no ninth cell).
+2. **Local assembly stage:** the Python scripts in `scripts/` first normalize the generated row candidate into the exact canonical `3×3` sheet geometry, then slice that canonical sheet into exact `f01.png` … `f08.png` cells, normalize the chroma background, stitch those frames into row strips, inspect/validate them, and finally compose the validated row strips into the final spritesheet atlas.
 
 The plugin does **not** mean "ask image generation for a whole atlas" or "ask for an unconstrained strip." The intended default workflow is now **sheet-first**:
 
-`image_gen` 3×3 row sheet → `slice_animation_sheet.py` → `stitch_row.py` → `inspect_frames.py` → `compose_atlas.py` → `validate_atlas.py`
+`image_gen` row candidate (`3×3` preferred, `4×2` accepted) → `normalize_generated_sheet.py` → `slice_animation_sheet.py` → `stitch_row.py` → `inspect_frames.py` → `compose_atlas.py` → `validate_atlas.py`
 
-Every skill below assumes that division of labor: **Codex generates one bounded row sheet; local scripts slice, key, assemble, and validate it.** The old frame-first path remains the recovery path for selective repair when one cell fails.
+Every skill below assumes that division of labor: **Codex generates one bounded row candidate; local scripts normalize it to exact canonical geometry, then slice, key, assemble, and validate it.** The old frame-first path remains the recovery path for selective repair when one cell fails.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that still looks good in motion**. In practice, many rows can be produced faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a speed optimization, not a hard rule.
 
@@ -63,10 +63,16 @@ Today the green-sensitive rows are:
 
 This avoids the failure mode where an intended green checkmark, green stamp, or green globe detail gets keyed out before the strip is assembled.
 
+Seed-risk note:
+
+- Brown/green-heavy anime seeds are high-risk for green spill and greenish edge antialiasing.
+- For those seeds, prefer `--chroma auto` and be ready to switch the whole run or the affected rows to `#ff00ff` immediately rather than trying to force green.
+
 Hardening rules:
 
-- Prompts require one flat RGB key color for the entire 3×3 row sheet, including the empty ninth cell.
+- Prompts require one flat RGB key color for the entire row candidate sheet (`3×3` or `4×2`).
 - `slice_animation_sheet.py` detects border-connected background per cell and normalizes only that connected background region to the exact key color.
+- `normalize_generated_sheet.py` is the canonical source-layout bridge: it turns an accepted `3×3` or `4×2` row candidate into the exact final `3×3` sheet before slicing.
 - Foreground pixels that still look like the active key color are a hard failure unless `--allow-foreground-key` is explicitly passed.
 - The ninth cell must stay empty; if content leaks into it, the sheet fails.
 - After slicing, `stitch_row.py`, `inspect_frames.py`, and `validate_atlas.py` still enforce zero likely green/magenta residue and zero transparent-RGB residue.
@@ -141,13 +147,14 @@ Tier 1 is required. Resolution order per render moment: **SoA → Enhanced → B
 python scripts/prepare_pet_run.py \
   --seed my-pet-seed.png --pet-name "Beemo" --style plush
 
-# 2. Use Codex's built-in image_gen tool to generate one 3x3 row sheet at a time.
+# 2. Use Codex's built-in image_gen tool to generate one row candidate at a time.
 #    Use sheet-prompts/<tier>/<row>.txt. The generated prompts use row-safe chroma:
 #    #00ff00 normally, #ff00ff for green-sensitive rows.
 #    Save as run/beemo/sheets/<tier>/<row>.png
 
-# 3. Slice, stitch, and inspect each row
-python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma 00ff00
+# 3. Normalize to exact 3x3, then slice, stitch, and inspect each row
+python scripts/normalize_generated_sheet.py --input run/beemo/sheets/lite-basic/implementing.png --out run/beemo/sheets/lite-basic/implementing.normalized.png --source-layout 3x3 --source-chroma 00ff00 --out-chroma 00ff00
+python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.normalized.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma 00ff00
 python scripts/stitch_row.py     --row-dir run/beemo/frames/lite-basic/implementing/ --out run/beemo/rows/lite-basic/implementing.png
 python scripts/inspect_frames.py --row run/beemo/rows/lite-basic/implementing.png --seed run/beemo/seed.png
 
@@ -214,7 +221,8 @@ hatch-codogotchi/
     qa-rubric.md                      ← QA checklist (automated + eyeball)
   scripts/
     extract_seed_from_codex.py        ← Extract reference cell from existing spritesheet
-    prepare_pet_run.py                ← Bootstrap run folder + prompt files
+    prepare_pet_run.py                ← Bootstrap run folder + prompt files + sourceLayout manifest fields
+    normalize_generated_sheet.py      ← Normalize accepted 3x3 / 4x2 row candidates → canonical 3x3 sheet
     slice_animation_sheet.py          ← Validate/slice a 3×3 row sheet → f01..f08 frames
     stitch_row.py                     ← Chroma-key + crop + scale + stitch 8 frames → row strip
     inspect_frames.py                 ← Validate a single row strip before composing

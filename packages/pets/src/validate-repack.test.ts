@@ -68,6 +68,7 @@ async function makeTestZip(
 const VALID_PET_JSON = JSON.stringify({
   id: "test-pet",
   displayName: "Test Pet",
+  spritesheetPath: "spritesheet.webp",
 });
 
 // valid sheets at minimum dimensions divisible by col/row counts
@@ -113,6 +114,23 @@ describe("validateAndRepackPet", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors.some((e) => /lite.basic/i.test(e))).toBe(true);
+  });
+
+  it("rejects when pet.json is missing spritesheetPath", async () => {
+    const input = await makeTestZip({
+      "pet.json": JSON.stringify({
+        id: "test-pet",
+        displayName: "Test Pet",
+      }),
+      "spritesheet.webp": CODEX_SHEET,
+      "codogotchi-lite-basic-spritesheet.webp": LITE_BASIC_SHEET,
+    });
+
+    const result = await validateAndRepackPet(input);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.some((e) => /spritesheetPath/.test(e))).toBe(true);
   });
 
   it("rejects when spritesheet.webp (Codex) is missing", async () => {

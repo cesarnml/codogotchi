@@ -69,7 +69,7 @@ export const uploadPet = action({
       const manifest = await parsePetManifest(rawBytes);
       if (!manifest) {
         throw new ConvexError(
-          "pet.json with a non-empty id and displayName is required",
+          'pet.json with a non-empty id, displayName, and spritesheetPath "spritesheet.webp" is required',
         );
       }
       const petIdSlug = sanitizePetId(manifest.id);
