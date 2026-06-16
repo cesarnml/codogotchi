@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-normalize_generated_sheet.py — Normalize a generated 3x3 or 4x2 row candidate
-into the exact canonical 3x3 Codogotchi sheet geometry before slicing.
+normalize_generated_sheet.py — Normalize a generated 4x2 row candidate
+into the exact canonical 4x2 Codogotchi sheet geometry before slicing.
 """
 
 from __future__ import annotations
@@ -15,12 +15,11 @@ from PIL import Image
 
 CELL_W = 192
 CELL_H = 208
-FINAL_COLS = 3
-FINAL_ROWS = 3
+FINAL_COLS = 4
+FINAL_ROWS = 2
 FINAL_FRAMES = 8
 
 SOURCE_LAYOUTS = {
-    "3x3": (3, 3),
     "4x2": (4, 2),
 }
 
@@ -77,7 +76,7 @@ def snap_near_key(rgb: np.ndarray, out_chroma: tuple[int, int, int]) -> np.ndarr
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Normalize a generated row sheet into canonical 3x3 geometry.")
+    parser = argparse.ArgumentParser(description="Normalize a generated row sheet into canonical 4x2 geometry.")
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--source-layout", choices=sorted(SOURCE_LAYOUTS.keys()), required=True)
@@ -135,7 +134,7 @@ def main() -> None:
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(rgb, "RGB").save(args.out, "PNG")
-    print(f"Normalized {args.input} ({args.source_layout}) -> {args.out} (3x3 canonical)")
+    print(f"Normalized {args.input} ({args.source_layout}) -> {args.out} (4x2 canonical)")
 
 
 if __name__ == "__main__":

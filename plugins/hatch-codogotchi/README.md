@@ -11,7 +11,7 @@ Analogous to the `openai/skills/.curated/hatch-pet` skill, adapted for Codogotch
 This plugin is designed to be run by Codex in two explicit stages:
 
 1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one row candidate per animation row**, saving `run/<pet>/sheets/<tier>/<row>.png`. Each row candidate is a `4×2` sheet (`768×416`: eight populated 192×208 cells, no empty cell).
-2. **Local assembly stage:** the Python scripts in `scripts/` first normalize the generated row candidate into the exact canonical `3×3` sheet geometry, then slice that canonical sheet into exact `f01.png` … `f08.png` cells, normalize the chroma background, stitch those frames into row strips, inspect/validate them, and finally compose the validated row strips into the final spritesheet atlas.
+2. **Local assembly stage:** the Python scripts in `scripts/` first snap the generated row candidate to the exact canonical `4×2` sheet geometry, then slice that canonical sheet into exact `f01.png` … `f08.png` cells, normalize the chroma background, stitch those frames into row strips, inspect/validate them, and finally compose the validated row strips into the final spritesheet atlas.
 
 The plugin does **not** mean "ask image generation for a whole atlas" or "ask for an unconstrained strip." The intended default workflow is now **sheet-first**:
 
@@ -75,7 +75,7 @@ Hardening rules:
 
 - Prompts require one flat RGB key color for the entire `4×2` row candidate sheet.
 - `slice_animation_sheet.py` detects border-connected background per cell and normalizes only that connected background region to the exact key color.
-- `normalize_generated_sheet.py` is the canonical bridge: it turns the generated `4×2` row candidate into the exact internal `3×3` canonical sheet before slicing.
+- `normalize_generated_sheet.py` snaps the generated `4×2` row candidate to the exact canonical `4×2` sheet geometry (exact cell sizes + flat key) before slicing.
 - Foreground pixels that still look like the active key color are a hard failure unless `--allow-foreground-key` is explicitly passed.
 - All 8 cells must be populated; no body part, prop, effect, or antialiasing may cross a cell boundary.
 - After slicing, `stitch_row.py`, `inspect_frames.py`, and `validate_atlas.py` still enforce zero likely green/magenta residue and zero transparent-RGB residue.
@@ -181,7 +181,7 @@ python scripts/prepare_pet_run.py \
 #    #00ff00 (green) by default; switch to #ff00ff/#0000ff per the chroma rule.
 #    Save as run/beemo/sheets/<tier>/<row>.png
 
-# 3. Normalize to exact 3x3, then slice, stitch, and inspect each row
+# 3. Normalize to exact 4x2, then slice, stitch, and inspect each row
 python scripts/normalize_generated_sheet.py --input run/beemo/sheets/lite-basic/implementing.png --out run/beemo/sheets/lite-basic/implementing.normalized.png --source-layout 4x2 --source-chroma 00ff00 --out-chroma 00ff00
 python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.normalized.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma 00ff00
 python scripts/stitch_row.py     --row-dir run/beemo/frames/lite-basic/implementing/ --out run/beemo/rows/lite-basic/implementing.png
@@ -259,8 +259,8 @@ hatch-codogotchi/
   scripts/
     extract_seed_from_codex.py        ← Extract reference cell from existing spritesheet
     prepare_pet_run.py                ← Bootstrap run folder + prompt files + sourceLayout manifest fields
-    normalize_generated_sheet.py      ← Normalize the generated 4x2 row candidate → canonical 3x3 sheet
-    slice_animation_sheet.py          ← Validate/slice a 3×3 row sheet → f01..f08 frames
+    normalize_generated_sheet.py      ← Normalize the generated 4x2 row candidate → canonical 4x2 sheet
+    slice_animation_sheet.py          ← Validate/slice a 4×2 row sheet → f01..f08 frames
     stitch_row.py                     ← Chroma-key + crop + scale + stitch 8 frames → row strip
     inspect_frames.py                 ← Validate a single row strip before composing
     compose_atlas.py                  ← Stack row strips → atlas PNG

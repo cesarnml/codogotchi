@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-slice_animation_sheet.py — Validate and slice a 3x3 row-generation sheet into f01..f08 frames.
+slice_animation_sheet.py — Validate and slice a 4x2 row-generation sheet into f01..f08 frames.
 
-The sheet-first workflow asks image generation for one 3x3 grid per animation row:
-8 populated 192x208 cells plus one intentionally empty ninth cell. This script
+The sheet-first workflow asks image generation for one 4x2 grid per animation row:
+8 populated 192x208 cells (4 cols x 2 rows), no empty cell. This script
 normalizes only border-connected chroma background pixels to the exact key color,
 checks foreground contamination and safe bounds, writes f01.png..f08.png, and
 emits a failure contact sheet when validation blocks the row.
@@ -20,8 +20,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 CELL_W = 192
 CELL_H = 208
-GRID_COLS = 3
-GRID_ROWS = 3
+GRID_COLS = 4
+GRID_ROWS = 2
 POPULATED_CELLS = 8
 DEFAULT_PADDING = 8
 GREEN = (0, 255, 0)
@@ -216,8 +216,8 @@ def auto_detect_chroma(img: Image.Image) -> tuple[int, int, int]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Slice a 3x3 Codogotchi animation sheet into f01.png..f08.png.")
-    parser.add_argument("--sheet", required=True, type=Path, help="Input 3x3 PNG/WebP sheet")
+    parser = argparse.ArgumentParser(description="Slice a 4x2 Codogotchi animation sheet into f01.png..f08.png.")
+    parser.add_argument("--sheet", required=True, type=Path, help="Input 4x2 PNG/WebP sheet")
     parser.add_argument("--out-dir", required=True, type=Path, help="Output frame directory")
     parser.add_argument("--chroma", default="auto", help="auto, 00ff00, or ff00ff")
     parser.add_argument("--padding", type=int, default=DEFAULT_PADDING)
@@ -230,7 +230,7 @@ def main() -> None:
     if sheet.size != expected_size:
         sys.exit(
             f"ERROR: sheet is {sheet.width}x{sheet.height}; expected exact "
-            f"{expected_size[0]}x{expected_size[1]} (3x3 cells of {CELL_W}x{CELL_H})"
+            f"{expected_size[0]}x{expected_size[1]} (4x2 cells of {CELL_W}x{CELL_H})"
         )
 
     chroma = auto_detect_chroma(sheet) if args.chroma == "auto" else parse_hex_color(args.chroma)

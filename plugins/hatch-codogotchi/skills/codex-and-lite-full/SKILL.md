@@ -20,7 +20,7 @@ Generate a **brand-new** Codogotchi pet from scratch with the **full lite set** 
 
 Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
-**Execution model:** for every tier, default to **sheet-first** generation. Codex uses its built-in `image_gen` tool to generate **one row candidate per row**. Generate every row candidate as a `4×2` sheet: `768×416`, eight 192×208 cells (4 columns × 2 rows), all 8 cells populated in reading order, no empty cell. The local Python scripts then normalize that row candidate into the exact canonical `3×3` sheet, slice it, normalize chroma, stitch those frames into row strips, inspect them, and compose the finished atlas. Do **not** use image generation to output an entire atlas or an unconstrained horizontal strip.
+**Execution model:** for every tier, default to **sheet-first** generation. Codex uses its built-in `image_gen` tool to generate **one row candidate per row**. Generate every row candidate as a `4×2` sheet: `768×416`, eight 192×208 cells (4 columns × 2 rows), all 8 cells populated in reading order, no empty cell. The local Python scripts then snap that row candidate to the exact canonical `4×2` sheet, slice it, normalize chroma, stitch those frames into row strips, inspect them, and compose the finished atlas. Do **not** use image generation to output an entire atlas or an unconstrained horizontal strip.
 
 **Non-negotiable row gate:** finish one row completely before generating the next: generate → normalize → slice → stitch → `inspect_frames.py` → visual review of the row strip. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
 
@@ -98,7 +98,7 @@ cp run/<slug>/spritesheet.webp run/<slug>/codogotchi-lite-basic-spritesheet.webp
 
 Per-row normalize + slice + stitch + inspect (run for every row before moving on):
 ```bash
-python scripts/normalize_generated_sheet.py --input run/<slug>/sheets/<tier>/<row>.png --out run/<slug>/sheets/<tier>/<row>.normalized.png --source-layout <3x3-or-4x2> --source-chroma <00ff00-or-ff00ff> --out-chroma <00ff00-or-ff00ff>
+python scripts/normalize_generated_sheet.py --input run/<slug>/sheets/<tier>/<row>.png --out run/<slug>/sheets/<tier>/<row>.normalized.png --source-layout 4x2 --source-chroma <key> --out-chroma <key>
 python scripts/slice_animation_sheet.py --sheet run/<slug>/sheets/<tier>/<row>.normalized.png --out-dir run/<slug>/frames/<tier>/<row>/ --chroma <00ff00-or-ff00ff>
 python scripts/stitch_row.py     --row-dir run/<slug>/frames/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
 python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png --seed run/<slug>/seed.png

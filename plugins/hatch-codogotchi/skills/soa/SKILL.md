@@ -120,8 +120,8 @@ Creates:
 ```
 run/<pet-id>/
   prompts/soa/       # One prompt file per SoA row
-  sheet-prompts/soa/ # One 3x3 sheet prompt file per SoA row
-  sheets/soa/        # Empty; generated 3x3 row sheets land here
+  sheet-prompts/soa/ # One 4x2 sheet prompt file per SoA row
+  sheets/soa/        # Empty; generated 4x2 row sheets land here
   frames/soa/        # Empty; frames land here
   rows/soa/          # Empty; validated strips land here
   imagegen-jobs.json
