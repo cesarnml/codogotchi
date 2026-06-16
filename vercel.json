@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd web && bun run build",
+  "buildCommand": "bunx convex deploy --cmd 'cd web && bun run build' --cmd-url-env-var-name PUBLIC_CONVEX_URL",
   "outputDirectory": "web/dist",
   "installCommand": "bun install && cd web && bun install"
 }
