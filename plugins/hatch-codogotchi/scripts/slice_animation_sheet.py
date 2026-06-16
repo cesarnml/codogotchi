@@ -114,7 +114,6 @@ def normalize_cell(
     padding: int,
     frame_number: int,
     allow_foreground_key: bool,
-    is_empty_slot: bool,
 ) -> tuple[Image.Image, list[str]]:
     arr = np.array(cell.convert("RGBA"))
     errors: list[str] = []
@@ -139,10 +138,7 @@ def normalize_cell(
     alpha_for_bounds[bg] = 0
     bounds = alpha_bounds(alpha_for_bounds)
 
-    if is_empty_slot:
-        if bounds is not None:
-            errors.append(f"cell {frame_number}: ninth cell must be empty, but visible content was found")
-    elif bounds is None:
+    if bounds is None:
         errors.append(f"cell {frame_number}: no visible foreground content")
     else:
         left, top, right, bottom = bounds
@@ -191,8 +187,6 @@ def draw_failure_contact(
         outline = (255, 60, 60, 255) if has_errors else (90, 130, 90, 255)
         draw.rectangle([x, y, x + display_w - 1, y + display_h - 1], outline=outline, width=2)
         label = f"cell {idx}"
-        if idx == 9:
-            label += " (empty)"
         if has_errors:
             label += " FAIL"
         draw.text((x + 4, y + display_h + 4), label, fill=(255, 255, 255, 255), font=font)
@@ -249,7 +243,6 @@ def main() -> None:
             args.padding,
             idx,
             args.allow_foreground_key,
-            is_empty_slot=idx > POPULATED_CELLS,
         )
         normalized_cells.append(normalized)
         if errors:
