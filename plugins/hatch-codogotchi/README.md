@@ -15,7 +15,9 @@ This plugin is designed to be run by Codex in two explicit stages:
 
 The plugin does **not** mean "ask image generation for a whole atlas" or "ask for an unconstrained strip." The intended default workflow is now **sheet-first**:
 
-`image_gen` row candidate (`3×3` preferred, `4×2` accepted) → `normalize_generated_sheet.py` → `slice_animation_sheet.py` → `stitch_row.py` → `inspect_frames.py` → `compose_atlas.py` → `validate_atlas.py`
+`image_gen` row candidate (`3×3` preferred, `4×2` accepted) → `normalize_generated_sheet.py` → `slice_animation_sheet.py` → `stitch_row.py` → `inspect_frames.py` → `compose_atlas.py` → `validate_atlas.py` → `make_contact_sheet.py` → `render_animation_previews.py` → `make_qa_crop_sheet.py` → `pre_install_qa_gate.py`
+
+**Non-negotiable row gate:** generate, normalize, slice, stitch, inspect, and visually review one row before generating the next. Do not batch-generate several rows and sort it out later. Do not compose an atlas until every row has a passing `inspect_frames.py` run and has been eyeballed for style, prop clarity, face/eye integrity, and stable motion.
 
 Every skill below assumes that division of labor: **Codex generates one bounded row candidate; local scripts normalize it to exact canonical geometry, then slice, key, assemble, and validate it.** The old frame-first path remains the recovery path for selective repair when one cell fails.
 
@@ -51,10 +53,10 @@ The plugin treats chroma as a machine-validated matte, not an aesthetic suggesti
 
 Default behavior is `--chroma auto`:
 
-- `#00ff00` for normal rows
-- `#ff00ff` for rows whose intended prop/effect is likely to contain green and would be damaged by a green key
+- `#ff00ff` by default for all rows, because green chroma commonly damages greenish anime eyes, brown/green hair highlights, props, and effects.
+- Use fixed `--chroma 00ff00` only when magenta/purple foreground details make magenta unsafe.
 
-Today the green-sensitive rows are:
+Rows known to require magenta-safe handling include:
 
 - `green-tdd`
 - `review-clean`
@@ -66,7 +68,7 @@ This avoids the failure mode where an intended green checkmark, green stamp, or 
 Seed-risk note:
 
 - Brown/green-heavy anime seeds are high-risk for green spill and greenish edge antialiasing.
-- For those seeds, prefer `--chroma auto` and be ready to switch the whole run or the affected rows to `#ff00ff` immediately rather than trying to force green.
+- For those seeds, keep `--chroma auto` so magenta is used up front rather than trying to force green and repair damaged eyes afterward.
 
 Hardening rules:
 
@@ -76,6 +78,32 @@ Hardening rules:
 - Foreground pixels that still look like the active key color are a hard failure unless `--allow-foreground-key` is explicitly passed.
 - The ninth cell must stay empty; if content leaks into it, the sheet fails.
 - After slicing, `stitch_row.py`, `inspect_frames.py`, and `validate_atlas.py` still enforce zero likely green/magenta residue and zero transparent-RGB residue.
+- After composing, `make_qa_crop_sheet.py` creates a face/prop crop sheet and JSON report. Treat warnings about face chroma residue or enclosed transparent pixels as blockers unless you can name the false positive explicitly.
+
+## Mandatory pre-install QA gate
+
+Installing a generated sheet is blocked until these artifacts are present and newer than the final atlas:
+
+- `validate-<tier>.json` from `validate_atlas.py --out-json`
+- `contact-<tier>.png` from `make_contact_sheet.py`
+- `previews-<tier>/*.gif` from `render_animation_previews.py`
+- `qa-crops-<tier>.png` and `qa-crops-<tier>.json` from `make_qa_crop_sheet.py`
+
+Run `pre_install_qa_gate.py` before every `cp` into a pet directory:
+
+```bash
+python scripts/validate_atlas.py --atlas run/<pet>/<sheet>.webp --tier <tier> --out-json run/<pet>/validate-<tier>.json
+python scripts/make_contact_sheet.py --atlas run/<pet>/<sheet>.webp --tier <tier>
+python scripts/render_animation_previews.py --atlas run/<pet>/<sheet>.webp --tier <tier>
+python scripts/make_qa_crop_sheet.py --atlas run/<pet>/<sheet>.webp --tier <tier> --fail-on-warnings
+python scripts/pre_install_qa_gate.py --atlas run/<pet>/<sheet>.webp --tier <tier>
+```
+
+If you intentionally accept a crop warning, rerun the gate with `--allow-crop-warnings` and state the accepted warning in the final checklist. Do not describe the sheet as “fully QA-passed” when any warning was waived.
+
+## Time and effort honesty
+
+Generation time varies, but full-tier delivery should look like full-tier delivery: row-by-row generation, per-row inspection, final validation, contact sheet, previews, crop QA, and pre-install gate. If a tier is completed unusually quickly, explicitly report what was compressed, reused, skipped, or waived. Script validation alone is not QA.
 
 ---
 
@@ -149,12 +177,12 @@ python scripts/prepare_pet_run.py \
 
 # 2. Use Codex's built-in image_gen tool to generate one row candidate at a time.
 #    Use sheet-prompts/<tier>/<row>.txt. The generated prompts use row-safe chroma:
-#    #00ff00 normally, #ff00ff for green-sensitive rows.
+#    #ff00ff by default; use #00ff00 only when magenta/purple foreground makes magenta unsafe.
 #    Save as run/beemo/sheets/<tier>/<row>.png
 
 # 3. Normalize to exact 3x3, then slice, stitch, and inspect each row
-python scripts/normalize_generated_sheet.py --input run/beemo/sheets/lite-basic/implementing.png --out run/beemo/sheets/lite-basic/implementing.normalized.png --source-layout 3x3 --source-chroma 00ff00 --out-chroma 00ff00
-python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.normalized.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma 00ff00
+python scripts/normalize_generated_sheet.py --input run/beemo/sheets/lite-basic/implementing.png --out run/beemo/sheets/lite-basic/implementing.normalized.png --source-layout 3x3 --source-chroma ff00ff --out-chroma ff00ff
+python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.normalized.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma ff00ff
 python scripts/stitch_row.py     --row-dir run/beemo/frames/lite-basic/implementing/ --out run/beemo/rows/lite-basic/implementing.png
 python scripts/inspect_frames.py --row run/beemo/rows/lite-basic/implementing.png --seed run/beemo/seed.png
 
@@ -164,10 +192,18 @@ python scripts/compose_atlas.py --rows-dir run/beemo/rows/lite-basic/ --tier lit
 cwebp -lossless -exact run/beemo/spritesheet.png                       -o run/beemo/spritesheet.webp
 cwebp -lossless -exact run/beemo/codogotchi-lite-basic-spritesheet.png -o run/beemo/codogotchi-lite-basic-spritesheet.webp
 
-# 5. Validate + QA
-python scripts/validate_atlas.py         --atlas run/beemo/spritesheet.webp --tier codex
-python scripts/make_contact_sheet.py     --atlas run/beemo/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
+# 5. Validate + mandatory visual QA gate for each atlas
+python scripts/validate_atlas.py --atlas run/beemo/spritesheet.webp --tier codex --out-json run/beemo/validate-codex.json
+python scripts/make_contact_sheet.py --atlas run/beemo/spritesheet.webp --tier codex
+python scripts/render_animation_previews.py --atlas run/beemo/spritesheet.webp --tier codex
+python scripts/make_qa_crop_sheet.py --atlas run/beemo/spritesheet.webp --tier codex --fail-on-warnings
+python scripts/pre_install_qa_gate.py --atlas run/beemo/spritesheet.webp --tier codex
+
+python scripts/validate_atlas.py --atlas run/beemo/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --out-json run/beemo/validate-lite-basic.json
+python scripts/make_contact_sheet.py --atlas run/beemo/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
 python scripts/render_animation_previews.py --atlas run/beemo/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
+python scripts/make_qa_crop_sheet.py --atlas run/beemo/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --fail-on-warnings
+python scripts/pre_install_qa_gate.py --atlas run/beemo/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
 
 # (Optional) add the Lite-Enhanced sheet afterward — requires the Basic sheet above:
 #   python scripts/prepare_pet_run.py --seed run/beemo/seed.png --pet-id beemo --tier lite-enhanced
@@ -193,10 +229,10 @@ python scripts/prepare_pet_run.py \
   --seed run/maew/seed.png --pet-id maew --pet-name "Maew" --tier lite-basic
 
 # 3-5. Use built-in image_gen for frame generation, then stitch, inspect,
-#      compose, and validate with the local scripts (same pipeline)
+#      compose, validate, and pass the mandatory visual QA gate (same pipeline)
 #      lite-enhanced is a separate run and REQUIRES the lite-basic sheet to exist first.
 
-# 6. Install only the new sheet — don't overwrite spritesheet.webp or pet.json
+# 6. Install only after pre_install_qa_gate passes; don't overwrite spritesheet.webp or pet.json
 cp run/maew/codogotchi-lite-basic-spritesheet.webp ~/.codogotchi/pets/maew/
 ```
 
@@ -230,6 +266,8 @@ hatch-codogotchi/
     validate_atlas.py                 ← Final atlas validation
     make_contact_sheet.py             ← Generate labelled QA contact sheet
     render_animation_previews.py      ← Generate animated GIF previews per row
+    make_qa_crop_sheet.py             ← Generate face/prop crop QA and likely eye-damage report
+    pre_install_qa_gate.py            ← Block install unless final QA artifacts are fresh
 ```
 
 ---
@@ -245,6 +283,8 @@ hatch-codogotchi/
 4. **Style drift from the Codex sheet** *(Lite and SoA only)* — Compare every row against the existing Codex cells. Same character, same palette, same linework.
 
 5. **Jerky / over-animated motion (the stability killer)** — The single worst outcome. Because each of the 8 frames is generated independently, big or whole-body described motion comes back incoherent: legs swing, props jump around, the pet hops. For standing/status rows, **stability beats expressiveness every time** — anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. For locomotion rows, require progress stability instead: smooth stride increments, stable scale/baseline/direction, and no static frames followed by a teleport jump. "No static rows" is a floor (subtle smooth life), not a target. See *Motion & alignment doctrine* above and `references/animation-rows-lite.md` → *motion restraint*.
+
+5a. **Chroma-damaged face/eyes** — Green chroma can key out greenish eyes or highlights before the final atlas ever sees “residue.” Use `--chroma auto` (magenta by default), inspect `qa-crops-<tier>.png`, and reject any frame with key-colour holes, masks, or missing iris/highlight pixels.
 
 6. **Mime / charades (the readability killer)** — Codogotchi animations must be readable at a glance. States that don't map to a plain human emotion must be carried by **one clearly-visible prop**, never subtle hand gestures or an *invisible* prop ("invisible keyboard", "unseen screen"). Use **exactly the prop named — never an A/B choice** (the old `reading` "page/tablet" drew a tablet in some frames and a book in others). Same prop, all 8 frames. See `references/animation-rows-lite.md` → *prop doctrine*.
 

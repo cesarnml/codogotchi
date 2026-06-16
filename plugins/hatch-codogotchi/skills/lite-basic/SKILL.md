@@ -17,6 +17,10 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 
 **Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 3×3 Lite-Basic animation sheet per row**: exact 576×624 px, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `frames/lite-basic/<row>/f01.png` … `f08.png`. Do **not** request a complete atlas or an unconstrained horizontal strip.
 
+**Non-negotiable row gate:** finish one row completely before generating the next: generate → slice → stitch → `inspect_frames.py` → visual review of the row strip. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
+
+**Chroma default:** `--chroma auto` now means **magenta by default** (`#ff00ff`) to avoid green-key damage to greenish eyes, hair highlights, props, and effects. Use fixed `--chroma 00ff00` only when magenta/purple foreground details make magenta unsafe.
+
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that produces a clean result**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended speedup, not a hard requirement.
 
 **Which skill?**
@@ -60,7 +64,7 @@ python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
 # 3. For each of the 9 rows, in order, use built-in image_gen sheet-first:
 #    generate one exact 576x624 3x3 row sheet into sheets/lite-basic/<row>.png.
 #    Cells 1-8 are the animation; cell 9 is empty. Use the chroma named in the
-#    sheet prompt, usually #00ff00; green-sensitive rows switch to #ff00ff.
+#    sheet prompt; auto defaults to #ff00ff to protect greenish eyes/details.
 #    Prop must stay clearly drawn + identical across frames; seed.png attached.
 #    Then:
 python scripts/slice_animation_sheet.py --sheet run/<pet-id>/sheets/lite-basic/<row>.png --out-dir run/<pet-id>/frames/lite-basic/<row>/ --chroma <00ff00-or-ff00ff>
@@ -71,10 +75,12 @@ python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-basic/<row>.png --
 python scripts/compose_atlas.py --rows-dir run/<pet-id>/rows/lite-basic/ --tier lite-basic --out run/<pet-id>/codogotchi-lite-basic-spritesheet.png
 cwebp -lossless -exact run/<pet-id>/codogotchi-lite-basic-spritesheet.png -o run/<pet-id>/codogotchi-lite-basic-spritesheet.webp
 
-# 5. Validate + QA
-python scripts/validate_atlas.py            --atlas run/<pet-id>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
+# 5. Validate + mandatory QA gate
+python scripts/validate_atlas.py            --atlas run/<pet-id>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --out-json run/<pet-id>/validate-lite-basic.json
 python scripts/make_contact_sheet.py        --atlas run/<pet-id>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
 python scripts/render_animation_previews.py --atlas run/<pet-id>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
+python scripts/make_qa_crop_sheet.py        --atlas run/<pet-id>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --fail-on-warnings
+python scripts/pre_install_qa_gate.py       --atlas run/<pet-id>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
 
 # 6. Install (do NOT overwrite spritesheet.webp or pet.json)
 cp run/<pet-id>/codogotchi-lite-basic-spritesheet.webp "${CODOGOTCHI_HOME:-$HOME/.codogotchi}/pets/<pet-id>/"
@@ -102,7 +108,13 @@ If one cell fails after `slice_animation_sheet.py`, inspect the failure contact 
 - [ ] **No frame's content height deviates >15% from its row median**
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as `seed.png`
 - [ ] Style/palette/proportions match the existing `spritesheet.webp`
+- [ ] `validate-lite-basic.json`, `contact-lite-basic.png`, `previews-lite-basic/`, `qa-crops-lite-basic.png`, and `qa-crops-lite-basic.json` exist and are newer than the final atlas
+- [ ] `pre_install_qa_gate.py` passed before install; any waived crop warnings are named explicitly
 - [ ] `spritesheet.webp` and `pet.json` unchanged; app shows Lite animations after quit-reopen
+
+## Final response checklist
+
+Before saying done, report: rows generated or repaired; chroma used per row; validation command/result; contact sheet, preview directory, crop sheet/report, and pre-install gate paths; known compromises or waived warnings. If the tier was completed unusually quickly, state what was compressed, reused, skipped, or waived. Script validation alone is not QA.
 
 ## Related
 `SKILL-lite-enhanced.md` (next, requires this) · `SKILL-codex-and-lite-basic.md` · `SKILL-soa.md` · `references/animation-rows-lite.md`

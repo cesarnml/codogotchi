@@ -13,6 +13,10 @@ Generate the **Tier 4 (SoA)** sprite sheet for an existing Codogotchi pet — th
 
 **Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 3×3 SoA animation sheet per row**: exact 576×624 px, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `frames/soa/<row>/f01.png` … `f08.png`. Do **not** use image generation to output a complete atlas or an unconstrained horizontal strip.
 
+**Non-negotiable row gate:** finish one row completely before generating the next: generate → slice → stitch → `inspect_frames.py` → visual review of the row strip. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
+
+**Chroma default:** `--chroma auto` now means **magenta by default** (`#ff00ff`) to avoid green-key damage to greenish eyes, hair highlights, props, and effects. Use fixed `--chroma 00ff00` only when magenta/purple foreground details make magenta unsafe.
+
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that preserves the emotional beat**. Many SoA rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a preferred optimization, not a universal law.
 
 ---
@@ -39,7 +43,7 @@ python scripts/extract_seed_from_codex.py \
   --out run/<pet-id>/seed.png
 ```
 
-This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` background. Inspect `seed.png`; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every frame generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. For generated SoA frames, default chroma mode is `auto`: `#00ff00` normally, `#ff00ff` for green-sensitive rows like `green-tdd` and `review-clean`.
+This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` background. Inspect `seed.png`; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every frame generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. For generated SoA frames, default chroma mode is `auto`: `#ff00ff` to protect greenish eyes/details. Use fixed `#00ff00` only when magenta/purple foreground details make magenta unsafe.
 
 ---
 
@@ -67,7 +71,7 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` backgrou
 
 Identical to `hatch-codogotchi-lite`:
 
-- **Background:** use the solid chroma named in the prompt (`#00ff00` normally, `#ff00ff` for green-sensitive rows) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
+- **Background:** use the solid chroma named in the prompt (`#ff00ff` by default in auto mode; fixed `#00ff00` only when magenta/purple foreground makes magenta unsafe) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
 - **Padding:** ≥ 8 px all sides; nothing touches an edge.
 - **Scale registration:** one shared scale per row (tallest frame sets it).
 - **Horizontal registration:** character/content stays on a stable x-axis in every 192×208 cell; no left/right hopping. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
@@ -177,7 +181,8 @@ cwebp -lossless -exact run/<pet-id>/codogotchi-soa-spritesheet.png \
 ```bash
 python scripts/validate_atlas.py \
   --atlas run/<pet-id>/codogotchi-soa-spritesheet.webp \
-  --tier soa
+  --tier soa \
+  --out-json run/<pet-id>/validate-soa.json
 ```
 
 ### Step 7 — QA contact sheet and preview GIFs
@@ -186,6 +191,10 @@ python scripts/validate_atlas.py \
 python scripts/make_contact_sheet.py \
   --atlas run/<pet-id>/codogotchi-soa-spritesheet.webp --tier soa
 python scripts/render_animation_previews.py \
+  --atlas run/<pet-id>/codogotchi-soa-spritesheet.webp --tier soa
+python scripts/make_qa_crop_sheet.py \
+  --atlas run/<pet-id>/codogotchi-soa-spritesheet.webp --tier soa --fail-on-warnings
+python scripts/pre_install_qa_gate.py \
   --atlas run/<pet-id>/codogotchi-soa-spritesheet.webp --tier soa
 ```
 
@@ -252,7 +261,13 @@ Key distinctions to preserve:
 - [ ] Loop closes: frame 8 flows back to frame 1
 - [ ] All 10 rows have meaningfully distinct visual language from each other
 - [ ] Installed as `codogotchi-soa-spritesheet.webp` beside existing `spritesheet.webp`
+- [ ] `validate-soa.json`, `contact-soa.png`, `previews-soa/`, `qa-crops-soa.png`, and `qa-crops-soa.json` exist and are newer than the final atlas
+- [ ] `pre_install_qa_gate.py` passed before install; any waived crop warnings are named explicitly
 - [ ] App shows SoA animations when gate.json is active (requires hooks installed)
+
+## Final response checklist
+
+Before saying done, report: rows generated or repaired; chroma used per row; validation command/result; contact sheet, preview directory, crop sheet/report, and pre-install gate paths; known compromises or waived warnings. If the tier was completed unusually quickly, state what was compressed, reused, skipped, or waived. Script validation alone is not QA.
 
 ---
 

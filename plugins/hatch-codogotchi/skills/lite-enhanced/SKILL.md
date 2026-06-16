@@ -21,6 +21,10 @@ The Lite-Basic sheet is also used as an **extra style reference** alongside the 
 
 **Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 3×3 Lite-Enhanced animation sheet per row**: exact 576×624 px, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `f01.png` … `f08.png`. Do **not** request a complete atlas or an unconstrained horizontal strip.
 
+**Non-negotiable row gate:** finish one row completely before generating the next: generate → slice → stitch → `inspect_frames.py` → visual review of the row strip. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
+
+**Chroma default:** `--chroma auto` now means **magenta by default** (`#ff00ff`) to avoid green-key damage to greenish eyes, hair highlights, props, and effects. Use fixed `--chroma 00ff00` only when magenta/purple foreground details make magenta unsafe.
+
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that still feels polished**. Many Enhanced rows can be produced faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is guidance, not dogma.
 
 ---
@@ -70,10 +74,12 @@ python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-enhanced/<row>.png
 python scripts/compose_atlas.py --rows-dir run/<pet-id>/rows/lite-enhanced/ --tier lite-enhanced --out run/<pet-id>/codogotchi-lite-enhanced-spritesheet.png
 cwebp -lossless -exact run/<pet-id>/codogotchi-lite-enhanced-spritesheet.png -o run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp
 
-# 5. Validate + QA
-python scripts/validate_atlas.py            --atlas run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
+# 5. Validate + mandatory QA gate
+python scripts/validate_atlas.py            --atlas run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced --out-json run/<pet-id>/validate-lite-enhanced.json
 python scripts/make_contact_sheet.py        --atlas run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
 python scripts/render_animation_previews.py --atlas run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
+python scripts/make_qa_crop_sheet.py        --atlas run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced --fail-on-warnings
+python scripts/pre_install_qa_gate.py       --atlas run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
 
 # 6. Install alongside Basic (do NOT overwrite spritesheet.webp, the Basic sheet, or pet.json)
 cp run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp "${CODOGOTCHI_HOME:-$HOME/.codogotchi}/pets/<pet-id>/"
@@ -102,7 +108,13 @@ If one cell fails after `slice_animation_sheet.py`, inspect the failure contact 
 - [ ] **No frame's content height deviates >15% from its row median**
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as `seed.png` and the Basic sheet
 - [ ] Style/palette/proportions match the Basic + Codex sheets
+- [ ] `validate-lite-enhanced.json`, `contact-lite-enhanced.png`, `previews-lite-enhanced/`, `qa-crops-lite-enhanced.png`, and `qa-crops-lite-enhanced.json` exist and are newer than the final atlas
+- [ ] `pre_install_qa_gate.py` passed before install; any waived crop warnings are named explicitly
 - [ ] `spritesheet.webp`, the Basic sheet, and `pet.json` unchanged; app shows Enhanced animations after quit-reopen
+
+## Final response checklist
+
+Before saying done, report: rows generated or repaired; chroma used per row; validation command/result; contact sheet, preview directory, crop sheet/report, and pre-install gate paths; known compromises or waived warnings. If the tier was completed unusually quickly, state what was compressed, reused, skipped, or waived. Script validation alone is not QA.
 
 ## Related
 `SKILL-lite-basic.md` (prerequisite) · `SKILL-codex-and-lite-full.md` · `SKILL-soa.md` · `references/animation-rows-lite.md`

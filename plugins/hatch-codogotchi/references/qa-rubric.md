@@ -42,6 +42,20 @@ Use this checklist after composing each atlas and again after final installation
 
 - [ ] No frame's visible content center drifts far from the row median x-axis. The pet should not hop left/right inside the 192×208 cell. For prop-heavy rows, use this as a guardrail and verify by eye that the character body, not the prop-heavy bbox, stays horizontally stable.
 
+### Face/prop crop QA (run via `make_qa_crop_sheet.py`)
+
+- [ ] `qa-crops-<tier>.png` exists and was generated from the final atlas
+- [ ] `qa-crops-<tier>.json` exists and has no unwaived warnings
+- [ ] No face crop has likely green/magenta residue pixels
+- [ ] No face crop has enclosed transparent holes that suggest key-damaged eyes, masks, or missing highlights
+- [ ] Prop crops preserve the named prop in every frame
+
+### Pre-install gate (run via `pre_install_qa_gate.py`)
+
+- [ ] `validate-<tier>.json`, `contact-<tier>.png`, `qa-crops-<tier>.png`, `qa-crops-<tier>.json`, and `previews-<tier>/*.gif` are present
+- [ ] All QA artifacts are newer than the final atlas being installed
+- [ ] No crop QA warnings are waived silently; any waiver is named in the final response
+
 ---
 
 ## Eyeball checks (manual — cannot be automated)
@@ -63,6 +77,7 @@ For each row in each sheet:
 - [ ] **Baseline consistency:** feet stay on the same y-line across all 8 frames, near the bottom of the cell; do not vertically center ordinary standing rows
 - [ ] **Character fidelity:** character matches the seed image — same proportions, outfit, hair, palette, linework
 - [ ] **Clean edges:** no chroma fringe, no hard box outline around the character
+- [ ] **Clean face/eyes:** no key-colour holes, masks, missing irises/highlights, or chroma-damaged eye pixels. Green chroma is not safe for green-eyed or green-highlighted pets; prefer magenta unless magenta/purple foreground details make that unsafe.
 
 ### Emotional distinctness
 
@@ -126,6 +141,24 @@ Do not fix padding/scale failures by code-transforming the existing frames — t
 - [ ] Lite-Enhanced is only installed alongside Lite-Basic (Enhanced requires Basic)
 - [ ] All files in `~/.codogotchi/pets/<id>/` (or `$CODOGOTCHI_HOME/pets/<id>/`)
 - [ ] App quit and relaunched (or pet re-selected in Settings → Pet) after installation
+
+Before copying any generated sheet into the pet directory, run:
+
+```bash
+python scripts/validate_atlas.py --atlas run/<pet>/<sheet>.webp --tier <tier> --out-json run/<pet>/validate-<tier>.json
+python scripts/make_contact_sheet.py --atlas run/<pet>/<sheet>.webp --tier <tier>
+python scripts/render_animation_previews.py --atlas run/<pet>/<sheet>.webp --tier <tier>
+python scripts/make_qa_crop_sheet.py --atlas run/<pet>/<sheet>.webp --tier <tier> --fail-on-warnings
+python scripts/pre_install_qa_gate.py --atlas run/<pet>/<sheet>.webp --tier <tier>
+```
+
+Final response checklist:
+
+- [ ] Rows generated or repaired
+- [ ] Chroma used per row, including any fixed green override
+- [ ] Validation command and result
+- [ ] Contact sheet, preview directory, crop sheet/report, and pre-install gate paths
+- [ ] Known compromises or waived warnings, if any
 
 ---
 

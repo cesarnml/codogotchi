@@ -23,6 +23,10 @@ Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 **Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one row candidate per row**. Preferred source layout is exact `3×3`: `576×624`, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Accepted fallback source layout is `4×2`: `768×416`, eight 192×208 cells, no ninth cell. Then run `normalize_generated_sheet.py` to convert the row candidate into the exact canonical `3×3` sheet, then `slice_animation_sheet.py` to validate, normalize chroma, and write `f01.png` … `f08.png`; stitch and inspect the row before moving on. Do **not** generate a whole atlas or an unconstrained horizontal strip.
 
+**Non-negotiable row gate:** finish one row completely before generating the next: generate → normalize → slice → stitch → `inspect_frames.py` → visual review of the row strip. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
+
+**Chroma default:** `--chroma auto` now means **magenta by default** (`#ff00ff`) to avoid green-key damage to greenish eyes, hair highlights, props, and effects. Use fixed `--chroma 00ff00` only when magenta/purple foreground details make magenta unsafe.
+
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that still looks good in motion**. In practice, many rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. Treat this as a production shortcut, not a rigid rule.
 
 ---
@@ -47,13 +51,13 @@ Quality caveats for the recommended pattern:
 
 ## Character source
 
-- **Seed image (recommended):** a 192 × 208 neutral standing pose on a solid chroma background. Row prompts use `#00ff00` normally and switch to `#ff00ff` automatically for green-sensitive rows.
-- **Seed-risk note:** brown/green-heavy anime seeds are prone to green spill and greenish edge contamination. Prefer `--chroma auto` and switch to `#ff00ff` immediately for affected rows instead of forcing green.
+- **Seed image (recommended):** a 192 × 208 neutral standing pose on a solid chroma background. Row prompts use `#ff00ff` by default in `--chroma auto` to protect greenish eyes/details.
+- **Seed-risk note:** brown/green-heavy anime seeds are prone to green spill and greenish edge contamination. Prefer `--chroma auto`; use fixed green only when magenta/purple foreground details make magenta unsafe.
 - **Text description:** generate the Codex `idle` row first, save its frame 1 as `seed.png`, and attach it to every subsequent call as the character anchor.
 
 ## Row-kind constraints
 
-All rows: solid prompt-selected chroma bg (`#00ff00` normally, `#ff00ff` for green-sensitive rows) · perfectly flat key with no falloff/shadow/texture/halo · 3×3 sheet cells strictly respect 192×208 boundaries · cell 9 empty · ≥ 8 px padding all sides · one shared scale per row, per-frame height within ±15% of median · seed is sole style reference.
+All rows: solid prompt-selected chroma bg (`#ff00ff` by default in auto mode; fixed `#00ff00` only when magenta is unsafe) · perfectly flat key with no falloff/shadow/texture/halo · 3×3 sheet cells strictly respect 192×208 boundaries · cell 9 empty · ≥ 8 px padding all sides · one shared scale per row, per-frame height within ±15% of median · seed is sole style reference.
 
 Standing/status rows: shared bottom baseline `y = 208 − 8 − scaled_h`, body and feet anchored, one small moving element, loop closes (frame 8 ≈ frame 1).
 
@@ -72,8 +76,8 @@ python scripts/prepare_pet_run.py --seed path/to/seed.png \
 
 # 2. Use Codex's built-in image_gen tool to generate ONE row candidate at a time.
 #    Use sheet-prompts/<tier>/<row>.txt. Save each result to
-#    run/<slug>/sheets/<tier>/<row>.png. The prompt-selected chroma is #00ff00
-#    normally and #ff00ff for green-sensitive rows. `3x3` is preferred; `4x2`
+#    run/<slug>/sheets/<tier>/<row>.png. The prompt-selected chroma is #ff00ff
+#    by default in auto mode. `3x3` is preferred; `4x2`
 #    is an accepted fallback when the model packs 8 frames more reliably that way.
 #    Do not ask for a whole atlas or an unconstrained horizontal strip.
 
@@ -89,11 +93,17 @@ python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-basic/ --tier li
 cwebp -lossless -exact run/<slug>/spritesheet.png                       -o run/<slug>/spritesheet.webp
 cwebp -lossless -exact run/<slug>/codogotchi-lite-basic-spritesheet.png -o run/<slug>/codogotchi-lite-basic-spritesheet.webp
 
-# 5. Validate + QA
-python scripts/validate_atlas.py            --atlas run/<slug>/spritesheet.webp                       --tier codex
-python scripts/validate_atlas.py            --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
+# 5. Validate + mandatory QA gate for every installed atlas
+python scripts/validate_atlas.py            --atlas run/<slug>/spritesheet.webp                       --tier codex      --out-json run/<slug>/validate-codex.json
+python scripts/make_contact_sheet.py        --atlas run/<slug>/spritesheet.webp                       --tier codex
+python scripts/render_animation_previews.py --atlas run/<slug>/spritesheet.webp                       --tier codex
+python scripts/make_qa_crop_sheet.py        --atlas run/<slug>/spritesheet.webp                       --tier codex --fail-on-warnings
+python scripts/pre_install_qa_gate.py       --atlas run/<slug>/spritesheet.webp                       --tier codex
+python scripts/validate_atlas.py            --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --out-json run/<slug>/validate-lite-basic.json
 python scripts/make_contact_sheet.py        --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
 python scripts/render_animation_previews.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
+python scripts/make_qa_crop_sheet.py        --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --fail-on-warnings
+python scripts/pre_install_qa_gate.py       --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
 
 # 6. Write pet.json + install
 python scripts/prepare_pet_run.py --write-pet-json --run-dir run/<slug>/
@@ -128,9 +138,14 @@ If one cell fails after `slice_animation_sheet.py`, inspect the failure contact 
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
 - [ ] **No frame's content height deviates >15% from its row median**
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`
+- [ ] Validation JSON, contact sheet, previews, crop sheet/report, and `pre_install_qa_gate.py` pass for every installed atlas
 - [ ] Character consistent across all 18 rows
 - [ ] `pet.json` present with `"id"`, `"displayName"`, and `"spritesheetPath": "spritesheet.webp"`; app shows pet after quit-reopen
 - [ ] Every row candidate declares `sourceLayout` (`3x3` preferred, `4x2` accepted fallback) and is normalized back to canonical `3x3` before slicing
+
+## Final response checklist
+
+Before saying done, report: rows generated or repaired; chroma used per row; validation command/result; contact sheet, preview directory, crop sheet/report, and pre-install gate paths for every installed atlas; known compromises or waived warnings. If the tier was completed unusually quickly, state what was compressed, reused, skipped, or waived. Script validation alone is not QA.
 
 ## Related
 `SKILL-codex-and-lite-full.md` · `SKILL-lite-basic.md` · `SKILL-lite-enhanced.md` · `SKILL-soa.md` · `references/animation-rows-lite.md`

@@ -22,6 +22,10 @@ Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 **Execution model:** for every tier, default to **sheet-first** generation. Codex uses its built-in `image_gen` tool to generate **one row candidate per row**. Preferred source layout is exact `3×3`: `576×624`, nine 192×208 cells, cells 1–8 populated in reading order, cell 9 empty. Accepted fallback source layout is `4×2`: `768×416`, eight 192×208 cells, no ninth cell. The local Python scripts then normalize that row candidate into the exact canonical `3×3` sheet, slice it, normalize chroma, stitch those frames into row strips, inspect them, and compose the finished atlas. Do **not** use image generation to output an entire atlas or an unconstrained horizontal strip.
 
+**Non-negotiable row gate:** finish one row completely before generating the next: generate → normalize → slice → stitch → `inspect_frames.py` → visual review of the row strip. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
+
+**Chroma default:** `--chroma auto` now means **magenta by default** (`#ff00ff`) to avoid green-key damage to greenish eyes, hair highlights, props, and effects. Use fixed `--chroma 00ff00` only when magenta/purple foreground details make magenta unsafe.
+
 **Recommended production pattern:** for each row, generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that preserves motion quality**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended acceleration pattern, not a hard requirement.
 
 ---
@@ -46,7 +50,7 @@ Quality caveats for the recommended pattern:
 
 ## Workflow (three sheets, in order)
 
-Use the same pipeline per sheet — prepare → generate row candidate (`3×3` preferred, `4×2` accepted) → normalize to canonical `3×3` → slice → stitch → inspect → compose → validate → install. Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on a solid chroma background, or a `--description` (generate Codex `idle` first, save its frame 1 as `seed.png`). Default chroma mode is `auto`: `#00ff00` normally, `#ff00ff` for green-sensitive rows such as `green-tdd`, `review-clean`, `verifying`, and `web-search`. Brown/green-heavy anime seeds are high-risk for green spill; prefer `--chroma auto` and switch affected rows to magenta early.
+Use the same pipeline per sheet — prepare → generate row candidate (`3×3` preferred, `4×2` accepted) → normalize to canonical `3×3` → slice → stitch → inspect → compose → validate → mandatory QA gate → install. Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on a solid chroma background, or a `--description` (generate Codex `idle` first, save its frame 1 as `seed.png`). Default chroma mode is `auto`: `#ff00ff` to protect greenish eyes/details. Use fixed `#00ff00` only when magenta/purple foreground details make magenta unsafe.
 
 ```bash
 # ---- Tier 1: Codex ----
@@ -55,7 +59,11 @@ python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --tier cod
 #   normalize+slice+stitch+inspect each before composing
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/codex/ --tier codex --out run/<slug>/spritesheet.png
 cwebp -lossless -exact run/<slug>/spritesheet.png -o run/<slug>/spritesheet.webp
-python scripts/validate_atlas.py --atlas run/<slug>/spritesheet.webp --tier codex
+python scripts/validate_atlas.py --atlas run/<slug>/spritesheet.webp --tier codex --out-json run/<slug>/validate-codex.json
+python scripts/make_contact_sheet.py --atlas run/<slug>/spritesheet.webp --tier codex
+python scripts/render_animation_previews.py --atlas run/<slug>/spritesheet.webp --tier codex
+python scripts/make_qa_crop_sheet.py --atlas run/<slug>/spritesheet.webp --tier codex --fail-on-warnings
+python scripts/pre_install_qa_gate.py --atlas run/<slug>/spritesheet.webp --tier codex
 
 # ---- Tier 2: Lite-Basic (uses Codex/seed as style ref) ----
 python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-basic --chroma auto --source-layout 3x3
@@ -63,7 +71,11 @@ python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <
 #   normalize+slice+stitch+inspect each before composing
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-basic/ --tier lite-basic --out run/<slug>/codogotchi-lite-basic-spritesheet.png
 cwebp -lossless -exact run/<slug>/codogotchi-lite-basic-spritesheet.png -o run/<slug>/codogotchi-lite-basic-spritesheet.webp
-python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
+python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --out-json run/<slug>/validate-lite-basic.json
+python scripts/make_contact_sheet.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
+python scripts/render_animation_previews.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
+python scripts/make_qa_crop_sheet.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --fail-on-warnings
+python scripts/pre_install_qa_gate.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
 
 # ---- Tier 3: Lite-Enhanced (REQUIRES the Basic sheet; attach BOTH seed.png AND the Basic sheet as refs) ----
 python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <slug> --tier lite-enhanced --chroma auto --source-layout 3x3
@@ -71,7 +83,11 @@ python scripts/prepare_pet_run.py --seed seed.png --pet-name "My Pet" --pet-id <
 #   normalize+slice+stitch+inspect each before composing
 python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-enhanced/ --tier lite-enhanced --out run/<slug>/codogotchi-lite-enhanced-spritesheet.png
 cwebp -lossless -exact run/<slug>/codogotchi-lite-enhanced-spritesheet.png -o run/<slug>/codogotchi-lite-enhanced-spritesheet.webp
-python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
+python scripts/validate_atlas.py --atlas run/<slug>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced --out-json run/<slug>/validate-lite-enhanced.json
+python scripts/make_contact_sheet.py --atlas run/<slug>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
+python scripts/render_animation_previews.py --atlas run/<slug>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
+python scripts/make_qa_crop_sheet.py --atlas run/<slug>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced --fail-on-warnings
+python scripts/pre_install_qa_gate.py --atlas run/<slug>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
 
 # ---- Install ----
 python scripts/prepare_pet_run.py --write-pet-json --run-dir run/<slug>/
@@ -112,8 +128,13 @@ If one cell fails after `slice_animation_sheet.py`, inspect the failure contact 
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
 - [ ] **No frame's content height deviates >15% from its row median**
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`
+- [ ] Validation JSON, contact sheet, previews, crop sheet/report, and `pre_install_qa_gate.py` pass for every installed atlas
 - [ ] Character consistent across all 26 rows; `pet.json` present with `"spritesheetPath": "spritesheet.webp"`; app shows pet + all tiers after quit-reopen
 - [ ] Every row candidate declares `sourceLayout` (`3x3` preferred, `4x2` accepted fallback) and is normalized back to canonical `3x3` before slicing
+
+## Final response checklist
+
+Before saying done, report: rows generated or repaired; chroma used per row; validation command/result; contact sheet, preview directory, crop sheet/report, and pre-install gate paths for every installed atlas; known compromises or waived warnings. If the tier was completed unusually quickly, state what was compressed, reused, skipped, or waived. Script validation alone is not QA.
 
 ## Related
 `SKILL-codex-and-lite-basic.md` · `SKILL-lite-basic.md` · `SKILL-lite-enhanced.md` · `SKILL-soa.md` · `references/animation-rows-lite.md`

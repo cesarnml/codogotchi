@@ -245,7 +245,7 @@ STYLE_PRESETS = {
     "auto": "infer style from seed image",
 }
 
-DEFAULT_CHROMA = "00ff00"
+DEFAULT_CHROMA = "ff00ff"
 GREEN_SENSITIVE_CHROMA = "ff00ff"
 GREEN_SENSITIVE_ROWS = {
     "green-tdd",
@@ -286,11 +286,9 @@ def slugify(name: str) -> str:
 
 
 def resolve_chroma(row_label: str, chroma: str) -> str:
-    """Pick a row-safe chroma. 'auto' switches green-sensitive rows to magenta."""
+    """Pick a row-safe chroma. 'auto' defaults to magenta to protect greenish eyes/details."""
     if chroma != "auto":
         return chroma.lower().lstrip("#")
-    if row_label in GREEN_SENSITIVE_ROWS:
-        return GREEN_SENSITIVE_CHROMA
     return DEFAULT_CHROMA
 
 
@@ -354,6 +352,7 @@ FRAME CONSTRAINTS (apply to every frame):
   height, same body scale. A frame drawn noticeably larger/smaller than its rowmates is a REJECT — regenerate it.
 - No floor line, shadow, border, guide, label, number, or text
 - No #{chroma} or near-chroma contamination on character/effects
+- Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
 - The character must be GENUINELY IN THIS FRAME'S DISTINCT POSE — do not copy-transform the seed
 
 Loop contract: frame 8 pose ≈ frame 1 pose so the row plays as a seamless continuous loop.
@@ -393,6 +392,7 @@ FRAME CONSTRAINTS (apply to every frame):
   height, same body scale. A frame drawn noticeably larger/smaller than its rowmates is a REJECT — regenerate it.
 - No floor line, shadow, border, guide, label, number, or text
 - No #{chroma} or near-chroma contamination on character/effects
+- Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
 - The character must be GENUINELY IN THIS FRAME'S DISTINCT POSE
 
 After completing the Codex idle row: save frame 1 of idle as seed.png and attach it to ALL subsequent generation calls alongside this prompt, to anchor character consistency.
@@ -459,6 +459,7 @@ CELL CONSTRAINTS:
 - Padding: at least 8 px on all sides inside each 192 × 208 cell.
 - Same character scale and baseline across all 8 populated cells.
 - No #{chroma} or near-#{chroma} contamination on character, props, or effects.
+- Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
 - Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
 """
 
@@ -496,6 +497,7 @@ CELL CONSTRAINTS:
 - Padding: at least 8 px on all sides inside each 192 × 208 cell.
 - Same character scale and baseline across all 8 populated cells.
 - No #{chroma} or near-#{chroma} contamination on character, props, or effects.
+- Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
 - Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
 
 After completing the Codex idle row: save frame 1 of idle as seed.png and attach it to ALL subsequent
@@ -531,7 +533,7 @@ def main() -> None:
         "--chroma",
         default="auto",
         help="Chroma-key hex colour (no #), or 'auto' to use row-safe defaults "
-             "(00ff00 normally, ff00ff for green-sensitive rows)",
+             "(ff00ff by default; use 00ff00 only when magenta/purple foreground makes magenta unsafe)",
     )
     parser.add_argument("--tier",
                         choices=["codex", "lite-basic", "lite-enhanced", "soa", "all"], default="all",
@@ -706,16 +708,16 @@ def main() -> None:
         print(f"Total frames to generate: {total_frames}")
     print(f"Job manifest: {jobs_path}")
     if args.chroma == "auto":
-        sensitive = ", ".join(sorted(GREEN_SENSITIVE_ROWS))
         print(
-            f"Chroma mode: auto ({DEFAULT_CHROMA} normally; {GREEN_SENSITIVE_CHROMA} for green-sensitive rows: {sensitive})"
+            "Chroma mode: auto (#ff00ff by default to protect greenish eyes/details; "
+            "use --chroma 00ff00 only when magenta/purple foreground makes magenta unsafe)"
         )
     else:
         print(f"Chroma mode: fixed #{args.chroma.lower().lstrip('#')}")
     if args.generation_mode == "sheet-first":
         print(
-            "\nSeed-risk note: for brown/green-heavy anime seeds, prefer --chroma auto or immediate magenta "
-            "fallback because green edge spill is common."
+            "\nSeed-risk note: green chroma commonly damages brown/green-heavy anime eyes, hair, props, or effects. "
+            "Keep --chroma auto unless magenta/purple foreground makes magenta unsafe."
         )
         print(f"\nNext: generate one {args.source_layout} row sheet at a time using sheet-prompts/<tier>/<label>.txt")
         print("      Save to sheets/<tier>/<label>.png, then normalize to exact 3x3:")
