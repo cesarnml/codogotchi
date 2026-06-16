@@ -809,8 +809,11 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 			row.alignment = .top
 			row.spacing = cardSpacing
 			row.translatesAutoresizingMaskIntoConstraints = false
-			row.widthAnchor.constraint(equalTo: gridStack.widthAnchor).isActive = true
 			gridStack.addArrangedSubview(row)
+			// Pin width only after the row joins the stack — activating a
+			// cross-view constraint before they share an ancestor throws
+			// NSGenericException and aborts the whole Settings window.
+			row.widthAnchor.constraint(equalTo: gridStack.widthAnchor).isActive = true
 			index += columns
 		}
 		sizeDocumentToFit()
