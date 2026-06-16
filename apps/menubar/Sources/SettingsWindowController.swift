@@ -587,7 +587,10 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 
 	private let searchField = NSSearchField()
 	private let gridScrollView = NSScrollView()
-	private let gridStack = NSStackView()
+	/// Flipped so a short grid (few search results) anchors to the TOP of the
+	/// scroll area. A default non-flipped document view sinks short content to
+	/// the bottom — the scroll origin sits bottom-left.
+	private let gridStack = FlippedStackView()
 	private let emptyLabel = NSTextField(labelWithString: "")
 	private let footerLabel = NSTextField(labelWithString: "")
 	private let feedbackLabel = NSTextField(wrappingLabelWithString: "")
@@ -980,6 +983,12 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 }
 
 private var actionKey: UInt8 = 0
+
+/// Top-left origin so a short pet grid anchors to the top of its scroll view
+/// instead of sinking to the bottom (the default non-flipped behavior).
+private final class FlippedStackView: NSStackView {
+	override var isFlipped: Bool { true }
+}
 
 // MARK: - RPGTabView
 
