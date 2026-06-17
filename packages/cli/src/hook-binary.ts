@@ -165,11 +165,7 @@ const WEB_SEARCH_TOOL_NAMES = new Set([
 ]);
 
 // Codebase exploration: search/query commands that never write.
-const SEARCHING_BASH_PREFIXES = [
-  "grep",
-  "find",
-  "rg",
-];
+const SEARCHING_BASH_PREFIXES = ["grep", "find", "rg"];
 
 // Git operations: both read-only inspection (log, diff, status, blame, show) and
 // state-changing commands. `git branch` is excluded — it's both a read (list/show)
