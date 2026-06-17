@@ -19,6 +19,13 @@ When invoking a review subagent during orchestrated delivery:
 - **Adversarial prompt required:** assume the implementation has holes. Do not rationalize away anything you notice — flag it and let the human decide. A "did the spec land?" checklist is not a review.
 - **No rationalizing findings:** report everything you find. The human decides what to act on.
 
+## .son-of-anton Subtree — Never Edit Directly
+
+**Do not modify any file inside `.son-of-anton/` in this repo.** It is a read-only git subtree pulled from `cesarnml/son-of-anton`. Direct edits will not propagate to other consumer repos and will be overwritten on the next `/soa update`.
+
+- SoA tooling changes belong in `cesarnml/son-of-anton`. Upstream first, then pull via `/soa update`.
+- If you spot a needed change inside `.son-of-anton/`, stop and tell the developer — do not patch in place.
+
 ## Pre-Commit
 
 **Prerequisite:** Son-of-Anton requires a global `bun` install. All CLI delivery commands run via `bun run deliver …`.
