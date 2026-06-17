@@ -1,4 +1,5 @@
 <!-- soa:start -->
+
 ## Son-of-Anton Skill Triggers
 
 Use these skills when working in a consumer repo that has installed Son-of-Anton
@@ -20,6 +21,13 @@ When invoking a review subagent during orchestrated delivery:
 - **Adversarial prompt required:** assume the implementation has holes. Do not rationalize away anything you notice — flag it and let the human decide. A "did the spec land?" checklist is not a review.
 - **No rationalizing findings:** report everything you find. The human decides what to act on.
 
+## .son-of-anton Subtree — Never Edit Directly
+
+**Do not modify any file inside `.son-of-anton/` in this repo.** It is a read-only git subtree pulled from `cesarnml/son-of-anton`. Direct edits will not propagate to other consumer repos and will be overwritten on the next `/soa update`.
+
+- SoA tooling changes belong in `cesarnml/son-of-anton`. Upstream first, then pull via `/soa update`.
+- If you spot a needed change inside `.son-of-anton/`, stop and tell the developer — do not patch in place.
+
 ## Pre-Commit
 
 **Prerequisite:** Son-of-Anton requires a global `bun` install. All CLI delivery commands run via `bun run deliver …`.
@@ -27,4 +35,5 @@ When invoking a review subagent during orchestrated delivery:
 Before committing: run `bun run format` **first**, then stage, then commit. Use `bun run verify` (or `bun run verify:quiet`) and `bun run ci:quiet` as the final publication gate before opening a PR.
 
 **Orchestrator-written artifacts must be formatted before staging.** Files written by `bun run deliver` commands (review JSON, triage JSON, state files, handoffs) never pass through the editor and bypass format-on-save. Stage and commit them before running format and the next CI run will reformat them, leaving a trivially-dirty working tree. Always: format → stage → commit.
+
 <!-- soa:end -->

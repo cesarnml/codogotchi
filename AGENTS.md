@@ -1,4 +1,5 @@
 <!-- soa:start -->
+
 ## Son-of-Anton Skill Triggers
 
 Use these skills when working in a consumer repo that has installed Son-of-Anton
@@ -20,6 +21,13 @@ When invoking a review subagent during orchestrated delivery:
 - **Reconciliation:** run `reconcile-subagent-review` after subagent patches and before `open-pr`. Ledger outcomes are `clean | patched | deferred | skipped`. Use `record-deferred` or `open-pr --ack-reconciliation` when consciously not patching actionable findings.
 - **Adversarial prompt required:** the subagent prompt must assume the implementation has holes and find them. Do not rationalize away anything you notice — flag it and let the human decide. A checklist of "did the ticket spec land?" is not a review.
 - **No rationalizing away findings:** the subagent must not suppress or downplay what it finds. Flag everything; the human decides what to act on.
+
+## .son-of-anton Subtree — Never Edit Directly
+
+**Do not modify any file inside `.son-of-anton/` in this repo.** It is a read-only git subtree pulled from `cesarnml/son-of-anton`. Direct edits will not propagate to other consumer repos and will be overwritten on the next `/soa update`.
+
+- SoA tooling changes belong in `cesarnml/son-of-anton`. Upstream first, then pull via `/soa update`.
+- If you spot a needed change inside `.son-of-anton/`, stop and tell the developer — do not patch in place.
 
 ## Pre-Commit Discipline
 
@@ -77,4 +85,5 @@ When `codogotchi.enabled` is not set to `false` in `orchestrator.config.json` (t
 **The `~/.codogotchi/` directory is global and user-scoped** — not consumer-repo-local. No `.gitignore` entry is needed.
 
 > **Retired (as of Phase 17):** The previous `.soa/events.ndjson` NDJSON append writer is gone. Consumer repos should remove any `.soa/` gitignore entries and `soa-event-feed` references if present from Phase 15 installations.
+
 <!-- soa:end -->
