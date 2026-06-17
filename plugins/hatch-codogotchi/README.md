@@ -172,6 +172,10 @@ Tier 1 is required. Resolution order per render moment: **SoA → Enhanced → B
 ## Quick start — new pet from scratch
 
 ```bash
+# 0. Workspace — generated artifacts live OUTSIDE the repo, one folder per run.
+#    Run once from the plugin root; every `run/…` path below then resolves into $WORK.
+WORK="$HOME/Documents/Codex/$(date +%Y-%m-%d-%H%M%S)"; mkdir -p "$WORK"; ln -sfn "$WORK" run
+
 # 1. Prepare run with seed image (or --description "...")
 python scripts/prepare_pet_run.py \
   --seed my-pet-seed.png --pet-name "Beemo" --style plush

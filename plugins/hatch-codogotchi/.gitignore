@@ -1,0 +1,4 @@
+# Per-run hatch workspace. Generated artifacts belong under ~/Documents/Codex/<timestamp>/;
+# `run` is the symlink (or fallback dir) the skills create to point there. Never commit it.
+/run
+/run/
