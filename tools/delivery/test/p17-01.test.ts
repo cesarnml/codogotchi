@@ -45,6 +45,7 @@ describe('P17.01 — writeGateEvent produces gate.json with correct shape', () =
 
       const gateFile = join(home, 'gate.json');
       expect(existsSync(gateFile)).toBe(true);
+      expect(existsSync(join(home, 'delivery-context.json'))).toBe(true);
 
       const raw = await readFile(gateFile, 'utf8');
       const parsed = JSON.parse(raw);
@@ -55,12 +56,76 @@ describe('P17.01 — writeGateEvent produces gate.json with correct shape', () =
       expect(Number.isFinite(Date.parse(parsed.expires_at))).toBe(true);
       expect(parsed.plan_key).toBe('phase-17');
       expect(parsed.ticket_id).toBe('P17.01');
+
+      const contextRaw = await readFile(
+        join(home, 'delivery-context.json'),
+        'utf8',
+      );
+      const context = JSON.parse(contextRaw);
+      expect(context.owner).toBe('soa');
+      expect(context.status).toBe('active');
+      expect(context.repo_root).toBe(process.cwd());
+      expect(context.plan_key).toBe('phase-17');
+      expect(context.ticket_id).toBe('P17.01');
+      expect(context.last_gate).toBe('ticket_started');
+      expect(typeof context.updated_at).toBe('string');
+      expect(typeof context.lease_expires_at).toBe('string');
     } finally {
       delete process.env['CODOGOTCHI_HOME'];
     }
   });
 
-  it('sets expires_at to since + 180_000 ms (flat 3-minute TTL)', async () => {
+  it('writes cleared delivery-context.json for ticket_completed', async () => {
+    const home = makeTmpDir();
+    process.env['CODOGOTCHI_HOME'] = home;
+    try {
+      await writeGateEvent(enabledConfig(), {
+        gate: 'ticket_completed',
+        planKey: 'phase-17',
+        ticketId: 'P17.01',
+        repoRoot: '/tmp/soa-repo',
+      });
+
+      const raw = await readFile(join(home, 'delivery-context.json'), 'utf8');
+      const context = JSON.parse(raw);
+      expect(context.owner).toBe('soa');
+      expect(context.status).toBe('cleared');
+      expect(context.repo_root).toBe('/tmp/soa-repo');
+      expect(context.last_gate).toBe('ticket_completed');
+      expect(context.ticket_id).toBe('P17.01');
+    } finally {
+      delete process.env['CODOGOTCHI_HOME'];
+    }
+  });
+
+  it('appends gate-transitions.log with the same emitted gate payload', async () => {
+    const home = makeTmpDir();
+    process.env['CODOGOTCHI_HOME'] = home;
+    try {
+      await writeGateEvent(enabledConfig(), {
+        gate: 'ticket_started',
+        planKey: 'phase-17',
+        ticketId: 'P17.01',
+      });
+
+      const raw = await readFile(join(home, 'gate-transitions.log'), 'utf8');
+      const lines = raw.trim().split('\n');
+      expect(lines).toHaveLength(1);
+
+      const parsed = JSON.parse(lines[0]);
+      expect(parsed.gate).toBe('ticket_started');
+      expect(parsed.plan_key).toBe('phase-17');
+      expect(parsed.ticket_id).toBe('P17.01');
+      expect(typeof parsed.since).toBe('string');
+      expect(typeof parsed.expires_at).toBe('string');
+      expect(Number.isFinite(Date.parse(parsed.since))).toBe(true);
+      expect(Number.isFinite(Date.parse(parsed.expires_at))).toBe(true);
+    } finally {
+      delete process.env['CODOGOTCHI_HOME'];
+    }
+  });
+
+  it('sets expires_at to since + 30_000 ms (flat 30-second TTL)', async () => {
     const home = makeTmpDir();
     process.env['CODOGOTCHI_HOME'] = home;
     try {
@@ -74,7 +139,7 @@ describe('P17.01 — writeGateEvent produces gate.json with correct shape', () =
       const parsed = JSON.parse(raw);
       const since = Date.parse(parsed.since);
       const expiresAt = Date.parse(parsed.expires_at);
-      expect(expiresAt - since).toBe(180_000);
+      expect(expiresAt - since).toBe(30_000);
     } finally {
       delete process.env['CODOGOTCHI_HOME'];
     }
@@ -163,6 +228,7 @@ describe('P17.01 — CODOGOTCHI_HOME edge cases', () => {
         ticketId: 'P17.01',
       });
       expect(existsSync(join(home, 'gate.json'))).toBe(true);
+      expect(existsSync(join(home, 'gate-transitions.log'))).toBe(true);
     } finally {
       delete process.env['CODOGOTCHI_HOME'];
     }

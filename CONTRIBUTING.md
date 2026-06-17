@@ -4,6 +4,8 @@ Thanks for your interest. Son of Anton is a delivery orchestrator — the codeba
 
 **New here?** Read [How Son of Anton Works — A Newcomer's Mental Model](docs/how-son-of-anton-works.md) first. It builds the mental model (no prior knowledge assumed) and maps every concept to where it lives in the code, so the rest of this guide makes sense.
 
+By participating, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md). New here or contributing through a course? It opens with a short note for you.
+
 ## Prerequisites
 
 - [Bun](https://bun.sh) ≥ 1.0
@@ -78,6 +80,25 @@ There is no formal review SLA. Smaller, focused PRs move faster.
 ## What "advisory" means in this repo
 
 Several tools in the orchestrator run as "advisory" subagents — they report findings but do not commit or modify files. If you are building on the orchestrator, keep that invariant: subagent runners are stdout-only. The primary agent adjudicates and decides what to apply.
+
+## Picking an issue (difficulty points)
+
+Issues are labeled with a difficulty estimate on a Fibonacci scale, so you can match an issue to your comfort level. Higher is harder — it reflects breadth, design judgment, and how much of the codebase you have to hold in your head, not just lines of code.
+
+| Label           | Meaning                                                 |
+| --------------- | ------------------------------------------------------- |
+| `difficulty: 1` | Trivial — a one-liner or typo fix.                      |
+| `difficulty: 2` | Easy — a focused change with a clear pattern to copy.   |
+| `difficulty: 3` | Moderate — the sweet spot; some breadth or judgment.    |
+| `difficulty: 5` | Involved — touches multiple areas or needs design care. |
+| `difficulty: 8` | Hard — architectural; not a first issue.                |
+
+No issue is rated above `8`. **If you're new, start with a `2` or `3`** — that's the sweet spot for a satisfying first contribution. Save the `5`s and `8`s for after you've landed one. Browse open issues by difficulty:
+
+```bash
+gh issue list --label "difficulty: 2"
+gh issue list --label "difficulty: 3"
+```
 
 ## Getting oriented
 

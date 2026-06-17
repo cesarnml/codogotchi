@@ -42,6 +42,17 @@ async function readGate(home: string): Promise<Record<string, unknown>> {
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
+async function readGateTransitions(
+  home: string,
+): Promise<Array<Record<string, unknown>>> {
+  const raw = await readFile(join(home, 'gate-transitions.log'), 'utf8');
+  return raw
+    .trim()
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
 function makeTicket(
   id: string,
   status: TicketState['status'],
@@ -167,6 +178,13 @@ describe('P17.02 — emitGateForTransitions (replaces emitSoaEventsForTransition
       expect(gate['gate']).toBe('ticket_started');
       expect(gate['plan_key']).toBe(PLAN_KEY);
       expect(gate['ticket_id']).toBe('P17.02');
+
+      const transitions = await readGateTransitions(home);
+      expect(transitions).toHaveLength(2);
+      expect(transitions[0]?.['gate']).toBe('ticket_completed');
+      expect(transitions[0]?.['ticket_id']).toBe('P17.01');
+      expect(transitions[1]?.['gate']).toBe('ticket_started');
+      expect(transitions[1]?.['ticket_id']).toBe('P17.02');
     } finally {
       delete process.env['CODOGOTCHI_HOME'];
     }

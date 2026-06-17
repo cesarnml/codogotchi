@@ -17,6 +17,8 @@ It runs on the agent you already use — Codex, Cursor, Copilot, Claude, or
 anything else that reads `AGENTS.md`. The directory is named `.agents` for
 a reason.
 
+<a href="https://www.producthunt.com/products/son-of-anton?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-son-of-anton" target="_blank" rel="noopener noreferrer"><img alt="Son of Anton - AI should do the implementation. You own the decisions. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1170722&amp;theme=neutral&amp;t=1781650270905"></a>
+
 ---
 
 ## The Three Gates
