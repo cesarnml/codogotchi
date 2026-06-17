@@ -132,6 +132,7 @@ const CODEX_CODOGOTCHI_EVENTS = [
 ] as const;
 const CURSOR_CODOGOTCHI_EVENTS = [
   "beforeSubmitPrompt",
+  "preToolUse",
   "afterFileEdit",
   "beforeShellExecution",
   "beforeMCPExecution",

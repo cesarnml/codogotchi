@@ -1497,7 +1497,7 @@ describe("P7.02 §7 pure classifier", () => {
     ).toBe("thinking");
   });
 
-  it("classifies Bash 'git status' as searching", () => {
+  it("classifies Bash 'git status' as git_ops", () => {
     expect(
       classifyEvent(
         {
@@ -1508,7 +1508,7 @@ describe("P7.02 §7 pure classifier", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("searching");
+    ).toBe("git_ops");
   });
 
   it("classifies Bash 'pgrep' as thinking", () => {
@@ -1639,7 +1639,7 @@ describe("P7.02 §7 pure classifier", () => {
     ).toBe("web_search");
   });
 
-  it("classifies compound shell with git status as searching", () => {
+  it("classifies compound shell with git status as git_ops", () => {
     expect(
       classifyEvent(
         {
@@ -1651,7 +1651,7 @@ describe("P7.02 §7 pure classifier", () => {
         },
         { readRun: 0 },
       ).state,
-    ).toBe("searching");
+    ).toBe("git_ops");
   });
 
   it("classifies compound shell with rg after cd as searching", () => {

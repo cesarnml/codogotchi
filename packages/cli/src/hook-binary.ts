@@ -169,16 +169,12 @@ const SEARCHING_BASH_PREFIXES = [
   "grep",
   "find",
   "rg",
-  "git log",
-  "git diff",
-  "git status",
-  "git blame",
-  "git show",
 ];
 
-// Git write operations: unambiguously state-changing git commands.
-// `git branch` is excluded — it's both a read (list/show) and write (create/delete) command,
-// and the read form (`git branch --show-current`) is common in compound inspection scripts.
+// Git operations: both read-only inspection (log, diff, status, blame, show) and
+// state-changing commands. `git branch` is excluded — it's both a read (list/show)
+// and write (create/delete) command, and the read form (`git branch --show-current`)
+// is common in compound inspection scripts.
 const GIT_OPS_BASH_PREFIXES = [
   "git add",
   "git commit",
@@ -192,6 +188,11 @@ const GIT_OPS_BASH_PREFIXES = [
   "git checkout",
   "git reset",
   "git cherry-pick",
+  "git log",
+  "git diff",
+  "git status",
+  "git blame",
+  "git show",
 ];
 
 // §7 read/inspect bucket: read-only shell commands that are not codebase search.
