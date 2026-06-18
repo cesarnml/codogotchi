@@ -110,10 +110,9 @@ Review the contact sheet for each tier and verify:
 
 When a row fails a check:
 
-1. **Regenerate the whole strip** for that row with the image tool, using the same seed and constraints. Fix by regenerating the strip, never by editing individual frames.
-2. **Re-run `normalize_generated_sheet.py`** on the new strip → `rows/<tier>/<row>.png`.
-3. **Re-eyeball** the normalized strip.
-4. **Re-compose, re-validate, and re-contact-sheet** after all rows are good.
+1. **Regenerate the whole 4×2 grid** for that row with the image tool, using the same seed and constraints. Fix by regenerating the grid, never by editing individual cells.
+2. **Re-run `slice_grid.py`** on the new grid → a fresh `1536×208` row strip (caller-chosen/ephemeral path).
+3. **Re-compose, re-validate, and re-contact-sheet** after all rows are good; the human reviews the contact sheet (the model does not eyeball its own output).
 
 Do not fix scale/alignment failures by code-transforming the existing strip — that reintroduces the "faking frames" failure mode.
 

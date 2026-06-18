@@ -27,7 +27,7 @@ it's weakest, because an agent rationalizes its own output as passing.
 Add one perceptual gate that runs a **different** model than the generator
 (adversarial — assume the row has holes; do not rationalize), on artifacts that
 already exist:
-- the normalized 8×1 row strip (`rows/<tier>/<row>.png`, f1…f8 side by side),
+- the `1536×208` row strip from `slice_grid.py` (f1…f8 side by side),
 - the composed contact sheet (`contact-<tier>.png`).
 
 For each row it answers a fixed rubric and emits a JSON verdict:

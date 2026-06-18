@@ -5,7 +5,9 @@ description: "Add the Lite-Basic (Tier 2) sprite atlas to an EXISTING Codogotchi
 
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
 >
-> **Artifact locations** — this skill defines the required artifact contract and pipeline order only. Use whatever local paths your environment and image-generation tooling provide, then substitute those paths into the script arguments. Do not search for, require, or invent a special image-generation save directory.
+> **I/O policy — scripts own all paths; the skill names none.** `image_gen` cannot reliably store or re-find what it generates, so **never tell it to save a row to a named directory** and never hunt for an image-generation save folder. Pass whatever local/temp paths the caller picks into the script arguments and chain each script's output forward; the only artifact that must persist is the final green atlas the user keys and installs.
+>
+> **No model-side visual inspection.** Do **not** use Computer Use, screenshots, or UI automation to eyeball generated output — the model cannot reliably see its own framing and it burns tokens. Frame geometry is enforced deterministically by `slice_grid.py`; visual review is the human's, on the script-produced contact sheet and previews.
 
 # hatch-codogotchi-lite-basic
 
@@ -17,9 +19,9 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 
 **Prerequisite:** a valid Codex `spritesheet.webp` for the pet (the character reference is extracted from it).
 
-**Execution model (strip-first):** Codex uses its built-in `image_gen` tool to generate **one full Lite-Basic row per call as a single wide strip**: exactly `1536×208` px (a wide strip, aspect ratio ≈ 7.38:1), eight 192×208 frames side by side left-to-right, all 8 populated, no empty frame, on a **flat chroma-green `#00B140`** background. Then run `normalize_generated_sheet.py` to snap each strip to exactly `1536×208`. The strip *is* the row — normalize it and it's ready to compose. Generate one row strip at a time; never ask for the whole atlas in a single image.
+**Execution model (grid-first):** Codex uses its built-in `image_gen` tool to generate **one full Lite-Basic row per call as a single 4×2 grid**: 4 columns × 2 rows of 192×208 frames (8 cells, read left-to-right, top row then bottom), all 8 populated, no empty cell, on a **flat chroma-green `#00B140`** background. `image_gen` need not — and cannot — hit an exact canvas size; the 4×2 framing keeps it near a friendly ratio so frames never clip. Then run `slice_grid.py`, which is dimension-tolerant: it slices the grid by fraction, shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip on flat green — ready to compose. Generate one grid at a time; never ask for the whole atlas in a single image.
 
-**Non-negotiable row gate:** finish one row strip completely (generate → normalize → eyeball) before generating the next. If a strip looks wrong, regenerate the whole strip instead of patching forward. Do not compose until every row strip has been eyeballed for prop clarity, face/eye integrity, scale, and motion.
+**Non-negotiable row gate:** finish one row completely (generate grid → `slice_grid.py`) before generating the next. If a grid comes back clipped, cramped, or off-model, regenerate the whole grid instead of patching forward. Do not compose until every row strip exists. The model does **not** screenshot or eyeball its own output — `slice_grid.py` enforces geometry, and prop clarity / face / scale / motion are reviewed by the human on the script-produced contact sheet after composing.
 
 **Chroma key — flat green `#00B140`, always, keyed by the user later.** Every row is generated on flat green `#00B140` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — intentional green details are preserved. After QA, hand the green-background atlas to the user to key in **Chroma Key Studio** (https://chromakeyremoval.vercel.app).
 
@@ -37,11 +39,11 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 **0. Motion restraint — stability over expressiveness (paramount).** A calm pet with small, smooth motion always beats an expressive one that jitters; when they conflict, **choose stability**. Big or whole-body described motion comes back incoherent across the row — legs swing, props teleport, the pet hops. Anchor the torso, head, hips, and **both feet** in nearly the same place across all 8 frames (legs don't walk or swing in standing rows); confine motion to **one element** — the named prop, one arm, or the expression — at low amplitude with short, smooth arcs. "No static rows" is a *floor* (subtle smooth life so frames differ), **not** a push toward big motion: a barely-moving stable row passes; a busy jittery row is a reject.
 
 1. **Prop doctrine — NOT charades.** Emotion-mappable states (`revive`, `errored`→sad) lead with expression; **every other state is carried by one clearly-visible prop** — never subtle hand gestures, never a mimed/"invisible" prop ("invisible keyboard", "unseen screen"), never an A/B choice (the old `reading` "page/tablet" drew both). Same prop, all 8 frames. Per-row props are in `references/animation-rows-lite.md`.
-2. **Scale consistency.** Same character size across all 8 frames of a row. Ask `image_gen` for a shared head height / body scale across the strip and eyeball the normalized strip for drift; if one frame is off, regenerate the whole strip.
+2. **Scale consistency.** Same character size across all 8 cells of a row. Ask `image_gen` for a shared head height / body scale across the grid; `slice_grid.py` shares one scale across the row, and any residual drift is caught by the human on the contact sheet. If one cell is off, regenerate the whole grid.
 3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as the seed artifact. This is an eyeball pass on the contact sheet — there is no automated identity gate.
 4. **Alignment stability.** Keep the character on a stable horizontal axis in every 192×208 frame; the pet must not hop left/right. Vertically align ordinary standing rows to a shared bottom baseline near `cell_h - 8`, not the vertical center. Confirm on the contact sheet / previews.
 
-Plus the standing failure modes: don't fake frames by transforming the seed; **strip-first**, one row at a time; never whole-atlas generation; keep the green background flat; don't drift from the Codex sheet's style.
+Plus the standing failure modes: don't fake frames by transforming the seed; **grid-first**, one row at a time; never whole-atlas generation; keep the green background flat; don't drift from the Codex sheet's style.
 
 Quality caveats for the recommended pattern:
 - Some rows need more unique motion than others; generate extra distinct frames whenever the action or emotion reads weakly.
@@ -63,15 +65,16 @@ python scripts/extract_seed_from_codex.py \
 python scripts/prepare_pet_run.py --seed <seed> \
   --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-basic --style auto
 
-# 3. For each of the 9 rows, in order, use built-in image_gen strip-first:
-#    generate one exact 1536x208 8x1 strip (sheets/lite-basic/<row>.png) on flat #00B140.
-#    All 8 frames are the animation; no empty frame. Prop must stay clearly drawn +
-#    identical across frames; seed artifact attached. Then normalize + eyeball:
-python scripts/normalize_generated_sheet.py --input sheets/lite-basic/<row>.png --out rows/lite-basic/<row>.png
-#    Eyeball rows/lite-basic/<row>.png; if wrong, regenerate the whole strip.
+# 3. For each of the 9 rows, in order, use built-in image_gen grid-first:
+#    generate ONE 4x2 grid (4 cols x 2 rows of 192x208 cells, 8 populated, no empty
+#    cell) on flat #00B140. image_gen need not hit an exact size. Prop must stay clearly
+#    drawn + identical across all 8 cells; seed artifact attached. Then slice the grid
+#    into the canonical 1536x208 row strip (paths are caller-chosen/ephemeral):
+python scripts/slice_grid.py --input <grid> --out <row-strip>
+#    slice_grid.py enforces geometry; if the grid is clipped/off-model, regenerate it.
 
 # 4. Compose + encode (after all 9 rows) → green-background atlas
-python scripts/compose_atlas.py --rows-dir rows/lite-basic --tier lite-basic --out <atlas-png>
+python scripts/compose_atlas.py --rows-dir <row-strips-dir> --tier lite-basic --out <atlas-png>
 cwebp -lossless -exact <atlas-png> -o <atlas-webp>
 
 # 5. Slim QA gate
@@ -88,7 +91,7 @@ Row order (see `references/animation-rows-lite.md`):
 
 ### Fix a bad frame
 
-If any frame in a strip is wrong, **regenerate the whole strip** for that row, re-run `normalize_generated_sheet.py`, and re-eyeball. Fix by regenerating the strip, never by editing individual frames.
+If any frame in a grid is wrong, **regenerate the whole grid** for that row, re-run `slice_grid.py`, and re-run the QA scripts. Fix by regenerating the grid, never by editing individual frames.
 
 ---
 

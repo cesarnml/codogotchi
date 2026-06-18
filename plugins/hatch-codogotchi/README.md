@@ -6,22 +6,24 @@ Analogous to the `openai/skills/.curated/hatch-pet` skill, adapted for Codogotch
 
 > **Publish your pet:** once you have a **Codex + Lite-Basic** pet (the gallery's minimum bar), share it on the [Codogotchi pet gallery](https://codogotchi.app/gallery) — sign in at [`/upload`](https://codogotchi.app/upload), and others install it with `npx codogotchi add <id>`. Uploads are server-validated and re-packed, so the package you generate here is the package the gallery distributes.
 
-## Execution model (v4.0.0 — strip-first, pre-key)
+## Execution model (v5.0.0 — grid-first, pre-key)
 
 This plugin is run by Codex in two explicit stages, and it **stops before keying**:
 
-1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one full animation row per call as a single wide strip** — exactly `1536×208` px (a wide strip, aspect ratio ≈ 7.38:1), eight populated 192×208 frames side by side left-to-right, no empty frame, on a **flat chroma-green `#00B140`** background. `image_gen` renders the full 1536px width in a single pass.
-2. **Local assembly stage:** the Python scripts in `scripts/` snap each strip to exactly `1536×208` (`normalize_generated_sheet.py`), compose the strips into a **green-background** atlas (`compose_atlas.py`), and run slim QA. The strip *is* the row.
+1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one full animation row per call as a single 4×2 grid** — 4 columns × 2 rows of 192×208 cells (8 populated cells, no empty cell), on a **flat chroma-green `#00B140`** background. `image_gen` cannot hit an exact canvas size, so the grid size is nominal; the 4×2 framing (vs. the old 8×1 wide strip) is what keeps the character from clipping the cell edge. The grid output is **ephemeral** — there is no save path to hunt for; it is piped straight into the next stage.
+2. **Local assembly stage:** `slice_grid.py` slices the 4×2 grid (dimension-tolerant — any input size), shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip; `compose_atlas.py` stacks the strips into a **green-background** atlas; then slim QA runs.
 
-The plugin does **not** mean "ask image generation for the whole atlas at once." The default workflow is **strip-first**:
+The plugin does **not** mean "ask image generation for the whole atlas at once." The default workflow is **grid-first**:
 
-`image_gen` 8×1 strip (`1536×208`, flat `#00B140`) → `normalize_generated_sheet.py` → `compose_atlas.py` → `validate_atlas.py` → `make_contact_sheet.py` → `render_animation_previews.py` → `pre_install_qa_gate.py` → **hand off to the user for keying**
+`image_gen` 4×2 grid (any size, flat `#00B140`) → `slice_grid.py` (→ exact `1536×208` strip) → `compose_atlas.py` → `validate_atlas.py` → `make_contact_sheet.py` → `render_animation_previews.py` → `pre_install_qa_gate.py` → **hand off to the user for keying**
+
+**Why grid-first (the v5 reversal).** `image_gen` cannot be made to honor an 8:1 aspect ratio — strips came back at wildly varying sizes and some rows (git-ops, web-search) clipped. A 4×2 grid sits near a friendly ratio, so it generates clean every time, and `slice_grid.py` makes the exact strip deterministically. v5 also removes every prescribed save path from the skill text: `image_gen` cannot reliably store or re-find what it generates, so the skill names **no** directories — scripts own their I/O and the model just chains ephemeral output forward. And the model must **not** screenshot or eyeball its own output (it can't reliably see its own framing, and it wastes tokens); geometry is enforced by `slice_grid.py` and visual review is the human's on the contact sheet.
 
 **Keying is intentionally not done here.** After three days of trying to get an agent to chroma-key reliably (greenish eyes, a green checkmark prop, edge spill), v4.0.0 leaves the background green end-to-end and hands the finished atlas to the user to key in **[Chroma Key Studio](https://chromakeyremoval.vercel.app)** — a purpose-built tool whose tolerance / edge / spill / hue controls separate green props from the green key far better than an agent can. The pipeline's deliverable is a **green-background (pre-key) atlas**; the user keys it and installs the transparent result.
 
-**Non-negotiable row gate:** one row strip at a time — generate → normalize → eyeball — before starting the next. If a strip looks wrong, regenerate the whole strip instead of patching forward. Do not compose an atlas until every row strip has been eyeballed for style, prop clarity, face/eye integrity, scale, and stable motion.
+**Non-negotiable row gate:** one row at a time — generate grid → `slice_grid.py` — before starting the next. If a grid comes back clipped, cramped, or off-model, regenerate the whole grid instead of patching forward. Do not compose an atlas until every row strip exists. Style, prop clarity, face/eye integrity, scale, and stable motion are reviewed by the human on the script-produced contact sheet after composing — the model does not eyeball its own output.
 
-**Recommended production pattern:** ask `image_gen` for the minimum number of **distinct** keyframes needed for a readable, non-static loop within the strip, reusing/mirroring earlier stable frames to close the loop **when that still looks good in motion**. This is a speed optimization, not a hard rule.
+**Recommended production pattern:** ask `image_gen` for the minimum number of **distinct** keyframes needed for a readable, non-static loop within the 4×2 grid, reusing/mirroring earlier stable frames to close the loop **when that still looks good in motion**. This is a speed optimization, not a hard rule.
 
 Caveats:
 - Use it only when the row still reads clearly at a glance and the prop remains obvious in every frame.
@@ -47,7 +49,7 @@ Alignment specifics (these serve the rule above):
 - **Validation guard:** `validate_atlas.py` gates dimensions, grid integrity, and static-row detection (RGB-based). On a green-background pre-key sheet, per-frame foreground geometry can't be measured reliably (green props blend with the key), so scale and horizontal-alignment are **eyeball checks** on the contact sheet and previews.
 - **Jump exception:** explicit jump/leap rows (Codex `jumping`, SoA `ticket-completed`) may leave the baseline briefly but must still take off and land cleanly on a stable horizontal axis — controlled, not flailing.
 
-## Chroma-key policy (v4.0.0 — flat green, keyed by the user)
+## Chroma-key policy (v5.0.0 — flat green, keyed by the user)
 
 **One flat key, always: chroma green `#00B140`.** Every row is generated on flat `#00B140` and the pipeline keeps that background end-to-end. There is no per-row key selection and no magenta/blue fallback.
 
@@ -56,7 +58,7 @@ Alignment specifics (these serve the rule above):
 What this means per surface:
 - Prompts demand one perfectly flat `#00B140` background (hex stated literally), with no falloff, shadow, texture, halo, or antialias spill into the key.
 - Green details on the character/props are fine — do **not** avoid green and do **not** switch rows like `verifying`, `web-search`, `green-tdd`, or `review-clean` to another key.
-- `normalize_generated_sheet.py` snaps each strip to exact `1536×208` and flattens any transparency onto the green key. It does **not** alter foreground colours.
+- `slice_grid.py` slices the 4×2 grid and emits the exact `1536×208` strip on the flat green key, preserving foreground colours (intentional green props included). It does **not** alter foreground colours.
 - `compose_atlas.py` stacks the strips onto a flat green canvas and outputs an opaque, green-background atlas.
 
 ## Slim QA gate (pre-key)
@@ -154,16 +156,17 @@ Tier 1 is required. Resolution order per render moment: **SoA → Enhanced → B
 python scripts/prepare_pet_run.py \
   --seed <seed> --pet-name "Beemo" --style plush
 
-# 2. Use Codex's built-in image_gen tool to generate one 8x1 strip per row.
-#    Use sheet-prompts/<tier>/<row>.txt → sheets/<tier>/<row>.png
-#    Output: 1536x208, 8 frames, flat #00B140 green background, no empty frame.
+# 2. Use Codex's built-in image_gen tool to generate one 4x2 grid per row.
+#    Use sheet-prompts/<tier>/<row>.txt. Grid = 4 cols x 2 rows of 192x208 cells,
+#    8 populated, no empty cell, flat #00B140. image_gen need not hit an exact size;
+#    its output is ephemeral (no required save path).
 
-# 3. Normalize each strip to exact 1536x208 (green background preserved), then eyeball it
-python scripts/normalize_generated_sheet.py --input sheets/codex/<row>.png --out rows/codex/<row>.png
+# 3. Slice each grid into the canonical 1536x208 row strip (paths caller-chosen/ephemeral)
+python scripts/slice_grid.py --input <grid> --out <row-strip>
 
 # 4. Compose + encode (after ALL rows) → green-background atlas
-python scripts/compose_atlas.py --rows-dir rows/codex      --tier codex      --out <work>/spritesheet.png
-python scripts/compose_atlas.py --rows-dir rows/lite-basic --tier lite-basic --out <atlas-png>
+python scripts/compose_atlas.py --rows-dir <codex-strips>      --tier codex      --out <work>/spritesheet.png
+python scripts/compose_atlas.py --rows-dir <lite-basic-strips> --tier lite-basic --out <atlas-png>
 cwebp -lossless -exact <work>/spritesheet.png -o <work>/spritesheet.webp
 cwebp -lossless -exact <atlas-png>            -o <atlas-webp>
 
@@ -180,7 +183,7 @@ python scripts/pre_install_qa_gate.py --atlas <atlas-webp> --tier lite-basic
 
 # (Optional) add the Lite-Enhanced sheet afterward — requires the Basic sheet above:
 #   python scripts/prepare_pet_run.py --seed <seed> --pet-id beemo --tier lite-enhanced
-#   …generate 8x1 strips / normalize / compose --tier lite-enhanced → green-background atlas
+#   …generate 4x2 grids / slice_grid / compose --tier lite-enhanced → green-background atlas
 
 # 6. Write pet.json (metadata only)
 python scripts/prepare_pet_run.py --write-pet-json --run-dir <work>/
@@ -202,8 +205,8 @@ python scripts/extract_seed_from_codex.py \
 python scripts/prepare_pet_run.py \
   --seed <seed> --pet-id maew --pet-name "Maew" --tier lite-basic
 
-# 3-5. Use built-in image_gen to generate one 8x1 strip per row, normalize each, eyeball,
-#      compose the green-background atlas, and pass the slim QA gate (same pipeline).
+# 3-5. Use built-in image_gen to generate one 4x2 grid per row, slice each with
+#      slice_grid.py, compose the green-background atlas, pass the slim QA gate (same pipeline).
 #      lite-enhanced is a separate run and REQUIRES the lite-basic sheet to exist first.
 
 # 6. Key the green atlas at https://chromakeyremoval.vercel.app, then install the transparent
@@ -231,8 +234,9 @@ hatch-codogotchi/
     qa-rubric.md                      ← QA checklist (automated + eyeball)
   scripts/
     extract_seed_from_codex.py        ← Extract reference cell from existing spritesheet
-    prepare_pet_run.py                ← Bootstrap run folder + 8x1 strip prompts + manifest
-    normalize_generated_sheet.py      ← Snap a generated 8x1 strip → exact 1536x208 on flat green
+    prepare_pet_run.py                ← Bootstrap run folder + 4x2 grid prompts + manifest
+    slice_grid.py                     ← Slice a generated 4x2 grid (any size) → exact 1536x208 row strip
+    normalize_generated_sheet.py      ← (legacy) snap a pre-made 8x1 strip → 1536x208; not in the default path
     compose_atlas.py                  ← Stack green-background row strips → atlas PNG
     validate_atlas.py                 ← Slim validation (dimensions, grid, static-row)
     make_contact_sheet.py             ← Generate labelled QA contact sheet
@@ -249,9 +253,9 @@ hatch-codogotchi/
 
 1. **Faking frames by transforming the seed** — Do not crop/warp/rotate/scale/re-composite a seed. Every frame in the strip must be a genuine render in that pose.
 
-2. **Rushing the whole atlas in one pass** — One row at a time, **strip-first**: generate a single `8×1` strip → normalize to exact `1536×208` → eyeball it → repeat for the next row → only then compose the atlas.
+2. **Rushing the whole atlas in one pass** — One row at a time, **grid-first**: generate a single 4×2 grid → `slice_grid.py` → exact `1536×208` strip → repeat for the next row → only then compose the atlas.
 
-3. **Clipped frames / wrong size** — The format is one wide strip, exactly `1536×208` (aspect ratio ≈ 7.38:1), of 8 frames at 192×208 each, no empty frame, on flat `#00B140`. A strip returned at a different ratio gets stretched to fit and distorts the character — regenerate it. If any foreground crosses a frame boundary, regenerate the strip. Generate one strip per row; never the whole atlas at once.
+3. **Clipped frames** — The format is one **4×2 grid** of 8 cells at 192×208 each, no empty cell, on flat `#00B140`, at any overall size. Requesting a single wide 8×1 strip is what caused clipping — never do it; the 4×2 grid is the fix. `slice_grid.py` tolerates any input size and snaps to the exact strip, so do not distort the character to hit a dimension. If any foreground crosses a cell boundary, regenerate the grid. Generate one grid per row; never the whole atlas at once.
 
 4. **Style drift from the Codex sheet** *(Lite and SoA only)* — Compare every row against the existing Codex cells. Same character, same palette, same linework.
 
@@ -259,17 +263,17 @@ hatch-codogotchi/
 
 6. **Mime / charades (the readability killer)** — Codogotchi animations must be readable at a glance. States that don't map to a plain human emotion must be carried by **one clearly-visible prop**, never subtle hand gestures or an *invisible* prop ("invisible keyboard", "unseen screen"). Use **exactly the prop named — never an A/B choice**. Same prop, all 8 frames. See `references/animation-rows-lite.md` → *prop doctrine*.
 
-7. **Per-frame scale drift** — A frame whose character is noticeably larger/smaller than its rowmates. Ask `image_gen` for one shared head height / body scale across the strip. On a green-background sheet this can't be measured automatically (green props blend with the key), so eyeball the contact sheet; if a frame is off, regenerate the whole strip.
+7. **Per-frame scale drift** — A cell whose character is noticeably larger/smaller than its rowmates. Ask `image_gen` for one shared head height / body scale across the grid; `slice_grid.py` also shares one scale across the row when it builds the strip. On a green-background sheet this can't be measured automatically (green props blend with the key), so the human reviews the contact sheet; if a cell is off, regenerate the whole grid.
 
 8. **Horizontal alignment drift** — The pet must not hop left/right inside the frame. Eyeball the contact sheet / previews and confirm the character body stays on a stable x-axis.
 
 9. **Vertical float from center alignment** — Ordinary standing rows should use a shared bottom baseline near `cell_h - 8`, not vertical centering. Centering the full bbox vertically can make the pet hover too far above the `AnimationBadgePanel`. Jump/leap rows are the exception, and they must visibly take off and land.
 
-10. **Character identity drift** — After every strip, compare against the seed artifact and verify the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework. This is an eyeball check on the contact sheet — there is no automated identity gate.
+10. **Character identity drift** — After every grid, compare against the seed artifact and verify the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework. This is a human review on the contact sheet — there is no automated identity gate.
 
-## Strip regeneration recovery
+## Grid regeneration recovery
 
-If any frame in a strip fails QA (off pose, scale drift, weak prop, identity drift, jitter), **regenerate the whole strip** for that row using its sheet prompt, re-run `normalize_generated_sheet.py`, and re-eyeball. Fix by regenerating the strip, never by editing individual frames.
+If any cell in a row fails QA (off pose, scale drift, weak prop, identity drift, jitter), **regenerate the whole 4×2 grid** for that row using its prompt, re-run `slice_grid.py`, and re-run the QA scripts. Fix by regenerating the grid, never by editing individual cells.
 
 > `validate_atlas.py` only catches dimensions, grid, and pixel-identical static rows. Everything perceptual — motion quality (#5), props (#6), scale (#7), alignment (#8), baseline (#9), identity (#10) — is an **eyeball** pass on the contact sheet and previews. Keying quality (edges, green-prop separation) is the user's job in Chroma Key Studio.
 

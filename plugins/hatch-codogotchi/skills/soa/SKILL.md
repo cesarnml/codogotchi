@@ -5,7 +5,9 @@ description: "Generate the Son-of-Anton (SoA, Tier 4) sprite atlas for an EXISTI
 
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
 >
-> **Artifact locations** — this skill defines the required artifact contract and pipeline order only. Use whatever local paths your environment and image-generation tooling provide, then substitute those paths into the script arguments. Do not search for, require, or invent a special image-generation save directory.
+> **I/O policy — scripts own all paths; the skill names none.** `image_gen` cannot reliably store or re-find what it generates, so **never tell it to save a row to a named directory** and never hunt for an image-generation save folder. Pass whatever local/temp paths the caller picks into the script arguments and chain each script's output forward; the only artifact that must persist is the final green atlas the user keys and installs.
+>
+> **No model-side visual inspection.** Do **not** use Computer Use, screenshots, or UI automation to eyeball generated output — the model cannot reliably see its own framing and it burns tokens. Frame geometry is enforced deterministically by `slice_grid.py`; visual review is the human's, on the script-produced contact sheet and previews.
 
 # hatch-codogotchi-soa
 
@@ -13,9 +15,9 @@ Generate the **Tier 4 (SoA)** sprite sheet for an existing Codogotchi pet — th
 
 **Prerequisite:** the pet must already have a valid `spritesheet.webp` (Codex, Tier 1) installed. The character reference is derived directly from that sheet — no separate seed image or description is needed. The SoA sheet needs **only** the Codex sheet — it is independent of the Lite tiers (Basic/Enhanced).
 
-**Execution model (strip-first):** Codex uses its built-in `image_gen` tool to generate **one full SoA row per call as a single wide strip**: exactly `1536×208` px (a wide strip, aspect ratio ≈ 7.38:1), eight 192×208 frames side by side left-to-right, all 8 populated, no empty frame, on a **flat chroma-green `#00B140`** background. Then run `normalize_generated_sheet.py` to snap each strip to exactly `1536×208`. The strip *is* the row — normalize it and it's ready to compose. Generate one row strip at a time; never ask for the whole atlas in a single image.
+**Execution model (grid-first):** Codex uses its built-in `image_gen` tool to generate **one full SoA row per call as a single 4×2 grid**: 4 columns × 2 rows of 192×208 frames (8 cells, read left-to-right, top row then bottom), all 8 populated, no empty cell, on a **flat chroma-green `#00B140`** background. `image_gen` need not — and cannot — hit an exact canvas size; the 4×2 framing keeps it near a friendly ratio so frames never clip. Then run `slice_grid.py`, which is dimension-tolerant: it slices the grid by fraction, shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip on flat green — ready to compose. Generate one grid at a time; never ask for the whole atlas in a single image.
 
-**Non-negotiable row gate:** finish one row strip completely (generate → normalize → eyeball) before generating the next. If a strip looks wrong, regenerate the whole strip instead of patching forward. Do not compose until every row strip has been eyeballed for prop clarity, face/eye integrity, scale, and motion.
+**Non-negotiable row gate:** finish one row completely (generate grid → `slice_grid.py`) before generating the next. If a grid comes back clipped, cramped, or off-model, regenerate the whole grid instead of patching forward. Do not compose until every row strip exists. The model does **not** screenshot or eyeball its own output — `slice_grid.py` enforces geometry, and prop clarity / face / scale / motion are reviewed by the human on the script-produced contact sheet after composing.
 
 **Chroma key — flat green `#00B140`, always, keyed by the user later.** Every row is generated on flat green `#00B140` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — and **green props are now allowed and preserved**: `green-tdd`'s and `review-clean`'s green checkmark effects stay green, because the user keys the sheet later in **Chroma Key Studio** (https://chromakeyremoval.vercel.app), whose controls separate a green prop from the green key. No more switching those rows to magenta.
 
@@ -55,7 +57,7 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` backgrou
 
 2. **Rushing the whole atlas in one pass.** One row at a time, to completion. Whole-atlas generation is a shortcut = reject.
 
-3. **Clipped frames.** The generation format is one wide strip (`1536×208`, ≈7.38:1) of 8 frames, each exactly **192 × 208**, no empty frame. If any foreground crosses a frame boundary, regenerate the strip. Generate one strip per row; never the whole atlas at once.
+3. **Clipped frames.** The generation format is one **4×2 grid** of 8 cells, each exactly **192 × 208**, no empty cell. The 4×2 framing is specifically what keeps the character from clipping the cell edge — never request a single wide 8×1 strip. If any foreground crosses a cell boundary, regenerate the grid. Generate one grid per row; never the whole atlas at once.
 
 4. **Style drift from the Codex sheet.** After each row, compare a frame side-by-side with a Codex cell. Regenerate if the style, palette, or proportions have shifted.
 
@@ -63,7 +65,7 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` backgrou
 
 6. **Jerky / over-animated motion (the stability killer).** Ask for big or whole-body motion and it comes back incoherent across the row — legs swing, props teleport, the pet hops. **Stability beats expressiveness even on these celebration rows:** anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. Sell the beat with pose and face, not with the body roaming the cell. A mild stable loop beats a busy jittery one. The scripts cannot detect this — it is purely an eyeball check.
 
-> **Validation does not catch failures 1–2 or 6.** Eyeball every finished row for genuine *but stable* motion before proceeding to the next.
+> **Validation does not catch failures 1–2 or 6.** The human reviews every finished row on the contact sheet for genuine *but stable* motion — the model does not screenshot or eyeball its own output.
 >
 > Mirrored/reused closure is allowed only if it still reads as lively and intentional. If the row's reaction looks flattened or repetitive, add a distinct frame — but never buy expressiveness with jitter or limb flailing; a calm readable beat wins.
 
@@ -75,7 +77,7 @@ Identical to `hatch-codogotchi-lite`:
 
 - **Background:** flat `#00B140` green on every row (including `green-tdd` and `review-clean` — their green checkmarks are preserved and keyed by the user later) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
 - **Padding:** ≥ 8 px all sides; nothing touches an edge.
-- **Scale registration:** one shared scale per row (tallest frame sets it).
+- **Scale registration:** one shared scale per row, applied by `slice_grid.py` (tallest cell sets it).
 - **Horizontal registration:** character/content stays on a stable x-axis in every 192×208 cell; no left/right hopping. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
 - **Baseline registration:** feet on same y-line — `baseline_y = 208 − 8 − scaled_h`. Do not vertically center ordinary standing rows; they should sit near the bottom of the cell. Explicit jump/leap rows may leave the baseline briefly but must visibly take off and land.
 - **Motion restraint (paramount):** stability beats expressiveness. Keep the torso, head, hips, and **both feet** anchored in nearly the same place across the row and confine motion to **one element** (the prop, one arm, the expression) at low amplitude with short smooth arcs. Legs do not swing or restage between frames. Props travel a little and consistently — never roaming around the cell.
@@ -124,28 +126,28 @@ Produces a run manifest and strip prompt artifacts under the working directory c
 For **each** of the 10 SoA rows, in the order below, complete the full cycle before starting the next:
 
 1. Read motion description in `sheet-prompts/soa/<row-label>.txt`.
-2. **Use built-in `image_gen` to generate one 8×1 strip** — exact `1536×208` px, all 8 frames populated, no empty frame, on flat `#00B140` green. `green-tdd` and `review-clean` keep their green checkmarks (preserved, keyed by the user later). Attach the seed artifact as the character reference. Save to `sheets/soa/<row-label>.png`.
+2. **Use built-in `image_gen` to generate one 4×2 grid** — 4 cols × 2 rows of 192×208 cells, all 8 populated, no empty cell, on flat `#00B140` green. `image_gen` need not hit an exact size. `green-tdd` and `review-clean` keep their green checkmarks (preserved, keyed by the user later). Attach the seed artifact as the character reference. The generated grid is an ephemeral input to `slice_grid.py` — do not save it to a named directory.
 3. Compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
 
-### Step 4 — Normalize and approve each row
+### Step 4 — Slice each grid into its canonical row strip
 
 ```bash
-python scripts/normalize_generated_sheet.py \
-  --input sheets/soa/<row-label>.png \
-  --out   rows/soa/<row-label>.png
+python scripts/slice_grid.py \
+  --input <grid> \
+  --out   <row-strip>
 ```
 
-Eyeball `rows/soa/<row-label>.png` for genuine animated motion, prop clarity, scale, and identity. Do not proceed to the next row until it looks right.
+`slice_grid.py` is dimension-tolerant (any input size), enforces 192×208 cell geometry, shares one scale across the row, and emits the exact `1536×208` strip. Paths are caller-chosen/ephemeral — the skill names none. Prop clarity, scale, and identity are reviewed by the human on the contact sheet after composing, not by the model eyeballing its output.
 
-If any frame in a strip is wrong, **regenerate the whole strip** for that row, re-run `normalize_generated_sheet.py`, and re-eyeball. Fix by regenerating the strip, never by editing individual frames.
+If any cell in a grid is wrong, **regenerate the whole grid** for that row, re-run `slice_grid.py`, and re-run the QA scripts. Fix by regenerating the grid, never by editing individual cells.
 
 ### Step 5 — Compose the atlas
 
-After all 10 rows are normalized:
+After all 10 rows are sliced into strips:
 
 ```bash
 python scripts/compose_atlas.py \
-  --rows-dir rows/soa \
+  --rows-dir <row-strips-dir> \
   --tier soa \
   --out   <atlas-png>
 

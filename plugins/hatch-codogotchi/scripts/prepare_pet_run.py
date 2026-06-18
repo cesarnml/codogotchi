@@ -251,15 +251,20 @@ STYLE_PRESETS = {
 # a green checkmark) from the green background far more reliably than an agent can.
 # So there is no per-row key selection and no green/magenta/blue fallback logic.
 CHROMA = "00b140"
-STRIP_LAYOUT = {
-    # Each animation row is one 1536x208 horizontal strip of eight 192x208 frames
-    # (aspect ratio ~7.38:1). image_gen renders the full width in a single pass.
-    "cols": 8,
-    "rows": 1,
-    "width": 1536,
-    "height": 208,
-    "ratio": 1536 / 208,  # ~7.385:1
-    "note": "One uninterrupted 1536x208 strip: 8 populated 192x208 frames left-to-right, no empty frame.",
+GRID_LAYOUT = {
+    # v5: each animation row is generated as ONE 4x2 grid — 4 columns x 2 rows of
+    # 192x208 cells (8 populated cells, no empty cell). image_gen cannot hit an exact
+    # canvas size, so the grid size is nominal; the 4x2 framing just keeps the model
+    # near a friendly ~16:9-ish ratio so the character never clips the cell edge the
+    # way an 8x1 strip request always did. slice_grid.py is dimension-tolerant and
+    # produces the exact 1536x208 row strip downstream.
+    "cols": 4,
+    "rows": 2,
+    "cell_w": 192,
+    "cell_h": 208,
+    "nominal_width": 768,
+    "nominal_height": 416,
+    "note": "One 4x2 grid: 8 populated 192x208 cells (4 cols x 2 rows), no empty cell, any overall size.",
 }
 
 LOCOMOTION_ROWS = {
@@ -307,16 +312,20 @@ def motion_doctrine(row_label: str) -> str:
 
 
 def build_sheet_output_format() -> str:
-    w, h = STRIP_LAYOUT["width"], STRIP_LAYOUT["height"]
-    return f"""OUTPUT FORMAT:
-- A single uninterrupted {w} × {h} px image: ONE wide horizontal row of eight animation frames side by side.
-- Output EXACTLY {w} × {h} px — a wide strip, aspect ratio {w}:{h} ≈ 7.38:1. Do NOT return a square or any other
-  ratio; the strip is used at this exact size, and a wrong ratio stretches and distorts the character.
-- Each frame occupies exactly 192 × 208 px, left-to-right in reading order. There is no empty frame.
+    return """OUTPUT FORMAT:
+- ONE image laid out as a 4 × 2 GRID: 4 columns and 2 rows of animation frames (8 cells total).
+- Read order is left-to-right, TOP ROW FIRST (cells 1-4), then the BOTTOM ROW (cells 5-8). All 8 cells are
+  populated — there is no empty cell.
+- Do NOT return a single wide horizontal strip (8 frames in one row). A wide 8×1 strip makes the character clip
+  the cell edges; the 4×2 grid is what prevents that. Use the 4×2 layout.
+- The overall pixel size does NOT need to be exact — aim for a roughly 4:2 (≈16:9-ish, wider-than-tall) canvas so
+  each cell has room. Downstream tooling slices the grid and snaps it to the exact final size, so do not distort the
+  character to hit a specific dimension.
+- Each cell holds the character at the SAME scale and the SAME bottom baseline across all 8 cells.
 - Do NOT draw panel borders, grid lines, separators, gutters, guides, crop marks, frame boxes, labels, numbers,
-  or any visible structure — the division into frames is invisible placement only.
-- Every frame must stay fully inside its own 192 × 208 region. No body part, hair, prop, effect, outline,
-  shadow, halo, glow, label, separator, or antialiasing may cross a frame boundary."""
+  or any visible structure — the division into cells is invisible placement only.
+- Every frame must stay fully inside its own cell. No body part, hair, prop, effect, outline, shadow, halo, glow,
+  label, separator, or antialiasing may cross a cell boundary."""
 
 
 def build_sheet_prompt_seed(row_label: str, style_desc: str, chroma: str) -> str:
@@ -344,9 +353,9 @@ PROP DOCTRINE (read this — codogotchi animations are NOT charades):
 - Emotion-led rows may lead with expression; everything else is prop-led.
 
 BACKGROUND & FRAME RULES:
-- Background: one single uninterrupted FLAT chroma-green key color, EXACTLY hex #{chroma} (RGB 0,177,64), across
-  the entire {STRIP_LAYOUT["width"]} × {STRIP_LAYOUT["height"]} (≈7.38:1) image. This green is a CHROMA KEY that
-  the user removes later with a dedicated tool, so it must be perfectly uniform.
+- Background: one single uninterrupted FLAT chroma-green key color, EXACTLY hex #{chroma} (RGB 0,177,64), filling
+  the ENTIRE image — every cell and all the space between cells. This green is a CHROMA KEY that the user removes
+  later with a dedicated tool, so it must be perfectly uniform.
 - The background must be exactly that same solid #{chroma} in every frame and between frames: no lighting falloff,
   vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
   separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
@@ -383,9 +392,9 @@ PROP DOCTRINE (read this — codogotchi animations are NOT charades):
 - Emotion-led rows may lead with expression; everything else is prop-led.
 
 BACKGROUND & FRAME RULES:
-- Background: one single uninterrupted FLAT chroma-green key color, EXACTLY hex #{chroma} (RGB 0,177,64), across
-  the entire {STRIP_LAYOUT["width"]} × {STRIP_LAYOUT["height"]} (≈7.38:1) image. This green is a CHROMA KEY that
-  the user removes later with a dedicated tool, so it must be perfectly uniform.
+- Background: one single uninterrupted FLAT chroma-green key color, EXACTLY hex #{chroma} (RGB 0,177,64), filling
+  the ENTIRE image — every cell and all the space between cells. This green is a CHROMA KEY that the user removes
+  later with a dedicated tool, so it must be perfectly uniform.
 - The background must be exactly that same solid #{chroma} in every frame and between frames: no lighting falloff,
   vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
   separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
@@ -461,14 +470,14 @@ def main() -> None:
 
     tiers = ["codex", "lite-basic", "lite-enhanced", "soa"] if args.tier == "all" else [args.tier]
 
-    # Create directory structure (one strip per row):
-    #   sheet-prompts/<tier>/<row>.txt  — image_gen prompt for one 1536x208 strip
-    #   sheets/<tier>/<row>.png         — raw generated 1536x208 strip
-    #   rows/<tier>/<row>.png           — normalized 1536x208 strip, ready to compose
+    # Create directory structure. v5: the skill names no save path for image_gen — its
+    # generated grid is ephemeral and piped straight into slice_grid.py. We only scaffold
+    # the prompt files and an OPTIONAL local landing spot for the sliced row strips:
+    #   sheet-prompts/<tier>/<row>.txt  — image_gen prompt for one 4x2 grid
+    #   strips/<tier>/<row>.png         — (optional) sliced 1536x208 row strip, ready to compose
     for tier in tiers:
         (run_dir / "sheet-prompts" / tier).mkdir(parents=True, exist_ok=True)
-        (run_dir / "sheets" / tier).mkdir(parents=True, exist_ok=True)
-        (run_dir / "rows" / tier).mkdir(parents=True, exist_ok=True)
+        (run_dir / "strips" / tier).mkdir(parents=True, exist_ok=True)
 
     (run_dir / "qa").mkdir(parents=True, exist_ok=True)
 
@@ -480,7 +489,7 @@ def main() -> None:
     elif args.seed:
         print(f"WARNING: seed not found at {args.seed}")
 
-    # Write strip prompt files (one strip prompt per row)
+    # Write grid prompt files (one grid prompt per row)
     for tier in tiers:
         for label in TIER_ROW_ORDER[tier]:
             sheet_prompt_text = build_sheet_prompt(
@@ -492,20 +501,22 @@ def main() -> None:
             sheet_p = run_dir / "sheet-prompts" / tier / f"{label}.txt"
             sheet_p.write_text(sheet_prompt_text)
 
-    # Write imagegen job manifest (one strip per row)
+    # Write imagegen job manifest (one 4x2 grid per row). image_gen's grid output is
+    # ephemeral — there is no required save path; pipe it into slice_grid.py, which
+    # writes the canonical 1536x208 strip (strip_out_path is an optional local spot).
     jobs: list[dict] = []
     for tier in tiers:
         for row_idx, label in enumerate(TIER_ROW_ORDER[tier]):
             jobs.append({
-                "id": f"{tier}/{label}/strip",
+                "id": f"{tier}/{label}/grid",
                 "tier": tier,
                 "row_label": label,
                 "row_index": row_idx,
+                "generate": "4x2 grid (8 cells of 192x208), any overall size, flat #00B140",
                 "strip_size": "1536x208",
                 "chroma": CHROMA,
                 "prompt_path": f"sheet-prompts/{tier}/{label}.txt",
-                "out_path": f"sheets/{tier}/{label}.png",
-                "normalized_out_path": f"rows/{tier}/{label}.png",
+                "strip_out_path": f"strips/{tier}/{label}.png",
                 "status": "pending",
             })
 
@@ -522,6 +533,7 @@ def main() -> None:
         "style": args.style,
         "style_desc": style_desc,
         "chroma": CHROMA,
+        "generate_layout": "4x2 grid (8 cells of 192x208), any overall size",
         "strip_size": "1536x208",
         "keying": "external",
         "keying_tool_url": "https://chromakeyremoval.vercel.app",
@@ -542,18 +554,17 @@ def main() -> None:
     if args.description:
         print(f"Description: {args.description[:80]}{'…' if len(args.description) > 80 else ''}")
         print("NOTE (description mode): generate the Codex idle row FIRST; use its frame 1 as the seed artifact for subsequent calls.")
-    print("Generation: strip-first — one 8x1 strip (1536x208) per row, flat #00B140 green background.")
-    print(f"Total row strips to generate: {total_rows}")
+    print("Generation: grid-first — one 4x2 grid (8 cells of 192x208, any overall size) per row, flat #00B140.")
+    print(f"Total rows to generate: {total_rows}")
     print("Chroma: fixed flat #00B140 on every row. Keying is NOT done by this pipeline.")
-    print("\nNext per row:")
-    print("  1. Generate one 8x1 strip using sheet-prompts/<tier>/<row>.txt → sheets/<tier>/<row>.png")
-    print("  2. Normalize it to canonical 1536x208 (green background preserved):")
+    print("\nNext per row (image_gen output is ephemeral — there is no required save path):")
+    print("  1. Generate one 4x2 grid with sheet-prompts/<tier>/<row>.txt; image_gen need not hit an exact size.")
+    print("  2. Slice the grid into the canonical 1536x208 row strip (caller-chosen/ephemeral paths):")
     print(
-        "     python scripts/normalize_generated_sheet.py --input sheets/<tier>/<row>.png "
-        "--out rows/<tier>/<row>.png"
+        "     python scripts/slice_grid.py --input <grid> --out <row-strip>"
     )
     print("\nAfter ALL rows: compose → green-background atlas → slim QA → hand the atlas to the user for keying:")
-    print("  python scripts/compose_atlas.py --rows-dir rows/<tier> --tier <tier> --out <work>/<sheet>.png")
+    print("  python scripts/compose_atlas.py --rows-dir <row-strips-dir> --tier <tier> --out <work>/<sheet>.png")
     print("  cwebp -lossless -exact <work>/<sheet>.png -o <work>/<sheet>.webp")
     print("  python scripts/validate_atlas.py --atlas <work>/<sheet>.webp --tier <tier> --out-json <validation-json>")
     print("  python scripts/make_contact_sheet.py --atlas <work>/<sheet>.webp --tier <tier>")
