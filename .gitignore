@@ -248,6 +248,10 @@ __pycache__/
 # both scripts hardcode absolute /Users paths and are not reproducible elsewhere.
 /Pipfile
 /scripts/*.py
+# dmg-settings.py is a reproducible build-config file consumed by
+# scripts/package-dmg.sh (dmgbuild layout) — must be tracked, unlike the
+# throwaway sprite scripts above.
+!/scripts/dmg-settings.py
 
 # Sprite-generation staging outputs at repo root — final sheets live in
 # apps/menubar/Fixtures/<pet>/ and are committed there (P8.06), not at root.
