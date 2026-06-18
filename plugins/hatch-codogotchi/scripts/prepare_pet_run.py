@@ -420,11 +420,13 @@ def build_frame_prompt(row_label: str, style_desc: str, chroma: str, description
 def build_sheet_output_format(source_layout: str) -> str:
     layout = SOURCE_LAYOUTS["4x2"]
     return f"""OUTPUT FORMAT:
-- A single 4 × 2 grid image (4 columns, 2 rows), exact size {layout["width"]} × {layout["height"]} px.
-- Each cell is exactly 192 × 208 px.
-- All 8 cells contain animation frames in reading order: left-to-right, top-to-bottom. There is no empty cell.
-- Every frame must stay fully inside its own 192 × 208 cell. No body part, hair, prop, effect, outline,
-  shadow, halo, glow, label, or antialiasing may cross a cell boundary."""
+- A single uninterrupted {layout["width"]} × {layout["height"]} px image containing eight animation frames in an invisible 4 × 2 layout.
+- The 4 × 2 layout is only for placement. Do NOT draw panel borders, grid lines, separators, gutters, guides,
+  crop marks, frame boxes, labels, numbers, or any visible cell structure.
+- Each invisible slot is exactly 192 × 208 px.
+- All 8 slots contain animation frames in reading order: left-to-right, top-to-bottom. There is no empty slot.
+- Every frame must stay fully inside its own invisible 192 × 208 slot. No body part, hair, prop, effect, outline,
+  shadow, halo, glow, label, separator, or antialiasing may cross a slot boundary."""
 
 
 def build_sheet_prompt_seed(row_label: str, style_desc: str, chroma: str, source_layout: str) -> str:
@@ -447,17 +449,18 @@ MOTION DOCTRINE:
 {doctrine}
 
 PROP DOCTRINE (read this — codogotchi animations are NOT charades):
-- If the motion names a PROP, that prop MUST be clearly drawn and readable in every populated cell.
+- If the motion names a PROP, that prop MUST be clearly drawn and readable in every populated slot.
 - Use EXACTLY the prop named — never an A/B choice. The prop is the SAME object, same design, in all 8 frames.
 - Emotion-led rows may lead with expression; everything else is prop-led.
 
-CELL CONSTRAINTS:
-- Background: one flat RGB #{chroma} color in every cell.
-- The background must be perfectly flat: no lighting falloff, vignette, texture, noise, gradient, shadow,
-  glow, halo, outline, or antialias spill into the key color.
+SLOT CONSTRAINTS:
+- Background: one single uninterrupted flat RGB #{chroma} color across the entire 768 × 416 image.
+- The background must be exactly the same solid color in all slots and between slots: no lighting falloff,
+  vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
+  separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
 - No transparency/RGBA output. Use the chroma background, not transparent pixels.
-- Padding: at least 8 px on all sides inside each 192 × 208 cell.
-- Same character scale and baseline across all 8 populated cells.
+- Padding: at least 8 px on all sides inside each invisible 192 × 208 slot.
+- Same character scale and baseline across all 8 populated slots.
 - No #{chroma} or near-#{chroma} contamination on character, props, or effects.
 - Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
 - Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
@@ -485,17 +488,18 @@ MOTION DOCTRINE:
 {doctrine}
 
 PROP DOCTRINE (read this — codogotchi animations are NOT charades):
-- If the motion names a PROP, that prop MUST be clearly drawn and readable in every populated cell.
+- If the motion names a PROP, that prop MUST be clearly drawn and readable in every populated slot.
 - Use EXACTLY the prop named — never an A/B choice. The prop is the SAME object, same design, in all 8 frames.
 - Emotion-led rows may lead with expression; everything else is prop-led.
 
-CELL CONSTRAINTS:
-- Background: one flat RGB #{chroma} color in every cell.
-- The background must be perfectly flat: no lighting falloff, vignette, texture, noise, gradient, shadow,
-  glow, halo, outline, or antialias spill into the key color.
+SLOT CONSTRAINTS:
+- Background: one single uninterrupted flat RGB #{chroma} color across the entire 768 × 416 image.
+- The background must be exactly the same solid color in all slots and between slots: no lighting falloff,
+  vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
+  separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
 - No transparency/RGBA output. Use the chroma background, not transparent pixels.
-- Padding: at least 8 px on all sides inside each 192 × 208 cell.
-- Same character scale and baseline across all 8 populated cells.
+- Padding: at least 8 px on all sides inside each invisible 192 × 208 slot.
+- Same character scale and baseline across all 8 populated slots.
 - No #{chroma} or near-#{chroma} contamination on character, props, or effects.
 - Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
 - Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
@@ -723,7 +727,7 @@ def main() -> None:
             "Keep --chroma auto unless magenta/purple foreground makes magenta unsafe."
         )
         print(f"\nNext: generate one {args.source_layout} row sheet at a time using sheet-prompts/<tier>/<label>.txt")
-        print("      Save to sheets/<tier>/<label>.png, then normalize to exact 4x2:")
+        print("      Then normalize the selected row sheet to exact 4x2:")
         print(
             "      python scripts/normalize_generated_sheet.py --input sheets/<tier>/<label>.png "
             "--out sheets/<tier>/<label>.normalized.png --source-layout <job sourceLayout> "

@@ -6,8 +6,6 @@ description: "Add the Lite-Basic (Tier 2) sprite atlas to an EXISTING Codogotchi
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
 >
 > **Workspace (do this first)** — generated artifacts live **outside** the repo, one folder per run. From the plugin root, before Step 1, run once: `WORK="$HOME/Documents/Codex/$(date +%Y-%m-%d-%H%M%S)"; mkdir -p "$WORK"; ln -sfn "$WORK" run`. Every `run/…` path below then resolves into `$WORK`, so the commands stay unchanged. Never write the `run/` tree into the repo.
->
-> **Raw image_gen landing note** — `$WORK` is the canonical destination, but do **not** assume `image_gen` writes there directly. Raw row sheets may first appear in `~/.codex/generated_images/`, `~/.codex/sessions/...`, or app temp directories. That is expected. Immediately copy or move each raw sheet into `run/<pet-id>/sheets/lite-basic/<row>.png` before running `normalize_generated_sheet.py`.
 
 # hatch-codogotchi-lite-basic
 
@@ -70,8 +68,6 @@ python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
 #    All 8 cells are the animation; no empty cell. Use the chroma named in the
 #    sheet prompt; default is #00B140 (green), switch per the chroma rule.
 #    Prop must stay clearly drawn + identical across frames; seed.png attached.
-#    If image_gen lands the raw file in ~/.codex scratch/cache space first,
-#    relocate it into run/<pet-id>/sheets/lite-basic/<row>.png before continuing.
 #    Then:
 python scripts/normalize_generated_sheet.py --input run/<pet-id>/sheets/lite-basic/<row>.png --out run/<pet-id>/sheets/lite-basic/<row>.normalized.png --source-layout 4x2 --source-chroma <00b140-or-ff00ff-or-0047bb> --out-chroma <00b140-or-ff00ff-or-0047bb>
 python scripts/slice_animation_sheet.py --sheet run/<pet-id>/sheets/lite-basic/<row>.normalized.png --out-dir run/<pet-id>/frames/lite-basic/<row>/ --chroma <00b140-or-ff00ff-or-0047bb>
