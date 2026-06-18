@@ -192,7 +192,7 @@ function AuthWidgetInner() {
         {username ? `@${username}` : "Account"}
       </button>
       {menuOpen && (
-        <div className="absolute right-0 mt-2 w-44 z-10 bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl shadow-[0_4px_0_0_var(--color-charcoal-ink)] py-2 flex flex-col">
+        <div className="absolute right-0 top-full mt-2 w-44 z-10 bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl shadow-[0_4px_0_0_var(--color-charcoal-ink)] py-2 flex flex-col">
             <a
               href="/upload"
               className="px-4 py-2 text-sm font-medium hover:bg-surface-container flex items-center gap-2"
