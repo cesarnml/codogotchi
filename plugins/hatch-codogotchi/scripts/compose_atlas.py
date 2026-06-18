@@ -3,7 +3,9 @@
 compose_atlas.py — Stack validated row strips into a Codogotchi spritesheet atlas.
 
 Expects all row strips as 1536 × cell_h PNGs in --rows-dir, named in row order.
-Stacks them top → bottom, zeroes transparent-RGB residue, saves PNG.
+v4.0.0: strips carry their flat chroma-green (#00B140) background — keying is done
+later by the user in Chroma Key Studio. Stacks the strips top → bottom onto a flat
+green canvas and saves an opaque RGB PNG (still green-background, pre-key).
 Encode to WebP separately: cwebp -lossless -exact out.png -o out.webp
 """
 
@@ -12,7 +14,6 @@ import sys
 from pathlib import Path
 
 from PIL import Image
-import numpy as np
 
 
 TIER_CONFIG = {
@@ -22,12 +23,12 @@ TIER_CONFIG = {
             "idle",
             "running-right",
             "running-left",
-            "standby",
-            "jump",
-            "errored",
-            "waiting-for-input",
-            "implementing-fallback",
-            "thinking-fallback",
+            "waving",
+            "jumping",
+            "failed",
+            "waiting",
+            "running",
+            "review",
         ],
         "output_suffix": "spritesheet",
     },
@@ -83,15 +84,6 @@ TIER_CONFIG = {
 }
 
 
-def zero_transparent_rgb(arr: np.ndarray) -> np.ndarray:
-    """Set RGB to (0,0,0) wherever alpha == 0."""
-    mask = arr[:, :, 3] == 0
-    arr[mask, 0] = 0
-    arr[mask, 1] = 0
-    arr[mask, 2] = 0
-    return arr
-
-
 def find_row_strip(rows_dir: Path, label: str) -> Path | None:
     """Find a PNG strip for the given row label, trying a few naming conventions."""
     candidates = [
@@ -138,14 +130,13 @@ def compose(rows_dir: Path, tier: str, out: Path, cell_w: int = 192, cell_h: int
             sys.exit(f"ERROR: {label} strip width {strip.width} != expected {expected_w}")
 
     atlas_h = cell_h * n_rows
-    atlas = Image.new("RGBA", (expected_w, atlas_h), (0, 0, 0, 0))
+    # Flat chroma-green canvas; strips are opaque green-background, so the result
+    # is a uniform-green, pre-key atlas ready for Chroma Key Studio.
+    atlas = Image.new("RGBA", (expected_w, atlas_h), (0, 177, 64, 255))
     for i, strip in enumerate(strips):
-        atlas.paste(strip, (0, i * cell_h))
+        atlas.alpha_composite(strip, (0, i * cell_h))
 
-    # Zero transparent-RGB residue
-    arr = np.array(atlas)
-    arr = zero_transparent_rgb(arr)
-    atlas = Image.fromarray(arr, "RGBA")
+    atlas = atlas.convert("RGB")
 
     out.parent.mkdir(parents=True, exist_ok=True)
     atlas.save(out, "PNG")

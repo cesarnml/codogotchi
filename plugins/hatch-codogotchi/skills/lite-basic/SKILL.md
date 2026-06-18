@@ -17,11 +17,11 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 
 **Prerequisite:** a valid Codex `spritesheet.webp` for the pet (the character reference is extracted from it).
 
-**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 4×2 Lite-Basic animation sheet per row**: exact 768×416 px, eight 192×208 cells (4 columns × 2 rows), all 8 cells populated in reading order, no empty cell. Then run `normalize_generated_sheet.py`, `slice_animation_sheet.py`, and `key_row_frames.py` to produce a transparent `1×8` review strip before `stitch_row.py`. Do **not** request a complete atlas or an unconstrained horizontal strip.
+**Execution model (v4.0.0 — strip-first):** Codex uses its built-in `image_gen` tool to generate **one full Lite-Basic row per call as a single `8×1` strip**: `1536×208`, eight 192×208 frames left-to-right, all 8 populated, no empty frame, on a **flat chroma-green `#00B140`** background. Then run `normalize_generated_sheet.py` to snap each strip to exact `1536×208`. There is **no slicing, no per-frame keying, and no stitching** — the strip *is* the row. Do **not** request a complete atlas, a `4×2` sheet, or per-frame images.
 
-**Non-negotiable row gate:** finish one row completely before generating the next in this exact order: raw `4×2` row sheet → transparent `1×8` review strip → stitched row. If the transparent strip looks wrong, regenerate the raw row sheet instead of patching forward. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
+**Non-negotiable row gate:** finish one row strip completely (generate → normalize → eyeball) before generating the next. If a strip looks wrong, regenerate the whole strip instead of patching forward. Do not compose until every row strip has been eyeballed for prop clarity, face/eye integrity, scale, and motion.
 
-**Chroma key — canonical palette, default chroma green.** `--chroma` defaults to `#00B140`. The only supported keys are `#00B140`, `#FF00FF`, and `#0047BB`. Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#FF00FF` when the pet has green (greenish eyes, hair highlights, green props/FX); `#0047BB` when it has both green and magenta/pink. `key_row_frames.py` uses fixed matte presets from the canonical TypeScript engine; do not improvise UI tuning.
+**Chroma key — flat green `#00B140`, always, keyed by the user later.** Every row is generated on flat green `#00B140` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — intentional green details are preserved. After QA, hand the green-background atlas to the user to key in **Chroma Key Studio** (https://chromakeyremoval.vercel.app).
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that produces a clean result**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended speedup, not a hard requirement.
 
@@ -37,11 +37,11 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 **0. Motion restraint — stability over expressiveness (paramount).** A calm pet with small, smooth motion always beats an expressive one that jitters; when they conflict, **choose stability**. The 8 frames are generated *independently*, so big or whole-body described motion comes back incoherent — legs swing, props teleport, the pet hops. Anchor the torso, head, hips, and **both feet** in nearly the same place across all 8 frames (legs don't walk or swing in standing rows); confine motion to **one element** — the named prop, one arm, or the expression — at low amplitude with short, smooth arcs. "No static rows" is a *floor* (subtle smooth life so frames differ), **not** a push toward big motion: a barely-moving stable row passes; a busy jittery row is a reject.
 
 1. **Prop doctrine — NOT charades.** Emotion-mappable states (`revive`, `errored`→sad) lead with expression; **every other state is carried by one clearly-visible prop** — never subtle hand gestures, never a mimed/"invisible" prop ("invisible keyboard", "unseen screen"), never an A/B choice (the old `reading` "page/tablet" drew both). Same prop, all 8 frames. Per-row props are in `references/animation-rows-lite.md`.
-2. **Scale consistency.** Same character size across all 8 frames of a row (±15% of the row median). `stitch_row.py` only prevents clipping; `inspect_frames.py` **hard-fails** drift — regenerate the frame, don't rescale.
-3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as the seed artifact. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual judgment.
-4. **Alignment stability.** Keep the character on a stable horizontal axis in every 192×208 cell; the pet must not hop left/right between frames. Vertically align ordinary standing rows to a shared bottom baseline near `cell_h - 8`, not to the vertical center. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
+2. **Scale consistency.** Same character size across all 8 frames of a row. Ask `image_gen` for a shared head height / body scale across the strip and eyeball the normalized strip for drift; if one frame is off, regenerate the whole strip.
+3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as the seed artifact. This is an eyeball pass on the contact sheet — there is no automated identity gate.
+4. **Alignment stability.** Keep the character on a stable horizontal axis in every 192×208 frame; the pet must not hop left/right. Vertically align ordinary standing rows to a shared bottom baseline near `cell_h - 8`, not the vertical center. Confirm on the contact sheet / previews.
 
-Plus the standing failure modes: don't fake frames by transforming the seed; **sheet-first**, one row at a time; never whole-atlas generation; no unbounded strips; don't drift from the Codex sheet's style.
+Plus the standing failure modes: don't fake frames by transforming the seed; **strip-first**, one row at a time; never whole-atlas generation; keep the green background flat; don't drift from the Codex sheet's style.
 
 Quality caveats for the recommended pattern:
 - Some rows need more unique motion than others; generate extra distinct frames whenever the action or emotion reads weakly.
@@ -59,66 +59,57 @@ python scripts/extract_seed_from_codex.py \
   --out <seed>
 #   (confirm the seed artifact is a clean neutral pose; --print-cell-size if cell ≠ 192×208)
 
-# 2. Prepare the Lite-Basic run (each prompt embeds the prop doctrine + scale rule)
+# 2. Prepare the Lite-Basic run (each strip prompt embeds the prop doctrine, scale rule, flat #00B140 bg)
 python scripts/prepare_pet_run.py --seed <seed> \
-  --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-basic --style auto --chroma auto
+  --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-basic --style auto
 
-# 3. For each of the 9 rows, in order, use built-in image_gen sheet-first:
-#    generate one exact 768x416 4x2 row sheet and pass that artifact to the local pipeline.
-#    All 8 cells are the animation; no empty cell. Use the chroma named in the
-#    sheet prompt; default is #00B140 (green), switch per the chroma rule.
-#    Prop must stay clearly drawn + identical across frames; seed artifact attached.
-#    Then:
-python scripts/normalize_generated_sheet.py --input <row-sheet> --out <normalized-row-sheet> --source-layout 4x2 --source-chroma <00b140-or-ff00ff-or-0047bb> --out-chroma <00b140-or-ff00ff-or-0047bb>
-python scripts/slice_animation_sheet.py --sheet <normalized-row-sheet> --out-dir <frame-dir> --chroma <00b140-or-ff00ff-or-0047bb>
-python scripts/key_row_frames.py --row-dir <frame-dir> --out-dir <keyed-frame-dir> --preview-out <keyed-review-strip> --chroma <00b140-or-ff00ff-or-0047bb> --preset balanced
-python scripts/stitch_row.py     --row-dir <keyed-frame-dir> --out <stitched-row>
-python scripts/inspect_frames.py --row <stitched-row> --seed <seed>   # gate before next row
+# 3. For each of the 9 rows, in order, use built-in image_gen strip-first:
+#    generate one exact 1536x208 8x1 strip (sheets/lite-basic/<row>.png) on flat #00B140.
+#    All 8 frames are the animation; no empty frame. Prop must stay clearly drawn +
+#    identical across frames; seed artifact attached. Then normalize + eyeball:
+python scripts/normalize_generated_sheet.py --input sheets/lite-basic/<row>.png --out rows/lite-basic/<row>.png
+#    Eyeball rows/lite-basic/<row>.png; if wrong, regenerate the whole strip.
 
-# 4. Compose + encode (after all 9 rows)
-python scripts/compose_atlas.py --rows-dir <rows-dir> --tier lite-basic --out <atlas-png>
+# 4. Compose + encode (after all 9 rows) → green-background atlas
+python scripts/compose_atlas.py --rows-dir rows/lite-basic --tier lite-basic --out <atlas-png>
 cwebp -lossless -exact <atlas-png> -o <atlas-webp>
 
-# 5. Validate + mandatory QA gate
+# 5. Slim QA gate
 python scripts/validate_atlas.py            --atlas <atlas-webp> --tier lite-basic --out-json <validation-json>
 python scripts/make_contact_sheet.py        --atlas <atlas-webp> --tier lite-basic
 python scripts/render_animation_previews.py --atlas <atlas-webp> --tier lite-basic
-python scripts/make_qa_crop_sheet.py        --atlas <atlas-webp> --tier lite-basic --fail-on-warnings
 python scripts/pre_install_qa_gate.py       --atlas <atlas-webp> --tier lite-basic
-
-# 6. Install the final Lite-Basic sheet after the QA gate passes
-#    Do NOT overwrite spritesheet.webp or pet.json.
 ```
 
-Quit and reopen Codogotchi, or re-select the pet in Settings → Pet.
+**Final step — keying is the user's.** The composed `*.webp` still has its flat green background. Do **not** install it. Direct the user to **https://chromakeyremoval.vercel.app** to key it (load → tune knobs → export transparent sheet), then install the keyed `codogotchi-lite-basic-spritesheet.webp` (do NOT overwrite `spritesheet.webp` or `pet.json`) and quit-reopen Codogotchi.
 
 Row order (see `references/animation-rows-lite.md`):
 `revive, standby, thinking, reading, implementing, testing, errored, waiting-for-input, ghost`
 
-### Replace One Frame
+### Fix a bad frame
 
-If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/lite-basic/<row>.txt`, replace `<frame-dir>fNN.png`, then rerun `key_row_frames.py`, `stitch_row.py`, and `inspect_frames.py --seed <seed>` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
+There is no per-frame replacement — frames are not separate files. If one frame in a strip is wrong, **regenerate the whole 8×1 strip** for that row, re-run `normalize_generated_sheet.py`, and re-eyeball. Do not transform neighbouring frames to patch it.
 
 ---
 
 ## Acceptance criteria
 
-- [ ] `codogotchi-lite-basic-spritesheet.webp` — 1536 × 1872; 9 × 8; cell 192 × 208 (or matches Codex cell)
-- [ ] Every used cell's alpha bbox within `[8, cell_w−8] × [8, cell_h−8]`; zero likely green/magenta chroma residue; no transparent-RGB residue
-- [ ] Character/content horizontal center is stable across the row; ordinary standing rows share a bottom foot baseline near `cell_h - 8`
+- [ ] `codogotchi-lite-basic-spritesheet.webp` — 1536 × 1872; 9 × 8; cell 192 × 208 (green background, pre-key)
+- [ ] Flat `#00B140` background, perfectly uniform across the atlas (no falloff/shadow/texture)
+- [ ] Character/content horizontal center is stable across the row; ordinary standing rows share a bottom foot baseline near `cell_h - 8` (eyeballed)
 - [ ] **Stable motion (paramount):** body/feet anchored, one element moves at low amplitude, no jitter/hopping/limb-swing
-- [ ] No static rows; each row has *subtle* distinct motion (a floor, not big motion); loop closes
+- [ ] No static rows (gated by `validate_atlas.py`); each row has *subtle* distinct motion; loop closes
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
-- [ ] **No frame's content height deviates >15% from its row median**
+- [ ] Character size consistent across all 8 frames of every row (eyeballed)
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as the seed artifact
 - [ ] Style/palette/proportions match the existing `spritesheet.webp`
-- [ ] `validate-lite-basic.json`, `contact-lite-basic.png`, `previews-lite-basic/`, `qa-crops-lite-basic.png`, and `qa-crops-lite-basic.json` exist and are newer than the final atlas
-- [ ] `pre_install_qa_gate.py` passed before install; any waived crop warnings are named explicitly
-- [ ] `spritesheet.webp` and `pet.json` unchanged; app shows Lite animations after quit-reopen
+- [ ] `validate-lite-basic.json`, `contact-lite-basic.png`, and `previews-lite-basic/` exist and are newer than the final atlas
+- [ ] `pre_install_qa_gate.py` passed; user directed to https://chromakeyremoval.vercel.app to key the green atlas before install
+- [ ] `spritesheet.webp` and `pet.json` unchanged
 
 ## Final response checklist
 
-Before saying done, report: rows generated or repaired; chroma used per row; validation command/result; contact sheet, preview directory, crop sheet/report, and pre-install gate paths; known compromises or waived warnings. If the tier was completed unusually quickly, state what was compressed, reused, skipped, or waived. Script validation alone is not QA.
+Before saying done, report: rows generated or regenerated; validation command/result; contact sheet and preview directory paths; known compromises. State clearly that the delivered atlas is **green-background (pre-key)** and the user must key it at https://chromakeyremoval.vercel.app before installing. If the tier was completed unusually quickly, state what was compressed, reused, or skipped. Validation alone is not QA.
 
 ## Related
 `SKILL-lite-enhanced.md` (next, requires this) · `SKILL-codex-and-lite-basic.md` · `SKILL-soa.md` · `references/animation-rows-lite.md`

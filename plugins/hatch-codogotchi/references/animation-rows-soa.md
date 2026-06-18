@@ -158,7 +158,7 @@ On the happy-path delivery flow, `review_clean` fires and then `record_review` f
 | Sheet height | 2080 px |
 | Columns | 8 |
 | Rows | 10 |
-| Chroma-key | `#00B140` green by default; `#FF00FF`/`#0047BB` when the pet/prop clashes (see chroma rule) |
+| Chroma-key | flat `#00B140` green on every row (kept end-to-end; keyed by the user later in Chroma Key Studio) |
 | Padding (min) | 8 px all sides |
 | Feet-off-baseline | ≤ 12 px for jump rows |
 | Loop | Continuous, 1.5 s / 8 frames |

@@ -15,8 +15,8 @@ import numpy as np
 
 TIER_ROW_LABELS = {
     "codex": [
-        "idle", "running-right", "running-left", "standby", "jump",
-        "errored", "waiting-for-input", "implementing-fallback", "thinking-fallback",
+        "idle", "running-right", "running-left", "waving", "jumping",
+        "failed", "waiting", "running", "review",
     ],
     "lite-basic": [
         "revive", "standby", "thinking", "reading", "implementing",

@@ -116,7 +116,7 @@ def main() -> None:
     if args.col >= CODEX_COLS:
         sys.exit(f"ERROR: --col {args.col} out of range (sheet has {CODEX_COLS} cols, 0-indexed)")
 
-    row_labels = ["idle", "running-right", "running-left", "standby", "jump", "errored", "waiting-for-input", "implementing-fallback", "thinking-fallback"]
+    row_labels = ["idle", "running-right", "running-left", "waving", "jumping", "failed", "waiting", "running", "review"]
     row_label = row_labels[args.row] if args.row < len(row_labels) else f"row-{args.row}"
     print(f"Extracting: row {args.row} ({row_label}), col {args.col} (frame {args.col + 1})")
 
@@ -136,8 +136,8 @@ def main() -> None:
         composited.save(out, "PNG")
         print(f"Saved on #{args.chroma} → {out}  ({composited.width} × {composited.height})")
 
-    print("\nNext: attach this image to your frame generation prompts as the character reference.")
-    print(f"      Use --cell-w {cell_w} --cell-h {cell_h} in stitch_row.py and compose_atlas.py if non-standard.")
+    print("\nNext: attach this image to your strip generation prompts as the character reference.")
+    print(f"      Use --cell-w {cell_w} --cell-h {cell_h} in compose_atlas.py if non-standard.")
 
 
 if __name__ == "__main__":

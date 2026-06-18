@@ -3,13 +3,13 @@
 **Status:** proposed, not yet implemented. Sketch only.
 
 ## Why the current gates miss things
-The existing automated gates (`inspect_frames.py`, `validate_atlas.py`,
-`make_qa_crop_sheet.py`, `pre_install_qa_gate.py`) are **geometric + chroma
-heuristics**: exact dimensions, grid integrity, chroma/transparent-RGB residue,
-padding, per-row content-height drift (±15%), area/centroid drift, and silhouette
-deviation vs the seed. `pre_install_qa_gate.py` only checks that QA *artifacts
-exist and are fresher than the atlas* — its own docstring says it "does not
-replace human review."
+Since v4.0.0 the automated gates are deliberately slim: `validate_atlas.py`
+(dimensions, grid integrity, static-row detection) and `pre_install_qa_gate.py`
+(QA *artifacts exist and are fresher than the atlas*). On the green-background
+pre-key sheet, per-frame alpha geometry can't be measured reliably, so scale and
+alignment are eyeball checks on the contact sheet — exactly the kind of
+perceptual judgment this sketch proposes to automate. `pre_install_qa_gate.py`'s
+own docstring says it "does not replace human review."
 
 None of these can judge **perceptual coherence**:
 - the character's identity drifting across frames (hair length/style, face, outfit),
@@ -27,8 +27,8 @@ it's weakest, because an agent rationalizes its own output as passing.
 Add one perceptual gate that runs a **different** model than the generator
 (adversarial — assume the row has holes; do not rationalize), on artifacts that
 already exist:
-- the stitched row strip (`rows/<tier>/<row>.png`, f01…f08 side by side),
-- the face/prop crop sheet (`qa-crops-<tier>.png`).
+- the normalized 8×1 row strip (`rows/<tier>/<row>.png`, f1…f8 side by side),
+- the composed contact sheet (`contact-<tier>.png`).
 
 For each row it answers a fixed rubric and emits a JSON verdict:
 
@@ -50,16 +50,16 @@ For each row it answers a fixed rubric and emits a JSON verdict:
 ```
 
 ## Where it slots in
-After `make_qa_crop_sheet.py`, before `pre_install_qa_gate.py`:
+After `render_animation_previews.py`, before `pre_install_qa_gate.py`:
 
 ```
-… → make_qa_crop_sheet.py → perceptual_review.(py|agent) → pre_install_qa_gate.py → install
+… → make_contact_sheet.py → render_animation_previews.py → perceptual_review.(py|agent) → pre_install_qa_gate.py → keying handoff
 ```
 
 `pre_install_qa_gate.py` gains one required, freshness-checked artifact:
-`perceptual-<tier>.json`, and **blocks install** if any row's verdict is `fail`
-(warnings allowed only with `--allow-perceptual-warnings`, mirroring the existing
-`--allow-crop-warnings`). A human can override, but the default is block.
+`perceptual-<tier>.json`, and **blocks the keying handoff** if any row's verdict
+is `fail` (warnings allowed only with `--allow-perceptual-warnings`). A human can
+override, but the default is block.
 
 ## Principles
 - **Independent runner.** The reviewer must not be the generator. Same-model

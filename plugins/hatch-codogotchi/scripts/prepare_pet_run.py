@@ -34,31 +34,31 @@ CODEX_PROMPTS: dict[str, str] = {
         "Mirror of running-right. Facing LEFT. Verify character asymmetry (bag, hair part) reads correctly when mirrored. "
         "8 frames."
     ),
-    "standby": (
+    "waving": (
         "Alert, ready for the next prompt. Upright, eyes forward, small ready-bounce on balls of feet, brief "
         "encouraging nod, tiny 'go ahead' hand gesture at waist, settle. Bright and awake — distinct from idle's "
         "neutrality. 8 frames."
     ),
-    "jump": (
+    "jumping": (
         "Left-click-hold on floating pet triggers this. Knees bend (wind-up), leap upward with both feet off baseline "
         "(≤12 px), peak hang with arms spread or raised, descend, soft landing. Bouncy and playful, not alarmed. 8 frames."
     ),
-    "errored": (
+    "failed": (
         "Dismay at a failure. Slight recoil with widening eyes, compact sweat-drop near temple, hand to forehead "
         "with worried frown and small head-shake, shoulders sag, recover toward neutral for loop. Worried, not panicked. "
         "8 frames."
     ),
-    "waiting-for-input": (
+    "waiting": (
         "Blocked, waiting on the user. Attentive and looking toward the VIEWER, gentle open-hand 'your turn' gesture "
         "toward viewer, patient head-tilt, single foot-tap with eyes still on viewer, hands settle. Distinct from "
         "standby — directional toward user. 8 frames."
     ),
-    "implementing-fallback": (
+    "running": (
         "Active coding (fallback when no Lite sheet). PROP: a small open laptop propped in front of her (visible "
         "keyboard + glowing screen). Both hands type in quick alternation, small focus-lean, hair bounces lightly, "
         "fingers ease and reset. 8 frames."
     ),
-    "thinking-fallback": (
+    "review": (
         "Light exploration / reasoning (fallback for thinking+reading+cramming when no Lite sheet). PROP: a "
         "thought-bubble with a small lightbulb above her head. Hand rises to chin, eyes glance up-left then "
         "up-right, small 'hmm' head-tilt, hand returns to chin. 8 frames."
@@ -245,24 +245,22 @@ STYLE_PRESETS = {
     "auto": "infer style from seed image",
 }
 
-DEFAULT_CHROMA = "00b140"
-BLUE_FALLBACK_CHROMA = "0047bb"
-GREEN_SENSITIVE_CHROMA = "ff00ff"
-GREEN_SENSITIVE_ROWS = {
-    "green-tdd",
-    "review-clean",
-    "verifying",
-    "web-search",
-}
+# v4.0.0: ONE flat chroma key for every row, always. The pipeline no longer keys
+# anything — the user keys the finished green-background atlas with Chroma Key
+# Studio (https://chromakeyremoval.vercel.app), which separates a green prop (e.g.
+# a green checkmark) from the green background far more reliably than an agent can.
+# So there is no per-row key selection and no green/magenta/blue fallback logic.
+CHROMA = "00b140"
 SOURCE_LAYOUTS = {
-    # 4x2 is the only layout, end to end: agents generate it, normalize snaps to it,
-    # the slicer consumes it. There is no 3x3 anywhere in the pipeline.
-    "4x2": {
-        "cols": 4,
-        "rows": 2,
-        "width": 768,
-        "height": 416,
-        "note": "The only layout: 8 populated 192x208 cells in a 4x2 sheet (4 cols x 2 rows), no empty cell.",
+    # v4.0.0: each animation row is generated as a single 8x1 horizontal strip.
+    # image_gen renders the full 1536px width directly, so there is no 4x2 folding
+    # and no per-frame slicing anywhere in the pipeline.
+    "8x1": {
+        "cols": 8,
+        "rows": 1,
+        "width": 1536,
+        "height": 208,
+        "note": "One uninterrupted 1536x208 strip: 8 populated 192x208 frames left-to-right, no empty frame.",
     },
 }
 
@@ -272,34 +270,13 @@ LOCOMOTION_ROWS = {
 }
 
 JUMP_ROWS = {
-    "jump",
+    "jumping",
     "ticket-completed",
 }
 
 
 def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9-]", "-", name.lower().strip()).strip("-")
-
-
-def resolve_chroma(row_label: str, chroma: str) -> str:
-    """Resolve the canonical chroma key.
-
-    Auto mode uses chroma green by default, but rows with intentional green
-    props/effects are upgraded to chroma magenta to avoid self-key damage.
-    Chroma blue is the explicit fallback when both green and magenta are unsafe.
-    """
-    allowed = {DEFAULT_CHROMA, GREEN_SENSITIVE_CHROMA, BLUE_FALLBACK_CHROMA}
-    if chroma != "auto":
-        normalized = chroma.lower().lstrip("#")
-        if normalized not in allowed:
-            raise SystemExit(
-                "ERROR: --chroma must be auto or one of "
-                f"{', '.join(sorted('#' + color for color in allowed))}"
-            )
-        return normalized
-    if row_label in GREEN_SENSITIVE_ROWS:
-        return GREEN_SENSITIVE_CHROMA
-    return DEFAULT_CHROMA
 
 
 def row_kind(row_label: str) -> str:
@@ -331,100 +308,13 @@ def motion_doctrine(row_label: str) -> str:
 - Keep frame-to-frame change small; subtle smooth motion is enough."""
 
 
-def build_frame_prompt_seed(row_label: str, style_desc: str, chroma: str) -> str:
-    """Prompt for seed-image-based generation (image attached to generation call)."""
-    motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
-    doctrine = motion_doctrine(row_label)
-    return f"""You are generating ONE FRAME of a sprite animation for a desktop Codogotchi pet.
-
-SEED IMAGE: attached. Use ONLY as style/character reference — infer exact proportions, outfit, hair, skin tone, linework, colour from it. Do NOT restyle or invent details.
-
-STYLE: {style_desc}
-
-MOTION THIS FRAME IS PART OF:
-{motion}
-
-MOTION DOCTRINE:
-{doctrine}
-
-PROP DOCTRINE (read this — codogotchi animations are NOT charades):
-- If the motion names a PROP, that prop MUST be clearly drawn and readable in this frame. The user must grok the
-  state from the prop, not from subtle hand gestures. No invisible/mimed props ("invisible keyboard", "unseen screen").
-- Use EXACTLY the prop named — never an A/B choice. (e.g. reading = one book, never "a book or a tablet".)
-- The prop is the SAME object, same design, in all 8 frames of the row; only its motion changes.
-- Emotion-led rows (idle, errored→sad, celebrations) may lead with expression; everything else is prop-led.
-
-FRAME CONSTRAINTS (apply to every frame):
-- Size: exactly 192 × 208 px
-- Background: solid #{chroma} — do NOT use transparent/RGBA background
-- Padding: ≥ 8 px on ALL sides — nothing (body, hair, props, effects, outline, fringe) touches any edge
-- SCALE CONSISTENCY: draw the character at the SAME apparent size as the other frames in this row — same head
-  height, same body scale. A frame drawn noticeably larger/smaller than its rowmates is a REJECT — regenerate it.
-- No floor line, shadow, border, guide, label, number, or text
-- No #{chroma} or near-chroma contamination on character/effects
-- Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
-- The character must be GENUINELY IN THIS FRAME'S DISTINCT POSE — do not copy-transform the seed
-
-Loop contract: frame 8 pose ≈ frame 1 pose so the row plays as a seamless continuous loop.
-"""
-
-
-def build_frame_prompt_description(row_label: str, description: str, style_desc: str, chroma: str) -> str:
-    """Prompt for text-description-based generation (no seed image)."""
-    motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
-    doctrine = motion_doctrine(row_label)
-    return f"""You are generating ONE FRAME of a sprite animation for a desktop Codogotchi pet.
-
-CHARACTER DESCRIPTION: {description}
-
-Render the character exactly as described. Do not add, remove, or change any described features. Be consistent frame-to-frame.
-
-STYLE: {style_desc}
-
-MOTION THIS FRAME IS PART OF:
-{motion}
-
-MOTION DOCTRINE:
-{doctrine}
-
-PROP DOCTRINE (read this — codogotchi animations are NOT charades):
-- If the motion names a PROP, that prop MUST be clearly drawn and readable in this frame. The user must grok the
-  state from the prop, not from subtle hand gestures. No invisible/mimed props ("invisible keyboard", "unseen screen").
-- Use EXACTLY the prop named — never an A/B choice. (e.g. reading = one book, never "a book or a tablet".)
-- The prop is the SAME object, same design, in all 8 frames of the row; only its motion changes.
-- Emotion-led rows (idle, errored→sad, celebrations) may lead with expression; everything else is prop-led.
-
-FRAME CONSTRAINTS (apply to every frame):
-- Size: exactly 192 × 208 px
-- Background: solid #{chroma} — do NOT use transparent/RGBA background
-- Padding: ≥ 8 px on ALL sides — nothing touches any edge
-- SCALE CONSISTENCY: draw the character at the SAME apparent size as the other frames in this row — same head
-  height, same body scale. A frame drawn noticeably larger/smaller than its rowmates is a REJECT — regenerate it.
-- No floor line, shadow, border, guide, label, number, or text
-- No #{chroma} or near-chroma contamination on character/effects
-- Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
-- The character must be GENUINELY IN THIS FRAME'S DISTINCT POSE
-
-After completing the Codex idle row: use frame 1 of idle as the seed artifact and attach it to ALL subsequent generation calls alongside this prompt, to anchor character consistency.
-
-Loop contract: frame 8 pose ≈ frame 1 pose so the row plays as a seamless continuous loop.
-"""
-
-
-def build_frame_prompt(row_label: str, style_desc: str, chroma: str, description: str | None = None) -> str:
-    if description:
-        return build_frame_prompt_description(row_label, description, style_desc, chroma)
-    return build_frame_prompt_seed(row_label, style_desc, chroma)
-
-
 def build_sheet_output_format(source_layout: str) -> str:
-    layout = SOURCE_LAYOUTS["4x2"]
+    layout = SOURCE_LAYOUTS["8x1"]
     return f"""OUTPUT FORMAT:
-- A single uninterrupted {layout["width"]} × {layout["height"]} px image containing eight animation frames in an invisible 4 × 2 layout.
-- The 4 × 2 layout is only for placement. Do NOT draw panel borders, grid lines, separators, gutters, guides,
-  crop marks, frame boxes, labels, numbers, or any visible cell structure.
-- Each invisible slot is exactly 192 × 208 px.
-- All 8 slots contain animation frames in reading order: left-to-right, top-to-bottom. There is no empty slot.
+- A single uninterrupted {layout["width"]} × {layout["height"]} px image: ONE horizontal row of eight animation frames (8 × 1).
+- Each frame occupies exactly 192 × 208 px, placed left-to-right in reading order. There is no empty frame.
+- Do NOT draw panel borders, grid lines, separators, gutters, guides, crop marks, frame boxes, labels, numbers,
+  or any visible cell structure — the 8 × 1 split is invisible placement only.
 - Every frame must stay fully inside its own invisible 192 × 208 slot. No body part, hair, prop, effect, outline,
   shadow, halo, glow, label, separator, or antialiasing may cross a slot boundary."""
 
@@ -454,15 +344,15 @@ PROP DOCTRINE (read this — codogotchi animations are NOT charades):
 - Emotion-led rows may lead with expression; everything else is prop-led.
 
 SLOT CONSTRAINTS:
-- Background: one single uninterrupted flat RGB #{chroma} color across the entire 768 × 416 image.
-- The background must be exactly the same solid color in all slots and between slots: no lighting falloff,
+- Background: one single uninterrupted FLAT chroma-green key color, EXACTLY hex #{chroma} (RGB 0,177,64), across
+  the entire 1536 × 208 image. This green is a CHROMA KEY that will be removed later with a dedicated tool, so it
+  must be perfectly uniform.
+- The background must be exactly that same solid #{chroma} in every frame and between frames: no lighting falloff,
   vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
   separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
-- No transparency/RGBA output. Use the chroma background, not transparent pixels.
+- Output flat RGB on the #{chroma} background. Do NOT output transparency/RGBA — fill the background with the green key.
 - Padding: at least 8 px on all sides inside each invisible 192 × 208 slot.
-- Same character scale and baseline across all 8 populated slots.
-- No #{chroma} or near-#{chroma} contamination on character, props, or effects.
-- Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
+- Same character scale and baseline across all 8 frames.
 - Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
 """
 
@@ -493,15 +383,15 @@ PROP DOCTRINE (read this — codogotchi animations are NOT charades):
 - Emotion-led rows may lead with expression; everything else is prop-led.
 
 SLOT CONSTRAINTS:
-- Background: one single uninterrupted flat RGB #{chroma} color across the entire 768 × 416 image.
-- The background must be exactly the same solid color in all slots and between slots: no lighting falloff,
+- Background: one single uninterrupted FLAT chroma-green key color, EXACTLY hex #{chroma} (RGB 0,177,64), across
+  the entire 1536 × 208 image. This green is a CHROMA KEY that will be removed later with a dedicated tool, so it
+  must be perfectly uniform.
+- The background must be exactly that same solid #{chroma} in every frame and between frames: no lighting falloff,
   vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
   separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
-- No transparency/RGBA output. Use the chroma background, not transparent pixels.
+- Output flat RGB on the #{chroma} background. Do NOT output transparency/RGBA — fill the background with the green key.
 - Padding: at least 8 px on all sides inside each invisible 192 × 208 slot.
-- Same character scale and baseline across all 8 populated slots.
-- No #{chroma} or near-#{chroma} contamination on character, props, or effects.
-- Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
+- Same character scale and baseline across all 8 frames.
 - Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
 
 After completing the Codex idle row: use frame 1 of idle as the seed artifact and attach it to ALL subsequent
@@ -533,30 +423,10 @@ def main() -> None:
     parser.add_argument("--pet-name", default="My Pet", help="Display name for the pet")
     parser.add_argument("--pet-id", default=None, help="Pet ID slug (derived from --pet-name if not provided)")
     parser.add_argument("--style", default="auto", choices=list(STYLE_PRESETS.keys()))
-    parser.add_argument(
-        "--chroma",
-        default="auto",
-        help="Chroma-key hex colour (no #), or 'auto'. Canonical palette only: "
-             "00b140 chroma green = default; ff00ff chroma magenta = fallback for green-sensitive rows or pets; "
-             "0047bb chroma blue = fallback when both green and magenta are unsafe.",
-    )
     parser.add_argument("--tier",
                         choices=["codex", "lite-basic", "lite-enhanced", "soa", "all"], default="all",
                         help="Which tier(s) to prepare prompts for (default: all). "
                              "lite-enhanced requires a valid lite-basic sheet for the same pet first.")
-    parser.add_argument(
-        "--generation-mode",
-        choices=["sheet-first", "frame-first"],
-        default="sheet-first",
-        help="Prompt/job mode. sheet-first writes 4x2 row prompts by default; frame-first preserves the old f01..f08 flow.",
-    )
-    parser.add_argument(
-        "--source-layout",
-        choices=["4x2"],
-        default="4x2",
-        help="Generation layout for sheet-first row candidates. Always 4x2 (4 cols x 2 rows, 8 frames, "
-             "no empty cell); the pipeline snaps it to the exact 4x2 canonical before slicing."
-    )
     parser.add_argument("--out-dir", type=Path, default=Path("run"),
                         help="Working artifact directory for generated prompts, manifests, and local pipeline outputs")
     parser.add_argument("--write-pet-json", action="store_true",
@@ -592,13 +462,13 @@ def main() -> None:
 
     tiers = ["codex", "lite-basic", "lite-enhanced", "soa"] if args.tier == "all" else [args.tier]
 
-    # Create directory structure
+    # Create directory structure (v4.0.0: strip-first, no per-frame slicing).
+    #   sheet-prompts/<tier>/<row>.txt  — image_gen prompt for one 8x1 strip
+    #   sheets/<tier>/<row>.png         — raw generated 8x1 strip
+    #   rows/<tier>/<row>.png           — normalized 1536x208 strip, ready to compose
     for tier in tiers:
-        (run_dir / "prompts" / tier).mkdir(parents=True, exist_ok=True)
         (run_dir / "sheet-prompts" / tier).mkdir(parents=True, exist_ok=True)
         (run_dir / "sheets" / tier).mkdir(parents=True, exist_ok=True)
-        for label in TIER_ROW_ORDER[tier]:
-            (run_dir / "frames" / tier / label).mkdir(parents=True, exist_ok=True)
         (run_dir / "rows" / tier).mkdir(parents=True, exist_ok=True)
 
     (run_dir / "qa").mkdir(parents=True, exist_ok=True)
@@ -611,56 +481,35 @@ def main() -> None:
     elif args.seed:
         print(f"WARNING: seed not found at {args.seed}")
 
-    # Write prompt files
+    # Write strip prompt files (one 8x1 strip prompt per row)
     for tier in tiers:
         for label in TIER_ROW_ORDER[tier]:
-            row_chroma = resolve_chroma(label, args.chroma)
-            prompt_text = build_frame_prompt(label, style_desc, row_chroma, description=args.description)
-            p = run_dir / "prompts" / tier / f"{label}.txt"
-            p.write_text(prompt_text)
             sheet_prompt_text = build_sheet_prompt(
                 label,
                 style_desc,
-                row_chroma,
-                args.source_layout,
+                CHROMA,
+                "8x1",
                 description=args.description,
             )
             sheet_p = run_dir / "sheet-prompts" / tier / f"{label}.txt"
             sheet_p.write_text(sheet_prompt_text)
 
-    # Write imagegen job manifests
+    # Write imagegen job manifest (one 8x1 strip per row)
     jobs: list[dict] = []
     for tier in tiers:
         for row_idx, label in enumerate(TIER_ROW_ORDER[tier]):
-            if args.generation_mode == "sheet-first":
-                jobs.append({
-                    "id": f"{tier}/{label}/sheet",
-                    "tier": tier,
-                    "row_label": label,
-                    "row_index": row_idx,
-                    "mode": "sheet-first",
-                    "sourceLayout": args.source_layout,
-                    "chroma": resolve_chroma(label, args.chroma),
-                    "out_path": f"sheets/{tier}/{label}.png",
-                    "prompt_path": f"sheet-prompts/{tier}/{label}.txt",
-                    "normalized_out_path": f"sheets/{tier}/{label}.normalized.png",
-                    "postNormalizationLayout": "4x2",
-                    "status": "pending",
-                })
-            else:
-                for frame_num in range(1, 9):
-                    jobs.append({
-                        "id": f"{tier}/{label}/f{frame_num:02d}",
-                        "tier": tier,
-                        "row_label": label,
-                        "row_index": row_idx,
-                        "frame_number": frame_num,
-                        "mode": "frame-first",
-                        "chroma": resolve_chroma(label, args.chroma),
-                        "out_path": f"frames/{tier}/{label}/f{frame_num:02d}.png",
-                        "prompt_path": f"prompts/{tier}/{label}.txt",
-                        "status": "pending",
-                    })
+            jobs.append({
+                "id": f"{tier}/{label}/strip",
+                "tier": tier,
+                "row_label": label,
+                "row_index": row_idx,
+                "sourceLayout": "8x1",
+                "chroma": CHROMA,
+                "prompt_path": f"sheet-prompts/{tier}/{label}.txt",
+                "out_path": f"sheets/{tier}/{label}.png",
+                "normalized_out_path": f"rows/{tier}/{label}.png",
+                "status": "pending",
+            })
 
     jobs_path = run_dir / "imagegen-jobs.json"
     jobs_path.write_text(json.dumps({"jobs": jobs}, indent=2) + "\n")
@@ -674,15 +523,11 @@ def main() -> None:
         "description": args.description,
         "style": args.style,
         "style_desc": style_desc,
-        "chroma": args.chroma,
-        "default_chroma": DEFAULT_CHROMA,
-        "blue_fallback_chroma": BLUE_FALLBACK_CHROMA,
-        "green_sensitive_chroma": GREEN_SENSITIVE_CHROMA,
-        "green_sensitive_rows": sorted(GREEN_SENSITIVE_ROWS),
-        "generation_mode": args.generation_mode,
-        "sourceLayout": args.source_layout,
-        "allowedSourceLayouts": ["4x2"],
-        "postNormalizationLayout": "4x2",
+        "chroma": CHROMA,
+        "sourceLayout": "8x1",
+        "allowedSourceLayouts": ["8x1"],
+        "keying": "external",
+        "keying_tool_url": "https://chromakeyremoval.vercel.app",
         "tiers": tiers,
         "cell_w": 192,
         "cell_h": 208,
@@ -694,57 +539,34 @@ def main() -> None:
     (run_dir / "run-config.json").write_text(json.dumps(config, indent=2) + "\n")
 
     total_rows = sum(len(TIER_ROW_ORDER[t]) for t in tiers)
-    total_frames = total_rows * 8
     print("\nWorking artifacts prepared.")
     print(f"Tiers: {tiers}")
     print(f"Character source: {character_source}")
     if args.description:
         print(f"Description: {args.description[:80]}{'…' if len(args.description) > 80 else ''}")
-        print("NOTE (description mode): generate Codex idle row FIRST; use f01 as the seed artifact for subsequent calls.")
-    print(f"Generation mode: {args.generation_mode}")
-    if args.generation_mode == "sheet-first":
-        layout = SOURCE_LAYOUTS[args.source_layout]
-        print(
-            f"Source layout: {args.source_layout} ({layout['cols']}x{layout['rows']}, "
-            f"{layout['width']}x{layout['height']})"
-        )
-        print(f"Post-normalization layout: 4x2 (required before slicing)")
-    if args.generation_mode == "sheet-first":
-        print(f"Total row sheets to generate: {total_rows} (slices to {total_frames} frames)")
-    else:
-        print(f"Total frames to generate: {total_frames}")
-    print("Job manifest prepared.")
-    if args.chroma == "auto":
-        print(
-            "Chroma mode: auto (#00B140 default; green-sensitive rows switch to #FF00FF automatically; "
-            "use #0047BB only when both green and magenta are unsafe)"
-        )
-    else:
-        print(f"Chroma mode: fixed #{args.chroma.lower().lstrip('#')}")
-    if args.generation_mode == "sheet-first":
-        print(
-            "\nSeed-risk note: green chroma commonly damages brown/green-heavy anime eyes, hair, props, or effects. "
-            "Keep --chroma auto unless magenta/purple foreground makes magenta unsafe."
-        )
-        print(f"\nNext: generate one {args.source_layout} row sheet at a time using the generated sheet prompt artifact for that row.")
-        print("      Then normalize the selected row sheet to exact 4x2:")
-        print(
-            "      python scripts/normalize_generated_sheet.py --input <row-sheet> "
-            "--out <normalized-row-sheet> --source-layout <job sourceLayout> "
-            "--source-chroma <job chroma> --out-chroma <job chroma>"
-        )
-        print("      Then slice the normalized 4x2 sheet:")
-        print("      python scripts/slice_animation_sheet.py --sheet <normalized-row-sheet> --out-dir <frame-dir> --chroma <job chroma>")
-        print("      Then key that row into the transparent 1x8 review strip:")
-        print(
-            "      python scripts/key_row_frames.py --row-dir <frame-dir> "
-            "--out-dir <keyed-frame-dir> --preview-out <keyed-review-strip> "
-            "--chroma <job chroma> --preset balanced"
-        )
-        print("      Then stitch/inspect that keyed row with stitch_row.py and inspect_frames.py.")
-    else:
-        print("\nNext: generate frames ONE ROW AT A TIME using the generated prompt artifact for that row.")
-        print("      Then stitch each row with: python scripts/stitch_row.py --row-dir <frame-dir> --out <stitched-row>")
+        print("NOTE (description mode): generate the Codex idle row FIRST; use its frame 1 as the seed artifact for subsequent calls.")
+    print("Generation: strip-first — one 8x1 strip (1536x208) per row, flat #00B140 green background.")
+    print(f"Total row strips to generate: {total_rows}")
+    print("Chroma: fixed flat #00B140 on every row. Keying is NOT done by this pipeline.")
+    print("\nNext per row:")
+    print("  1. Generate one 8x1 strip using sheet-prompts/<tier>/<row>.txt → sheets/<tier>/<row>.png")
+    print("  2. Normalize it to canonical 1536x208 (green background preserved):")
+    print(
+        "     python scripts/normalize_generated_sheet.py --input sheets/<tier>/<row>.png "
+        "--out rows/<tier>/<row>.png"
+    )
+    print("\nAfter ALL rows: compose → green-background atlas → slim QA → hand the atlas to the user for keying:")
+    print("  python scripts/compose_atlas.py --rows-dir rows/<tier> --tier <tier> --out <work>/<sheet>.png")
+    print("  cwebp -lossless -exact <work>/<sheet>.png -o <work>/<sheet>.webp")
+    print("  python scripts/validate_atlas.py --atlas <work>/<sheet>.webp --tier <tier> --out-json <validation-json>")
+    print("  python scripts/make_contact_sheet.py --atlas <work>/<sheet>.webp --tier <tier>")
+    print("  python scripts/render_animation_previews.py --atlas <work>/<sheet>.webp --tier <tier>")
+    print("  python scripts/pre_install_qa_gate.py --atlas <work>/<sheet>.webp --tier <tier>")
+    print(
+        "\nThe atlas still has its flat green background. Do NOT install it directly. Direct the user to key it at\n"
+        "https://chromakeyremoval.vercel.app — load the green atlas, tune the knobs, export the transparent sheet,\n"
+        "and only then install/upload the keyed result."
+    )
 
 
 if __name__ == "__main__":

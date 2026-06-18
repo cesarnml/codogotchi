@@ -1,6 +1,6 @@
 {
   "name": "hatch-codogotchi",
-  "version": "3.2.0",
+  "version": "4.0.0",
   "description": "Codex-native skills that draw Codogotchi-compatible sprite atlases (Codex, Lite-Basic, Lite-Enhanced, and Son-of-Anton tiers) from a seed image, a text description, or an existing Codex sheet.",
   "author": {
     "name": "Cesar Mejia",
@@ -22,7 +22,7 @@
   "interface": {
     "displayName": "Hatch Codogotchi",
     "shortDescription": "Draw Codogotchi-compatible sprite atlases.",
-    "longDescription": "Hatch Codogotchi bundles five guided, sheet-first skills plus a hybrid pipeline: Python handles prepare, normalize, slice, stitch, inspect, compose, and validate, while the canonical TypeScript matte engine handles chroma removal into transparent 1x8 review strips using the fixed chroma palette (#00B140, #0047BB, #FF00FF). It produces Codogotchi-compatible WebP sprite atlases for the required Codex Tier-1 sheet, the Lite-Basic and Lite-Enhanced alive/dead tiers, and the Son-of-Anton delivery-gate sheet.",
+    "longDescription": "Hatch Codogotchi bundles five guided, strip-first skills plus a Python pipeline: image_gen draws each animation row as a single 8x1 strip on a flat chroma-green (#00B140) background, then Python normalizes the strip to canonical geometry, composes the rows into a green-background WebP atlas, and runs slim QA (dimensions, grid, static-row detection, contact sheet, GIF previews). Chroma keying is intentionally left to the user via the dedicated Chroma Key Studio web tool (chromakeyremoval.vercel.app), which keys greens far more reliably than an agent. Produces Codogotchi-compatible sprite atlases for the required Codex Tier-1 sheet, the Lite-Basic and Lite-Enhanced alive/dead tiers, and the Son-of-Anton delivery-gate sheet.",
     "developerName": "Cesar Mejia",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Write"],

@@ -16,16 +16,11 @@ Use this checklist after composing each atlas and again after final installation
 - [ ] `frameWidth = imageWidth ÷ 8` — whole number, no remainder
 - [ ] `frameHeight = imageHeight ÷ rowCount` — whole number, no remainder
 
-### Transparency
+### Background (pre-key)
 
-- [ ] Zero likely chroma-key residue pixels anywhere in any sheet (`#00B140`, `#FF00FF`, or `#0047BB`, plus no legacy pure-green / pure-blue leftovers)
-- [ ] No transparent pixel with nonzero RGB — all `(r, g, b, 0)` must be `(0, 0, 0, 0)`
-- [ ] Unused cells (rows beyond the sheet's row count) are fully transparent
+v4.0.0 atlases are delivered **green-background (pre-key)** — keying is the user's step in Chroma Key Studio (https://chromakeyremoval.vercel.app). So there is **no chroma-residue or transparency check here** (the green IS the intended background, and green props are preserved on purpose).
 
-### Padding
-
-- [ ] Every used cell's alpha bounding box is within `[8, frameWidth−8] × [8, frameHeight−8]`
-- [ ] No visible pixel (body, hair, props, effects, outline, fringe) touches any cell edge
+- [ ] Background is flat `#00B140` green, uniform across the whole atlas (eyeball / contact sheet)
 
 ### Static-row detection
 
@@ -34,27 +29,19 @@ Use this checklist after composing each atlas and again after final installation
 
 > This gate only ensures the frames *differ* — it is a **floor**, not a target. Subtle smooth motion (a breath, a small sway, one prop beat) clears it. Do **not** add big or whole-body motion to satisfy it; that trades a passing script check for a jittery row, which the eyeball checks below will reject. Stability outranks expressiveness.
 
-### Scale-drift detection (now gated by `inspect_frames.py` / `validate_atlas.py`)
+### Scale-drift (eyeball — no automated gate on a green-background sheet)
 
-- [ ] No frame's content height deviates **>15%** from its row median (the image model historically renders ~15% of frames off-size — e.g. the old `errored` row). Regenerate the offending frame at the row's shared size; do **not** rescale.
+- [ ] No frame's character is noticeably larger/smaller than its rowmates. On a green sheet the foreground bbox can't be measured reliably (green props blend with the key), so check the contact sheet by eye. If one frame is off, regenerate the whole strip.
 
-### Horizontal-alignment detection (now gated by `inspect_frames.py` / `validate_atlas.py`)
+### Horizontal-alignment (eyeball)
 
-- [ ] No frame's visible content center drifts far from the row median x-axis. The pet should not hop left/right inside the 192×208 cell. For prop-heavy rows, use this as a guardrail and verify by eye that the character body, not the prop-heavy bbox, stays horizontally stable.
-
-### Face/prop crop QA (run via `make_qa_crop_sheet.py`)
-
-- [ ] `qa-crops-<tier>.png` exists and was generated from the final atlas
-- [ ] `qa-crops-<tier>.json` exists and has no unwaived warnings
-- [ ] No face crop has likely green/magenta residue pixels
-- [ ] No face crop has enclosed transparent holes that suggest key-damaged eyes, masks, or missing highlights
-- [ ] Prop crops preserve the named prop in every frame
+- [ ] The character does not hop left/right between frames; it stays on a stable x-axis inside each 192×208 cell. Verify on the contact sheet / previews.
 
 ### Pre-install gate (run via `pre_install_qa_gate.py`)
 
-- [ ] `validate-<tier>.json`, `contact-<tier>.png`, `qa-crops-<tier>.png`, `qa-crops-<tier>.json`, and `previews-<tier>/*.gif` are present
-- [ ] All QA artifacts are newer than the final atlas being installed
-- [ ] No crop QA warnings are waived silently; any waiver is named in the final response
+- [ ] `validate-<tier>.json`, `contact-<tier>.png`, and `previews-<tier>/*.gif` are present
+- [ ] All QA artifacts are newer than the final atlas
+- [ ] The atlas is still green-background; the user is directed to key it before install
 
 ---
 
@@ -76,8 +63,8 @@ For each row in each sheet:
 - [ ] **Horizontal stability:** character stays on the same visual x-axis across all 8 frames
 - [ ] **Baseline consistency:** feet stay on the same y-line across all 8 frames, near the bottom of the cell; do not vertically center ordinary standing rows
 - [ ] **Character fidelity:** character matches the seed image — same proportions, outfit, hair, palette, linework
-- [ ] **Clean edges:** no chroma fringe, no hard box outline around the character
-- [ ] **Clean face/eyes:** no key-colour holes, masks, missing irises/highlights, or chroma-damaged eye pixels. Green chroma is not safe for green-eyed or green-highlighted pets; prefer magenta unless magenta/purple foreground details make that unsafe.
+- [ ] **Clean edges:** no hard box outline around the character; the green background reads as one flat field
+- [ ] **Clean face/eyes:** eyes have intact irises/highlights and read clearly. (Keying happens later in the user's tool, so there is no chroma damage to check here — just confirm the drawing is clean.)
 
 ### Emotional distinctness
 
@@ -121,15 +108,14 @@ Review the contact sheet for each tier and verify:
 
 ## Repair policy
 
-When a cell or row fails a check:
+When a row fails a check:
 
-1. **Identify the minimum set of frames to regenerate** — do not regenerate the entire sheet.
-2. **Re-generate only those frames** with the image tool, using the same seed and constraints.
-3. **Re-stitch the row** with `stitch_row.py`.
-4. **Re-run `inspect_frames.py`** on the repaired row before recomposing.
-5. **Re-validate and re-contact-sheet** after recomposing.
+1. **Regenerate the whole 8×1 strip** for that row with the image tool, using the same seed and constraints. There is no per-frame replacement — frames are not separate files.
+2. **Re-run `normalize_generated_sheet.py`** on the new strip → `rows/<tier>/<row>.png`.
+3. **Re-eyeball** the normalized strip.
+4. **Re-compose, re-validate, and re-contact-sheet** after all rows are good.
 
-Do not fix padding/scale failures by code-transforming the existing frames — that reintroduces the "faking frames" failure mode for the repaired cells.
+Do not fix scale/alignment failures by code-transforming the existing strip — that reintroduces the "faking frames" failure mode.
 
 ---
 
@@ -142,23 +128,24 @@ Do not fix padding/scale failures by code-transforming the existing frames — t
 - [ ] All files in `~/.codogotchi/pets/<id>/` (or `$CODOGOTCHI_HOME/pets/<id>/`)
 - [ ] App quit and relaunched (or pet re-selected in Settings → Pet) after installation
 
-Before copying any generated sheet into the pet directory, run:
+Run the slim QA gate on each green-background atlas, then hand it to the user for keying:
 
 ```bash
 python scripts/validate_atlas.py --atlas <atlas-webp> --tier <tier> --out-json <validation-json>
 python scripts/make_contact_sheet.py --atlas <atlas-webp> --tier <tier>
 python scripts/render_animation_previews.py --atlas <atlas-webp> --tier <tier>
-python scripts/make_qa_crop_sheet.py --atlas <atlas-webp> --tier <tier> --fail-on-warnings
 python scripts/pre_install_qa_gate.py --atlas <atlas-webp> --tier <tier>
 ```
 
+The atlas the pipeline produces is **green-background (pre-key)**. Key it in Chroma Key Studio (https://chromakeyremoval.vercel.app) and install the transparent result; only then does the pre-install checklist above apply to the installed (keyed) files.
+
 Final response checklist:
 
-- [ ] Rows generated or repaired
-- [ ] Chroma used per row, including any fixed green override
+- [ ] Rows generated or regenerated
 - [ ] Validation command and result
-- [ ] Contact sheet, preview directory, crop sheet/report, and pre-install gate paths
-- [ ] Known compromises or waived warnings, if any
+- [ ] Contact sheet and preview directory paths
+- [ ] Stated that delivered atlases are green-background (pre-key) and pointed the user to the keying tool
+- [ ] Known compromises, if any
 
 ---
 

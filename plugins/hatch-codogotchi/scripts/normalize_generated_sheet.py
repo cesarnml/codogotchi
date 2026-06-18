@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """
-normalize_generated_sheet.py — Normalize a generated 4x2 row candidate
-into the exact canonical 4x2 Codogotchi sheet geometry before slicing.
+normalize_generated_sheet.py — Snap a generated 8x1 animation-row strip to the
+exact canonical 1536x208 geometry on a flat chroma-green (#00B140) background.
+
+v4.0.0: strip-first, no slicing and no keying. image_gen draws the whole 8-frame
+row as one 1536x208 strip on flat green; this script only guarantees the exact
+canvas size and a green (not transparent) background. Chroma keying is done later
+by the user with Chroma Key Studio (https://chromakeyremoval.vercel.app), so this
+script intentionally does NOT alter foreground colors — a green prop (e.g. a green
+checkmark) is preserved for the keying tool to handle with its own controls.
 """
 
 from __future__ import annotations
@@ -9,173 +16,37 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import numpy as np
 from PIL import Image
-from chroma_palette import GREEN, MAGENTA, keyish_mask, normalize_chroma_hex, parse_hex_color
 
 
-CELL_W = 192
-CELL_H = 208
-FINAL_COLS = 4
-FINAL_ROWS = 2
-FINAL_FRAMES = 8
-
-SOURCE_LAYOUTS = {
-    "4x2": (4, 2),
-}
-
-def border_connected(mask: np.ndarray) -> np.ndarray:
-    h, w = mask.shape
-    seen = np.zeros_like(mask, dtype=bool)
-    queue: list[tuple[int, int]] = []
-
-    for x in range(w):
-        queue.append((0, x))
-        queue.append((h - 1, x))
-    for y in range(h):
-        queue.append((y, 0))
-        queue.append((y, w - 1))
-
-    while queue:
-        y, x = queue.pop()
-        if seen[y, x] or not mask[y, x]:
-            continue
-        seen[y, x] = True
-        if y > 0:
-            queue.append((y - 1, x))
-        if y + 1 < h:
-            queue.append((y + 1, x))
-        if x > 0:
-            queue.append((y, x - 1))
-        if x + 1 < w:
-            queue.append((y, x + 1))
-
-    return seen
-
-
-def alpha_bounds(mask: np.ndarray) -> tuple[int, int, int, int] | None:
-    ys, xs = np.nonzero(mask)
-    if len(xs) == 0:
-        return None
-    return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
-
-
-def remove_chroma(img: Image.Image, chroma: tuple[int, int, int]) -> Image.Image:
-    arr = np.array(img.convert("RGBA"))
-    bg = keyish_mask(arr, chroma)
-    arr[bg, 0] = 0
-    arr[bg, 1] = 0
-    arr[bg, 2] = 0
-    arr[bg, 3] = 0
-    return Image.fromarray(arr, "RGBA")
-
-
-def validate_source_cell(cell: Image.Image, chroma: tuple[int, int, int], frame_number: int) -> list[str]:
-    arr = np.array(cell.convert("RGBA"))
-    keyish = keyish_mask(arr, chroma)
-    h, w = keyish.shape
-    border = np.zeros((h, w), dtype=bool)
-    border[0, :] = True
-    border[-1, :] = True
-    border[:, 0] = True
-    border[:, -1] = True
-
-    non_key_border = border & ~keyish
-    errors: list[str] = []
-    if int(non_key_border.sum()) > 8:
-        errors.append(
-            f"source cell {frame_number}: outer border is not a flat key; "
-            f"{int(non_key_border.sum())} border pixels are non-key "
-            "(mixed matte, shadow spill, or clipped foreground)"
-        )
-
-    keyed = np.array(remove_chroma(cell, chroma))
-    border_connected_foreground = border_connected(keyed[:, :, 3] > 0)
-    if border_connected_foreground.any():
-        errors.append(
-            f"source cell {frame_number}: {int(border_connected_foreground.sum())} non-key pixels remain "
-            "border-connected after removing the declared key; likely mixed matte or clipped foreground"
-        )
-
-    return errors
-
-
-def snap_near_key(rgb: np.ndarray, out_chroma: tuple[int, int, int]) -> np.ndarray:
-    out = rgb.copy()
-    r, g, b = out[:, :, 0], out[:, :, 1], out[:, :, 2]
-    if out_chroma == MAGENTA:
-        near = (r > 200) & (b > 200) & (g < 100)
-    elif out_chroma == GREEN:
-        near = (g > 120) & (r < 80) & (b < 100)
-    else:
-        return out
-    out[near, :] = out_chroma
-    return out
+CANON_W = 1536
+CANON_H = 208
+GREEN = (0, 177, 64)  # #00B140
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Normalize a generated row sheet into canonical 4x2 geometry.")
+    parser = argparse.ArgumentParser(
+        description="Normalize a generated 8x1 row strip to canonical 1536x208 on a flat #00B140 background."
+    )
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--source-layout", choices=sorted(SOURCE_LAYOUTS.keys()), required=True)
-    parser.add_argument("--source-chroma", default="00b140")
-    parser.add_argument("--out-chroma", default="")
     args = parser.parse_args()
 
-    source_chroma = parse_hex_color(normalize_chroma_hex(args.source_chroma))
-    out_chroma = parse_hex_color(normalize_chroma_hex(args.out_chroma or args.source_chroma))
     src = Image.open(args.input).convert("RGBA")
+    if src.size != (CANON_W, CANON_H):
+        print(f"Resizing {src.size[0]}x{src.size[1]} → {CANON_W}x{CANON_H}")
+        src = src.resize((CANON_W, CANON_H), Image.LANCZOS)
 
-    cols, rows = SOURCE_LAYOUTS[args.source_layout]
-    source_cell_w = src.width / cols
-    source_cell_h = src.height / rows
-    final_sheet = Image.new("RGBA", (CELL_W * FINAL_COLS, CELL_H * FINAL_ROWS), (*out_chroma, 255))
-
-    for index in range(FINAL_FRAMES):
-        source_col = index % cols
-        source_row = index // cols
-        sx0 = round(source_col * source_cell_w)
-        sy0 = round(source_row * source_cell_h)
-        sx1 = round((source_col + 1) * source_cell_w)
-        sy1 = round((source_row + 1) * source_cell_h)
-        source_cell = src.crop((sx0, sy0, sx1, sy1))
-        source_errors = validate_source_cell(source_cell, source_chroma, index + 1)
-        if source_errors:
-            raise SystemExit("\n".join(source_errors))
-        rgba = remove_chroma(source_cell, source_chroma)
-        arr = np.array(rgba)
-        bounds = alpha_bounds(arr[:, :, 3] > 0)
-        if bounds is None:
-            raise SystemExit(f"source cell {index + 1} contains no visible foreground")
-        x0, y0, x1, y1 = bounds
-        cropped = rgba.crop((x0, y0, x1, y1))
-
-        max_w = CELL_W - 16
-        max_h = CELL_H - 16
-        scale = min(max_w / cropped.width, max_h / cropped.height, 1.0)
-        resized = cropped.resize(
-            (max(1, round(cropped.width * scale)), max(1, round(cropped.height * scale))),
-            Image.LANCZOS,
-        )
-
-        final_col = index % FINAL_COLS
-        final_row = index // FINAL_COLS
-        dx = final_col * CELL_W + (CELL_W - resized.width) // 2
-        dy = final_row * CELL_H + CELL_H - 8 - resized.height
-        final_sheet.paste(resized, (dx, dy), resized)
-
-    rgba = np.array(final_sheet)
-    rgb = np.zeros((rgba.shape[0], rgba.shape[1], 3), dtype=np.uint8)
-    fg = rgba[:, :, 3] > 0
-    rgb[:, :, 0] = out_chroma[0]
-    rgb[:, :, 1] = out_chroma[1]
-    rgb[:, :, 2] = out_chroma[2]
-    rgb[fg, :] = rgba[fg, :3]
-    rgb = snap_near_key(rgb, out_chroma)
+    # Flatten any transparency onto the flat green key so the background is green,
+    # not transparent. Foreground colors (including intentional green props) are
+    # left untouched — the user's keying tool separates them later.
+    bg = Image.new("RGBA", (CANON_W, CANON_H), (*GREEN, 255))
+    bg.alpha_composite(src)
+    out_img = bg.convert("RGB")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(rgb, "RGB").save(args.out, "PNG")
-    print(f"Normalized {args.input} ({args.source_layout}) -> {args.out} (4x2 canonical)")
+    out_img.save(args.out, "PNG")
+    print(f"Normalized {args.input} → {args.out} (1536x208, flat #00B140 background)")
 
 
 if __name__ == "__main__":

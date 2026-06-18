@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-pre_install_qa_gate.py — Block install until all QA artifacts are fresh.
+pre_install_qa_gate.py — Block handoff until the slim QA artifacts are fresh.
 
-This script is intentionally narrow: it verifies that final validation, contact
-sheet, animation previews, and crop QA were produced after the current atlas.
-It does not replace human review; it prevents claiming full QA from validation
-alone.
+v4.0.0 (strip-first, pre-key): verifies that final validation, the contact sheet,
+and the animation previews were produced after the current green-background atlas.
+Chroma-residue / eye-damage crop QA is gone — keying (and its QA) now happens in
+the user's Chroma Key Studio tool, not in this pipeline. This gate does not replace
+human review; it prevents claiming QA from validation alone before handing the
+green atlas to the user for keying.
 """
 
 from __future__ import annotations
@@ -36,18 +38,13 @@ def main() -> None:
     parser.add_argument("--tier", required=True, choices=list(TIER_ROWS.keys()))
     parser.add_argument("--validation-json", type=Path, default=None)
     parser.add_argument("--contact-sheet", type=Path, default=None)
-    parser.add_argument("--crop-sheet", type=Path, default=None)
-    parser.add_argument("--crop-json", type=Path, default=None)
     parser.add_argument("--previews-dir", type=Path, default=None)
-    parser.add_argument("--allow-crop-warnings", action="store_true")
     args = parser.parse_args()
 
     atlas = args.atlas
     tier = args.tier
     validation_json = args.validation_json or atlas.parent / f"validate-{tier}.json"
     contact_sheet = args.contact_sheet or atlas.parent / f"contact-{tier}.png"
-    crop_sheet = args.crop_sheet or atlas.parent / f"qa-crops-{tier}.png"
-    crop_json = args.crop_json or atlas.parent / f"qa-crops-{tier}.json"
     previews_dir = args.previews_dir or atlas.parent / f"previews-{tier}"
 
     errors: list[str] = []
@@ -55,8 +52,6 @@ def main() -> None:
         ("atlas", atlas),
         ("validation JSON", validation_json),
         ("contact sheet", contact_sheet),
-        ("crop sheet", crop_sheet),
-        ("crop JSON", crop_json),
     ]:
         if not path.exists():
             errors.append(f"missing {label}: {path}")
@@ -80,19 +75,14 @@ def main() -> None:
         if report.get("errors"):
             errors.append(f"validation report contains {len(report['errors'])} error(s): {validation_json}")
 
-    if crop_json.exists():
-        crop_report = load_json(crop_json)
-        warnings = crop_report.get("warnings") or []
-        if warnings and not args.allow_crop_warnings:
-            errors.append(f"crop QA report contains {len(warnings)} warning(s): {crop_json}")
-
     if errors:
-        print("FAIL — pre-install QA gate blocked install:")
+        print("FAIL — pre-key QA gate blocked handoff:")
         for error in errors:
             print(f"  - {error}")
         sys.exit(1)
 
-    print("PASS — pre-install QA artifacts are present, fresh, and clean")
+    print("PASS — slim QA artifacts are present, fresh, and clean.")
+    print("Next: hand the green-background atlas to the user to key at https://chromakeyremoval.vercel.app")
 
 
 if __name__ == "__main__":

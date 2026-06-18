@@ -13,11 +13,11 @@ Generate the **Tier 4 (SoA)** sprite sheet for an existing Codogotchi pet — th
 
 **Prerequisite:** the pet must already have a valid `spritesheet.webp` (Codex, Tier 1) installed. The character reference is derived directly from that sheet — no separate seed image or description is needed. The SoA sheet needs **only** the Codex sheet — it is independent of the Lite tiers (Basic/Enhanced).
 
-**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 4×2 SoA animation sheet per row**: exact 768×416 px, eight 192×208 cells (4 columns × 2 rows), all 8 cells populated in reading order, no empty cell. Then run `normalize_generated_sheet.py`, `slice_animation_sheet.py`, and `key_row_frames.py` to produce a transparent `1×8` review strip before `stitch_row.py`. Do **not** use image generation to output a complete atlas or an unconstrained horizontal strip.
+**Execution model (v4.0.0 — strip-first):** Codex uses its built-in `image_gen` tool to generate **one full SoA row per call as a single `8×1` strip**: `1536×208`, eight 192×208 frames left-to-right, all 8 populated, no empty frame, on a **flat chroma-green `#00B140`** background. Then run `normalize_generated_sheet.py` to snap each strip to exact `1536×208`. There is **no slicing, no per-frame keying, and no stitching** — the strip *is* the row. Do **not** generate a complete atlas, a `4×2` sheet, or per-frame images.
 
-**Non-negotiable row gate:** finish one row completely before generating the next in this exact order: raw `4×2` row sheet → transparent `1×8` review strip → stitched row. If the transparent strip looks wrong, regenerate the raw row sheet instead of patching forward. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
+**Non-negotiable row gate:** finish one row strip completely (generate → normalize → eyeball) before generating the next. If a strip looks wrong, regenerate the whole strip instead of patching forward. Do not compose until every row strip has been eyeballed for prop clarity, face/eye integrity, scale, and motion.
 
-**Chroma key — canonical palette, default chroma green.** `--chroma` defaults to `#00B140`. The only supported keys are `#00B140`, `#FF00FF`, and `#0047BB`. Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#FF00FF` when the pet has green (greenish eyes, hair highlights, green props/FX); `#0047BB` when it has both green and magenta/pink. `key_row_frames.py` uses fixed matte presets from the canonical TypeScript engine; do not improvise UI tuning.
+**Chroma key — flat green `#00B140`, always, keyed by the user later.** Every row is generated on flat green `#00B140` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — and **green props are now allowed and preserved**: `green-tdd`'s and `review-clean`'s green checkmark effects stay green, because the user keys the sheet later in **Chroma Key Studio** (https://chromakeyremoval.vercel.app), whose controls separate a green prop from the green key. No more switching those rows to magenta.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that preserves the emotional beat**. Many SoA rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a preferred optimization, not a universal law.
 
@@ -45,7 +45,7 @@ python scripts/extract_seed_from_codex.py \
   --out <seed>
 ```
 
-This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` background. Inspect the seed artifact; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every frame generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. For generated SoA frames, chroma defaults to `#00B140` (green); switch to `#FF00FF`/`#0047BB` per the chroma rule when the pet/prop clashes.
+This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` background. Inspect the seed artifact; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every strip generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. Every SoA row is generated on flat `#00B140` green and keyed by the user later; green props are preserved.
 
 ---
 
@@ -55,11 +55,11 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` backgrou
 
 2. **Rushing the whole atlas in one pass.** One row at a time, to completion. Whole-atlas generation is a shortcut = reject.
 
-3. **Unbounded strips / clipped cells.** The only multi-frame generation format is a strict 4×2 row sheet (8 cells) with exact **192 × 208** cells and no empty cell. If foreground crosses a cell boundary, reject the sheet.
+3. **Clipped frames.** The generation format is one `8×1` strip (`1536×208`, 8 frames) with exact **192 × 208** frames and no empty frame. If any foreground crosses a frame boundary, regenerate the strip. Do not ask for a whole atlas, a `4×2` sheet, or per-frame images.
 
 4. **Style drift from the Codex sheet.** After each row, compare a frame side-by-side with a Codex cell. Regenerate if the style, palette, or proportions have shifted.
 
-5. **Visual identity drift.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as the seed artifact. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
+5. **Visual identity drift.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as the seed artifact. This is an eyeball pass on the contact sheet — there is no automated identity gate.
 
 6. **Jerky / over-animated motion (the stability killer).** Because the 8 frames are generated independently, big or whole-body motion comes back incoherent — legs swing, props teleport, the pet hops. **Stability beats expressiveness even on these celebration rows:** anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. Sell the beat with pose and face, not with the body roaming the cell. A mild stable loop beats a busy jittery one. The scripts cannot detect this — it is purely an eyeball check.
 
@@ -73,7 +73,7 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` backgrou
 
 Identical to `hatch-codogotchi-lite`:
 
-- **Background:** use the solid chroma named in the prompt (`#00B140` by default; `green-tdd` and `review-clean` intentionally switch to `#FF00FF`; use `#0047BB` only when both green and magenta are unsafe) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
+- **Background:** flat `#00B140` green on every row (including `green-tdd` and `review-clean` — their green checkmarks are preserved and keyed by the user later) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
 - **Padding:** ≥ 8 px all sides; nothing touches an edge.
 - **Scale registration:** one shared scale per row (tallest frame sets it).
 - **Horizontal registration:** character/content stays on a stable x-axis in every 192×208 cell; no left/right hopping. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
@@ -81,7 +81,7 @@ Identical to `hatch-codogotchi-lite`:
 - **Motion restraint (paramount):** stability beats expressiveness. The 8 frames are generated *independently*, so keep the torso, head, hips, and **both feet** anchored in nearly the same place and confine motion to **one element** (the prop, one arm, the expression) at low amplitude with short smooth arcs. Legs do not swing or restage between frames. Props travel a little and consistently — never roaming around the cell.
 - **Loop closure:** frame 8 pose ≈ frame 1 pose.
 - **Character fidelity:** seed image is sole style reference.
-- **No contamination:** no chroma-colour contamination on character, props, or effects.
+- **Green is fine on props:** intentional green details are preserved for the user's keying tool; only keep the *background* key perfectly flat.
 
 SoA rows are **expressive** — these are delivery gate reactions, not idle loops — but expressiveness comes from a **clear pose and face**, not from the body roaming the cell or limbs flailing. Each row should read as a distinct emotional beat at a glance while staying stable frame-to-frame. The **only** sanctioned big motion is `ticket-completed`'s leap (feet off baseline ≤ 12 px, with a clean takeoff and landing on a stable x-axis); every other row sells its emotion from a planted stance. When expressiveness and stability conflict, choose stability.
 
@@ -97,7 +97,7 @@ python scripts/extract_seed_from_codex.py \
   --out <seed>
 ```
 
-Inspect the seed artifact. The character should be in a clean neutral pose on `#00B140`. If the idle frame is unclear, try `--row 3 --col 0` (standby) or another expressive cell.
+Inspect the seed artifact. The character should be in a clean neutral pose on `#00B140`. If the idle frame is unclear, try `--row 3 --col 0` (waving) or another expressive cell.
 
 ```bash
 # Check cell dimensions if not standard 192×208
@@ -114,66 +114,38 @@ python scripts/prepare_pet_run.py \
   --pet-name "<existing pet display name>" \
   --pet-id  "<existing pet id>" \
   --tier soa \
-  --style auto \
-  --chroma auto
+  --style auto
 ```
 
-Produces a run manifest and prompt artifacts under the working directory chosen via `--run-dir`. Use those artifacts as inputs to the path-agnostic pipeline below.
+Produces a run manifest and strip prompt artifacts under the working directory chosen via `--out-dir`. Use those artifacts as inputs to the path-agnostic pipeline below.
 
-### Step 3 — Generate row sheets (one row at a time)
+### Step 3 — Generate row strips (one row at a time)
 
 For **each** of the 10 SoA rows, in the order below, complete the full cycle before starting the next:
 
 1. Read motion description in `sheet-prompts/soa/<row-label>.txt`.
-2. **Use built-in `image_gen` to generate one 4×2 row sheet** — exact 768×416 px, all 8 cells populated, no empty cell, on the chroma named in the prompt. `green-tdd` and `review-clean` use `#FF00FF` so green checkmark effects survive keying. Attach the seed artifact as the character reference.
+2. **Use built-in `image_gen` to generate one 8×1 strip** — exact `1536×208` px, all 8 frames populated, no empty frame, on flat `#00B140` green. `green-tdd` and `review-clean` keep their green checkmarks (preserved, keyed by the user later). Attach the seed artifact as the character reference. Save to `sheets/soa/<row-label>.png`.
 3. Compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
 
-### Step 3 — Slice and post-process each row
+### Step 4 — Normalize and approve each row
 
 ```bash
 python scripts/normalize_generated_sheet.py \
-  --input  <row-sheet> \
-  --out    <normalized-row-sheet> \
-  --source-layout 4x2 \
-  --source-chroma <00b140-or-ff00ff-or-0047bb> \
-  --out-chroma <00b140-or-ff00ff-or-0047bb>
-
-python scripts/slice_animation_sheet.py \
-  --sheet   <normalized-row-sheet> \
-  --out-dir <frame-dir> \
-  --chroma  <00b140-or-ff00ff-or-0047bb>
-
-python scripts/key_row_frames.py \
-  --row-dir    <frame-dir> \
-  --out-dir    <keyed-frame-dir> \
-  --preview-out <keyed-review-strip> \
-  --chroma     <00b140-or-ff00ff-or-0047bb> \
-  --preset     balanced
-
-python scripts/stitch_row.py \
-  --row-dir <keyed-frame-dir> \
-  --out     <stitched-row> \
-  --cell-w  192 \
-  --cell-h  208
+  --input sheets/soa/<row-label>.png \
+  --out   rows/soa/<row-label>.png
 ```
 
-### Step 4 — Inspect and approve each row
+Eyeball `rows/soa/<row-label>.png` for genuine animated motion, prop clarity, scale, and identity. Do not proceed to the next row until it looks right.
 
-```bash
-python scripts/inspect_frames.py --row <stitched-row> --seed <seed>
-```
-
-Do not proceed to the next row until this passes **and** you have eyeballed the strip for genuine animated motion.
-
-If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/soa/<row-label>.txt`, replace `<frame-dir>fNN.png`, then rerun `key_row_frames.py`, `stitch_row.py`, and `inspect_frames.py --seed <seed>` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
+There is no per-frame replacement — frames are not separate files. If any frame in a strip is wrong, **regenerate the whole 8×1 strip** for that row, re-run `normalize_generated_sheet.py`, and re-eyeball. Do not transform neighbouring frames to patch it.
 
 ### Step 5 — Compose the atlas
 
-After all 10 rows are validated:
+After all 10 rows are normalized:
 
 ```bash
 python scripts/compose_atlas.py \
-  --rows-dir <rows-dir> \
+  --rows-dir rows/soa \
   --tier soa \
   --out   <atlas-png>
 
@@ -197,8 +169,6 @@ python scripts/make_contact_sheet.py \
   --atlas <atlas-webp> --tier soa
 python scripts/render_animation_previews.py \
   --atlas <atlas-webp> --tier soa
-python scripts/make_qa_crop_sheet.py \
-  --atlas <atlas-webp> --tier soa --fail-on-warnings
 python scripts/pre_install_qa_gate.py \
   --atlas <atlas-webp> --tier soa
 ```
@@ -207,11 +177,9 @@ python scripts/pre_install_qa_gate.py \
 
 Open the SoA contact sheet alongside the existing Codex contact sheet. The character must read as the same individual — same proportions, palette, and linework — despite the more energetic poses. Regenerate any row that looks like a different character.
 
-### Step 9 — Install alongside existing pet
+### Step 9 — Key, then install alongside existing pet
 
-Install the final `codogotchi-soa-spritesheet.webp` beside the existing pet only after the QA gate passes. Do not overwrite `spritesheet.webp`, Lite sheets, or `pet.json`.
-
-`spritesheet.webp` and `pet.json` are **not** modified. Only the SoA sheet is added.
+The composed `codogotchi-soa-spritesheet.webp` still has its flat green background. Do **not** install it directly. Direct the user to **https://chromakeyremoval.vercel.app** to key it (load → tune tolerance/edge/spill → export the transparent sheet). Install the keyed SoA sheet beside the existing pet; do not overwrite `spritesheet.webp`, Lite sheets, or `pet.json`.
 
 Quit and reopen Codogotchi or re-select the pet in Settings.
 
@@ -249,25 +217,22 @@ Key distinctions to preserve:
 
 ## Acceptance criteria
 
-- [ ] `codogotchi-soa-spritesheet.webp` — exact 1536 × 2080; 10 rows × 8 cols; cell 192 × 208
-- [ ] Every used cell's alpha bbox within `[8, 184] × [8, 200]` (≥ 8 px padding)
-- [ ] Character/content horizontal center is stable across each row; non-jump poses share a bottom foot baseline near `cell_h - 8`
-- [ ] Zero likely green/magenta chroma residue pixels anywhere
-- [ ] No transparent pixel with nonzero RGB
-- [ ] No row has all 8 frames pixel-identical
+- [ ] `codogotchi-soa-spritesheet.webp` — exact 1536 × 2080; 10 rows × 8 cols; cell 192 × 208 (green background, pre-key)
+- [ ] Flat `#00B140` background, perfectly uniform across the atlas (no falloff/shadow/texture)
+- [ ] Character/content horizontal center is stable across each row; non-jump poses share a bottom foot baseline near `cell_h - 8` (eyeballed)
+- [ ] No row has all 8 frames pixel-identical (gated by `validate_atlas.py`)
 - [ ] **Stable motion (paramount):** body/feet anchored, one element moves at low amplitude, no jitter/hopping/limb-swing; emotion sold from a planted stance (only `ticket-completed` leaves the baseline)
 - [ ] Each row shows *subtle* distinct motion (a floor, not big motion) and reads as its named emotional beat (eyeball check)
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as the seed artifact
 - [ ] Loop closes: frame 8 flows back to frame 1
 - [ ] All 10 rows have meaningfully distinct visual language from each other
-- [ ] Installed as `codogotchi-soa-spritesheet.webp` beside existing `spritesheet.webp`
-- [ ] `validate-soa.json`, `contact-soa.png`, `previews-soa/`, `qa-crops-soa.png`, and `qa-crops-soa.json` exist and are newer than the final atlas
-- [ ] `pre_install_qa_gate.py` passed before install; any waived crop warnings are named explicitly
-- [ ] App shows SoA animations when gate.json is active (requires hooks installed)
+- [ ] `validate-soa.json`, `contact-soa.png`, and `previews-soa/` exist and are newer than the final atlas
+- [ ] `pre_install_qa_gate.py` passed; user directed to https://chromakeyremoval.vercel.app to key the green atlas before install
+- [ ] After keying, installed as `codogotchi-soa-spritesheet.webp` beside existing `spritesheet.webp`; app shows SoA animations when gate.json is active (requires hooks installed)
 
 ## Final response checklist
 
-Before saying done, report: rows generated or repaired; chroma used per row; validation command/result; contact sheet, preview directory, crop sheet/report, and pre-install gate paths; known compromises or waived warnings. If the tier was completed unusually quickly, state what was compressed, reused, skipped, or waived. Script validation alone is not QA.
+Before saying done, report: rows generated or regenerated; validation command/result; contact sheet and preview directory paths; known compromises. State clearly that the delivered atlas is **green-background (pre-key)** and the user must key it at https://chromakeyremoval.vercel.app before installing. If the tier was completed unusually quickly, state what was compressed, reused, or skipped. Validation alone is not QA.
 
 ---
 

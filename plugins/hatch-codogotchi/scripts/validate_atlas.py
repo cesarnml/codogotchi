@@ -2,8 +2,14 @@
 """
 validate_atlas.py — Final validation of a composed Codogotchi spritesheet atlas.
 
-Checks: exact dimensions, grid integrity, chroma residue, transparent-RGB residue,
-non-empty used cells, alignment drift, and static-row detection.
+v4.0.0 (strip-first, pre-key): the atlas still has its flat chroma-green
+background — keying happens later in Chroma Key Studio. On a green background a
+green prop is indistinguishable from the key, so per-frame alpha geometry
+(padding/scale/center, chroma residue) cannot be measured reliably here and is
+intentionally NOT checked. What this script DOES check is what is honest pre-key:
+exact dimensions, grid divisibility, and static-row detection (frames that are
+pixel-identical). Per-frame alignment/scale review is an eyeball pass on the
+contact sheet and GIF previews.
 """
 
 import argparse
@@ -13,7 +19,6 @@ from pathlib import Path
 
 from PIL import Image
 import numpy as np
-from chroma_palette import chroma_residue_mask
 
 
 TIER_SPECS = {
@@ -25,8 +30,8 @@ TIER_SPECS = {
 
 TIER_ROW_LABELS = {
     "codex": [
-        "idle", "running-right", "running-left", "standby", "jump",
-        "errored", "waiting-for-input", "implementing-fallback", "thinking-fallback",
+        "idle", "running-right", "running-left", "waving", "jumping",
+        "failed", "waiting", "running", "review",
     ],
     "lite-basic": [
         "revive", "standby", "thinking", "reading", "implementing",
@@ -51,7 +56,7 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
     errors: list[str] = []
     warnings: list[str] = []
 
-    img = Image.open(atlas_path).convert("RGBA")
+    img = Image.open(atlas_path).convert("RGB")
     w, h = img.size
     arr = np.array(img)
 
@@ -64,130 +69,38 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
     cell_w = w // 8
     cell_h = h // n_rows
 
-    # Warn if not Maew reference dimensions
     if (w, h) != (spec["ref_w"], spec["ref_h"]):
-        warnings.append(f"Non-reference dimensions {w}×{h} (reference is {spec['ref_w']}×{spec['ref_h']}); valid if pixel math holds")
+        warnings.append(
+            f"Non-reference dimensions {w}×{h} (reference is {spec['ref_w']}×{spec['ref_h']}); "
+            "valid if pixel math holds"
+        )
 
-    # --- Chroma residue ---
-    r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
-    chroma_mask = chroma_residue_mask(arr)
-    if chroma_mask.any():
-        errors.append(f"Chroma residue: {chroma_mask.sum()} likely green/magenta key pixels remain")
+    # --- Static-row detection (RGB; works on a green-background sheet) ---
+    if h % n_rows == 0 and w % 8 == 0:
+        for row_idx in range(n_rows):
+            label = labels[row_idx] if row_idx < len(labels) else f"row-{row_idx}"
+            frames = [
+                arr[row_idx * cell_h:(row_idx + 1) * cell_h, c * cell_w:(c + 1) * cell_w, :]
+                for c in range(8)
+            ]
+            identical_to_first = sum(1 for f in frames[1:] if np.array_equal(f, frames[0]))
+            if identical_to_first == 7:
+                errors.append(
+                    f"Row {row_idx} ({label}): all 8 frames are pixel-identical — STATIC ROW, not animated"
+                )
+            elif identical_to_first >= 4:
+                warnings.append(
+                    f"Row {row_idx} ({label}): {identical_to_first + 1}/8 frames identical — possibly static"
+                )
 
-    # --- Transparent-RGB residue ---
-    bad_transparent = (a == 0) & ((r > 0) | (g > 0) | (b > 0))
-    if bad_transparent.any():
-        errors.append(f"Transparent RGB residue: {bad_transparent.sum()} pixels with nonzero RGB and alpha=0")
-
-    # --- Per-cell checks ---
-    padding = 8
-    cell_reports: list[dict] = []
-    scale_tolerance = 0.15  # frame content height may deviate ≤15% from the row median
-    horizontal_center_tolerance = 16.0
-    for row_idx in range(n_rows):
-        label = labels[row_idx] if row_idx < len(labels) else f"row-{row_idx}"
-        row_content_heights: list[tuple[int, int]] = []  # (col_idx, content_height)
-        row_content_centers: list[tuple[int, float]] = []  # (col_idx, bbox center x)
-        for col_idx in range(8):
-            y0 = row_idx * cell_h
-            x0 = col_idx * cell_w
-            cell_arr = arr[y0:y0 + cell_h, x0:x0 + cell_w, :]
-            cell_alpha = cell_arr[:, :, 3]
-            has_content = cell_alpha.any()
-
-            cell_report = {
-                "row": row_idx,
-                "col": col_idx,
-                "label": label,
-                "has_content": bool(has_content),
-            }
-
-            if has_content:
-                rows_used = np.any(cell_alpha > 0, axis=1)
-                cols_used = np.any(cell_alpha > 0, axis=0)
-                top = int(rows_used.argmax())
-                bottom = cell_h - int(rows_used[::-1].argmax())
-                left = int(cols_used.argmax())
-                right = cell_w - int(cols_used[::-1].argmax())
-                content_center_x = (left + right) / 2.0
-
-                pad_top = top
-                pad_bottom = cell_h - bottom
-                pad_left = left
-                pad_right = cell_w - right
-
-                cell_report.update({
-                    "pad_top": pad_top,
-                    "pad_bottom": pad_bottom,
-                    "pad_left": pad_left,
-                    "pad_right": pad_right,
-                    "content_h": bottom - top,
-                    "content_center_x": content_center_x,
-                })
-                row_content_heights.append((col_idx, bottom - top))
-                row_content_centers.append((col_idx, content_center_x))
-
-                if pad_top < padding:
-                    errors.append(f"Row {row_idx} ({label}) col {col_idx}: top padding {pad_top} < {padding}")
-                if pad_bottom < padding:
-                    errors.append(f"Row {row_idx} ({label}) col {col_idx}: bottom padding {pad_bottom} < {padding}")
-                if pad_left < padding:
-                    errors.append(f"Row {row_idx} ({label}) col {col_idx}: left padding {pad_left} < {padding}")
-                if pad_right < padding:
-                    errors.append(f"Row {row_idx} ({label}) col {col_idx}: right padding {pad_right} < {padding}")
-
-            cell_reports.append(cell_report)
-
-        # --- Per-row scale consistency ---
-        # The image model occasionally renders one frame's character noticeably
-        # larger/smaller than its rowmates (~15% of frames historically — see the
-        # `errored` row in the original lite sheet). stitch_row only prevents
-        # clipping; it does NOT equalize character size, so drift passes through.
-        # Flag any frame whose content height deviates >15% from the row median.
-        if len(row_content_heights) > 1:
-            heights = [content_h for _, content_h in row_content_heights]
-            median_h = float(np.median(heights))
-            if median_h > 0:
-                for col_idx, content_h in row_content_heights:
-                    if abs(content_h - median_h) > scale_tolerance * median_h:
-                        errors.append(
-                            f"Row {row_idx} ({label}) col {col_idx}: content height {content_h} deviates "
-                            f">{int(scale_tolerance * 100)}% from row median {median_h:.0f} — "
-                            f"scale drift; regenerate this frame at the row's shared size"
-                        )
-
-        # --- Per-row horizontal alignment consistency ---
-        # Keep the pet's visual x-axis stable inside the cell so the animation
-        # does not hop left/right. The whole alpha bbox is an imperfect proxy for
-        # prop-heavy rows, but it catches obvious composition drift.
-        if len(row_content_centers) > 1:
-            centers = [center_x for _, center_x in row_content_centers]
-            median_center_x = float(np.median(centers))
-            for col_idx, center_x in row_content_centers:
-                if abs(center_x - median_center_x) > horizontal_center_tolerance:
-                    errors.append(
-                        f"Row {row_idx} ({label}) col {col_idx}: horizontal content center {center_x:.1f}px "
-                        f"deviates >{horizontal_center_tolerance:.0f}px from row median {median_center_x:.1f}px — "
-                        "alignment drift; restitch with a stable character x-axis"
-                    )
-
-        # --- Static-row detection ---
-        frames = [arr[row_idx * cell_h:(row_idx + 1) * cell_h, c * cell_w:(c + 1) * cell_w, :] for c in range(8)]
-        identical_to_first = sum(1 for f in frames[1:] if np.array_equal(f, frames[0]))
-        if identical_to_first == 7:
-            errors.append(f"Row {row_idx} ({label}): all 8 frames are pixel-identical — STATIC ROW, not animated")
-        elif identical_to_first >= 4:
-            warnings.append(f"Row {row_idx} ({label}): {identical_to_first + 1}/8 frames identical — possibly static")
-
-    # --- Summary ---
     result = {
         "atlas": str(atlas_path),
         "tier": tier,
         "dimensions": {"width": w, "height": h},
         "cell_size": {"width": cell_w, "height": cell_h},
+        "background": "chroma-green #00B140 (pre-key)",
         "errors": errors,
         "warnings": warnings,
-        "cells": cell_reports,
     }
 
     if out_json:
@@ -200,7 +113,7 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
         for e in errors:
             print(f"  ✗ {e}")
     else:
-        print(f"\nPASS — {w}×{h}, {n_rows} rows × 8 cols, cell {cell_w}×{cell_h}")
+        print(f"\nPASS — {w}×{h}, {n_rows} rows × 8 cols, cell {cell_w}×{cell_h} (green-background, pre-key)")
 
     if warnings:
         for w_msg in warnings:
@@ -210,7 +123,7 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Validate a Codogotchi spritesheet atlas.")
+    parser = argparse.ArgumentParser(description="Validate a Codogotchi spritesheet atlas (pre-key, green background).")
     parser.add_argument("--atlas", required=True, type=Path, help="Path to the atlas WebP or PNG")
     parser.add_argument("--tier", required=True, choices=list(TIER_SPECS.keys()))
     parser.add_argument("--out-json", type=Path, default=None, help="Optional path to write JSON report")
