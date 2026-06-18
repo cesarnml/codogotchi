@@ -110,6 +110,34 @@ function CardSprite({
   return <div className="pet-shimmer" aria-hidden="true" />;
 }
 
+// Skeleton placeholder shown while the first page loads. Mirrors the real
+// card's structure and sizing (same thumbnail height, badges, rotation) so the
+// grid doesn't jump when pets arrive. The thumbnail reuses the same dark inset
+// + pet-shimmer as a still-loading CardSprite; text/badges are muted bars.
+function SkeletonCard({ idx }: { idx: number }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`sticker-card bg-surface-container-lowest rounded-2xl p-3 flex flex-col gap-3 ${idx % 2 ? "-rotate-1" : "rotate-1"}`}
+    >
+      <div className="menubar-inset rounded-xl h-44 relative overflow-hidden">
+        <div className="pet-shimmer" />
+      </div>
+      <div className="px-1 flex justify-between items-start">
+        <div className="flex flex-col gap-1.5">
+          <div className="h-5 w-24 rounded bg-surface-container" />
+          <div className="h-3.5 w-16 rounded bg-surface-container" />
+        </div>
+        <div className="h-7 w-12 rounded-full bg-surface-container" />
+      </div>
+      <div className="px-1 flex gap-1">
+        <div className="h-5 w-14 rounded-md bg-surface-container" />
+        <div className="h-5 w-16 rounded-md bg-surface-container" />
+      </div>
+    </div>
+  );
+}
+
 export default function GalleryGrid({
   apiBase,
   onSelectPet,
@@ -156,12 +184,6 @@ export default function GalleryGrid({
       </div>
 
       {/* Grid */}
-      {status === "LoadingFirstPage" && (
-        <div className="flex items-center justify-center py-24 text-on-surface-variant">
-          Loading pets…
-        </div>
-      )}
-
       {status !== "LoadingFirstPage" && filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center py-24 gap-3 text-on-surface-variant">
           <span className="material-symbols-outlined text-4xl">search_off</span>
@@ -170,6 +192,11 @@ export default function GalleryGrid({
       )}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {status === "LoadingFirstPage" &&
+          Array.from({ length: 3 }).map((_, idx) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length static skeleton list
+            <SkeletonCard key={idx} idx={idx} />
+          ))}
         {filtered.map((pet, idx) => (
           <button
             key={pet._id}
