@@ -1,6 +1,6 @@
 import { ConvexAuthProvider, useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "~convex/_generated/api";
 import { convex } from "../lib/convex";
@@ -114,6 +114,29 @@ function AuthWidgetInner() {
   const [modalOpen, setModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [cache] = useState(readAuthCache);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the account menu on any click outside it, or Escape. A document-level
+  // listener — not a fixed overlay — because the nav's backdrop-blur makes it a
+  // containing block for fixed descendants, so a `fixed inset-0` overlay only
+  // covers the nav strip, not the viewport.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
 
   // Keep the cache in sync once auth actually resolves, so the next page
   // load paints the correct state immediately.
@@ -152,7 +175,7 @@ function AuthWidgetInner() {
   }
 
   return (
-    <div className="relative flex items-center gap-2">
+    <div ref={menuRef} className="relative flex items-center gap-2">
       <a
         href="/upload"
         className="squishy-btn bg-secondary-container text-on-secondary-container border-2 border-charcoal-ink font-display font-bold text-sm px-4 py-2 rounded-full hidden sm:flex items-center gap-1.5 whitespace-nowrap"
@@ -169,13 +192,7 @@ function AuthWidgetInner() {
         {username ? `@${username}` : "Account"}
       </button>
       {menuOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-0"
-            onClick={() => setMenuOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="absolute right-0 mt-2 w-44 z-10 bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl shadow-[0_4px_0_0_var(--color-charcoal-ink)] py-2 flex flex-col">
+        <div className="absolute right-0 mt-2 w-44 z-10 bg-surface-container-lowest border-2 border-charcoal-ink rounded-xl shadow-[0_4px_0_0_var(--color-charcoal-ink)] py-2 flex flex-col">
             <a
               href="/upload"
               className="px-4 py-2 text-sm font-medium hover:bg-surface-container flex items-center gap-2"
@@ -194,8 +211,7 @@ function AuthWidgetInner() {
               <span className="material-symbols-outlined text-[18px]">logout</span>
               Sign out
             </button>
-          </div>
-        </>
+        </div>
       )}
     </div>
   );
