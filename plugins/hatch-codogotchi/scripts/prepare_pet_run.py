@@ -245,12 +245,15 @@ STYLE_PRESETS = {
     "auto": "infer style from seed image",
 }
 
-# v4.0.0: ONE flat chroma key for every row, always. The pipeline no longer keys
-# anything — the user keys the finished green-background atlas with Chroma Key
-# Studio (https://chromakeyremoval.vercel.app), which separates a green prop (e.g.
-# a green checkmark) from the green background far more reliably than an agent can.
-# So there is no per-row key selection and no green/magenta/blue fallback logic.
-CHROMA = "00b140"
+# v5: ONE flat chroma key for every row, always. The pipeline no longer keys
+# anything — the user keys the finished atlas with Chroma Key Studio
+# (https://chromakeyremoval.vercel.app). The default key is magenta #FF00FF: the
+# pet's own art (and its green props — the green-tdd checkmark, the web-search
+# globe) never collide with magenta, so keying is far cleaner than against green.
+# Supported keys are magenta/green/blue; there is no per-row key selection.
+CHROMA = "ff00ff"
+CHROMA_NAME = {"00b140": "green", "0047bb": "blue", "ff00ff": "magenta"}
+CHROMA_RGB = {"00b140": "0,177,64", "0047bb": "0,71,187", "ff00ff": "255,0,255"}
 GRID_LAYOUT = {
     # v5: each animation row is generated as ONE 4x2 grid — 4 columns x 2 rows of
     # 192x208 cells (8 populated cells, no empty cell). image_gen cannot hit an exact
@@ -328,6 +331,24 @@ def build_sheet_output_format() -> str:
   label, separator, or antialiasing may cross a cell boundary."""
 
 
+def build_background_rules(chroma: str) -> str:
+    """Background/frame rules naming the actual key color, so the prompt never says
+    'green' while the hex is magenta."""
+    name = CHROMA_NAME.get(chroma, "chroma-key")
+    rgb = CHROMA_RGB.get(chroma, "")
+    return f"""BACKGROUND & FRAME RULES:
+- Background: one single uninterrupted FLAT {name} key color, EXACTLY hex #{chroma} (RGB {rgb}), filling
+  the ENTIRE image — every cell and all the space between cells. This {name} is a CHROMA KEY that the user
+  removes later with a dedicated tool, so it must be perfectly uniform.
+- The background must be exactly that same solid #{chroma} in every frame and between frames: no lighting falloff,
+  vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
+  separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
+- Output flat RGB on the #{chroma} background. Do NOT output transparency/RGBA — fill the background with the {name} key.
+- Padding: at least 8 px on all sides inside each 192 × 208 frame.
+- Same character scale and baseline across all 8 frames.
+- Frame 8 pose ≈ frame 1 pose so the loop closes cleanly."""
+
+
 def build_sheet_prompt_seed(row_label: str, style_desc: str, chroma: str) -> str:
     """Prompt for strip generation from an attached seed image."""
     motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
@@ -352,17 +373,7 @@ PROP DOCTRINE (read this — codogotchi animations are NOT charades):
 - Use EXACTLY the prop named — never an A/B choice. The prop is the SAME object, same design, in all 8 frames.
 - Emotion-led rows may lead with expression; everything else is prop-led.
 
-BACKGROUND & FRAME RULES:
-- Background: one single uninterrupted FLAT chroma-green key color, EXACTLY hex #{chroma} (RGB 0,177,64), filling
-  the ENTIRE image — every cell and all the space between cells. This green is a CHROMA KEY that the user removes
-  later with a dedicated tool, so it must be perfectly uniform.
-- The background must be exactly that same solid #{chroma} in every frame and between frames: no lighting falloff,
-  vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
-  separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
-- Output flat RGB on the #{chroma} background. Do NOT output transparency/RGBA — fill the background with the green key.
-- Padding: at least 8 px on all sides inside each 192 × 208 frame.
-- Same character scale and baseline across all 8 frames.
-- Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
+{build_background_rules(chroma)}
 """
 
 
@@ -512,7 +523,7 @@ def main() -> None:
                 "tier": tier,
                 "row_label": label,
                 "row_index": row_idx,
-                "generate": "4x2 grid (8 cells of 192x208), any overall size, flat #00B140",
+                "generate": f"4x2 grid (8 cells of 192x208), any overall size, flat #{CHROMA}",
                 "strip_size": "1536x208",
                 "chroma": CHROMA,
                 "prompt_path": f"sheet-prompts/{tier}/{label}.txt",
@@ -554,9 +565,9 @@ def main() -> None:
     if args.description:
         print(f"Description: {args.description[:80]}{'…' if len(args.description) > 80 else ''}")
         print("NOTE (description mode): generate the Codex idle row FIRST; use its frame 1 as the seed artifact for subsequent calls.")
-    print("Generation: grid-first — one 4x2 grid (8 cells of 192x208, any overall size) per row, flat #00B140.")
+    print(f"Generation: grid-first — one 4x2 grid (8 cells of 192x208, any overall size) per row, flat #{CHROMA}.")
     print(f"Total rows to generate: {total_rows}")
-    print("Chroma: fixed flat #00B140 on every row. Keying is NOT done by this pipeline.")
+    print(f"Chroma: fixed flat #{CHROMA} ({CHROMA_NAME.get(CHROMA, 'chroma-key')}) on every row. Keying is NOT done by this pipeline.")
     print("\nNext per row (image_gen output is ephemeral — there is no required save path):")
     print("  1. Generate one 4x2 grid with sheet-prompts/<tier>/<row>.txt; image_gen need not hit an exact size.")
     print("  2. Slice the grid into the canonical 1536x208 row strip (caller-chosen/ephemeral paths):")

@@ -130,9 +130,11 @@ def compose(rows_dir: Path, tier: str, out: Path, cell_w: int = 192, cell_h: int
             sys.exit(f"ERROR: {label} strip width {strip.width} != expected {expected_w}")
 
     atlas_h = cell_h * n_rows
-    # Flat chroma-green canvas; strips are opaque green-background, so the result
-    # is a uniform-green, pre-key atlas ready for Chroma Key Studio.
-    atlas = Image.new("RGBA", (expected_w, atlas_h), (0, 177, 64, 255))
+    # Canvas color = the strips' own key color (sampled from a corner), so the atlas
+    # is uniform under whatever chroma key the strips carry (magenta by default).
+    # Strips are full-width opaque, so this only backstops any rounding gaps.
+    key_color = strips[0].convert("RGBA").getpixel((0, 0))
+    atlas = Image.new("RGBA", (expected_w, atlas_h), key_color)
     for i, strip in enumerate(strips):
         atlas.alpha_composite(strip, (0, i * cell_h))
 

@@ -5,7 +5,7 @@ description: "Generate the Son-of-Anton (SoA, Tier 4) sprite atlas for an EXISTI
 
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
 >
-> **I/O policy — scripts own all paths; the skill names none.** `image_gen` cannot reliably store or re-find what it generates, so **never tell it to save a row to a named directory** and never hunt for an image-generation save folder. Pass whatever local/temp paths the caller picks into the script arguments and chain each script's output forward; the only artifact that must persist is the final green atlas the user keys and installs.
+> **I/O policy — scripts own all paths; the skill names none.** `image_gen` cannot reliably store or re-find what it generates, so **never tell it to save a row to a named directory** and never hunt for an image-generation save folder. Pass whatever local/temp paths the caller picks into the script arguments and chain each script's output forward; the only artifact that must persist is the final magenta atlas the user keys and installs.
 >
 > **No model-side visual inspection.** Do **not** use Computer Use, screenshots, or UI automation to eyeball generated output — the model cannot reliably see its own framing and it burns tokens. Frame geometry is enforced deterministically by `slice_grid.py`; visual review is the human's, on the script-produced contact sheet and previews.
 
@@ -15,11 +15,11 @@ Generate the **Tier 4 (SoA)** sprite sheet for an existing Codogotchi pet — th
 
 **Prerequisite:** the pet must already have a valid `spritesheet.webp` (Codex, Tier 1) installed. The character reference is derived directly from that sheet — no separate seed image or description is needed. The SoA sheet needs **only** the Codex sheet — it is independent of the Lite tiers (Basic/Enhanced).
 
-**Execution model (grid-first):** Codex uses its built-in `image_gen` tool to generate **one full SoA row per call as a single 4×2 grid**: 4 columns × 2 rows of 192×208 frames (8 cells, read left-to-right, top row then bottom), all 8 populated, no empty cell, on a **flat chroma-green `#00B140`** background. `image_gen` need not — and cannot — hit an exact canvas size; the 4×2 framing keeps it near a friendly ratio so frames never clip. Then run `slice_grid.py`, which is dimension-tolerant: it slices the grid by fraction, shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip on flat green — ready to compose. Generate one grid at a time; never ask for the whole atlas in a single image.
+**Execution model (grid-first):** Codex uses its built-in `image_gen` tool to generate **one full SoA row per call as a single 4×2 grid**: 4 columns × 2 rows of 192×208 frames (8 cells, read left-to-right, top row then bottom), all 8 populated, no empty cell, on a **flat magenta `#FF00FF`** background. `image_gen` need not — and cannot — hit an exact canvas size; the 4×2 framing keeps it near a friendly ratio so frames never clip. Then run `slice_grid.py`, which is dimension-tolerant: it slices the grid by fraction, shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip on flat magenta — ready to compose. Generate one grid at a time; never ask for the whole atlas in a single image.
 
 **Non-negotiable row gate:** finish one row completely (generate grid → `slice_grid.py`) before generating the next. If a grid comes back clipped, cramped, or off-model, regenerate the whole grid instead of patching forward. Do not compose until every row strip exists. The model does **not** screenshot or eyeball its own output — `slice_grid.py` enforces geometry, and prop clarity / face / scale / motion are reviewed by the human on the script-produced contact sheet after composing.
 
-**Chroma key — flat green `#00B140`, always, keyed by the user later.** Every row is generated on flat green `#00B140` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — and **green props are now allowed and preserved**: `green-tdd`'s and `review-clean`'s green checkmark effects stay green, because the user keys the sheet later in **Chroma Key Studio** (https://chromakeyremoval.vercel.app), whose controls separate a green prop from the green key. No more switching those rows to magenta.
+**Chroma key — flat magenta `#FF00FF`, always, keyed by the user later.** Every row is generated on flat magenta `#FF00FF` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — and **green props are now allowed and preserved**: `green-tdd`'s and `review-clean`'s green checkmark effects stay green, because the user keys the sheet later in **Chroma Key Studio** (https://chromakeyremoval.vercel.app). Against a magenta key a green prop never shares the background colour, so it survives keying cleanly — that is exactly why the key is magenta and not green.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that preserves the emotional beat**. Many SoA rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a preferred optimization, not a universal law.
 
@@ -47,7 +47,7 @@ python scripts/extract_seed_from_codex.py \
   --out <seed>
 ```
 
-This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` background. Inspect the seed artifact; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every strip generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. Every SoA row is generated on flat `#00B140` green and keyed by the user later; green props are preserved.
+This extracts the idle row, frame 1 (row 0, col 0) on a solid `#FF00FF` background. Inspect the seed artifact; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every strip generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. Every SoA row is generated on flat `#FF00FF` magenta and keyed by the user later; green props are preserved.
 
 ---
 
@@ -75,7 +75,7 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` backgrou
 
 Identical to `hatch-codogotchi-lite`:
 
-- **Background:** flat `#00B140` green on every row (including `green-tdd` and `review-clean` — their green checkmarks are preserved and keyed by the user later) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
+- **Background:** flat `#FF00FF` magenta on every row (including `green-tdd` and `review-clean` — their green checkmarks are preserved and keyed by the user later) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
 - **Padding:** ≥ 8 px all sides; nothing touches an edge.
 - **Scale registration:** one shared scale per row, applied by `slice_grid.py` (tallest cell sets it).
 - **Horizontal registration:** character/content stays on a stable x-axis in every 192×208 cell; no left/right hopping. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
@@ -99,7 +99,7 @@ python scripts/extract_seed_from_codex.py \
   --out <seed>
 ```
 
-Inspect the seed artifact. The character should be in a clean neutral pose on `#00B140`. If the idle frame is unclear, try `--row 3 --col 0` (waving) or another expressive cell.
+Inspect the seed artifact. The character should be in a clean neutral pose on `#FF00FF`. If the idle frame is unclear, try `--row 3 --col 0` (waving) or another expressive cell.
 
 ```bash
 # Check cell dimensions if not standard 192×208
@@ -126,7 +126,7 @@ Produces a run manifest and strip prompt artifacts under the working directory c
 For **each** of the 10 SoA rows, in the order below, complete the full cycle before starting the next:
 
 1. Read motion description in `sheet-prompts/soa/<row-label>.txt`.
-2. **Use built-in `image_gen` to generate one 4×2 grid** — 4 cols × 2 rows of 192×208 cells, all 8 populated, no empty cell, on flat `#00B140` green. `image_gen` need not hit an exact size. `green-tdd` and `review-clean` keep their green checkmarks (preserved, keyed by the user later). Attach the seed artifact as the character reference. The generated grid is an ephemeral input to `slice_grid.py` — do not save it to a named directory.
+2. **Use built-in `image_gen` to generate one 4×2 grid** — 4 cols × 2 rows of 192×208 cells, all 8 populated, no empty cell, on flat `#FF00FF` magenta. `image_gen` need not hit an exact size. `green-tdd` and `review-clean` keep their green checkmarks (preserved, keyed by the user later). Attach the seed artifact as the character reference. The generated grid is an ephemeral input to `slice_grid.py` — do not save it to a named directory.
 3. Compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
 
 ### Step 4 — Slice each grid into its canonical row strip
@@ -181,7 +181,7 @@ Open the SoA contact sheet alongside the existing Codex contact sheet. The chara
 
 ### Step 9 — Key, then install alongside existing pet
 
-The composed `codogotchi-soa-spritesheet.webp` still has its flat green background. Do **not** install it directly. Direct the user to **https://chromakeyremoval.vercel.app** to key it (load → tune tolerance/edge/spill → export the transparent sheet). Install the keyed SoA sheet beside the existing pet; do not overwrite `spritesheet.webp`, Lite sheets, or `pet.json`.
+The composed `codogotchi-soa-spritesheet.webp` still has its flat magenta background. Do **not** install it directly. Direct the user to **https://chromakeyremoval.vercel.app** to key it (load → tune tolerance/edge/spill → export the transparent sheet). Install the keyed SoA sheet beside the existing pet; do not overwrite `spritesheet.webp`, Lite sheets, or `pet.json`.
 
 Quit and reopen Codogotchi or re-select the pet in Settings.
 
@@ -219,8 +219,8 @@ Key distinctions to preserve:
 
 ## Acceptance criteria
 
-- [ ] `codogotchi-soa-spritesheet.webp` — exact 1536 × 2080; 10 rows × 8 cols; cell 192 × 208 (green background, pre-key)
-- [ ] Flat `#00B140` background, perfectly uniform across the atlas (no falloff/shadow/texture)
+- [ ] `codogotchi-soa-spritesheet.webp` — exact 1536 × 2080; 10 rows × 8 cols; cell 192 × 208 (magenta background, pre-key)
+- [ ] Flat `#FF00FF` background, perfectly uniform across the atlas (no falloff/shadow/texture)
 - [ ] Character/content horizontal center is stable across each row; non-jump poses share a bottom foot baseline near `cell_h - 8` (eyeballed)
 - [ ] No row has all 8 frames pixel-identical (gated by `validate_atlas.py`)
 - [ ] **Stable motion (paramount):** body/feet anchored, one element moves at low amplitude, no jitter/hopping/limb-swing; emotion sold from a planted stance (only `ticket-completed` leaves the baseline)
@@ -229,12 +229,12 @@ Key distinctions to preserve:
 - [ ] Loop closes: frame 8 flows back to frame 1
 - [ ] All 10 rows have meaningfully distinct visual language from each other
 - [ ] `validate-soa.json`, `contact-soa.png`, and `previews-soa/` exist and are newer than the final atlas
-- [ ] `pre_install_qa_gate.py` passed; user directed to https://chromakeyremoval.vercel.app to key the green atlas before install
+- [ ] `pre_install_qa_gate.py` passed; user directed to https://chromakeyremoval.vercel.app to key the magenta atlas before install
 - [ ] After keying, installed as `codogotchi-soa-spritesheet.webp` beside existing `spritesheet.webp`; app shows SoA animations when gate.json is active (requires hooks installed)
 
 ## Final response checklist
 
-Before saying done, report: rows generated or regenerated; validation command/result; contact sheet and preview directory paths; known compromises. State clearly that the delivered atlas is **green-background (pre-key)** and the user must key it at https://chromakeyremoval.vercel.app before installing. If the tier was completed unusually quickly, state what was compressed, reused, or skipped. Validation alone is not QA.
+Before saying done, report: rows generated or regenerated; validation command/result; contact sheet and preview directory paths; known compromises. State clearly that the delivered atlas is **magenta-background (pre-key)** and the user must key it at https://chromakeyremoval.vercel.app before installing. If the tier was completed unusually quickly, state what was compressed, reused, or skipped. Validation alone is not QA.
 
 ---
 

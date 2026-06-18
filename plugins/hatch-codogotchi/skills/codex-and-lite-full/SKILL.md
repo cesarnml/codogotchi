@@ -5,7 +5,7 @@ description: "Generate a brand-new Codogotchi pet with the FULL lite set from sc
 
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
 >
-> **I/O policy — scripts own all paths; the skill names none.** `image_gen` cannot reliably store or re-find what it generates, so **never tell it to save a row to a named directory** and never hunt for an image-generation save folder. Pass whatever local/temp paths the caller picks into the script arguments and chain each script's output forward; the only artifact that must persist is the final green atlas the user keys and installs.
+> **I/O policy — scripts own all paths; the skill names none.** `image_gen` cannot reliably store or re-find what it generates, so **never tell it to save a row to a named directory** and never hunt for an image-generation save folder. Pass whatever local/temp paths the caller picks into the script arguments and chain each script's output forward; the only artifact that must persist is the final magenta atlas the user keys and installs.
 >
 > **No model-side visual inspection.** Do **not** use Computer Use, screenshots, or UI automation to eyeball generated output — the model cannot reliably see its own framing and it burns tokens. Frame geometry is enforced deterministically by `slice_grid.py`; visual review is the human's, on the script-produced contact sheet and previews.
 
@@ -24,11 +24,11 @@ Generate a **brand-new** Codogotchi pet from scratch with the **full lite set** 
 
 Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
-**Execution model (grid-first):** for every tier, Codex uses its built-in `image_gen` tool to generate **one full animation row per call as a single 4×2 grid**: 4 columns × 2 rows of 192×208 frames (8 cells, read left-to-right, top row then bottom), all 8 populated, no empty cell, on a **flat chroma-green `#00B140`** background. `image_gen` need not — and cannot — hit an exact canvas size; the 4×2 framing keeps it near a friendly ratio so frames never clip. Then run `slice_grid.py`, which is dimension-tolerant: it slices the grid by fraction, shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip on flat green — ready to compose. `compose_atlas.py` then stacks the row strips into the atlas. Generate one grid at a time; never ask for the whole atlas in a single image.
+**Execution model (grid-first):** for every tier, Codex uses its built-in `image_gen` tool to generate **one full animation row per call as a single 4×2 grid**: 4 columns × 2 rows of 192×208 frames (8 cells, read left-to-right, top row then bottom), all 8 populated, no empty cell, on a **flat magenta `#FF00FF`** background. `image_gen` need not — and cannot — hit an exact canvas size; the 4×2 framing keeps it near a friendly ratio so frames never clip. Then run `slice_grid.py`, which is dimension-tolerant: it slices the grid by fraction, shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip on flat magenta — ready to compose. `compose_atlas.py` then stacks the row strips into the atlas. Generate one grid at a time; never ask for the whole atlas in a single image.
 
 **Non-negotiable row gate:** finish one row completely (generate grid → `slice_grid.py`) before generating the next. If a grid comes back clipped, cramped, or off-model, regenerate the whole grid instead of patching forward. Do not compose until every row strip exists. The model does **not** screenshot or eyeball its own output — `slice_grid.py` enforces geometry, and prop clarity / face / scale / motion are reviewed by the human on the script-produced contact sheet after composing.
 
-**Chroma key — flat green `#00B140`, always, keyed by the user later.** Every row is generated on flat green `#00B140` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — intentional green details (checkmark, globe, stamp) are preserved. After QA, hand the green-background atlas to the user to key in **Chroma Key Studio** (https://chromakeyremoval.vercel.app).
+**Chroma key — flat magenta `#FF00FF`, always, keyed by the user later.** Every row is generated on flat magenta `#FF00FF` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — intentional green details (checkmark, globe, stamp) are preserved. After QA, hand the magenta-background atlas to the user to key in **Chroma Key Studio** (https://chromakeyremoval.vercel.app).
 
 **Recommended production pattern:** for each row, generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that preserves motion quality**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended acceleration pattern, not a hard requirement.
 
@@ -43,7 +43,7 @@ Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as the seed artifact. This is an eyeball pass on the contact sheet — there is no automated identity gate.
 4. **Alignment stability.** Keep the character on a stable horizontal axis in every 192×208 frame; the pet must not hop left/right. Vertically align ordinary standing rows to a shared bottom baseline near `cell_h - 8`, not the vertical center. Confirm on the contact sheet / previews.
 
-Plus: don't fake frames from the seed; **grid-first**, one row at a time; never whole-atlas generation; keep the green background perfectly flat.
+Plus: don't fake frames from the seed; **grid-first**, one row at a time; never whole-atlas generation; keep the magenta background perfectly flat.
 
 Quality caveats for the recommended pattern:
 - Some rows and some tiers need more unique motion than others; add distinct frames whenever the loop reads weakly.
@@ -54,7 +54,7 @@ Quality caveats for the recommended pattern:
 
 ## Workflow (three sheets, in order)
 
-Use the same pipeline per sheet — prepare → generate one 4×2 grid per row → `slice_grid.py` → compose → validate → slim QA gate (human reviews the contact sheet, not the model). Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on a solid `#00B140` green background, or a `--description` (generate Codex `idle` first, use frame 1 as the seed artifact). Every row is on flat `#00B140`; the finished atlases are green-background and keyed by the user afterward.
+Use the same pipeline per sheet — prepare → generate one 4×2 grid per row → `slice_grid.py` → compose → validate → slim QA gate (human reviews the contact sheet, not the model). Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on a solid `#FF00FF` magenta background, or a `--description` (generate Codex `idle` first, use frame 1 as the seed artifact). Every row is on flat `#FF00FF`; the finished atlases are magenta-background and keyed by the user afterward.
 
 ```bash
 # ---- Tier 1: Codex ----
@@ -97,7 +97,7 @@ Per-row slice (run for every row before composing its tier; paths are caller-cho
 python scripts/slice_grid.py --input <grid> --out <row-strip>
 ```
 
-**Final step — keying is the user's.** All three composed `*.webp` atlases still have their flat green background. Do **not** install them. Direct the user to **https://chromakeyremoval.vercel.app** to key each atlas (load → tune knobs → export transparent sheet), then install the three keyed sheets + `pet.json` and quit-reopen Codogotchi.
+**Final step — keying is the user's.** All three composed `*.webp` atlases still have their flat magenta background. Do **not** install them. Direct the user to **https://chromakeyremoval.vercel.app** to key each atlas (load → tune knobs → export transparent sheet), then install the three keyed sheets + `pet.json` and quit-reopen Codogotchi.
 
 ---
 
@@ -115,8 +115,8 @@ If any frame in a grid is wrong, **regenerate the whole grid** for that row, re-
 
 ## Acceptance criteria
 
-- [ ] Codex 1536 × 1872 (9×8); Lite-Basic 1536 × 1872 (9×8); Lite-Enhanced 1536 × 1664 (8×8); cell 192 × 208 (green background, pre-key)
-- [ ] Flat `#00B140` background, perfectly uniform across each atlas; no static rows (gated); loops close
+- [ ] Codex 1536 × 1872 (9×8); Lite-Basic 1536 × 1872 (9×8); Lite-Enhanced 1536 × 1664 (8×8); cell 192 × 208 (magenta background, pre-key)
+- [ ] Flat `#FF00FF` background, perfectly uniform across each atlas; no static rows (gated); loops close
 - [ ] Standing/status rows anchor body/feet with one low-amplitude moving element; locomotion rows (`running-right`, `running-left`) have stable scale/baseline/direction and smooth even progress with no teleport frame
 - [ ] **Stable motion (paramount):** standing/status rows keep body/feet anchored with one low-amplitude moving element; locomotion rows use controlled stride progress; each row avoids jitter, hopping, limb flailing, and static-static-static-jump timing
 - [ ] Character/content horizontal center is stable for standing/status rows; ordinary standing rows share a bottom foot baseline near `cell_h - 8` (eyeballed)
@@ -126,11 +126,11 @@ If any frame in a grid is wrong, **regenerate the whole grid** for that row, re-
 - [ ] Validation JSON, contact sheet, previews, and `pre_install_qa_gate.py` pass for every atlas
 - [ ] Character consistent across all 26 rows; `pet.json` present with `"spritesheetPath": "spritesheet.webp"`
 - [ ] Every row generated as a single 4×2 grid (8 cells, no empty cell), sliced to a 1536×208 strip by `slice_grid.py`
-- [ ] User directed to https://chromakeyremoval.vercel.app to key the green atlases before install
+- [ ] User directed to https://chromakeyremoval.vercel.app to key the magenta atlases before install
 
 ## Final response checklist
 
-Before saying done, report: rows generated or regenerated; validation command/result; contact sheet and preview directory paths for every atlas; known compromises. State clearly that the delivered atlases are **green-background (pre-key)** and the user must key them at https://chromakeyremoval.vercel.app before installing. If a tier was completed unusually quickly, state what was compressed, reused, or skipped. Validation alone is not QA.
+Before saying done, report: rows generated or regenerated; validation command/result; contact sheet and preview directory paths for every atlas; known compromises. State clearly that the delivered atlases are **magenta-background (pre-key)** and the user must key them at https://chromakeyremoval.vercel.app before installing. If a tier was completed unusually quickly, state what was compressed, reused, or skipped. Validation alone is not QA.
 
 ## Related
 `SKILL-codex-and-lite-basic.md` · `SKILL-lite-basic.md` · `SKILL-lite-enhanced.md` · `SKILL-soa.md` · `references/animation-rows-lite.md`

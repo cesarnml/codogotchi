@@ -9,8 +9,9 @@ rows = 8 cells, all populated, no empty cell) on flat chroma-green #00B140. The
 clipping that an 8:1 strip request always caused.
 
 This script is dimension-tolerant on input and exact on output:
-  1. Slice the grid into 8 cells by FRACTION (width/4, height/2), so any input
-     size works — no exact-pixel precondition.
+  1. Slice the grid into 8 cells, snapping each interior cut to the real chroma
+     gutter between characters (near width/4, height/2) so any input size works
+     and a head poking across the seam is not sheared off into its neighbour.
   2. Detect each cell's foreground (non-key, border-disconnected) content box.
   3. Compute ONE shared scale across all 8 cells (tallest content sets it) so the
      character does not change size frame-to-frame.
@@ -114,6 +115,81 @@ def fraction_cells(sheet: Image.Image) -> list[Image.Image]:
     return cells
 
 
+def _snap_to_gutter(key_fraction: np.ndarray, approx: int, window: int) -> int:
+    """Snap a cut to the real chroma gutter nearest the geometric boundary.
+
+    A blind cut at the exact fraction boundary slices through any character whose
+    head pokes across that line — producing a chopped head in one cell and a stray
+    'flying head' fragment in the neighbour. The gutter that actually separates two
+    rows (or columns) of characters is the WIDEST near-fully-key band near the
+    boundary: it is where two cells' paddings meet, so it is broader than any
+    incidental gap inside a single character (e.g. the thin slice between head and
+    body). We scan a generous band, find contiguous runs of near-fully-key lines,
+    cut through the middle of the widest run, and break ties toward the geometric
+    boundary. With no clean gutter we fall back to the emptiest line, then to the
+    geometric boundary itself.
+    """
+    lo = max(1, approx - window)
+    hi = min(len(key_fraction) - 1, approx + window)
+    if hi <= lo:
+        return approx
+    band = key_fraction[lo : hi + 1]
+    peak = float(band.max())
+    if peak <= 0:
+        return approx
+    is_gutter = band >= max(0.95, peak - 0.02)
+    if not is_gutter.any():
+        return lo + int(np.argmax(band))
+    # Contiguous runs of gutter lines; choose the widest, tie-break toward geometry.
+    best_center, best_width, best_dist = approx, -1, None
+    start = None
+    for i in range(len(is_gutter) + 1):
+        if i < len(is_gutter) and is_gutter[i]:
+            start = i if start is None else start
+            continue
+        if start is not None:
+            center = lo + (start + i - 1) // 2
+            width = i - start
+            dist = abs(center - approx)
+            if width > best_width or (width == best_width and dist < best_dist):
+                best_center, best_width, best_dist = center, width, dist
+            start = None
+    return best_center
+
+
+def gutter_cells(sheet: Image.Image, chroma: tuple[int, int, int]) -> list[Image.Image]:
+    """Slice the 4x2 grid into 8 cells, snapping each interior cut to the real
+    chroma-key gutter between characters instead of the exact geometric fraction."""
+    arr = np.array(sheet.convert("RGBA"))
+    key = keyish_mask(arr, chroma)
+    h, w = key.shape
+    row_key_fraction = key.mean(axis=1)  # per horizontal scanline
+    col_key_fraction = key.mean(axis=0)  # per vertical column
+
+    # Interior horizontal cut (the seam between the two grid rows) — the one that
+    # causes the chopped/flying heads. Search a generous band around the midline.
+    row_window = max(1, round((h / GRID_ROWS) * 0.45))
+    row_bounds = [0, _snap_to_gutter(row_key_fraction, round(h / 2), row_window), h]
+
+    # Interior vertical cuts between side-by-side characters.
+    col_window = max(1, round((w / GRID_COLS) * 0.30))
+    col_bounds = [0]
+    for col in range(1, GRID_COLS):
+        approx = round(col * w / GRID_COLS)
+        col_bounds.append(_snap_to_gutter(col_key_fraction, approx, col_window))
+    col_bounds.append(w)
+
+    cells: list[Image.Image] = []
+    for ri in range(GRID_ROWS):
+        for ci in range(GRID_COLS):
+            cells.append(
+                sheet.crop(
+                    (col_bounds[ci], row_bounds[ri], col_bounds[ci + 1], row_bounds[ri + 1])
+                )
+            )
+    return cells
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Slice a 4x2 generated grid (any size) into a canonical 1536x208 green row strip."
@@ -133,7 +209,7 @@ def main() -> None:
         else parse_hex_color(normalize_chroma_hex(args.chroma))
     )
 
-    raw_cells = fraction_cells(sheet)
+    raw_cells = gutter_cells(sheet, chroma)
 
     # Crop each cell to its foreground content box (or None when a cell is empty).
     cropped: list[Image.Image | None] = []
