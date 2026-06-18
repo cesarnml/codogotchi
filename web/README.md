@@ -15,7 +15,7 @@ desktop pet for AI coding agents that lives in the macOS menubar.
 |-------|------|
 | `/` | Landing — hero with a live menubar-inset demo, four ways to get a pet, features, install |
 | `/hatch` | Hatch a pet with the `hatch-codogotchi` skill (seed image or text description) |
-| `/pets` | Community pet gallery (adopt by dropping a folder into `~/.codogotchi/pets/`) |
+| `/gallery` | Community pet gallery (adopt by dropping a folder into `~/.codogotchi/pets/`) |
 | `/docs/spritesheet` | The three-tier spritesheet reference (Codex 8×9 / Lite 8×11 / SoA 8×10) |
 | `/rpg` | RPG teaser — local levels/half-hearts today, social layer coming soon |
 

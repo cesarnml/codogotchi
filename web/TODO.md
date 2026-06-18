@@ -32,7 +32,7 @@ and component model are not.
         Codex 8×9 / Lite 8×11 / SoA 8×10; resolution SoA→Lite→Codex→Codex idle).
   - [ ] Platform list (Claude Code · Codex · Cursor · Copilot/VS Code · Antigravity)
         — confirm phrasing and that all five are actually GA.
-  - [ ] `/pets` adoption flow — today it's manual folder copy; the one-line registry
+  - [ ] `/gallery` adoption flow — today it's manual folder copy; the one-line registry
         is aspirational. Don't imply it exists.
   - [ ] `/rpg` — local levels/half-hearts vs. cloud social layer; keep the "coming
         soon / free / no pay-to-win" framing accurate.
@@ -49,7 +49,7 @@ and component model are not.
       honor `prefers-reduced-motion` (a GIF can't). Consider a cleaner capture backdrop.
   - The earlier CSS/JS animated hero (state-machine replay of the `tcha` arc) is in
     git history if we want a no-asset fallback.
-- [ ] Real pet thumbnails in `/pets` and `/rpg` (currently emoji in dark insets).
+- [ ] Real pet thumbnails in `/gallery` and `/rpg` (currently emoji in dark insets).
 - [ ] OG/Twitter image + per-page meta; favicon is a placeholder paw SVG.
 - [ ] Accessibility pass: focus states, color contrast on saffron/jade chips, the
       GIF/`<video>` reduced-motion path, real `<button>` semantics on the fake controls.
