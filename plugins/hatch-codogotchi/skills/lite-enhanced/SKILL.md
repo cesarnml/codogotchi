@@ -5,7 +5,7 @@ description: "Add the Lite-Enhanced (Tier 3) sprite atlas to a Codogotchi pet th
 
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
 >
-> **Workspace (do this first)** — generated artifacts live **outside** the repo, one folder per run. From the plugin root, before Step 1, run once: `WORK="$HOME/Documents/Codex/$(date +%Y-%m-%d-%H%M%S)"; mkdir -p "$WORK"; ln -sfn "$WORK" run`. Every `run/…` path below then resolves into `$WORK`, so the commands stay unchanged. Never write the `run/` tree into the repo.
+> **Artifact locations** — this skill defines the required artifact contract and pipeline order only. Use whatever local paths your environment and image-generation tooling provide, then substitute those paths into the script arguments. Do not search for, require, or invent a special image-generation save directory.
 
 # hatch-codogotchi-lite-enhanced
 
@@ -39,7 +39,7 @@ The Lite-Basic sheet is also used as an **extra style reference** alongside the 
    - idle-impatient → **wristwatch** · idle-frustrated → **steam puffs** · cramming → **tall stack of books** · editing → **pencil + paper** · git-ops → **GitHub cat icon** · verifying → **checklist + green ✓ stamp** · searching → **magnifying glass + file folder** · web-search → **deerstalker hat + magnifying glass + globe**.
    - Keep props distinct from Basic: `cramming` (stack) ≠ `reading` (one book); `editing` (pencil+paper) ≠ `implementing` (laptop); `searching` (local folder) ≠ `web-search` (globe).
 2. **Scale consistency.** Same character size across all 8 frames of a row (±15% of the row median; `inspect_frames.py` hard-fails drift).
-3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as `seed.png` and the Basic sheet. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
+3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as the seed artifact and the Basic sheet. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
 4. **Alignment stability.** Keep the character on a stable horizontal axis in every 192×208 cell; the pet must not hop left/right between frames. Vertically align ordinary standing rows to a shared bottom baseline near `cell_h - 8`, not to the vertical center. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
 
 Plus: don't fake frames; **sheet-first**, one row at a time; never whole-atlas generation; no unbounded strips; match the Basic + Codex style exactly.
@@ -57,36 +57,36 @@ Quality caveats for the recommended pattern:
 # 1. Extract the seed (or reuse the one from the Basic run)
 python scripts/extract_seed_from_codex.py \
   --spritesheet "${CODOGOTCHI_HOME:-$HOME/.codogotchi}/pets/<pet-id>/spritesheet.webp" \
-  --out run/<pet-id>/seed.png
+  --out <seed>
 
 # 2. Prepare the Lite-Enhanced run
-python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
+python scripts/prepare_pet_run.py --seed <seed> \
   --pet-name "<display name>" --pet-id "<pet-id>" --tier lite-enhanced --style auto --chroma auto
 
 # 3. For each of the 8 rows, in order, use built-in image_gen sheet-first:
-#    generate one exact 768x416 4x2 row sheet into sheets/lite-enhanced/<row>.png.
+#    generate one exact 768x416 4x2 row sheet and pass that artifact to the local pipeline.
 #    All 8 cells are the animation; no empty cell. `verifying` and `web-search`
 #    use #FF00FF (their green details would be keyed out by green). Attach
-#    BOTH seed.png AND the finished codogotchi-lite-basic-spritesheet.webp.
-python scripts/normalize_generated_sheet.py --input run/<pet-id>/sheets/lite-enhanced/<row>.png --out run/<pet-id>/sheets/lite-enhanced/<row>.normalized.png --source-layout 4x2 --source-chroma <00b140-or-ff00ff-or-0047bb> --out-chroma <00b140-or-ff00ff-or-0047bb>
-python scripts/slice_animation_sheet.py --sheet run/<pet-id>/sheets/lite-enhanced/<row>.normalized.png --out-dir run/<pet-id>/frames/lite-enhanced/<row>/ --chroma <00b140-or-ff00ff-or-0047bb>
-python scripts/key_row_frames.py --row-dir run/<pet-id>/frames/lite-enhanced/<row>/ --out-dir run/<pet-id>/frames-keyed/lite-enhanced/<row>/ --preview-out run/<pet-id>/rows-keyed/lite-enhanced/<row>.png --chroma <00b140-or-ff00ff-or-0047bb> --preset balanced
-python scripts/stitch_row.py     --row-dir run/<pet-id>/frames-keyed/lite-enhanced/<row>/ --out run/<pet-id>/rows/lite-enhanced/<row>.png
-python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-enhanced/<row>.png --seed run/<pet-id>/seed.png   # gate before next row
+#    BOTH the seed artifact AND the finished codogotchi-lite-basic-spritesheet.webp.
+python scripts/normalize_generated_sheet.py --input <row-sheet> --out <normalized-row-sheet> --source-layout 4x2 --source-chroma <00b140-or-ff00ff-or-0047bb> --out-chroma <00b140-or-ff00ff-or-0047bb>
+python scripts/slice_animation_sheet.py --sheet <normalized-row-sheet> --out-dir <frame-dir> --chroma <00b140-or-ff00ff-or-0047bb>
+python scripts/key_row_frames.py --row-dir <frame-dir> --out-dir <keyed-frame-dir> --preview-out <keyed-review-strip> --chroma <00b140-or-ff00ff-or-0047bb> --preset balanced
+python scripts/stitch_row.py     --row-dir <keyed-frame-dir> --out <stitched-row>
+python scripts/inspect_frames.py --row <stitched-row> --seed <seed>   # gate before next row
 
 # 4. Compose + encode (after all 8 rows)
-python scripts/compose_atlas.py --rows-dir run/<pet-id>/rows/lite-enhanced/ --tier lite-enhanced --out run/<pet-id>/codogotchi-lite-enhanced-spritesheet.png
-cwebp -lossless -exact run/<pet-id>/codogotchi-lite-enhanced-spritesheet.png -o run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp
+python scripts/compose_atlas.py --rows-dir <rows-dir> --tier lite-enhanced --out <atlas-png>
+cwebp -lossless -exact <atlas-png> -o <atlas-webp>
 
 # 5. Validate + mandatory QA gate
-python scripts/validate_atlas.py            --atlas run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced --out-json run/<pet-id>/validate-lite-enhanced.json
-python scripts/make_contact_sheet.py        --atlas run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
-python scripts/render_animation_previews.py --atlas run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
-python scripts/make_qa_crop_sheet.py        --atlas run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced --fail-on-warnings
-python scripts/pre_install_qa_gate.py       --atlas run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp --tier lite-enhanced
+python scripts/validate_atlas.py            --atlas <atlas-webp> --tier lite-enhanced --out-json <validation-json>
+python scripts/make_contact_sheet.py        --atlas <atlas-webp> --tier lite-enhanced
+python scripts/render_animation_previews.py --atlas <atlas-webp> --tier lite-enhanced
+python scripts/make_qa_crop_sheet.py        --atlas <atlas-webp> --tier lite-enhanced --fail-on-warnings
+python scripts/pre_install_qa_gate.py       --atlas <atlas-webp> --tier lite-enhanced
 
-# 6. Install alongside Basic (do NOT overwrite spritesheet.webp, the Basic sheet, or pet.json)
-cp run/<pet-id>/codogotchi-lite-enhanced-spritesheet.webp "${CODOGOTCHI_HOME:-$HOME/.codogotchi}/pets/<pet-id>/"
+# 6. Install the final Lite-Enhanced sheet after the QA gate passes
+#    Do NOT overwrite spritesheet.webp, the Basic sheet, or pet.json.
 ```
 
 Quit and reopen Codogotchi, or re-select the pet in Settings → Pet.
@@ -96,7 +96,7 @@ Row order (see `references/animation-rows-lite.md`):
 
 ### Replace One Frame
 
-If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/lite-enhanced/<row>.txt`, replace `run/<pet-id>/frames/lite-enhanced/<row>/fNN.png`, then rerun `key_row_frames.py`, `stitch_row.py`, and `inspect_frames.py --seed run/<pet-id>/seed.png` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
+If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/lite-enhanced/<row>.txt`, replace `<frame-dir>fNN.png`, then rerun `key_row_frames.py`, `stitch_row.py`, and `inspect_frames.py --seed <seed>` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
 
 ---
 
@@ -110,7 +110,7 @@ If one cell fails after `slice_animation_sheet.py`, inspect the failure contact 
 - [ ] No static rows; each row has *subtle* distinct motion (a floor, not big motion); loop closes
 - [ ] **Each row shows its single named prop clearly in all 8 frames, distinct from the Basic props**
 - [ ] **No frame's content height deviates >15% from its row median**
-- [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as `seed.png` and the Basic sheet
+- [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as the seed artifact and the Basic sheet
 - [ ] Style/palette/proportions match the Basic + Codex sheets
 - [ ] `validate-lite-enhanced.json`, `contact-lite-enhanced.png`, `previews-lite-enhanced/`, `qa-crops-lite-enhanced.png`, and `qa-crops-lite-enhanced.json` exist and are newer than the final atlas
 - [ ] `pre_install_qa_gate.py` passed before install; any waived crop warnings are named explicitly

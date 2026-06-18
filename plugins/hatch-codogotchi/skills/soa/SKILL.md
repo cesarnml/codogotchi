@@ -5,7 +5,7 @@ description: "Generate the Son-of-Anton (SoA, Tier 4) sprite atlas for an EXISTI
 
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
 >
-> **Workspace (do this first)** — generated artifacts live **outside** the repo, one folder per run. From the plugin root, before Step 1, run once: `WORK="$HOME/Documents/Codex/$(date +%Y-%m-%d-%H%M%S)"; mkdir -p "$WORK"; ln -sfn "$WORK" run`. Every `run/…` path below then resolves into `$WORK`, so the commands stay unchanged. Never write the `run/` tree into the repo.
+> **Artifact locations** — this skill defines the required artifact contract and pipeline order only. Use whatever local paths your environment and image-generation tooling provide, then substitute those paths into the script arguments. Do not search for, require, or invent a special image-generation save directory.
 
 # hatch-codogotchi-soa
 
@@ -42,10 +42,10 @@ The existing `spritesheet.webp` defines the character. Extract a reference cell 
 ```bash
 python scripts/extract_seed_from_codex.py \
   --spritesheet "${CODOGOTCHI_HOME:-$HOME/.codogotchi}/pets/<pet-id>/spritesheet.webp" \
-  --out run/<pet-id>/seed.png
+  --out <seed>
 ```
 
-This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` background. Inspect `seed.png`; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every frame generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. For generated SoA frames, chroma defaults to `#00B140` (green); switch to `#FF00FF`/`#0047BB` per the chroma rule when the pet/prop clashes.
+This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` background. Inspect the seed artifact; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every frame generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. For generated SoA frames, chroma defaults to `#00B140` (green); switch to `#FF00FF`/`#0047BB` per the chroma rule when the pet/prop clashes.
 
 ---
 
@@ -59,7 +59,7 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` backgrou
 
 4. **Style drift from the Codex sheet.** After each row, compare a frame side-by-side with a Codex cell. Regenerate if the style, palette, or proportions have shifted.
 
-5. **Visual identity drift.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
+5. **Visual identity drift.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as the seed artifact. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
 
 6. **Jerky / over-animated motion (the stability killer).** Because the 8 frames are generated independently, big or whole-body motion comes back incoherent — legs swing, props teleport, the pet hops. **Stability beats expressiveness even on these celebration rows:** anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. Sell the beat with pose and face, not with the body roaming the cell. A mild stable loop beats a busy jittery one. The scripts cannot detect this — it is purely an eyeball check.
 
@@ -94,10 +94,10 @@ SoA rows are **expressive** — these are delivery gate reactions, not idle loop
 ```bash
 python scripts/extract_seed_from_codex.py \
   --spritesheet "${CODOGOTCHI_HOME:-$HOME/.codogotchi}/pets/<pet-id>/spritesheet.webp" \
-  --out run/<pet-id>/seed.png
+  --out <seed>
 ```
 
-Inspect `seed.png`. The character should be in a clean neutral pose on `#00B140`. If the idle frame is unclear, try `--row 3 --col 0` (standby) or another expressive cell.
+Inspect the seed artifact. The character should be in a clean neutral pose on `#00B140`. If the idle frame is unclear, try `--row 3 --col 0` (standby) or another expressive cell.
 
 ```bash
 # Check cell dimensions if not standard 192×208
@@ -110,7 +110,7 @@ python scripts/extract_seed_from_codex.py \
 
 ```bash
 python scripts/prepare_pet_run.py \
-  --seed run/<pet-id>/seed.png \
+  --seed <seed> \
   --pet-name "<existing pet display name>" \
   --pet-id  "<existing pet id>" \
   --tier soa \
@@ -118,51 +118,41 @@ python scripts/prepare_pet_run.py \
   --chroma auto
 ```
 
-Creates:
-```
-run/<pet-id>/
-  prompts/soa/       # One prompt file per SoA row
-  sheet-prompts/soa/ # One 4x2 sheet prompt file per SoA row
-  sheets/soa/        # 4x2 row sheet inputs for the local pipeline
-  frames/soa/        # Empty; frames land here
-  rows/soa/          # Empty; validated strips land here
-  imagegen-jobs.json
-  run-config.json
-```
+Produces a run manifest and prompt artifacts under the working directory chosen via `--run-dir`. Use those artifacts as inputs to the path-agnostic pipeline below.
 
 ### Step 3 — Generate row sheets (one row at a time)
 
 For **each** of the 10 SoA rows, in the order below, complete the full cycle before starting the next:
 
 1. Read motion description in `sheet-prompts/soa/<row-label>.txt`.
-2. **Use built-in `image_gen` to generate one 4×2 row sheet** — exact 768×416 px, all 8 cells populated, no empty cell, on the chroma named in the prompt. `green-tdd` and `review-clean` use `#FF00FF` so green checkmark effects survive keying. Attach `seed.png` as the character reference.
+2. **Use built-in `image_gen` to generate one 4×2 row sheet** — exact 768×416 px, all 8 cells populated, no empty cell, on the chroma named in the prompt. `green-tdd` and `review-clean` use `#FF00FF` so green checkmark effects survive keying. Attach the seed artifact as the character reference.
 3. Compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
 
 ### Step 3 — Slice and post-process each row
 
 ```bash
 python scripts/normalize_generated_sheet.py \
-  --input  run/<pet-id>/sheets/soa/<row-label>.png \
-  --out    run/<pet-id>/sheets/soa/<row-label>.normalized.png \
+  --input  <row-sheet> \
+  --out    <normalized-row-sheet> \
   --source-layout 4x2 \
   --source-chroma <00b140-or-ff00ff-or-0047bb> \
   --out-chroma <00b140-or-ff00ff-or-0047bb>
 
 python scripts/slice_animation_sheet.py \
-  --sheet   run/<pet-id>/sheets/soa/<row-label>.normalized.png \
-  --out-dir run/<pet-id>/frames/soa/<row-label>/ \
+  --sheet   <normalized-row-sheet> \
+  --out-dir <frame-dir> \
   --chroma  <00b140-or-ff00ff-or-0047bb>
 
 python scripts/key_row_frames.py \
-  --row-dir    run/<pet-id>/frames/soa/<row-label>/ \
-  --out-dir    run/<pet-id>/frames-keyed/soa/<row-label>/ \
-  --preview-out run/<pet-id>/rows-keyed/soa/<row-label>.png \
+  --row-dir    <frame-dir> \
+  --out-dir    <keyed-frame-dir> \
+  --preview-out <keyed-review-strip> \
   --chroma     <00b140-or-ff00ff-or-0047bb> \
   --preset     balanced
 
 python scripts/stitch_row.py \
-  --row-dir run/<pet-id>/frames-keyed/soa/<row-label>/ \
-  --out     run/<pet-id>/rows/soa/<row-label>.png \
+  --row-dir <keyed-frame-dir> \
+  --out     <stitched-row> \
   --cell-w  192 \
   --cell-h  208
 ```
@@ -170,12 +160,12 @@ python scripts/stitch_row.py \
 ### Step 4 — Inspect and approve each row
 
 ```bash
-python scripts/inspect_frames.py --row run/<pet-id>/rows/soa/<row-label>.png --seed run/<pet-id>/seed.png
+python scripts/inspect_frames.py --row <stitched-row> --seed <seed>
 ```
 
 Do not proceed to the next row until this passes **and** you have eyeballed the strip for genuine animated motion.
 
-If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/soa/<row-label>.txt`, replace `run/<pet-id>/frames/soa/<row-label>/fNN.png`, then rerun `key_row_frames.py`, `stitch_row.py`, and `inspect_frames.py --seed run/<pet-id>/seed.png` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
+If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/soa/<row-label>.txt`, replace `<frame-dir>fNN.png`, then rerun `key_row_frames.py`, `stitch_row.py`, and `inspect_frames.py --seed <seed>` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
 
 ### Step 5 — Compose the atlas
 
@@ -183,34 +173,34 @@ After all 10 rows are validated:
 
 ```bash
 python scripts/compose_atlas.py \
-  --rows-dir run/<pet-id>/rows/soa/ \
+  --rows-dir <rows-dir> \
   --tier soa \
-  --out   run/<pet-id>/codogotchi-soa-spritesheet.png
+  --out   <atlas-png>
 
-cwebp -lossless -exact run/<pet-id>/codogotchi-soa-spritesheet.png \
-      -o run/<pet-id>/codogotchi-soa-spritesheet.webp
+cwebp -lossless -exact <atlas-png> \
+      -o <atlas-webp>
 ```
 
 ### Step 6 — Validate
 
 ```bash
 python scripts/validate_atlas.py \
-  --atlas run/<pet-id>/codogotchi-soa-spritesheet.webp \
+  --atlas <atlas-webp> \
   --tier soa \
-  --out-json run/<pet-id>/validate-soa.json
+  --out-json <validation-json>
 ```
 
 ### Step 7 — QA contact sheet and preview GIFs
 
 ```bash
 python scripts/make_contact_sheet.py \
-  --atlas run/<pet-id>/codogotchi-soa-spritesheet.webp --tier soa
+  --atlas <atlas-webp> --tier soa
 python scripts/render_animation_previews.py \
-  --atlas run/<pet-id>/codogotchi-soa-spritesheet.webp --tier soa
+  --atlas <atlas-webp> --tier soa
 python scripts/make_qa_crop_sheet.py \
-  --atlas run/<pet-id>/codogotchi-soa-spritesheet.webp --tier soa --fail-on-warnings
+  --atlas <atlas-webp> --tier soa --fail-on-warnings
 python scripts/pre_install_qa_gate.py \
-  --atlas run/<pet-id>/codogotchi-soa-spritesheet.webp --tier soa
+  --atlas <atlas-webp> --tier soa
 ```
 
 ### Step 8 — QA style cross-check
@@ -219,12 +209,7 @@ Open the SoA contact sheet alongside the existing Codex contact sheet. The chara
 
 ### Step 9 — Install alongside existing pet
 
-```bash
-PET_ID="<existing-pet-id>"
-DEST="${CODOGOTCHI_HOME:-$HOME/.codogotchi}/pets/$PET_ID"
-cp run/<pet-id>/codogotchi-soa-spritesheet.webp "$DEST/"
-echo "Installed → $DEST"
-```
+Install the final `codogotchi-soa-spritesheet.webp` beside the existing pet only after the QA gate passes. Do not overwrite `spritesheet.webp`, Lite sheets, or `pet.json`.
 
 `spritesheet.webp` and `pet.json` are **not** modified. Only the SoA sheet is added.
 
@@ -272,7 +257,7 @@ Key distinctions to preserve:
 - [ ] No row has all 8 frames pixel-identical
 - [ ] **Stable motion (paramount):** body/feet anchored, one element moves at low amplitude, no jitter/hopping/limb-swing; emotion sold from a planted stance (only `ticket-completed` leaves the baseline)
 - [ ] Each row shows *subtle* distinct motion (a floor, not big motion) and reads as its named emotional beat (eyeball check)
-- [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`
+- [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as the seed artifact
 - [ ] Loop closes: frame 8 flows back to frame 1
 - [ ] All 10 rows have meaningfully distinct visual language from each other
 - [ ] Installed as `codogotchi-soa-spritesheet.webp` beside existing `spritesheet.webp`

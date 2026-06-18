@@ -405,7 +405,7 @@ FRAME CONSTRAINTS (apply to every frame):
 - Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
 - The character must be GENUINELY IN THIS FRAME'S DISTINCT POSE
 
-After completing the Codex idle row: save frame 1 of idle as seed.png and attach it to ALL subsequent generation calls alongside this prompt, to anchor character consistency.
+After completing the Codex idle row: use frame 1 of idle as the seed artifact and attach it to ALL subsequent generation calls alongside this prompt, to anchor character consistency.
 
 Loop contract: frame 8 pose ≈ frame 1 pose so the row plays as a seamless continuous loop.
 """
@@ -504,7 +504,7 @@ SLOT CONSTRAINTS:
 - Face and eyes are protected QA surfaces: no key-colour holes, speckles, masks, or missing iris/highlight pixels.
 - Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
 
-After completing the Codex idle row: save frame 1 of idle as seed.png and attach it to ALL subsequent
+After completing the Codex idle row: use frame 1 of idle as the seed artifact and attach it to ALL subsequent
 generation calls alongside this prompt, to anchor character consistency.
 """
 
@@ -558,7 +558,7 @@ def main() -> None:
              "no empty cell); the pipeline snaps it to the exact 4x2 canonical before slicing."
     )
     parser.add_argument("--out-dir", type=Path, default=Path("run"),
-                        help="Base output directory (default: ./run)")
+                        help="Working artifact directory for generated prompts, manifests, and local pipeline outputs")
     parser.add_argument("--write-pet-json", action="store_true",
                         help="Write pet.json to --run-dir (requires --run-dir with existing run-config.json)")
     parser.add_argument("--run-dir", type=Path, default=None,
@@ -607,7 +607,7 @@ def main() -> None:
     if args.seed and args.seed.exists():
         dest = run_dir / f"seed{args.seed.suffix}"
         shutil.copy2(args.seed, dest)
-        print(f"Seed → {dest}")
+        print("Seed artifact prepared.")
     elif args.seed:
         print(f"WARNING: seed not found at {args.seed}")
 
@@ -695,12 +695,12 @@ def main() -> None:
 
     total_rows = sum(len(TIER_ROW_ORDER[t]) for t in tiers)
     total_frames = total_rows * 8
-    print(f"\nRun folder: {run_dir}")
+    print("\nWorking artifacts prepared.")
     print(f"Tiers: {tiers}")
     print(f"Character source: {character_source}")
     if args.description:
         print(f"Description: {args.description[:80]}{'…' if len(args.description) > 80 else ''}")
-        print("NOTE (description mode): generate Codex idle row FIRST; save f01 as seed.png; attach to all subsequent calls.")
+        print("NOTE (description mode): generate Codex idle row FIRST; use f01 as the seed artifact for subsequent calls.")
     print(f"Generation mode: {args.generation_mode}")
     if args.generation_mode == "sheet-first":
         layout = SOURCE_LAYOUTS[args.source_layout]
@@ -713,7 +713,7 @@ def main() -> None:
         print(f"Total row sheets to generate: {total_rows} (slices to {total_frames} frames)")
     else:
         print(f"Total frames to generate: {total_frames}")
-    print(f"Job manifest: {jobs_path}")
+    print("Job manifest prepared.")
     if args.chroma == "auto":
         print(
             "Chroma mode: auto (#00B140 default; green-sensitive rows switch to #FF00FF automatically; "
@@ -726,25 +726,25 @@ def main() -> None:
             "\nSeed-risk note: green chroma commonly damages brown/green-heavy anime eyes, hair, props, or effects. "
             "Keep --chroma auto unless magenta/purple foreground makes magenta unsafe."
         )
-        print(f"\nNext: generate one {args.source_layout} row sheet at a time using sheet-prompts/<tier>/<label>.txt")
+        print(f"\nNext: generate one {args.source_layout} row sheet at a time using the generated sheet prompt artifact for that row.")
         print("      Then normalize the selected row sheet to exact 4x2:")
         print(
-            "      python scripts/normalize_generated_sheet.py --input sheets/<tier>/<label>.png "
-            "--out sheets/<tier>/<label>.normalized.png --source-layout <job sourceLayout> "
+            "      python scripts/normalize_generated_sheet.py --input <row-sheet> "
+            "--out <normalized-row-sheet> --source-layout <job sourceLayout> "
             "--source-chroma <job chroma> --out-chroma <job chroma>"
         )
         print("      Then slice the normalized 4x2 sheet:")
-        print("      python scripts/slice_animation_sheet.py --sheet sheets/<tier>/<label>.normalized.png --out-dir frames/<tier>/<label>/ --chroma <job chroma>")
+        print("      python scripts/slice_animation_sheet.py --sheet <normalized-row-sheet> --out-dir <frame-dir> --chroma <job chroma>")
         print("      Then key that row into the transparent 1x8 review strip:")
         print(
-            "      python scripts/key_row_frames.py --row-dir frames/<tier>/<label>/ "
-            "--out-dir frames-keyed/<tier>/<label>/ --preview-out rows-keyed/<tier>/<label>.png "
+            "      python scripts/key_row_frames.py --row-dir <frame-dir> "
+            "--out-dir <keyed-frame-dir> --preview-out <keyed-review-strip> "
             "--chroma <job chroma> --preset balanced"
         )
         print("      Then stitch/inspect that keyed row with stitch_row.py and inspect_frames.py.")
     else:
-        print("\nNext: generate frames ONE ROW AT A TIME using the prompts in prompts/<tier>/")
-        print("      Then stitch each row with: python scripts/stitch_row.py --row-dir frames/<tier>/<label>/ --out rows/<tier>/<label>.png")
+        print("\nNext: generate frames ONE ROW AT A TIME using the generated prompt artifact for that row.")
+        print("      Then stitch each row with: python scripts/stitch_row.py --row-dir <frame-dir> --out <stitched-row>")
 
 
 if __name__ == "__main__":

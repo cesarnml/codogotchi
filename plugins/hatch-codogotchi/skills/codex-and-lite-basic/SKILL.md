@@ -5,11 +5,11 @@ description: "Generate a brand-new Codogotchi pet sprite atlas from scratch (fro
 
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
 >
-> **Workspace (do this first)** — generated artifacts live **outside** the repo, one folder per run. From the plugin root, before Step 1, run once: `WORK="$HOME/Documents/Codex/$(date +%Y-%m-%d-%H%M%S)"; mkdir -p "$WORK"; ln -sfn "$WORK" run`. Every `run/…` path below then resolves into `$WORK`, so the commands stay unchanged. Never write the `run/` tree into the repo.
+> **Artifact locations** — this skill defines the required artifact contract and pipeline order only. Use whatever local paths your environment and image-generation tooling provide, then substitute those paths into the script arguments. Do not search for, require, or invent a special image-generation save directory.
 
 # hatch-codogotchi-codex-and-lite-basic
 
-Generate a **brand-new** Codogotchi pet from scratch — produces the **Codex** (Tier 1, required) and **Lite-Basic** (Tier 2) sheets in one run, ready to drop into `~/.codogotchi/pets/<id>/`.
+Generate a **brand-new** Codogotchi pet from scratch — produces the **Codex** (Tier 1, required) and **Lite-Basic** (Tier 2) sheets plus `pet.json`.
 
 | File | Tier | Grid | Dimensions | Rows |
 |------|------|------|-----------|------|
@@ -39,7 +39,7 @@ Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 1. **Prop doctrine — NOT charades.** Emotion-mappable states (`idle`, `errored`→sad) lead with expression; **every other state is carried by one clearly-visible prop** — never mimed/"invisible" props, never an A/B prop choice. Same prop, all 8 frames.
 2. **Scale consistency.** Same character size in all 8 frames of a row (±15% of the row median, gated by `inspect_frames.py`).
-3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
+3. **Visual identity checklist.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as the seed artifact. `inspect_frames.py --seed` reports bbox and rough silhouette metrics, but it cannot replace visual review.
 4. **Alignment stability.** Keep the character on a stable horizontal axis in every 192×208 cell; the pet must not hop left/right between frames. Vertically align ordinary standing rows to a shared bottom baseline near `cell_h - 8`, not to the vertical center. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
 
 Plus: don't fake frames by transforming the seed; **sheet-first**, one row at a time; never whole-atlas generation; no unbounded strips; no chroma-colour contamination.
@@ -55,7 +55,7 @@ Quality caveats for the recommended pattern:
 
 - **Seed image (recommended):** a 192 × 208 neutral standing pose on a solid chroma background. Row prompts default to `#00B140` (green); switch per the chroma rule when the pet has green or clashing colours.
 - **Seed-risk note:** if the pet itself is green-heavy, green spill/edge contamination is likely — use `#FF00FF` (or `#0047BB`) for that pet so the key is never the pet's own colour.
-- **Text description:** generate the Codex `idle` row first, save its frame 1 as `seed.png`, and attach it to every subsequent call as the character anchor.
+- **Text description:** generate the Codex `idle` row first, use frame 1 as the seed artifact and attach it to every subsequent call as the character anchor.
 
 ## Row-kind constraints
 
@@ -72,7 +72,7 @@ Locomotion rows (`running-right`, `running-left`): stable scale/baseline/facing 
 ```bash
 # 1. Prepare (seed or --description). Codex + Lite-Basic prompt files are written;
 #    each prompt already embeds the prop doctrine + scale rule.
-python scripts/prepare_pet_run.py --seed path/to/seed.png \
+python scripts/prepare_pet_run.py --seed <seed> \
   --pet-name "My Pet" --style auto --tier codex   # then --tier lite-basic  (defaults: --chroma 00b140 --source-layout 4x2)
 # (or --tier all to prep every tier; you generate only codex + lite-basic here)
 
@@ -83,34 +83,32 @@ python scripts/prepare_pet_run.py --seed path/to/seed.png \
 #    Do not ask for a whole atlas or an unconstrained horizontal strip.
 
 # 3. Normalize the 4x2 sheet to exact canonical geometry → slice → key → review → stitch → inspect
-python scripts/normalize_generated_sheet.py --input run/<slug>/sheets/<tier>/<row>.png --out run/<slug>/sheets/<tier>/<row>.normalized.png --source-layout 4x2 --source-chroma <key> --out-chroma <key>
-python scripts/slice_animation_sheet.py --sheet run/<slug>/sheets/<tier>/<row>.normalized.png --out-dir run/<slug>/frames/<tier>/<row>/ --chroma <key>
-python scripts/key_row_frames.py --row-dir run/<slug>/frames/<tier>/<row>/ --out-dir run/<slug>/frames-keyed/<tier>/<row>/ --preview-out run/<slug>/rows-keyed/<tier>/<row>.png --chroma <key> --preset balanced
-python scripts/stitch_row.py     --row-dir run/<slug>/frames-keyed/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
-python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png --seed run/<slug>/seed.png   # hard-fails >15% scale drift; reports seed comparison
+python scripts/normalize_generated_sheet.py --input <row-sheet> --out <normalized-row-sheet> --source-layout 4x2 --source-chroma <key> --out-chroma <key>
+python scripts/slice_animation_sheet.py --sheet <normalized-row-sheet> --out-dir <frame-dir> --chroma <key>
+python scripts/key_row_frames.py --row-dir <frame-dir> --out-dir <keyed-frame-dir> --preview-out <keyed-review-strip> --chroma <key> --preset balanced
+python scripts/stitch_row.py     --row-dir <keyed-frame-dir> --out <stitched-row>
+python scripts/inspect_frames.py --row <stitched-row> --seed <seed>   # hard-fails >15% scale drift; reports seed comparison
 
 # 4. Compose + encode (after ALL rows in a tier)
-python scripts/compose_atlas.py --rows-dir run/<slug>/rows/codex/      --tier codex      --out run/<slug>/spritesheet.png
-python scripts/compose_atlas.py --rows-dir run/<slug>/rows/lite-basic/ --tier lite-basic --out run/<slug>/codogotchi-lite-basic-spritesheet.png
-cwebp -lossless -exact run/<slug>/spritesheet.png                       -o run/<slug>/spritesheet.webp
-cwebp -lossless -exact run/<slug>/codogotchi-lite-basic-spritesheet.png -o run/<slug>/codogotchi-lite-basic-spritesheet.webp
+python scripts/compose_atlas.py --rows-dir <rows-dir>      --tier codex      --out <work>/spritesheet.png
+python scripts/compose_atlas.py --rows-dir <rows-dir> --tier lite-basic --out <atlas-png>
+cwebp -lossless -exact <work>/spritesheet.png                       -o <work>/spritesheet.webp
+cwebp -lossless -exact <atlas-png> -o <atlas-webp>
 
 # 5. Validate + mandatory QA gate for every installed atlas
-python scripts/validate_atlas.py            --atlas run/<slug>/spritesheet.webp                       --tier codex      --out-json run/<slug>/validate-codex.json
-python scripts/make_contact_sheet.py        --atlas run/<slug>/spritesheet.webp                       --tier codex
-python scripts/render_animation_previews.py --atlas run/<slug>/spritesheet.webp                       --tier codex
-python scripts/make_qa_crop_sheet.py        --atlas run/<slug>/spritesheet.webp                       --tier codex --fail-on-warnings
-python scripts/pre_install_qa_gate.py       --atlas run/<slug>/spritesheet.webp                       --tier codex
-python scripts/validate_atlas.py            --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --out-json run/<slug>/validate-lite-basic.json
-python scripts/make_contact_sheet.py        --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
-python scripts/render_animation_previews.py --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
-python scripts/make_qa_crop_sheet.py        --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --fail-on-warnings
-python scripts/pre_install_qa_gate.py       --atlas run/<slug>/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
+python scripts/validate_atlas.py            --atlas <work>/spritesheet.webp                       --tier codex      --out-json <validation-json>
+python scripts/make_contact_sheet.py        --atlas <work>/spritesheet.webp                       --tier codex
+python scripts/render_animation_previews.py --atlas <work>/spritesheet.webp                       --tier codex
+python scripts/make_qa_crop_sheet.py        --atlas <work>/spritesheet.webp                       --tier codex --fail-on-warnings
+python scripts/pre_install_qa_gate.py       --atlas <work>/spritesheet.webp                       --tier codex
+python scripts/validate_atlas.py            --atlas <atlas-webp> --tier lite-basic --out-json <validation-json>
+python scripts/make_contact_sheet.py        --atlas <atlas-webp> --tier lite-basic
+python scripts/render_animation_previews.py --atlas <atlas-webp> --tier lite-basic
+python scripts/make_qa_crop_sheet.py        --atlas <atlas-webp> --tier lite-basic --fail-on-warnings
+python scripts/pre_install_qa_gate.py       --atlas <atlas-webp> --tier lite-basic
 
-# 6. Write pet.json + install
-python scripts/prepare_pet_run.py --write-pet-json --run-dir run/<slug>/
-DEST="${CODOGOTCHI_HOME:-$HOME/.codogotchi}/pets/$(jq -r .pet_id run/<slug>/run-config.json)"; mkdir -p "$DEST"
-cp run/<slug>/spritesheet.webp run/<slug>/codogotchi-lite-basic-spritesheet.webp run/<slug>/pet.json "$DEST/"
+# 6. Write pet.json, then install the final artifacts after the QA gate passes
+python scripts/prepare_pet_run.py --write-pet-json --run-dir <work>/
 ```
 
 Quit and reopen Codogotchi, or re-select the pet in Settings → Pet.
@@ -127,7 +125,7 @@ Quit and reopen Codogotchi, or re-select the pet in Settings → Pet.
 
 ### Replace One Frame
 
-If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/<tier>/<row>.txt`, replace `run/<slug>/frames/<tier>/<row>/fNN.png`, then rerun `key_row_frames.py`, `stitch_row.py`, and `inspect_frames.py --seed run/<slug>/seed.png` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
+If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/<tier>/<row>.txt`, replace `<frame-dir>fNN.png`, then rerun `key_row_frames.py`, `stitch_row.py`, and `inspect_frames.py --seed <seed>` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
 
 ## Acceptance criteria
 
@@ -139,7 +137,7 @@ If one cell fails after `slice_animation_sheet.py`, inspect the failure contact 
 - [ ] No static rows; each row has *subtle* distinct motion (a floor, not big motion); loop closes
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
 - [ ] **No frame's content height deviates >15% from its row median**
-- [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as `seed.png`
+- [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, outfit/accessories, palette, and linework as the seed artifact
 - [ ] Validation JSON, contact sheet, previews, crop sheet/report, and `pre_install_qa_gate.py` pass for every installed atlas
 - [ ] Character consistent across all 18 rows
 - [ ] `pet.json` present with `"id"`, `"displayName"`, and `"spritesheetPath": "spritesheet.webp"`; app shows pet after quit-reopen

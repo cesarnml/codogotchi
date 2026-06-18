@@ -84,7 +84,7 @@ def main() -> None:
         description="Extract a character reference cell from an existing Codex spritesheet.webp."
     )
     parser.add_argument("--spritesheet", required=True, type=Path, help="Path to the existing spritesheet.webp")
-    parser.add_argument("--out", type=Path, default=None, help="Output PNG path (default: <spritesheet-dir>/seed.png)")
+    parser.add_argument("--out", type=Path, required=True, help="Output PNG path")
     parser.add_argument("--row", type=int, default=DEFAULT_ROW, help=f"Row index to extract (default: {DEFAULT_ROW} = idle)")
     parser.add_argument("--col", type=int, default=DEFAULT_COL, help=f"Column index to extract (default: {DEFAULT_COL} = frame 1)")
     parser.add_argument("--codex-rows", type=int, default=CODEX_ROWS, help=f"Number of rows in the Codex sheet (default: {CODEX_ROWS})")
@@ -123,7 +123,7 @@ def main() -> None:
     cell = extract_cell(img, args.row, args.col, cell_w, cell_h)
     report_cell_content(cell)
 
-    out = args.out or (args.spritesheet.parent.parent.parent / "seed.png")
+    out = args.out
     out.parent.mkdir(parents=True, exist_ok=True)
 
     if args.keep_alpha:

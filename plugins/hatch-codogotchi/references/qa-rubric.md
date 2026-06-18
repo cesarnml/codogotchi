@@ -145,11 +145,11 @@ Do not fix padding/scale failures by code-transforming the existing frames — t
 Before copying any generated sheet into the pet directory, run:
 
 ```bash
-python scripts/validate_atlas.py --atlas run/<pet>/<sheet>.webp --tier <tier> --out-json run/<pet>/validate-<tier>.json
-python scripts/make_contact_sheet.py --atlas run/<pet>/<sheet>.webp --tier <tier>
-python scripts/render_animation_previews.py --atlas run/<pet>/<sheet>.webp --tier <tier>
-python scripts/make_qa_crop_sheet.py --atlas run/<pet>/<sheet>.webp --tier <tier> --fail-on-warnings
-python scripts/pre_install_qa_gate.py --atlas run/<pet>/<sheet>.webp --tier <tier>
+python scripts/validate_atlas.py --atlas <atlas-webp> --tier <tier> --out-json <validation-json>
+python scripts/make_contact_sheet.py --atlas <atlas-webp> --tier <tier>
+python scripts/render_animation_previews.py --atlas <atlas-webp> --tier <tier>
+python scripts/make_qa_crop_sheet.py --atlas <atlas-webp> --tier <tier> --fail-on-warnings
+python scripts/pre_install_qa_gate.py --atlas <atlas-webp> --tier <tier>
 ```
 
 Final response checklist:

@@ -93,14 +93,14 @@ Installing a generated sheet is blocked until these artifacts are present and ne
 - `previews-<tier>/*.gif` from `render_animation_previews.py`
 - `qa-crops-<tier>.png` and `qa-crops-<tier>.json` from `make_qa_crop_sheet.py`
 
-Run `pre_install_qa_gate.py` before every `cp` into a pet directory:
+Run `pre_install_qa_gate.py` before installing any generated sheet:
 
 ```bash
-python scripts/validate_atlas.py --atlas run/<pet>/<sheet>.webp --tier <tier> --out-json run/<pet>/validate-<tier>.json
-python scripts/make_contact_sheet.py --atlas run/<pet>/<sheet>.webp --tier <tier>
-python scripts/render_animation_previews.py --atlas run/<pet>/<sheet>.webp --tier <tier>
-python scripts/make_qa_crop_sheet.py --atlas run/<pet>/<sheet>.webp --tier <tier> --fail-on-warnings
-python scripts/pre_install_qa_gate.py --atlas run/<pet>/<sheet>.webp --tier <tier>
+python scripts/validate_atlas.py --atlas <work>/<sheet>.webp --tier <tier> --out-json <validation-json>
+python scripts/make_contact_sheet.py --atlas <work>/<sheet>.webp --tier <tier>
+python scripts/render_animation_previews.py --atlas <work>/<sheet>.webp --tier <tier>
+python scripts/make_qa_crop_sheet.py --atlas <work>/<sheet>.webp --tier <tier> --fail-on-warnings
+python scripts/pre_install_qa_gate.py --atlas <work>/<sheet>.webp --tier <tier>
 ```
 
 If you intentionally accept a crop warning, rerun the gate with `--allow-crop-warnings` and state the accepted warning in the final checklist. Do not describe the sheet as “fully QA-passed” when any warning was waived.
@@ -175,53 +175,50 @@ Tier 1 is required. Resolution order per render moment: **SoA → Enhanced → B
 ## Quick start — new pet from scratch
 
 ```bash
-# 0. Workspace — generated artifacts live OUTSIDE the repo, one folder per run.
-#    Run once from the plugin root; every `run/…` path below then resolves into $WORK.
-WORK="$HOME/Documents/Codex/$(date +%Y-%m-%d-%H%M%S)"; mkdir -p "$WORK"; ln -sfn "$WORK" run
+# 0. Choose artifact paths.
+#    The plugin does not prescribe where image generation stores files.
+#    Use any local working paths and substitute them for <work>.
 
 # 1. Prepare run with seed image (or --description "...")
 python scripts/prepare_pet_run.py \
-  --seed my-pet-seed.png --pet-name "Beemo" --style plush
+  --seed <seed> --pet-name "Beemo" --style plush
 
 # 2. Use Codex's built-in image_gen tool to generate one row candidate at a time.
 #    Use sheet-prompts/<tier>/<row>.txt. The generated prompts use row-safe chroma:
 #    #00B140 (green) by default; switch to #FF00FF/#0047BB per the chroma rule.
 
 # 3. Normalize to exact 4x2, then slice, key, review, stitch, and inspect each row
-python scripts/normalize_generated_sheet.py --input run/beemo/sheets/lite-basic/implementing.png --out run/beemo/sheets/lite-basic/implementing.normalized.png --source-layout 4x2 --source-chroma 00b140 --out-chroma 00b140
-python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.normalized.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma 00b140
-python scripts/key_row_frames.py --row-dir run/beemo/frames/lite-basic/implementing/ --out-dir run/beemo/frames-keyed/lite-basic/implementing/ --preview-out run/beemo/rows-keyed/lite-basic/implementing.png --chroma 00b140 --preset balanced
-python scripts/stitch_row.py     --row-dir run/beemo/frames-keyed/lite-basic/implementing/ --out run/beemo/rows/lite-basic/implementing.png
-python scripts/inspect_frames.py --row run/beemo/rows/lite-basic/implementing.png --seed run/beemo/seed.png
+python scripts/normalize_generated_sheet.py --input <row-sheet> --out <normalized-row-sheet> --source-layout 4x2 --source-chroma 00b140 --out-chroma 00b140
+python scripts/slice_animation_sheet.py --sheet <normalized-row-sheet> --out-dir <frame-dir> --chroma 00b140
+python scripts/key_row_frames.py --row-dir <frame-dir> --out-dir <keyed-frame-dir> --preview-out <keyed-review-strip> --chroma 00b140 --preset balanced
+python scripts/stitch_row.py     --row-dir <keyed-frame-dir> --out <stitched-row>
+python scripts/inspect_frames.py --row <rows-dir>implementing.png --seed <seed>
 
 # 4. Compose + encode (after ALL rows validated)
-python scripts/compose_atlas.py --rows-dir run/beemo/rows/codex/      --tier codex      --out run/beemo/spritesheet.png
-python scripts/compose_atlas.py --rows-dir run/beemo/rows/lite-basic/ --tier lite-basic --out run/beemo/codogotchi-lite-basic-spritesheet.png
-cwebp -lossless -exact run/beemo/spritesheet.png                       -o run/beemo/spritesheet.webp
-cwebp -lossless -exact run/beemo/codogotchi-lite-basic-spritesheet.png -o run/beemo/codogotchi-lite-basic-spritesheet.webp
+python scripts/compose_atlas.py --rows-dir <rows-dir>      --tier codex      --out <work>/spritesheet.png
+python scripts/compose_atlas.py --rows-dir <rows-dir> --tier lite-basic --out <atlas-png>
+cwebp -lossless -exact <work>/spritesheet.png                       -o <work>/spritesheet.webp
+cwebp -lossless -exact <atlas-png> -o <atlas-webp>
 
 # 5. Validate + mandatory visual QA gate for each atlas
-python scripts/validate_atlas.py --atlas run/beemo/spritesheet.webp --tier codex --out-json run/beemo/validate-codex.json
-python scripts/make_contact_sheet.py --atlas run/beemo/spritesheet.webp --tier codex
-python scripts/render_animation_previews.py --atlas run/beemo/spritesheet.webp --tier codex
-python scripts/make_qa_crop_sheet.py --atlas run/beemo/spritesheet.webp --tier codex --fail-on-warnings
-python scripts/pre_install_qa_gate.py --atlas run/beemo/spritesheet.webp --tier codex
+python scripts/validate_atlas.py --atlas <work>/spritesheet.webp --tier codex --out-json <validation-json>
+python scripts/make_contact_sheet.py --atlas <work>/spritesheet.webp --tier codex
+python scripts/render_animation_previews.py --atlas <work>/spritesheet.webp --tier codex
+python scripts/make_qa_crop_sheet.py --atlas <work>/spritesheet.webp --tier codex --fail-on-warnings
+python scripts/pre_install_qa_gate.py --atlas <work>/spritesheet.webp --tier codex
 
-python scripts/validate_atlas.py --atlas run/beemo/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --out-json run/beemo/validate-lite-basic.json
-python scripts/make_contact_sheet.py --atlas run/beemo/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
-python scripts/render_animation_previews.py --atlas run/beemo/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
-python scripts/make_qa_crop_sheet.py --atlas run/beemo/codogotchi-lite-basic-spritesheet.webp --tier lite-basic --fail-on-warnings
-python scripts/pre_install_qa_gate.py --atlas run/beemo/codogotchi-lite-basic-spritesheet.webp --tier lite-basic
+python scripts/validate_atlas.py --atlas <atlas-webp> --tier lite-basic --out-json <validation-json>
+python scripts/make_contact_sheet.py --atlas <atlas-webp> --tier lite-basic
+python scripts/render_animation_previews.py --atlas <atlas-webp> --tier lite-basic
+python scripts/make_qa_crop_sheet.py --atlas <atlas-webp> --tier lite-basic --fail-on-warnings
+python scripts/pre_install_qa_gate.py --atlas <atlas-webp> --tier lite-basic
 
 # (Optional) add the Lite-Enhanced sheet afterward — requires the Basic sheet above:
-#   python scripts/prepare_pet_run.py --seed run/beemo/seed.png --pet-id beemo --tier lite-enhanced
+#   python scripts/prepare_pet_run.py --seed <seed> --pet-id beemo --tier lite-enhanced
 #   …generate/stitch/compose --tier lite-enhanced → codogotchi-lite-enhanced-spritesheet.webp
 
-# 6. Install
-python scripts/prepare_pet_run.py --write-pet-json --run-dir run/beemo/
-cp run/beemo/spritesheet.webp                       ~/.codogotchi/pets/beemo/
-cp run/beemo/codogotchi-lite-basic-spritesheet.webp ~/.codogotchi/pets/beemo/
-cp run/beemo/pet.json                               ~/.codogotchi/pets/beemo/
+# 6. Install the final artifacts after the QA gate passes
+python scripts/prepare_pet_run.py --write-pet-json --run-dir <work>/
 ```
 
 ## Quick start — add Lite/SoA to an existing pet
@@ -229,19 +226,18 @@ cp run/beemo/pet.json                               ~/.codogotchi/pets/beemo/
 ```bash
 # 1. Extract character reference from existing Codex sheet
 python scripts/extract_seed_from_codex.py \
-  --spritesheet ~/.codogotchi/pets/maew/spritesheet.webp \
-  --out run/maew/seed.png
+  --spritesheet <existing-codex-spritesheet> \
+  --out <seed>
 
 # 2. Prepare run (lite-basic, lite-enhanced, or soa)
 python scripts/prepare_pet_run.py \
-  --seed run/maew/seed.png --pet-id maew --pet-name "Maew" --tier lite-basic
+  --seed <seed> --pet-id maew --pet-name "Maew" --tier lite-basic
 
 # 3-5. Use built-in image_gen for frame generation. Then key, inspect, compose, validate, and pass the
 #      mandatory visual QA gate (same pipeline)
 #      lite-enhanced is a separate run and REQUIRES the lite-basic sheet to exist first.
 
 # 6. Install only after pre_install_qa_gate passes; don't overwrite spritesheet.webp or pet.json
-cp run/maew/codogotchi-lite-basic-spritesheet.webp ~/.codogotchi/pets/maew/
 ```
 
 ---
@@ -303,11 +299,11 @@ hatch-codogotchi/
 
 9. **Vertical float from center alignment** — Ordinary standing rows should use a shared bottom baseline near `cell_h - 8`, not vertical centering. Centering the full bbox vertically can make the pet hover too far above the `AnimationBadgePanel`. Jump/leap rows are the exception, and they must visibly take off and land.
 
-10. **Character identity drift** — Automated checks cannot fully judge style. After every frame and every stitched row, compare against `seed.png` and verify the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework. `inspect_frames.py --seed run/<pet>/seed.png` prints advisory bbox, area, centroid, and rough silhouette-deviation metrics to help spot drift, but visual review is still required.
+10. **Character identity drift** — Automated checks cannot fully judge style. After every frame and every stitched row, compare against the seed artifact and verify the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework. `inspect_frames.py --seed <seed>` prints advisory bbox, area, centroid, and rough silhouette-deviation metrics to help spot drift, but visual review is still required.
 
 ## Frame replacement recovery
 
-If exactly one frame fails visual QA or automated inspection, regenerate only that standalone frame using `prompts/<tier>/<row>.txt`. Replace `frames/<tier>/<row>/fNN.png`, rerun `key_row_frames.py`, rerun `stitch_row.py` for that row, rerun `inspect_frames.py --seed run/<pet>/seed.png`, and eyeball both the re-keyed strip and the restitched row. Do not regenerate an entire row when a surgical frame replacement is enough, and do not transform neighboring frames to patch the failure.
+If exactly one frame fails visual QA or automated inspection, regenerate only that standalone frame using the row prompt artifact. Replace the failed frame artifact, rerun `key_row_frames.py`, rerun `stitch_row.py` for that row, rerun `inspect_frames.py --seed <seed>`, and eyeball both the re-keyed strip and the restitched row. Do not regenerate an entire row when a surgical frame replacement is enough, and do not transform neighboring frames to patch the failure.
 
 > Validation does not catch failures 1–5. Eyeball every row — **jerky over-animation (#5) is invisible to the scripts** and is the most common reason a mechanically-valid row still looks bad. Failures 6–8 are gated by scripts; failures 9–10 still need visual judgment.
 
