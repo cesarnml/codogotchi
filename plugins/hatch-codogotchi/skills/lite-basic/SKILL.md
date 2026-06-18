@@ -17,9 +17,9 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 
 **Prerequisite:** a valid Codex `spritesheet.webp` for the pet (the character reference is extracted from it).
 
-**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 4×2 Lite-Basic animation sheet per row**: exact 768×416 px, eight 192×208 cells (4 columns × 2 rows), all 8 cells populated in reading order, no empty cell. Then run `slice_animation_sheet.py` to validate, normalize chroma, and write `frames/lite-basic/<row>/f01.png` … `f08.png`. Do **not** request a complete atlas or an unconstrained horizontal strip.
+**Execution model:** default to **sheet-first** generation. Codex should use its built-in `image_gen` tool to generate **one 4×2 Lite-Basic animation sheet per row**: exact 768×416 px, eight 192×208 cells (4 columns × 2 rows), all 8 cells populated in reading order, no empty cell. Then run `normalize_generated_sheet.py`, `slice_animation_sheet.py`, and `key_row_frames.py` to produce a transparent `1×8` review strip before `stitch_row.py`. Do **not** request a complete atlas or an unconstrained horizontal strip.
 
-**Non-negotiable row gate:** finish one row completely before generating the next: generate → slice → stitch → `inspect_frames.py` → visual review of the row strip. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
+**Non-negotiable row gate:** finish one row completely before generating the next in this exact order: raw `4×2` row sheet → transparent `1×8` review strip → stitched row. If the transparent strip looks wrong, regenerate the raw row sheet instead of patching forward. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
 
 **Chroma key — agent's choice, default green.** `--chroma` defaults to `#00ff00` (green). Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#ff00ff` (magenta) when the pet has green (greenish eyes, hair highlights, green props/FX); `#0000ff` (blue) when it has both green and magenta/pink.
 
@@ -69,8 +69,10 @@ python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
 #    sheet prompt; default is #00ff00 (green), switch per the chroma rule.
 #    Prop must stay clearly drawn + identical across frames; seed.png attached.
 #    Then:
-python scripts/slice_animation_sheet.py --sheet run/<pet-id>/sheets/lite-basic/<row>.png --out-dir run/<pet-id>/frames/lite-basic/<row>/ --chroma <00ff00-or-ff00ff>
-python scripts/stitch_row.py     --row-dir run/<pet-id>/frames/lite-basic/<row>/ --out run/<pet-id>/rows/lite-basic/<row>.png
+python scripts/normalize_generated_sheet.py --input run/<pet-id>/sheets/lite-basic/<row>.png --out run/<pet-id>/sheets/lite-basic/<row>.normalized.png --source-layout 4x2 --source-chroma <00ff00-or-ff00ff> --out-chroma <00ff00-or-ff00ff>
+python scripts/slice_animation_sheet.py --sheet run/<pet-id>/sheets/lite-basic/<row>.normalized.png --out-dir run/<pet-id>/frames/lite-basic/<row>/ --chroma <00ff00-or-ff00ff>
+python scripts/key_row_frames.py --row-dir run/<pet-id>/frames/lite-basic/<row>/ --out-dir run/<pet-id>/frames-keyed/lite-basic/<row>/ --preview-out run/<pet-id>/rows-keyed/lite-basic/<row>.png --chroma <00ff00-or-ff00ff>
+python scripts/stitch_row.py     --row-dir run/<pet-id>/frames-keyed/lite-basic/<row>/ --out run/<pet-id>/rows/lite-basic/<row>.png
 python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-basic/<row>.png --seed run/<pet-id>/seed.png   # gate before next row
 
 # 4. Compose + encode (after all 9 rows)
@@ -95,7 +97,7 @@ Row order (see `references/animation-rows-lite.md`):
 
 ### Replace One Frame
 
-If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/lite-basic/<row>.txt`, replace `run/<pet-id>/frames/lite-basic/<row>/fNN.png`, then rerun `stitch_row.py` and `inspect_frames.py --seed run/<pet-id>/seed.png` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
+If one cell fails after `slice_animation_sheet.py`, inspect the failure contact sheet. If exactly one frame needs repair, regenerate only that standalone frame with `prompts/lite-basic/<row>.txt`, replace `run/<pet-id>/frames/lite-basic/<row>/fNN.png`, then rerun `key_row_frames.py`, `stitch_row.py`, and `inspect_frames.py --seed run/<pet-id>/seed.png` for that row. Do not regenerate the whole row when a single-frame cut-and-replace is enough.
 
 ---
 

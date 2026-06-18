@@ -11,15 +11,15 @@ Analogous to the `openai/skills/.curated/hatch-pet` skill, adapted for Codogotch
 This plugin is designed to be run by Codex in two explicit stages:
 
 1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one row candidate per animation row**, saving `run/<pet>/sheets/<tier>/<row>.png`. Each row candidate is a `4×2` sheet (`768×416`: eight populated 192×208 cells, no empty cell).
-2. **Local assembly stage:** the Python scripts in `scripts/` first snap the generated row candidate to the exact canonical `4×2` sheet geometry, then slice that canonical sheet into exact `f01.png` … `f08.png` cells, normalize the chroma background, stitch those frames into row strips, inspect/validate them, and finally compose the validated row strips into the final spritesheet atlas.
+2. **Local assembly stage:** the Python scripts in `scripts/` first snap the generated row candidate to the exact canonical `4×2` sheet geometry, then slice that canonical sheet into exact matte-backed `f01.png` … `f08.png` cells, key those frames into a transparent `1×8` review strip, stitch the approved keyed frames into a final row strip, inspect/validate them, and finally compose the validated row strips into the final spritesheet atlas.
 
 The plugin does **not** mean "ask image generation for a whole atlas" or "ask for an unconstrained strip." The intended default workflow is now **sheet-first**:
 
-`image_gen` row candidate (`4×2`) → `normalize_generated_sheet.py` → `slice_animation_sheet.py` → `stitch_row.py` → `inspect_frames.py` → `compose_atlas.py` → `validate_atlas.py` → `make_contact_sheet.py` → `render_animation_previews.py` → `make_qa_crop_sheet.py` → `pre_install_qa_gate.py`
+`image_gen` raw row candidate (`4×2`) → `normalize_generated_sheet.py` → `slice_animation_sheet.py` → `key_row_frames.py` → transparent `rows-keyed/<tier>/<row>.png` review → `stitch_row.py` → `inspect_frames.py` → `compose_atlas.py` → `validate_atlas.py` → `make_contact_sheet.py` → `render_animation_previews.py` → `make_qa_crop_sheet.py` → `pre_install_qa_gate.py`
 
-**Non-negotiable row gate:** generate, normalize, slice, stitch, inspect, and visually review one row before generating the next. Do not batch-generate several rows and sort it out later. Do not compose an atlas until every row has a passing `inspect_frames.py` run and has been eyeballed for style, prop clarity, face/eye integrity, and stable motion.
+**Non-negotiable row gate:** one row at a time, and in this exact order: raw `4×2` row sheet → transparent `1×8` review strip → stitched row. The scripts now enforce this. Do not skip the transparent review strip. If `rows-keyed/<tier>/<row>.png` looks wrong, regenerate the raw `4×2` row sheet instead of patching forward. Do not compose an atlas until every row has a passing `inspect_frames.py` run and has been eyeballed for style, prop clarity, face/eye integrity, and stable motion.
 
-Every skill below assumes that division of labor: **Codex generates one bounded row candidate; local scripts normalize it to exact canonical geometry, then slice, key, assemble, and validate it.** The old frame-first path remains the recovery path for selective repair when one cell fails.
+Every skill below assumes that division of labor: **Codex generates one bounded raw row candidate; local scripts normalize it to exact canonical geometry, slice it, force a keyed-row review stop, then assemble and validate it.** The old frame-first path remains the recovery path for selective repair when one cell fails.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that still looks good in motion**. In practice, many rows can be produced faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a speed optimization, not a hard rule.
 
@@ -75,10 +75,12 @@ Hardening rules:
 
 - Prompts require one flat RGB key color for the entire `4×2` row candidate sheet.
 - `slice_animation_sheet.py` detects border-connected background per cell and normalizes only that connected background region to the exact key color.
-- `normalize_generated_sheet.py` snaps the generated `4×2` row candidate to the exact canonical `4×2` sheet geometry (exact cell sizes + flat key) before slicing.
+- `normalize_generated_sheet.py` snaps the generated `4×2` row candidate to the exact canonical `4×2` sheet geometry (exact cell sizes + flat key) before slicing, and now fails early when border-connected mixed mattes or clipped non-key background survive the declared key.
 - Foreground pixels that still look like the active key color are a hard failure unless `--allow-foreground-key` is explicitly passed.
 - All 8 cells must be populated; no body part, prop, effect, or antialiasing may cross a cell boundary.
-- After slicing, `stitch_row.py`, `inspect_frames.py`, and `validate_atlas.py` still enforce zero likely green/magenta residue and zero transparent-RGB residue.
+- `key_row_frames.py` emits both transparent keyed frames and a transparent `rows-keyed/<tier>/<row>.png` review strip. Treat that strip as a blocker gate, not a courtesy artifact.
+- `stitch_row.py` is assembly-only and now refuses matte-backed frames; it no longer performs implicit chroma removal.
+- `inspect_frames.py` and `validate_atlas.py` still enforce stable motion geometry and zero transparent-RGB residue on the composed output.
 - After composing, `make_qa_crop_sheet.py` creates a face/prop crop sheet and JSON report. Treat warnings about face chroma residue or enclosed transparent pixels as blockers unless you can name the false positive explicitly.
 
 ## Mandatory pre-install QA gate
@@ -185,10 +187,11 @@ python scripts/prepare_pet_run.py \
 #    #00ff00 (green) by default; switch to #ff00ff/#0000ff per the chroma rule.
 #    Save as run/beemo/sheets/<tier>/<row>.png
 
-# 3. Normalize to exact 4x2, then slice, stitch, and inspect each row
+# 3. Normalize to exact 4x2, then slice, key, review, stitch, and inspect each row
 python scripts/normalize_generated_sheet.py --input run/beemo/sheets/lite-basic/implementing.png --out run/beemo/sheets/lite-basic/implementing.normalized.png --source-layout 4x2 --source-chroma 00ff00 --out-chroma 00ff00
 python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.normalized.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma 00ff00
-python scripts/stitch_row.py     --row-dir run/beemo/frames/lite-basic/implementing/ --out run/beemo/rows/lite-basic/implementing.png
+python scripts/key_row_frames.py --row-dir run/beemo/frames/lite-basic/implementing/ --out-dir run/beemo/frames-keyed/lite-basic/implementing/ --preview-out run/beemo/rows-keyed/lite-basic/implementing.png --chroma 00ff00
+python scripts/stitch_row.py     --row-dir run/beemo/frames-keyed/lite-basic/implementing/ --out run/beemo/rows/lite-basic/implementing.png
 python scripts/inspect_frames.py --row run/beemo/rows/lite-basic/implementing.png --seed run/beemo/seed.png
 
 # 4. Compose + encode (after ALL rows validated)
@@ -233,7 +236,7 @@ python scripts/extract_seed_from_codex.py \
 python scripts/prepare_pet_run.py \
   --seed run/maew/seed.png --pet-id maew --pet-name "Maew" --tier lite-basic
 
-# 3-5. Use built-in image_gen for frame generation, then stitch, inspect,
+# 3-5. Use built-in image_gen for frame generation, then key, inspect,
 #      compose, validate, and pass the mandatory visual QA gate (same pipeline)
 #      lite-enhanced is a separate run and REQUIRES the lite-basic sheet to exist first.
 
@@ -264,8 +267,9 @@ hatch-codogotchi/
     extract_seed_from_codex.py        ← Extract reference cell from existing spritesheet
     prepare_pet_run.py                ← Bootstrap run folder + prompt files + sourceLayout manifest fields
     normalize_generated_sheet.py      ← Normalize the generated 4x2 row candidate → canonical 4x2 sheet
-    slice_animation_sheet.py          ← Validate/slice a 4×2 row sheet → f01..f08 frames
-    stitch_row.py                     ← Chroma-key + crop + scale + stitch 8 frames → row strip
+    slice_animation_sheet.py          ← Validate/slice a 4×2 row sheet → matte-backed f01..f08 frames
+    key_row_frames.py                 ← Remove chroma → keyed frames + transparent 1×8 review strip
+    stitch_row.py                     ← Crop + scale + stitch keyed frames → row strip
     inspect_frames.py                 ← Validate a single row strip before composing
     compose_atlas.py                  ← Stack row strips → atlas PNG
     validate_atlas.py                 ← Final atlas validation
@@ -281,7 +285,7 @@ hatch-codogotchi/
 
 1. **Faking frames by transforming the seed** — Do not crop/warp/rotate/scale/re-composite a seed. Every frame must be a genuine render in that pose.
 
-2. **Rushing the whole atlas in one pass** — One row at a time, **sheet-first**: render a single 4×2 row sheet → slice into exact cells → stitch into a row strip → inspect → repeat for the next row → only then compose the atlas.
+2. **Rushing the whole atlas in one pass** — One row at a time, **sheet-first**: render a single raw `4×2` row sheet → slice into exact cells → key it into a transparent `1×8` strip → inspect that keyed strip → stitch into a row strip → inspect → repeat for the next row → only then compose the atlas.
 
 3. **Unbounded strips / clipped cells** — Do not request a 1×8/1×9 strip or whole atlas from image generation. The only multi-frame generation format is a strict 4×2 sheet (8 cells) with 192×208 cells and no empty cell. If any foreground crosses a cell boundary, reject the sheet.
 
@@ -303,7 +307,7 @@ hatch-codogotchi/
 
 ## Frame replacement recovery
 
-If exactly one frame fails visual QA or automated inspection, regenerate only that standalone frame using `prompts/<tier>/<row>.txt`. Replace `frames/<tier>/<row>/fNN.png`, rerun `stitch_row.py` for that row, rerun `inspect_frames.py --seed run/<pet>/seed.png`, and eyeball the restitched row. Do not regenerate an entire row when a surgical frame replacement is enough, and do not transform neighboring frames to patch the failure.
+If exactly one frame fails visual QA or automated inspection, regenerate only that standalone frame using `prompts/<tier>/<row>.txt`. Replace `frames/<tier>/<row>/fNN.png`, rerun `key_row_frames.py`, rerun `stitch_row.py` for that row, rerun `inspect_frames.py --seed run/<pet>/seed.png`, and eyeball both the re-keyed strip and the restitched row. Do not regenerate an entire row when a surgical frame replacement is enough, and do not transform neighboring frames to patch the failure.
 
 > Validation does not catch failures 1–5. Eyeball every row — **jerky over-animation (#5) is invisible to the scripts** and is the most common reason a mechanically-valid row still looks bad. Failures 6–8 are gated by scripts; failures 9–10 still need visual judgment.
 

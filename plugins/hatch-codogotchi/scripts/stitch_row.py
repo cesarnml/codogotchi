@@ -1,70 +1,18 @@
 #!/usr/bin/env python3
 """
-stitch_row.py — Chroma-key, crop, scale, horizontally register, baseline-align, and stitch 8 frames into one row strip.
+stitch_row.py — Assemble already-keyed transparent frames into one row strip.
 
-Post-processes real generated frames; must NEVER invent motion or transform a single seed.
+This script is intentionally assembly-only. Chroma removal must happen first in
+key_row_frames.py so the transparent 1x8 review strip is visible before the
+final row strip is produced.
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-from PIL import Image
 import numpy as np
-
-
-CHROMA_DEFAULT = (0, 255, 0)
-CHROMA_MAGENTA = (255, 0, 255)
-CHROMA_TOLERANCE = 10
-
-
-def parse_hex_color(s: str) -> tuple[int, int, int]:
-    s = s.lstrip("#")
-    r, g, b = int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
-    return (r, g, b)
-
-
-def detect_frame_chroma(img: Image.Image) -> tuple[int, int, int]:
-    """Detect the flat chroma key from the frame border/corners."""
-    img = img.convert("RGBA")
-    arr = np.array(img)
-    h, w = arr.shape[:2]
-    samples = [
-        tuple(int(v) for v in arr[0, 0, :3]),
-        tuple(int(v) for v in arr[0, w - 1, :3]),
-        tuple(int(v) for v in arr[h - 1, 0, :3]),
-        tuple(int(v) for v in arr[h - 1, w - 1, :3]),
-    ]
-    counts: dict[tuple[int, int, int], int] = {}
-    for sample in samples:
-        counts[sample] = counts.get(sample, 0) + 1
-    return max(counts.items(), key=lambda item: item[1])[0]
-
-
-def chroma_residue_mask(arr: np.ndarray) -> np.ndarray:
-    """Flag likely unremoved green or magenta chroma residue."""
-    r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
-    green_mask = (g > 200) & (r < 100) & (b < 100) & (a > 0)
-    magenta_mask = (r > 200) & (b > 200) & (g < 100) & (a > 0)
-    return green_mask | magenta_mask
-
-
-def remove_chroma(img: Image.Image, chroma: tuple[int, int, int], tol: int = CHROMA_TOLERANCE) -> Image.Image:
-    """Replace chroma-key colour with transparency."""
-    img = img.convert("RGBA")
-    data = np.array(img, dtype=np.float32)
-    cr, cg, cb = chroma
-    dist = np.sqrt(
-        (data[:, :, 0] - cr) ** 2 +
-        (data[:, :, 1] - cg) ** 2 +
-        (data[:, :, 2] - cb) ** 2
-    )
-    mask = dist <= tol
-    data[mask, 3] = 0
-    data[mask, 0] = 0
-    data[mask, 1] = 0
-    data[mask, 2] = 0
-    return Image.fromarray(data.astype(np.uint8), "RGBA")
+from PIL import Image
 
 
 def alpha_bounds(img: Image.Image) -> tuple[int, int, int, int] | None:
@@ -89,7 +37,7 @@ def crop_to_alpha(img: Image.Image) -> Image.Image:
 
 
 def load_frames(row_dir: Path, expected: int = 8) -> list[Image.Image]:
-    """Load up to `expected` frames from f01.png … f08.png (or 0-padded index)."""
+    """Load already-keyed transparent frames from f01.png … f08.png."""
     candidates = sorted(
         [p for p in row_dir.iterdir() if p.suffix.lower() in (".png", ".webp", ".jpg", ".jpeg")],
         key=lambda p: p.name,
@@ -97,6 +45,32 @@ def load_frames(row_dir: Path, expected: int = 8) -> list[Image.Image]:
     if len(candidates) < expected:
         print(f"WARNING: found {len(candidates)} frames in {row_dir}, expected {expected}", file=sys.stderr)
     return [Image.open(p).convert("RGBA") for p in candidates[:expected]]
+
+
+def validate_input_frames(frames: list[Image.Image]) -> list[str]:
+    errors: list[str] = []
+    for index, frame in enumerate(frames, start=1):
+        arr = np.array(frame.convert("RGBA"))
+        alpha = arr[:, :, 3]
+        border_alpha = np.concatenate(
+            [
+                alpha[0, :],
+                alpha[-1, :],
+                alpha[1:-1, 0],
+                alpha[1:-1, -1],
+            ]
+        )
+        if np.any(border_alpha > 0):
+            errors.append(
+                f"frame {index:02d}: outer border is not transparent; "
+                "run key_row_frames.py first and inspect rows-keyed/<row>.png before stitching"
+            )
+        bad_transparent = (alpha == 0) & np.any(arr[:, :, :3] != 0, axis=2)
+        if bad_transparent.any():
+            errors.append(
+                f"frame {index:02d}: {int(bad_transparent.sum())} transparent pixels retain nonzero RGB"
+            )
+    return errors
 
 
 def stitch_row(
@@ -153,13 +127,8 @@ def validate_strip(strip: Image.Image, cell_w: int, cell_h: int, padding: int = 
     arr = np.array(strip)
     n_frames = strip.width // cell_w
 
-    # Check for likely key-colour residue
-    r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
-    residue_mask = chroma_residue_mask(arr)
-    if residue_mask.any():
-        errors.append(f"Chroma residue: {residue_mask.sum()} likely key-colour pixels remain")
-
     # Check transparent-RGB residue
+    r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
     bad_transparent = (a == 0) & ((r > 0) | (g > 0) | (b > 0))
     if bad_transparent.any():
         errors.append(f"Transparent RGB residue: {bad_transparent.sum()} pixels have nonzero RGB with alpha=0")
@@ -209,14 +178,9 @@ def zero_transparent_rgb(img: Image.Image) -> Image.Image:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Stitch 8 frames into one row strip for a Codogotchi spritesheet.")
-    parser.add_argument("--row-dir", required=True, type=Path, help="Directory containing f01.png … f08.png")
+    parser = argparse.ArgumentParser(description="Stitch keyed transparent frames into one row strip.")
+    parser.add_argument("--row-dir", required=True, type=Path, help="Directory containing transparent keyed f01.png … f08.png")
     parser.add_argument("--out", required=True, type=Path, help="Output row strip PNG path")
-    parser.add_argument(
-        "--chroma",
-        default="auto",
-        help="Chroma-key hex colour, or 'auto' to detect the flat background from the frame corners",
-    )
     parser.add_argument("--cell-w", type=int, default=192, help="Cell width in pixels (default: 192)")
     parser.add_argument("--cell-h", type=int, default=208, help="Cell height in pixels (default: 208)")
     parser.add_argument("--padding", type=int, default=8, help="Minimum padding in pixels (default: 8)")
@@ -229,18 +193,20 @@ def main() -> None:
         sys.exit(f"ERROR: no frames found in {args.row_dir}")
     print(f"  Loaded {len(raw_frames)} frames")
 
-    if args.chroma == "auto":
-        detected = detect_frame_chroma(raw_frames[0])
-        chroma = detected
-        print(f"Auto-detected chroma key → #{detected[0]:02x}{detected[1]:02x}{detected[2]:02x}")
-    else:
-        chroma = parse_hex_color(args.chroma)
-
-    print("Removing chroma key …")
-    keyed = [remove_chroma(f, chroma) for f in raw_frames]
+    input_errors = validate_input_frames(raw_frames)
+    if input_errors:
+        print("INPUT ERRORS:")
+        for error in input_errors:
+            print(f"  ✗ {error}")
+        print(
+            "\nThis script no longer removes chroma. Mandatory row gate:\n"
+            "  raw 4x2 -> transparent 1x8 (key_row_frames.py) -> stitched row\n"
+            "Stop and inspect the keyed row before continuing."
+        )
+        sys.exit(1)
 
     print("Stitching row …")
-    strip = stitch_row(keyed, args.cell_w, args.cell_h, args.padding)
+    strip = stitch_row(raw_frames, args.cell_w, args.cell_h, args.padding)
     strip = zero_transparent_rgb(strip)
 
     print("Validating strip …")
@@ -249,7 +215,7 @@ def main() -> None:
         print("VALIDATION ERRORS:")
         for e in errors:
             print(f"  ✗ {e}")
-        print("\nFix the offending frames and re-run. Do NOT proceed with a failing strip.")
+        print("\nFix the offending keyed frames and re-run. Do NOT proceed with a failing strip.")
         sys.exit(1)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

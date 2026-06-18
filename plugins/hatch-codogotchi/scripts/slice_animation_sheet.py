@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-slice_animation_sheet.py — Validate and slice a 4x2 row-generation sheet into f01..f08 frames.
+slice_animation_sheet.py — Validate and slice a 4x2 row-generation sheet into
+matte-backed f01..f08 frames.
 
-The sheet-first workflow asks image generation for one 4x2 grid per animation row:
-8 populated 192x208 cells (4 cols x 2 rows), no empty cell. This script
-normalizes only border-connected chroma background pixels to the exact key color,
-checks foreground contamination and safe bounds, writes f01.png..f08.png, and
-emits a failure contact sheet when validation blocks the row.
+The sheet-first workflow asks image generation for one 4x2 grid per animation
+row: 8 populated 192x208 cells (4 cols x 2 rows), no empty cell. This script
+normalizes only border-connected chroma background pixels to the exact key
+color, checks foreground contamination and safe bounds, writes matte-backed
+f01.png..f08.png, and emits a failure contact sheet when validation blocks the
+row. Run key_row_frames.py next to create the transparent 1x8 review strip.
 """
 
 import argparse
@@ -262,8 +264,8 @@ def main() -> None:
         cell.save(args.out_dir / f"f{idx:02d}.png", "PNG")
 
     print(
-        f"PASS: sliced {args.sheet} into {POPULATED_CELLS} frames at {args.out_dir} "
-        f"using key {color_hex(chroma)}"
+        f"PASS: sliced {args.sheet} into {POPULATED_CELLS} matte-backed frames at {args.out_dir} "
+        f"using key {color_hex(chroma)}. Next: key_row_frames.py"
     )
 
 

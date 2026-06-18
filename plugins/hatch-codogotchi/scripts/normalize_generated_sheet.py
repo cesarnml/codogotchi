@@ -45,6 +45,35 @@ def keyish_mask(arr: np.ndarray, chroma: tuple[int, int, int]) -> np.ndarray:
     return (dist <= 115) | dominant
 
 
+def border_connected(mask: np.ndarray) -> np.ndarray:
+    h, w = mask.shape
+    seen = np.zeros_like(mask, dtype=bool)
+    queue: list[tuple[int, int]] = []
+
+    for x in range(w):
+        queue.append((0, x))
+        queue.append((h - 1, x))
+    for y in range(h):
+        queue.append((y, 0))
+        queue.append((y, w - 1))
+
+    while queue:
+        y, x = queue.pop()
+        if seen[y, x] or not mask[y, x]:
+            continue
+        seen[y, x] = True
+        if y > 0:
+            queue.append((y - 1, x))
+        if y + 1 < h:
+            queue.append((y + 1, x))
+        if x > 0:
+            queue.append((y, x - 1))
+        if x + 1 < w:
+            queue.append((y, x + 1))
+
+    return seen
+
+
 def alpha_bounds(mask: np.ndarray) -> tuple[int, int, int, int] | None:
     ys, xs = np.nonzero(mask)
     if len(xs) == 0:
@@ -60,6 +89,36 @@ def remove_chroma(img: Image.Image, chroma: tuple[int, int, int]) -> Image.Image
     arr[bg, 2] = 0
     arr[bg, 3] = 0
     return Image.fromarray(arr, "RGBA")
+
+
+def validate_source_cell(cell: Image.Image, chroma: tuple[int, int, int], frame_number: int) -> list[str]:
+    arr = np.array(cell.convert("RGBA"))
+    keyish = keyish_mask(arr, chroma)
+    h, w = keyish.shape
+    border = np.zeros((h, w), dtype=bool)
+    border[0, :] = True
+    border[-1, :] = True
+    border[:, 0] = True
+    border[:, -1] = True
+
+    non_key_border = border & ~keyish
+    errors: list[str] = []
+    if int(non_key_border.sum()) > 8:
+        errors.append(
+            f"source cell {frame_number}: outer border is not a flat key; "
+            f"{int(non_key_border.sum())} border pixels are non-key "
+            "(mixed matte, shadow spill, or clipped foreground)"
+        )
+
+    keyed = np.array(remove_chroma(cell, chroma))
+    border_connected_foreground = border_connected(keyed[:, :, 3] > 0)
+    if border_connected_foreground.any():
+        errors.append(
+            f"source cell {frame_number}: {int(border_connected_foreground.sum())} non-key pixels remain "
+            "border-connected after removing the declared key; likely mixed matte or clipped foreground"
+        )
+
+    return errors
 
 
 def snap_near_key(rgb: np.ndarray, out_chroma: tuple[int, int, int]) -> np.ndarray:
@@ -101,6 +160,9 @@ def main() -> None:
         sx1 = round((source_col + 1) * source_cell_w)
         sy1 = round((source_row + 1) * source_cell_h)
         source_cell = src.crop((sx0, sy0, sx1, sy1))
+        source_errors = validate_source_cell(source_cell, source_chroma, index + 1)
+        if source_errors:
+            raise SystemExit("\n".join(source_errors))
         rgba = remove_chroma(source_cell, source_chroma)
         arr = np.array(rgba)
         bounds = alpha_bounds(arr[:, :, 3] > 0)
@@ -139,4 +201,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
