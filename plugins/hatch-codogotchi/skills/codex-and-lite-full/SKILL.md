@@ -22,7 +22,7 @@ Generate a **brand-new** Codogotchi pet from scratch with the **full lite set** 
 
 Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
-**Execution model (v4.0.0 — strip-first):** for every tier, Codex uses its built-in `image_gen` tool to generate **one full animation row per call as a single `8×1` strip**: `1536×208`, eight 192×208 frames left-to-right, all 8 populated, no empty frame, on a **flat chroma-green `#00B140`** background. `normalize_generated_sheet.py` then snaps each strip to exact `1536×208` and `compose_atlas.py` stacks the strips into the atlas. There is **no slicing, no per-frame keying, and no stitching** — the strip *is* the row. Do **not** generate an entire atlas, a `4×2` sheet, or per-frame images.
+**Execution model (strip-first):** for every tier, Codex uses its built-in `image_gen` tool to generate **one full animation row per call as a single wide strip**: exactly `1536×208` px (a wide strip, aspect ratio ≈ 7.38:1), eight 192×208 frames side by side left-to-right, all 8 populated, no empty frame, on a **flat chroma-green `#00B140`** background. `normalize_generated_sheet.py` then snaps each strip to exactly `1536×208` and `compose_atlas.py` stacks the strips into the atlas. The strip *is* the row — normalize it and it's ready to compose. Generate one row strip at a time; never ask for the whole atlas in a single image.
 
 **Non-negotiable row gate:** finish one row strip completely (generate → normalize → eyeball) before generating the next. If a strip looks wrong, regenerate the whole strip instead of patching forward. Do not compose until every row strip has been eyeballed for prop clarity, face/eye integrity, scale, and motion.
 
@@ -109,7 +109,7 @@ See `references/animation-rows-codex.md` and `references/animation-rows-lite.md`
 
 ### Fix a bad frame
 
-There is no per-frame replacement — frames are not separate files. If one frame in a strip is wrong, **regenerate the whole 8×1 strip** for that row, re-run `normalize_generated_sheet.py`, and re-eyeball. Do not transform neighbouring frames to patch it.
+If any frame in a strip is wrong, **regenerate the whole strip** for that row, re-run `normalize_generated_sheet.py`, and re-eyeball. Fix by regenerating the strip, never by editing individual frames.
 
 ## Acceptance criteria
 

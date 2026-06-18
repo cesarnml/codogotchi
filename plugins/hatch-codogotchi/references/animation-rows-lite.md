@@ -26,7 +26,7 @@ Codogotchi animations are **not charades**. A user must read the state at a glan
 
 **This is the paramount rule — it outranks the prop and expression goals below.** A calm pet with small, smooth motion always beats an expressive one that jitters. When the two conflict, **choose stability.**
 
-The 8 frames are generated *independently* by image-gen, so any large or whole-body motion you describe comes back incoherent between frames — legs swing, props teleport, the pet hops left/right. That jerk is the single worst outcome; a mild, barely-moving loop is far better.
+Any large or whole-body motion you describe comes back incoherent between frames — legs swing, props teleport, the pet hops left/right. That jerk is the single worst outcome; a mild, barely-moving loop is far better.
 
 How to read every motion description below:
 

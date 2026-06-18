@@ -13,7 +13,7 @@ Generate the **Tier 4 (SoA)** sprite sheet for an existing Codogotchi pet — th
 
 **Prerequisite:** the pet must already have a valid `spritesheet.webp` (Codex, Tier 1) installed. The character reference is derived directly from that sheet — no separate seed image or description is needed. The SoA sheet needs **only** the Codex sheet — it is independent of the Lite tiers (Basic/Enhanced).
 
-**Execution model (v4.0.0 — strip-first):** Codex uses its built-in `image_gen` tool to generate **one full SoA row per call as a single `8×1` strip**: `1536×208`, eight 192×208 frames left-to-right, all 8 populated, no empty frame, on a **flat chroma-green `#00B140`** background. Then run `normalize_generated_sheet.py` to snap each strip to exact `1536×208`. There is **no slicing, no per-frame keying, and no stitching** — the strip *is* the row. Do **not** generate a complete atlas, a `4×2` sheet, or per-frame images.
+**Execution model (strip-first):** Codex uses its built-in `image_gen` tool to generate **one full SoA row per call as a single wide strip**: exactly `1536×208` px (a wide strip, aspect ratio ≈ 7.38:1), eight 192×208 frames side by side left-to-right, all 8 populated, no empty frame, on a **flat chroma-green `#00B140`** background. Then run `normalize_generated_sheet.py` to snap each strip to exactly `1536×208`. The strip *is* the row — normalize it and it's ready to compose. Generate one row strip at a time; never ask for the whole atlas in a single image.
 
 **Non-negotiable row gate:** finish one row strip completely (generate → normalize → eyeball) before generating the next. If a strip looks wrong, regenerate the whole strip instead of patching forward. Do not compose until every row strip has been eyeballed for prop clarity, face/eye integrity, scale, and motion.
 
@@ -55,13 +55,13 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` backgrou
 
 2. **Rushing the whole atlas in one pass.** One row at a time, to completion. Whole-atlas generation is a shortcut = reject.
 
-3. **Clipped frames.** The generation format is one `8×1` strip (`1536×208`, 8 frames) with exact **192 × 208** frames and no empty frame. If any foreground crosses a frame boundary, regenerate the strip. Do not ask for a whole atlas, a `4×2` sheet, or per-frame images.
+3. **Clipped frames.** The generation format is one wide strip (`1536×208`, ≈7.38:1) of 8 frames, each exactly **192 × 208**, no empty frame. If any foreground crosses a frame boundary, regenerate the strip. Generate one strip per row; never the whole atlas at once.
 
 4. **Style drift from the Codex sheet.** After each row, compare a frame side-by-side with a Codex cell. Regenerate if the style, palette, or proportions have shifted.
 
 5. **Visual identity drift.** Every frame must preserve the same age/proportions, hair silhouette, outfit/accessories, palette, and linework as the seed artifact. This is an eyeball pass on the contact sheet — there is no automated identity gate.
 
-6. **Jerky / over-animated motion (the stability killer).** Because the 8 frames are generated independently, big or whole-body motion comes back incoherent — legs swing, props teleport, the pet hops. **Stability beats expressiveness even on these celebration rows:** anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. Sell the beat with pose and face, not with the body roaming the cell. A mild stable loop beats a busy jittery one. The scripts cannot detect this — it is purely an eyeball check.
+6. **Jerky / over-animated motion (the stability killer).** Ask for big or whole-body motion and it comes back incoherent across the row — legs swing, props teleport, the pet hops. **Stability beats expressiveness even on these celebration rows:** anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. Sell the beat with pose and face, not with the body roaming the cell. A mild stable loop beats a busy jittery one. The scripts cannot detect this — it is purely an eyeball check.
 
 > **Validation does not catch failures 1–2 or 6.** Eyeball every finished row for genuine *but stable* motion before proceeding to the next.
 >
@@ -78,7 +78,7 @@ Identical to `hatch-codogotchi-lite`:
 - **Scale registration:** one shared scale per row (tallest frame sets it).
 - **Horizontal registration:** character/content stays on a stable x-axis in every 192×208 cell; no left/right hopping. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
 - **Baseline registration:** feet on same y-line — `baseline_y = 208 − 8 − scaled_h`. Do not vertically center ordinary standing rows; they should sit near the bottom of the cell. Explicit jump/leap rows may leave the baseline briefly but must visibly take off and land.
-- **Motion restraint (paramount):** stability beats expressiveness. The 8 frames are generated *independently*, so keep the torso, head, hips, and **both feet** anchored in nearly the same place and confine motion to **one element** (the prop, one arm, the expression) at low amplitude with short smooth arcs. Legs do not swing or restage between frames. Props travel a little and consistently — never roaming around the cell.
+- **Motion restraint (paramount):** stability beats expressiveness. Keep the torso, head, hips, and **both feet** anchored in nearly the same place across the row and confine motion to **one element** (the prop, one arm, the expression) at low amplitude with short smooth arcs. Legs do not swing or restage between frames. Props travel a little and consistently — never roaming around the cell.
 - **Loop closure:** frame 8 pose ≈ frame 1 pose.
 - **Character fidelity:** seed image is sole style reference.
 - **Green is fine on props:** intentional green details are preserved for the user's keying tool; only keep the *background* key perfectly flat.
@@ -137,7 +137,7 @@ python scripts/normalize_generated_sheet.py \
 
 Eyeball `rows/soa/<row-label>.png` for genuine animated motion, prop clarity, scale, and identity. Do not proceed to the next row until it looks right.
 
-There is no per-frame replacement — frames are not separate files. If any frame in a strip is wrong, **regenerate the whole 8×1 strip** for that row, re-run `normalize_generated_sheet.py`, and re-eyeball. Do not transform neighbouring frames to patch it.
+If any frame in a strip is wrong, **regenerate the whole strip** for that row, re-run `normalize_generated_sheet.py`, and re-eyeball. Fix by regenerating the strip, never by editing individual frames.
 
 ### Step 5 — Compose the atlas
 

@@ -251,17 +251,15 @@ STYLE_PRESETS = {
 # a green checkmark) from the green background far more reliably than an agent can.
 # So there is no per-row key selection and no green/magenta/blue fallback logic.
 CHROMA = "00b140"
-SOURCE_LAYOUTS = {
-    # v4.0.0: each animation row is generated as a single 8x1 horizontal strip.
-    # image_gen renders the full 1536px width directly, so there is no 4x2 folding
-    # and no per-frame slicing anywhere in the pipeline.
-    "8x1": {
-        "cols": 8,
-        "rows": 1,
-        "width": 1536,
-        "height": 208,
-        "note": "One uninterrupted 1536x208 strip: 8 populated 192x208 frames left-to-right, no empty frame.",
-    },
+STRIP_LAYOUT = {
+    # Each animation row is one 1536x208 horizontal strip of eight 192x208 frames
+    # (aspect ratio ~7.38:1). image_gen renders the full width in a single pass.
+    "cols": 8,
+    "rows": 1,
+    "width": 1536,
+    "height": 208,
+    "ratio": 1536 / 208,  # ~7.385:1
+    "note": "One uninterrupted 1536x208 strip: 8 populated 192x208 frames left-to-right, no empty frame.",
 }
 
 LOCOMOTION_ROWS = {
@@ -308,24 +306,26 @@ def motion_doctrine(row_label: str) -> str:
 - Keep frame-to-frame change small; subtle smooth motion is enough."""
 
 
-def build_sheet_output_format(source_layout: str) -> str:
-    layout = SOURCE_LAYOUTS["8x1"]
+def build_sheet_output_format() -> str:
+    w, h = STRIP_LAYOUT["width"], STRIP_LAYOUT["height"]
     return f"""OUTPUT FORMAT:
-- A single uninterrupted {layout["width"]} × {layout["height"]} px image: ONE horizontal row of eight animation frames (8 × 1).
-- Each frame occupies exactly 192 × 208 px, placed left-to-right in reading order. There is no empty frame.
+- A single uninterrupted {w} × {h} px image: ONE wide horizontal row of eight animation frames side by side.
+- Output EXACTLY {w} × {h} px — a wide strip, aspect ratio {w}:{h} ≈ 7.38:1. Do NOT return a square or any other
+  ratio; the strip is used at this exact size, and a wrong ratio stretches and distorts the character.
+- Each frame occupies exactly 192 × 208 px, left-to-right in reading order. There is no empty frame.
 - Do NOT draw panel borders, grid lines, separators, gutters, guides, crop marks, frame boxes, labels, numbers,
-  or any visible cell structure — the 8 × 1 split is invisible placement only.
-- Every frame must stay fully inside its own invisible 192 × 208 slot. No body part, hair, prop, effect, outline,
-  shadow, halo, glow, label, separator, or antialiasing may cross a slot boundary."""
+  or any visible structure — the division into frames is invisible placement only.
+- Every frame must stay fully inside its own 192 × 208 region. No body part, hair, prop, effect, outline,
+  shadow, halo, glow, label, separator, or antialiasing may cross a frame boundary."""
 
 
-def build_sheet_prompt_seed(row_label: str, style_desc: str, chroma: str, source_layout: str) -> str:
-    """Prompt for sheet-first generation from an attached seed image."""
+def build_sheet_prompt_seed(row_label: str, style_desc: str, chroma: str) -> str:
+    """Prompt for strip generation from an attached seed image."""
     motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
     doctrine = motion_doctrine(row_label)
     return f"""You are generating ONE COMPLETE 8-frame animation row for a desktop Codogotchi pet.
 
-{build_sheet_output_format(source_layout)}
+{build_sheet_output_format()}
 
 SEED IMAGE: attached. Use ONLY as style/character reference — infer exact proportions, outfit, hair,
 skin tone, linework, and palette from it. Do NOT restyle or invent details.
@@ -339,26 +339,26 @@ MOTION DOCTRINE:
 {doctrine}
 
 PROP DOCTRINE (read this — codogotchi animations are NOT charades):
-- If the motion names a PROP, that prop MUST be clearly drawn and readable in every populated slot.
+- If the motion names a PROP, that prop MUST be clearly drawn and readable in every frame.
 - Use EXACTLY the prop named — never an A/B choice. The prop is the SAME object, same design, in all 8 frames.
 - Emotion-led rows may lead with expression; everything else is prop-led.
 
-SLOT CONSTRAINTS:
+BACKGROUND & FRAME RULES:
 - Background: one single uninterrupted FLAT chroma-green key color, EXACTLY hex #{chroma} (RGB 0,177,64), across
-  the entire 1536 × 208 image. This green is a CHROMA KEY that will be removed later with a dedicated tool, so it
-  must be perfectly uniform.
+  the entire {STRIP_LAYOUT["width"]} × {STRIP_LAYOUT["height"]} (≈7.38:1) image. This green is a CHROMA KEY that
+  the user removes later with a dedicated tool, so it must be perfectly uniform.
 - The background must be exactly that same solid #{chroma} in every frame and between frames: no lighting falloff,
   vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
   separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
 - Output flat RGB on the #{chroma} background. Do NOT output transparency/RGBA — fill the background with the green key.
-- Padding: at least 8 px on all sides inside each invisible 192 × 208 slot.
+- Padding: at least 8 px on all sides inside each 192 × 208 frame.
 - Same character scale and baseline across all 8 frames.
 - Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
 """
 
 
-def build_sheet_prompt_description(row_label: str, description: str, style_desc: str, chroma: str, source_layout: str) -> str:
-    """Prompt for sheet-first generation from a text description."""
+def build_sheet_prompt_description(row_label: str, description: str, style_desc: str, chroma: str) -> str:
+    """Prompt for strip generation from a text description."""
     motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
     doctrine = motion_doctrine(row_label)
     return f"""You are generating ONE COMPLETE 8-frame animation row for a desktop Codogotchi pet.
@@ -367,7 +367,7 @@ CHARACTER DESCRIPTION: {description}
 
 Render the character exactly as described. Do not add, remove, or change described features.
 
-{build_sheet_output_format(source_layout)}
+{build_sheet_output_format()}
 
 STYLE: {style_desc}
 
@@ -378,19 +378,19 @@ MOTION DOCTRINE:
 {doctrine}
 
 PROP DOCTRINE (read this — codogotchi animations are NOT charades):
-- If the motion names a PROP, that prop MUST be clearly drawn and readable in every populated slot.
+- If the motion names a PROP, that prop MUST be clearly drawn and readable in every frame.
 - Use EXACTLY the prop named — never an A/B choice. The prop is the SAME object, same design, in all 8 frames.
 - Emotion-led rows may lead with expression; everything else is prop-led.
 
-SLOT CONSTRAINTS:
+BACKGROUND & FRAME RULES:
 - Background: one single uninterrupted FLAT chroma-green key color, EXACTLY hex #{chroma} (RGB 0,177,64), across
-  the entire 1536 × 208 image. This green is a CHROMA KEY that will be removed later with a dedicated tool, so it
-  must be perfectly uniform.
+  the entire {STRIP_LAYOUT["width"]} × {STRIP_LAYOUT["height"]} (≈7.38:1) image. This green is a CHROMA KEY that
+  the user removes later with a dedicated tool, so it must be perfectly uniform.
 - The background must be exactly that same solid #{chroma} in every frame and between frames: no lighting falloff,
   vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
   separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
 - Output flat RGB on the #{chroma} background. Do NOT output transparency/RGBA — fill the background with the green key.
-- Padding: at least 8 px on all sides inside each invisible 192 × 208 slot.
+- Padding: at least 8 px on all sides inside each 192 × 208 frame.
 - Same character scale and baseline across all 8 frames.
 - Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
 
@@ -403,12 +403,11 @@ def build_sheet_prompt(
     row_label: str,
     style_desc: str,
     chroma: str,
-    source_layout: str,
     description: str | None = None,
 ) -> str:
     if description:
-        return build_sheet_prompt_description(row_label, description, style_desc, chroma, source_layout)
-    return build_sheet_prompt_seed(row_label, style_desc, chroma, source_layout)
+        return build_sheet_prompt_description(row_label, description, style_desc, chroma)
+    return build_sheet_prompt_seed(row_label, style_desc, chroma)
 
 
 # ---------------------------------------------------------------------------
@@ -462,9 +461,9 @@ def main() -> None:
 
     tiers = ["codex", "lite-basic", "lite-enhanced", "soa"] if args.tier == "all" else [args.tier]
 
-    # Create directory structure (v4.0.0: strip-first, no per-frame slicing).
-    #   sheet-prompts/<tier>/<row>.txt  — image_gen prompt for one 8x1 strip
-    #   sheets/<tier>/<row>.png         — raw generated 8x1 strip
+    # Create directory structure (one strip per row):
+    #   sheet-prompts/<tier>/<row>.txt  — image_gen prompt for one 1536x208 strip
+    #   sheets/<tier>/<row>.png         — raw generated 1536x208 strip
     #   rows/<tier>/<row>.png           — normalized 1536x208 strip, ready to compose
     for tier in tiers:
         (run_dir / "sheet-prompts" / tier).mkdir(parents=True, exist_ok=True)
@@ -481,20 +480,19 @@ def main() -> None:
     elif args.seed:
         print(f"WARNING: seed not found at {args.seed}")
 
-    # Write strip prompt files (one 8x1 strip prompt per row)
+    # Write strip prompt files (one strip prompt per row)
     for tier in tiers:
         for label in TIER_ROW_ORDER[tier]:
             sheet_prompt_text = build_sheet_prompt(
                 label,
                 style_desc,
                 CHROMA,
-                "8x1",
                 description=args.description,
             )
             sheet_p = run_dir / "sheet-prompts" / tier / f"{label}.txt"
             sheet_p.write_text(sheet_prompt_text)
 
-    # Write imagegen job manifest (one 8x1 strip per row)
+    # Write imagegen job manifest (one strip per row)
     jobs: list[dict] = []
     for tier in tiers:
         for row_idx, label in enumerate(TIER_ROW_ORDER[tier]):
@@ -503,7 +501,7 @@ def main() -> None:
                 "tier": tier,
                 "row_label": label,
                 "row_index": row_idx,
-                "sourceLayout": "8x1",
+                "strip_size": "1536x208",
                 "chroma": CHROMA,
                 "prompt_path": f"sheet-prompts/{tier}/{label}.txt",
                 "out_path": f"sheets/{tier}/{label}.png",
@@ -524,8 +522,7 @@ def main() -> None:
         "style": args.style,
         "style_desc": style_desc,
         "chroma": CHROMA,
-        "sourceLayout": "8x1",
-        "allowedSourceLayouts": ["8x1"],
+        "strip_size": "1536x208",
         "keying": "external",
         "keying_tool_url": "https://chromakeyremoval.vercel.app",
         "tiers": tiers,

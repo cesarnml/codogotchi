@@ -23,7 +23,7 @@ Generate a **brand-new** Codogotchi pet from scratch — produces the **Codex** 
 
 Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
-**Execution model (v4.0.0 — strip-first):** Codex uses its built-in `image_gen` tool to generate **one full animation row per call as a single `8×1` strip**: `1536×208`, eight 192×208 frames left-to-right, all 8 populated, no empty frame, on a **flat chroma-green `#00B140`** background. Then run `normalize_generated_sheet.py` to snap that strip to exact `1536×208`. There is **no slicing, no per-frame keying, and no stitching** — the strip *is* the row. Do **not** generate a whole atlas, a `4×2` sheet, or per-frame images.
+**Execution model (strip-first):** Codex uses its built-in `image_gen` tool to generate **one full animation row per call as a single wide strip**: exactly `1536×208` px (a wide strip, aspect ratio ≈ 7.38:1), eight 192×208 frames side by side left-to-right, all 8 populated, no empty frame, on a **flat chroma-green `#00B140`** background. Then run `normalize_generated_sheet.py` to snap that strip to exactly `1536×208`. The strip *is* the row — normalize it and it's ready to compose. Generate one row strip at a time; never ask for the whole atlas in a single image.
 
 **Non-negotiable row gate:** finish one row strip completely (generate → normalize → eyeball) before generating the next. Eyeball each normalized strip for prop clarity, face/eye integrity, scale consistency, and stable motion. If a strip looks wrong, regenerate the whole strip instead of patching forward. Do not compose until every row strip has been eyeballed.
 
@@ -78,7 +78,7 @@ python scripts/prepare_pet_run.py --seed <seed> \
 # 2. Use Codex's built-in image_gen tool to generate ONE 8x1 strip at a time.
 #    Use sheet-prompts/<tier>/<row>.txt → sheets/<tier>/<row>.png
 #    Output: 1536x208, 8 frames, flat #00B140 green background, no empty frame.
-#    Do not ask for a whole atlas, a 4x2 sheet, or per-frame images.
+#    Generate one strip per row; never ask for the whole atlas at once.
 
 # 3. Normalize each strip to exact 1536x208 (green background preserved)
 python scripts/normalize_generated_sheet.py --input sheets/<tier>/<row>.png --out rows/<tier>/<row>.png
@@ -118,7 +118,7 @@ python scripts/prepare_pet_run.py --write-pet-json --run-dir <work>/
 
 ### Fix a bad frame
 
-There is no per-frame replacement — frames are not separate files. If one frame in a strip is wrong (off pose, scale drift, weak prop, identity drift), **regenerate the whole 8×1 strip** for that row, re-run `normalize_generated_sheet.py`, and re-eyeball. Do not transform neighbouring frames to patch it.
+If any frame in a strip is wrong (off pose, scale drift, weak prop, identity drift), **regenerate the whole strip** for that row, re-run `normalize_generated_sheet.py`, and re-eyeball. Fix by regenerating the strip, never by editing individual frames.
 
 ## Acceptance criteria
 

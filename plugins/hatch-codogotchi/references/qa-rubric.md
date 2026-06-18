@@ -110,7 +110,7 @@ Review the contact sheet for each tier and verify:
 
 When a row fails a check:
 
-1. **Regenerate the whole 8×1 strip** for that row with the image tool, using the same seed and constraints. There is no per-frame replacement — frames are not separate files.
+1. **Regenerate the whole strip** for that row with the image tool, using the same seed and constraints. Fix by regenerating the strip, never by editing individual frames.
 2. **Re-run `normalize_generated_sheet.py`** on the new strip → `rows/<tier>/<row>.png`.
 3. **Re-eyeball** the normalized strip.
 4. **Re-compose, re-validate, and re-contact-sheet** after all rows are good.

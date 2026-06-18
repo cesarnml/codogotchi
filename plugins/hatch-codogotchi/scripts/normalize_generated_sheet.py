@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-normalize_generated_sheet.py — Snap a generated 8x1 animation-row strip to the
-exact canonical 1536x208 geometry on a flat chroma-green (#00B140) background.
+normalize_generated_sheet.py — Snap a generated animation-row strip to the exact
+canonical 1536x208 geometry on a flat chroma-green (#00B140) background.
 
-v4.0.0: strip-first, no slicing and no keying. image_gen draws the whole 8-frame
-row as one 1536x208 strip on flat green; this script only guarantees the exact
-canvas size and a green (not transparent) background. Chroma keying is done later
-by the user with Chroma Key Studio (https://chromakeyremoval.vercel.app), so this
-script intentionally does NOT alter foreground colors — a green prop (e.g. a green
-checkmark) is preserved for the keying tool to handle with its own controls.
+image_gen draws the whole 8-frame row as one wide strip (1536x208, ~7.38:1) on
+flat green; this script guarantees the exact canvas size and a green (not
+transparent) background. It does NOT alter foreground colors — an intentional
+green prop (e.g. a green checkmark) is preserved for the user's keying tool
+(https://chromakeyremoval.vercel.app) to handle with its own controls.
+
+The strip must already be close to the 1536:208 (~7.38:1) ratio. This script only
+snaps exact pixel dimensions: a strip generated at a very different ratio will be
+stretched to fit, distorting the character — regenerate it at the correct ratio.
 """
 
 from __future__ import annotations
@@ -21,18 +24,29 @@ from PIL import Image
 
 CANON_W = 1536
 CANON_H = 208
+CANON_RATIO = CANON_W / CANON_H  # ~7.385:1
+RATIO_TOLERANCE = 0.03  # warn if the input is >3% off the canonical ratio
 GREEN = (0, 177, 64)  # #00B140
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Normalize a generated 8x1 row strip to canonical 1536x208 on a flat #00B140 background."
+        description="Normalize a generated row strip to canonical 1536x208 on a flat #00B140 background."
     )
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args()
 
     src = Image.open(args.input).convert("RGBA")
+    if src.height:
+        ratio = src.width / src.height
+        if abs(ratio - CANON_RATIO) / CANON_RATIO > RATIO_TOLERANCE:
+            print(
+                f"WARNING: input aspect ratio {ratio:.2f}:1 differs from the canonical "
+                f"{CANON_RATIO:.2f}:1 ({CANON_W}x{CANON_H}). Snapping to {CANON_W}x{CANON_H} will "
+                "stretch/distort the row — regenerate the strip at the correct ratio if the "
+                "character looks off."
+            )
     if src.size != (CANON_W, CANON_H):
         print(f"Resizing {src.size[0]}x{src.size[1]} → {CANON_W}x{CANON_H}")
         src = src.resize((CANON_W, CANON_H), Image.LANCZOS)

@@ -10,10 +10,10 @@ Analogous to the `openai/skills/.curated/hatch-pet` skill, adapted for Codogotch
 
 This plugin is run by Codex in two explicit stages, and it **stops before keying**:
 
-1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one full animation row per call as a single `8×1` strip** — `1536×208`, eight populated 192×208 frames left-to-right, no empty frame, on a **flat chroma-green `#00B140`** background. `image_gen` renders the full 1536px width directly, so there is no `4×2` folding.
-2. **Local assembly stage:** the Python scripts in `scripts/` snap each strip to exact `1536×208` (`normalize_generated_sheet.py`), compose the strips into a **green-background** atlas (`compose_atlas.py`), and run slim QA. There is **no slicing, no per-frame keying, and no stitching** — the strip *is* the row.
+1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one full animation row per call as a single wide strip** — exactly `1536×208` px (a wide strip, aspect ratio ≈ 7.38:1), eight populated 192×208 frames side by side left-to-right, no empty frame, on a **flat chroma-green `#00B140`** background. `image_gen` renders the full 1536px width in a single pass.
+2. **Local assembly stage:** the Python scripts in `scripts/` snap each strip to exactly `1536×208` (`normalize_generated_sheet.py`), compose the strips into a **green-background** atlas (`compose_atlas.py`), and run slim QA. The strip *is* the row.
 
-The plugin does **not** mean "ask image generation for a whole atlas" or "ask for a `4×2` sheet." The default workflow is **strip-first**:
+The plugin does **not** mean "ask image generation for the whole atlas at once." The default workflow is **strip-first**:
 
 `image_gen` 8×1 strip (`1536×208`, flat `#00B140`) → `normalize_generated_sheet.py` → `compose_atlas.py` → `validate_atlas.py` → `make_contact_sheet.py` → `render_animation_previews.py` → `pre_install_qa_gate.py` → **hand off to the user for keying**
 
@@ -31,7 +31,7 @@ Caveats:
 
 ## Motion & alignment doctrine
 
-**Stability over expressiveness — the paramount rule for standing/status rows.** A calm pet with small, smooth motion always beats an expressive one that jitters. When the two conflict, **choose stability.** The frames are generated *independently* by image-gen, so any large or whole-body motion you describe comes back inconsistent between frames — legs swing, props teleport, the pet hops. A mild, stable loop is the goal for standing/status rows; expressiveness is a distant second.
+**Stability over expressiveness — the paramount rule for standing/status rows.** A calm pet with small, smooth motion always beats an expressive one that jitters. When the two conflict, **choose stability.** Any large or whole-body motion you describe comes back inconsistent between frames — legs swing, props teleport, the pet hops. A mild, stable loop is the goal for standing/status rows; expressiveness is a distant second.
 
 - **Anchor the body.** Torso, head position, hips, and **both feet** stay in nearly the same place across all 8 frames. In standing rows the legs do **not** walk, swing, or restage — feet stay planted in the same stance on the baseline.
 - **Move one thing at a time.** Confine motion to a single element — the named prop, one arm/hand, or the eyes/expression — plus at most a gentle ≤few-px bob. Avoid simultaneous whole-body motion; that is what reads as erratic once the frames are rendered separately.
@@ -251,7 +251,7 @@ hatch-codogotchi/
 
 2. **Rushing the whole atlas in one pass** — One row at a time, **strip-first**: generate a single `8×1` strip → normalize to exact `1536×208` → eyeball it → repeat for the next row → only then compose the atlas.
 
-3. **Wrong generation format / clipped frames** — Do not request a whole atlas, a `4×2` sheet, or per-frame images. The format is one `8×1` strip (`1536×208`, 8 frames, 192×208 each, no empty frame) on flat `#00B140`. If any foreground crosses a frame boundary, regenerate the strip.
+3. **Clipped frames / wrong size** — The format is one wide strip, exactly `1536×208` (aspect ratio ≈ 7.38:1), of 8 frames at 192×208 each, no empty frame, on flat `#00B140`. A strip returned at a different ratio gets stretched to fit and distorts the character — regenerate it. If any foreground crosses a frame boundary, regenerate the strip. Generate one strip per row; never the whole atlas at once.
 
 4. **Style drift from the Codex sheet** *(Lite and SoA only)* — Compare every row against the existing Codex cells. Same character, same palette, same linework.
 
@@ -269,7 +269,7 @@ hatch-codogotchi/
 
 ## Strip regeneration recovery
 
-There is no per-frame replacement — frames are not separate files. If any frame in a strip fails QA (off pose, scale drift, weak prop, identity drift, jitter), **regenerate the whole `8×1` strip** for that row using its sheet prompt, re-run `normalize_generated_sheet.py`, and re-eyeball. Do not transform neighbouring frames to patch the failure.
+If any frame in a strip fails QA (off pose, scale drift, weak prop, identity drift, jitter), **regenerate the whole strip** for that row using its sheet prompt, re-run `normalize_generated_sheet.py`, and re-eyeball. Fix by regenerating the strip, never by editing individual frames.
 
 > `validate_atlas.py` only catches dimensions, grid, and pixel-identical static rows. Everything perceptual — motion quality (#5), props (#6), scale (#7), alignment (#8), baseline (#9), identity (#10) — is an **eyeball** pass on the contact sheet and previews. Keying quality (edges, green-prop separation) is the user's job in Chroma Key Studio.
 
