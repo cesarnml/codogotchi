@@ -6,6 +6,8 @@ description: "Generate the Son-of-Anton (SoA, Tier 4) sprite atlas for an EXISTI
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
 >
 > **Workspace (do this first)** — generated artifacts live **outside** the repo, one folder per run. From the plugin root, before Step 1, run once: `WORK="$HOME/Documents/Codex/$(date +%Y-%m-%d-%H%M%S)"; mkdir -p "$WORK"; ln -sfn "$WORK" run`. Every `run/…` path below then resolves into `$WORK`, so the commands stay unchanged. Never write the `run/` tree into the repo.
+>
+> **Raw image_gen landing note** — `$WORK` is the canonical destination, but do **not** assume `image_gen` writes there directly. Raw row sheets may first appear in `~/.codex/generated_images/`, `~/.codex/sessions/...`, or app temp directories. That is expected. Immediately copy or move each raw sheet into `run/<pet-id>/sheets/soa/<row-label>.png` before running `normalize_generated_sheet.py`.
 
 # hatch-codogotchi-soa
 
@@ -137,7 +139,7 @@ For **each** of the 10 SoA rows, in the order below, complete the full cycle bef
 1. Read motion description in `sheet-prompts/soa/<row-label>.txt`.
 2. **Use built-in `image_gen` to generate one 4×2 row sheet** — exact 768×416 px, all 8 cells populated, no empty cell, on the chroma named in the prompt. `green-tdd` and `review-clean` use `#ff00ff` so green checkmark effects survive keying. Attach `seed.png` as the character reference.
 3. Compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
-4. Save as `run/<pet-id>/sheets/soa/<row-label>.png`.
+4. If the raw image lands in `~/.codex` scratch/cache space first, relocate it immediately. The canonical path is `run/<pet-id>/sheets/soa/<row-label>.png`.
 
 ### Step 3 — Slice and post-process each row
 

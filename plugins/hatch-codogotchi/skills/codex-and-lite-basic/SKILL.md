@@ -6,6 +6,8 @@ description: "Generate a brand-new Codogotchi pet sprite atlas from scratch (fro
 > **Paths in this skill** — `scripts/…`, `references/…`, and `README.md` below are relative to this plugin's root (`hatch-codogotchi/`, two directories up from this file). `cd` to the plugin root before running the commands, or prefix each path with it.
 >
 > **Workspace (do this first)** — generated artifacts live **outside** the repo, one folder per run. From the plugin root, before Step 1, run once: `WORK="$HOME/Documents/Codex/$(date +%Y-%m-%d-%H%M%S)"; mkdir -p "$WORK"; ln -sfn "$WORK" run`. Every `run/…` path below then resolves into `$WORK`, so the commands stay unchanged. Never write the `run/` tree into the repo.
+>
+> **Raw image_gen landing note** — `$WORK` is the canonical destination, but do **not** assume `image_gen` writes there directly. Raw row sheets may first appear in `~/.codex/generated_images/`, `~/.codex/sessions/...`, or app temp directories. That is expected. Immediately copy or move each raw sheet into `run/<slug>/sheets/<tier>/<row>.png` before running `normalize_generated_sheet.py`.
 
 # hatch-codogotchi-codex-and-lite-basic
 
@@ -78,7 +80,9 @@ python scripts/prepare_pet_run.py --seed path/to/seed.png \
 
 # 2. Use Codex's built-in image_gen tool to generate ONE row candidate at a time.
 #    Use sheet-prompts/<tier>/<row>.txt. Save each result to
-#    run/<slug>/sheets/<tier>/<row>.png. Generate a 4x2 sheet (8 frames, no empty cell).
+#    run/<slug>/sheets/<tier>/<row>.png. If image_gen lands the raw file in
+#    ~/.codex scratch/cache space first, relocate it into that path immediately.
+#    Generate a 4x2 sheet (8 frames, no empty cell).
 #    Chroma defaults to #00ff00 (green); switch to #ff00ff/#0000ff per the chroma rule.
 #    Do not ask for a whole atlas or an unconstrained horizontal strip.
 

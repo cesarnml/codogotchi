@@ -10,7 +10,7 @@ Analogous to the `openai/skills/.curated/hatch-pet` skill, adapted for Codogotch
 
 This plugin is designed to be run by Codex in two explicit stages:
 
-1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one row candidate per animation row**, saving `run/<pet>/sheets/<tier>/<row>.png`. Each row candidate is a `4×2` sheet (`768×416`: eight populated 192×208 cells, no empty cell).
+1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one row candidate per animation row**. The canonical destination is always `run/<pet>/sheets/<tier>/<row>.png`, but the raw generated file may first appear in Codex scratch/cache locations such as `~/.codex/generated_images/`, `~/.codex/sessions/...`, or app temp directories. That is expected. Immediately copy or move the raw row sheet into `run/<pet>/sheets/<tier>/<row>.png` before any pipeline script runs. Each row candidate is a `4×2` sheet (`768×416`: eight populated 192×208 cells, no empty cell).
 2. **Local assembly stage:** the Python scripts in `scripts/` first snap the generated row candidate to the exact canonical `4×2` sheet geometry, then slice that canonical sheet into exact matte-backed `f01.png` … `f08.png` cells, key those frames into a transparent `1×8` review strip, stitch the approved keyed frames into a final row strip, inspect/validate them, and finally compose the validated row strips into the final spritesheet atlas.
 
 The plugin does **not** mean "ask image generation for a whole atlas" or "ask for an unconstrained strip." The intended default workflow is now **sheet-first**:
@@ -20,6 +20,8 @@ The plugin does **not** mean "ask image generation for a whole atlas" or "ask fo
 **Non-negotiable row gate:** one row at a time, and in this exact order: raw `4×2` row sheet → transparent `1×8` review strip → stitched row. The scripts now enforce this. Do not skip the transparent review strip. If `rows-keyed/<tier>/<row>.png` looks wrong, regenerate the raw `4×2` row sheet instead of patching forward. Do not compose an atlas until every row has a passing `inspect_frames.py` run and has been eyeballed for style, prop clarity, face/eye integrity, and stable motion.
 
 Every skill below assumes that division of labor: **Codex generates one bounded raw row candidate; local scripts normalize it to exact canonical geometry, slice it, force a keyed-row review stop, then assemble and validate it.** The old frame-first path remains the recovery path for selective repair when one cell fails.
+
+**Raw file landing rule:** `~/Documents/Codex/<timestamp>` is the canonical working destination because `run/` points there, but agents must not assume `image_gen` writes directly into that folder. If the generated row lands in `~/.codex` scratch/cache space first, relocate it into `run/<pet>/sheets/<tier>/<row>.png` immediately and continue normally. That is expected behavior, not a reason to improvise or bypass the plugin workflow.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that still looks good in motion**. In practice, many rows can be produced faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a speed optimization, not a hard rule.
 
@@ -185,7 +187,8 @@ python scripts/prepare_pet_run.py \
 # 2. Use Codex's built-in image_gen tool to generate one row candidate at a time.
 #    Use sheet-prompts/<tier>/<row>.txt. The generated prompts use row-safe chroma:
 #    #00ff00 (green) by default; switch to #ff00ff/#0000ff per the chroma rule.
-#    Save as run/beemo/sheets/<tier>/<row>.png
+#    If image_gen drops the raw file in ~/.codex scratch/cache space first,
+#    immediately copy or move it into run/beemo/sheets/<tier>/<row>.png
 
 # 3. Normalize to exact 4x2, then slice, key, review, stitch, and inspect each row
 python scripts/normalize_generated_sheet.py --input run/beemo/sheets/lite-basic/implementing.png --out run/beemo/sheets/lite-basic/implementing.normalized.png --source-layout 4x2 --source-chroma 00ff00 --out-chroma 00ff00
@@ -236,8 +239,10 @@ python scripts/extract_seed_from_codex.py \
 python scripts/prepare_pet_run.py \
   --seed run/maew/seed.png --pet-id maew --pet-name "Maew" --tier lite-basic
 
-# 3-5. Use built-in image_gen for frame generation, then key, inspect,
-#      compose, validate, and pass the mandatory visual QA gate (same pipeline)
+# 3-5. Use built-in image_gen for frame generation. If the raw row lands in
+#      ~/.codex scratch/cache space first, relocate it into run/maew/sheets/<tier>/<row>.png
+#      before continuing. Then key, inspect, compose, validate, and pass the
+#      mandatory visual QA gate (same pipeline)
 #      lite-enhanced is a separate run and REQUIRES the lite-basic sheet to exist first.
 
 # 6. Install only after pre_install_qa_gate passes; don't overwrite spritesheet.webp or pet.json
