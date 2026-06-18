@@ -87,6 +87,53 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 0)
 	}
 
+	func testSicknessThresholdsMapFromHalfHearts() {
+		XCTAssertEqual(SicknessLevel(halfHearts: 6), .none)
+		XCTAssertEqual(SicknessLevel(halfHearts: 5), .none)
+		XCTAssertEqual(SicknessLevel(halfHearts: 4), .warning)
+		XCTAssertEqual(SicknessLevel(halfHearts: 3), .warning)
+		XCTAssertEqual(SicknessLevel(halfHearts: 2), .critical)
+		XCTAssertEqual(SicknessLevel(halfHearts: 1), .critical)
+		XCTAssertEqual(SicknessLevel(halfHearts: 0), .none)
+	}
+
+	func testWarningSicknessAddsPersistentOverlay() throws {
+		let scene = try makeScene()
+		scene.update(state: .idle, visualMode: .normal)
+
+		scene.setSicknessLevel(.warning)
+
+		XCTAssertEqual(scene.sicknessLevelForTesting, .warning)
+		XCTAssertNotNil(scene.sicknessEffectNodeForTesting)
+		XCTAssertEqual(scene.sicknessFlyCountForTesting, 2)
+		XCTAssertGreaterThan(scene.sicknessMiasmaBirthRateForTesting, 0)
+	}
+
+	func testCriticalSicknessStrengthensPersistentOverlay() throws {
+		let scene = try makeScene()
+		scene.update(state: .idle, visualMode: .normal)
+		scene.setSicknessLevel(.warning)
+		let warningBirthRate = scene.sicknessMiasmaBirthRateForTesting
+		let warningFlyCount = scene.sicknessFlyCountForTesting
+
+		scene.setSicknessLevel(.critical)
+
+		XCTAssertEqual(scene.sicknessLevelForTesting, .critical)
+		XCTAssertGreaterThan(scene.sicknessMiasmaBirthRateForTesting, warningBirthRate)
+		XCTAssertGreaterThan(scene.sicknessFlyCountForTesting, warningFlyCount)
+	}
+
+	func testGhostedClearsSicknessOverlay() throws {
+		let scene = try makeScene()
+		scene.update(state: .idle, visualMode: .normal)
+		scene.setSicknessLevel(.critical)
+		XCTAssertNotNil(scene.sicknessEffectNodeForTesting)
+
+		scene.setGhosted(true)
+
+		XCTAssertNil(scene.sicknessEffectNodeForTesting)
+	}
+
 	// MARK: - Ghost lock
 
 	func testGhostLocksToLiteBasicGhostRowSource() throws {

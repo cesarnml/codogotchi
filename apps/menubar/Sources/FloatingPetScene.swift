@@ -64,6 +64,24 @@ enum SpriteOpaqueBounds {
 	}
 }
 
+enum SicknessLevel: Equatable {
+	case none
+	case warning
+	case critical
+
+	init(halfHearts: Int) {
+		let clamped = max(0, min(6, halfHearts))
+		switch clamped {
+		case 1...2:
+			self = .critical
+		case 3...4:
+			self = .warning
+		default:
+			self = .none
+		}
+	}
+}
+
 @MainActor
 final class FloatingPetScene: SKScene {
 	private var codexPet: CodexPet
@@ -83,6 +101,7 @@ final class FloatingPetScene: SKScene {
 	/// When true (pet at 0 hearts), the sprite is rendered grayscale regardless of
 	/// `currentMode`. Driven by the RPG path, not the activity-state visual mode.
 	private var isGhosted = false
+	private var sicknessLevel: SicknessLevel = .none
 	private var currentInteraction: FloatingInteraction?
 	private var currentFrames: [CodexPet.Frame] = [] {
 		didSet { opaqueBoxDirty = true }
@@ -173,6 +192,12 @@ final class FloatingPetScene: SKScene {
 		}
 	}
 
+	func setSicknessLevel(_ level: SicknessLevel) {
+		guard level != sicknessLevel else { return }
+		sicknessLevel = level
+		refreshSicknessEffect()
+	}
+
 	/// Lock the pet to the 0-HP ghost animation: force grayscale (independent of
 	/// the activity-state `VisualMode`) and freeze the sprite on the dedicated
 	/// ghost row when available. While ghosted the scene ignores activity-state
@@ -207,6 +232,7 @@ final class FloatingPetScene: SKScene {
 			paintCurrentFrame()
 			restartTimer()
 		}
+		refreshSicknessEffect()
 	}
 
 	func update(state: ActivityState, visualMode: VisualMode) {
@@ -242,6 +268,7 @@ final class FloatingPetScene: SKScene {
 			currentFrames = resolved.frames
 			currentSource = resolved.source
 			frameIndex = 0
+			refreshSicknessEffect()
 		}
 
 		paintCurrentFrame()
@@ -271,6 +298,7 @@ final class FloatingPetScene: SKScene {
 			frameIndex = 0
 			paintCurrentFrame()
 			restartTimer()
+			refreshSicknessEffect()
 			return
 		}
 
@@ -294,6 +322,7 @@ final class FloatingPetScene: SKScene {
 				frameIndex = 0
 				paintCurrentFrame()
 				restartTimer()
+				refreshSicknessEffect()
 			}
 			return
 		}
@@ -326,6 +355,7 @@ final class FloatingPetScene: SKScene {
 				restartTimer()
 			}
 		}
+		refreshSicknessEffect()
 	}
 
 	/// Resolve reserved-row interaction frames from the current `codexPet`, or the
@@ -345,6 +375,7 @@ final class FloatingPetScene: SKScene {
 
 	var currentStateForTesting: ActivityState { currentState }
 	var isGhostedForTesting: Bool { isGhosted }
+	var sicknessLevelForTesting: SicknessLevel { sicknessLevel }
 	var currentIdleEscalationForTesting: IdleEscalation { currentEscalation }
 	var currentInteractionForTesting: FloatingInteraction? { currentInteraction }
 	var currentFrameIndexForTesting: Int { frameIndex }
@@ -355,6 +386,14 @@ final class FloatingPetScene: SKScene {
 	var currentTextureForTesting: SKTexture? { spriteNode.texture }
 	var currentColorForTesting: NSColor { spriteNode.color }
 	var currentColorBlendFactorForTesting: CGFloat { spriteNode.colorBlendFactor }
+	var sicknessEffectNodeForTesting: SKNode? { overlayLayer.childNode(withName: "sicknessEffect") }
+	var sicknessFlyCountForTesting: Int {
+		sicknessEffectNodeForTesting?.children.filter { $0.name?.hasPrefix("sicknessFly") == true }.count ?? 0
+	}
+	var sicknessMiasmaBirthRateForTesting: CGFloat {
+		(sicknessEffectNodeForTesting?.childNode(withName: "sicknessMiasma") as? SKEmitterNode)?
+			.particleBirthRate ?? 0
+	}
 
 	/// Swap in new pet loaders and immediately repaint the current state.
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
@@ -370,6 +409,7 @@ final class FloatingPetScene: SKScene {
 		frameIndex = 0
 		paintCurrentFrame()
 		restartTimer()
+		refreshSicknessEffect()
 	}
 
 	func advanceFrameForTesting() {
@@ -600,6 +640,7 @@ final class FloatingPetScene: SKScene {
 		petLayer.position = center
 		overlayLayer.position = center
 		spriteNode.position = .zero
+		refreshSicknessEffect()
 	}
 
 	// MARK: - Level-up effect (prototype)
@@ -608,10 +649,161 @@ final class FloatingPetScene: SKScene {
 	/// level-up doesn't re-rasterize gradients.
 	private var levelUpGlowTexture: SKTexture?
 	private var levelUpSparkTexture: SKTexture?
+	private var sicknessWarningGlowTexture: SKTexture?
+	private var sicknessCriticalGlowTexture: SKTexture?
+	private var sicknessFlyTexture: SKTexture?
 
 	/// Gold tones for the level-up burst.
 	private static let levelUpGold = NSColor(calibratedRed: 1.0, green: 0.85, blue: 0.45, alpha: 1.0)
 	private static let levelUpWhiteGold = NSColor(calibratedRed: 1.0, green: 0.96, blue: 0.78, alpha: 1.0)
+	private static let sicknessWarningGlow = NSColor(
+		calibratedRed: 0.48,
+		green: 0.95,
+		blue: 0.42,
+		alpha: 1.0
+	)
+	private static let sicknessCriticalGlow = NSColor(
+		calibratedRed: 0.62,
+		green: 1.0,
+		blue: 0.32,
+		alpha: 1.0
+	)
+	private static let sicknessFlyTint = NSColor(
+		calibratedRed: 0.22,
+		green: 0.28,
+		blue: 0.10,
+		alpha: 1.0
+	)
+
+	private func refreshSicknessEffect() {
+		overlayLayer.childNode(withName: "sicknessEffect")?.removeFromParent()
+		guard !isGhosted, sicknessLevel != .none else { return }
+
+		let glowColor = sicknessLevel == .critical ? Self.sicknessCriticalGlow : Self.sicknessWarningGlow
+		let glowTex: SKTexture
+		if sicknessLevel == .critical {
+			let cached = sicknessCriticalGlowTexture ?? Self.makeRadialGlowTexture(color: glowColor)
+			sicknessCriticalGlowTexture = cached
+			glowTex = cached
+		} else {
+			let cached = sicknessWarningGlowTexture ?? Self.makeRadialGlowTexture(color: glowColor)
+			sicknessWarningGlowTexture = cached
+			glowTex = cached
+		}
+		let flyTex = sicknessFlyTexture ?? Self.makeRadialGlowTexture(
+			color: Self.sicknessFlyTint,
+			diameter: 24
+		)
+		sicknessFlyTexture = flyTex
+
+		let petRect = currentSpriteOpaqueRect()
+			?? CGRect(
+				x: size.width * 0.3,
+				y: size.height * 0.15,
+				width: size.width * 0.4,
+				height: size.height * 0.7
+			)
+		let halfW = size.width / 2
+		let halfH = size.height / 2
+		let petCenter = CGPoint(x: petRect.midX - halfW, y: petRect.midY - halfH)
+		let container = SKNode()
+		container.name = "sicknessEffect"
+
+		let aura = SKSpriteNode(texture: glowTex)
+		aura.name = "sicknessAura"
+		aura.position = CGPoint(x: petCenter.x, y: petCenter.y - petRect.height * 0.06)
+		aura.blendMode = .add
+		aura.zPosition = 1
+		aura.alpha = sicknessLevel == .critical ? 0.34 : 0.18
+		let auraScale: CGFloat = sicknessLevel == .critical ? 1.55 : 1.3
+		aura.size = CGSize(width: petRect.width * auraScale, height: petRect.height * auraScale)
+		let pulseOutAlpha: CGFloat = sicknessLevel == .critical ? 0.48 : 0.24
+		let pulseOutScale: CGFloat = sicknessLevel == .critical ? 1.1 : 1.05
+		let pulseDuration: TimeInterval = sicknessLevel == .critical ? 0.9 : 1.5
+		aura.run(
+			.repeatForever(
+				.sequence([
+					.group([
+						.fadeAlpha(to: pulseOutAlpha, duration: pulseDuration),
+						.scale(to: pulseOutScale, duration: pulseDuration),
+					]),
+					.group([
+						.fadeAlpha(to: sicknessLevel == .critical ? 0.3 : 0.16, duration: pulseDuration),
+						.scale(to: 1.0, duration: pulseDuration),
+					]),
+				])
+			)
+		)
+		container.addChild(aura)
+
+		let miasma = SKEmitterNode()
+		miasma.name = "sicknessMiasma"
+		miasma.particleTexture = glowTex
+		miasma.position = CGPoint(x: petCenter.x, y: petRect.minY - halfH + petRect.height * 0.18)
+		miasma.zPosition = 2
+		miasma.particleBirthRate = sicknessLevel == .critical ? 32 : 14
+		miasma.particleLifetime = sicknessLevel == .critical ? 2.2 : 1.8
+		miasma.particleLifetimeRange = 0.6
+		miasma.emissionAngle = .pi / 2
+		miasma.emissionAngleRange = .pi / 4
+		miasma.particleSpeed = sicknessLevel == .critical ? 32 : 24
+		miasma.particleSpeedRange = sicknessLevel == .critical ? 18 : 10
+		miasma.yAcceleration = sicknessLevel == .critical ? 18 : 10
+		miasma.particlePositionRange = CGVector(dx: petRect.width * 0.55, dy: petRect.height * 0.18)
+		miasma.particleAlpha = sicknessLevel == .critical ? 0.22 : 0.12
+		miasma.particleAlphaRange = 0.08
+		miasma.particleAlphaSpeed = sicknessLevel == .critical ? -0.08 : -0.05
+		miasma.particleScale = sicknessLevel == .critical ? 0.48 : 0.32
+		miasma.particleScaleRange = 0.12
+		miasma.particleScaleSpeed = sicknessLevel == .critical ? 0.03 : 0.015
+		miasma.particleColor = glowColor
+		miasma.particleColorBlendFactor = 1.0
+		miasma.particleBlendMode = .add
+		container.addChild(miasma)
+
+		let flyCount = sicknessLevel == .critical ? 4 : 2
+		let flyDuration: TimeInterval = sicknessLevel == .critical ? 1.6 : 2.5
+		let flyBase = CGPoint(x: petCenter.x + petRect.width * 0.18, y: petCenter.y + petRect.height * 0.18)
+		for index in 0..<flyCount {
+			let fly = SKSpriteNode(texture: flyTex)
+			fly.name = "sicknessFly\(index)"
+			fly.zPosition = 3
+			fly.blendMode = .alpha
+			fly.color = Self.sicknessFlyTint
+			fly.colorBlendFactor = 1.0
+			fly.alpha = sicknessLevel == .critical ? 0.75 : 0.55
+			let flySize = sicknessLevel == .critical ? petRect.width * 0.06 : petRect.width * 0.05
+			fly.size = CGSize(width: flySize, height: flySize)
+			fly.position = flyBase
+			let radiusX = petRect.width * (sicknessLevel == .critical ? 0.17 : 0.12) + CGFloat(index) * 3
+			let radiusY = petRect.height * (sicknessLevel == .critical ? 0.11 : 0.08) + CGFloat(index) * 2
+			let points = stride(from: 0.0, through: Double.pi * 2, by: Double.pi / 8).map { angle in
+				CGPoint(
+					x: flyBase.x + CGFloat(cos(angle + Double(index) * 0.7)) * radiusX,
+					y: flyBase.y + CGFloat(sin(angle + Double(index) * 0.5)) * radiusY
+				)
+			}
+			let path = CGMutablePath()
+			if let first = points.first {
+				path.move(to: first)
+				for point in points.dropFirst() {
+					path.addLine(to: point)
+				}
+				path.closeSubpath()
+			}
+			fly.run(
+				.repeatForever(
+					.sequence([
+						.wait(forDuration: Double(index) * 0.18),
+						.follow(path, asOffset: false, orientToPath: false, duration: flyDuration),
+					])
+				)
+			)
+			container.addChild(fly)
+		}
+
+		overlayLayer.addChild(container)
+	}
 
 	/// Play a transient level-up celebration: a bloom flash and rising spark
 	/// fountain at the pet's feet, plus two radial "firework" bursts beside the

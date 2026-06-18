@@ -14,6 +14,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var scene: FloatingPetScene?
 	private var currentState: ActivityState = .idle
 	private var currentMode: VisualMode = .normal
+	private var currentSicknessLevel: SicknessLevel = .none
 	private var frameChangeHandler: ((CGRect) -> Void)?
 	var onHideFloatingPet: (() -> Void)?
 	/// Called when the user dismisses or focuses away from the attention bubble.
@@ -119,11 +120,13 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 				self.repositionAndShowAnimationBadge()
 			}
 			scene.update(state: currentState, visualMode: currentMode)
+			scene.setSicknessLevel(currentSicknessLevel)
 			self.scene = scene
 			(panel.contentView as? FloatingPetInteractionView)?.presentScene(scene)
 		} else {
 			scene?.size = frame.size
 			scene?.update(state: currentState, visualMode: currentMode)
+			scene?.setSicknessLevel(currentSicknessLevel)
 		}
 
 		panel.orderFrontRegardless()
@@ -231,6 +234,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			}
 		}
 		hudFlashPending = false
+		currentSicknessLevel = SicknessLevel(halfHearts: halfHearts)
+		scene?.setSicknessLevel(currentSicknessLevel)
 		rpgHUDViewModel.update(
 			halfHearts: halfHearts,
 			levelFraction: levelFraction,
