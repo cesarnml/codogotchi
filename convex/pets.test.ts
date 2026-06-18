@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { convexTest } from "convex-test";
 import { convexTestModules } from "../test/convex-modules";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 
@@ -74,7 +74,7 @@ describe("pets — insert + lookup", () => {
       listed: true,
     });
 
-    const pet = await t.query(internal.pets.getPet, { petId: "cool-cat" });
+    const pet = await t.query(api.pets.getPet, { petId: "cool-cat" });
     expect(pet).not.toBeNull();
     expect(pet?.petId).toBe("cool-cat");
     expect(pet?.displayName).toBe("Cool Cat");
@@ -125,15 +125,11 @@ describe("listPets — paginated catalog", () => {
       });
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await t.query(internal.pets.listPets as any, {
+    const result = await t.query(api.pets.listPets, {
       paginationOpts: { numItems: 10, cursor: null },
     });
-    // @ts-expect-error — result shape changes to paginated after GREEN
     expect(result.page).toHaveLength(2);
-    // @ts-expect-error
     expect(result.page[0].petId).toBe("pet-newer");
-    // @ts-expect-error
     expect(result.page[1].petId).toBe("pet-older");
   });
 });
@@ -146,13 +142,13 @@ describe("getPet — listed-aware visibility", () => {
 
     await insertPet(t, userId, zipId, { petId: "hidden-pet", listed: false });
 
-    const pet = await t.query(internal.pets.getPet, { petId: "hidden-pet" });
+    const pet = await t.query(api.pets.getPet, { petId: "hidden-pet" });
     expect(pet).toBeNull();
   });
 
   test("returns null for an unknown petId", async () => {
     const t = convexTest(schema, convexTestModules);
-    const pet = await t.query(internal.pets.getPet, { petId: "ghost" });
+    const pet = await t.query(api.pets.getPet, { petId: "ghost" });
     expect(pet).toBeNull();
   });
 
@@ -163,7 +159,7 @@ describe("getPet — listed-aware visibility", () => {
 
     await insertPet(t, userId, zipId, { petId: "visible-pet", listed: true });
 
-    const pet = await t.query(internal.pets.getPet, { petId: "visible-pet" });
+    const pet = await t.query(api.pets.getPet, { petId: "visible-pet" });
     expect(pet).not.toBeNull();
     expect(pet?.petId).toBe("visible-pet");
     expect(pet?.sizes).toBeDefined();
