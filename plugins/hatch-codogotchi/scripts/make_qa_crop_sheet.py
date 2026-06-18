@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+from chroma_palette import chroma_residue_mask
 
 
 TIER_ROW_LABELS = {
@@ -77,14 +78,6 @@ def try_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         except (OSError, IOError):
             pass
     return ImageFont.load_default()
-
-
-def chroma_residue_mask(arr: np.ndarray) -> np.ndarray:
-    r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
-    green = (g > 200) & (r < 120) & (b < 120) & (a > 0)
-    magenta = (r > 200) & (b > 200) & (g < 120) & (a > 0)
-    return green | magenta
-
 
 def alpha_bounds(alpha: np.ndarray) -> tuple[int, int, int, int] | None:
     ys, xs = np.nonzero(alpha)

@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from chroma_palette import GREEN, MAGENTA, keyish_mask, normalize_chroma_hex, parse_hex_color
 
 
 CELL_W = 192
@@ -22,28 +23,6 @@ FINAL_FRAMES = 8
 SOURCE_LAYOUTS = {
     "4x2": (4, 2),
 }
-
-
-def parse_hex(value: str) -> tuple[int, int, int]:
-    value = value.strip().lower().lstrip("#")
-    if len(value) != 6:
-        raise SystemExit(f"expected 6-digit hex color, got {value!r}")
-    return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
-
-
-def keyish_mask(arr: np.ndarray, chroma: tuple[int, int, int]) -> np.ndarray:
-    rgb = arr[:, :, :3].astype(np.int32)
-    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
-    cr, cg, cb = chroma
-    dist = np.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2)
-    if chroma == (0, 255, 0):
-        dominant = (g >= 100) & (g >= r + 25) & (g >= b + 25)
-    elif chroma == (255, 0, 255):
-        dominant = (r >= 100) & (b >= 100) & (r >= g + 25) & (b >= g + 25)
-    else:
-        dominant = dist <= 115
-    return (dist <= 115) | dominant
-
 
 def border_connected(mask: np.ndarray) -> np.ndarray:
     h, w = mask.shape
@@ -124,10 +103,10 @@ def validate_source_cell(cell: Image.Image, chroma: tuple[int, int, int], frame_
 def snap_near_key(rgb: np.ndarray, out_chroma: tuple[int, int, int]) -> np.ndarray:
     out = rgb.copy()
     r, g, b = out[:, :, 0], out[:, :, 1], out[:, :, 2]
-    if out_chroma == (255, 0, 255):
+    if out_chroma == MAGENTA:
         near = (r > 200) & (b > 200) & (g < 100)
-    elif out_chroma == (0, 255, 0):
-        near = (g > 200) & (r < 100) & (b < 100)
+    elif out_chroma == GREEN:
+        near = (g > 120) & (r < 80) & (b < 100)
     else:
         return out
     out[near, :] = out_chroma
@@ -139,12 +118,12 @@ def main() -> None:
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--source-layout", choices=sorted(SOURCE_LAYOUTS.keys()), required=True)
-    parser.add_argument("--source-chroma", default="00ff00")
+    parser.add_argument("--source-chroma", default="00b140")
     parser.add_argument("--out-chroma", default="")
     args = parser.parse_args()
 
-    source_chroma = parse_hex(args.source_chroma)
-    out_chroma = parse_hex(args.out_chroma or args.source_chroma)
+    source_chroma = parse_hex_color(normalize_chroma_hex(args.source_chroma))
+    out_chroma = parse_hex_color(normalize_chroma_hex(args.out_chroma or args.source_chroma))
     src = Image.open(args.input).convert("RGBA")
 
     cols, rows = SOURCE_LAYOUTS[args.source_layout]

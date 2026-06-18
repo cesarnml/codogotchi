@@ -245,7 +245,8 @@ STYLE_PRESETS = {
     "auto": "infer style from seed image",
 }
 
-DEFAULT_CHROMA = "00ff00"
+DEFAULT_CHROMA = "00b140"
+BLUE_FALLBACK_CHROMA = "0047bb"
 GREEN_SENSITIVE_CHROMA = "ff00ff"
 GREEN_SENSITIVE_ROWS = {
     "green-tdd",
@@ -281,11 +282,23 @@ def slugify(name: str) -> str:
 
 
 def resolve_chroma(row_label: str, chroma: str) -> str:
-    """Resolve the chroma key. 'auto' defaults to green (#00ff00); the agent passes an
-    explicit key per row by the decision rule: green by default; magenta (#ff00ff) when the
-    pet/prop has green; blue (#0000ff) when it has both green and magenta/pink."""
+    """Resolve the canonical chroma key.
+
+    Auto mode uses chroma green by default, but rows with intentional green
+    props/effects are upgraded to chroma magenta to avoid self-key damage.
+    Chroma blue is the explicit fallback when both green and magenta are unsafe.
+    """
+    allowed = {DEFAULT_CHROMA, GREEN_SENSITIVE_CHROMA, BLUE_FALLBACK_CHROMA}
     if chroma != "auto":
-        return chroma.lower().lstrip("#")
+        normalized = chroma.lower().lstrip("#")
+        if normalized not in allowed:
+            raise SystemExit(
+                "ERROR: --chroma must be auto or one of "
+                f"{', '.join(sorted('#' + color for color in allowed))}"
+            )
+        return normalized
+    if row_label in GREEN_SENSITIVE_ROWS:
+        return GREEN_SENSITIVE_CHROMA
     return DEFAULT_CHROMA
 
 
@@ -518,11 +531,10 @@ def main() -> None:
     parser.add_argument("--style", default="auto", choices=list(STYLE_PRESETS.keys()))
     parser.add_argument(
         "--chroma",
-        default="00ff00",
-        help="Chroma-key hex colour (no #), or 'auto' (defaults to green). Agent's choice per row: "
-             "pick the key whose hue is ABSENT from the pet/props. 00ff00 green = default; "
-             "ff00ff magenta = when the pet has green (greenish eyes/hair/props/FX); "
-             "0000ff blue = when the pet has both green and magenta/pink.",
+        default="auto",
+        help="Chroma-key hex colour (no #), or 'auto'. Canonical palette only: "
+             "00b140 chroma green = default; ff00ff chroma magenta = fallback for green-sensitive rows or pets; "
+             "0047bb chroma blue = fallback when both green and magenta are unsafe.",
     )
     parser.add_argument("--tier",
                         choices=["codex", "lite-basic", "lite-enhanced", "soa", "all"], default="all",
@@ -660,6 +672,7 @@ def main() -> None:
         "style_desc": style_desc,
         "chroma": args.chroma,
         "default_chroma": DEFAULT_CHROMA,
+        "blue_fallback_chroma": BLUE_FALLBACK_CHROMA,
         "green_sensitive_chroma": GREEN_SENSITIVE_CHROMA,
         "green_sensitive_rows": sorted(GREEN_SENSITIVE_ROWS),
         "generation_mode": args.generation_mode,
@@ -699,8 +712,8 @@ def main() -> None:
     print(f"Job manifest: {jobs_path}")
     if args.chroma == "auto":
         print(
-            "Chroma mode: auto (#ff00ff by default to protect greenish eyes/details; "
-            "use --chroma 00ff00 only when magenta/purple foreground makes magenta unsafe)"
+            "Chroma mode: auto (#00B140 default; green-sensitive rows switch to #FF00FF automatically; "
+            "use #0047BB only when both green and magenta are unsafe)"
         )
     else:
         print(f"Chroma mode: fixed #{args.chroma.lower().lstrip('#')}")
@@ -718,7 +731,13 @@ def main() -> None:
         )
         print("      Then slice the normalized 4x2 sheet:")
         print("      python scripts/slice_animation_sheet.py --sheet sheets/<tier>/<label>.normalized.png --out-dir frames/<tier>/<label>/ --chroma <job chroma>")
-        print("      Then stitch/inspect that row with stitch_row.py and inspect_frames.py.")
+        print("      Then key that row into the transparent 1x8 review strip:")
+        print(
+            "      python scripts/key_row_frames.py --row-dir frames/<tier>/<label>/ "
+            "--out-dir frames-keyed/<tier>/<label>/ --preview-out rows-keyed/<tier>/<label>.png "
+            "--chroma <job chroma> --preset balanced"
+        )
+        print("      Then stitch/inspect that keyed row with stitch_row.py and inspect_frames.py.")
     else:
         print("\nNext: generate frames ONE ROW AT A TIME using the prompts in prompts/<tier>/")
         print("      Then stitch each row with: python scripts/stitch_row.py --row-dir frames/<tier>/<label>/ --out rows/<tier>/<label>.png")

@@ -28,7 +28,7 @@ Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 **Non-negotiable row gate:** finish one row completely before generating the next in this exact order: raw `4×2` row sheet → transparent `1×8` review strip → stitched row. If the transparent strip looks wrong, regenerate the raw row sheet instead of patching forward. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
 
-**Chroma key — agent's choice, default green.** `--chroma` defaults to `#00ff00` (green). Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#ff00ff` (magenta) when the pet has green (greenish eyes, hair highlights, green props/FX); `#0000ff` (blue) when it has both green and magenta/pink.
+**Chroma key — canonical palette, default chroma green.** `--chroma` defaults to `#00B140`. The only supported keys are `#00B140`, `#FF00FF`, and `#0047BB`. Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#FF00FF` when the pet has green (greenish eyes, hair highlights, green props/FX); `#0047BB` when it has both green and magenta/pink. `key_row_frames.py` uses fixed matte presets from the canonical TypeScript engine; do not improvise UI tuning.
 
 **Recommended production pattern:** for each row, generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that preserves motion quality**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended acceleration pattern, not a hard requirement.
 
@@ -54,7 +54,7 @@ Quality caveats for the recommended pattern:
 
 ## Workflow (three sheets, in order)
 
-Use the same pipeline per sheet — prepare → generate `4×2` row candidate → normalize to canonical geometry → slice → key transparent `1×8` review strip → stitch → inspect → compose → validate → mandatory QA gate → install. Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on a solid chroma background, or a `--description` (generate Codex `idle` first, save its frame 1 as `seed.png`). Chroma defaults to `#00ff00` (green); switch to `#ff00ff`/`#0000ff` per the chroma rule when the pet clashes.
+Use the same pipeline per sheet — prepare → generate `4×2` row candidate → normalize to canonical geometry → slice → key transparent `1×8` review strip → stitch → inspect → compose → validate → mandatory QA gate → install. Run it three times, in tier order. Seed source: a 192 × 208 neutral pose on a solid chroma background, or a `--description` (generate Codex `idle` first, save its frame 1 as `seed.png`). Chroma defaults to `#00B140` (green); switch to `#FF00FF`/`#0047BB` per the chroma rule when the pet clashes.
 
 ```bash
 # ---- Tier 1: Codex ----
@@ -103,8 +103,8 @@ cp run/<slug>/spritesheet.webp run/<slug>/codogotchi-lite-basic-spritesheet.webp
 Per-row normalize + slice + stitch + inspect (run for every row before moving on):
 ```bash
 python scripts/normalize_generated_sheet.py --input run/<slug>/sheets/<tier>/<row>.png --out run/<slug>/sheets/<tier>/<row>.normalized.png --source-layout 4x2 --source-chroma <key> --out-chroma <key>
-python scripts/slice_animation_sheet.py --sheet run/<slug>/sheets/<tier>/<row>.normalized.png --out-dir run/<slug>/frames/<tier>/<row>/ --chroma <00ff00-or-ff00ff>
-python scripts/key_row_frames.py --row-dir run/<slug>/frames/<tier>/<row>/ --out-dir run/<slug>/frames-keyed/<tier>/<row>/ --preview-out run/<slug>/rows-keyed/<tier>/<row>.png --chroma <00ff00-or-ff00ff>
+python scripts/slice_animation_sheet.py --sheet run/<slug>/sheets/<tier>/<row>.normalized.png --out-dir run/<slug>/frames/<tier>/<row>/ --chroma <00b140-or-ff00ff-or-0047bb>
+python scripts/key_row_frames.py --row-dir run/<slug>/frames/<tier>/<row>/ --out-dir run/<slug>/frames-keyed/<tier>/<row>/ --preview-out run/<slug>/rows-keyed/<tier>/<row>.png --chroma <00b140-or-ff00ff-or-0047bb> --preset balanced
 python scripts/stitch_row.py     --row-dir run/<slug>/frames-keyed/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
 python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png --seed run/<slug>/seed.png
 ```

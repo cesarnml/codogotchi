@@ -117,6 +117,6 @@ Light exploration / reasoning. Hand rises to chin, eyes glance up-left then up-r
 | Sheet height | 1872 px |
 | Columns | 8 |
 | Rows | 9 |
-| Chroma-key | `#00ff00` |
+| Chroma-key | `#00B140` |
 | Padding (min) | 8 px all sides |
 | Loop | Continuous, 1.5 s / 8 frames |

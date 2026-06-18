@@ -19,7 +19,7 @@ Generate the **Tier 4 (SoA)** sprite sheet for an existing Codogotchi pet — th
 
 **Non-negotiable row gate:** finish one row completely before generating the next in this exact order: raw `4×2` row sheet → transparent `1×8` review strip → stitched row. If the transparent strip looks wrong, regenerate the raw row sheet instead of patching forward. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
 
-**Chroma key — agent's choice, default green.** `--chroma` defaults to `#00ff00` (green). Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#ff00ff` (magenta) when the pet has green (greenish eyes, hair highlights, green props/FX); `#0000ff` (blue) when it has both green and magenta/pink.
+**Chroma key — canonical palette, default chroma green.** `--chroma` defaults to `#00B140`. The only supported keys are `#00B140`, `#FF00FF`, and `#0047BB`. Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#FF00FF` when the pet has green (greenish eyes, hair highlights, green props/FX); `#0047BB` when it has both green and magenta/pink. `key_row_frames.py` uses fixed matte presets from the canonical TypeScript engine; do not improvise UI tuning.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that preserves the emotional beat**. Many SoA rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a preferred optimization, not a universal law.
 
@@ -47,7 +47,7 @@ python scripts/extract_seed_from_codex.py \
   --out run/<pet-id>/seed.png
 ```
 
-This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` background. Inspect `seed.png`; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every frame generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. For generated SoA frames, chroma defaults to `#00ff00` (green); switch to `#ff00ff`/`#0000ff` per the chroma rule when the pet/prop clashes.
+This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00B140` background. Inspect `seed.png`; if the pose is unclear, pass `--row` / `--col` to pick a better cell. Attach this image to every frame generation call — the SoA sheet must be indistinguishable in style from the existing Codex sheet. For generated SoA frames, chroma defaults to `#00B140` (green); switch to `#FF00FF`/`#0047BB` per the chroma rule when the pet/prop clashes.
 
 ---
 
@@ -75,7 +75,7 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#00ff00` backgrou
 
 Identical to `hatch-codogotchi-lite`:
 
-- **Background:** use the solid chroma named in the prompt (`#ff00ff` by default in auto mode; fixed `#00ff00` only when magenta/purple foreground makes magenta unsafe) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
+- **Background:** use the solid chroma named in the prompt (`#00B140` by default; `green-tdd` and `review-clean` intentionally switch to `#FF00FF`; use `#0047BB` only when both green and magenta are unsafe) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
 - **Padding:** ≥ 8 px all sides; nothing touches an edge.
 - **Scale registration:** one shared scale per row (tallest frame sets it).
 - **Horizontal registration:** character/content stays on a stable x-axis in every 192×208 cell; no left/right hopping. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
@@ -99,7 +99,7 @@ python scripts/extract_seed_from_codex.py \
   --out run/<pet-id>/seed.png
 ```
 
-Inspect `seed.png`. The character should be in a clean neutral pose on `#00ff00`. If the idle frame is unclear, try `--row 3 --col 0` (standby) or another expressive cell.
+Inspect `seed.png`. The character should be in a clean neutral pose on `#00B140`. If the idle frame is unclear, try `--row 3 --col 0` (standby) or another expressive cell.
 
 ```bash
 # Check cell dimensions if not standard 192×208
@@ -137,7 +137,7 @@ run/<pet-id>/
 For **each** of the 10 SoA rows, in the order below, complete the full cycle before starting the next:
 
 1. Read motion description in `sheet-prompts/soa/<row-label>.txt`.
-2. **Use built-in `image_gen` to generate one 4×2 row sheet** — exact 768×416 px, all 8 cells populated, no empty cell, on the chroma named in the prompt. `green-tdd` and `review-clean` use `#ff00ff` so green checkmark effects survive keying. Attach `seed.png` as the character reference.
+2. **Use built-in `image_gen` to generate one 4×2 row sheet** — exact 768×416 px, all 8 cells populated, no empty cell, on the chroma named in the prompt. `green-tdd` and `review-clean` use `#FF00FF` so green checkmark effects survive keying. Attach `seed.png` as the character reference.
 3. Compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
 4. If the raw image lands in `~/.codex` scratch/cache space first, relocate it immediately. The canonical path is `run/<pet-id>/sheets/soa/<row-label>.png`.
 
@@ -148,19 +148,20 @@ python scripts/normalize_generated_sheet.py \
   --input  run/<pet-id>/sheets/soa/<row-label>.png \
   --out    run/<pet-id>/sheets/soa/<row-label>.normalized.png \
   --source-layout 4x2 \
-  --source-chroma <00ff00-or-ff00ff> \
-  --out-chroma <00ff00-or-ff00ff>
+  --source-chroma <00b140-or-ff00ff-or-0047bb> \
+  --out-chroma <00b140-or-ff00ff-or-0047bb>
 
 python scripts/slice_animation_sheet.py \
   --sheet   run/<pet-id>/sheets/soa/<row-label>.normalized.png \
   --out-dir run/<pet-id>/frames/soa/<row-label>/ \
-  --chroma  <00ff00-or-ff00ff>
+  --chroma  <00b140-or-ff00ff-or-0047bb>
 
 python scripts/key_row_frames.py \
   --row-dir    run/<pet-id>/frames/soa/<row-label>/ \
   --out-dir    run/<pet-id>/frames-keyed/soa/<row-label>/ \
   --preview-out run/<pet-id>/rows-keyed/soa/<row-label>.png \
-  --chroma     <00ff00-or-ff00ff>
+  --chroma     <00b140-or-ff00ff-or-0047bb> \
+  --preset     balanced
 
 python scripts/stitch_row.py \
   --row-dir run/<pet-id>/frames-keyed/soa/<row-label>/ \

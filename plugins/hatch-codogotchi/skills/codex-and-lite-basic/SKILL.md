@@ -29,7 +29,7 @@ Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 **Non-negotiable row gate:** finish one row completely before generating the next in this exact order: raw `4×2` row sheet → transparent `1×8` review strip → stitched row. If the transparent strip looks wrong, regenerate the raw row sheet instead of patching forward. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
 
-**Chroma key — agent's choice, default green.** `--chroma` defaults to `#00ff00` (green). Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#ff00ff` (magenta) when the pet has green (greenish eyes, hair highlights, green props/FX); `#0000ff` (blue) when it has both green and magenta/pink.
+**Chroma key — canonical palette, default chroma green.** `--chroma` defaults to `#00B140`. The only supported keys are `#00B140`, `#FF00FF`, and `#0047BB`. Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#FF00FF` when the pet has green (greenish eyes, hair highlights, green props/FX); `#0047BB` when it has both green and magenta/pink. `key_row_frames.py` uses fixed matte presets from the canonical TypeScript engine; do not improvise UI tuning.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that still looks good in motion**. In practice, many rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. Treat this as a production shortcut, not a rigid rule.
 
@@ -55,13 +55,13 @@ Quality caveats for the recommended pattern:
 
 ## Character source
 
-- **Seed image (recommended):** a 192 × 208 neutral standing pose on a solid chroma background. Row prompts default to `#00ff00` (green); switch per the chroma rule when the pet has green or clashing colours.
-- **Seed-risk note:** if the pet itself is green-heavy, green spill/edge contamination is likely — use `#ff00ff` (or `#0000ff`) for that pet so the key is never the pet's own colour.
+- **Seed image (recommended):** a 192 × 208 neutral standing pose on a solid chroma background. Row prompts default to `#00B140` (green); switch per the chroma rule when the pet has green or clashing colours.
+- **Seed-risk note:** if the pet itself is green-heavy, green spill/edge contamination is likely — use `#FF00FF` (or `#0047BB`) for that pet so the key is never the pet's own colour.
 - **Text description:** generate the Codex `idle` row first, save its frame 1 as `seed.png`, and attach it to every subsequent call as the character anchor.
 
 ## Row-kind constraints
 
-All rows: solid prompt-selected chroma bg (default `#00ff00` green; `#ff00ff`/`#0000ff` per the chroma rule) · perfectly flat key with no falloff/shadow/texture/halo · 4×2 sheet cells strictly respect 192×208 boundaries · all 8 cells populated, no empty cell · ≥ 8 px padding all sides · one shared scale per row, per-frame height within ±15% of median · seed is sole style reference.
+All rows: solid prompt-selected chroma bg (default `#00B140` green; `#FF00FF`/`#0047BB` per the chroma rule) · perfectly flat key with no falloff/shadow/texture/halo · 4×2 sheet cells strictly respect 192×208 boundaries · all 8 cells populated, no empty cell · ≥ 8 px padding all sides · one shared scale per row, per-frame height within ±15% of median · seed is sole style reference.
 
 Standing/status rows: shared bottom baseline `y = 208 − 8 − scaled_h`, body and feet anchored, one small moving element, loop closes (frame 8 ≈ frame 1).
 
@@ -75,7 +75,7 @@ Locomotion rows (`running-right`, `running-left`): stable scale/baseline/facing 
 # 1. Prepare (seed or --description). Codex + Lite-Basic prompt files are written;
 #    each prompt already embeds the prop doctrine + scale rule.
 python scripts/prepare_pet_run.py --seed path/to/seed.png \
-  --pet-name "My Pet" --style auto --tier codex   # then --tier lite-basic  (defaults: --chroma 00ff00 --source-layout 4x2)
+  --pet-name "My Pet" --style auto --tier codex   # then --tier lite-basic  (defaults: --chroma 00b140 --source-layout 4x2)
 # (or --tier all to prep every tier; you generate only codex + lite-basic here)
 
 # 2. Use Codex's built-in image_gen tool to generate ONE row candidate at a time.
@@ -83,13 +83,13 @@ python scripts/prepare_pet_run.py --seed path/to/seed.png \
 #    run/<slug>/sheets/<tier>/<row>.png. If image_gen lands the raw file in
 #    ~/.codex scratch/cache space first, relocate it into that path immediately.
 #    Generate a 4x2 sheet (8 frames, no empty cell).
-#    Chroma defaults to #00ff00 (green); switch to #ff00ff/#0000ff per the chroma rule.
+#    Chroma defaults to #00B140 (green); switch to #FF00FF/#0047BB per the chroma rule.
 #    Do not ask for a whole atlas or an unconstrained horizontal strip.
 
 # 3. Normalize the 4x2 sheet to exact canonical geometry → slice → key → review → stitch → inspect
 python scripts/normalize_generated_sheet.py --input run/<slug>/sheets/<tier>/<row>.png --out run/<slug>/sheets/<tier>/<row>.normalized.png --source-layout 4x2 --source-chroma <key> --out-chroma <key>
 python scripts/slice_animation_sheet.py --sheet run/<slug>/sheets/<tier>/<row>.normalized.png --out-dir run/<slug>/frames/<tier>/<row>/ --chroma <key>
-python scripts/key_row_frames.py --row-dir run/<slug>/frames/<tier>/<row>/ --out-dir run/<slug>/frames-keyed/<tier>/<row>/ --preview-out run/<slug>/rows-keyed/<tier>/<row>.png --chroma <key>
+python scripts/key_row_frames.py --row-dir run/<slug>/frames/<tier>/<row>/ --out-dir run/<slug>/frames-keyed/<tier>/<row>/ --preview-out run/<slug>/rows-keyed/<tier>/<row>.png --chroma <key> --preset balanced
 python scripts/stitch_row.py     --row-dir run/<slug>/frames-keyed/<tier>/<row>/ --out run/<slug>/rows/<tier>/<row>.png
 python scripts/inspect_frames.py --row run/<slug>/rows/<tier>/<row>.png --seed run/<slug>/seed.png   # hard-fails >15% scale drift; reports seed comparison
 

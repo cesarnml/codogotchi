@@ -13,6 +13,7 @@ from pathlib import Path
 
 from PIL import Image
 import numpy as np
+from chroma_palette import chroma_residue_mask
 
 
 TIER_SPECS = {
@@ -21,13 +22,6 @@ TIER_SPECS = {
     "lite-enhanced": {"rows": 8, "ref_w": 1536, "ref_h": 1664},
     "soa":           {"rows": 10, "ref_w": 1536, "ref_h": 2080},
 }
-
-
-def chroma_residue_mask(arr: np.ndarray) -> np.ndarray:
-    r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
-    green_mask = (g > 200) & (r < 100) & (b < 100) & (a > 0)
-    magenta_mask = (r > 200) & (b > 200) & (g < 100) & (a > 0)
-    return green_mask | magenta_mask
 
 TIER_ROW_LABELS = {
     "codex": [

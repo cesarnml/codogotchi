@@ -1,6 +1,6 @@
 {
   "name": "hatch-codogotchi",
-  "version": "2.5.0",
+  "version": "3.0.0",
   "description": "Codex-native skills that draw Codogotchi-compatible sprite atlases (Codex, Lite-Basic, Lite-Enhanced, and Son-of-Anton tiers) from a seed image, a text description, or an existing Codex sheet.",
   "author": {
     "name": "Cesar Mejia",
@@ -22,7 +22,7 @@
   "interface": {
     "displayName": "Hatch Codogotchi",
     "shortDescription": "Draw Codogotchi-compatible sprite atlases.",
-    "longDescription": "Hatch Codogotchi bundles five guided, sheet-first skills plus a Python pipeline (prepare -> generate raw 4x2 row sheets -> normalize -> slice -> key transparent 1x8 review strips -> stitch -> inspect -> compose -> validate) for producing Codogotchi-compatible WebP sprite atlases: the required Codex Tier-1 sheet, the Lite-Basic and Lite-Enhanced alive/dead tiers, and the Son-of-Anton delivery-gate sheet. Start from a seed image, a text description, or an existing Codex spritesheet.",
+    "longDescription": "Hatch Codogotchi bundles five guided, sheet-first skills plus a hybrid pipeline: Python handles prepare, normalize, slice, stitch, inspect, compose, and validate, while the canonical TypeScript matte engine handles chroma removal into transparent 1x8 review strips using the fixed chroma palette (#00B140, #0047BB, #FF00FF). It produces Codogotchi-compatible WebP sprite atlases for the required Codex Tier-1 sheet, the Lite-Basic and Lite-Enhanced alive/dead tiers, and the Son-of-Anton delivery-gate sheet.",
     "developerName": "Cesar Mejia",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Write"],

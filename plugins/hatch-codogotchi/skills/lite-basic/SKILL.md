@@ -23,7 +23,7 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 
 **Non-negotiable row gate:** finish one row completely before generating the next in this exact order: raw `4×2` row sheet → transparent `1×8` review strip → stitched row. If the transparent strip looks wrong, regenerate the raw row sheet instead of patching forward. Do not batch-generate multiple rows first. Do not compose or install until every row has passing script output and visible prop/face/eye QA.
 
-**Chroma key — agent's choice, default green.** `--chroma` defaults to `#00ff00` (green). Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#ff00ff` (magenta) when the pet has green (greenish eyes, hair highlights, green props/FX); `#0000ff` (blue) when it has both green and magenta/pink.
+**Chroma key — canonical palette, default chroma green.** `--chroma` defaults to `#00B140`. The only supported keys are `#00B140`, `#FF00FF`, and `#0047BB`. Per row, pick the key whose hue is ABSENT from the pet and its props: green by default; `#FF00FF` when the pet has green (greenish eyes, hair highlights, green props/FX); `#0047BB` when it has both green and magenta/pink. `key_row_frames.py` uses fixed matte presets from the canonical TypeScript engine; do not improvise UI tuning.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that produces a clean result**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended speedup, not a hard requirement.
 
@@ -68,14 +68,14 @@ python scripts/prepare_pet_run.py --seed run/<pet-id>/seed.png \
 # 3. For each of the 9 rows, in order, use built-in image_gen sheet-first:
 #    generate one exact 768x416 4x2 row sheet into sheets/lite-basic/<row>.png.
 #    All 8 cells are the animation; no empty cell. Use the chroma named in the
-#    sheet prompt; default is #00ff00 (green), switch per the chroma rule.
+#    sheet prompt; default is #00B140 (green), switch per the chroma rule.
 #    Prop must stay clearly drawn + identical across frames; seed.png attached.
 #    If image_gen lands the raw file in ~/.codex scratch/cache space first,
 #    relocate it into run/<pet-id>/sheets/lite-basic/<row>.png before continuing.
 #    Then:
-python scripts/normalize_generated_sheet.py --input run/<pet-id>/sheets/lite-basic/<row>.png --out run/<pet-id>/sheets/lite-basic/<row>.normalized.png --source-layout 4x2 --source-chroma <00ff00-or-ff00ff> --out-chroma <00ff00-or-ff00ff>
-python scripts/slice_animation_sheet.py --sheet run/<pet-id>/sheets/lite-basic/<row>.normalized.png --out-dir run/<pet-id>/frames/lite-basic/<row>/ --chroma <00ff00-or-ff00ff>
-python scripts/key_row_frames.py --row-dir run/<pet-id>/frames/lite-basic/<row>/ --out-dir run/<pet-id>/frames-keyed/lite-basic/<row>/ --preview-out run/<pet-id>/rows-keyed/lite-basic/<row>.png --chroma <00ff00-or-ff00ff>
+python scripts/normalize_generated_sheet.py --input run/<pet-id>/sheets/lite-basic/<row>.png --out run/<pet-id>/sheets/lite-basic/<row>.normalized.png --source-layout 4x2 --source-chroma <00b140-or-ff00ff-or-0047bb> --out-chroma <00b140-or-ff00ff-or-0047bb>
+python scripts/slice_animation_sheet.py --sheet run/<pet-id>/sheets/lite-basic/<row>.normalized.png --out-dir run/<pet-id>/frames/lite-basic/<row>/ --chroma <00b140-or-ff00ff-or-0047bb>
+python scripts/key_row_frames.py --row-dir run/<pet-id>/frames/lite-basic/<row>/ --out-dir run/<pet-id>/frames-keyed/lite-basic/<row>/ --preview-out run/<pet-id>/rows-keyed/lite-basic/<row>.png --chroma <00b140-or-ff00ff-or-0047bb> --preset balanced
 python scripts/stitch_row.py     --row-dir run/<pet-id>/frames-keyed/lite-basic/<row>/ --out run/<pet-id>/rows/lite-basic/<row>.png
 python scripts/inspect_frames.py --row run/<pet-id>/rows/lite-basic/<row>.png --seed run/<pet-id>/seed.png   # gate before next row
 

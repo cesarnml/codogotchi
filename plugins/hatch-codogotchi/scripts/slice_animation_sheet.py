@@ -18,6 +18,8 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+from chroma_palette import GREEN, MAGENTA, color_hex, detect_canonical_chroma, keyish_mask, normalize_chroma_hex, parse_hex_color
+
 
 
 CELL_W = 192
@@ -26,43 +28,6 @@ GRID_COLS = 4
 GRID_ROWS = 2
 POPULATED_CELLS = 8
 DEFAULT_PADDING = 8
-GREEN = (0, 255, 0)
-MAGENTA = (255, 0, 255)
-
-
-def parse_hex_color(value: str) -> tuple[int, int, int]:
-    value = value.strip().lower().lstrip("#")
-    if len(value) != 6:
-        raise argparse.ArgumentTypeError(f"expected 6-digit hex color, got {value!r}")
-    return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
-
-
-def color_hex(rgb: tuple[int, int, int]) -> str:
-    return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
-
-
-def chroma_like_mask(arr: np.ndarray, chroma: tuple[int, int, int]) -> np.ndarray:
-    """Broad mask for chroma-ish background, including image-gen falloff."""
-    rgb = arr[:, :, :3].astype(np.float32)
-    alpha = arr[:, :, 3] > 0
-    cr, cg, cb = chroma
-    dist = np.sqrt(
-        (rgb[:, :, 0] - cr) ** 2 +
-        (rgb[:, :, 1] - cg) ** 2 +
-        (rgb[:, :, 2] - cb) ** 2
-    )
-    close = dist <= 90
-
-    r = rgb[:, :, 0]
-    g = rgb[:, :, 1]
-    b = rgb[:, :, 2]
-    if chroma == GREEN:
-        dominant = (g >= 120) & (g >= r + 35) & (g >= b + 35)
-    elif chroma == MAGENTA:
-        dominant = (r >= 120) & (b >= 120) & (r >= g + 35) & (b >= g + 35)
-    else:
-        dominant = close
-    return alpha & (close | dominant)
 
 
 def border_connected(mask: np.ndarray) -> np.ndarray:
@@ -120,7 +85,7 @@ def normalize_cell(
     arr = np.array(cell.convert("RGBA"))
     errors: list[str] = []
 
-    keyish = chroma_like_mask(arr, chroma)
+    keyish = (arr[:, :, 3] > 0) & keyish_mask(arr, chroma)
     bg = border_connected(keyish)
     foreground_key = keyish & ~bg
 
@@ -201,21 +166,14 @@ def draw_failure_contact(
 
 
 def auto_detect_chroma(img: Image.Image) -> tuple[int, int, int]:
-    arr = np.array(img.convert("RGBA"))
-    samples = []
-    for y in [0, arr.shape[0] - 1]:
-        for x in [0, arr.shape[1] - 1]:
-            samples.append(tuple(int(v) for v in arr[y, x, :3]))
-    greenish = sum(1 for r, g, b in samples if g > r + 35 and g > b + 35)
-    magentaish = sum(1 for r, g, b in samples if r > g + 35 and b > g + 35)
-    return MAGENTA if magentaish > greenish else GREEN
+    return detect_canonical_chroma(img)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Slice a 4x2 Codogotchi animation sheet into f01.png..f08.png.")
     parser.add_argument("--sheet", required=True, type=Path, help="Input 4x2 PNG/WebP sheet")
     parser.add_argument("--out-dir", required=True, type=Path, help="Output frame directory")
-    parser.add_argument("--chroma", default="auto", help="auto, 00ff00, or ff00ff")
+    parser.add_argument("--chroma", default="auto", help="auto, 00b140, 0047bb, or ff00ff")
     parser.add_argument("--padding", type=int, default=DEFAULT_PADDING)
     parser.add_argument("--allow-foreground-key", action="store_true", help="Allow key-colored foreground pixels")
     parser.add_argument("--fail-contact", type=Path, default=None, help="Failure contact sheet path")
@@ -229,7 +187,7 @@ def main() -> None:
             f"{expected_size[0]}x{expected_size[1]} (4x2 cells of {CELL_W}x{CELL_H})"
         )
 
-    chroma = auto_detect_chroma(sheet) if args.chroma == "auto" else parse_hex_color(args.chroma)
+    chroma = auto_detect_chroma(sheet) if args.chroma == "auto" else parse_hex_color(normalize_chroma_hex(args.chroma))
 
     cells: list[Image.Image] = []
     normalized_cells: list[Image.Image] = []

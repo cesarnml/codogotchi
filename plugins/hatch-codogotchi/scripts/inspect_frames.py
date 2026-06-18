@@ -13,17 +13,11 @@ from pathlib import Path
 
 from PIL import Image
 import numpy as np
-
-
-def chroma_residue_mask(arr: np.ndarray) -> np.ndarray:
-    r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
-    green_mask = (g > 200) & (r < 100) & (b < 100) & (a > 0)
-    magenta_mask = (r > 200) & (b > 200) & (g < 100) & (a > 0)
-    return green_mask | magenta_mask
+from chroma_palette import chroma_residue_mask
 
 
 def visible_mask(img: Image.Image) -> np.ndarray:
-    """Return visible subject pixels, treating green/magenta chroma as background."""
+    """Return visible subject pixels, treating canonical chroma residue as background."""
     arr = np.array(img.convert("RGBA"))
     alpha_visible = arr[:, :, 3] > 0
     return alpha_visible & ~chroma_residue_mask(arr)

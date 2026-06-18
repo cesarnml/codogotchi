@@ -11,52 +11,16 @@ sheet instead of pushing the damage downstream.
 from __future__ import annotations
 
 import argparse
+import base64
+import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
-
-
-CHROMA_TOLERANCE = 10
-
-
-def parse_hex_color(value: str) -> tuple[int, int, int]:
-    value = value.strip().lower().lstrip("#")
-    if len(value) != 6:
-        raise argparse.ArgumentTypeError(f"expected 6-digit hex color, got {value!r}")
-    return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
-
-
-def detect_frame_chroma(img: Image.Image) -> tuple[int, int, int]:
-    arr = np.array(img.convert("RGBA"))
-    h, w = arr.shape[:2]
-    samples = [
-        tuple(int(v) for v in arr[0, 0, :3]),
-        tuple(int(v) for v in arr[0, w - 1, :3]),
-        tuple(int(v) for v in arr[h - 1, 0, :3]),
-        tuple(int(v) for v in arr[h - 1, w - 1, :3]),
-    ]
-    counts: dict[tuple[int, int, int], int] = {}
-    for sample in samples:
-        counts[sample] = counts.get(sample, 0) + 1
-    return max(counts.items(), key=lambda item: item[1])[0]
-
-
-def remove_chroma(img: Image.Image, chroma: tuple[int, int, int], tol: int = CHROMA_TOLERANCE) -> Image.Image:
-    data = np.array(img.convert("RGBA"), dtype=np.float32)
-    cr, cg, cb = chroma
-    dist = np.sqrt(
-        (data[:, :, 0] - cr) ** 2 +
-        (data[:, :, 1] - cg) ** 2 +
-        (data[:, :, 2] - cb) ** 2
-    )
-    mask = dist <= tol
-    data[mask, 3] = 0
-    data[mask, 0] = 0
-    data[mask, 1] = 0
-    data[mask, 2] = 0
-    return Image.fromarray(data.astype(np.uint8), "RGBA")
+from chroma_palette import detect_canonical_chroma, normalize_chroma_hex, parse_hex_color
 
 
 def zero_transparent_rgb(img: Image.Image) -> Image.Image:
@@ -66,6 +30,27 @@ def zero_transparent_rgb(img: Image.Image) -> Image.Image:
     arr[transparent, 1] = 0
     arr[transparent, 2] = 0
     return Image.fromarray(arr, "RGBA")
+
+
+def run_chroma_key_cli(frame: Image.Image, chroma_hex: str, preset: str, cli_path: Path, node_binary: str) -> Image.Image:
+    payload = {
+        "width": frame.width,
+        "height": frame.height,
+        "rgbaBase64": base64.b64encode(frame.convert("RGBA").tobytes()).decode("ascii"),
+    }
+    result = subprocess.run(
+        [node_binary, str(cli_path), "--key-color", f"#{chroma_hex.upper()}", "--preset", preset],
+        input=json.dumps(payload),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.strip() or result.stdout.strip() or "unknown chroma-key CLI failure"
+        raise SystemExit(f"ERROR: chroma_key_cli.mjs failed: {stderr}")
+    output = json.loads(result.stdout)
+    rgba = base64.b64decode(output["rgbaBase64"])
+    return Image.frombytes("RGBA", (output["width"], output["height"]), rgba)
 
 
 def load_frames(row_dir: Path, expected: int = 8) -> list[tuple[Path, Image.Image]]:
@@ -129,7 +114,13 @@ def main() -> None:
     parser.add_argument("--row-dir", required=True, type=Path, help="Directory containing matte-backed f01.png … f08.png")
     parser.add_argument("--out-dir", required=True, type=Path, help="Directory for transparent keyed frames")
     parser.add_argument("--preview-out", required=True, type=Path, help="Transparent 1x8 review strip path")
-    parser.add_argument("--chroma", default="auto", help="auto or a 6-digit hex key such as 00ff00")
+    parser.add_argument("--chroma", default="auto", help="auto or one of 00b140, 0047bb, ff00ff")
+    parser.add_argument(
+        "--preset",
+        default="balanced",
+        choices=["balanced", "preserveDetail", "strongSpill"],
+        help="Fixed matte preset from the canonical TypeScript chroma engine",
+    )
     parser.add_argument("--frames", type=int, default=8, help="Expected number of frames (default: 8)")
     args = parser.parse_args()
 
@@ -139,17 +130,25 @@ def main() -> None:
     loaded = load_frames(args.row_dir, args.frames)
     if not loaded:
         sys.exit(f"ERROR: no frames found in {args.row_dir}")
+    node_binary = shutil.which("node")
+    if not node_binary:
+        sys.exit("ERROR: node is required for chroma_key_cli.mjs")
+    cli_path = Path(__file__).with_name("chroma_key_cli.mjs")
+    if not cli_path.exists():
+        sys.exit(f"ERROR: {cli_path} not found")
 
     if args.chroma == "auto":
-        chroma = detect_frame_chroma(loaded[0][1])
-        print(f"Auto-detected chroma key -> #{chroma[0]:02x}{chroma[1]:02x}{chroma[2]:02x}")
+        chroma = detect_canonical_chroma(loaded[0][1])
+        chroma_hex = normalize_chroma_hex(f"{chroma[0]:02x}{chroma[1]:02x}{chroma[2]:02x}")
+        print(f"Auto-detected chroma key -> #{chroma_hex.upper()}")
     else:
-        chroma = parse_hex_color(args.chroma)
+        chroma_hex = normalize_chroma_hex(args.chroma)
+        chroma = parse_hex_color(chroma_hex)
 
     keyed_frames: list[tuple[Path, Image.Image]] = []
     validation_errors: list[str] = []
     for index, (path, frame) in enumerate(loaded, start=1):
-        keyed = zero_transparent_rgb(remove_chroma(frame, chroma))
+        keyed = zero_transparent_rgb(run_chroma_key_cli(frame, chroma_hex, args.preset, cli_path, node_binary))
         keyed_frames.append((path, keyed))
         validation_errors.extend(validate_keyed_frame(keyed, index))
 

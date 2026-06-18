@@ -53,13 +53,13 @@ Alignment specifics (these serve the rule above):
 
 The plugin treats chroma as a machine-validated matte, not an aesthetic suggestion. Prompt-level "flat green" is not trusted by itself because image generation may add falloff, shadows, texture, or inconsistent key areas.
 
-`--chroma` defaults to `#00ff00` (green). The agent picks the key per row by one rule — use the key whose hue is **absent** from the pet and its props:
+`--chroma` defaults to canonical chroma green `#00B140`. The only supported key colors are canonical chroma green `#00B140`, canonical chroma magenta `#FF00FF`, and canonical chroma blue `#0047BB`. The agent picks the key per row by one rule — use the key whose hue is **absent** from the pet and its props:
 
-- `#00ff00` (green) — default; cleanest key, used unless the pet has green.
-- `#ff00ff` (magenta) — when the pet has green (greenish eyes, brown/green hair highlights, green props or effects).
-- `#0000ff` (blue) — when the pet has both green and magenta/pink.
+- `#00B140` (green) — default; cleanest key, used unless the pet has green.
+- `#FF00FF` (magenta) — when the pet has green (greenish eyes, brown/green hair highlights, green props or effects).
+- `#0047BB` (blue) — when the pet has both green and magenta/pink.
 
-Rows whose own green details force a non-green key (use `#ff00ff`):
+Rows whose own green details force a non-green key (use `#FF00FF`):
 
 - `green-tdd`
 - `review-clean`
@@ -71,7 +71,7 @@ This avoids the failure mode where an intended green checkmark, green stamp, or 
 Seed-risk note:
 
 - If the pet itself is brown/green-heavy, green spill and greenish edge antialiasing are likely.
-- For those pets, choose `#ff00ff` (or `#0000ff`) up front rather than forcing green and repairing damaged edges afterward.
+- For those pets, choose `#FF00FF` (or `#0047BB`) up front rather than forcing green and repairing damaged edges afterward.
 
 Hardening rules:
 
@@ -80,9 +80,10 @@ Hardening rules:
 - `normalize_generated_sheet.py` snaps the generated `4×2` row candidate to the exact canonical `4×2` sheet geometry (exact cell sizes + flat key) before slicing, and now fails early when border-connected mixed mattes or clipped non-key background survive the declared key.
 - Foreground pixels that still look like the active key color are a hard failure unless `--allow-foreground-key` is explicitly passed.
 - All 8 cells must be populated; no body part, prop, effect, or antialiasing may cross a cell boundary.
+- `key_row_frames.py` shells out to the canonical TypeScript matte engine through a fixed-preset CLI. No freeform tuning or UI improvisation is part of the plugin workflow.
 - `key_row_frames.py` emits both transparent keyed frames and a transparent `rows-keyed/<tier>/<row>.png` review strip. Treat that strip as a blocker gate, not a courtesy artifact.
 - `stitch_row.py` is assembly-only and now refuses matte-backed frames; it no longer performs implicit chroma removal.
-- `inspect_frames.py` and `validate_atlas.py` still enforce stable motion geometry and zero transparent-RGB residue on the composed output.
+- `inspect_frames.py` and `validate_atlas.py` still enforce stable motion geometry and zero transparent-RGB residue on the composed output, and they also flag legacy pure-green / pure-blue matte leftovers as residue.
 - After composing, `make_qa_crop_sheet.py` creates a face/prop crop sheet and JSON report. Treat warnings about face chroma residue or enclosed transparent pixels as blockers unless you can name the false positive explicitly.
 
 ## Mandatory pre-install QA gate
@@ -186,14 +187,14 @@ python scripts/prepare_pet_run.py \
 
 # 2. Use Codex's built-in image_gen tool to generate one row candidate at a time.
 #    Use sheet-prompts/<tier>/<row>.txt. The generated prompts use row-safe chroma:
-#    #00ff00 (green) by default; switch to #ff00ff/#0000ff per the chroma rule.
+#    #00B140 (green) by default; switch to #FF00FF/#0047BB per the chroma rule.
 #    If image_gen drops the raw file in ~/.codex scratch/cache space first,
 #    immediately copy or move it into run/beemo/sheets/<tier>/<row>.png
 
 # 3. Normalize to exact 4x2, then slice, key, review, stitch, and inspect each row
-python scripts/normalize_generated_sheet.py --input run/beemo/sheets/lite-basic/implementing.png --out run/beemo/sheets/lite-basic/implementing.normalized.png --source-layout 4x2 --source-chroma 00ff00 --out-chroma 00ff00
-python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.normalized.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma 00ff00
-python scripts/key_row_frames.py --row-dir run/beemo/frames/lite-basic/implementing/ --out-dir run/beemo/frames-keyed/lite-basic/implementing/ --preview-out run/beemo/rows-keyed/lite-basic/implementing.png --chroma 00ff00
+python scripts/normalize_generated_sheet.py --input run/beemo/sheets/lite-basic/implementing.png --out run/beemo/sheets/lite-basic/implementing.normalized.png --source-layout 4x2 --source-chroma 00b140 --out-chroma 00b140
+python scripts/slice_animation_sheet.py --sheet run/beemo/sheets/lite-basic/implementing.normalized.png --out-dir run/beemo/frames/lite-basic/implementing/ --chroma 00b140
+python scripts/key_row_frames.py --row-dir run/beemo/frames/lite-basic/implementing/ --out-dir run/beemo/frames-keyed/lite-basic/implementing/ --preview-out run/beemo/rows-keyed/lite-basic/implementing.png --chroma 00b140 --preset balanced
 python scripts/stitch_row.py     --row-dir run/beemo/frames-keyed/lite-basic/implementing/ --out run/beemo/rows/lite-basic/implementing.png
 python scripts/inspect_frames.py --row run/beemo/rows/lite-basic/implementing.png --seed run/beemo/seed.png
 
@@ -298,7 +299,7 @@ hatch-codogotchi/
 
 5. **Jerky / over-animated motion (the stability killer)** — The single worst outcome. Because each of the 8 frames is generated independently, big or whole-body described motion comes back incoherent: legs swing, props jump around, the pet hops. For standing/status rows, **stability beats expressiveness every time** — anchor the body and both feet, move one element at low amplitude, keep frame-to-frame change small. For locomotion rows, require progress stability instead: smooth stride increments, stable scale/baseline/direction, and no static frames followed by a teleport jump. "No static rows" is a floor (subtle smooth life), not a target. See *Motion & alignment doctrine* above and `references/animation-rows-lite.md` → *motion restraint*.
 
-5a. **Chroma-damaged face/eyes** — Green chroma can key out greenish eyes or highlights before the final atlas ever sees “residue.” For greenish eyes/highlights use `#ff00ff` (not green), inspect `qa-crops-<tier>.png`, and reject any frame with key-colour holes, masks, or missing iris/highlight pixels.
+5a. **Chroma-damaged face/eyes** — Green chroma can key out greenish eyes or highlights before the final atlas ever sees “residue.” For greenish eyes/highlights use `#FF00FF` (not green), inspect `qa-crops-<tier>.png`, and reject any frame with key-colour holes, masks, or missing iris/highlight pixels.
 
 6. **Mime / charades (the readability killer)** — Codogotchi animations must be readable at a glance. States that don't map to a plain human emotion must be carried by **one clearly-visible prop**, never subtle hand gestures or an *invisible* prop ("invisible keyboard", "unseen screen"). Use **exactly the prop named — never an A/B choice** (the old `reading` "page/tablet" drew a tablet in some frames and a book in others). Same prop, all 8 frames. See `references/animation-rows-lite.md` → *prop doctrine*.
 
