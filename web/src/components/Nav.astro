@@ -60,7 +60,7 @@ const links = [
     <!-- min-h-11 reserves the hydrated AuthWidget button height (44px) so the
          nav doesn't grow and push the page down when the island mounts (CLS). -->
     <div class="flex items-center gap-3 min-h-11">
-      <AuthWidget client:only="react" />
+      <AuthWidget client:only="react" transition:persist />
       <a
         href="/download"
         class="hidden md:flex squishy-btn bg-primary-container text-on-primary-container font-display font-bold text-sm px-5 py-2 rounded-full items-center gap-1.5"
@@ -99,10 +99,14 @@ const links = [
 </nav>
 
 <script>
-  const t = document.getElementById("menu-toggle");
-  const m = document.getElementById("mobile-menu");
-  t?.addEventListener("click", () => {
-    m?.classList.toggle("hidden");
-    m?.classList.toggle("flex");
+  // astro:page-load fires on first load AND after every ClientRouter soft
+  // navigation, re-wiring the freshly-swapped nav DOM each time.
+  document.addEventListener("astro:page-load", () => {
+    const t = document.getElementById("menu-toggle");
+    const m = document.getElementById("mobile-menu");
+    t?.addEventListener("click", () => {
+      m?.classList.toggle("hidden");
+      m?.classList.toggle("flex");
+    });
   });
 </script>

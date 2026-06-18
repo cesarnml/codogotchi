@@ -216,12 +216,15 @@ const locked = [
   </section>
 
   <script>
-    const form = document.getElementById("notify-form");
-    const msg = document.getElementById("notify-msg");
-    form?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      if (msg) msg.hidden = false;
-      (form as HTMLFormElement).reset();
+    // astro:page-load re-wires the form after every ClientRouter soft nav.
+    document.addEventListener("astro:page-load", () => {
+      const form = document.getElementById("notify-form");
+      const msg = document.getElementById("notify-msg");
+      form?.addEventListener("submit", (e) => {
+        e.preventDefault();
+        if (msg) msg.hidden = false;
+        (form as HTMLFormElement).reset();
+      });
     });
   </script>
 </Base>

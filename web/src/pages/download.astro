@@ -139,25 +139,34 @@ const VERSION = "1.1.2";
   </section>
 
   <script>
-    document.querySelectorAll<HTMLButtonElement>(".copy-btn").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const text = btn.getAttribute("data-copy") || "";
-        try {
-          await navigator.clipboard.writeText(text);
-          const icon = btn.querySelector("span");
-          if (icon) {
-            const prev = icon.textContent;
-            icon.textContent = "check";
-            setTimeout(() => (icon.textContent = prev), 1600);
-          }
-        } catch {}
+    // astro:page-load re-wires copy buttons after every ClientRouter soft nav.
+    document.addEventListener("astro:page-load", () => {
+      document.querySelectorAll<HTMLButtonElement>(".copy-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const text = btn.getAttribute("data-copy") || "";
+          try {
+            await navigator.clipboard.writeText(text);
+            const icon = btn.querySelector("span");
+            if (icon) {
+              const prev = icon.textContent;
+              icon.textContent = "check";
+              setTimeout(() => (icon.textContent = prev), 1600);
+            }
+          } catch {}
+        });
       });
     });
   </script>
 
   <script is:inline define:vars={{ CONVEX_SITE }}>
-    document.getElementById("dmg-download-btn")?.addEventListener("click", () => {
-      fetch(`${CONVEX_SITE}/track-dmg-download`, { method: "POST" }).catch(() => {});
+    document.addEventListener("astro:page-load", () => {
+      document
+        .getElementById("dmg-download-btn")
+        ?.addEventListener("click", () => {
+          fetch(`${CONVEX_SITE}/track-dmg-download`, { method: "POST" }).catch(
+            () => {},
+          );
+        });
     });
   </script>
 </Base>
