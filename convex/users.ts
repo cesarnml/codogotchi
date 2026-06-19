@@ -47,31 +47,6 @@ export const getUserById = internalQuery({
   },
 });
 
-// One-off / maintenance backfill: stamp emailVerificationTime for a user whose
-// email is already proven (e.g. a password account that completed the Resend
-// OTP round-trip before the auth callback persisted the timestamp). Idempotent
-// — leaves an already-stamped user untouched. Returns what it did.
-export const backfillEmailVerification = internalMutation({
-  args: { email: v.string() },
-  handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("email", (q) => q.eq("email", args.email))
-      .first();
-    if (!user) return { found: false as const };
-    if (user.emailVerificationTime !== undefined) {
-      return {
-        found: true as const,
-        alreadySet: true,
-        at: user.emailVerificationTime,
-      };
-    }
-    const at = user._creationTime;
-    await ctx.db.patch(user._id, { emailVerificationTime: at });
-    return { found: true as const, alreadySet: false, at };
-  },
-});
-
 export const getUserByUsername = query({
   args: { username: v.string() },
   handler: async (ctx, args) => {
