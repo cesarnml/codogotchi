@@ -4,7 +4,7 @@ slice_grid.py — Slice a 4x2 generated grid into a canonical 1536x208 row strip
 
 v5 path-policy reversal. image_gen cannot hit an exact canvas size, so we never
 require one. The model is asked for ONE 4x2 grid per animation row (4 cols x 2
-rows = 8 cells, all populated, no empty cell) on flat chroma-green #00B140. The
+rows = 8 cells, all populated, no empty cell) on flat magenta #FF00FF. The
 4x2 framing keeps the model near a friendly ~16:9-ish ratio, which avoids the
 clipping that an 8:1 strip request always caused.
 
@@ -16,10 +16,10 @@ This script is dimension-tolerant on input and exact on output:
   3. Compute ONE shared scale across all 8 cells (tallest content sets it) so the
      character does not change size frame-to-frame.
   4. Resize each cell's content at the shared scale, horizontally center it, and
-     bottom-baseline it onto a flat-green 192x208 cell canvas.
-  5. Concatenate the 8 cells left-to-right into a 1536x208 flat-green strip.
+     bottom-baseline it onto a flat-key 192x208 cell canvas.
+  5. Concatenate the 8 cells left-to-right into a 1536x208 flat-key strip.
 
-The strip carries its flat green background end-to-end; this script does NOT key.
+The strip carries its flat key background end-to-end; this script does NOT key.
 Intentional green props (verifying's green check, web-search's green globe) are
 inside the foreground content box and are preserved for the user's keying tool.
 
@@ -192,7 +192,7 @@ def gutter_cells(sheet: Image.Image, chroma: tuple[int, int, int]) -> list[Image
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Slice a 4x2 generated grid (any size) into a canonical 1536x208 green row strip."
+        description="Slice a 4x2 generated grid (any size) into a canonical 1536x208 row strip."
     )
     parser.add_argument("--input", required=True, type=Path, help="Generated 4x2 grid PNG/WebP (any dimensions)")
     parser.add_argument("--out", required=True, type=Path, help="Output 1536x208 row strip PNG")
@@ -216,7 +216,7 @@ def main() -> None:
     for idx, cell in enumerate(raw_cells, start=1):
         bbox = content_bbox(cell, chroma)
         if bbox is None:
-            print(f"  WARNING: cell {idx} has no detectable foreground — leaving green", file=sys.stderr)
+            print(f"  WARNING: cell {idx} has no detectable foreground — leaving background", file=sys.stderr)
             cropped.append(None)
         else:
             cropped.append(cell.crop(bbox))
@@ -242,7 +242,7 @@ def main() -> None:
         resized = content.resize((scaled_w, scaled_h), Image.LANCZOS).convert("RGBA")
         cell_x = i * CELL_W + (CELL_W - scaled_w) // 2
         cell_y = CELL_H - args.padding - scaled_h
-        # Composite over the cell's green so anti-aliased edges blend to the key.
+        # Composite over the cell's key colour so anti-aliased edges blend to the key.
         cell_canvas = Image.new("RGBA", (CELL_W, CELL_H), (*chroma, 255))
         cell_canvas.alpha_composite(resized, (max(0, cell_x - i * CELL_W), max(0, cell_y)))
         strip.alpha_composite(cell_canvas, (i * CELL_W, 0))

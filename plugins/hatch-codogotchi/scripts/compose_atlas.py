@@ -3,9 +3,9 @@
 compose_atlas.py — Stack validated row strips into a Codogotchi spritesheet atlas.
 
 Expects all row strips as 1536 × cell_h PNGs in --rows-dir, named in row order.
-v4.0.0: strips carry their flat chroma-green (#00B140) background — keying is done
+Strips carry their flat chroma-key background — keying is done
 later by the user in Chroma Key Studio. Stacks the strips top → bottom onto a flat
-green canvas and saves an opaque RGB PNG (still green-background, pre-key).
+key-colour canvas and saves an opaque RGB PNG (still pre-key).
 Encode to WebP separately: cwebp -lossless -exact out.png -o out.webp
 """
 

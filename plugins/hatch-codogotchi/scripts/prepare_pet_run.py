@@ -402,17 +402,7 @@ PROP DOCTRINE (read this — codogotchi animations are NOT charades):
 - Use EXACTLY the prop named — never an A/B choice. The prop is the SAME object, same design, in all 8 frames.
 - Emotion-led rows may lead with expression; everything else is prop-led.
 
-BACKGROUND & FRAME RULES:
-- Background: one single uninterrupted FLAT chroma-green key color, EXACTLY hex #{chroma} (RGB 0,177,64), filling
-  the ENTIRE image — every cell and all the space between cells. This green is a CHROMA KEY that the user removes
-  later with a dedicated tool, so it must be perfectly uniform.
-- The background must be exactly that same solid #{chroma} in every frame and between frames: no lighting falloff,
-  vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
-  separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
-- Output flat RGB on the #{chroma} background. Do NOT output transparency/RGBA — fill the background with the green key.
-- Padding: at least 8 px on all sides inside each 192 × 208 frame.
-- Same character scale and baseline across all 8 frames.
-- Frame 8 pose ≈ frame 1 pose so the loop closes cleanly.
+{build_background_rules(chroma)}
 
 After completing the Codex idle row: use frame 1 of idle as the seed artifact and attach it to ALL subsequent
 generation calls alongside this prompt, to anchor character consistency.
@@ -574,7 +564,7 @@ def main() -> None:
     print(
         "     python scripts/slice_grid.py --input <grid> --out <row-strip>"
     )
-    print("\nAfter ALL rows: compose → green-background atlas → slim QA → hand the atlas to the user for keying:")
+    print("\nAfter ALL rows: compose → magenta-background atlas → slim QA → hand the atlas to the user for keying:")
     print("  python scripts/compose_atlas.py --rows-dir <row-strips-dir> --tier <tier> --out <work>/<sheet>.png")
     print("  cwebp -lossless -exact <work>/<sheet>.png -o <work>/<sheet>.webp")
     print("  python scripts/validate_atlas.py --atlas <work>/<sheet>.webp --tier <tier> --out-json <validation-json>")
@@ -582,8 +572,8 @@ def main() -> None:
     print("  python scripts/render_animation_previews.py --atlas <work>/<sheet>.webp --tier <tier>")
     print("  python scripts/pre_install_qa_gate.py --atlas <work>/<sheet>.webp --tier <tier>")
     print(
-        "\nThe atlas still has its flat green background. Do NOT install it directly. Direct the user to key it at\n"
-        "https://chromakeyremoval.vercel.app — load the green atlas, tune the knobs, export the transparent sheet,\n"
+        "\nThe atlas still has its flat magenta background. Do NOT install it directly. Direct the user to key it at\n"
+        "https://chromakeyremoval.vercel.app — load the magenta atlas, tune the knobs, export the transparent sheet,\n"
         "and only then install/upload the keyed result."
     )
 

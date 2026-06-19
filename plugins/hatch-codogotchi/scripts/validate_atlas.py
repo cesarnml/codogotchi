@@ -2,9 +2,9 @@
 """
 validate_atlas.py — Final validation of a composed Codogotchi spritesheet atlas.
 
-v4.0.0 (strip-first, pre-key): the atlas still has its flat chroma-green
-background — keying happens later in Chroma Key Studio. On a green background a
-green prop is indistinguishable from the key, so per-frame alpha geometry
+Pre-key: the atlas still has its flat chroma-key background (magenta by default)
+— keying happens later in Chroma Key Studio. Because the background is an opaque
+key rather than transparency, there is no per-frame alpha to measure, so geometry
 (padding/scale/center, chroma residue) cannot be measured reliably here and is
 intentionally NOT checked. What this script DOES check is what is honest pre-key:
 exact dimensions, grid divisibility, and static-row detection (frames that are
@@ -75,7 +75,7 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
             "valid if pixel math holds"
         )
 
-    # --- Static-row detection (RGB; works on a green-background sheet) ---
+    # --- Static-row detection (RGB; works on any opaque pre-key sheet) ---
     if h % n_rows == 0 and w % 8 == 0:
         for row_idx in range(n_rows):
             label = labels[row_idx] if row_idx < len(labels) else f"row-{row_idx}"
@@ -98,7 +98,7 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
         "tier": tier,
         "dimensions": {"width": w, "height": h},
         "cell_size": {"width": cell_w, "height": cell_h},
-        "background": "chroma-green #00B140 (pre-key)",
+        "background": "flat chroma key (pre-key)",
         "errors": errors,
         "warnings": warnings,
     }
@@ -113,7 +113,7 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
         for e in errors:
             print(f"  ✗ {e}")
     else:
-        print(f"\nPASS — {w}×{h}, {n_rows} rows × 8 cols, cell {cell_w}×{cell_h} (green-background, pre-key)")
+        print(f"\nPASS — {w}×{h}, {n_rows} rows × 8 cols, cell {cell_w}×{cell_h} (pre-key)")
 
     if warnings:
         for w_msg in warnings:
@@ -123,7 +123,7 @@ def validate(atlas_path: Path, tier: str, out_json: Path | None = None) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Validate a Codogotchi spritesheet atlas (pre-key, green background).")
+    parser = argparse.ArgumentParser(description="Validate a Codogotchi spritesheet atlas (pre-key, opaque key background).")
     parser.add_argument("--atlas", required=True, type=Path, help="Path to the atlas WebP or PNG")
     parser.add_argument("--tier", required=True, choices=list(TIER_SPECS.keys()))
     parser.add_argument("--out-json", type=Path, default=None, help="Optional path to write JSON report")

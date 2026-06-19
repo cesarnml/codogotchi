@@ -8,7 +8,7 @@ from the pet's existing Tier 1 sheet, so the new sheets stay on-model.
 Default: row 0 (idle), col 0 — the neutral standing pose. Pass --row / --col to
 choose a different cell if the idle frame is occluded or unclear.
 
-The output is a 192×208 (or native cell size) PNG composited onto solid #00B140,
+The output is a 192×208 (or native cell size) PNG composited onto solid #FF00FF,
 ready to attach to image-generation prompts as a character reference.
 """
 
@@ -88,7 +88,7 @@ def main() -> None:
     parser.add_argument("--row", type=int, default=DEFAULT_ROW, help=f"Row index to extract (default: {DEFAULT_ROW} = idle)")
     parser.add_argument("--col", type=int, default=DEFAULT_COL, help=f"Column index to extract (default: {DEFAULT_COL} = frame 1)")
     parser.add_argument("--codex-rows", type=int, default=CODEX_ROWS, help=f"Number of rows in the Codex sheet (default: {CODEX_ROWS})")
-    parser.add_argument("--chroma", default="00b140", help="Chroma-key hex colour for background (default: 00b140)")
+    parser.add_argument("--chroma", default="ff00ff", help="Chroma-key hex colour for background (default: ff00ff)")
     parser.add_argument("--print-cell-size", action="store_true", help="Print the cell dimensions and exit")
     parser.add_argument("--keep-alpha", action="store_true", help="Output RGBA PNG instead of compositing on chroma background")
     args = parser.parse_args()
