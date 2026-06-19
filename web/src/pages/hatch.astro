@@ -15,12 +15,12 @@ const steps = [
   {
     n: 3,
     title: "Codex generates rows",
-    body: "Frames are drawn one row at a time with image_gen and self-validated.",
+    body: "Frames are drawn one row at a time with image_gen and self-validated. Sheets come out on a flat magenta key.",
   },
   {
     n: 4,
     title: "Restart Codogotchi",
-    body: "It installs to ~/.codogotchi/pets/<id>/. Your pet is alive.",
+    body: "Once the sheets are keyed transparent (see Studio below), they install to ~/.codogotchi/pets/<id>/. Your pet is alive.",
   },
 ];
 
@@ -201,6 +201,42 @@ const skills = [
           ))
         }
       </div>
+    </div>
+  </section>
+
+  <!-- Finishing step, separate from hatching: key the magenta sheets in Studio -->
+  <section class="max-w-5xl mx-auto px-6 py-6">
+    <div
+      class="sticker-card bg-tertiary-container/25 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5"
+    >
+      <div class="flex items-start gap-3 flex-1">
+        <div
+          class="bg-tertiary text-on-tertiary rounded-xl p-2.5 border-2 border-charcoal-ink shrink-0"
+        >
+          <span class="material-symbols-outlined">colorize</span>
+        </div>
+        <div>
+          <h2 class="font-display text-lg font-bold text-on-surface">
+            One finishing step — over in Studio
+          </h2>
+          <p class="text-sm text-on-surface-variant mt-1 leading-relaxed">
+            Hatching hands you <strong>magenta-background</strong> sheets — not transparent
+            yet. That last bit of keying isn't really part of hatching; it lives in
+            <strong>Codogotchi Studio</strong>. Drop each
+            <code class="font-mono text-xs text-primary">.webp</code> in, export it
+            transparent, and install it alongside
+            <code class="font-mono text-xs text-primary">pet.json</code>. Runs entirely in
+            your browser — nothing is uploaded.
+          </p>
+        </div>
+      </div>
+      <a
+        href="/studio"
+        class="squishy-btn bg-tertiary-container text-on-tertiary-container font-display font-bold text-sm px-5 py-2.5 rounded-full whitespace-nowrap flex items-center gap-1.5 shrink-0"
+      >
+        <span class="material-symbols-outlined text-[18px]">colorize</span>
+        Open Studio
+      </a>
     </div>
   </section>
 
