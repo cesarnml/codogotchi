@@ -47,7 +47,7 @@ Alignment specifics (these serve the rule above):
 - **Stable horizontal axis:** for standing/status rows, horizontally center the character/content in every cell so the pet does not hop left/right during playback. For locomotion rows, keep the character centered and judge the in-place stride cycle: scale, baseline, and facing stay stable while all 8 frames flow as distinct, even phases.
 - **Stable bottom baseline:** vertically align frames to a shared foot/ground baseline near the bottom of the cell, normally `y = cell_h - 8 - scaled_h`. Do **not** vertically center ordinary standing rows; that makes the pet float too far above the badge/panel.
 - **Validation guard:** `validate_atlas.py` gates dimensions, grid integrity, and static-row detection (RGB-based). On a pre-key sheet the background is an opaque key, not transparency, so there is no per-frame alpha to measure geometry from — scale and horizontal-alignment are **eyeball checks** on the contact sheet and previews.
-- **Jump exception:** explicit jump/leap rows (Codex `jumping`, SoA `ticket-completed`) may leave the baseline briefly but must still take off and land cleanly on a stable horizontal axis — controlled, not flailing.
+- **Jump exception:** explicit jump/leap rows (Codex `jumping`, SoA `ticket-completed`) are **one full jump cycle across all 8 distinct frames** (crouch → push-off → rise → airborne peak → descend → land → settle) — no standing/idle filler frames. Give real vertical clearance (feet clearly airborne at the peak, ~24–40 px off baseline — a genuine single bounce, not a ≤ 12 px shin-high hover that reads as floating), stay horizontally centered, raise the arms into a gesture that stays below full overhead extension (so hands don't clip the top), and take off and land cleanly on a stable horizontal axis — controlled, not flailing.
 
 ## Chroma-key policy (flat key, keyed by the user)
 
@@ -266,7 +266,7 @@ hatch-codogotchi/
 
 8. **Horizontal alignment drift** — The pet must not hop left/right inside the frame. Eyeball the contact sheet / previews and confirm the character body stays on a stable x-axis.
 
-9. **Vertical float from center alignment** — Ordinary standing rows should use a shared bottom baseline near `cell_h - 8`, not vertical centering. Centering the full bbox vertically can make the pet hover too far above the `AnimationBadgePanel`. Jump/leap rows are the exception, and they must visibly take off and land.
+9. **Vertical float from center alignment** — Ordinary standing rows should use a shared bottom baseline near `cell_h - 8`, not vertical centering. Centering the full bbox vertically can make the pet hover too far above the `AnimationBadgePanel`. Jump/leap rows are the exception, and they must visibly take off (real clearance — ~24–40 px airborne at the peak, not a shin-high hover) and land cleanly, with all 8 frames a distinct phase of one bounce (no standing filler frames).
 
 10. **Character identity drift** — After every grid, compare against the seed artifact and verify the same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework. This is a human review on the contact sheet — there is no automated identity gate.
 

@@ -29,7 +29,7 @@ When the Tier 2 Lite sheet is present, rows 7–8 are only used for states not c
 
 ## Motion descriptions
 
-> **Motion restraint — row-kind aware.** Unconstrained whole-body motion comes back jerky across the row. For the **standing/expression rows** (`idle`, `waving`, `failed`, `waiting`, the two fallbacks `running`/`review`): anchor the torso, head, hips, and **both feet**, move **one element** (one arm, the eyes/expression, a ≤few-px bob) at low amplitude, and keep frame-to-frame change small. Read every verb (*bounce, nod, tap, recoil, lean*) as **small and gentle** — `idle` already says "character barely moves," and that restraint is the model for the others. For **locomotion rows** (`running-right`, `running-left`), animate a fluid run-in-place stride cycle: stable scale, baseline, and facing direction, kept horizontally centered (no lateral travel — that risks clipping the cell edge), with all 8 frames distinct, evenly-spaced phases that flow. Avoid the common failure mode of 2–3 near-identical frames followed by one large jump. `jumping` is its own controlled takeoff/land row with feet off baseline ≤ 12 px. When expressiveness and stability conflict, choose the stability rule for that row kind.
+> **Motion restraint — row-kind aware.** Unconstrained whole-body motion comes back jerky across the row. For the **standing/expression rows** (`idle`, `waving`, `failed`, `waiting`, the two fallbacks `running`/`review`): anchor the torso, head, hips, and **both feet**, move **one element** (one arm, the eyes/expression, a ≤few-px bob) at low amplitude, and keep frame-to-frame change small. Read every verb (*bounce, nod, tap, recoil, lean*) as **small and gentle** — `idle` already says "character barely moves," and that restraint is the model for the others. For **locomotion rows** (`running-right`, `running-left`), animate a fluid run-in-place stride cycle: stable scale, baseline, and facing direction, kept horizontally centered (no lateral travel — that risks clipping the cell edge), with all 8 frames distinct, evenly-spaced phases that flow. Avoid the common failure mode of 2–3 near-identical frames followed by one large jump. `jumping` is its own controlled single-bounce row: one full jump cycle across all 8 distinct frames (no standing filler frames), feet clearly airborne at the peak (~24–40 px off baseline, not a ≤ 12 px hover), arms raised but below full overhead extension. When expressiveness and stability conflict, choose the stability rule for that row kind.
 
 ### Row 0 — idle
 
@@ -69,7 +69,9 @@ Alert, ready for the next prompt. Upright attentive stance, eyes forward, a smal
 
 ### Row 4 — jumping
 
-Triggered by left-click-hold on the floating pet. Knees bend (wind-up), leap upward (both feet leave baseline — ≤ 12 px gap is acceptable), peak hang with arms spread or raised, descend, soft landing absorbed into settle. Should feel bouncy and playful, not alarmed.
+Triggered by left-click-hold on the floating pet. Animate **one full jump cycle spread evenly across all 8 frames** — crouch/wind-up → push-off → rise → airborne peak → descend → land → settle/recover — so frame 8 returns cleanly to frame 1. **No standing/idle filler frames:** do not waste frames 1, 7, and 8 on the pet just standing; every frame is a distinct phase of the single bounce.
+
+Give it **real vertical clearance**: at the peak both feet are clearly airborne — roughly **24–40 px** off the baseline (a genuine single bounce, well above the shins), not the ≤ 12 px hover that reads as floating. Keep the character **horizontally centered** (no drift). Arms lift into a raised gesture during the rise/peak but stay **below a full overhead extension** so the hands don't clip the top of the cell. Soft landing absorbed into the settle. Should feel bouncy and playful, not alarmed — one controlled bounce, not a hover-hop.
 
 **Tone:** fun, springy, reactive.
 
