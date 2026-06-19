@@ -1,6 +1,8 @@
 # Post-Phase 11 mainline sweep
 
-Reference for agents and maintainers: what shipped directly on `main` after the Phase 11 ticket stack closed at `56dc386` (`v0.1.0`) through `7d649c9`.
+> **Status (2026-06-20): direct-to-main window CLOSED.** This ledger covers two sweeps of unplanned `main` work after the Phase 11 stack. The accumulated surface — production marketplace operations, upload guardrails, an auth-verification fix, a Studio chroma-key page, and a full Hatch pipeline rewrite (v3 → v6) — confirms the project has outgrown direct-to-main. Work now returns to **structured SoA phase delivery starting with Phase 12 (refactor / architectural cleanup)** to pay down the drift catalogued here and prepare a clean foundation for the v2 roadmap. Treat new multi-surface work as phase/ticket scope, not mainline commits.
+
+Reference for agents and maintainers: what shipped directly on `main` after the Phase 11 ticket stack closed at `56dc386` (`v0.1.0`). **Sweep 1** runs through `7d649c9`; **Sweep 2** (below) runs `6a07d298..ab7f6a6c` and is the final batch before the Phase 12 boundary.
 
 **Sweep command:** `git log --reverse --date=short --pretty=format:'%h %ad %s' 56dc386..HEAD`
 
@@ -119,13 +121,94 @@ Direct-to-main remains reasonable for single-surface copy fixes, release unblock
 
 ---
 
+## Sweep 2 (2026-06-16 → 2026-06-20)
+
+The batch from the Sweep 1 closeout commit (`6a07d298`) to the Phase 12 boundary (`ab7f6a6c`). Sweep command: `git log --reverse --date=short --pretty=format:'%h %ad %s' 6a07d298..ab7f6a6c`. Dominated by two large efforts — a top-to-bottom Hatch pipeline rewrite and a round of production marketplace hardening — plus release packaging, web polish, and an SoA subtree pull. This is the cluster Phase 12 is meant to consolidate.
+
+### Change buckets
+
+| Bucket | Commits | What changed | Why it matters |
+| --- | --- | --- | --- |
+| Marketplace ops, uploads, and auth | `8ec9c511`, `f6873211`, `363905dd`, `9a275708`, `d64407b5`, `54a43178`, `eb61df99`, `9f1c9261`, `ab7f6a6c` | Seeded preview deployments with real (capped) gallery data, scoped Vercel deploys, referenced public pet queries via `api`, added a 10 MB upload size cap and a 5/hour per-user upload rate limit (admin-exempt), and fixed `createOrUpdateUser` to actually persist `emailVerificationTime` (the Resend OTP / OAuth signal was being dropped). | Production marketplace gained real abuse guardrails and an auth-correctness fix. This is exactly the operational-maintenance scope flagged in Sweep 1 — now substantial enough to deserve phase-level treatment. |
+| Hatch pipeline rewrite (v3 → v6) | `e5edc76f`, `bf1692a1`, `6761bb94`, `91b56d52`, `e7323199`, `6be77b19`, `b7347914`, `b19dfaf5`, `ce94d787`, `48757b6a`, `a0479279`, `e6f158a3`, `3e87393c`, `6b7c3b21`, `bbe4543e`, `86f3fef3`, `932e8f52`, `8c8cbae8`, `53c5ad9f`, `ea73435f`, `43ef8185` | Required `spritesheetPath`, hardened QA gates, then rewrote the generation pipeline end-to-end: strip-first → grid-first → slot-first; collapsed to a 4×2-only layout; switched chroma keying from green to magenta default to deterministic per-pet auto-select; moved the matte stage to the canonical TS engine; formalized the run workspace; and fixed running/jumping animation cycles. Versions advanced 3.2.0 → 4.0.0 → 5.x → 6.0.0. | Hatch is the pet-authoring contract surface. A rewrite this large with breaking version bumps is the single strongest argument for the Phase 12 cleanup boundary; its doctrine churn should be reconciled before v2 tooling builds on it. |
+| Studio, gallery, and web polish | `ccb7cb70`, `f5e84e80`, `647fad7a`, `559fa6a3`, `b8ffc2fb`, `79e5762e`, `7b3740cc`, `46ee0f63`, `24b16d75`, `61bc7df2`, `6758aa4a`, `f743095a`, `3a8b8a15`, `2379d112`, `1378354e`, `eefe4bd4` | Added the `/studio` chroma-key page and made `/hatch` Studio-aware, added a live perf-comparison infographic, killed the intermittent "Leave site?" dialog (adopted `ClientRouter`), fixed account-menu/dropdown/nav behavior, replaced gallery loading text with shimmer skeletons, routed Gallery straight to `/gallery` (dropped the `/pets` redirect), corrected gallery animation-state row names, removed a stray `package-lock.json`, configured Renovate, and optimized images. | The public surface kept evolving — notably a new in-browser tool (`/studio`) that pairs with the Hatch keying handoff. The "Leave site?" fix closes a long-standing nav bug. |
+| Release, packaging, and macOS app | `6f75a234`, `e6e3ea71`, `ed1da96f`, `4f54e54c`, `4be8f945` | Shipped v1.1.0 (Settings > Pet rework), repackaged 1.1.1, verified bundle packaging, shipped v1.1.2 with a refreshed app icon + Steam-style DMG installer, and added a low-health sickness overlay to the floating pet. | Continues the out-of-phase release cadence; v1.1.2 is the current shipped macOS build. |
+| README, Product Hunt, and SoA subtree | `098d7a42`, `a706601c`, `b2623b08`, `869d3669`, `09cbce61`, `19942875`, `dbd31a95`, `dd048c37` | README/Product Hunt launch updates, plus an SoA subtree pull bringing the gate badge system and the subtree-readonly guard. | Governance/tooling maintenance; the subtree pull keeps SoA delivery machinery current ahead of resuming phase work. |
+
+### Commit index
+
+| Date | Commit | Summary |
+| --- | --- | --- |
+| 2026-06-16 | `6a07d298` | Capture post-phase-11 mainline sweep (Sweep 1 closeout). |
+| 2026-06-16 | `098d7a42` | Update README with Product Hunt. |
+| 2026-06-16 | `8ec9c511` | Seed preview deployments with real gallery data. |
+| 2026-06-16 | `f6873211` | Cap preview seed at newest 10 listed pets. |
+| 2026-06-16 | `6f75a234` | Release v1.1.0 — Settings > Pet rework. |
+| 2026-06-16 | `e5edc76f` | Document source layouts and require `spritesheetPath`. |
+| 2026-06-16 | `e6e3ea71` | Repackage Codogotchi 1.1.1. |
+| 2026-06-16 | `363905dd` | Keep Vercel deploys scoped. |
+| 2026-06-16 | `ed1da96f` | Verify macOS app bundle packaging. |
+| 2026-06-16 | `ccb7cb70` | Add live perf-comparison infographic to landing page. |
+| 2026-06-16 | `bf1692a1` | Harden hatch-codogotchi QA gates. |
+| 2026-06-16 | `6761bb94` | Green-default 3-key chroma rule + 4×2-only layout. |
+| 2026-06-16 | `91b56d52` | Make 4×2 the only layout end-to-end (remove 3×3). |
+| 2026-06-16 | `e7323199` | Drop dead `is_empty_slot` / ninth-cell code from slicer. |
+| 2026-06-17 | `a706601c` | Update Product Hunt links in README. |
+| 2026-06-17 | `6be77b19` | Formalize Hatch run workspace to `~/Documents/Codex/<timestamp>`. |
+| 2026-06-17 | `869d3669` | Add subtree-readonly guard to `AGENTS.soa.md` and `claude.soa.md`. |
+| 2026-06-17 | `09cbce61` | Squashed `.son-of-anton/` changes. |
+| 2026-06-17 | `19942875` | Merge SoA subtree. |
+| 2026-06-17 | `dbd31a95` | Pull SoA upstream — gate badge system + subtree guard. |
+| 2026-06-18 | `dd048c37` | SoA update. |
+| 2026-06-18 | `f743095a` | Drop stray `package-lock.json` (bun is canonical). |
+| 2026-06-18 | `3a8b8a15` | Configure Renovate (#123). |
+| 2026-06-18 | `4f54e54c` | Refreshed app icon + Steam-style DMG installer (v1.1.2). |
+| 2026-06-18 | `2379d112` | Optimize images (ImgBot). |
+| 2026-06-18 | `9a275708` | Reference public pet queries via `api`, not internal. |
+| 2026-06-18 | `559fa6a3` | Kill intermittent "Leave site?" dialog + adopt `ClientRouter`. |
+| 2026-06-18 | `b8ffc2fb` | Account menu closes on any outside click + nav top gap. |
+| 2026-06-18 | `79e5762e` | Responsive RPG hero (stretch on mobile, `min-w-0` email input). |
+| 2026-06-18 | `7b3740cc` | Anchor account dropdown below the trigger (`top-full`). |
+| 2026-06-18 | `b7347914` | Enforce keyed-row review in hatch-codogotchi. |
+| 2026-06-18 | `b19dfaf5` | Document scratch-to-run relocation for hatch-codogotchi. |
+| 2026-06-18 | `ce94d787` | Switch hatch matte stage to canonical TS engine. |
+| 2026-06-18 | `4be8f945` | Add low-health sickness overlay to floating pet. |
+| 2026-06-18 | `48757b6a` | Update hatch-codogotchi prompt guidance. |
+| 2026-06-18 | `46ee0f63` | Replace gallery "Loading pets" text with 3 shimmer skeleton cards. |
+| 2026-06-18 | `a0479279` | Release hatch-codogotchi 3.2.0 with path-agnostic pipeline docs. |
+| 2026-06-18 | `24b16d75` | Link Gallery nav straight to `/gallery`, skip `/pets` redirect flash. |
+| 2026-06-18 | `61bc7df2` | Drop deleted `/pets` redirect, point doc refs to `/gallery`. |
+| 2026-06-18 | `6758aa4a` | Use canonical Codex row names in gallery animation states. |
+| 2026-06-18 | `e6f158a3` | Hatch v4.0.0 — strip-first pipeline, flat green, external keying. |
+| 2026-06-19 | `3e87393c` | Commit fully to the strip paradigm; make ~7.38:1 ratio explicit. |
+| 2026-06-19 | `b2623b08` | Update `README.md`. |
+| 2026-06-19 | `6b7c3b21` | Hatch v4.0.1 — restore v4 README, keep canonical jumping. |
+| 2026-06-19 | `bbe4543e` | Hatch v5.0.0 — grid-first pipeline, no prescribed paths, no model-side QA. |
+| 2026-06-19 | `86f3fef3` | Hatch v5.5.0 — magenta default key, gutter-aware grid slice. |
+| 2026-06-19 | `932e8f52` | Hatch v5.5.1 — purge stale green wording, fix description-mode prompt. |
+| 2026-06-19 | `f5e84e80` | Add Codogotchi Studio chroma-key page at `/studio`. |
+| 2026-06-19 | `1378354e` | Gitignore hatch-codogotchi generation output at repo root. |
+| 2026-06-19 | `8c8cbae8` | Hatch v5.5.2 — point keying handoff to `codogotchi.app/studio`. |
+| 2026-06-19 | `53c5ad9f` | Hatch v5.6.0 — fix running rows (in-place stride cycle), blue ghost. |
+| 2026-06-19 | `647fad7a` | Make `/hatch` Studio-aware; fix colorize icon subset. |
+| 2026-06-19 | `eefe4bd4` | Update `.gitignore`. |
+| 2026-06-19 | `ea73435f` | Hatch v5.7.0 — fix jumping (single full bounce, real clearance). |
+| 2026-06-19 | `43ef8185` | Hatch v6.0.0 — per-pet chroma auto-select, dynamic recolor, 4×2 guide. |
+| 2026-06-19 | `d64407b5` | Cap pet upload package size at 10 MB. |
+| 2026-06-20 | `54a43178` | Rate-limit pet uploads to 5/hour per user. |
+| 2026-06-20 | `eb61df99` | Exempt `admin@codogotchi.app` from upload rate limit. |
+| 2026-06-20 | `9f1c9261` | Persist email verification; harden admin rate-limit exemption. |
+| 2026-06-20 | `ab7f6a6c` | Remove one-off email-verification backfill mutation. |
+
+---
+
 ## Follow-up recommendations
 
-1. Treat this file as the closeout ledger for direct-to-main work after Phase 11.
-2. Start a new phase plan before the next feature that spans app + web + Convex, or Hatch plugin + runtime contracts.
-3. Keep direct-to-main for narrow fixes that can be understood from one commit title and one test command.
-4. If marketplace/gallery work continues, make "production gallery operations" the next explicit planning boundary instead of letting operator scripts, upload schema, and CDN behavior drift independently.
+1. **This file is the closeout ledger; the direct-to-main window is now closed.** Both sweeps are captured. New work resumes under SoA phase/ticket delivery.
+2. **Phase 12 = refactor / architectural cleanup.** Scope it to consolidate the drift catalogued here before any v2 feature builds on it. Prime candidates: the marketplace/gallery operational surface (upload schema, size + rate-limit guards, operator scripts, per-tier CDN/blob render path, preview-seed behavior), the Hatch pipeline (reconcile the v3 → v6 doctrine churn into one canonical contract), and the auth/user model now that `emailVerificationTime` is persisted.
+3. Hold the direct-to-main exception to genuinely narrow fixes (single-surface copy, release unblocks, asset swaps) understandable from one commit title and one test command. Anything spanning app + web + Convex, or Hatch + runtime contracts, goes through a phase plan.
+4. Treat Phase 12 as the foundation pass for the **v2 roadmap** — land the cleanup and durable contracts first so v2 features (per-platform multi-pet and the other roadmap candidates) start from a consolidated base rather than accreting on mainline drift.
 
 ## Suggested commit subject
 
-`docs: capture post-phase-11 mainline sweep`
+`docs: capture sweep 2 and close post-phase-11 mainline window`
