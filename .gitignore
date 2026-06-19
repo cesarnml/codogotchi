@@ -264,6 +264,7 @@ output
 /.codex-hatch-runs/
 /.hatch-runs/
 /generated-pets/
+.generated-pets/
 
 .cursor
 generated_assets/**/*
