@@ -318,12 +318,16 @@ const RATE_LIMIT_EXEMPT_EMAILS = new Set(["admin@codogotchi.app"]);
 export const checkAndRecordUpload = internalMutation({
   args: { userId: v.id("users"), windowMs: v.number(), max: v.number() },
   handler: async (ctx, args) => {
-    // Exempt admins entirely — no counting, no recording. Matched by account
-    // email: every sign-in path here (Google, GitHub, Resend OTP) proves email
-    // ownership at the provider, and @convex-dev/auth dedupes users by the
-    // `email` index, so exactly one account can ever hold this address.
+    // Exempt admins entirely — no counting, no recording. Requires a *verified*
+    // email (emailVerificationTime stamped by the auth callback after the Resend
+    // OTP round-trip or an OAuth-verified address) so the exemption can't be
+    // claimed by an unverified signup squatting the address.
     const user = await ctx.db.get(args.userId);
-    if (user?.email && RATE_LIMIT_EXEMPT_EMAILS.has(user.email)) {
+    if (
+      user?.email &&
+      user.emailVerificationTime !== undefined &&
+      RATE_LIMIT_EXEMPT_EMAILS.has(user.email)
+    ) {
       return { allowed: true as const, retryMs: 0 };
     }
 

@@ -55,6 +55,13 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       const profileName = profile.name as string | undefined;
       const profileImage = profile.image as string | undefined;
 
+      // The email is proven when this callback runs after an OTP/token
+      // verification (`type === "verification"`, the Resend OTP round-trip) or
+      // when the OAuth provider reports a verified address. Stamp the time once
+      // proven; never clear it on a later unverified sign-in.
+      const emailIsVerified =
+        args.type === "verification" || profile.emailVerified === true;
+
       if (args.existingUserId) {
         // Existing linked account — patch auth-managed fields that may have
         // changed since sign-up (name, image, email verification) without
@@ -63,6 +70,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           name: profileName,
           image: profileImage,
           email: profileEmail,
+          ...(emailIsVerified
+            ? { emailVerificationTime: Date.now() }
+            : undefined),
         });
         return args.existingUserId;
       }
@@ -139,6 +149,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         username,
         rpgHandle: null,
         usernameSet,
+        ...(emailIsVerified
+          ? { emailVerificationTime: Date.now() }
+          : undefined),
       });
     },
   },

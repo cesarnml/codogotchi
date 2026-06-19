@@ -477,7 +477,7 @@ describe("uploadPet action", () => {
     ).rejects.toThrow(/rate limit/i);
   });
 
-  test("admin email is exempt from the rate limit", async () => {
+  test("verified admin email is exempt from the rate limit", async () => {
     const t = convexTest(schema, convexTestModules);
     const now = Date.now();
     const adminId = await t.run(async (ctx) =>
@@ -485,6 +485,7 @@ describe("uploadPet action", () => {
         username: "admin",
         rpgHandle: null,
         email: "admin@codogotchi.app",
+        emailVerificationTime: now,
       }),
     );
 
@@ -505,7 +506,36 @@ describe("uploadPet action", () => {
     expect(result.created).toBe(true);
   });
 
-  test("a non-admin email is still rate limited", async () => {
+  test("unverified admin email is NOT exempt", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const now = Date.now();
+    const squatterId = await t.run(async (ctx) =>
+      ctx.db.insert("users", {
+        username: "squatter",
+        rpgHandle: null,
+        email: "admin@codogotchi.app",
+        // no emailVerificationTime — must not earn the exemption
+      }),
+    );
+
+    for (let i = 0; i < 5; i++) {
+      await t.run(async (ctx) => {
+        await ctx.db.insert("uploadEvents", {
+          userId: squatterId,
+          at: now - 60_000 * (i + 1),
+        });
+      });
+    }
+
+    const rawZipStorageId = await seedBlob(t, await makeValidPackage());
+    await expect(
+      t
+        .withIdentity({ subject: `${squatterId}|test-session` })
+        .action(api.actions.uploadPet.uploadPet, { rawZipStorageId }),
+    ).rejects.toThrow(/rate limit/i);
+  });
+
+  test("a verified non-admin email is still rate limited", async () => {
     const t = convexTest(schema, convexTestModules);
     const now = Date.now();
     const userId = await t.run(async (ctx) =>
@@ -513,6 +543,7 @@ describe("uploadPet action", () => {
         username: "regular",
         rpgHandle: null,
         email: "someone@example.com",
+        emailVerificationTime: now,
       }),
     );
 
