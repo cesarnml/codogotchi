@@ -193,7 +193,7 @@ export default function GalleryGrid({
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {status === "LoadingFirstPage" &&
-          Array.from({ length: 3 }).map((_, idx) => (
+          Array.from({ length: 5 }).map((_, idx) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length static skeleton list
             <SkeletonCard key={idx} idx={idx} />
           ))}
