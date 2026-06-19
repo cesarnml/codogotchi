@@ -149,6 +149,15 @@ export default defineSchema({
     .index("by_listed_createdAt", ["listed", "createdAt"])
     .index("by_author_createdAt", ["authorUserId", "createdAt"]),
 
+  // Per-user upload-attempt log for rate limiting. Every accepted upload
+  // attempt (create OR update) records one row; updates don't mint pet rows, so
+  // counting `pets` alone can't throttle them. One row per attempt, queried by
+  // user within a sliding window. Pruned opportunistically on each attempt.
+  uploadEvents: defineTable({
+    userId: v.id("users"),
+    at: v.number(),
+  }).index("by_user_at", ["userId", "at"]),
+
   // Aggregate-only DMG download counter. No personal data stored.
   dmg_downloads: defineTable({
     downloadedAt: v.number(),

@@ -377,24 +377,12 @@ describe("uploadPet action", () => {
     const t = convexTest(schema, convexTestModules);
     const userId = await seedUser(t);
     const now = Date.now();
-    const fakeZipId = await seedBlob(t, new Uint8Array([1, 2, 3]));
-    for (let i = 0; i < 10; i++) {
+    // Saturate the hourly limit (5 attempts within the last hour).
+    for (let i = 0; i < 5; i++) {
       await t.run(async (ctx) => {
-        await ctx.db.insert("pets", {
-          petId: `rl-seed-${i}`,
-          displayName: `Seeded ${i}`,
-          description: "seeded",
-          authorUserId: userId,
-          authorUsername: "testcreator",
-          tiers: ["codex"],
-          zipStorageId: fakeZipId,
-          thumbnailStorageId: null,
-          sizes: {},
-          downloadCount: 0,
-          listed: true,
-          reported: false,
-          createdAt: now - 3600_000,
-          updatedAt: now - 3600_000,
+        await ctx.db.insert("uploadEvents", {
+          userId,
+          at: now - 60_000 * (i + 1), // 1–5 min ago — within the 1h window
         });
       });
     }
@@ -413,26 +401,13 @@ describe("uploadPet action", () => {
     const t = convexTest(schema, convexTestModules);
     const userId = await seedUser(t);
     const now = Date.now();
-    const fakeZipId = await seedBlob(t, new Uint8Array([1, 2, 3]));
 
-    // Seed RATE_LIMIT_MAX (10) pets within the 24h window
-    for (let i = 0; i < 10; i++) {
+    // Saturate the hourly limit (5 attempts within the last hour).
+    for (let i = 0; i < 5; i++) {
       await t.run(async (ctx) => {
-        await ctx.db.insert("pets", {
-          petId: `seeded-pet-${i}`,
-          displayName: `Seeded ${i}`,
-          description: "seeded for rate-limit test",
-          authorUserId: userId,
-          authorUsername: "testcreator",
-          tiers: ["codex"],
-          zipStorageId: fakeZipId,
-          thumbnailStorageId: null,
-          sizes: {},
-          downloadCount: 0,
-          listed: true,
-          reported: false,
-          createdAt: now - 3600_000, // 1h ago — within 24h window
-          updatedAt: now - 3600_000,
+        await ctx.db.insert("uploadEvents", {
+          userId,
+          at: now - 60_000 * (i + 1),
         });
       });
     }
@@ -443,6 +418,62 @@ describe("uploadPet action", () => {
       t
         .withIdentity({ subject: `${userId}|test-session` })
         .action(api.actions.uploadPet.uploadPet, { rawZipStorageId }),
+    ).rejects.toThrow(/rate limit/i);
+  });
+
+  test("stale events outside the window do not count toward the limit", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const userId = await seedUser(t);
+    const now = Date.now();
+
+    // 5 attempts, but all older than the 1h window — should NOT block.
+    for (let i = 0; i < 5; i++) {
+      await t.run(async (ctx) => {
+        await ctx.db.insert("uploadEvents", {
+          userId,
+          at: now - 60 * 60_000 - 60_000 * (i + 1), // >1h ago
+        });
+      });
+    }
+
+    const rawZipStorageId = await seedBlob(t, await makeValidPackage());
+    const result = await t
+      .withIdentity({ subject: `${userId}|test-session` })
+      .action(api.actions.uploadPet.uploadPet, { rawZipStorageId });
+    expect(result.created).toBe(true);
+  });
+
+  test("update path is rate limited too", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const userId = await seedUser(t);
+    const now = Date.now();
+
+    // Publish a pet the user owns (one fresh attempt is consumed here).
+    const createZipId = await seedBlob(t, await makeValidPackage());
+    const created = await t
+      .withIdentity({ subject: `${userId}|test-session` })
+      .action(api.actions.uploadPet.uploadPet, {
+        rawZipStorageId: createZipId,
+      });
+
+    // Saturate the remaining quota with stale-but-in-window events.
+    for (let i = 0; i < 5; i++) {
+      await t.run(async (ctx) => {
+        await ctx.db.insert("uploadEvents", {
+          userId,
+          at: now - 60_000 * (i + 1),
+        });
+      });
+    }
+
+    const updateZipId = await seedBlob(t, await makeValidPackage());
+    await expect(
+      t
+        .withIdentity({ subject: `${userId}|test-session` })
+        .action(api.actions.uploadPet.updatePetSheets, {
+          petId: created.petId,
+          rawZipStorageId: updateZipId,
+        }),
     ).rejects.toThrow(/rate limit/i);
   });
 });

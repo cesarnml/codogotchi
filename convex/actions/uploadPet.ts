@@ -23,8 +23,31 @@ async function deleteBlob(ctx: ActionCtx, id?: Id<"_storage"> | null) {
   }
 }
 
-const RATE_LIMIT_MAX = 10;
-const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Upload rate limit: 5 attempts per rolling hour per user, covering BOTH create
+// and update (each is an expensive zip decode/merge/re-store). Enforced via the
+// transactional checkAndRecordUpload mutation so concurrent uploads can't race
+// past the cap.
+const UPLOAD_RATE_LIMIT_MAX = 5;
+const UPLOAD_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
+// Throws a rate-limit ConvexError if the user is over the cap, otherwise records
+// this attempt. Shared by uploadPet and updatePetSheets.
+async function enforceUploadRateLimit(
+  ctx: ActionCtx,
+  userId: Id<"users">,
+): Promise<void> {
+  const result = await ctx.runMutation(internal.pets.checkAndRecordUpload, {
+    userId,
+    windowMs: UPLOAD_RATE_LIMIT_WINDOW_MS,
+    max: UPLOAD_RATE_LIMIT_MAX,
+  });
+  if (!result.allowed) {
+    const mins = Math.max(1, Math.ceil(result.retryMs / 60000));
+    throw new ConvexError(
+      `Upload rate limit reached (${UPLOAD_RATE_LIMIT_MAX} per hour). Try again in ${mins} minute${mins === 1 ? "" : "s"}.`,
+    );
+  }
+}
 const MAX_THUMBNAIL_BYTES = 1 * 1024 * 1024;
 // Hard ceiling on the raw uploaded package. The heaviest published pet today is
 // ~3.3 MB (4-tier); the BYO reference sheets run ~1.2–1.5 MB each, so a quality
@@ -108,6 +131,12 @@ export const uploadPet = action({
           `Pet slug "${petIdSlug}" belongs to another creator (@${existingPet.authorUsername}).`,
         );
       }
+
+      // Rate-limit every accepted upload attempt (create or owned update) before
+      // any heavy zip work. Placed after the cheap auth/ownership/manifest
+      // checks so a rejected-outright upload doesn't burn a slot.
+      await enforceUploadRateLimit(ctx, userId);
+
       // UPDATE: the upload merges into the owned pet's existing package (so a
       // partial upload — e.g. just the SoA sheet — keeps the required Codex +
       // Lite-Basic sheets). pet.json in the upload, if present, refreshes the
@@ -121,17 +150,8 @@ export const uploadPet = action({
         return await applyOwnedUpdate(ctx, existingPet, rawBytes);
       }
 
-      // CREATE: rate-limited, since it mints a new row.
-      const recentCount = await ctx.runQuery(
-        internal.pets.countRecentPetsByAuthor,
-        { authorUserId: userId, since: Date.now() - RATE_LIMIT_WINDOW_MS },
-      );
-      if (recentCount >= RATE_LIMIT_MAX) {
-        throw new ConvexError(
-          "Upload rate limit exceeded. Try again in 24 hours.",
-        );
-      }
-
+      // CREATE: mints a new row. (Rate limit already enforced above for all
+      // upload paths.)
       // Raw upload is no longer needed once read; drop it now so the success
       // path leaves nothing staged. The catch handles earlier throws.
       await deleteBlob(ctx, args.rawZipStorageId);
@@ -251,6 +271,9 @@ export const updatePetSheets = action({
         throw new ConvexError("Uploaded sheet package not found in storage");
       }
       assertPackageWithinLimit(rawBlob);
+
+      await enforceUploadRateLimit(ctx, userId);
+
       const rawBytes = new Uint8Array(await rawBlob.arrayBuffer());
 
       // pet.json is optional here. If present, its id must match the target so

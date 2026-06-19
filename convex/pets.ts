@@ -306,17 +306,41 @@ export const applyPetUpdate = internalMutation({
   },
 });
 
-// Counts recent pets by a given author within a time window for rate limiting.
-export const countRecentPetsByAuthor = internalQuery({
-  args: { authorUserId: v.id("users"), since: v.number() },
+// Sliding-window upload rate limit, transactional so concurrent uploads can't
+// both slip past a separate count-then-insert. Counts the user's attempts in
+// the last `windowMs`; if under `max`, records this attempt and allows it,
+// otherwise denies. Prunes the user's expired events on the way through to keep
+// the log bounded. Covers create AND update — both go through this gate.
+export const checkAndRecordUpload = internalMutation({
+  args: { userId: v.id("users"), windowMs: v.number(), max: v.number() },
   handler: async (ctx, args) => {
-    const rows = await ctx.db
-      .query("pets")
-      .withIndex("by_author_createdAt", (q) =>
-        q.eq("authorUserId", args.authorUserId).gte("createdAt", args.since),
+    const now = Date.now();
+    const since = now - args.windowMs;
+    const recent = await ctx.db
+      .query("uploadEvents")
+      .withIndex("by_user_at", (q) =>
+        q.eq("userId", args.userId).gte("at", since),
       )
       .collect();
-    return rows.length;
+
+    // Opportunistic prune of this user's now-expired events.
+    const expired = await ctx.db
+      .query("uploadEvents")
+      .withIndex("by_user_at", (q) =>
+        q.eq("userId", args.userId).lt("at", since),
+      )
+      .collect();
+    await Promise.all(expired.map((e) => ctx.db.delete(e._id)));
+
+    if (recent.length >= args.max) {
+      // Soonest expiry tells the user when a slot frees up.
+      const oldest = recent.reduce((m, e) => Math.min(m, e.at), now);
+      const retryMs = oldest + args.windowMs - now;
+      return { allowed: false as const, retryMs: Math.max(0, retryMs) };
+    }
+
+    await ctx.db.insert("uploadEvents", { userId: args.userId, at: now });
+    return { allowed: true as const, retryMs: 0 };
   },
 });
 
