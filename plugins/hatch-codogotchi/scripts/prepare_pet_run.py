@@ -27,12 +27,18 @@ CODEX_PROMPTS: dict[str, str] = {
         "Character barely moves. Frame 1 ≈ seed pose. 8 frames. Loop: frame 8 → frame 1."
     ),
     "running-right": (
-        "Pet trots or runs toward the right. Clear stride cycle, alternating legs and arms, slight forward lean. "
-        "Facing RIGHT. Seamless stride loop. 8 frames."
+        "A single fluid RUN-IN-PLACE cycle facing RIGHT, kept horizontally CENTERED in the cell. The 8 frames "
+        "are 8 DISTINCT phases of one complete stride (contact → push-off → passing → reach → opposite contact "
+        "and so on): every frame is visibly different from the one before and flows smoothly into the next. "
+        "Motion lives in the LEGS stepping through the full cycle, plus LIGHT arm swing; torso, head, scale, and "
+        "baseline stay steady. Do NOT march across the cell — stay centered (lateral travel risks clipping); the "
+        "run reads from the leg/arm cycle, not from position change. Facing RIGHT. Frame 8 leads cleanly back "
+        "into frame 1 as a seamless loop. 8 frames."
     ),
     "running-left": (
-        "Mirror of running-right. Facing LEFT. Verify character asymmetry (bag, hair part) reads correctly when mirrored. "
-        "8 frames."
+        "Mirror of running-right, facing LEFT: the same fluid, centered run-in-place cycle with all 8 frames as "
+        "distinct, evenly-spaced stride phases. Verify character asymmetry (hair part, accessories) reads "
+        "correctly when mirrored. Facing LEFT. Frame 8 loops back to frame 1. 8 frames."
     ),
     "waving": (
         "Alert, ready for the next prompt. Upright, eyes forward, small ready-bounce on balls of feet, brief "
@@ -112,9 +118,11 @@ LITE_BASIC_PROMPTS: dict[str, str] = {
     ),
     "ghost": (
         "0 HP spectral form. Cute, gentle, and upright — NOT scary, NOT morbid. She appears as a ghostly version of "
-        "the idle pose, still standing vertically like the rest of the sheet. Pale translucent body, soft cyan-white "
-        "glow, faint floating/swaying motion, and a tiny wispy spirit tail or aura beneath her. Read this as a cute "
-        "ghost form of idle, not a collapsed body. 8 frames."
+        "the idle pose, still standing vertically like the rest of the sheet. Spectral hue is a clear BLUE: a "
+        "translucent ethereal-blue / cyan-blue body with a soft blue glow (think a glowing blue spirit). Keep the "
+        "whole apparition in the blue/cyan family — do NOT tint her pink, magenta, or purple (warm/magenta tones "
+        "would key out against the magenta background). Faint floating/swaying motion and a tiny wispy spirit tail "
+        "or aura beneath her. Read this as a cute blue ghost form of idle, not a collapsed body. 8 frames."
     ),
 }
 
@@ -296,12 +304,17 @@ def row_kind(row_label: str) -> str:
 def motion_doctrine(row_label: str) -> str:
     kind = row_kind(row_label)
     if kind == "locomotion":
-        return """ROW KIND: locomotion.
-- Use progress stability, not planted-feet stability.
-- The character may visibly advance in the named direction and legs/arms may cycle.
-- Keep identity, scale, bottom baseline, facing direction, and stride rhythm stable across all 8 frames.
-- Each frame should advance a small, even amount; reject static-static-static-teleport timing.
-- Frame 8 should connect cleanly back to frame 1 as a continuous stride cycle."""
+        return """ROW KIND: locomotion — a fluid RUN-IN-PLACE stride cycle. Not a standing pose, not a traveling shot.
+- Animate ONE complete stride cycle across the 8 frames. Every frame is a DISTINCT phase and differs visibly
+  from its neighbours; adjacent frames flow smoothly into each other.
+- AVOID THIS FAILURE MODE (the common one): 3 nearly-identical frames, a tiny jump, 3 more identical frames.
+  Make all 8 frames distinct and evenly spaced through the cycle — fluid, not stepped.
+- Motion is concentrated in the LEGS (stepping through the full cycle) with LIGHT arm swing. Keep torso, head,
+  identity, scale, and bottom baseline steady.
+- Stay horizontally CENTERED — do not march across the cell. Lateral travel risks clipping the cell edge; the
+  run must read from the leg/arm cycle, not from position change.
+- Facing direction is fixed (right for running-right, left for running-left).
+- Frame 8 connects cleanly back to frame 1 as a continuous loop."""
     if kind == "jump":
         return """ROW KIND: controlled jump.
 - The character may leave the baseline briefly, but takeoff, peak, descent, and landing must read as one smooth arc.

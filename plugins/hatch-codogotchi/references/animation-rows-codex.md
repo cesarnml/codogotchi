@@ -29,7 +29,7 @@ When the Tier 2 Lite sheet is present, rows 7–8 are only used for states not c
 
 ## Motion descriptions
 
-> **Motion restraint — row-kind aware.** Unconstrained whole-body motion comes back jerky across the row. For the **standing/expression rows** (`idle`, `waving`, `failed`, `waiting`, the two fallbacks `running`/`review`): anchor the torso, head, hips, and **both feet**, move **one element** (one arm, the eyes/expression, a ≤few-px bob) at low amplitude, and keep frame-to-frame change small. Read every verb (*bounce, nod, tap, recoil, lean*) as **small and gentle** — `idle` already says "character barely moves," and that restraint is the model for the others. For **locomotion rows** (`running-right`, `running-left`), use progress stability instead of planted-feet stability: stable scale, baseline, facing direction, stride rhythm, and small even x-progress per frame. Avoid the common failure mode of 2–3 static frames followed by one large teleport jump. `jumping` is its own controlled takeoff/land row with feet off baseline ≤ 12 px. When expressiveness and stability conflict, choose the stability rule for that row kind.
+> **Motion restraint — row-kind aware.** Unconstrained whole-body motion comes back jerky across the row. For the **standing/expression rows** (`idle`, `waving`, `failed`, `waiting`, the two fallbacks `running`/`review`): anchor the torso, head, hips, and **both feet**, move **one element** (one arm, the eyes/expression, a ≤few-px bob) at low amplitude, and keep frame-to-frame change small. Read every verb (*bounce, nod, tap, recoil, lean*) as **small and gentle** — `idle` already says "character barely moves," and that restraint is the model for the others. For **locomotion rows** (`running-right`, `running-left`), animate a fluid run-in-place stride cycle: stable scale, baseline, and facing direction, kept horizontally centered (no lateral travel — that risks clipping the cell edge), with all 8 frames distinct, evenly-spaced phases that flow. Avoid the common failure mode of 2–3 near-identical frames followed by one large jump. `jumping` is its own controlled takeoff/land row with feet off baseline ≤ 12 px. When expressiveness and stability conflict, choose the stability rule for that row kind.
 
 ### Row 0 — idle
 
@@ -41,11 +41,11 @@ Calm neutral breathing loop. Gentle inhale (body and head barely rise), soft eye
 
 ### Row 1 — running-right
 
-Pet trots or runs toward the right. Clear stride cycle with alternating legs and arms. Slight forward lean. Frame 1 and frame 8 should form a seamless stride loop. Facing: **right**.
+Pet runs **in place** facing right — one full, fluid stride cycle kept horizontally centered. Alternating legs with light arm swing; every frame a distinct phase that flows into the next. Frame 1 and frame 8 form a seamless loop. Facing: **right**.
 
 **Tone:** playful, quick.
 
-**Locomotion rule:** allow visible rightward progress and leg/arm cycling, but keep scale, baseline, and facing direction stable. Each frame should advance a small, even amount; reject rows that hold almost still for several frames and then jump.
+**Locomotion rule:** keep the character horizontally centered — do NOT travel rightward across the cell (lateral motion risks clipping the edge); the run reads from the leg/arm cycle, not position change. Make all 8 frames distinct, evenly-spaced stride phases that flow; reject rows that hold almost still for several frames and then jump.
 
 ---
 
@@ -55,7 +55,7 @@ Mirror image of running-right. Facing: **left**. Do not merely flip row 1 if the
 
 **Tone:** same as running-right, opposite direction.
 
-**Locomotion rule:** allow visible leftward progress and leg/arm cycling, but keep scale, baseline, and facing direction stable. Each frame should advance a small, even amount; reject rows that hold almost still for several frames and then jump.
+**Locomotion rule:** keep the character horizontally centered — do NOT travel leftward across the cell (lateral motion risks clipping the edge); the run reads from the leg/arm cycle, not position change. Make all 8 frames distinct, evenly-spaced stride phases that flow; reject rows that hold almost still for several frames and then jump.
 
 ---
 

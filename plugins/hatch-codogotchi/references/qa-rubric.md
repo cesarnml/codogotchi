@@ -82,7 +82,7 @@ Review the contact sheet for each tier and verify:
 **Lite-Basic sheet:**
 - [ ] `standby` rings a handbell; `thinking` shows a thought-bubble + lightbulb; `reading` holds one book; `implementing` types on a laptop; `testing` is the lab-coat + flask experiment
 - [ ] `errored` reads as sad with a red ✗; `waiting-for-input` holds a "?" sign toward the viewer
-- [ ] `ghost` reads as a cute spectral idle form (upright, translucent, softly glowing) — not a collapsed body
+- [ ] `ghost` reads as a cute **blue** spectral idle form (upright, translucent, soft blue/cyan glow) — not a collapsed body
 
 **Lite-Enhanced sheet:**
 - [ ] `idle-impatient` (wristwatch) and `idle-frustrated` (steam) form a clear escalation arc

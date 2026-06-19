@@ -67,7 +67,7 @@ The one exception is an explicit jump/leap row, which may leave the baseline bri
 - **testing** — Lab-experiment metaphor. Wears a **lab coat**; **Erlenmeyer flask of blue** in one hand, **test tube of red** in the other. Pours red into blue → small "poof" → soot smudge on a cheek → blink and steady.
 - **errored** — Dismay (sad, not panicked). A bold, easily viewable (not too small) **red ✗ badge** pops by her head; recoil with widening eyes, hand to forehead, shoulders sag, recover toward neutral to loop.
 - **waiting-for-input** — Blocked, waiting on YOU. Holds up a small **"?" sign** aimed at the viewer; patient head-tilt, one foot-tap with eyes on the viewer, lower and settle. Directional toward the user.
-- **ghost** — 0 HP spectral form. A cute **ghost** version of idle: still upright and vertical, softly glowing, slightly translucent, with a gentle floating sway and a small wispy aura/tail. Reads as a friendly spirit form, not a collapsed body.
+- **ghost** — 0 HP spectral form. A cute **ghost** version of idle: still upright and vertical, translucent with a clear **blue / cyan-blue spectral glow** (a glowing blue spirit — keep her in the blue family, never pink/magenta/purple, which would key out), a gentle floating sway, and a small wispy aura/tail. Reads as a friendly spirit form, not a collapsed body.
 
 ---
 

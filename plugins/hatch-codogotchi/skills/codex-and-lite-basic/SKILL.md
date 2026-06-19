@@ -37,7 +37,7 @@ Cell: **192 × 208**. Timing: **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 ## Read first — the doctrines (full text in `README.md` + `references/animation-rows-lite.md`)
 
-**0. Motion restraint — row-kind aware (paramount).** For standing/status rows, a calm pet with small, smooth motion always beats an expressive one that jitters; when they conflict, **choose stability**. Anchor the torso, head, hips, and **both feet** in nearly the same place across all 8 frames; confine motion to **one element** — the named prop, one arm, or the expression — at low amplitude with short, smooth arcs. For locomotion rows (`running-right`, `running-left`), use **progress stability** instead: stable character identity, scale, baseline, facing direction, stride rhythm, and small even x-progress per frame. Do not force planted feet on locomotion rows, and reject the failure mode where 2–3 frames are static followed by a large jump. "No static rows" is a *floor* (subtle smooth life so frames differ), **not** a push toward uncontrolled motion.
+**0. Motion restraint — row-kind aware (paramount).** For standing/status rows, a calm pet with small, smooth motion always beats an expressive one that jitters; when they conflict, **choose stability**. Anchor the torso, head, hips, and **both feet** in nearly the same place across all 8 frames; confine motion to **one element** — the named prop, one arm, or the expression — at low amplitude with short, smooth arcs. For locomotion rows (`running-right`, `running-left`), animate a fluid **run-in-place stride cycle**: keep identity, scale, baseline, and facing stable and the character horizontally **centered** (no marching across the cell — lateral travel risks clipping), with all 8 frames as **distinct, evenly-spaced stride phases** that flow. Do not force planted feet, and reject the failure mode where 2–3 frames are nearly identical and then jump. "No static rows" is a *floor* (subtle smooth life so frames differ), **not** a push toward uncontrolled motion.
 
 1. **Prop doctrine — NOT charades.** Emotion-mappable states (`idle`, `failed`→sad) lead with expression; **every other state is carried by one clearly-visible prop** — never mimed/"invisible" props, never an A/B prop choice. Same prop, all 8 frames.
 2. **Scale consistency.** Same character size in all 8 cells of a row. The 8 cells are generated together inside one 4×2 grid, so ask `image_gen` for a shared head height / body scale across the grid; `slice_grid.py` shares one scale across the row and the contact sheet surfaces any residual drift for human review.
@@ -64,7 +64,7 @@ All rows: flat `#FF00FF` magenta background with no falloff/shadow/texture/halo 
 
 Standing/status rows: shared bottom baseline `y = 208 − 8 − scaled_h`, body and feet anchored, one small moving element, loop closes (frame 8 ≈ frame 1).
 
-Locomotion rows (`running-right`, `running-left`): stable scale/baseline/facing direction and a clean stride cycle with small even x-progress. Do not pin the feet in place; do reject teleport jumps or static-static-static-jump timing.
+Locomotion rows (`running-right`, `running-left`): a fluid run-in-place stride cycle — stable scale/baseline/facing, horizontally centered (no lateral travel), all 8 frames distinct and evenly spaced. Do not pin the feet in place; reject teleport jumps and static-static-static-jump timing.
 
 ---
 
@@ -127,8 +127,8 @@ If any frame in a grid is wrong (off pose, scale drift, weak prop, identity drif
 - [ ] `spritesheet.webp` — 1536 × 1872; 9 × 8; cell 192 × 208 (magenta background, pre-key)
 - [ ] `codogotchi-lite-basic-spritesheet.webp` — 1536 × 1872; 9 × 8; cell 192 × 208 (magenta background, pre-key)
 - [ ] Flat `#FF00FF` background, perfectly uniform across the whole atlas (no falloff/shadow/texture)
-- [ ] Character/content horizontal center is stable for standing/status rows; locomotion rows have stable scale, baseline, facing direction, and even progress (eyeballed)
-- [ ] **Stable motion (paramount):** standing rows anchor body/feet with one low-amplitude moving element; locomotion rows use smooth progress stability with no teleport frame
+- [ ] Character/content horizontal center is stable for standing/status rows; locomotion rows are a centered in-place stride cycle with stable scale, baseline, facing, and all frames distinct/evenly-spaced (eyeballed)
+- [ ] **Stable motion (paramount):** standing rows anchor body/feet with one low-amplitude moving element; locomotion rows use a centered in-place stride cycle with no teleport frame
 - [ ] No static rows (gated by `validate_atlas.py`); each row has *subtle* distinct motion; loop closes
 - [ ] **Each prop-led row shows its single named prop clearly in all 8 frames**
 - [ ] Character size consistent across all 8 frames of every row (eyeballed)
