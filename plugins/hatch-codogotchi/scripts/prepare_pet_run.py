@@ -246,8 +246,8 @@ STYLE_PRESETS = {
 }
 
 # v5: ONE flat chroma key for every row, always. The pipeline no longer keys
-# anything — the user keys the finished atlas with Chroma Key Studio
-# (https://chromakeyremoval.vercel.app). The default key is magenta #FF00FF: the
+# anything — the user keys the finished atlas with Codogotchi Studio
+# (https://codogotchi.app/studio). The default key is magenta #FF00FF: the
 # pet's own art (and its green props — the green-tdd checkmark, the web-search
 # globe) never collide with magenta, so keying is far cleaner than against green.
 # Supported keys are magenta/green/blue; there is no per-row key selection.
@@ -537,7 +537,7 @@ def main() -> None:
         "generate_layout": "4x2 grid (8 cells of 192x208), any overall size",
         "strip_size": "1536x208",
         "keying": "external",
-        "keying_tool_url": "https://chromakeyremoval.vercel.app",
+        "keying_tool_url": "https://codogotchi.app/studio",
         "tiers": tiers,
         "cell_w": 192,
         "cell_h": 208,
@@ -573,7 +573,7 @@ def main() -> None:
     print("  python scripts/pre_install_qa_gate.py --atlas <work>/<sheet>.webp --tier <tier>")
     print(
         "\nThe atlas still has its flat magenta background. Do NOT install it directly. Direct the user to key it at\n"
-        "https://chromakeyremoval.vercel.app — load the magenta atlas, tune the knobs, export the transparent sheet,\n"
+        "https://codogotchi.app/studio — load the magenta atlas, tune the knobs, export the transparent sheet,\n"
         "and only then install/upload the keyed result."
     )
 

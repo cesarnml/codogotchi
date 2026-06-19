@@ -19,7 +19,7 @@ The plugin does **not** mean "ask image generation for the whole atlas at once."
 
 **Why grid-first.** `image_gen` cannot be made to honor an 8:1 aspect ratio — strips came back at wildly varying sizes and some rows (git-ops, web-search) clipped. A 4×2 grid sits near a friendly ratio, so it generates clean every time, and `slice_grid.py` makes the exact strip deterministically. The skill also prescribes no save path: `image_gen` cannot reliably store or re-find what it generates, so the skill names **no** directories — scripts own their I/O and the model just chains ephemeral output forward. And the model must **not** screenshot or eyeball its own output (it can't reliably see its own framing, and it wastes tokens); geometry is enforced by `slice_grid.py` and visual review is the human's on the contact sheet.
 
-**Keying is intentionally not done here.** After three days of trying to get an agent to chroma-key reliably (greenish eyes, a green checkmark prop, edge spill), the pipeline leaves the background flat-keyed end-to-end and hands the finished atlas to the user to key in **[Chroma Key Studio](https://chromakeyremoval.vercel.app)** — a purpose-built tool whose tolerance / edge / spill / hue controls separate green props from the magenta key far better than an agent can. The pipeline's deliverable is a **magenta-background (pre-key) atlas**; the user keys it and installs the transparent result.
+**Keying is intentionally not done here.** After three days of trying to get an agent to chroma-key reliably (greenish eyes, a green checkmark prop, edge spill), the pipeline leaves the background flat-keyed end-to-end and hands the finished atlas to the user to key in **[Codogotchi Studio](https://codogotchi.app/studio)** — a purpose-built tool whose tolerance / edge / spill / hue controls separate green props from the magenta key far better than an agent can. The pipeline's deliverable is a **magenta-background (pre-key) atlas**; the user keys it and installs the transparent result.
 
 **Non-negotiable row gate:** one row at a time — generate grid → `slice_grid.py` — before starting the next. If a grid comes back clipped, cramped, or off-model, regenerate the whole grid instead of patching forward. Do not compose an atlas until every row strip exists. Style, prop clarity, face/eye integrity, scale, and stable motion are reviewed by the human on the script-produced contact sheet after composing — the model does not eyeball its own output.
 
@@ -53,7 +53,7 @@ Alignment specifics (these serve the rule above):
 
 **One flat key, always: magenta `#FF00FF`.** Every row is generated on flat `#FF00FF` and the pipeline keeps that background end-to-end. There is no per-row key selection and no green/blue fallback. Magenta is chosen precisely because the pet's art — and its green props — never share that hue, so keying is clean.
 
-**The plugin does not key the sheet.** Keying is delegated to the user via **[Chroma Key Studio](https://chromakeyremoval.vercel.app)**. This is deliberate: an agent cannot reliably tune a matte. Earlier versions used a green key, which forced an awkward per-row dance to avoid keying out intended green details (a green checkmark, stamp, or globe). A magenta key removes that conflict at the source — **green props are simply allowed and preserved**, and the user's tool, with real tolerance/edge/spill/hue controls, exports the transparent sheet.
+**The plugin does not key the sheet.** Keying is delegated to the user via **[Codogotchi Studio](https://codogotchi.app/studio)**. This is deliberate: an agent cannot reliably tune a matte. Earlier versions used a magenta key, which forced an awkward per-row dance to avoid keying out intended green details (a green checkmark, stamp, or globe). A magenta key removes that conflict at the source — **green props are simply allowed and preserved**, and the user's tool, with real tolerance/edge/spill/hue controls, exports the transparent sheet.
 
 What this means per surface:
 - Prompts demand one perfectly flat `#FF00FF` background (hex stated literally), with no falloff, shadow, texture, halo, or antialias spill into the key.
@@ -76,7 +76,7 @@ python scripts/render_animation_previews.py --atlas <work>/<sheet>.webp --tier <
 python scripts/pre_install_qa_gate.py --atlas <work>/<sheet>.webp --tier <tier>
 ```
 
-Scale, alignment, prop clarity, and identity are eyeball checks on the contact sheet and previews — `validate_atlas.py` cannot measure them on a magenta background. After the gate passes, **hand the magenta atlas to the user to key at https://chromakeyremoval.vercel.app**, then install the transparent result.
+Scale, alignment, prop clarity, and identity are eyeball checks on the contact sheet and previews — `validate_atlas.py` cannot measure them on a magenta background. After the gate passes, **hand the magenta atlas to the user to key at https://codogotchi.app/studio**, then install the transparent result.
 
 ## Time and effort honesty
 
@@ -189,7 +189,7 @@ python scripts/pre_install_qa_gate.py --atlas <atlas-webp> --tier lite-basic
 python scripts/prepare_pet_run.py --write-pet-json --run-dir <work>/
 
 # 7. KEY THE MAGENTA ATLASES — do NOT install them as-is.
-#    Direct the user to https://chromakeyremoval.vercel.app: load each magenta *.webp,
+#    Direct the user to https://codogotchi.app/studio: load each magenta *.webp,
 #    tune the knobs, export the transparent sheet, then install the keyed result.
 ```
 
@@ -209,7 +209,7 @@ python scripts/prepare_pet_run.py \
 #      slice_grid.py, compose the magenta-background atlas, pass the slim QA gate (same pipeline).
 #      lite-enhanced is a separate run and REQUIRES the lite-basic sheet to exist first.
 
-# 6. Key the magenta atlas at https://chromakeyremoval.vercel.app, then install the transparent
+# 6. Key the magenta atlas at https://codogotchi.app/studio, then install the transparent
 #    result; don't overwrite spritesheet.webp or pet.json.
 ```
 
@@ -244,7 +244,7 @@ hatch-codogotchi/
     chroma_palette.py                 ← Shared chroma helpers (extract_seed_from_codex)
 ```
 
-> Keying is **not** in this list — it is done by the user in [Chroma Key Studio](https://chromakeyremoval.vercel.app) after the pipeline delivers the magenta-background atlas.
+> Keying is **not** in this list — it is done by the user in [Codogotchi Studio](https://codogotchi.app/studio) after the pipeline delivers the magenta-background atlas.
 
 ---
 
@@ -274,7 +274,7 @@ hatch-codogotchi/
 
 If any cell in a row fails QA (off pose, scale drift, weak prop, identity drift, jitter), **regenerate the whole 4×2 grid** for that row using its prompt, re-run `slice_grid.py`, and re-run the QA scripts. Fix by regenerating the grid, never by editing individual cells.
 
-> `validate_atlas.py` only catches dimensions, grid, and pixel-identical static rows. Everything perceptual — motion quality (#5), props (#6), scale (#7), alignment (#8), baseline (#9), identity (#10) — is an **eyeball** pass on the contact sheet and previews. Keying quality (edges, green-prop separation) is the user's job in Chroma Key Studio.
+> `validate_atlas.py` only catches dimensions, grid, and pixel-identical static rows. Everything perceptual — motion quality (#5), props (#6), scale (#7), alignment (#8), baseline (#9), identity (#10) — is an **eyeball** pass on the contact sheet and previews. Keying quality (edges, green-prop separation) is the user's job in Codogotchi Studio.
 
 ---
 

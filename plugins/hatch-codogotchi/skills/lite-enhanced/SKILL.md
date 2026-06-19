@@ -27,7 +27,7 @@ The Lite-Basic sheet is also used as an **extra style reference** alongside the 
 
 **Non-negotiable row gate:** finish one row completely (generate grid → `slice_grid.py`) before generating the next. If a grid comes back clipped, cramped, or off-model, regenerate the whole grid instead of patching forward. Do not compose until every row strip exists. The model does **not** screenshot or eyeball its own output — `slice_grid.py` enforces geometry, and prop clarity / face / scale / motion are reviewed by the human on the script-produced contact sheet after composing.
 
-**Chroma key — flat magenta `#FF00FF`, always, keyed by the user later.** Every row is generated on flat magenta `#FF00FF` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — and crucially, **green props are now allowed and preserved**: `verifying`'s green ✓ stamp and `web-search`'s green globe stay green, because the user keys the sheet later in **Chroma Key Studio** (https://chromakeyremoval.vercel.app). Against a magenta key a green prop never shares the background colour, so it survives keying cleanly — that is exactly why the key is magenta and not green.
+**Chroma key — flat magenta `#FF00FF`, always, keyed by the user later.** Every row is generated on flat magenta `#FF00FF` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — and crucially, **green props are now allowed and preserved**: `verifying`'s green ✓ stamp and `web-search`'s green globe stay green, because the user keys the sheet later in **Codogotchi Studio** (https://codogotchi.app/studio). Against a magenta key a green prop never shares the background colour, so it survives keying cleanly — that is exactly why the key is magenta and not green.
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that still feels polished**. Many Enhanced rows can be produced faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is guidance, not dogma.
 
@@ -86,7 +86,7 @@ python scripts/render_animation_previews.py --atlas <atlas-webp> --tier lite-enh
 python scripts/pre_install_qa_gate.py       --atlas <atlas-webp> --tier lite-enhanced
 ```
 
-**Final step — keying is the user's.** The composed `*.webp` still has its flat magenta background. Do **not** install it. Direct the user to **https://chromakeyremoval.vercel.app** to key it (load → tune knobs → export transparent sheet), then install the keyed `codogotchi-lite-enhanced-spritesheet.webp` (do NOT overwrite `spritesheet.webp`, the Basic sheet, or `pet.json`) and quit-reopen Codogotchi.
+**Final step — keying is the user's.** The composed `*.webp` still has its flat magenta background. Do **not** install it. Direct the user to **https://codogotchi.app/studio** to key it (load → tune knobs → export transparent sheet), then install the keyed `codogotchi-lite-enhanced-spritesheet.webp` (do NOT overwrite `spritesheet.webp`, the Basic sheet, or `pet.json`) and quit-reopen Codogotchi.
 
 Row order (see `references/animation-rows-lite.md`):
 `idle-impatient, idle-frustrated, cramming, editing, git-ops, verifying, searching, web-search`
@@ -110,12 +110,12 @@ If any frame in a grid is wrong, **regenerate the whole grid** for that row, re-
 - [ ] Per-frame visual QA passed: same age/proportions, hair silhouette, dress/outfit, sandals/accessories, palette, and linework as the seed artifact and the Basic sheet
 - [ ] Style/palette/proportions match the Basic + Codex sheets
 - [ ] `validate-lite-enhanced.json`, `contact-lite-enhanced.png`, and `previews-lite-enhanced/` exist and are newer than the final atlas
-- [ ] `pre_install_qa_gate.py` passed; user directed to https://chromakeyremoval.vercel.app to key the magenta atlas before install
+- [ ] `pre_install_qa_gate.py` passed; user directed to https://codogotchi.app/studio to key the magenta atlas before install
 - [ ] `spritesheet.webp`, the Basic sheet, and `pet.json` unchanged
 
 ## Final response checklist
 
-Before saying done, report: rows generated or regenerated; validation command/result; contact sheet and preview directory paths; known compromises. State clearly that the delivered atlas is **magenta-background (pre-key)** and the user must key it at https://chromakeyremoval.vercel.app before installing. If the tier was completed unusually quickly, state what was compressed, reused, or skipped. Validation alone is not QA.
+Before saying done, report: rows generated or regenerated; validation command/result; contact sheet and preview directory paths; known compromises. State clearly that the delivered atlas is **magenta-background (pre-key)** and the user must key it at https://codogotchi.app/studio before installing. If the tier was completed unusually quickly, state what was compressed, reused, or skipped. Validation alone is not QA.
 
 ## Related
 `SKILL-lite-basic.md` (prerequisite) · `SKILL-codex-and-lite-full.md` · `SKILL-soa.md` · `references/animation-rows-lite.md`

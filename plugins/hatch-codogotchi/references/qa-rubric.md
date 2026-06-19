@@ -18,9 +18,9 @@ Use this checklist after composing each atlas and again after final installation
 
 ### Background (pre-key)
 
-v4.0.0 atlases are delivered **green-background (pre-key)** — keying is the user's step in Chroma Key Studio (https://chromakeyremoval.vercel.app). So there is **no chroma-residue or transparency check here** (the green IS the intended background, and green props are preserved on purpose).
+Atlases are delivered **magenta-background (pre-key)** — keying is the user's step in Codogotchi Studio (https://codogotchi.app/studio). So there is **no chroma-residue or transparency check here** (the magenta IS the intended background, and green props are preserved on purpose).
 
-- [ ] Background is flat `#00B140` green, uniform across the whole atlas (eyeball / contact sheet)
+- [ ] Background is flat `#FF00FF` magenta, uniform across the whole atlas (eyeball / contact sheet)
 
 ### Static-row detection
 
@@ -29,9 +29,9 @@ v4.0.0 atlases are delivered **green-background (pre-key)** — keying is the us
 
 > This gate only ensures the frames *differ* — it is a **floor**, not a target. Subtle smooth motion (a breath, a small sway, one prop beat) clears it. Do **not** add big or whole-body motion to satisfy it; that trades a passing script check for a jittery row, which the eyeball checks below will reject. Stability outranks expressiveness.
 
-### Scale-drift (eyeball — no automated gate on a green-background sheet)
+### Scale-drift (eyeball — no automated gate on a magenta-background sheet)
 
-- [ ] No frame's character is noticeably larger/smaller than its rowmates. On a green sheet the foreground bbox can't be measured reliably (green props blend with the key), so check the contact sheet by eye. If one frame is off, regenerate the whole strip.
+- [ ] No frame's character is noticeably larger/smaller than its rowmates. On a pre-key sheet the background is an opaque key (not transparency), so there is no alpha for an automated bbox to measure — check the contact sheet by eye. If one frame is off, regenerate the whole strip.
 
 ### Horizontal-alignment (eyeball)
 
@@ -41,7 +41,7 @@ v4.0.0 atlases are delivered **green-background (pre-key)** — keying is the us
 
 - [ ] `validate-<tier>.json`, `contact-<tier>.png`, and `previews-<tier>/*.gif` are present
 - [ ] All QA artifacts are newer than the final atlas
-- [ ] The atlas is still green-background; the user is directed to key it before install
+- [ ] The atlas is still magenta-background; the user is directed to key it before install
 
 ---
 
@@ -63,7 +63,7 @@ For each row in each sheet:
 - [ ] **Horizontal stability:** character stays on the same visual x-axis across all 8 frames
 - [ ] **Baseline consistency:** feet stay on the same y-line across all 8 frames, near the bottom of the cell; do not vertically center ordinary standing rows
 - [ ] **Character fidelity:** character matches the seed image — same proportions, outfit, hair, palette, linework
-- [ ] **Clean edges:** no hard box outline around the character; the green background reads as one flat field
+- [ ] **Clean edges:** no hard box outline around the character; the magenta background reads as one flat field
 - [ ] **Clean face/eyes:** eyes have intact irises/highlights and read clearly. (Keying happens later in the user's tool, so there is no chroma damage to check here — just confirm the drawing is clean.)
 
 ### Emotional distinctness
@@ -127,7 +127,7 @@ Do not fix scale/alignment failures by code-transforming the existing strip — 
 - [ ] All files in `~/.codogotchi/pets/<id>/` (or `$CODOGOTCHI_HOME/pets/<id>/`)
 - [ ] App quit and relaunched (or pet re-selected in Settings → Pet) after installation
 
-Run the slim QA gate on each green-background atlas, then hand it to the user for keying:
+Run the slim QA gate on each magenta-background atlas, then hand it to the user for keying:
 
 ```bash
 python scripts/validate_atlas.py --atlas <atlas-webp> --tier <tier> --out-json <validation-json>
@@ -136,14 +136,14 @@ python scripts/render_animation_previews.py --atlas <atlas-webp> --tier <tier>
 python scripts/pre_install_qa_gate.py --atlas <atlas-webp> --tier <tier>
 ```
 
-The atlas the pipeline produces is **green-background (pre-key)**. Key it in Chroma Key Studio (https://chromakeyremoval.vercel.app) and install the transparent result; only then does the pre-install checklist above apply to the installed (keyed) files.
+The atlas the pipeline produces is **magenta-background (pre-key)**. Key it in Codogotchi Studio (https://codogotchi.app/studio) and install the transparent result; only then does the pre-install checklist above apply to the installed (keyed) files.
 
 Final response checklist:
 
 - [ ] Rows generated or regenerated
 - [ ] Validation command and result
 - [ ] Contact sheet and preview directory paths
-- [ ] Stated that delivered atlases are green-background (pre-key) and pointed the user to the keying tool
+- [ ] Stated that delivered atlases are magenta-background (pre-key) and pointed the user to the keying tool
 - [ ] Known compromises, if any
 
 ---

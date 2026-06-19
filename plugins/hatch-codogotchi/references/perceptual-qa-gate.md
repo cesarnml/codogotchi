@@ -3,9 +3,9 @@
 **Status:** proposed, not yet implemented. Sketch only.
 
 ## Why the current gates miss things
-Since v4.0.0 the automated gates are deliberately slim: `validate_atlas.py`
+The automated gates are deliberately slim: `validate_atlas.py`
 (dimensions, grid integrity, static-row detection) and `pre_install_qa_gate.py`
-(QA *artifacts exist and are fresher than the atlas*). On the green-background
+(QA *artifacts exist and are fresher than the atlas*). On the magenta-background
 pre-key sheet, per-frame alpha geometry can't be measured reliably, so scale and
 alignment are eyeball checks on the contact sheet — exactly the kind of
 perceptual judgment this sketch proposes to automate. `pre_install_qa_gate.py`'s

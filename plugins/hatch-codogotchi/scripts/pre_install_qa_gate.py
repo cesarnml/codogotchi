@@ -5,7 +5,7 @@ pre_install_qa_gate.py — Block handoff until the slim QA artifacts are fresh.
 v4.0.0 (strip-first, pre-key): verifies that final validation, the contact sheet,
 and the animation previews were produced after the current pre-key atlas.
 Chroma-residue / eye-damage crop QA is gone — keying (and its QA) now happens in
-the user's Chroma Key Studio tool, not in this pipeline. This gate does not replace
+the user's Codogotchi Studio tool, not in this pipeline. This gate does not replace
 human review; it prevents claiming QA from validation alone before handing the
 atlas to the user for keying.
 """
@@ -82,7 +82,7 @@ def main() -> None:
         sys.exit(1)
 
     print("PASS — slim QA artifacts are present, fresh, and clean.")
-    print("Next: hand the magenta-background atlas to the user to key at https://chromakeyremoval.vercel.app")
+    print("Next: hand the magenta-background atlas to the user to key at https://codogotchi.app/studio")
 
 
 if __name__ == "__main__":

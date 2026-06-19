@@ -3,7 +3,7 @@
 validate_atlas.py — Final validation of a composed Codogotchi spritesheet atlas.
 
 Pre-key: the atlas still has its flat chroma-key background (magenta by default)
-— keying happens later in Chroma Key Studio. Because the background is an opaque
+— keying happens later in Codogotchi Studio. Because the background is an opaque
 key rather than transparency, there is no per-frame alpha to measure, so geometry
 (padding/scale/center, chroma residue) cannot be measured reliably here and is
 intentionally NOT checked. What this script DOES check is what is honest pre-key:

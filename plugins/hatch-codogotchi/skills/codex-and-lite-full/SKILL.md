@@ -28,7 +28,7 @@ Cell **192 × 208**; **187.5 ms/frame** (8 × 1.5 s, continuous loop).
 
 **Non-negotiable row gate:** finish one row completely (generate grid → `slice_grid.py`) before generating the next. If a grid comes back clipped, cramped, or off-model, regenerate the whole grid instead of patching forward. Do not compose until every row strip exists. The model does **not** screenshot or eyeball its own output — `slice_grid.py` enforces geometry, and prop clarity / face / scale / motion are reviewed by the human on the script-produced contact sheet after composing.
 
-**Chroma key — flat magenta `#FF00FF`, always, keyed by the user later.** Every row is generated on flat magenta `#FF00FF` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — intentional green details (checkmark, globe, stamp) are preserved. After QA, hand the magenta-background atlas to the user to key in **Chroma Key Studio** (https://chromakeyremoval.vercel.app).
+**Chroma key — flat magenta `#FF00FF`, always, keyed by the user later.** Every row is generated on flat magenta `#FF00FF` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — intentional green details (checkmark, globe, stamp) are preserved. After QA, hand the magenta-background atlas to the user to key in **Codogotchi Studio** (https://codogotchi.app/studio).
 
 **Recommended production pattern:** for each row, generate the minimum number of **distinct** keyframes needed for a readable, non-static loop, then reuse or mirror earlier stable frames to close the loop **when that preserves motion quality**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended acceleration pattern, not a hard requirement.
 
@@ -97,7 +97,7 @@ Per-row slice (run for every row before composing its tier; paths are caller-cho
 python scripts/slice_grid.py --input <grid> --out <row-strip>
 ```
 
-**Final step — keying is the user's.** All three composed `*.webp` atlases still have their flat magenta background. Do **not** install them. Direct the user to **https://chromakeyremoval.vercel.app** to key each atlas (load → tune knobs → export transparent sheet), then install the three keyed sheets + `pet.json` and quit-reopen Codogotchi.
+**Final step — keying is the user's.** All three composed `*.webp` atlases still have their flat magenta background. Do **not** install them. Direct the user to **https://codogotchi.app/studio** to key each atlas (load → tune knobs → export transparent sheet), then install the three keyed sheets + `pet.json` and quit-reopen Codogotchi.
 
 ---
 
@@ -126,11 +126,11 @@ If any frame in a grid is wrong, **regenerate the whole grid** for that row, re-
 - [ ] Validation JSON, contact sheet, previews, and `pre_install_qa_gate.py` pass for every atlas
 - [ ] Character consistent across all 26 rows; `pet.json` present with `"spritesheetPath": "spritesheet.webp"`
 - [ ] Every row generated as a single 4×2 grid (8 cells, no empty cell), sliced to a 1536×208 strip by `slice_grid.py`
-- [ ] User directed to https://chromakeyremoval.vercel.app to key the magenta atlases before install
+- [ ] User directed to https://codogotchi.app/studio to key the magenta atlases before install
 
 ## Final response checklist
 
-Before saying done, report: rows generated or regenerated; validation command/result; contact sheet and preview directory paths for every atlas; known compromises. State clearly that the delivered atlases are **magenta-background (pre-key)** and the user must key them at https://chromakeyremoval.vercel.app before installing. If a tier was completed unusually quickly, state what was compressed, reused, or skipped. Validation alone is not QA.
+Before saying done, report: rows generated or regenerated; validation command/result; contact sheet and preview directory paths for every atlas; known compromises. State clearly that the delivered atlases are **magenta-background (pre-key)** and the user must key them at https://codogotchi.app/studio before installing. If a tier was completed unusually quickly, state what was compressed, reused, or skipped. Validation alone is not QA.
 
 ## Related
 `SKILL-codex-and-lite-basic.md` · `SKILL-lite-basic.md` · `SKILL-lite-enhanced.md` · `SKILL-soa.md` · `references/animation-rows-lite.md`
