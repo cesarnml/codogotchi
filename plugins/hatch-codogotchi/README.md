@@ -6,11 +6,11 @@ Analogous to the `openai/skills/.curated/hatch-pet` skill, adapted for Codogotch
 
 > **Publish your pet:** once you have a **Codex + Lite-Basic** pet (the gallery's minimum bar), share it on the [Codogotchi pet gallery](https://codogotchi.app/gallery) — sign in at [`/upload`](https://codogotchi.app/upload), and others install it with `npx codogotchi add <id>`. Uploads are server-validated and re-packed, so the package you generate here is the package the gallery distributes.
 
-## Execution model (grid-first, pre-key)
+## Execution model (slot-first, pre-key)
 
 This plugin is run by Codex in two explicit stages, and it **stops before keying**:
 
-1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one full animation row per call as a single 4×2 grid** — 4 columns × 2 rows of 192×208 cells (8 populated cells, no empty cell), on a **flat magenta `#FF00FF`** background. `image_gen` cannot hit an exact canvas size, so the grid size is nominal; the 4×2 framing (vs. the old 8×1 wide strip) is what keeps the character from clipping the cell edge. The grid output is **ephemeral** — there is no save path to hunt for; it is piped straight into the next stage.
+1. **Built-in image generation stage:** Codex uses its built-in `image_gen` tool to generate **one full animation row per call as 8 invisible equal-size slots, 4 across and 2 down** (8 filled slots, no empty slot), on the **single flat chroma key chosen for this pet** (see *Chroma* below). The prompt says "slots," never "grid/cells," so the model paints one continuous flat field instead of 8 separate cards with per-cell backdrops. `prepare_pet_run.py` also emits a reference-only **`layout-guide.png`** (a 4×2 placeholder with slot boundaries, blue safe-margins, and centering crosshairs) that is attached to every call — it carries placement/centering/safe-margins as a picture, which is what keeps the character from clipping the edge. `image_gen` cannot hit an exact canvas size, so the overall size is nominal. The output is **ephemeral** — there is no save path to hunt for; it is piped straight into the next stage.
 2. **Local assembly stage:** `slice_grid.py` slices the 4×2 grid (dimension-tolerant — any input size), shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip; `compose_atlas.py` stacks the strips into a **magenta-background** atlas; then slim QA runs.
 
 The plugin does **not** mean "ask image generation for the whole atlas at once." The default workflow is **grid-first**:
@@ -51,9 +51,9 @@ Alignment specifics (these serve the rule above):
 
 ## Chroma-key policy (flat key, keyed by the user)
 
-**One flat key, always: magenta `#FF00FF`.** Every row is generated on flat `#FF00FF` and the pipeline keeps that background end-to-end. There is no per-row key selection and no green/blue fallback. Magenta is chosen precisely because the pet's art — and its green props — never share that hue, so keying is clean.
+**One flat key for the whole pet, auto-selected per pet.** `prepare_pet_run.py` picks ONE chroma for the entire pet (every row of every tier shares it — Studio keys each sheet uniformly): with a seed it auto-selects the canonical key (`magenta #FF00FF`, `blue #0047BB`, or `green #00B140`) **farthest from the pet's own palette**; with no seed (or `--chroma magenta`) it falls back to magenta. There is no per-row key selection. Because the props are now fed programmatically, the reserved accent colors **recolor to avoid whatever key wins**: the success ✓/stamp/banner (default green) flips to blue under a green key, and the dead-state ghost (default ethereal blue) flips to warm rose under a blue key — so a pink/magenta pet can take a clean green or blue key without ever keying out an intentional detail. Magenta remains the safe default and tiebreak.
 
-**The plugin does not key the sheet.** Keying is delegated to the user via **[Codogotchi Studio](https://codogotchi.app/studio)**. This is deliberate: an agent cannot reliably tune a matte. Earlier versions used a magenta key, which forced an awkward per-row dance to avoid keying out intended green details (a green checkmark, stamp, or globe). A magenta key removes that conflict at the source — **green props are simply allowed and preserved**, and the user's tool, with real tolerance/edge/spill/hue controls, exports the transparent sheet.
+**The plugin does not key the sheet.** Keying is delegated to the user via **[Codogotchi Studio](https://codogotchi.app/studio)**. This is deliberate: an agent cannot reliably tune a matte. Because the key is now chosen per pet and the reserved accents recolor around it, **no intentional detail ever shares the background hue** — the user's tool, with real tolerance/edge/spill/hue controls, exports the transparent sheet cleanly regardless of which key was selected.
 
 What this means per surface:
 - Prompts demand one perfectly flat `#FF00FF` background (hex stated literally), with no falloff, shadow, texture, halo, or antialias spill into the key.

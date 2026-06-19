@@ -15,11 +15,11 @@ Generate the **Tier 4 (SoA)** sprite sheet for an existing Codogotchi pet — th
 
 **Prerequisite:** the pet must already have a valid `spritesheet.webp` (Codex, Tier 1) installed. The character reference is derived directly from that sheet — no separate seed image or description is needed. The SoA sheet needs **only** the Codex sheet — it is independent of the Lite tiers (Basic/Enhanced).
 
-**Execution model (grid-first):** Codex uses its built-in `image_gen` tool to generate **one full SoA row per call as a single 4×2 grid**: 4 columns × 2 rows of 192×208 frames (8 cells, read left-to-right, top row then bottom), all 8 populated, no empty cell, on a **flat magenta `#FF00FF`** background. `image_gen` need not — and cannot — hit an exact canvas size; the 4×2 framing keeps it near a friendly ratio so frames never clip. Then run `slice_grid.py`, which is dimension-tolerant: it slices the grid by fraction, shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip on flat magenta — ready to compose. Generate one grid at a time; never ask for the whole atlas in a single image.
+**Execution model (slot-first):** Codex uses its built-in `image_gen` tool to generate **one full SoA row per call as 8 invisible equal-size slots, 4 across and 2 down** (read left-to-right, top row then bottom), all 8 filled, on the **single flat chroma key chosen for this pet** (see below). The slots are an *invisible* placement grid — the prompt says "slots," never "grid/cells," so the model paints one continuous flat field, not 8 separate cards. `prepare_pet_run.py` also emits a **`layout-guide.png`** (4×2 placeholder with slot boundaries, blue safe-margins, centering crosshairs); **attach it (and the seed) to every `image_gen` call** as reference-only — it keeps frames from clipping. `image_gen` need not hit an exact canvas size. Then run `slice_grid.py` (dimension-tolerant): it slices by fraction, shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip. Generate one row at a time; never ask for the whole atlas in a single image.
 
 **Non-negotiable row gate:** finish one row completely (generate grid → `slice_grid.py`) before generating the next. If a grid comes back clipped, cramped, or off-model, regenerate the whole grid instead of patching forward. Do not compose until every row strip exists. The model does **not** screenshot or eyeball its own output — `slice_grid.py` enforces geometry, and prop clarity / face / scale / motion are reviewed by the human on the script-produced contact sheet after composing.
 
-**Chroma key — flat magenta `#FF00FF`, always, keyed by the user later.** Every row is generated on flat magenta `#FF00FF` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — and **green props are now allowed and preserved**: `green-tdd`'s and `review-clean`'s green checkmark effects stay green, because the user keys the sheet later in **Codogotchi Studio** (https://codogotchi.app/studio). Against a magenta key a green prop never shares the background colour, so it survives keying cleanly — that is exactly why the key is magenta and not green.
+**Chroma key — one auto-selected key for the whole pet, keyed by the user later.** The chroma is fixed for the pet by `prepare_pet_run.py` (auto-selected from the seed — `magenta #FF00FF`, `blue #0047BB`, or `green #00B140` — magenta fallback) and **must match the pet's existing sheets**; pass `--chroma` to match if needed. Reserved success accents recolor automatically to avoid the key: `green-tdd`'s and `review-clean`'s ✓ effects default to green but flip to blue under a green key, so they are always preserved, never keyed out. This plugin does **not** key the sheet — the user keys it later in **Codogotchi Studio** (https://codogotchi.app/studio).
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that preserves the emotional beat**. Many SoA rows can be finished faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a preferred optimization, not a universal law.
 
@@ -75,7 +75,7 @@ This extracts the idle row, frame 1 (row 0, col 0) on a solid `#FF00FF` backgrou
 
 Identical to `hatch-codogotchi-lite`:
 
-- **Background:** flat `#FF00FF` magenta on every row (including `green-tdd` and `review-clean` — their green checkmarks are preserved and keyed by the user later) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
+- **Background:** the pet's single flat chroma key on every row (use the exact key from the generated prompt / `run-config.json` — `green-tdd` and `review-clean` keep their ✓ accents, which recolor to stay off the key, preserved and keyed by the user later) — do NOT request RGBA directly. The key must be perfectly flat: no lighting falloff, vignette, texture, shadow, halo, glow, or antialias spill into the background.
 - **Padding:** ≥ 8 px all sides; nothing touches an edge.
 - **Scale registration:** one shared scale per row, applied by `slice_grid.py` (tallest cell sets it).
 - **Horizontal registration:** character/content stays on a stable x-axis in every 192×208 cell; no left/right hopping. If a large side prop skews the alpha bbox, prefer the character body's visual center and confirm by human review.
@@ -126,7 +126,7 @@ Produces a run manifest and strip prompt artifacts under the working directory c
 For **each** of the 10 SoA rows, in the order below, complete the full cycle before starting the next:
 
 1. Read motion description in `sheet-prompts/soa/<row-label>.txt`.
-2. **Use built-in `image_gen` to generate one 4×2 grid** — 4 cols × 2 rows of 192×208 cells, all 8 populated, no empty cell, on flat `#FF00FF` magenta. `image_gen` need not hit an exact size. `green-tdd` and `review-clean` keep their green checkmarks (preserved, keyed by the user later). Attach the seed artifact as the character reference. The generated grid is an ephemeral input to `slice_grid.py` — do not save it to a named directory.
+2. **Use built-in `image_gen` to generate one row of 8 invisible 4×2 slots** — 4 across, 2 down, all 8 filled, no empty slot, on the pet's single flat chroma key (from the prompt / `run-config.json`). `image_gen` need not hit an exact size. `green-tdd` and `review-clean` keep their ✓ accents (recolored to stay off the key, preserved, keyed by the user later). **Attach the seed artifact and `layout-guide.png`** as references. The generated image is an ephemeral input to `slice_grid.py` — do not save it to a named directory.
 3. Compare style to a cell from the existing `spritesheet.webp` — palette, linework, and proportions must match.
 
 ### Step 4 — Slice each grid into its canonical row strip
@@ -219,7 +219,7 @@ Key distinctions to preserve:
 
 ## Acceptance criteria
 
-- [ ] `codogotchi-soa-spritesheet.webp` — exact 1536 × 2080; 10 rows × 8 cols; cell 192 × 208 (magenta background, pre-key)
+- [ ] `codogotchi-soa-spritesheet.webp` — exact 1536 × 2080; 10 rows × 8 cols; cell 192 × 208 (flat-key background, pre-key)
 - [ ] Flat `#FF00FF` background, perfectly uniform across the atlas (no falloff/shadow/texture)
 - [ ] Character/content horizontal center is stable across each row; non-jump poses share a bottom foot baseline near `cell_h - 8` (eyeballed)
 - [ ] No row has all 8 frames pixel-identical (gated by `validate_atlas.py`)

@@ -19,11 +19,11 @@ Add the **Lite-Basic** sheet (Tier 2) to a pet that already has a Codex `sprites
 
 **Prerequisite:** a valid Codex `spritesheet.webp` for the pet (the character reference is extracted from it).
 
-**Execution model (grid-first):** Codex uses its built-in `image_gen` tool to generate **one full Lite-Basic row per call as a single 4×2 grid**: 4 columns × 2 rows of 192×208 frames (8 cells, read left-to-right, top row then bottom), all 8 populated, no empty cell, on a **flat magenta `#FF00FF`** background. `image_gen` need not — and cannot — hit an exact canvas size; the 4×2 framing keeps it near a friendly ratio so frames never clip. Then run `slice_grid.py`, which is dimension-tolerant: it slices the grid by fraction, shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip on flat magenta — ready to compose. Generate one grid at a time; never ask for the whole atlas in a single image.
+**Execution model (slot-first):** Codex uses its built-in `image_gen` tool to generate **one full Lite-Basic row per call as 8 invisible equal-size slots, 4 across and 2 down** (read left-to-right, top row then bottom), all 8 filled, on the **single flat chroma key chosen for this pet** (see below). The slots are an *invisible* placement grid — the prompt says "slots," never "grid/cells," so the model paints one continuous flat field, not 8 separate cards. `prepare_pet_run.py` also emits a **`layout-guide.png`** (4×2 placeholder with slot boundaries, blue safe-margins, centering crosshairs); **attach it (and the seed) to every `image_gen` call** as reference-only — it keeps frames from clipping. `image_gen` need not hit an exact canvas size. Then run `slice_grid.py` (dimension-tolerant): it slices by fraction, shares one scale across all 8 frames, and emits the exact canonical `1536×208` row strip. Generate one row at a time; never ask for the whole atlas in a single image.
 
 **Non-negotiable row gate:** finish one row completely (generate grid → `slice_grid.py`) before generating the next. If a grid comes back clipped, cramped, or off-model, regenerate the whole grid instead of patching forward. Do not compose until every row strip exists. The model does **not** screenshot or eyeball its own output — `slice_grid.py` enforces geometry, and prop clarity / face / scale / motion are reviewed by the human on the script-produced contact sheet after composing.
 
-**Chroma key — flat magenta `#FF00FF`, always, keyed by the user later.** Every row is generated on flat magenta `#FF00FF` and the pipeline keeps that background end-to-end. This plugin does **not** key the sheet — intentional green details are preserved. After QA, hand the magenta-background atlas to the user to key in **Codogotchi Studio** (https://codogotchi.app/studio).
+**Chroma key — one auto-selected key for the whole pet, keyed by the user later.** The chroma is fixed for the pet by `prepare_pet_run.py` (auto-selected from the seed — `magenta #FF00FF`, `blue #0047BB`, or `green #00B140` — magenta fallback) and **must match the pet's existing sheets**; pass `--chroma` to match if needed. The ghost recolors automatically to avoid the key (default ethereal blue; flips to warm rose under a blue key) so it is never keyed out. This plugin does **not** key the sheet. After QA, hand the flat-key atlas to the user to key in **Codogotchi Studio** (https://codogotchi.app/studio).
 
 **Recommended production pattern:** generate the minimum number of **distinct** keyframes needed for a readable, non-static row, then reuse or mirror earlier stable frames to close the loop **when that produces a clean result**. Many rows can be completed faster with ~4 strong keyframes plus a mirrored/reused closure instead of 8 fully independent generations. This is a recommended speedup, not a hard requirement.
 
@@ -97,7 +97,7 @@ If any frame in a grid is wrong, **regenerate the whole grid** for that row, re-
 
 ## Acceptance criteria
 
-- [ ] `codogotchi-lite-basic-spritesheet.webp` — 1536 × 1872; 9 × 8; cell 192 × 208 (magenta background, pre-key)
+- [ ] `codogotchi-lite-basic-spritesheet.webp` — 1536 × 1872; 9 × 8; cell 192 × 208 (flat-key background, pre-key)
 - [ ] Flat `#FF00FF` background, perfectly uniform across the atlas (no falloff/shadow/texture)
 - [ ] Character/content horizontal center is stable across the row; ordinary standing rows share a bottom foot baseline near `cell_h - 8` (eyeballed)
 - [ ] **Stable motion (paramount):** body/feet anchored, one element moves at low amplitude, no jitter/hopping/limb-swing

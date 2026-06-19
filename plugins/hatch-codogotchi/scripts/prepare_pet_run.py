@@ -14,6 +14,11 @@ import sys
 from pathlib import Path
 from datetime import datetime, timezone
 
+import numpy as np
+from PIL import Image, ImageDraw
+
+from chroma_palette import CANONICAL_CHROMA_HEX, CANONICAL_CHROMA_RGB
+
 
 # ---------------------------------------------------------------------------
 # Motion descriptions (referenced from the SKILL-*.md entrypoints). Each non-emotional
@@ -46,8 +51,14 @@ CODEX_PROMPTS: dict[str, str] = {
         "neutrality. 8 frames."
     ),
     "jumping": (
-        "Left-click-hold on floating pet triggers this. Knees bend (wind-up), leap upward with both feet off baseline "
-        "(≤12 px), peak hang with arms spread or raised, descend, soft landing. Bouncy and playful, not alarmed. 8 frames."
+        "Left-click-hold on floating pet triggers this. ONE FULL JUMP CYCLE spread evenly across all 8 distinct frames: "
+        "crouch/wind-up → push-off → rise → airborne PEAK → descend → land → settle/recover, so frame 8 returns cleanly "
+        "to frame 1. NO standing/idle filler frames — do not waste frames 1, 7, or 8 on the pet just standing; every "
+        "frame is a distinct phase of the single bounce. Give REAL vertical clearance: at the peak both feet are clearly "
+        "airborne, roughly 24–40 px off the baseline (a genuine single bounce, well above the shins — NOT a ≤12 px hover "
+        "that reads as floating). Stay horizontally centered. Arms lift into a raised gesture during the rise/peak but "
+        "stay BELOW a full overhead extension so the hands do not clip the top of the cell. One controlled bounce, bouncy "
+        "and playful, not alarmed or flailing. 8 frames."
     ),
     "failed": (
         "Dismay at a failure. Slight recoil with widening eyes, compact sweat-drop near temple, hand to forehead "
@@ -102,8 +113,8 @@ LITE_BASIC_PROMPTS: dict[str, str] = {
         "focus-lean, the screen glows, fingers ease and reset. Busy and productive. 8 frames."
     ),
     "testing": (
-        "Running tests — lab-experiment metaphor. PROPS: a lab coat (worn every frame), an Erlenmeyer flask of BLUE "
-        "liquid in one hand, a test tube of RED liquid in the other. She pours the red into the blue, a small 'poof' "
+        "Running tests — lab-experiment metaphor. PROPS: a lab coat (worn every frame), an Erlenmeyer flask of __COOL_LIQUID__ "
+        "liquid in one hand, a test tube of RED liquid in the other. She pours the red into the cool flask, a small 'poof' "
         "puff-explosion flashes, leaving a smudge of soot on one cheek; she blinks and steadies. 8 frames."
     ),
     "errored": (
@@ -118,11 +129,10 @@ LITE_BASIC_PROMPTS: dict[str, str] = {
     ),
     "ghost": (
         "0 HP spectral form. Cute, gentle, and upright — NOT scary, NOT morbid. She appears as a ghostly version of "
-        "the idle pose, still standing vertically like the rest of the sheet. Spectral hue is a clear BLUE: a "
-        "translucent ethereal-blue / cyan-blue body with a soft blue glow (think a glowing blue spirit). Keep the "
-        "whole apparition in the blue/cyan family — do NOT tint her pink, magenta, or purple (warm/magenta tones "
-        "would key out against the magenta background). Faint floating/swaying motion and a tiny wispy spirit tail "
-        "or aura beneath her. Read this as a cute blue ghost form of idle, not a collapsed body. 8 frames."
+        "the idle pose, still standing vertically like the rest of the sheet. Spectral hue is a clear __GHOST_HUE__. "
+        "Keep the WHOLE apparition (body, glow, aura) in that single hue family and clearly AWAY from the background "
+        "key color so the spirit is not removed during keying. Faint floating/swaying motion and a tiny wispy spirit "
+        "tail or aura beneath her. Read this as a cute glowing ghost form of idle, not a collapsed body. 8 frames."
     ),
 }
 
@@ -156,8 +166,8 @@ LITE_ENHANCED_PROMPTS: dict[str, str] = {
         "whoosh / motion trail — she follows through and resets to loop. 8 frames."
     ),
     "verifying": (
-        "Post-change verification / CI watch. PROPS: a clipboard checklist and a green stamp. She ticks two items, "
-        "then slams a big green '✓ PASS' stamp onto the page, lifts it to check, lowers. Distinct from SoA "
+        "Post-change verification / CI watch. PROPS: a clipboard checklist and a __SUCCESS_ACCENT__ stamp. She ticks two items, "
+        "then slams a big __SUCCESS_ACCENT__ '✓ PASS' stamp onto the page, lifts it to check, lowers. Distinct from SoA "
         "record-review. 8 frames."
     ),
     "searching": (
@@ -184,7 +194,7 @@ SOA_PROMPTS: dict[str, str] = {
         "hands to keyboard-ready, settle. DETERMINED, NOT SAD. This is a milestone. 8 frames."
     ),
     "green-tdd": (
-        "The test now passes. Watching, then compact green ✓/green sparkle pops above as eyes light up, small "
+        "The test now passes. Watching, then compact __SUCCESS_ACCENT__ ✓/__SUCCESS_ACCENT__ sparkle pops above as eyes light up, small "
         "fist-clench 'yes!' at the chest, satisfied bounce, settle with a smile. Bright relief and joy. 8 frames."
     ),
     "adversarial-review": (
@@ -203,7 +213,7 @@ SOA_PROMPTS: dict[str, str] = {
         "the spinner, settle. CALM ANTICIPATION — NOT PANIC. 8 frames."
     ),
     "review-clean": (
-        "Review came back clean (emotion-led: relief + delight). PROP: a green '✓ all clear' banner/sparkle that "
+        "Review came back clean (emotion-led: relief + delight). PROP: a __SUCCESS_ACCENT__ '✓ all clear' banner/sparkle that "
         "pops. Reading the result then brightening — shoulders drop, big smile, a small celebratory hand-flourish, "
         "a happy little shimmy, settle content. LIGHTER THAN ticket-completed's big jump. 8 frames."
     ),
@@ -218,9 +228,12 @@ SOA_PROMPTS: dict[str, str] = {
         "bring the back foot up and square forward, re-gather to loop. Progress and momentum. 8 frames."
     ),
     "ticket-completed": (
-        "JUBILANT CELEBRATION — the most energetic row (emotion-led). PROP: a confetti burst at the peak. Knees bend "
-        "with arms sweeping back (wind-up), LEAP UP with arms spread wide and a big smile, peak with BOTH FEET OFF "
-        "BASELINE (≤12 px) as confetti pops, descend with hair bouncing, soft landing into a ready settle. 8 frames."
+        "JUBILANT CELEBRATION — the most energetic row (emotion-led). PROP: a confetti burst at the peak. ONE FULL JUMP "
+        "CYCLE across all 8 distinct frames (NO standing filler frames): knees bend with arms sweeping back (wind-up), "
+        "push-off, LEAP UP with arms spread wide and a big smile, airborne PEAK with BOTH FEET clearly off the baseline "
+        "(~24–40 px, a genuine bounce — NOT a ≤12 px hover) as confetti pops, descend with hair bouncing, soft landing "
+        "into a ready settle so frame 8 returns toward frame 1. Stay horizontally centered; arms raised but below full "
+        "overhead extension so hands do not clip the top. 8 frames."
     ),
 }
 
@@ -253,15 +266,138 @@ STYLE_PRESETS = {
     "auto": "infer style from seed image",
 }
 
-# v5: ONE flat chroma key for every row, always. The pipeline no longer keys
-# anything — the user keys the finished atlas with Codogotchi Studio
-# (https://codogotchi.app/studio). The default key is magenta #FF00FF: the
-# pet's own art (and its green props — the green-tdd checkmark, the web-search
-# globe) never collide with magenta, so keying is far cleaner than against green.
-# Supported keys are magenta/green/blue; there is no per-row key selection.
-CHROMA = "ff00ff"
+# v6: ONE flat chroma key for the WHOLE pet — every row of every tier shares the
+# same key, because Codogotchi Studio keys each sheet uniformly. The pipeline
+# never keys; the user keys the finished atlas at https://codogotchi.app/studio.
+#
+# The key is chosen ONCE per pet. With a seed image it is auto-selected (the
+# canonical key farthest from the pet's own palette); without a seed it falls
+# back to magenta. Candidates are the three keys the slicer + Studio understand,
+# in preference order (magenta is the safe default and the tiebreak):
+CHROMA = "ff00ff"  # magenta — fallback / default
+CHROMA_CANDIDATES = ["magenta", "blue", "green"]
 CHROMA_NAME = {"00b140": "green", "0047bb": "blue", "ff00ff": "magenta"}
 CHROMA_RGB = {"00b140": "0,177,64", "0047bb": "0,71,187", "ff00ff": "255,0,255"}
+
+# v6: reserved accent colors are DYNAMIC, resolved against the chosen key so they
+# never collide with it (we now feed the props programmatically). The success
+# accent (green-tdd ✓, verifying stamp, review-clean banner) defaults to green and
+# flips to blue under a green key; the ghost apparition defaults to ethereal blue
+# and flips to warm rose under a blue key; the testing "cool liquid" follows suit.
+DEFAULT_SUCCESS_ACCENT = "vivid GREEN"
+DEFAULT_GHOST_HUE = "translucent ethereal-BLUE / cyan-blue with a soft blue glow (a glowing blue spirit)"
+DEFAULT_COOL_LIQUID = "BLUE"
+
+
+def conflict_palette(chroma_hex: str) -> dict:
+    """Resolve reserved accent colors so none equals the chosen key."""
+    success = DEFAULT_SUCCESS_ACCENT
+    ghost = DEFAULT_GHOST_HUE
+    cool_liquid = DEFAULT_COOL_LIQUID
+    if chroma_hex == "00b140":  # green key — move the green success accent off green
+        success = "vivid BLUE"
+    if chroma_hex == "0047bb":  # blue key — move the blue ghost/liquid off blue
+        ghost = "translucent warm ROSE / reddish-pink with a soft rose glow (a glowing rose spirit)"
+        cool_liquid = "PURPLE"
+    return {
+        "SUCCESS_ACCENT": success,
+        "GHOST_HUE": ghost,
+        "COOL_LIQUID": cool_liquid,
+    }
+
+
+def _sample_pet_pixels(seed_path: Path) -> np.ndarray:
+    """Sample non-background pet pixels from the seed (drop transparent and any
+    pixel near a canonical key color, so the key choice is driven by the pet)."""
+    with Image.open(seed_path) as opened:
+        image = opened.convert("RGBA")
+        image.thumbnail((128, 128), Image.Resampling.LANCZOS)
+        arr = np.asarray(image)
+    rgb = arr[:, :, :3].astype(np.int32).reshape(-1, 3)
+    alpha = arr[:, :, 3].reshape(-1)
+    keep = alpha > 16
+    for crgb in CANONICAL_CHROMA_RGB.values():
+        dist = np.sqrt(((rgb - np.array(crgb)) ** 2).sum(axis=1))
+        keep &= dist > 70
+    return rgb[keep]
+
+
+def select_chroma(seed_path: Path | None) -> tuple[str, str, str]:
+    """Return (hex_no_hash, name, selection) for the chosen key.
+    Auto-selects the canonical key farthest from the pet palette; magenta fallback."""
+    if seed_path is None or not Path(seed_path).exists():
+        return CHROMA, "magenta", "fallback"
+    pixels = _sample_pet_pixels(Path(seed_path))
+    if pixels.shape[0] == 0:
+        return CHROMA, "magenta", "fallback"
+    best: tuple[float, int, str] | None = None
+    for preference, name in enumerate(CHROMA_CANDIDATES):
+        crgb = np.array(CANONICAL_CHROMA_RGB[name])
+        distances = np.sort(np.sqrt(((pixels - crgb) ** 2).sum(axis=1)))
+        index = max(0, min(len(distances) - 1, int(len(distances) * 0.01)))
+        candidate = (float(distances[index]), -preference, name)
+        if best is None or candidate > best:
+            best = candidate
+    name = best[2]
+    return CANONICAL_CHROMA_HEX[name], name, "auto"
+
+
+# Layout guide — a generated 4×2 placeholder-grid attached to image_gen as a
+# REFERENCE-ONLY image (never copied into the output). It carries slot geometry,
+# centering, and safe margins as a picture so placement never depends on the
+# model parsing dimensions from prose — directly fights edge-clipping.
+LAYOUT_GUIDE_SAFE_MARGIN_X = 18
+LAYOUT_GUIDE_SAFE_MARGIN_Y = 16
+
+
+def _dashed_line(draw: ImageDraw.ImageDraw, start, end, fill, dash=6, gap=5) -> None:
+    x0, y0 = start
+    x1, y1 = end
+    if y0 == y1:
+        x = x0
+        while x < x1:
+            draw.line((x, y0, min(x + dash, x1), y0), fill=fill, width=1)
+            x += dash + gap
+    else:
+        y = y0
+        while y < y1:
+            draw.line((x0, y, x0, min(y + dash, y1)), fill=fill, width=1)
+            y += dash + gap
+
+
+def create_layout_guide(path: Path) -> dict:
+    """Write a 4×2 (8-slot) layout guide of 192×208 cells: per-slot boundary,
+    blue safe-area inset, and a gray centering crosshair on a light field."""
+    cols, rows = GRID_LAYOUT["cols"], GRID_LAYOUT["rows"]
+    cw, ch = GRID_LAYOUT["cell_w"], GRID_LAYOUT["cell_h"]
+    width, height = cols * cw, rows * ch
+    image = Image.new("RGB", (width, height), "#f7f7f7")
+    draw = ImageDraw.Draw(image)
+    for row in range(rows):
+        for col in range(cols):
+            left, top = col * cw, row * ch
+            right, bottom = left + cw - 1, top + ch - 1
+            draw.rectangle((left, top, right, bottom), outline="#111111", width=2)
+            sl, st = left + LAYOUT_GUIDE_SAFE_MARGIN_X, top + LAYOUT_GUIDE_SAFE_MARGIN_Y
+            sr, sb = right - LAYOUT_GUIDE_SAFE_MARGIN_X, bottom - LAYOUT_GUIDE_SAFE_MARGIN_Y
+            draw.rectangle((sl, st, sr, sb), outline="#2f80ed", width=2)
+            cx, cy = left + cw // 2, top + ch // 2
+            _dashed_line(draw, (cx, st), (cx, sb), "#b8b8b8")
+            _dashed_line(draw, (sl, cy), (sr, cy), "#b8b8b8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path)
+    return {
+        "path": path.name,
+        "width": width,
+        "height": height,
+        "cols": cols,
+        "rows": rows,
+        "cell_w": cw,
+        "cell_h": ch,
+        "safe_margin_x": LAYOUT_GUIDE_SAFE_MARGIN_X,
+        "safe_margin_y": LAYOUT_GUIDE_SAFE_MARGIN_Y,
+        "usage": "layout guide input only; use for slot placement/centering/safe-margins, do not copy guide lines or colors into the output",
+    }
 GRID_LAYOUT = {
     # v5: each animation row is generated as ONE 4x2 grid — 4 columns x 2 rows of
     # 192x208 cells (8 populated cells, no empty cell). image_gen cannot hit an exact
@@ -329,19 +465,22 @@ def motion_doctrine(row_label: str) -> str:
 
 def build_sheet_output_format() -> str:
     return """OUTPUT FORMAT:
-- ONE image laid out as a 4 × 2 GRID: 4 columns and 2 rows of animation frames (8 cells total).
-- Read order is left-to-right, TOP ROW FIRST (cells 1-4), then the BOTTOM ROW (cells 5-8). All 8 cells are
-  populated — there is no empty cell.
-- Do NOT return a single wide horizontal strip (8 frames in one row). A wide 8×1 strip makes the character clip
-  the cell edges; the 4×2 grid is what prevents that. Use the 4×2 layout.
-- The overall pixel size does NOT need to be exact — aim for a roughly 4:2 (≈16:9-ish, wider-than-tall) canvas so
-  each cell has room. Downstream tooling slices the grid and snaps it to the exact final size, so do not distort the
-  character to hit a specific dimension.
-- Each cell holds the character at the SAME scale and the SAME bottom baseline across all 8 cells.
-- Do NOT draw panel borders, grid lines, separators, gutters, guides, crop marks, frame boxes, labels, numbers,
-  or any visible structure — the division into cells is invisible placement only.
-- Every frame must stay fully inside its own cell. No body part, hair, prop, effect, outline, shadow, halo, glow,
-  label, separator, or antialiasing may cross a cell boundary."""
+- ONE image holding 8 animation frames in 8 INVISIBLE EQUAL-SIZE SLOTS arranged 4 across and 2 down.
+- Read order is left-to-right, TOP ROW OF SLOTS FIRST (slots 1-4), then the BOTTOM ROW (slots 5-8). All 8 slots
+  are filled — there is no empty slot.
+- The slots are an INVISIBLE placement grid only: treat the whole image as ONE continuous scene that happens to
+  hold 8 poses, NOT as 8 separate cards/panels/thumbnails. Do NOT give any slot its own backdrop, frame, border,
+  divider, gutter, box, panel, drop-shadow, or lighting — there are no visible cells, lines, labels, or numbers.
+- A LAYOUT GUIDE image is attached for placement ONLY: use it for the 8 slot positions, centering, and the safe
+  margins; do NOT copy its boundary lines, safe-area boxes, crosshairs, colors, or light background into the output.
+- Do NOT return a single wide horizontal strip (8 poses in one row). A wide 8×1 strip makes the character clip the
+  edges; the 4-across / 2-down slot layout is what prevents that. Keep that layout.
+- The overall pixel size does NOT need to be exact — aim for a roughly wider-than-tall (≈16:9-ish) canvas so each
+  slot has room. Downstream tooling slices it and snaps to the exact final size, so do not distort the character to
+  hit a specific dimension.
+- Each slot holds the character at the SAME scale and the SAME bottom baseline across all 8 poses.
+- Every pose stays fully inside its own slot's safe margin. No body part, hair, prop, effect, outline, shadow, halo,
+  glow, or antialiasing may cross into a neighbouring slot."""
 
 
 def build_background_rules(chroma: str) -> str:
@@ -351,20 +490,23 @@ def build_background_rules(chroma: str) -> str:
     rgb = CHROMA_RGB.get(chroma, "")
     return f"""BACKGROUND & FRAME RULES:
 - Background: one single uninterrupted FLAT {name} key color, EXACTLY hex #{chroma} (RGB {rgb}), filling
-  the ENTIRE image — every cell and all the space between cells. This {name} is a CHROMA KEY that the user
-  removes later with a dedicated tool, so it must be perfectly uniform.
-- The background must be exactly that same solid #{chroma} in every frame and between frames: no lighting falloff,
-  vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, cell shading,
-  separator lines, panel borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
+  the ENTIRE image as ONE continuous field — behind every slot and all the space between slots. This {name}
+  is a CHROMA KEY the user removes later with a dedicated tool, so it must be perfectly uniform edge to edge.
+- The background must be exactly that same solid #{chroma} everywhere: no per-slot panel/card/backdrop, no lighting
+  falloff, vignette, texture, noise, gradient, radial glow, floor plane, cast shadow, contact shadow, separator
+  lines, borders, gutters, guide lines, halo, outline, or antialias spill into the key color.
 - Output flat RGB on the #{chroma} background. Do NOT output transparency/RGBA — fill the background with the {name} key.
-- Padding: at least 8 px on all sides inside each 192 × 208 frame.
-- Same character scale and baseline across all 8 frames.
+- Keep the #{chroma} key color OUT of the character, props, highlights, and effects so nothing keys out by accident.
+- Padding: at least 8 px on all sides inside each 192 × 208 slot.
+- Same character scale and baseline across all 8 poses.
 - Frame 8 pose ≈ frame 1 pose so the loop closes cleanly."""
 
 
 def build_sheet_prompt_seed(row_label: str, style_desc: str, chroma: str) -> str:
     """Prompt for strip generation from an attached seed image."""
     motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
+    for token, value in conflict_palette(chroma).items():
+        motion = motion.replace(f"__{token}__", value)
     doctrine = motion_doctrine(row_label)
     return f"""You are generating ONE COMPLETE 8-frame animation row for a desktop Codogotchi pet.
 
@@ -393,6 +535,8 @@ PROP DOCTRINE (read this — codogotchi animations are NOT charades):
 def build_sheet_prompt_description(row_label: str, description: str, style_desc: str, chroma: str) -> str:
     """Prompt for strip generation from a text description."""
     motion = ALL_PROMPTS.get(row_label, f"Animation for state: {row_label}. 8 frames looping.")
+    for token, value in conflict_palette(chroma).items():
+        motion = motion.replace(f"__{token}__", value)
     doctrine = motion_doctrine(row_label)
     return f"""You are generating ONE COMPLETE 8-frame animation row for a desktop Codogotchi pet.
 
@@ -445,6 +589,9 @@ def main() -> None:
     parser.add_argument("--pet-name", default="My Pet", help="Display name for the pet")
     parser.add_argument("--pet-id", default=None, help="Pet ID slug (derived from --pet-name if not provided)")
     parser.add_argument("--style", default="auto", choices=list(STYLE_PRESETS.keys()))
+    parser.add_argument("--chroma", default="auto", choices=["auto", "magenta", "green", "blue"],
+                        help="Chroma key for the WHOLE pet. 'auto' picks the canonical key farthest from the "
+                             "seed palette (magenta fallback with no seed). Reserved props/ghost recolor to avoid it.")
     parser.add_argument("--tier",
                         choices=["codex", "lite-basic", "lite-enhanced", "soa", "all"], default="all",
                         help="Which tier(s) to prepare prompts for (default: all). "
@@ -496,12 +643,26 @@ def main() -> None:
     (run_dir / "qa").mkdir(parents=True, exist_ok=True)
 
     # Copy seed
+    seed_dest: Path | None = None
     if args.seed and args.seed.exists():
-        dest = run_dir / f"seed{args.seed.suffix}"
-        shutil.copy2(args.seed, dest)
+        seed_dest = run_dir / f"seed{args.seed.suffix}"
+        shutil.copy2(args.seed, seed_dest)
         print("Seed artifact prepared.")
     elif args.seed:
         print(f"WARNING: seed not found at {args.seed}")
+
+    # Resolve the ONE chroma key for the whole pet. 'auto' selects from the seed
+    # (magenta fallback); an explicit name overrides. Reserved accents recolor to it.
+    if args.chroma == "auto":
+        chroma, chroma_name, chroma_selection = select_chroma(seed_dest)
+    else:
+        chroma = CANONICAL_CHROMA_HEX[args.chroma]
+        chroma_name, chroma_selection = args.chroma, "manual"
+    palette = conflict_palette(chroma)
+
+    # Generate the shared 4×2 layout guide (all rows are 8-frame 4×2). Attached to
+    # every image_gen call as a reference-only placement aid.
+    layout_guide = create_layout_guide(run_dir / "layout-guide.png")
 
     # Write grid prompt files (one grid prompt per row)
     for tier in tiers:
@@ -509,7 +670,7 @@ def main() -> None:
             sheet_prompt_text = build_sheet_prompt(
                 label,
                 style_desc,
-                CHROMA,
+                chroma,
                 description=args.description,
             )
             sheet_p = run_dir / "sheet-prompts" / tier / f"{label}.txt"
@@ -526,10 +687,12 @@ def main() -> None:
                 "tier": tier,
                 "row_label": label,
                 "row_index": row_idx,
-                "generate": f"4x2 grid (8 cells of 192x208), any overall size, flat #{CHROMA}",
+                "generate": f"4x2 layout (8 invisible 192x208 slots), any overall size, flat #{chroma}",
                 "strip_size": "1536x208",
-                "chroma": CHROMA,
+                "chroma": chroma,
                 "prompt_path": f"sheet-prompts/{tier}/{label}.txt",
+                "layout_guide_path": layout_guide["path"],
+                "attach": ([seed_dest.name] if seed_dest else []) + [layout_guide["path"]],
                 "strip_out_path": f"strips/{tier}/{label}.png",
                 "status": "pending",
             })
@@ -546,8 +709,12 @@ def main() -> None:
         "description": args.description,
         "style": args.style,
         "style_desc": style_desc,
-        "chroma": CHROMA,
-        "generate_layout": "4x2 grid (8 cells of 192x208), any overall size",
+        "chroma": chroma,
+        "chroma_name": chroma_name,
+        "chroma_selection": chroma_selection,
+        "prop_palette": palette,
+        "layout_guide": layout_guide,
+        "generate_layout": "4x2 layout (8 invisible 192x208 slots), any overall size",
         "strip_size": "1536x208",
         "keying": "external",
         "keying_tool_url": "https://codogotchi.app/studio",
@@ -568,11 +735,14 @@ def main() -> None:
     if args.description:
         print(f"Description: {args.description[:80]}{'…' if len(args.description) > 80 else ''}")
         print("NOTE (description mode): generate the Codex idle row FIRST; use its frame 1 as the seed artifact for subsequent calls.")
-    print(f"Generation: grid-first — one 4x2 grid (8 cells of 192x208, any overall size) per row, flat #{CHROMA}.")
+    print(f"Generation: slot-first — one 4x2 layout (8 invisible 192x208 slots, any overall size) per row, flat #{chroma}.")
     print(f"Total rows to generate: {total_rows}")
-    print(f"Chroma: fixed flat #{CHROMA} ({CHROMA_NAME.get(CHROMA, 'chroma-key')}) on every row. Keying is NOT done by this pipeline.")
+    print(f"Chroma: flat #{chroma} ({chroma_name}, {chroma_selection}) on EVERY row of every tier. Keying is NOT done by this pipeline.")
+    print(f"Reserved accents (recolored to avoid the key): success={palette['SUCCESS_ACCENT']}; ghost={palette['GHOST_HUE']}; cool-liquid={palette['COOL_LIQUID']}.")
+    print(f"Layout guide: layout-guide.png ({layout_guide['width']}x{layout_guide['height']}) — attach to every image_gen call as a reference-only placement aid.")
     print("\nNext per row (image_gen output is ephemeral — there is no required save path):")
-    print("  1. Generate one 4x2 grid with sheet-prompts/<tier>/<row>.txt; image_gen need not hit an exact size.")
+    print("  1. Generate one 4x2-slot image with sheet-prompts/<tier>/<row>.txt; ATTACH layout-guide.png (and the seed)")
+    print("     as reference images. image_gen need not hit an exact size.")
     print("  2. Slice the grid into the canonical 1536x208 row strip (caller-chosen/ephemeral paths):")
     print(
         "     python scripts/slice_grid.py --input <grid> --out <row-strip>"
