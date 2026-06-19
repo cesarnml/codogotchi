@@ -306,6 +306,10 @@ export const applyPetUpdate = internalMutation({
   },
 });
 
+// Admin accounts exempt from the upload rate limit (e.g. seeding/curating the
+// gallery). Matched by verified account email.
+const RATE_LIMIT_EXEMPT_EMAILS = new Set(["admin@codogotchi.app"]);
+
 // Sliding-window upload rate limit, transactional so concurrent uploads can't
 // both slip past a separate count-then-insert. Counts the user's attempts in
 // the last `windowMs`; if under `max`, records this attempt and allows it,
@@ -314,6 +318,15 @@ export const applyPetUpdate = internalMutation({
 export const checkAndRecordUpload = internalMutation({
   args: { userId: v.id("users"), windowMs: v.number(), max: v.number() },
   handler: async (ctx, args) => {
+    // Exempt admins entirely — no counting, no recording. Matched by account
+    // email: every sign-in path here (Google, GitHub, Resend OTP) proves email
+    // ownership at the provider, and @convex-dev/auth dedupes users by the
+    // `email` index, so exactly one account can ever hold this address.
+    const user = await ctx.db.get(args.userId);
+    if (user?.email && RATE_LIMIT_EXEMPT_EMAILS.has(user.email)) {
+      return { allowed: true as const, retryMs: 0 };
+    }
+
     const now = Date.now();
     const since = now - args.windowMs;
     const recent = await ctx.db

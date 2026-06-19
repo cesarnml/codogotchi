@@ -476,6 +476,62 @@ describe("uploadPet action", () => {
         }),
     ).rejects.toThrow(/rate limit/i);
   });
+
+  test("admin email is exempt from the rate limit", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const now = Date.now();
+    const adminId = await t.run(async (ctx) =>
+      ctx.db.insert("users", {
+        username: "admin",
+        rpgHandle: null,
+        email: "admin@codogotchi.app",
+      }),
+    );
+
+    // Saturate the window; admin must still get through.
+    for (let i = 0; i < 5; i++) {
+      await t.run(async (ctx) => {
+        await ctx.db.insert("uploadEvents", {
+          userId: adminId,
+          at: now - 60_000 * (i + 1),
+        });
+      });
+    }
+
+    const rawZipStorageId = await seedBlob(t, await makeValidPackage());
+    const result = await t
+      .withIdentity({ subject: `${adminId}|test-session` })
+      .action(api.actions.uploadPet.uploadPet, { rawZipStorageId });
+    expect(result.created).toBe(true);
+  });
+
+  test("a non-admin email is still rate limited", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const now = Date.now();
+    const userId = await t.run(async (ctx) =>
+      ctx.db.insert("users", {
+        username: "regular",
+        rpgHandle: null,
+        email: "someone@example.com",
+      }),
+    );
+
+    for (let i = 0; i < 5; i++) {
+      await t.run(async (ctx) => {
+        await ctx.db.insert("uploadEvents", {
+          userId,
+          at: now - 60_000 * (i + 1),
+        });
+      });
+    }
+
+    const rawZipStorageId = await seedBlob(t, await makeValidPackage());
+    await expect(
+      t
+        .withIdentity({ subject: `${userId}|test-session` })
+        .action(api.actions.uploadPet.uploadPet, { rawZipStorageId }),
+    ).rejects.toThrow(/rate limit/i);
+  });
 });
 
 describe("updatePetSheets action", () => {
