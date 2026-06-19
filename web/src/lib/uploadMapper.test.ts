@@ -5,12 +5,29 @@ import {
   buildUploadArgs,
   isSingleZip,
   mapUploadError,
+  MAX_PACKAGE_BYTES,
   validateLooseSelection,
+  validatePackageSize,
 } from "./uploadMapper";
 
 function fileOf(name: string, content = "x", type = ""): File {
   return new File([content], name, { type });
 }
+
+describe("validatePackageSize", () => {
+  it("accepts a package at the limit", () => {
+    const blob = { size: MAX_PACKAGE_BYTES } as Blob;
+    expect(validatePackageSize(blob)).toBeNull();
+  });
+
+  it("rejects a package over the limit with a sized message", () => {
+    const blob = { size: MAX_PACKAGE_BYTES + 1 } as Blob;
+    const msg = validatePackageSize(blob);
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("too large");
+    expect(msg).toContain("10 MB");
+  });
+});
 
 describe("isSingleZip", () => {
   it("is true for a lone .zip and false otherwise", () => {

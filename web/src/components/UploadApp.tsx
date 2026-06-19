@@ -16,6 +16,7 @@ import {
   buildUploadArgs,
   mapUploadError,
   validateLooseSelection,
+  validatePackageSize,
 } from "../lib/uploadMapper";
 import AuthModal from "./AuthModal";
 
@@ -117,6 +118,12 @@ function UploadForm() {
       // Normalize loose files into the zip the server expects (or pass a single
       // .zip straight through), then stage it.
       const packageBlob = await buildPetPackage(files);
+      const sizeError = validatePackageSize(packageBlob);
+      if (sizeError) {
+        setError(sizeError);
+        setBusy(false);
+        return;
+      }
       const rawUrl = await generateUploadUrl();
       const rawZipStorageId = await uploadBlob(rawUrl, packageBlob);
 

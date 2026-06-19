@@ -26,6 +26,25 @@ async function deleteBlob(ctx: ActionCtx, id?: Id<"_storage"> | null) {
 const RATE_LIMIT_MAX = 10;
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const MAX_THUMBNAIL_BYTES = 1 * 1024 * 1024;
+// Hard ceiling on the raw uploaded package. The heaviest published pet today is
+// ~3.3 MB (4-tier); the BYO reference sheets run ~1.2–1.5 MB each, so a quality
+// 4-tier package could reach ~6 MB. 10 MB is ~3× the current heaviest — real
+// headroom for legitimate uploads while rejecting absurd payloads before we
+// decode/validate them. Authoritative — the client mirrors this for a friendlier
+// message, but the client check is bypassable.
+export const MAX_PACKAGE_BYTES = 10 * 1024 * 1024;
+
+// Reject an oversized staged package before we materialize its bytes or run any
+// validation. Uses the blob's reported size (cheap) rather than reading it.
+function assertPackageWithinLimit(rawBlob: Blob): void {
+  if (rawBlob.size > MAX_PACKAGE_BYTES) {
+    const limitMb = Math.round(MAX_PACKAGE_BYTES / (1024 * 1024));
+    const gotMb = (rawBlob.size / (1024 * 1024)).toFixed(1);
+    throw new ConvexError(
+      `Pet package is too large (${gotMb} MB). The limit is ${limitMb} MB.`,
+    );
+  }
+}
 
 // Upsert keyed on the pet.json `id`. Identity and display metadata come solely
 // from the package's pet.json (the single source of truth) — never from
@@ -63,6 +82,7 @@ export const uploadPet = action({
       if (!rawBlob) {
         throw new ConvexError("Uploaded zip not found in storage");
       }
+      assertPackageWithinLimit(rawBlob);
       const rawBytes = new Uint8Array(await rawBlob.arrayBuffer());
 
       // pet.json is the source of truth — derive identity + display fields from it.
@@ -230,6 +250,7 @@ export const updatePetSheets = action({
       if (!rawBlob) {
         throw new ConvexError("Uploaded sheet package not found in storage");
       }
+      assertPackageWithinLimit(rawBlob);
       const rawBytes = new Uint8Array(await rawBlob.arrayBuffer());
 
       // pet.json is optional here. If present, its id must match the target so

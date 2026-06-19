@@ -44,6 +44,20 @@ export async function buildPetPackage(files: File[]): Promise<Blob> {
   return await zip.generateAsync({ type: "blob" });
 }
 
+// Friendly client mirror of the server's MAX_PACKAGE_BYTES (convex/actions/
+// uploadPet.ts). Kept in sync by hand — the server check is authoritative; this
+// one just spares the user a full upload round-trip before the rejection.
+export const MAX_PACKAGE_BYTES = 10 * 1024 * 1024;
+
+// Returns a user-facing error when the assembled package exceeds the size cap,
+// or null when it is within limits.
+export function validatePackageSize(blob: Blob): string | null {
+  if (blob.size <= MAX_PACKAGE_BYTES) return null;
+  const limitMb = Math.round(MAX_PACKAGE_BYTES / (1024 * 1024));
+  const gotMb = (blob.size / (1024 * 1024)).toFixed(1);
+  return `Your pet package is too large (${gotMb} MB). The limit is ${limitMb} MB — check that your spritesheets aren't oversized.`;
+}
+
 export interface UploadStorageIds {
   rawZipStorageId: string;
   /** Omitted when the client could not generate a thumbnail. */
