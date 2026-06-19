@@ -259,6 +259,12 @@ __pycache__/
 /codogotchi-*-spritesheet.webp
 output
 
+# hatch-codogotchi generation output at repo root — Codex/CLI run scratch and
+# generated pet sheets. Kept locally, never committed.
+/.codex-hatch-runs/
+/.hatch-runs/
+/generated-pets/
+
 .cursor
 generated_assets/**/*
 builds
