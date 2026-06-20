@@ -88,7 +88,7 @@ The app isn't notarized by Apple yet, so macOS quarantines the download. `xattr 
 
 ## Contributing & development
 
-Codogotchi is open source. New to the codebase? **[START-HERE.md](START-HERE.md)** gives you the mental model in five minutes. To build from source or work on the macOS app, see **[CONTRIBUTING.md](CONTRIBUTING.md)**. We expect everyone to follow the **[Code of Conduct](CODE_OF_CONDUCT.md)**.
+Codogotchi is open source. New to the codebase? **[START-HERE.md](START-HERE.md)** gives you the mental model in five minutes. For a deeper walkthrough — data flow, polling loop, renderers, and Swift/AppKit patterns explained for TS devs — check the **[Codogotchi for Dummies](https://codogotchipfordummies.vercel.app)** guide. To build from source or work on the macOS app, see **[CONTRIBUTING.md](CONTRIBUTING.md)**. We expect everyone to follow the **[Code of Conduct](CODE_OF_CONDUCT.md)**.
 
 ## License
 
