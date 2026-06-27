@@ -63,7 +63,14 @@ const LITE_BASIC_SHEET = buildMinimalPng(8, 9);
 
 async function makeValidPetZip(petId = "test-pet"): Promise<Uint8Array> {
   const zip = new JSZip();
-  zip.file("pet.json", JSON.stringify({ id: petId, displayName: "Test Pet" }));
+  zip.file(
+    "pet.json",
+    JSON.stringify({
+      id: petId,
+      displayName: "Test Pet",
+      spritesheetPath: "spritesheet.webp",
+    }),
+  );
   zip.file("spritesheet.webp", CODEX_SHEET);
   zip.file("codogotchi-lite-basic-spritesheet.webp", LITE_BASIC_SHEET);
   return zip.generateAsync({ type: "uint8array" });
@@ -146,7 +153,14 @@ describe("runAdd", () => {
 
     // Build a zip whose pet.json has a different displayName
     const zip = new JSZip();
-    zip.file("pet.json", JSON.stringify({ id: petId, displayName: "New" }));
+    zip.file(
+      "pet.json",
+      JSON.stringify({
+        id: petId,
+        displayName: "New",
+        spritesheetPath: "spritesheet.webp",
+      }),
+    );
     zip.file("spritesheet.webp", CODEX_SHEET);
     zip.file("codogotchi-lite-basic-spritesheet.webp", LITE_BASIC_SHEET);
     const zipBytes = await zip.generateAsync({ type: "uint8array" });
