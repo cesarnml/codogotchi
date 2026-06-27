@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   utimesSync,
@@ -12,8 +13,8 @@ import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  globalAggregate,
   type ProfileResponse,
-  parseStateJson,
   type StateJsonV1,
 } from "@codogotchi/contracts";
 import {
@@ -21,14 +22,31 @@ import {
   type HookInput,
   runHook,
   shellCommandSegments,
+  sliceDirPath,
   sliceFilePath,
 } from "./hook-binary";
 
 const FIXED_NOW = new Date("2026-05-18T15:00:00.000Z");
 
 function readState(home: string): StateJsonV1 {
-  const raw = readFileSync(join(home, "state.json"), "utf8");
-  return parseStateJson(JSON.parse(raw));
+  const dir = sliceDirPath(home);
+  let names: string[] = [];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    // no state.d/ directory yet
+  }
+  const slices = names
+    .filter((n) => n.endsWith(".json"))
+    .map((n) => {
+      try {
+        return JSON.parse(readFileSync(join(dir, n), "utf8"));
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+  return globalAggregate(slices);
 }
 
 describe("classifyEvent", () => {
@@ -840,9 +858,8 @@ describe("classifyEvent", () => {
           } as HookInput,
           { home, now: FIXED_NOW },
         );
-        const raw = readFileSync(join(home, "state.json"), "utf8");
-        const state = JSON.parse(raw);
-        expect(state.source_event.repo_root).toBe(
+        const state = readState(home);
+        expect(state.source_event?.repo_root).toBe(
           "/Users/cesar/code/codogotchi",
         );
         rmSync(home, { recursive: true, force: true });
@@ -1106,13 +1123,13 @@ describe("runHook", () => {
     rmSync(home, { recursive: true, force: true });
   });
 
-  it("writes state.json on first event with default thriving overlay when no profile", async () => {
+  it("writes slice on first event with default thriving overlay when no profile", async () => {
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(4); // writer pins to v4 until P10.05 ships the v5 writer
+    expect(state.schema_version).toBe(7);
     expect(state.activity_state).toBe("editing");
     expect(state.hp).toBe(100);
     expect(state.hp_overlay).toBe("thriving");
@@ -1235,7 +1252,7 @@ describe("runHook", () => {
     expect(readState(home).activity_state).toBe("cramming");
   });
 
-  it("breaks a stale .hook.lock left by a killed hook and still writes state.json", async () => {
+  it("breaks a stale .hook.lock left by a killed hook and still writes slice", async () => {
     // A hook killed mid-write never reaches the `finally` rmdir, so the lock dir
     // is left behind. Without stale recovery this would time out every later
     // write and freeze the pet. Simulate it: an old, never-released lock dir.
@@ -1277,7 +1294,7 @@ describe("runHook", () => {
       now: FIXED_NOW,
     });
     const state = readState(home);
-    expect(state.schema_version).toBe(4); // writer pins to v4 until P10.05 ships the v5 writer
+    expect(state.schema_version).toBe(7);
     expect(state.activity_state).toBe("standby");
   });
 
@@ -1307,12 +1324,19 @@ describe("runHook", () => {
   });
 
   it("writes atomically (no half-written file visible at target)", async () => {
+    const sessionId = "ses-atomic";
     await runHook(
-      { origin: "claude_code", kind: "tool_use", name: "Edit" },
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
       { home, now: FIXED_NOW },
     );
-    // Sanity: target file is fully parseable.
-    const raw = readFileSync(join(home, "state.json"), "utf8");
+    // Sanity: slice file is fully parseable.
+    const slicePath = sliceFilePath(home, "claude_code", sessionId);
+    const raw = readFileSync(slicePath, "utf8");
     expect(() => JSON.parse(raw)).not.toThrow();
   });
 
@@ -2153,7 +2177,7 @@ describe("runHook v5 local RPG fields", () => {
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(6);
+    expect(state.schema_version).toBe(7);
     expect(state.level).toBe(EXPECTED_LEVEL);
     expect(state.level_fraction).toBeCloseTo(EXPECTED_LEVEL_FRACTION, 6);
     expect(state.half_hearts).toBe(6);
@@ -2210,7 +2234,7 @@ describe("runHook v5 local RPG fields", () => {
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(6);
+    expect(state.schema_version).toBe(7);
     expect(state.level).toBeDefined();
     expect(state.half_hearts).toBeDefined();
     expect(state.last_activity_at).toBeDefined();

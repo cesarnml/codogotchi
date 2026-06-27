@@ -45,8 +45,16 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+Red first: 5 Red tests committed before implementation — 3 in hook-binary.test.ts (single write, concurrent-write, session_end deletion) and 2 in status.test.ts (sliceDirPath shape, N-slice globalAggregate read). All imported non-existent exports to guarantee Red.
+
+Why this path: `writeSliceAtomic` reuses the existing tmp+rename pattern from `writeStateAtomic`. Each origin writes its own file at `state.d/<origin>:<session_id>.json` — cross-process renames never collide because filenames are discriminated by origin+session_id.
+
+Session_id fallback: platforms that provide no stable session_id (e.g. some antigravity payloads) use the literal key "default". Documented here as the expected fallback — not an unbounded orphan risk.
+
+Session_end detection: used `input.hook_event_name === "session_end"` (the raw event name) rather than `classified.sourceEvent.kind === "session_end"`. Rationale: antigravity error payloads also produce `kind: "session_end"` but carry meaningful activity state ("errored") and must still write their slice. Only explicit hook_event_name signals unambiguously represent session termination.
+
+Alternative considered: dual write (state.d/ + state.json for backward compat). Rejected because the ticket says "nothing still writes state.json" and we're on v2_preview with no real users.
+
+Deferred: mtime-based TTL for orphan slices (platform churn on session_id could leave stale files). Tracked for P12.03.
+
+Contract note: existing tests that asserted `schema_version: 4` or `schema_version: 6` were updated to `schema_version: 7` — globalAggregate always returns STATE_JSON_SCHEMA_VERSION (7). The test helper `readState(home)` now calls `globalAggregate(readSliceDir())` instead of reading state.json directly.

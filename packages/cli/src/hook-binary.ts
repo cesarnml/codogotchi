@@ -14,10 +14,12 @@ import {
   type HpOverlay,
   hpToOverlay,
   type ProfileResponse,
+  type SliceEntry,
   type SourceEvent,
   type SourceEventKind,
   type SourceEventOrigin,
   type StateJsonV1,
+  sliceEntrySchema,
   sourceEventSchema,
   stateJsonV1Schema,
 } from "@codogotchi/contracts";
@@ -1011,6 +1013,44 @@ export async function writeStateAtomic(
   await rename(tmp, target);
 }
 
+export function sliceDirPath(home: string): string {
+  return join(home, "state.d");
+}
+
+export function sliceFilePath(
+  home: string,
+  origin: SourceEventOrigin,
+  sessionId: string,
+): string {
+  return join(sliceDirPath(home), `${origin}:${sessionId}.json`);
+}
+
+export async function writeSliceAtomic(
+  home: string,
+  slice: SliceEntry,
+): Promise<void> {
+  const verified = sliceEntrySchema.parse(slice);
+  const dir = sliceDirPath(home);
+  await mkdir(dir, { recursive: true });
+  const target = sliceFilePath(home, verified.origin, verified.session_id);
+  const tmp = tempName(target);
+  await writeFile(tmp, `${JSON.stringify(verified, null, 2)}\n`, "utf8");
+  await rename(tmp, target);
+}
+
+export async function deleteSliceBestEffort(
+  home: string,
+  origin: SourceEventOrigin,
+  sessionId: string,
+): Promise<void> {
+  const { unlink } = await import("node:fs/promises");
+  try {
+    await unlink(sliceFilePath(home, origin, sessionId));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+}
+
 type AttentionPayload = NonNullable<StateJsonV1["attention"]>;
 
 const STANDBY_TTL_MS = 2 * 60 * 60 * 1000;
@@ -1116,6 +1156,17 @@ export async function runHook(
     const classified = classifyEvent(input, { readRun: counters.read_run });
 
     const activityState = classified.state;
+
+    // Explicit session_end signal from any platform: delete the origin/session
+    // slice and exit. Only trigger on the raw hook_event_name, not the derived
+    // classified kind, to avoid misclassifying antigravity error payloads that
+    // also produce kind: "session_end" but still carry meaningful activity state.
+    if (input.hook_event_name === "session_end") {
+      await deleteSliceBestEffort(opts.home, origin, sessionId ?? "default");
+      await writeCounters(opts.home, { read_run: classified.readRun });
+      return;
+    }
+
     const terminalBundleId = detectTerminalBundleId(process.env);
     const repoRoot = detectRepoRoot(input, process.env);
     const sourceEvent: SourceEvent = {
@@ -1147,11 +1198,8 @@ export async function runHook(
         : undefined;
 
     // Write v5 RPG fields when the user has rpg_enabled: true in their config.
-    // Falls back to v4 in every other case: config absent, rpg_enabled false,
-    // a malformed config (ConfigReadError), or any v5 compute error (see catch
-    // below). The fallback exists so the hook never crashes the host agent — it
-    // is the Lite-mode path, not a signal that v4 is the intended state for an
-    // opted-in user.
+    // Falls back to base fields in every other case: config absent, rpg_enabled
+    // false, a malformed config (ConfigReadError), or any v5 compute error.
     let v5: Awaited<ReturnType<typeof computeAndPersistV5Fields>> | null = null;
     try {
       const config = await readConfig(opts.home);
@@ -1164,41 +1212,31 @@ export async function runHook(
       }
     } catch {
       // Best-effort: a malformed config or v5 compute failure must never block
-      // the state write, so we silently fall back to v4. NOTE: for an opted-in
-      // user this hides a real failure with no signal — whether a v5 failure
-      // should surface a diagnostic is a deliberate open decision tracked for
-      // /soa quality-control.
+      // the state write, so we silently fall back. NOTE: for an opted-in user
+      // this hides a real failure with no signal — tracked for quality-control.
     }
 
-    const state: StateJsonV1 = v5
-      ? {
-          schema_version: 6,
-          activity_state: activityState,
-          hp_overlay,
-          hp,
-          updated_at: opts.now.toISOString(),
-          source_event: sourceEvent,
-          level: v5.level,
-          level_fraction: v5.level_fraction,
-          half_hearts: v5.half_hearts,
-          active_minutes: v5.active_minutes,
-          last_activity_at: v5.last_activity_at,
-          ...(v5.revive_until !== null && { revive_until: v5.revive_until }),
-          ...(attention !== undefined && { attention }),
-          ...(toolCommand !== undefined && { tool_command: toolCommand }),
-        }
-      : {
-          schema_version: 4,
-          activity_state: activityState,
-          hp_overlay,
-          hp,
-          updated_at: opts.now.toISOString(),
-          source_event: sourceEvent,
-          ...(attention !== undefined && { attention }),
-          ...(toolCommand !== undefined && { tool_command: toolCommand }),
-        };
+    const slice: SliceEntry = {
+      origin,
+      session_id: sessionId ?? "default",
+      activity_state: activityState,
+      hp_overlay,
+      hp,
+      updated_at: opts.now.toISOString(),
+      source_event: sourceEvent,
+      ...(v5 !== null && {
+        level: v5.level,
+        level_fraction: v5.level_fraction,
+        half_hearts: v5.half_hearts,
+        active_minutes: v5.active_minutes,
+        last_activity_at: v5.last_activity_at,
+        ...(v5.revive_until !== null && { revive_until: v5.revive_until }),
+      }),
+      ...(attention !== undefined && { attention }),
+      ...(toolCommand !== undefined && { tool_command: toolCommand }),
+    };
 
-    await writeStateAtomic(opts.home, state);
+    await writeSliceAtomic(opts.home, slice);
     await writeCounters(opts.home, {
       read_run: classified.readRun,
     });
