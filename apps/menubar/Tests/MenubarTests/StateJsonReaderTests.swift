@@ -485,3 +485,215 @@ final class StateJsonReaderTests: XCTestCase {
 		XCTAssertNil(snapshot.lastActivityAt)
 	}
 }
+
+// MARK: - P12.03 slice-directory reader [red]
+// These tests call StateJsonReader.readDirectory(at:) which does not exist yet.
+// The test suite will fail to compile until the implementation is added.
+
+final class SliceDirReaderTests: XCTestCase {
+
+	// MARK: - Helpers
+
+	private func makeTempSliceDir(slices: [(name: String, json: String)]) -> URL {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("codogotchi-p1203-\(UUID().uuidString)")
+		try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+		for (name, json) in slices {
+			let file = tmp.appendingPathComponent(name)
+			try? json.data(using: .utf8)?.write(to: file)
+		}
+		return tmp
+	}
+
+	private func sliceJSON(
+		origin: String = "claude_code",
+		sessionId: String = "ses-001",
+		activityState: String = "implementing",
+		updatedAt: String = "2026-06-28T00:00:00.000Z",
+		hpOverlay: String = "thriving",
+		hp: Int = 90
+	) -> String {
+		"""
+		{
+		  "origin": "\(origin)",
+		  "session_id": "\(sessionId)",
+		  "activity_state": "\(activityState)",
+		  "hp_overlay": "\(hpOverlay)",
+		  "hp": \(hp),
+		  "updated_at": "\(updatedAt)",
+		  "source_event": { "origin": "\(origin)", "kind": "tool_use", "name": "Edit" }
+		}
+		"""
+	}
+
+	// MARK: - Characterization: single slice
+
+	func testReadDirectorySingleSliceImplementing() {
+		let dir = makeTempSliceDir(slices: [
+			("claude_code:ses-001.json", sliceJSON(activityState: "implementing")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.activityState, .implementing)
+	}
+
+	func testReadDirectorySingleSliceEditing() {
+		let dir = makeTempSliceDir(slices: [
+			("claude_code:ses-002.json", sliceJSON(activityState: "editing")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.activityState, .editing)
+	}
+
+	func testReadDirectorySingleSliceIdle() {
+		let dir = makeTempSliceDir(slices: [
+			("claude_code:ses-003.json", sliceJSON(activityState: "idle")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	func testReadDirectoryHpOverlayNearDeathPassesThrough() {
+		let dir = makeTempSliceDir(slices: [
+			("claude_code:ses-004.json", sliceJSON(activityState: "idle", hpOverlay: "near_death", hp: 5)),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	// MARK: - Characterization: multi-slice globalAggregate
+
+	func testReadDirectoryMultiSliceMostRecentWins() {
+		let dir = makeTempSliceDir(slices: [
+			("codex:ses-old.json", sliceJSON(
+				origin: "codex", sessionId: "ses-old",
+				activityState: "idle",
+				updatedAt: "2026-01-01T00:00:00.000Z")),
+			("claude_code:ses-new.json", sliceJSON(
+				origin: "claude_code", sessionId: "ses-new",
+				activityState: "implementing",
+				updatedAt: "2026-06-28T00:00:00.000Z")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.activityState, .implementing)
+	}
+
+	func testReadDirectoryOlderSliceDoesNotWin() {
+		let dir = makeTempSliceDir(slices: [
+			("claude_code:ses-new.json", sliceJSON(
+				origin: "claude_code", sessionId: "ses-new",
+				activityState: "implementing",
+				updatedAt: "2026-06-28T00:00:00.000Z")),
+			("codex:ses-old.json", sliceJSON(
+				origin: "codex", sessionId: "ses-old",
+				activityState: "testing",
+				updatedAt: "2026-01-01T00:00:00.000Z")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.activityState, .implementing)
+	}
+
+	// MARK: - Empty directory / missing directory
+
+	func testReadDirectoryMissingDirectoryReturnsFileNotFound() {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("codogotchi-nonexistent-\(UUID().uuidString)")
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .failure(let error) = result else {
+			XCTFail("expected .fileNotFound, got \(result)"); return
+		}
+		XCTAssertEqual(error, .fileNotFound)
+	}
+
+	func testReadDirectoryEmptyDirectoryReturnsIdleDefault() {
+		let dir = makeTempSliceDir(slices: [])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success (idle), got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	// MARK: - Stale-slice mtime TTL filtering
+
+	func testReadDirectoryStaleSliceExcluded() throws {
+		let dir = makeTempSliceDir(slices: [
+			("claude_code:ses-stale.json", sliceJSON(
+				activityState: "implementing",
+				updatedAt: "2026-06-28T00:00:00.000Z")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		// Backdate mtime to 3 hours ago (beyond the 2-hour TTL)
+		let sliceFile = dir.appendingPathComponent("claude_code:ses-stale.json")
+		let staleDate = Date(timeIntervalSinceNow: -3 * 60 * 60)
+		try FileManager.default.setAttributes(
+			[.modificationDate: staleDate],
+			ofItemAtPath: sliceFile.path
+		)
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success (idle after stale exclusion), got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	func testReadDirectoryFreshSliceNotExcluded() throws {
+		let dir = makeTempSliceDir(slices: [
+			("claude_code:ses-fresh.json", sliceJSON(
+				activityState: "editing",
+				updatedAt: "2026-06-28T00:00:00.000Z")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		// Mtime is recent (just written) — must not be excluded
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.activityState, .editing)
+	}
+
+	// MARK: - Tmp-file exclusion
+
+	func testReadDirectoryTmpFilesNotReadAsState() {
+		let dir = makeTempSliceDir(slices: [
+			("claude_code:ses-001.json.tmp-12345-abc", sliceJSON(activityState: "implementing")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		// Tmp file must be ignored → idle default
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success (idle, tmp ignored), got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	// MARK: - Schema version
+
+	func testExpectedSchemaVersionIs7() {
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 7)
+	}
+}
