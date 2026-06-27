@@ -145,8 +145,8 @@ describe("perPlatform — distinct origins", () => {
     });
     const result = perPlatform([claude, cursor]);
     expect(Object.keys(result)).toHaveLength(2);
-    expect(result["claude_code"].activity_state).toBe("idle");
-    expect(result["cursor"].activity_state).toBe("thinking");
+    expect(result.claude_code.activity_state).toBe("idle");
+    expect(result.cursor.activity_state).toBe("thinking");
   });
 
   it("collapses multiple sessions of the same origin via most-recent updated_at", () => {
@@ -164,7 +164,7 @@ describe("perPlatform — distinct origins", () => {
     });
     const result = perPlatform([older, newer]);
     expect(Object.keys(result)).toHaveLength(1);
-    expect(result["claude_code"].activity_state).toBe("implementing");
+    expect(result.claude_code.activity_state).toBe("implementing");
   });
 
   it("returns empty record for empty slice set", () => {
