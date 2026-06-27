@@ -9,12 +9,7 @@ import type {
   StateJsonV1,
 } from "@codogotchi/contracts";
 import { lootLogPath } from "./loot";
-import {
-  profileCachePath,
-  runStatus,
-  sliceDirPath,
-  stateJsonPath,
-} from "./status";
+import { profileCachePath, runStatus, sliceDirPath } from "./status";
 
 const NOW = new Date("2026-05-18T10:00:00.000Z");
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -91,9 +86,16 @@ describe("runStatus", () => {
   it("renders full populated cache with state and loot", async () => {
     const profile = profileFixture();
     await writeFile(profileCachePath(home), JSON.stringify(profile), "utf8");
+    // Write a slice file so runStatus can read it via globalAggregate.
+    const sliceDir = sliceDirPath(home);
+    await mkdir(sliceDir, { recursive: true });
     await writeFile(
-      stateJsonPath(home),
-      JSON.stringify(stateFixture()),
+      join(sliceDir, "claude_code:ses-test.json"),
+      JSON.stringify({
+        origin: "claude_code",
+        session_id: "ses-test",
+        ...stateFixture(),
+      }),
       "utf8",
     );
     const lootEvents: LootEventResponse[] = [

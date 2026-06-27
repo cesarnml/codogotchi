@@ -1,10 +1,12 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   LootEventResponse,
   ProfileResponse,
+  SliceEntry,
   StateJsonV1,
 } from "@codogotchi/contracts";
+import { globalAggregate } from "@codogotchi/contracts";
 import { profileCachePath, readProfileCache } from "./profile-cache";
 
 export const STALE_SYNC_THRESHOLD_MS = 24 * 60 * 60 * 1000;
@@ -27,6 +29,10 @@ function stateJsonPath(home: string): string {
   return join(home, "state.json");
 }
 
+export function sliceDirPath(home: string): string {
+  return join(home, "state.d");
+}
+
 function lootLogPath(home: string): string {
   return join(home, "loot.log");
 }
@@ -42,9 +48,30 @@ async function readStateJson(home: string): Promise<StateJsonV1 | null> {
   try {
     return JSON.parse(raw) as StateJsonV1;
   } catch {
-    // Malformed JSON is treated as "no current activity".
     return null;
   }
+}
+
+export async function readSliceDir(home: string): Promise<SliceEntry[]> {
+  const dir = sliceDirPath(home);
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw err;
+  }
+  const slices: SliceEntry[] = [];
+  for (const name of names) {
+    if (!name.endsWith(".json")) continue;
+    try {
+      const raw = await readFile(join(dir, name), "utf8");
+      slices.push(JSON.parse(raw) as SliceEntry);
+    } catch {
+      // skip unreadable or malformed slice files
+    }
+  }
+  return slices;
 }
 
 function isValidLootEvent(parsed: unknown): parsed is LootEventResponse {
@@ -155,10 +182,15 @@ export async function runStatus(deps: StatusDeps): Promise<StatusResult> {
         "codogotchi: no profile cache yet. Run `codogotchi setup` and then `codogotchi sync` to populate it.\n",
     };
   }
-  const [state, loot] = await Promise.all([
-    readStateJson(deps.home),
+  const [slices, loot] = await Promise.all([
+    readSliceDir(deps.home),
     readRecentLoot(deps.home),
   ]);
+  // Use globalAggregate when slice files exist; fall back to legacy state.json.
+  const state: StateJsonV1 | null =
+    slices.length > 0
+      ? globalAggregate(slices)
+      : await readStateJson(deps.home);
   return {
     missingProfile: false,
     output: formatProfile(profile, state, loot, deps.now()),
