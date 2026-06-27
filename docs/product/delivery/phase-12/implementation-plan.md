@@ -49,7 +49,7 @@ Build the `v2_preview` checkout: the pet animates, the menubar updates, and SoA 
 
 ## CI Baseline
 
-> Baseline recorded: PENDING — record `bun run ci:quiet` on the freshly-cut `v2_preview` branch at execute start, before P12.01. (`v2_preview` does not exist yet; it is cut from `main` when delivery begins. CI = `bun run verify:quiet && bun run test && bun run mac:test`.)
+> Baseline recorded: 2026-06-28 — `bun run ci:quiet` on freshly-cut `v2_preview` (same SHA as `main` at phase start). Result: **all green** — 552 Swift tests + TS/Bun tests passed, 0 failures. `bun run verify:quiet` (Biome, 358 files) clean. CI = `bun run verify:quiet && bun run test && bun run mac:test`.
 
 ## Review Rules
 
