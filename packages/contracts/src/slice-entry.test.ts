@@ -133,6 +133,68 @@ describe("globalAggregate — tiebreak (most-recent updated_at wins)", () => {
       "implementing",
     );
   });
+
+  it("equal updated_at — first-in-array wins (strict > tiebreak contract)", () => {
+    const first = makeSlice({
+      activity_state: "idle",
+      session_id: "s1",
+      updated_at: "2026-06-28T00:00:00.000Z",
+    });
+    const second = makeSlice({
+      activity_state: "implementing",
+      session_id: "s2",
+      updated_at: "2026-06-28T00:00:00.000Z",
+    });
+    expect(globalAggregate([first, second]).activity_state).toBe("idle");
+  });
+
+  it("offset-aware comparison: +07:00 earlier than Z does not win", () => {
+    const earlier = makeSlice({
+      activity_state: "idle",
+      updated_at: "2026-06-28T23:00:00.000+07:00",
+    });
+    const later = makeSlice({
+      activity_state: "implementing",
+      updated_at: "2026-06-28T17:00:00.000Z",
+    });
+    expect(globalAggregate([earlier, later]).activity_state).toBe(
+      "implementing",
+    );
+  });
+
+  it("optional fields survive a globalAggregate round-trip", () => {
+    const slice = makeSlice({
+      level: 5,
+      level_fraction: 0.5,
+      half_hearts: 4,
+      active_minutes: 12,
+      last_activity_at: "2026-06-28T00:00:00.000Z",
+      tool_command: "bash",
+      revive_until: "2026-06-28T00:00:05.000Z",
+      attention: {
+        reason_kind: "input_requested",
+        summary: "Waiting",
+        created_at: "2026-06-28T00:00:00.000Z",
+        expires_at: "2026-06-28T00:05:00.000Z",
+      },
+    });
+    const result = globalAggregate([slice]);
+    expect(result.level).toBe(5);
+    expect(result.level_fraction).toBe(0.5);
+    expect(result.half_hearts).toBe(4);
+    expect(result.active_minutes).toBe(12);
+    expect(result.last_activity_at).toBe("2026-06-28T00:00:00.000Z");
+    expect(result.tool_command).toBe("bash");
+    expect(result.revive_until).toBe("2026-06-28T00:00:05.000Z");
+    expect(result.attention?.reason_kind).toBe("input_requested");
+  });
+
+  it("idle default is not aliased — mutation does not corrupt subsequent calls", () => {
+    const r1 = globalAggregate([]);
+    (r1 as { activity_state: string }).activity_state = "implementing";
+    const r2 = globalAggregate([]);
+    expect(r2.activity_state).toBe("idle");
+  });
 });
 
 describe("perPlatform — distinct origins", () => {

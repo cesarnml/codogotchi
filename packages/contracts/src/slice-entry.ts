@@ -66,10 +66,16 @@ function sliceToStateJson(slice: SliceEntry): StateJsonV1 {
   };
 }
 
+// Tie-resolution: equal updated_at → first-in-array wins (strict >, not >=).
+// updated_at comparison uses epoch millis so offset-aware strings (e.g. +07:00)
+// are compared by wall-clock UTC rather than lexicographic character order.
 function latestSlice(slices: SliceEntry[]): SliceEntry | undefined {
   return slices.reduce<SliceEntry | undefined>((winner, candidate) => {
     if (!winner) return candidate;
-    return candidate.updated_at > winner.updated_at ? candidate : winner;
+    return new Date(candidate.updated_at).getTime() >
+      new Date(winner.updated_at).getTime()
+      ? candidate
+      : winner;
   }, undefined);
 }
 
@@ -78,7 +84,7 @@ function latestSlice(slices: SliceEntry[]): SliceEntry | undefined {
 // Empty set returns a synthetic idle default.
 export const globalAggregate: SliceReducer<StateJsonV1> = (slices) => {
   const winner = latestSlice(slices);
-  return winner ? sliceToStateJson(winner) : IDLE_DEFAULT;
+  return winner ? sliceToStateJson(winner) : { ...IDLE_DEFAULT };
 };
 
 // Groups slices by origin and collapses each group to a single StateJsonV1 via the
