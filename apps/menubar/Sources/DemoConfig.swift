@@ -29,7 +29,7 @@ struct DemoConfig: Equatable {
 				isDemoMode: true,
 				pollingTarget: tmpRoot
 					.appendingPathComponent("codogotchi-demo")
-					.appendingPathComponent("state.json")
+					.appendingPathComponent("state.d")
 			)
 		}
 		let home: URL =
@@ -39,7 +39,7 @@ struct DemoConfig: Equatable {
 			isDemoMode: false,
 			pollingTarget: home
 				.appendingPathComponent(".codogotchi")
-				.appendingPathComponent("state.json")
+				.appendingPathComponent("state.d")
 		)
 	}
 

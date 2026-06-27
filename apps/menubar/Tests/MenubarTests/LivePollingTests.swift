@@ -23,26 +23,37 @@ final class LivePollingTests: XCTestCase {
 			.appendingPathComponent("Fixtures/state-json")
 	}
 
+	/// Returns a `state.d/` directory URL under a fresh per-test tmp dir.
+	/// The directory itself is NOT pre-created so fileNotFound tests work.
 	private func makeSandboxPath() -> URL {
 		let dir = FileManager.default.temporaryDirectory
 			.appendingPathComponent("codogotchi-live-tests")
 			.appendingPathComponent(UUID().uuidString)
 		try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-		return dir.appendingPathComponent("state.json")
+		return dir.appendingPathComponent("state.d")
 	}
 
-	private func makeSiblingGatePath(for statePath: URL) -> URL {
-		statePath.deletingLastPathComponent().appendingPathComponent("gate.json")
+	/// Sibling gate path — parent of the state.d directory.
+	private func makeSiblingGatePath(for stateDir: URL) -> URL {
+		stateDir.deletingLastPathComponent().appendingPathComponent("gate.json")
 	}
 
-	private func makeSiblingDeliveryContextPath(for statePath: URL) -> URL {
-		statePath.deletingLastPathComponent().appendingPathComponent("delivery-context.json")
+	private func makeSiblingDeliveryContextPath(for stateDir: URL) -> URL {
+		stateDir.deletingLastPathComponent().appendingPathComponent("delivery-context.json")
 	}
 
+	/// Creates `target/` dir and writes fixture as the single slice file.
 	private func copyFixture(_ name: String, to target: URL) throws {
+		try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
 		let src = fixturesDirectory().appendingPathComponent(name)
 		let data = try Data(contentsOf: src)
-		try data.write(to: target, options: .atomic)
+		try data.write(to: target.appendingPathComponent("default.json"), options: .atomic)
+	}
+
+	/// Creates `target/` dir and writes raw JSON string as the single slice file.
+	private func writeSlice(_ json: String, to target: URL) throws {
+		try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+		try json.write(to: target.appendingPathComponent("default.json"), atomically: true, encoding: .utf8)
 	}
 
 	// MARK: - Recording sinks
@@ -63,6 +74,7 @@ final class LivePollingTests: XCTestCase {
 		previewStatePath: URL? = nil,
 		previewGatePath: URL? = nil,
 		transitionLog: TransitionLog? = nil,
+		reader: LivePollingDriver.Reader? = nil,
 		now: @escaping () -> Date = { Date() }
 	) -> LivePollingDriver {
 		let driver = LivePollingDriver(
@@ -73,6 +85,7 @@ final class LivePollingTests: XCTestCase {
 			previewGatePath: previewGatePath?.path,
 			apply: { state, mode in recorder.renders.append((state, mode)) },
 			setTooltip: { tip in recorder.tooltips.append(tip) },
+			reader: reader ?? StateJsonReader.readDirectory(at:),
 			transitionLog: transitionLog,
 			now: now
 		)
@@ -82,8 +95,7 @@ final class LivePollingTests: XCTestCase {
 		return driver
 	}
 
-	/// Minimal v5 `state.json` payload for decay tests: only the fields the
-	/// reader requires plus the two the decay engine reads.
+	/// Minimal slice payload for decay tests: fields the decay engine reads.
 	private func writeV5StateJson(
 		_ target: URL,
 		halfHearts: Int,
@@ -92,9 +104,12 @@ final class LivePollingTests: XCTestCase {
 	) throws {
 		let lastActivity =
 			lastActivityAt.map { "\"\($0)\"" } ?? "null"
-		try """
-			{"schema_version":5,"activity_state":"\(activityState)","updated_at":"2026-01-01T00:00:00Z","level":3,"level_fraction":0.5,"half_hearts":\(halfHearts),"last_activity_at":\(lastActivity)}
-			""".write(to: target, atomically: true, encoding: .utf8)
+		try writeSlice(
+			"""
+			{"activity_state":"\(activityState)","updated_at":"2026-01-01T00:00:00Z","level":3,"level_fraction":0.5,"half_hearts":\(halfHearts),"last_activity_at":\(lastActivity)}
+			""",
+			to: target
+		)
 	}
 
 	private func writePreviewStateJson(
@@ -173,8 +188,10 @@ final class LivePollingTests: XCTestCase {
 	func testSchemaNewerRendersIdleDesaturatedWithInterpolatedSchemaNewerTooltip() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
-		try copyFixture("schema-newer.json", to: target)
-		let driver = makeDriver(target: target, recorder: recorder)
+		let driver = makeDriver(
+			target: target, recorder: recorder,
+			reader: { _ in .failure(.schemaNewer(got: 99, expected: EXPECTED_STATE_SCHEMA_VERSION)) }
+		)
 
 		driver.tickForTesting()
 
@@ -182,24 +199,22 @@ final class LivePollingTests: XCTestCase {
 		XCTAssertEqual(recorder.renders.map { $0.1 }, [.desaturated])
 		XCTAssertEqual(
 			recorder.tooltips,
-			[LivePollingTooltips.schemaNewer(got: 99, expected: 6)],
+			[LivePollingTooltips.schemaNewer(got: 99, expected: EXPECTED_STATE_SCHEMA_VERSION) as String?],
 			"schema-newer tooltip must format both version integers via the canonical template"
 		)
-		// Spot-check the literal substring so an accidental template-string drift
-		// (e.g., dropping the trailing 'Update the menu bar app.') is caught
-		// without needing to re-implement the template assembly here.
 		XCTAssertEqual(
 			recorder.tooltips.first ?? nil,
-			"state.json schema_version is v99; this app supports v6. Update the menu bar app."
+			"state.json schema_version is v99; this app supports v\(EXPECTED_STATE_SCHEMA_VERSION). Update the menu bar app."
 		)
 	}
 
 	func testFutureReviveUntilRendersReviveRow() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
-		// v6 payload with an active revive window; base activity is implementing.
-		try #"{"schema_version":6,"activity_state":"implementing","updated_at":"2026-06-08T00:00:00.000Z","level":3,"level_fraction":0.5,"half_hearts":4,"last_activity_at":"2026-06-08T00:00:00.000Z","revive_until":"2099-01-01T00:00:00.000Z"}"#
-			.write(to: target, atomically: true, encoding: .utf8)
+		try writeSlice(
+			#"{"activity_state":"implementing","updated_at":"2026-06-08T00:00:00.000Z","level":3,"level_fraction":0.5,"half_hearts":4,"last_activity_at":"2026-06-08T00:00:00.000Z","revive_until":"2099-01-01T00:00:00.000Z"}"#,
+			to: target
+		)
 		let driver = makeDriver(target: target, recorder: recorder)
 
 		driver.tickForTesting()
@@ -213,8 +228,10 @@ final class LivePollingTests: XCTestCase {
 	func testExpiredReviveUntilRendersBaseHookState() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
-		try #"{"schema_version":6,"activity_state":"implementing","updated_at":"2026-06-08T00:00:00.000Z","level":3,"level_fraction":0.5,"half_hearts":4,"last_activity_at":"2026-06-08T00:00:00.000Z","revive_until":"2020-01-01T00:00:00.000Z"}"#
-			.write(to: target, atomically: true, encoding: .utf8)
+		try writeSlice(
+			#"{"activity_state":"implementing","updated_at":"2026-06-08T00:00:00.000Z","level":3,"level_fraction":0.5,"half_hearts":4,"last_activity_at":"2026-06-08T00:00:00.000Z","revive_until":"2020-01-01T00:00:00.000Z"}"#,
+			to: target
+		)
 		let driver = makeDriver(target: target, recorder: recorder)
 
 		driver.tickForTesting()
@@ -227,9 +244,10 @@ final class LivePollingTests: XCTestCase {
 	func testSchemaMissingRendersIdleDesaturatedWithSchemaMissingTooltip() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
-		try #"{"activity_state": "idle", "updated_at": "x"}"#
-			.write(to: target, atomically: true, encoding: .utf8)
-		let driver = makeDriver(target: target, recorder: recorder)
+		let driver = makeDriver(
+			target: target, recorder: recorder,
+			reader: { _ in .failure(.schemaMissingOrInvalid) }
+		)
 
 		driver.tickForTesting()
 
@@ -245,8 +263,10 @@ final class LivePollingTests: XCTestCase {
 	func testMalformedJsonRendersIdleDesaturatedWithSchemaMissingTooltip() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
-		try "{ not json".write(to: target, atomically: true, encoding: .utf8)
-		let driver = makeDriver(target: target, recorder: recorder)
+		let driver = makeDriver(
+			target: target, recorder: recorder,
+			reader: { _ in .failure(.malformed) }
+		)
 
 		driver.tickForTesting()
 
@@ -395,21 +415,12 @@ final class LivePollingTests: XCTestCase {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
 		let deliveryContextPath = makeSiblingDeliveryContextPath(for: target)
-		try #"""
-		{
-		  "schema_version": 1,
-		  "activity_state": "implementing",
-		  "hp_overlay": "thriving",
-		  "hp": 90,
-		  "updated_at": "2026-05-29T00:00:00.000Z",
-		  "source_event": {
-		    "origin": "codex",
-		    "kind": "tool_use",
-		    "name": "Bash",
-		    "repo_root": "/repo/non-soa"
-		  }
-		}
-		"""#.write(to: target, atomically: true, encoding: .utf8)
+		try writeSlice(
+			#"""
+			{"activity_state":"implementing","updated_at":"2026-05-29T00:00:00.000Z","source_event":{"origin":"codex","kind":"tool_use","name":"Bash","repo_root":"/repo/non-soa"}}
+			"""#,
+			to: target
+		)
 		try writeDeliveryContextJson(deliveryContextPath, repoRoot: "/repo/soa")
 		let driver = makeDriver(
 			target: target,
@@ -450,19 +461,13 @@ final class LivePollingTests: XCTestCase {
 	func testStaleUpdatedAtRendersNormallyWithoutSpecialHandling() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
-		// Hours-old `updated_at` with otherwise valid idle payload. Per the
-		// product plan, staleness gets no special handling — the renderer
-		// receives `.idle` in `.normal` mode just like a fresh idle payload.
-		try #"""
-		{
-		  "schema_version": 1,
-		  "activity_state": "idle",
-		  "hp_overlay": "thriving",
-		  "hp": 90,
-		  "updated_at": "2020-01-01T00:00:00.000Z",
-		  "source_event": { "origin": "sync", "kind": "sync_response", "name": "stale" }
-		}
-		"""#.write(to: target, atomically: true, encoding: .utf8)
+		// Hours-old content `updated_at` with otherwise valid idle payload. Per the
+		// product plan, content staleness gets no special handling — the renderer
+		// receives `.idle` in `.normal` mode. (mtime TTL is separate from content age.)
+		try writeSlice(
+			#"{"activity_state":"idle","updated_at":"2020-01-01T00:00:00.000Z","source_event":{"origin":"sync","kind":"sync_response","name":"stale"}}"#,
+			to: target
+		)
 		let driver = makeDriver(target: target, recorder: recorder)
 
 		driver.tickForTesting()

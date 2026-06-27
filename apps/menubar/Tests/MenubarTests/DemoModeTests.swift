@@ -26,7 +26,7 @@ final class DemoModeTests: XCTestCase {
 		let dir = FileManager.default.temporaryDirectory
 			.appendingPathComponent("codogotchi-demo-tests")
 			.appendingPathComponent(UUID().uuidString)
-		return dir.appendingPathComponent("state.json")
+		return dir.appendingPathComponent("state.d")
 	}
 
 	// MARK: - DemoCycleDriver cycle order
@@ -85,12 +85,13 @@ final class DemoModeTests: XCTestCase {
 
 		try driver.tickForTesting()
 
-		let written = try Data(contentsOf: sandbox)
+		let sliceFile = sandbox.appendingPathComponent("demo:default.json")
+		let written = try Data(contentsOf: sliceFile)
 		let expected = try Data(contentsOf: fixturesDirectory().appendingPathComponent("idle.json"))
 		XCTAssertEqual(
 			written,
 			expected,
-			"first tick must copy idle.json bytes verbatim to the sandboxed path"
+			"first tick must copy idle.json bytes verbatim to state.d/demo:default.json"
 		)
 	}
 
@@ -126,8 +127,8 @@ final class DemoModeTests: XCTestCase {
 			"absent CODOGOTCHI_DEMO and absent --demo must leave demo mode off"
 		)
 		XCTAssertTrue(
-			config.pollingTarget.path.hasSuffix("/.codogotchi/state.json"),
-			"live mode polling target must point at ~/.codogotchi/state.json — got \(config.pollingTarget.path)"
+			config.pollingTarget.path.hasSuffix("/.codogotchi/state.d"),
+			"live mode polling target must point at ~/.codogotchi/state.d — got \(config.pollingTarget.path)"
 		)
 	}
 

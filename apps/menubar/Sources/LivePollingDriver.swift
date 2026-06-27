@@ -133,7 +133,7 @@ final class LivePollingDriver {
 		previewGatePath: String? = PreviewOverrideReader.defaultGatePath().path,
 		apply: @escaping Apply,
 		setTooltip: @escaping SetTooltip,
-		reader: @escaping Reader = StateJsonReader.read(at:),
+		reader: @escaping Reader = StateJsonReader.readDirectory(at:),
 		gateReader: @escaping GateReader = GateJsonReader.read(at:),
 		deliveryContextReader: @escaping DeliveryContextReaderFn = DeliveryContextReader.read(at:),
 		tickInterval: TimeInterval = 1.0,

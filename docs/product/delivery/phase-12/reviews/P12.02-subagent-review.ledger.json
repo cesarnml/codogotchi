@@ -30,9 +30,7 @@
       "fallbackFrom": null,
       "findings": [],
       "probedSurfaces": [],
-      "patches": [
-        "5ae59f9d"
-      ]
+      "patches": ["5ae59f9d"]
     },
     {
       "runnerKind": "operator-recorder",
@@ -46,9 +44,7 @@
       "fallbackFrom": null,
       "findings": [],
       "probedSurfaces": [],
-      "patches": [
-        "5ae59f9d5ae59f9d5ae59f9d5ae59f9d5ae59f9d"
-      ]
+      "patches": ["5ae59f9d5ae59f9d5ae59f9d5ae59f9d5ae59f9d"]
     },
     {
       "runnerKind": "claude-cli",
