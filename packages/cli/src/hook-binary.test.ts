@@ -21,6 +21,7 @@ import {
   type HookInput,
   runHook,
   shellCommandSegments,
+  sliceFilePath,
 } from "./hook-binary";
 
 const FIXED_NOW = new Date("2026-05-18T15:00:00.000Z");
@@ -2243,5 +2244,127 @@ describe("runHook v5 local RPG fields", () => {
       { home, now: new Date(FIXED_NOW.getTime() + 60_000) },
     );
     expect(readActiveMinutes()).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P12.02 Red tests — slice-directory writer
+// These tests import sliceFilePath which does not exist yet; they MUST fail
+// until the implementation is in place.
+// ---------------------------------------------------------------------------
+describe("slice-directory writer (P12.02 red)", () => {
+  let home: string;
+
+  beforeEach(async () => {
+    home = mkdtempSync(join(tmpdir(), "codogotchi-slice-"));
+    await mkdir(home, { recursive: true });
+    // Write minimal config so runHook doesn't bail early.
+    writeFileSync(
+      join(home, ".codogotchi.json"),
+      JSON.stringify({ rpg_enabled: false }),
+      "utf8",
+    );
+  });
+
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it("single hook event writes exactly one slice file at state.d/<origin>:<session_id>.json", async () => {
+    const sessionId = "ses-001";
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: FIXED_NOW },
+    );
+    const expected = sliceFilePath(home, "claude_code", sessionId);
+    expect(existsSync(expected)).toBe(true);
+    const slice = JSON.parse(readFileSync(expected, "utf8"));
+    expect(slice.origin).toBe("claude_code");
+    expect(slice.session_id).toBe(sessionId);
+    expect(slice.activity_state).toBeDefined();
+    // state.json must NOT exist (slice-dir replaces it)
+    expect(existsSync(join(home, "state.json"))).toBe(false);
+  });
+
+  it("concurrent-write: two origins produce two independent slice files (proves concurrency safety)", async () => {
+    const sidA = "ses-claude-001";
+    const sidB = "ses-codex-001";
+
+    await Promise.all([
+      runHook(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Write",
+          session_id: sidA,
+        },
+        { home, now: FIXED_NOW },
+      ),
+      runHook(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Write",
+          session_id: sidB,
+        },
+        { home, now: FIXED_NOW },
+      ),
+    ]);
+
+    const pathA = sliceFilePath(home, "claude_code", sidA);
+    const pathB = sliceFilePath(home, "codex", sidB);
+
+    expect(existsSync(pathA)).toBe(true);
+    expect(existsSync(pathB)).toBe(true);
+
+    const sliceA = JSON.parse(readFileSync(pathA, "utf8"));
+    const sliceB = JSON.parse(readFileSync(pathB, "utf8"));
+
+    expect(sliceA.origin).toBe("claude_code");
+    expect(sliceB.origin).toBe("codex");
+    expect(sliceA.session_id).toBe(sidA);
+    expect(sliceB.session_id).toBe(sidB);
+  });
+
+  it("session_end removes that origin/session slice file but leaves other origins intact", async () => {
+    const sidA = "ses-claude-end";
+    const sidB = "ses-codex-keep";
+
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Read",
+        session_id: sidA,
+      },
+      { home, now: FIXED_NOW },
+    );
+    await runHook(
+      { origin: "codex", kind: "tool_use", name: "Read", session_id: sidB },
+      { home, now: FIXED_NOW },
+    );
+
+    const pathA = sliceFilePath(home, "claude_code", sidA);
+    const pathB = sliceFilePath(home, "codex", sidB);
+    expect(existsSync(pathA)).toBe(true);
+    expect(existsSync(pathB)).toBe(true);
+
+    // session_end for claude_code session
+    await runHook(
+      {
+        origin: "claude_code",
+        hook_event_name: "session_end",
+        session_id: sidA,
+      } as HookInput,
+      { home, now: new Date(FIXED_NOW.getTime() + 1000) },
+    );
+
+    expect(existsSync(pathA)).toBe(false);
+    expect(existsSync(pathB)).toBe(true);
   });
 });
