@@ -16,7 +16,10 @@ const attentionSchema = z.object({
 
 export const sliceEntrySchema = z.object({
   origin: sourceEventOriginSchema,
-  session_id: z.string().min(1),
+  session_id: z
+    .string()
+    .min(1)
+    .regex(/^[^/\\]+$/, "session_id must not contain path separators"),
   activity_state: activityStateSchema,
   hp_overlay: hpOverlaySchema,
   hp: z.number().int().min(-100).max(100),
