@@ -104,11 +104,11 @@ final class StateJsonReaderTests: XCTestCase {
 			return
 		}
 		XCTAssertEqual(got, 99)
-		XCTAssertEqual(expected, 6)
+		XCTAssertEqual(expected, 7)
 	}
 
-	func testExpectedSchemaVersionIs6() {
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 6)
+	func testExpectedSchemaVersionIs7() {
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 7)
 	}
 
 	func testSchemaVersion4ParsesSuccessfullyAfterV4Bump() throws {
@@ -292,8 +292,8 @@ final class StateJsonReaderTests: XCTestCase {
 	// MARK: - Schema v4 vocabulary (P7.01 — [red])
 
 	func testExpectedSchemaVersionIsV4() {
-		// Updated to v5 in P10.06, then v6 for the revive_until bump
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 6)
+		// Updated to v5 in P10.06, v6 for revive_until, v7 for state.d slice reader
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 7)
 	}
 
 	func testTicketStartedIsAValidV4State() {
@@ -353,8 +353,8 @@ final class StateJsonReaderTests: XCTestCase {
 	// MARK: - Schema v5 RPG fields (P10.06 — [red])
 
 	func testExpectedSchemaVersionIsV5() {
-		// Bumped to v6 for the revive_until additive field
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 6)
+		// Bumped to v6 for revive_until, v7 for state.d slice reader
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 7)
 	}
 
 	func testSchemaVersion6ParsesSuccessfullyAfterV6Bump() throws {
@@ -408,11 +408,11 @@ final class StateJsonReaderTests: XCTestCase {
 		XCTAssertNil(snapshot.reviveUntil)
 	}
 
-	func testSchemaVersion7FailsWithSchemaNewer() throws {
-		// [red] v7 must be refused with schemaNewer(7, 6) after the v6 bump
+	func testSchemaVersion8FailsWithSchemaNewer() throws {
+		// v8 must be refused with schemaNewer(8, 7) — EXPECTED_STATE_SCHEMA_VERSION is now 7
 		let tmp = FileManager.default.temporaryDirectory
-			.appendingPathComponent("schema-v7-\(UUID().uuidString).json")
-		try #"{"schema_version": 7, "activity_state": "idle", "updated_at": "x"}"#
+			.appendingPathComponent("schema-v8-\(UUID().uuidString).json")
+		try #"{"schema_version": 8, "activity_state": "idle", "updated_at": "x"}"#
 			.write(to: tmp, atomically: true, encoding: .utf8)
 		defer { try? FileManager.default.removeItem(at: tmp) }
 
@@ -425,8 +425,8 @@ final class StateJsonReaderTests: XCTestCase {
 			XCTFail("expected schemaNewer, got \(error)")
 			return
 		}
-		XCTAssertEqual(got, 7)
-		XCTAssertEqual(expected, 6)
+		XCTAssertEqual(got, 8)
+		XCTAssertEqual(expected, 7)
 	}
 
 	func testV5PayloadDecodesLevelHalfHeartsAndLevelFraction() throws {

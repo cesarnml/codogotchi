@@ -114,20 +114,23 @@ final class DemoCycleDriver {
 		let fixtureURL = fixturesDirectory.appendingPathComponent(entry.fixtureFilename)
 		let data = try Data(contentsOf: fixtureURL)
 
-		let parent = sandboxedPath.deletingLastPathComponent()
-		try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+		// sandboxedPath is the state.d/ directory; write the fixture as the
+		// single demo slice file within it. The `demo:default` name is
+		// origin:session_id — the same convention live slice files use.
+		try FileManager.default.createDirectory(at: sandboxedPath, withIntermediateDirectories: true)
+		let sliceFile = sandboxedPath.appendingPathComponent("demo:default.json")
 		// `.atomic` writes to a sibling temp file in the same directory and
 		// renames into place. This matches the Phase 01 hook's atomic write
 		// pattern so demo mode exercises the same race-free read semantics
 		// live polling (P2.07) depends on.
-		try data.write(to: sandboxedPath, options: .atomic)
+		try data.write(to: sliceFile, options: .atomic)
 
 		// Mirror what live polling would record: feed the same fixture
 		// payload through StateJsonReader so the transition log captures
 		// the fixture's `source_event` triplet without the demo driver
 		// owning a second copy of the parsing rules.
 		if let log = transitionLog, lastEmittedState != entry.state {
-			switch StateJsonReader.read(at: sandboxedPath.path) {
+			switch StateJsonReader.readDirectory(at: sandboxedPath.path) {
 			case .success(let snapshot):
 				log.recordTransition(
 					snapshot: snapshot,

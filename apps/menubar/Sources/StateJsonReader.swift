@@ -5,7 +5,7 @@ import Foundation
 /// is refused; equal or lower versions parse best-effort and tolerate extra
 /// fields. Bump deliberately when the renderer gains support for a newer
 /// schema; do not silently widen.
-let EXPECTED_STATE_SCHEMA_VERSION = 6
+let EXPECTED_STATE_SCHEMA_VERSION = 7
 
 /// Error cases surfaced by `StateJsonReader.read(at:)`.
 ///
@@ -131,6 +131,127 @@ enum StateJsonReader {
 		formatter.formatOptions = [.withInternetDateTime]
 		return formatter.date(from: string)
 	}
+
+	/// Entry point matching the `(String) -> Result<StateSnapshot, StateReadError>`
+	/// Reader typealias used by `LivePollingDriver`. Calls through to the full
+	/// implementation with `now = Date()` and the default 2-hour stale TTL.
+	static func readDirectory(at dirPath: String) -> Result<StateSnapshot, StateReadError> {
+		readDirectoryImpl(at: dirPath, now: Date(), staleTTL: 2 * 60 * 60)
+	}
+
+	/// Reads all slice files from a `state.d/` directory and collapses them to a
+	/// single `StateSnapshot` via globalAggregate (most-recent `updated_at` wins).
+	///
+	/// Excludes files whose filesystem mtime is older than `staleTTL` (default 2h)
+	/// and files whose name matches the tmp-write pattern (`*.tmp-*`). Returns
+	/// `.failure(.fileNotFound)` when the directory itself does not exist.
+	/// Returns `.success` with an idle default when the directory is empty or all
+	/// slices are stale.
+	static func readDirectory(
+		at dirPath: String,
+		now: Date,
+		staleTTL: TimeInterval = 2 * 60 * 60
+	) -> Result<StateSnapshot, StateReadError> {
+		readDirectoryImpl(at: dirPath, now: now, staleTTL: staleTTL)
+	}
+
+	private static func readDirectoryImpl(
+		at dirPath: String,
+		now: Date,
+		staleTTL: TimeInterval
+	) -> Result<StateSnapshot, StateReadError> {
+		let fm = FileManager.default
+		var isDir: ObjCBool = false
+		guard fm.fileExists(atPath: dirPath, isDirectory: &isDir), isDir.boolValue else {
+			return .failure(.fileNotFound)
+		}
+
+		let names: [String]
+		do {
+			names = try fm.contentsOfDirectory(atPath: dirPath)
+		} catch {
+			return .failure(.malformed)
+		}
+
+		let decoder = JSONDecoder()
+		decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+		var winner: (date: Date, slice: SlicePayload)? = nil
+
+		for name in names {
+			guard name.hasSuffix(".json"), !name.contains(".tmp-") else { continue }
+			let filePath = (dirPath as NSString).appendingPathComponent(name)
+
+			// mtime TTL filter
+			if let attrs = try? fm.attributesOfItem(atPath: filePath),
+				let mtime = attrs[.modificationDate] as? Date,
+				now.timeIntervalSince(mtime) > staleTTL
+			{
+				continue
+			}
+
+			guard let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)),
+				let slice = try? decoder.decode(SlicePayload.self, from: data)
+			else { continue }
+
+			let candidateDate = parseISO8601Date(slice.updatedAt) ?? Date.distantPast
+			if winner == nil || candidateDate > winner!.date {
+				winner = (candidateDate, slice)
+			}
+		}
+
+		guard let (_, slice) = winner else {
+			return .success(idleSnapshot())
+		}
+
+		let raw = StateSnapshot(
+			schemaVersion: EXPECTED_STATE_SCHEMA_VERSION,
+			activityState: slice.activityState,
+			updatedAt: slice.updatedAt,
+			sourceEvent: slice.sourceEvent,
+			attention: slice.attention,
+			toolCommand: slice.toolCommand,
+			level: slice.level ?? 1,
+			levelFraction: slice.levelFraction ?? 0.0,
+			halfHearts: slice.halfHearts ?? MAX_HALF_HEARTS,
+			activeMinutes: slice.activeMinutes ?? 0,
+			lastActivityAt: slice.lastActivityAt ?? nil,
+			reviveUntil: slice.reviveUntil ?? nil
+		)
+		return .success(
+			StateSnapshot(
+				schemaVersion: raw.schemaVersion,
+				activityState: resolveActivityState(raw, now: now),
+				updatedAt: raw.updatedAt,
+				sourceEvent: raw.sourceEvent,
+				attention: raw.attention,
+				toolCommand: raw.toolCommand,
+				level: raw.level,
+				levelFraction: raw.levelFraction,
+				halfHearts: raw.halfHearts,
+				activeMinutes: raw.activeMinutes,
+				lastActivityAt: raw.lastActivityAt,
+				reviveUntil: raw.reviveUntil
+			)
+		)
+	}
+
+	private static func idleSnapshot() -> StateSnapshot {
+		StateSnapshot(
+			schemaVersion: EXPECTED_STATE_SCHEMA_VERSION,
+			activityState: .idle,
+			updatedAt: "",
+			sourceEvent: nil,
+			attention: nil,
+			toolCommand: nil,
+			level: 1,
+			levelFraction: 0.0,
+			halfHearts: MAX_HALF_HEARTS,
+			activeMinutes: 0,
+			lastActivityAt: nil,
+			reviveUntil: nil
+		)
+	}
 }
 
 /// Private wire shape: matches v1 schema keys after snake-case conversion.
@@ -165,5 +286,23 @@ private struct StatePayload: Decodable {
 	/// v6 `revive_until` — ISO 8601 datetime or null. `String??` distinguishes
 	/// absent key (≤v5 payloads, outer .none) from explicit JSON null
 	/// (.some(.none)); both collapse to nil at the snapshot boundary.
+	let reviveUntil: String??
+}
+
+/// Wire shape for P12 slice files (state.d/<origin>:<session_id>.json).
+/// Identical to `StatePayload` but without `schemaVersion` — slice files
+/// are written by the TS hook without that field. `origin` and `sessionId`
+/// are carried in the filename and not decoded here (best-effort posture).
+private struct SlicePayload: Decodable {
+	let activityState: ActivityState
+	let updatedAt: String
+	let sourceEvent: SourceEvent?
+	let attention: AttentionPayload?
+	let toolCommand: String?
+	let level: Int?
+	let levelFraction: Double?
+	let halfHearts: Int?
+	let activeMinutes: Int?
+	let lastActivityAt: String??
 	let reviveUntil: String??
 }
