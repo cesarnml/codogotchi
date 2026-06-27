@@ -44,10 +44,10 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+**Why this path:** `SlicePayload` omits top-level `origin`/`sessionId` fields — the filename provides that keying metadata and the fields are unused by the reducer. This keeps old-format fixture files decodable as `SlicePayload` without requiring new fixtures, maintaining test coverage continuity.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+**Alternative considered:** Storing `origin`/`sessionId` in `SlicePayload` for future logging. Deferred — unused fields add decoder brittleness with no current benefit.
+
+**Deferred:** Renaming `StateJsonReader` → `SliceDirReader` (see Refactor section). The existing `read(at:)` path still exists for legacy compatibility; rename is a follow-up cleanup.
+
+**Contract note:** LivePollingTests error-visual tests now inject custom `reader` closures rather than writing files that trigger parse errors. The directory reader uses best-effort slice decoding (malformed slices silently skipped), so `.malformed`/`.schemaNewer` errors can only arise from the legacy `read(at:)` path. Error-visual driver behavior is still covered; the test style reflects the reader contract accurately.
