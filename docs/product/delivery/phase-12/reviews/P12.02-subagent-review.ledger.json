@@ -66,6 +66,21 @@
       "findings": [],
       "probedSurfaces": [],
       "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "31e7d4aff669db3165b66d97782f6e2c0538d936",
+      "completedAt": "2026-06-27T21:13:01.468Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "outcome": "deferred",
+      "reason": "F1 (path traversal via session_id) patched in commit 5ae59f9d: sliceEntrySchema now rejects session_ids containing path separators"
     }
   ]
 }
