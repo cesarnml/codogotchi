@@ -26,9 +26,7 @@
       "terminatedReason": "completed",
       "findings": [],
       "probedSurfaces": [],
-      "patches": [
-        "6fb9c58e3aeac2eef2776ac61313126199d9e298"
-      ],
+      "patches": ["6fb9c58e3aeac2eef2776ac61313126199d9e298"],
       "schemaVersion": 1,
       "primaryAgent": "unknown",
       "runnerSelfReport": null,
