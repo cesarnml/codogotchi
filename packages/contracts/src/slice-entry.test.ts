@@ -28,6 +28,18 @@ describe("sliceEntrySchema — validator", () => {
     expect(() => sliceEntrySchema.parse(noSession)).toThrow();
   });
 
+  it("rejects a session_id containing path separators (path traversal guard)", () => {
+    expect(() =>
+      sliceEntrySchema.parse(makeSlice({ session_id: "../evil" })),
+    ).toThrow();
+    expect(() =>
+      sliceEntrySchema.parse(makeSlice({ session_id: "foo/bar" })),
+    ).toThrow();
+    expect(() =>
+      sliceEntrySchema.parse(makeSlice({ session_id: "foo\\bar" })),
+    ).toThrow();
+  });
+
   it("rejects a slice entry missing activity_state", () => {
     const { activity_state: _a, ...noState } = makeSlice();
     expect(() => sliceEntrySchema.parse(noState)).toThrow();
