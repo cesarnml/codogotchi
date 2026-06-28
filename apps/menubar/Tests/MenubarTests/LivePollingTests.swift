@@ -636,4 +636,38 @@ final class LivePollingTests: XCTestCase {
 			recorder.rpgStates.last?.halfHearts, 5,
 			"crossing 8h must emit a fresh decayed value even though state.json never changed")
 	}
+
+	// MARK: - Two-origin perPlatform tick (P13.04)
+
+	func testTwoOriginDirectoryEmitsGlobalAggregateToMenubar() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+		// claude_code: earlier
+		try """
+			{"schema_version":8,"origin":"claude_code","session_id":"s1","activity_state":"implementing","hp_overlay":"thriving","hp":100,"updated_at":"2026-06-28T10:00:00.000Z","source_event":{"origin":"claude_code","kind":"tool_use","name":"Bash"}}
+			""".write(to: target.appendingPathComponent("claude_code:s1.json"), atomically: true, encoding: .utf8)
+		// cursor: later — wins global aggregate
+		try """
+			{"schema_version":8,"origin":"cursor","session_id":"s2","activity_state":"thinking","hp_overlay":"thriving","hp":100,"updated_at":"2026-06-28T10:00:01.000Z","source_event":{"origin":"cursor","kind":"tool_use","name":"Edit"}}
+			""".write(to: target.appendingPathComponent("cursor:s2.json"), atomically: true, encoding: .utf8)
+
+		var perPlatformSnapshots: [PerPlatformSnapshot] = []
+		let driver = makeDriver(target: target, recorder: recorder)
+		driver.applyPerPlatform = { snap in perPlatformSnapshots.append(snap) }
+
+		driver.tickForTesting()
+
+		// Menubar gets global aggregate (most-recent updated_at = cursor → thinking)
+		XCTAssertEqual(
+			recorder.renders.map { $0.0 }, [.thinking],
+			"global aggregate must pick cursor's later updated_at for the menubar render"
+		)
+		// Pool gets per-origin breakdown with two entries
+		XCTAssertEqual(perPlatformSnapshots.count, 1)
+		XCTAssertEqual(
+			Set(perPlatformSnapshots[0].perPlatform.keys), Set(["claude_code", "cursor"]),
+			"applyPerPlatform must receive both origins"
+		)
+	}
 }
