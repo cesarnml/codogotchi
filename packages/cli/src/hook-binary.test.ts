@@ -1916,6 +1916,130 @@ describe("shellCommandSegments", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// P13.01 Red tests — rpg-state.json separation
+// runHook must write rpg-state.json with RPG fields and omit them from slices.
+// These tests MUST fail until the implementation is in place.
+// ---------------------------------------------------------------------------
+describe("P13.01 rpg-state.json separation (red)", () => {
+  let home: string;
+  let claudeRoot: string;
+  const origClaudeRoot = process.env.CODOGOTCHI_CLAUDE_ROOT;
+  const origCodexRoot = process.env.CODOGOTCHI_CODEX_ROOT;
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "codogotchi-p1301-"));
+    claudeRoot = join(home, "claude-sessions");
+    mkdirSync(claudeRoot, { recursive: true });
+    process.env.CODOGOTCHI_CLAUDE_ROOT = claudeRoot;
+    process.env.CODOGOTCHI_CODEX_ROOT = join(home, "codex-sessions");
+    writeFileSync(
+      join(home, "config.json"),
+      JSON.stringify({
+        profile_id: "test-profile",
+        features: { rpg_enabled: true },
+      }),
+    );
+    // Pre-seed XP cache so computeAndPersistV5Fields runs its incremental path.
+    const cursorBeforeFixture = new Date(
+      new Date(FIXTURE_EVENT_TS).getTime() - 1000,
+    ).toISOString();
+    writeFileSync(
+      join(home, ".local-xp-cache.json"),
+      JSON.stringify({ last_read_at_claude: cursorBeforeFixture }),
+    );
+    // One fixture JSONL with tokens to drive level computation.
+    const projDir = join(claudeRoot, "fixture-project");
+    mkdirSync(projDir, { recursive: true });
+    writeFileSync(join(projDir, "transcript.jsonl"), `${FIXTURE_JSONL_LINE}\n`);
+  });
+
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+    if (origClaudeRoot === undefined) delete process.env.CODOGOTCHI_CLAUDE_ROOT;
+    else process.env.CODOGOTCHI_CLAUDE_ROOT = origClaudeRoot;
+    if (origCodexRoot === undefined) delete process.env.CODOGOTCHI_CODEX_ROOT;
+    else process.env.CODOGOTCHI_CODEX_ROOT = origCodexRoot;
+  });
+
+  it("runHook with rpg_enabled writes rpg-state.json with level/half_hearts; slice has neither", async () => {
+    const sessionId = "ses-p1301";
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: FIXED_NOW },
+    );
+
+    // rpg-state.json must exist and carry RPG fields
+    const rpgPath = join(home, "rpg-state.json");
+    expect(existsSync(rpgPath)).toBe(true);
+    const rpg = JSON.parse(readFileSync(rpgPath, "utf8"));
+    expect(typeof rpg.level).toBe("number");
+    expect(typeof rpg.half_hearts).toBe("number");
+
+    // slice file must NOT contain RPG fields (they moved to rpg-state.json)
+    const slicePath = sliceFilePath(home, "claude_code", sessionId);
+    expect(existsSync(slicePath)).toBe(true);
+    const slice = JSON.parse(readFileSync(slicePath, "utf8"));
+    expect(slice.level).toBeUndefined();
+    expect(slice.half_hearts).toBeUndefined();
+    expect(slice.level_fraction).toBeUndefined();
+    expect(slice.active_minutes).toBeUndefined();
+    expect(slice.last_activity_at).toBeUndefined();
+    expect(slice.revive_until).toBeUndefined();
+  });
+
+  it("migration seed: v7 slice with half_hearts:4 level:3 seeds rpg-state.json on first runHook", async () => {
+    // Plant a v7 slice in state.d/ (last-writer-wins seed source).
+    const sliceDir = join(home, "state.d");
+    mkdirSync(sliceDir, { recursive: true });
+    const v7Slice = {
+      schema_version: 7,
+      origin: "claude_code",
+      session_id: "seed-session",
+      activity_state: "idle",
+      hp_overlay: "thriving",
+      hp: 100,
+      updated_at: "2026-06-27T12:00:00.000Z",
+      source_event: { origin: "claude_code", kind: "cli", name: "test" },
+      level: 3,
+      level_fraction: 0.25,
+      half_hearts: 4,
+      active_minutes: 10,
+      last_activity_at: "2026-06-27T12:00:00.000Z",
+    };
+    writeFileSync(
+      join(sliceDir, "claude_code:seed-session.json"),
+      JSON.stringify(v7Slice),
+      "utf8",
+    );
+
+    // rpg-state.json must not exist yet
+    expect(existsSync(join(home, "rpg-state.json"))).toBe(false);
+
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: "new-session",
+      },
+      { home, now: FIXED_NOW },
+    );
+
+    // rpg-state.json must be seeded from the v7 slice
+    const rpgPath = join(home, "rpg-state.json");
+    expect(existsSync(rpgPath)).toBe(true);
+    const rpg = JSON.parse(readFileSync(rpgPath, "utf8"));
+    expect(rpg.level).toBe(3);
+    expect(rpg.half_hearts).toBe(4);
+  });
+});
+
 describe("quoted-pipe search commands classify as searching", () => {
   // Regression for the quote-blind splitShellPipes bug: search-intent commands
   // whose regex/glob contained `|` were misrouted to `implementing`.

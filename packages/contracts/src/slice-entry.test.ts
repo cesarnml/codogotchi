@@ -75,6 +75,24 @@ describe("sliceEntrySchema — validator", () => {
       ),
     ).not.toThrow();
   });
+
+  // P13.01 red: v8 removes RPG fields from the slice schema (they move to rpg-state.json).
+  // Strict schema must reject a payload that carries RPG fields.
+  it("v8 slice: RPG fields present in payload are rejected (strict — RPG belongs in rpg-state.json)", () => {
+    const payloadWithRpg = {
+      schema_version: STATE_JSON_SCHEMA_VERSION,
+      origin: "claude_code",
+      session_id: "test-v8-rpg",
+      activity_state: "idle",
+      hp_overlay: "thriving",
+      hp: 100,
+      updated_at: "2026-06-28T00:00:00.000Z",
+      source_event: { origin: "claude_code", kind: "cli", name: "test" },
+      level: 5,
+      half_hearts: 4,
+    };
+    expect(() => sliceEntrySchema.parse(payloadWithRpg)).toThrow();
+  });
 });
 
 describe("globalAggregate — empty set", () => {
