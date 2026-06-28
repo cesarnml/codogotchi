@@ -31,6 +31,7 @@ export type SyncDeps = {
   fetch: typeof fetch;
   now: () => Date;
   logSizeLimit?: number;
+  syncSecret?: string;
 };
 
 export type SyncSourceError = {

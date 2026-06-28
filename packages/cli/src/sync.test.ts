@@ -68,6 +68,7 @@ function profileResponseFixture(
 type FetchCall = {
   url: string;
   body: SyncProfileRequest | undefined;
+  headers: Record<string, string>;
 };
 
 function recordingFetch(
@@ -82,7 +83,11 @@ function recordingFetch(
     if (init?.body && typeof init.body === "string") {
       body = JSON.parse(init.body) as SyncProfileRequest;
     }
-    calls.push({ url, body });
+    const headers: Record<string, string> = {};
+    if (init?.headers && typeof init.headers === "object") {
+      Object.assign(headers, init.headers);
+    }
+    calls.push({ url, body, headers });
     const r = respond();
     if (r.ok) {
       return new Response(JSON.stringify(r.body), {
@@ -316,6 +321,51 @@ describe("runSync", () => {
     expect(seen.codex).toBe("2026-05-15T01:00:00.000Z");
     expect(seen.github).toBe("2026-05-15T02:00:00.000Z");
     expect(seen.wakatime).toBe("2026-05-15T03:00:00.000Z");
+  });
+
+  it("includes x-codogotchi-sync-secret header when syncSecret is configured", async () => {
+    const { fetcher, calls } = recordingFetch(() => ({
+      ok: true,
+      body: {
+        profile: profileResponseFixture(),
+        new_loot_events: [],
+      },
+    }));
+
+    await runSync({
+      home,
+      config: defaultConfig(home),
+      syncSecret: "my-sync-secret",
+      readers: makeReaders({ claude: { tokens: 1 } }),
+      fetch: fetcher,
+      now: () => FIXED_NOW,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.headers["x-codogotchi-sync-secret"]).toBe(
+      "my-sync-secret",
+    );
+  });
+
+  it("omits x-codogotchi-sync-secret header when syncSecret is not configured", async () => {
+    const { fetcher, calls } = recordingFetch(() => ({
+      ok: true,
+      body: {
+        profile: profileResponseFixture(),
+        new_loot_events: [],
+      },
+    }));
+
+    await runSync({
+      home,
+      config: defaultConfig(home),
+      readers: makeReaders({ claude: { tokens: 1 } }),
+      fetch: fetcher,
+      now: () => FIXED_NOW,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.headers["x-codogotchi-sync-secret"]).toBeUndefined();
   });
 
   it("sync.log rotates when current log exceeds the limit", async () => {
