@@ -107,7 +107,7 @@ final class StateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(expected, 8)
 	}
 
-	func testExpectedSchemaVersionIs7() {
+	func testExpectedSchemaVersionIs8() {
 		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 8)
 	}
 
@@ -291,7 +291,7 @@ final class StateJsonReaderTests: XCTestCase {
 
 	// MARK: - Schema v4 vocabulary (P7.01 — [red])
 
-	func testExpectedSchemaVersionIsV4() {
+	func testExpectedSchemaVersionIsV8WasV4() {
 		// Updated to v5 in P10.06, v6 for revive_until, v7 for state.d slice reader
 		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 8)
 	}
@@ -352,7 +352,7 @@ final class StateJsonReaderTests: XCTestCase {
 
 	// MARK: - Schema v5 RPG fields (P10.06 — [red])
 
-	func testExpectedSchemaVersionIsV5() {
+	func testExpectedSchemaVersionIsV8WasV5() {
 		// Bumped to v6 for revive_until, v7 for state.d slice reader
 		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 8)
 	}
@@ -710,7 +710,7 @@ final class SliceDirReaderTests: XCTestCase {
 
 	// MARK: - Schema version
 
-	func testExpectedSchemaVersionIs7() {
+	func testExpectedSchemaVersionIs8() {
 		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 8)
 	}
 

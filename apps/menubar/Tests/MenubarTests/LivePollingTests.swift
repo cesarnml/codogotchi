@@ -247,11 +247,13 @@ final class LivePollingTests: XCTestCase {
 	func testExpiredReviveUntilRendersBaseHookState() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
+		let rpgTarget = makeSandboxPath()
 		try writeSlice(
-			#"{"activity_state":"implementing","updated_at":"2026-06-08T00:00:00.000Z","level":3,"level_fraction":0.5,"half_hearts":4,"last_activity_at":"2026-06-08T00:00:00.000Z","revive_until":"2020-01-01T00:00:00.000Z"}"#,
+			#"{"activity_state":"implementing","updated_at":"2026-06-08T00:00:00.000Z"}"#,
 			to: target
 		)
-		let driver = makeDriver(target: target, recorder: recorder)
+		try writeRpgStateJson(rpgTarget, reviveUntil: "2020-01-01T00:00:00.000Z")
+		let driver = makeDriver(target: target, recorder: recorder, rpgStatePath: rpgTarget)
 
 		driver.tickForTesting()
 
