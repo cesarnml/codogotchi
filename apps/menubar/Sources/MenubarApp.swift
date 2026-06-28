@@ -61,12 +61,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// once `applicationDidFinishLaunching` returned.
 	var menuBuilder: MenubarMenu?
 
-	/// Held strongly so the floating panel and its persisted visibility state
-	/// stay alive for the lifetime of the menu item target.
-	var floatingPetController: FloatingPetController?
+	/// Holds the CodexPet loaded at launch so the pool factory can use it
+	/// when spawning new per-origin windows (and after `reloadActivePet`).
+	var codexPet: CodexPet?
 
-	/// Panel shell used for the floating pet; held so the hide prompt can call back.
-	var floatingPetPanelController: FloatingPetPanelController?
+	/// Manages one floating pet window per active AI-platform origin.
+	/// Nil while pet assets are unavailable or in demo mode.
+	var floatingPetWindowPool: FloatingPetWindowPool?
 
 	/// Held strongly so the first-run onboarding panel controller is not deallocated
 	/// while the app runs. Nil after the sheet is dismissed on a non-first-launch.
@@ -171,23 +172,43 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			renderer.update(state: .idle, visualMode: .normal)
 			self.renderer = renderer
 
-			let floatingPanel = FloatingPetPanelController(
-				codexPet: codexPet,
-				codogotchiPet: codogotchiPet,
-				demoFrameInterval: demoInterval,
-				idleEscalationConfig: IdleEscalationConfig.resolve(),
-				initialIdleAge: IdleEscalationConfig.backdateSeconds()
+			self.codexPet = codexPet
+			let pool = FloatingPetWindowPool(
+				ttlSeconds: 300,
+				platformModes: [:],
+				windowFactory: { [weak self] origin in
+					guard let self, let codexPet = self.codexPet else {
+						fatalError("FloatingPetWindowPool factory called after app teardown")
+					}
+					let panel = FloatingPetPanelController(
+						codexPet: codexPet,
+						codogotchiPet: self.codogotchiPet,
+						demoFrameInterval: nil,
+						idleEscalationConfig: IdleEscalationConfig.resolve(),
+						initialIdleAge: IdleEscalationConfig.backdateSeconds()
+					)
+					let controller = FloatingPetController(
+						panel: panel,
+						visibleFrameProvider: Self.visibleFloatingFrame,
+						saveState: { _ in }
+					)
+					controller.onVisibilityChanged = { [weak self] _ in
+						self?.updateAppNapOptOut()
+					}
+					panel.onHideFloatingPet = { [weak self, weak controller] in
+						guard let self, let controller else { return }
+						// Find this controller's origin in the pool and dismiss
+						if let key = self.floatingPetWindowPool?.activeOrigins.first(where: {
+							self.floatingPetWindowPool?.controller(for: $0) === controller
+						}) {
+							self.floatingPetWindowPool?.setVisible(false, for: key)
+						}
+						self.menuBuilder?.refreshFloatingPetMenuItemTitle()
+					}
+					return controller
+				}
 			)
-			self.floatingPetPanelController = floatingPanel
-			let floatingPetController = FloatingPetController(
-				panel: floatingPanel,
-				visibleFrameProvider: Self.visibleFloatingFrame
-			)
-			floatingPetController.onVisibilityChanged = { [weak self] visible in
-				self?.setFloatingPetAppNapOptOut(active: visible)
-			}
-			self.floatingPetController = floatingPetController
-			setFloatingPetAppNapOptOut(active: floatingPetController.isFloatingPetVisible)
+			self.floatingPetWindowPool = pool
 		} catch {
 			NSLog(
 				"MenubarApp: CodexPet load failed from '%@' — keeping placeholder icon (%@)",
@@ -203,13 +224,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		settingsController.onPetActivated = { [weak self] _ in
 			self?.reloadActivePet()
 		}
-		settingsController.onRPGHUDEnabledChanged = { [weak self] enabled in
-			self?.floatingPetController?.setRPGHUDEnabled(enabled)
+		settingsController.onRPGHUDEnabledChanged = { _ in
+			// Pool reads PetConfig.resolvedRPGHUDEnabled() on each tick; no direct wire needed.
 		}
 		self.settingsWindowController = settingsController
 
 		let menuBuilder = MenubarMenu(
-			floatingPetController: self.floatingPetController,
+			floatingPetPool: self.floatingPetWindowPool,
 			retryHooksInstall: { [weak onboardingController] in
 				onboardingController?.showIfNeeded()
 			},
@@ -219,20 +240,6 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		)
 		item.menu = menuBuilder.build()
 		self.menuBuilder = menuBuilder
-		floatingPetPanelController?.onHideFloatingPet = { [weak self] in
-			guard let self else { return }
-			self.floatingPetController?.setFloatingPetVisible(false)
-			self.menuBuilder?.refreshFloatingPetMenuItemTitle()
-		}
-
-		let stateFanout = PetStateFanout(
-			applyToMenubar: { [weak renderer = self.renderer] state, mode in
-				renderer?.update(state: state, visualMode: mode)
-			},
-			applyToFloatingPet: { [weak floatingPetController = self.floatingPetController] state, mode in
-				floatingPetController?.apply(state: state, visualMode: mode)
-			}
-		)
 
 		// Demo mode: re-point the polling target to a sandboxed file and run
 		// the fixture cycle driver. P2.07 will own live polling against the
@@ -262,8 +269,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				let driver = DemoCycleDriver(
 					sandboxedPath: config.pollingTarget,
 					fixturesDirectory: fixturesDirectory,
-					apply: { state in
-						stateFanout.applyDemo(state: state)
+					apply: { [weak renderer = self.renderer] state in
+						renderer?.update(state: state, visualMode: .normal)
 					},
 					tickInterval: DemoConfig.demoTickSeconds(
 						from: ProcessInfo.processInfo.environment
@@ -289,8 +296,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				pollingTargetPath: config.pollingTarget.path,
 				gatePath: gateJsonPath,
 				deliveryContextPath: deliveryContextPath,
-				apply: { state, mode in
-					stateFanout.apply(state: state, visualMode: mode)
+				apply: { [weak renderer = self.renderer] state, mode in
+					renderer?.update(state: state, visualMode: mode)
 				},
 				setTooltip: { [weak item] tooltip in
 					item?.button?.toolTip = tooltip
@@ -298,33 +305,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				transitionLog: self.transitionLog,
 				codogotchiPet: self.codogotchiPet
 			)
-			driver.applyAttention = { [weak floatingPetController = self.floatingPetController] payload, sourceEvent in
-				floatingPetController?.applyAttention(payload: payload, sourceEvent: sourceEvent)
-			}
-			let statePath = config.pollingTarget.path
-			self.floatingPetPanelController?.onAttentionDismissed = {
-				StateJsonWriter.dismissAttention(at: statePath)
-			}
-			driver.applyGateBadge = { [weak floatingPetController = self.floatingPetController] content in
-				floatingPetController?.applyGateBadge(content: content)
-			}
-			driver.applyPlatform = { [weak floatingPetController = self.floatingPetController] origin in
-				floatingPetController?.applyPlatform(origin: origin)
-			}
-			driver.applyRPGState = {
-				[weak self, weak floatingPetController = self.floatingPetController]
-				halfHearts, levelFraction, level, activeMinutes in
-				// While the HUD demo is animating, ignore real RPG updates so the
-				// demo's values are not overwritten on each poll tick.
+			driver.applyPerPlatform = { [weak self] snapshot in
 				guard self?.hudDemoActive != true else { return }
-				let hudEnabled = PetConfig.resolvedRPGHUDEnabled()
-				floatingPetController?.applyRPGState(
-					halfHearts: halfHearts,
-					levelFraction: levelFraction,
-					level: level,
-					activeMinutes: activeMinutes,
-					hudEnabled: hudEnabled
-				)
+				self?.floatingPetWindowPool?.update(snapshot: snapshot)
+				self?.menuBuilder?.refreshFloatingPetMenuItemTitle()
 			}
 			driver.start()
 			self.livePollingDriver = driver
@@ -336,14 +320,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			startHUDDemo()
 		}
 
-		// Float-on-launch (developer convenience, e.g. the `tcib` idle-bump demo):
-		// guarantee the floating pet is on screen at startup without entering the
-		// pinned HUD-demo mode, so escalation + click-hold de-escalation can be
-		// exercised under otherwise normal hover-driven behavior.
-		if ProcessInfo.processInfo.environment["CODOGOTCHI_FLOAT_ON_LAUNCH"] == "1" {
-			floatingPetController?.setFloatingPetVisible(true)
-			menuBuilder.refreshFloatingPetMenuItemTitle()
-		}
+		// Float-on-launch (developer convenience): no-op in P13.04 multi-pet mode;
+		// pool spawns windows when applyPerPlatform fires on first poll tick.
 
 		// Runtime HUD pin: while `~/.codogotchi/hud-pin` exists, force the floating
 		// pet + HUD visible regardless of hover — without suppressing live RPG
@@ -356,11 +334,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		let applyHUDPin: (Bool) -> Void = { [weak self] pinned in
 			guard let self, pinned != self.hudPinnedLast else { return }
 			self.hudPinnedLast = pinned
-			if pinned {
-				self.floatingPetController?.setFloatingPetVisible(true)
-				self.menuBuilder?.refreshFloatingPetMenuItemTitle()
-			}
-			self.floatingPetController?.setHUDPinned(pinned)
+			// HUD pin in multi-pet mode: no-op (pool manages window lifecycle)
 		}
 		applyHUDPin(FileManager.default.fileExists(atPath: hudPinPath))
 		hudPinWatchTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
@@ -411,17 +385,23 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		do {
 			let newCodexPet = try CodexPet()
 			let newCodogotchiPet = try? CodogotchiPet()
+			self.codexPet = newCodexPet
 			self.codogotchiPet = newCodogotchiPet
 			renderer.replacePets(codexPet: newCodexPet, codogotchiPet: newCodogotchiPet)
-			floatingPetPanelController?.replacePets(
-				codexPet: newCodexPet, codogotchiPet: newCodogotchiPet)
 			livePollingDriver?.replaceCodogotchiPet(newCodogotchiPet)
+			// Pool-owned windows retain their existing pet until naturally respawned on next tick.
 		} catch {
 			NSLog("MenubarApp: reloadActivePet failed — %@", error.localizedDescription)
 		}
 	}
 
-	/// Opt out of App Nap only while the floating pet is on screen.
+	/// Opt out of App Nap when any pool window is visible; opt back in when all are hidden.
+	@MainActor
+	private func updateAppNapOptOut() {
+		let anyVisible = !(floatingPetWindowPool?.activeOrigins.isEmpty ?? true)
+		setFloatingPetAppNapOptOut(active: anyVisible)
+	}
+
 	private func setFloatingPetAppNapOptOut(active: Bool) {
 		if active {
 			guard activity == nil else { return }
@@ -436,15 +416,16 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	}
 
 	/// Pin the floating pet + HUD and run the RPG-HUD animation for developer
-	/// inspection. Restores normal hover-driven HUD behavior when the run ends.
+	/// inspection. In multi-pet mode targets the first active pool window.
 	@MainActor
 	private func startHUDDemo() {
-		guard let controller = floatingPetController else {
-			NSLog("MenubarApp: HUD demo requested but floating pet controller is unavailable")
+		guard let pool = floatingPetWindowPool,
+			let origin = pool.activeOrigins.first,
+			let controller = pool.controller(for: origin) as? FloatingPetController
+		else {
+			NSLog("MenubarApp: HUD demo requested but no pool window is active")
 			return
 		}
-		controller.setFloatingPetVisible(true)
-		menuBuilder?.refreshFloatingPetMenuItemTitle()
 		hudDemoActive = true
 		controller.setHUDDemoActive(true)
 		let levelSeconds = DemoConfig.hudDemoLevelSeconds(

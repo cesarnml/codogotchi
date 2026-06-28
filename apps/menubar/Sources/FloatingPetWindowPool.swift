@@ -1,0 +1,179 @@
+import Foundation
+
+/// Manages one `FloatingPetWindowControlling` instance per active origin
+/// (or one shared "combined" window for combined-mode origins).
+///
+/// Pool rules:
+/// - Origins with mode "off" are filtered before any window is spawned.
+/// - Origins with mode "combined" fold into a single shared window keyed "combined".
+/// - Origins with mode "own" (the default) each get their own window.
+/// - A window is dismissed when its origin's last-seen `updated_at` timestamp is
+///   older than `ttlSeconds`, UNLESS that window is the last-active one.
+/// - The last-active window (most-recently-updated origin across all active origins)
+///   is never dismissed by TTL regardless of elapsed time.
+@MainActor
+final class FloatingPetWindowPool {
+	typealias WindowFactory = (String) -> FloatingPetWindowControlling
+
+	private let ttlSeconds: TimeInterval
+	private let platformModes: [String: String]
+	private let windowFactory: WindowFactory
+	private let now: () -> Date
+
+	/// Active windows keyed by window key (origin for "own" mode, "combined" for combined mode).
+	private var windows: [String: FloatingPetWindowControlling] = [:]
+	/// Tracks the `now()` clock time when each origin was last present in a snapshot (TTL clock).
+	private var lastSeenAt: [String: Date] = [:]
+	/// Tracks the most-recent snapshot `updated_at` per origin (used to elect lastActiveOrigin).
+	private var lastUpdatedAt: [String: Date] = [:]
+	/// Origin whose snapshot `updated_at` is most recent across all tracked origins.
+	private var lastActiveOrigin: String? = nil
+
+	/// Window keys that currently have visible windows.
+	var activeOrigins: [String] { Array(windows.keys).sorted() }
+
+	init(
+		ttlSeconds: TimeInterval = 300,
+		platformModes: [String: String] = [:],
+		windowFactory: @escaping WindowFactory,
+		now: @escaping () -> Date = { Date() }
+	) {
+		self.ttlSeconds = ttlSeconds
+		self.platformModes = platformModes
+		self.windowFactory = windowFactory
+		self.now = now
+	}
+
+	func update(snapshot: PerPlatformSnapshot) {
+		let currentTime = now()
+
+		// Step 1: filter off-mode origins
+		let visibleEntries = snapshot.perPlatform.filter { mode(for: $0.key) != "off" }
+
+		// Step 2: update tracking for each visible origin
+		for (origin, state) in visibleEntries {
+			// TTL clock: record wall-clock time we last observed this origin
+			lastSeenAt[origin] = currentTime
+			// Active-origin election: track snapshot's own updated_at timestamp
+			let stateDate = StateJsonReader.parseISO8601Date(state.updatedAt) ?? currentTime
+			if lastUpdatedAt[origin] == nil || stateDate > lastUpdatedAt[origin]! {
+				lastUpdatedAt[origin] = stateDate
+			}
+		}
+
+		// Step 3: update lastActiveOrigin = origin with max snapshot updated_at
+		if !lastUpdatedAt.isEmpty {
+			lastActiveOrigin = lastUpdatedAt.max(by: { $0.value < $1.value })?.key
+		}
+
+		// Step 4: compute the key of the window that must not be dismissed
+		let lastActiveWindowKey: String? = lastActiveOrigin.map { windowKey(for: $0) }
+
+		// Step 5: dismiss stale own-mode windows (skip last-active)
+		let staleKeys = windows.keys.filter { key in
+			guard key != lastActiveWindowKey else { return false }
+			let ttlDate = lastSeenForWindow(key: key)
+			return ttlDate.map { currentTime.timeIntervalSince($0) > ttlSeconds } ?? true
+		}
+		for key in staleKeys {
+			windows[key]?.setFloatingPetVisible(false)
+			windows.removeValue(forKey: key)
+		}
+
+		// Step 6: separate combined vs own origins
+		let ownOrigins = visibleEntries.keys.filter { mode(for: $0) != "combined" }
+		let combinedOrigins = visibleEntries.keys.filter { mode(for: $0) == "combined" }
+
+		// Step 7: spawn / update own-mode windows
+		for origin in ownOrigins {
+			guard let state = visibleEntries[origin] else { continue }
+			if windows[origin] == nil {
+				let controller = windowFactory(origin)
+				controller.setFloatingPetVisible(true)
+				windows[origin] = controller
+			}
+			windows[origin]?.apply(state: state.activityState, visualMode: .normal)
+			windows[origin]?.applyAttention(
+				payload: state.attention,
+				sourceEvent: state.sourceEvent
+			)
+			if let origin = state.sourceEvent?.origin {
+				windows[origin]?.applyPlatform(origin: origin)
+			}
+		}
+
+		// Step 8: spawn / update combined window
+		if !combinedOrigins.isEmpty {
+			let combinedStates = combinedOrigins.compactMap { visibleEntries[$0] }
+			let winner = combinedStates.max(by: { a, b in
+				(StateJsonReader.parseISO8601Date(a.updatedAt) ?? .distantPast)
+					< (StateJsonReader.parseISO8601Date(b.updatedAt) ?? .distantPast)
+			})
+			if let winner {
+				if windows["combined"] == nil {
+					let controller = windowFactory("combined")
+					controller.setFloatingPetVisible(true)
+					windows["combined"] = controller
+				}
+				windows["combined"]?.apply(state: winner.activityState, visualMode: .normal)
+				windows["combined"]?.applyAttention(
+					payload: winner.attention,
+					sourceEvent: winner.sourceEvent
+				)
+			}
+		} else {
+			// No combined-mode origins → dismiss combined window if present
+			if windows["combined"] != nil {
+				windows["combined"]?.setFloatingPetVisible(false)
+				windows.removeValue(forKey: "combined")
+			}
+		}
+
+		// Step 9: broadcast RPG to all windows
+		let rpg = snapshot.rpgSnapshot
+		let hudEnabled = PetConfig.resolvedRPGHUDEnabled()
+		for controller in windows.values {
+			controller.applyRPGState(
+				halfHearts: rpg.halfHearts,
+				levelFraction: rpg.levelFraction,
+				level: rpg.level,
+				activeMinutes: rpg.activeMinutes,
+				hudEnabled: hudEnabled
+			)
+		}
+	}
+
+	/// Returns true when the window for the given key is currently in `windows`.
+	func isActive(for key: String) -> Bool { windows[key] != nil }
+
+	/// Hides or shows the window for the given key. No-op when key is unknown.
+	func setVisible(_ visible: Bool, for key: String) {
+		windows[key]?.setFloatingPetVisible(visible)
+		if !visible {
+			windows.removeValue(forKey: key)
+		}
+	}
+
+	/// Returns the controller for the given window key. Used by MenubarApp to wire
+	/// per-window callbacks (attention dismiss, app-nap opt-out).
+	func controller(for key: String) -> FloatingPetWindowControlling? { windows[key] }
+
+	// MARK: - Private helpers
+
+	private func mode(for origin: String) -> String {
+		platformModes[origin] ?? "own"
+	}
+
+	private func windowKey(for origin: String) -> String {
+		mode(for: origin) == "combined" ? "combined" : origin
+	}
+
+	/// Most-recent lastSeenAt across all origins that map to this window key.
+	private func lastSeenForWindow(key: String) -> Date? {
+		if key == "combined" {
+			let combinedOrigins = platformModes.keys.filter { platformModes[$0] == "combined" }
+			return combinedOrigins.compactMap { lastSeenAt[$0] }.max()
+		}
+		return lastSeenAt[key]
+	}
+}

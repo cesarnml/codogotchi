@@ -33,6 +33,7 @@
 		4AA0492AB89E3CFCC1550BFA /* AboutViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4D4D8341FA731AE0AE8723E /* AboutViewModel.swift */; };
 		4AA882970E413D5E8CA15AD2 /* HalfHeartDecayEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05DA62A749E277B164B28878 /* HalfHeartDecayEngine.swift */; };
 		4ADBB1DD081EE5B9CE110363 /* CodogotchiFolders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CC4170BD102B13FAEADA8B /* CodogotchiFolders.swift */; };
+		4BE71F6E5934DC0410EF24B1 /* PerPlatformSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E218BBA20DB3F443FF460A2 /* PerPlatformSnapshot.swift */; };
 		4C800549CEEB194A42237701 /* PetImportHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */; };
 		4EF5166A016D9F70390B8829 /* GeneralTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A2902FB13A70CEF8221A21A /* GeneralTabViewModelTests.swift */; };
 		50F12FB03948E281C4BDFFE1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0D359A7765F7ACDDA24C16CB /* Assets.xcassets */; };
@@ -43,6 +44,7 @@
 		6A78A39CED185B02C213FE62 /* MenuItemsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */; };
 		708062CE5FDA296BC26AF17C /* PetTabLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 777877051ED12A63B5FD6ACB /* PetTabLayoutTests.swift */; };
 		71AFF145FBC55826CFD98324 /* SettingsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73B325A85B9C3A8AFB02C5BA /* SettingsController.swift */; };
+		766A1353C309F8F7551B6A3C /* FloatingPetWindowPoolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A977437677E31BB6CF62E58C /* FloatingPetWindowPoolTests.swift */; };
 		7A7D6AF5F7CAC9C273EDC5FF /* SettingsWindowOpenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14570954EC4AB5F26AFE2173 /* SettingsWindowOpenTests.swift */; };
 		7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A9EA8AA7530DED8536C384 /* PetTabViewModelTests.swift */; };
 		7C4E3B3590C74B168BB6E631 /* LockstepPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E28DE61118E480E5703FA445 /* LockstepPolicy.swift */; };
@@ -71,8 +73,8 @@
 		C869CD78C14ADFF9F38EBDB9 /* GateJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97B6CBA3971EF14695D74F9 /* GateJsonReaderTests.swift */; };
 		CAB640A6BB3B62D88C3DC0FC /* TransitionLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DABEF68EEC70787763CE3E3D /* TransitionLog.swift */; };
 		CBB4A3FDFAA87B468B862419 /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C36708DADAAEA372DF03A2A /* OnboardingWindowController.swift */; };
+		CE32F0392E2F266BFF009D8A /* FloatingPetWindowPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18A0E708A904133895944FBC /* FloatingPetWindowPool.swift */; };
 		D0D4F8896EC0F30182472D1C /* LivePollingDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03267BF299C29EE9DC11590 /* LivePollingDriver.swift */; };
-		D48C3FDB43E1FA8E01113439 /* PetStateFanout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C42121B54C0F2313BB1114 /* PetStateFanout.swift */; };
 		D4B25DD9B2E2825856181DBC /* DeveloperTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B9E962BBA7B8B1B05F9F77 /* DeveloperTabViewModelTests.swift */; };
 		D6CCD2A3A92C90A80C5FA82D /* LivePollingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA2D403DBB111D997748F847 /* LivePollingTests.swift */; };
 		D82CE832ED27D2C047026D62 /* DemoConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09112F189EA04FABD5D4833E /* DemoConfig.swift */; };
@@ -92,7 +94,6 @@
 		F0D2A72E1931F49257F1C2A4 /* FloatingPetScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50592CBB8ED4543FDCF95E79 /* FloatingPetScene.swift */; };
 		F7D1881F6D3DB1D5BFC19B63 /* CodexPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6829E3A0570398A50A596E4 /* CodexPet.swift */; };
 		F82F0F3BD0350BC38F97CA27 /* StateJsonWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */; };
-		FBE36F71D1F69299A13DDADA /* PetStateFanoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079E19BBF7A258650F759E72 /* PetStateFanoutTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -111,7 +112,6 @@
 		05DA62A749E277B164B28878 /* HalfHeartDecayEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HalfHeartDecayEngine.swift; sourceTree = "<group>"; };
 		05EB20E9AD12E7E2765C3217 /* SettingsTabModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabModelTests.swift; sourceTree = "<group>"; };
 		073E1DA7FD402C40CFEA5439 /* RPGTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGTabViewModelTests.swift; sourceTree = "<group>"; };
-		079E19BBF7A258650F759E72 /* PetStateFanoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStateFanoutTests.swift; sourceTree = "<group>"; };
 		09112F189EA04FABD5D4833E /* DemoConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoConfig.swift; sourceTree = "<group>"; };
 		0B22EF406588604AA7D68817 /* DeveloperTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperTabViewModel.swift; sourceTree = "<group>"; };
 		0C648B3B6E8C5F97123E808D /* PetConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfigTests.swift; sourceTree = "<group>"; };
@@ -121,6 +121,7 @@
 		15EB23CFF7BEBC442A06A8B1 /* PlatformAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformAttributionTests.swift; sourceTree = "<group>"; };
 		15F8B7A0E0B770D28C7486B7 /* LockstepPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockstepPolicyTests.swift; sourceTree = "<group>"; };
 		16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetImportHelper.swift; sourceTree = "<group>"; };
+		18A0E708A904133895944FBC /* FloatingPetWindowPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetWindowPool.swift; sourceTree = "<group>"; };
 		19D23A5CD119A7DB5B530305 /* PlatformAttribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformAttribution.swift; sourceTree = "<group>"; };
 		24FA942D11A38DA6F0B232D9 /* CodogotchiFoldersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiFoldersTests.swift; sourceTree = "<group>"; };
 		2E496AEDA38E70CA0C7D4E4F /* MenubarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarTests.swift; sourceTree = "<group>"; };
@@ -133,7 +134,6 @@
 		4412C28CB80A89E0E021EC03 /* state-json */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "state-json"; path = "Fixtures/state-json"; sourceTree = SOURCE_ROOT; };
 		4610C19ADA41987592CEE748 /* CodexPetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPetTests.swift; sourceTree = "<group>"; };
 		489C5364D39974B530891975 /* DemoModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeTests.swift; sourceTree = "<group>"; };
-		49C42121B54C0F2313BB1114 /* PetStateFanout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStateFanout.swift; sourceTree = "<group>"; };
 		50592CBB8ED4543FDCF95E79 /* FloatingPetScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetScene.swift; sourceTree = "<group>"; };
 		57120C267C3617C32AC0430F /* FloatingPetSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetSceneTests.swift; sourceTree = "<group>"; };
 		5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLogTests.swift; sourceTree = "<group>"; };
@@ -163,9 +163,11 @@
 		9510141802B8B0C9F7E186A5 /* GateJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateJsonReader.swift; sourceTree = "<group>"; };
 		9646F68B64C22ABAE0FE52EA /* PetConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfig.swift; sourceTree = "<group>"; };
 		9BCAD41ECE980A5E83D5AE20 /* RpgStateReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RpgStateReaderTests.swift; sourceTree = "<group>"; };
+		9E218BBA20DB3F443FF460A2 /* PerPlatformSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerPlatformSnapshot.swift; sourceTree = "<group>"; };
 		9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonReaderTests.swift; sourceTree = "<group>"; };
 		9E7256729C3F274DFB3A5204 /* BundledMaewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledMaewTests.swift; sourceTree = "<group>"; };
 		A3B9E962BBA7B8B1B05F9F77 /* DeveloperTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperTabViewModelTests.swift; sourceTree = "<group>"; };
+		A977437677E31BB6CF62E58C /* FloatingPetWindowPoolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetWindowPoolTests.swift; sourceTree = "<group>"; };
 		AE6F4B753185486F7E7FCCC6 /* OnboardingControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingControllerTests.swift; sourceTree = "<group>"; };
 		B49E0C3473A936DCB90AFE2A /* DemoCycleDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoCycleDriver.swift; sourceTree = "<group>"; };
 		B8F15B1B99434EA9F9005052 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
@@ -214,6 +216,7 @@
 				8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */,
 				5CE9EFEFECAFAC8156F61DF7 /* FloatingPetControllerTests.swift */,
 				57120C267C3617C32AC0430F /* FloatingPetSceneTests.swift */,
+				A977437677E31BB6CF62E58C /* FloatingPetWindowPoolTests.swift */,
 				D97B6CBA3971EF14695D74F9 /* GateJsonReaderTests.swift */,
 				8A2902FB13A70CEF8221A21A /* GeneralTabViewModelTests.swift */,
 				02675B5F9E50F8DB86AA76E0 /* HalfHeartDecayTests.swift */,
@@ -225,7 +228,6 @@
 				AE6F4B753185486F7E7FCCC6 /* OnboardingControllerTests.swift */,
 				0C648B3B6E8C5F97123E808D /* PetConfigTests.swift */,
 				6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */,
-				079E19BBF7A258650F759E72 /* PetStateFanoutTests.swift */,
 				777877051ED12A63B5FD6ACB /* PetTabLayoutTests.swift */,
 				E0A9EA8AA7530DED8536C384 /* PetTabViewModelTests.swift */,
 				15EB23CFF7BEBC442A06A8B1 /* PlatformAttributionTests.swift */,
@@ -270,6 +272,7 @@
 				EA899400094213B8A814D114 /* FloatingPetController.swift */,
 				C473FDED57B163FBBB6F3CF1 /* FloatingPetPanel.swift */,
 				50592CBB8ED4543FDCF95E79 /* FloatingPetScene.swift */,
+				18A0E708A904133895944FBC /* FloatingPetWindowPool.swift */,
 				9510141802B8B0C9F7E186A5 /* GateJsonReader.swift */,
 				83FD7EFDA095F2FA6876AF23 /* GeneralTabViewModel.swift */,
 				05DA62A749E277B164B28878 /* HalfHeartDecayEngine.swift */,
@@ -282,9 +285,9 @@
 				3280C616774866918681AF0C /* MenubarRenderer.swift */,
 				712A24CF66C43196AE34459D /* OnboardingController.swift */,
 				6C36708DADAAEA372DF03A2A /* OnboardingWindowController.swift */,
+				9E218BBA20DB3F443FF460A2 /* PerPlatformSnapshot.swift */,
 				9646F68B64C22ABAE0FE52EA /* PetConfig.swift */,
 				16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */,
-				49C42121B54C0F2313BB1114 /* PetStateFanout.swift */,
 				E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */,
 				DEC685626D14E1B7F1A468CC /* PetTabViewModel.swift */,
 				7C42B8E74290342FE905D0AB /* PetThumbnail.swift */,
@@ -466,6 +469,7 @@
 				38FAEA0F65A0C396AC8AD302 /* FloatingPetController.swift in Sources */,
 				A867342EFD852FB363D4DD7C /* FloatingPetPanel.swift in Sources */,
 				F0D2A72E1931F49257F1C2A4 /* FloatingPetScene.swift in Sources */,
+				CE32F0392E2F266BFF009D8A /* FloatingPetWindowPool.swift in Sources */,
 				AF2EB6CAE9F7B4CF31D9F5C3 /* GateJsonReader.swift in Sources */,
 				44B3B26199E887E9A287C821 /* GeneralTabViewModel.swift in Sources */,
 				4AA882970E413D5E8CA15AD2 /* HalfHeartDecayEngine.swift in Sources */,
@@ -478,9 +482,9 @@
 				1D5FF0E195806DF51AF25AEF /* MenubarRenderer.swift in Sources */,
 				3B83084BAD4FC401B7C5CF37 /* OnboardingController.swift in Sources */,
 				CBB4A3FDFAA87B468B862419 /* OnboardingWindowController.swift in Sources */,
+				4BE71F6E5934DC0410EF24B1 /* PerPlatformSnapshot.swift in Sources */,
 				BBAE72D92861A7901C3EBB73 /* PetConfig.swift in Sources */,
 				4C800549CEEB194A42237701 /* PetImportHelper.swift in Sources */,
-				D48C3FDB43E1FA8E01113439 /* PetStateFanout.swift in Sources */,
 				36D30A2BA8D14CA1D7D62D1C /* PetStoreSeeder.swift in Sources */,
 				00F9608A6921A6D7A6FD6454 /* PetTabViewModel.swift in Sources */,
 				ED9CBE0028B28AFCEB8987C9 /* PetThumbnail.swift in Sources */,
@@ -516,6 +520,7 @@
 				3278D5B8A5BF524A956FECEC /* FloatingInteractionTests.swift in Sources */,
 				98EBA9B7E29244B21755C4F5 /* FloatingPetControllerTests.swift in Sources */,
 				121F58B33BBB5B89020FD3A7 /* FloatingPetSceneTests.swift in Sources */,
+				766A1353C309F8F7551B6A3C /* FloatingPetWindowPoolTests.swift in Sources */,
 				C869CD78C14ADFF9F38EBDB9 /* GateJsonReaderTests.swift in Sources */,
 				4EF5166A016D9F70390B8829 /* GeneralTabViewModelTests.swift in Sources */,
 				BB7A722079A26146B51633AC /* HalfHeartDecayTests.swift in Sources */,
@@ -527,7 +532,6 @@
 				E28014AC2F3B192E3A1BAE57 /* OnboardingControllerTests.swift in Sources */,
 				1A65C0547AD500DEEBCF50DB /* PetConfigTests.swift in Sources */,
 				B20913FC5559EE95F7E4E2BA /* PetImportHelperTests.swift in Sources */,
-				FBE36F71D1F69299A13DDADA /* PetStateFanoutTests.swift in Sources */,
 				708062CE5FDA296BC26AF17C /* PetTabLayoutTests.swift in Sources */,
 				7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */,
 				E93167AF2416BE06B2BAA308 /* PlatformAttributionTests.swift in Sources */,

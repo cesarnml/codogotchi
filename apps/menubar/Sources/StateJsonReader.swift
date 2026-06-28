@@ -124,7 +124,7 @@ enum StateJsonReader {
 		return .idle
 	}
 
-	private static func parseISO8601Date(_ string: String) -> Date? {
+	static func parseISO8601Date(_ string: String) -> Date? {
 		let formatter = ISO8601DateFormatter()
 		formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 		if let date = formatter.date(from: string) { return date }
@@ -251,6 +251,92 @@ enum StateJsonReader {
 			lastActivityAt: nil,
 			reviveUntil: nil
 		)
+	}
+
+	/// Groups all fresh slices in a `state.d/` directory by `source_event.origin`
+	/// (last-writer-wins per group) and returns a per-origin map of `StateSnapshot`.
+	/// Slices without a parseable origin are skipped.
+	/// Returns `.failure(.fileNotFound)` when the directory does not exist.
+	/// Returns `.success([:])` when the directory is empty or all slices are stale.
+	static func readPerPlatformDirectory(
+		at dirPath: String
+	) -> Result<[String: StateSnapshot], StateReadError> {
+		readPerPlatformDirectoryImpl(at: dirPath, now: Date(), staleTTL: 2 * 60 * 60)
+	}
+
+	static func readPerPlatformDirectory(
+		at dirPath: String,
+		now: Date,
+		staleTTL: TimeInterval = 2 * 60 * 60
+	) -> Result<[String: StateSnapshot], StateReadError> {
+		readPerPlatformDirectoryImpl(at: dirPath, now: now, staleTTL: staleTTL)
+	}
+
+	private static func readPerPlatformDirectoryImpl(
+		at dirPath: String,
+		now: Date,
+		staleTTL: TimeInterval
+	) -> Result<[String: StateSnapshot], StateReadError> {
+		let fm = FileManager.default
+		var isDir: ObjCBool = false
+		guard fm.fileExists(atPath: dirPath, isDirectory: &isDir), isDir.boolValue else {
+			return .failure(.fileNotFound)
+		}
+
+		let names: [String]
+		do {
+			names = try fm.contentsOfDirectory(atPath: dirPath)
+		} catch {
+			return .failure(.malformed)
+		}
+
+		let decoder = JSONDecoder()
+		decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+		var winners: [String: (date: Date, slice: SlicePayload)] = [:]
+
+		for name in names {
+			guard name.hasSuffix(".json"), !name.contains(".tmp-") else { continue }
+			let filePath = (dirPath as NSString).appendingPathComponent(name)
+
+			if let attrs = try? fm.attributesOfItem(atPath: filePath),
+				let mtime = attrs[.modificationDate] as? Date,
+				now.timeIntervalSince(mtime) > staleTTL
+			{
+				continue
+			}
+
+			guard let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)),
+				let slice = try? decoder.decode(SlicePayload.self, from: data),
+				let origin = slice.sourceEvent?.origin, !origin.isEmpty
+			else { continue }
+
+			let candidateDate = parseISO8601Date(slice.updatedAt) ?? Date.distantPast
+			if winners[origin] == nil || candidateDate > winners[origin]!.date {
+				winners[origin] = (candidateDate, slice)
+			}
+		}
+
+		var result: [String: StateSnapshot] = [:]
+		for (origin, (_, slice)) in winners {
+			let raw = StateSnapshot(
+				schemaVersion: EXPECTED_STATE_SCHEMA_VERSION,
+				activityState: slice.activityState,
+				updatedAt: slice.updatedAt,
+				sourceEvent: slice.sourceEvent,
+				attention: slice.attention,
+				toolCommand: slice.toolCommand
+			)
+			result[origin] = StateSnapshot(
+				schemaVersion: raw.schemaVersion,
+				activityState: resolveActivityState(raw, now: now),
+				updatedAt: raw.updatedAt,
+				sourceEvent: raw.sourceEvent,
+				attention: raw.attention,
+				toolCommand: raw.toolCommand
+			)
+		}
+		return .success(result)
 	}
 }
 

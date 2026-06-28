@@ -5,38 +5,51 @@ import XCTest
 
 /// Behavior tests for the menu-bar `NSStatusItem` menu.
 ///
-/// The status item exposes four items:
-///   1. "Show/Hide Pet" — toggles the desktop pet surface
-///   2. "Settings…" — opens the Settings panel (⌘,)
-///   3. "Quit Codogotchi" — terminates the app
-///   4. "⚠ Hooks not active — Retry install" — hidden until post-onboarding hooks are inactive
-///
-/// (Folder shortcuts moved into Settings → Developer / Pet — see
-/// `CodogotchiFoldersTests`.)
-///
-/// Tests inject a termination spy so menu actions can be invoked synchronously
-/// without actually quitting the XCTest process.
+/// Tests inject `FloatingPetWindowPool` (with stub windows) in place of the
+/// old single-controller spy. The pool drives the pet section: nil pool →
+/// disabled "Show Pet"; 0 origins → disabled "Show Pet"; 1 origin → "Hide Pet";
+/// 2+ origins → per-origin hide items.
 @MainActor
 final class MenuItemsTests: XCTestCase {
-	final class FloatingPetVisibilitySpy: FloatingPetVisibilityControlling {
-		var isFloatingPetVisible: Bool
-		var visibilityRequests: [Bool] = []
-
-		init(isFloatingPetVisible: Bool) {
-			self.isFloatingPetVisible = isFloatingPetVisible
-		}
-
-		func setFloatingPetVisible(_ visible: Bool) {
-			isFloatingPetVisible = visible
-			visibilityRequests.append(visible)
-		}
+	// Minimal stub that conforms to FloatingPetWindowControlling for test injection.
+	private final class StubWindow: FloatingPetWindowControlling {
+		var isFloatingPetVisible: Bool = false
+		func setFloatingPetVisible(_ visible: Bool) { isFloatingPetVisible = visible }
+		func apply(state: ActivityState, visualMode: VisualMode) {}
+		func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {}
+		func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
+		func applyGateBadge(content: GateBadgeContent?) {}
+		func applyPlatform(origin: String?) {}
 	}
 
-	func testMenuItemOrder() {
-		let builder = MenubarMenu(
-			terminate: {},
-			floatingPetController: FloatingPetVisibilitySpy(isFloatingPetVisible: false)
+	private func makePool(origins: [String]) -> FloatingPetWindowPool {
+		let pool = FloatingPetWindowPool(
+			ttlSeconds: 300,
+			platformModes: [:],
+			windowFactory: { _ in StubWindow() }
 		)
+		if !origins.isEmpty {
+			let perPlatform = Dictionary(
+				uniqueKeysWithValues: origins.map { origin in
+					(origin, StateSnapshot(
+						schemaVersion: EXPECTED_STATE_SCHEMA_VERSION,
+						activityState: .idle,
+						updatedAt: "2026-06-28T10:00:00.000Z",
+						sourceEvent: nil,
+						attention: nil
+					))
+				}
+			)
+			pool.update(snapshot: PerPlatformSnapshot(
+				perPlatform: perPlatform,
+				rpgSnapshot: .safeDefault
+			))
+		}
+		return pool
+	}
+
+	func testMenuItemOrderWithNilPool() {
+		let builder = MenubarMenu(terminate: {})
 		let menu = builder.build()
 
 		XCTAssertEqual(menu.items.count, 4)
@@ -48,48 +61,31 @@ final class MenuItemsTests: XCTestCase {
 	}
 
 	func testFloatingPetToggleTitleReflectsVisibleState() {
-		let visibleBuilder = MenubarMenu(
-			terminate: {},
-			floatingPetController: FloatingPetVisibilitySpy(isFloatingPetVisible: true)
-		)
-		let hiddenBuilder = MenubarMenu(
-			terminate: {},
-			floatingPetController: FloatingPetVisibilitySpy(isFloatingPetVisible: false)
-		)
+		// MenubarMenu stores pool weakly; retain pool strongly in a local var.
+		let pool = makePool(origins: ["cursor"])
+		let visibleBuilder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		let hiddenBuilder = MenubarMenu(terminate: {})
 
 		XCTAssertEqual(visibleBuilder.build().items[0].title, MenubarMenu.hideFloatingPetTitle)
 		XCTAssertEqual(hiddenBuilder.build().items[0].title, MenubarMenu.showFloatingPetTitle)
+		_ = pool  // keep alive
 	}
 
 	func testRefreshFloatingPetMenuItemTitleAfterExternalHide() {
-		let controller = FloatingPetVisibilitySpy(isFloatingPetVisible: true)
-		let builder = MenubarMenu(terminate: {}, floatingPetController: controller)
+		let pool = makePool(origins: ["cursor"])
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
-		let toggleItem = menu.items[0]
-		XCTAssertEqual(toggleItem.title, MenubarMenu.hideFloatingPetTitle)
+		XCTAssertEqual(menu.items[0].title, MenubarMenu.hideFloatingPetTitle)
 
-		controller.setFloatingPetVisible(false)
+		// Simulate external hide: pool removes origin
+		pool.setVisible(false, for: "cursor")
 		builder.refreshFloatingPetMenuItemTitle()
 
-		XCTAssertEqual(toggleItem.title, MenubarMenu.showFloatingPetTitle)
+		// After rebuild the first item reflects "Show Pet"
+		XCTAssertEqual(menu.items[0].title, MenubarMenu.showFloatingPetTitle)
 	}
 
-	func testFloatingPetToggleCallsControllerAndRefreshesTitle() {
-		let controller = FloatingPetVisibilitySpy(isFloatingPetVisible: false)
-		let builder = MenubarMenu(terminate: {}, floatingPetController: controller)
-		let menu = builder.build()
-		let toggleItem = menu.items[0]
-
-		guard let action = toggleItem.action, let target = toggleItem.target else {
-			return XCTFail("Floating pet menu item must have an action and target")
-		}
-		_ = target.perform(action, with: toggleItem)
-
-		XCTAssertEqual(controller.visibilityRequests, [true])
-		XCTAssertEqual(toggleItem.title, MenubarMenu.hideFloatingPetTitle)
-	}
-
-	func testFloatingPetToggleIsPresentButDisabledWhenControllerIsMissing() {
+	func testFloatingPetToggleIsPresentButDisabledWhenPoolIsNil() {
 		let builder = MenubarMenu(terminate: {})
 		let menu = builder.build()
 		let toggleItem = menu.items[0]
@@ -97,6 +93,19 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(toggleItem.title, MenubarMenu.showFloatingPetTitle)
 		XCTAssertFalse(toggleItem.isEnabled)
 		XCTAssertEqual(menu.items[2].title, MenubarMenu.quitTitle)
+	}
+
+	func testTwoOriginsExpandToTwoPetItems() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		let menu = builder.build()
+
+		// 2 pet items + settings + quit + hooks = 5
+		XCTAssertEqual(menu.items.count, 5)
+		let titles = Set(menu.items.prefix(2).map { $0.title })
+		XCTAssertTrue(titles.contains("Hide Claude Code Pet"))
+		XCTAssertTrue(titles.contains("Hide Cursor Pet"))
+		_ = pool  // keep alive
 	}
 
 	func testSettingsItemInvokesOpenSettingsCallback() {
