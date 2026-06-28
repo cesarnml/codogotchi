@@ -2041,12 +2041,16 @@ describe("P13.01 rpg-state.json separation (red)", () => {
       { home, now: FIXED_NOW },
     );
 
-    // rpg-state.json must be seeded from the v7 slice
+    // rpg-state.json must be seeded from the v7 slice.
+    // Pin level_fraction and active_minutes too — they uniquely identify the
+    // seed path (v5-computed values cannot yield 0.25 and 10 simultaneously).
     const rpgPath = join(home, "rpg-state.json");
     expect(existsSync(rpgPath)).toBe(true);
     const rpg = JSON.parse(readFileSync(rpgPath, "utf8"));
     expect(rpg.level).toBe(3);
     expect(rpg.half_hearts).toBe(4);
+    expect(rpg.level_fraction).toBe(0.25);
+    expect(rpg.active_minutes).toBe(10);
   });
 });
 

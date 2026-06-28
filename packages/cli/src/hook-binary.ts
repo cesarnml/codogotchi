@@ -1053,6 +1053,8 @@ async function writeRpgStateAtomic(
 // Scans state.d/ for legacy v7 slices that carry RPG fields. Returns the
 // fields from the slice with the most-recent updated_at (last-writer-wins),
 // or null when no v7-era slices are found (fresh install or already migrated).
+// Falls back to state.json (for users who had no concurrent sessions), then
+// to null (caller uses freshly computed v5 defaults).
 async function seedRpgState(home: string): Promise<RpgStateJson | null> {
   const dir = sliceDirPath(home);
   let best: { updatedAt: number; fields: RpgStateJson } | null = null;
@@ -1073,23 +1075,7 @@ async function seedRpgState(home: string): Promise<RpgStateJson | null> {
         if (best === null || updatedAt > best.updatedAt) {
           best = {
             updatedAt,
-            fields: {
-              level: parsed.level,
-              level_fraction:
-                typeof parsed.level_fraction === "number"
-                  ? parsed.level_fraction
-                  : 0,
-              half_hearts: parsed.half_hearts,
-              active_minutes:
-                typeof parsed.active_minutes === "number"
-                  ? parsed.active_minutes
-                  : 0,
-              last_activity_at:
-                typeof parsed.last_activity_at === "string"
-                  ? parsed.last_activity_at
-                  : null,
-              revive_until: null,
-            },
+            fields: rpgFieldsFromRaw(parsed),
           };
         }
       } catch {
@@ -1099,7 +1085,39 @@ async function seedRpgState(home: string): Promise<RpgStateJson | null> {
   } catch {
     // state.d/ may not exist yet
   }
-  return best?.fields ?? null;
+  if (best !== null) return best.fields;
+
+  // Fallback: users with no state.d/ directory had their RPG state in state.json.
+  try {
+    const raw = await readFile(statePath(home), "utf8");
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (
+      typeof parsed.level === "number" &&
+      typeof parsed.half_hearts === "number"
+    ) {
+      return rpgFieldsFromRaw(parsed);
+    }
+  } catch {
+    // state.json absent or malformed — fall through to null
+  }
+
+  return null;
+}
+
+function rpgFieldsFromRaw(parsed: Record<string, unknown>): RpgStateJson {
+  return {
+    level: parsed.level as number,
+    level_fraction:
+      typeof parsed.level_fraction === "number" ? parsed.level_fraction : 0,
+    half_hearts: parsed.half_hearts as number,
+    active_minutes:
+      typeof parsed.active_minutes === "number" ? parsed.active_minutes : 0,
+    last_activity_at:
+      typeof parsed.last_activity_at === "string"
+        ? parsed.last_activity_at
+        : null,
+    revive_until: null,
+  };
 }
 
 export async function writeSliceAtomic(
