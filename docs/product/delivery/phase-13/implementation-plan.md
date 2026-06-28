@@ -46,12 +46,10 @@ When this phase is complete, a user with `claude_code` and `vscode` active simul
 
 ## Dependency Graph
 
-```
 P13.01 → P13.03 → P13.04 → P13.05 → P13.06
 P13.02 ──────────────────────────────▶ P13.05
 P13.07 (independent, can run in parallel with P13.05–06)
 P13.08 (last — depends on all others)
-```
 
 ## Exit Condition
 
