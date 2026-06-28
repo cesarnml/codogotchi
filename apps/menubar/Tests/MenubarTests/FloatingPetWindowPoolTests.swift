@@ -137,6 +137,31 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         )
     }
 
+    func testCombinedWindowSurvivesTTLWhenLastActive() {
+        var currentTime = Date(timeIntervalSinceReferenceDate: 0)
+        let pool = FloatingPetWindowPool(
+            ttlSeconds: 60,
+            platformModes: ["claude_code": "combined", "cursor": "combined"],
+            windowFactory: { _ in StubWindowController() },
+            now: { currentTime }
+        )
+        let snap = makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+            "cursor": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+        ])
+        pool.update(snapshot: snap)
+        XCTAssertTrue(pool.activeOrigins.contains("combined"), "combined window must be spawned")
+
+        // Advance past TTL and feed empty snapshot
+        currentTime = currentTime.addingTimeInterval(3600)
+        pool.update(snapshot: makePerPlatformSnapshot([:]))
+
+        XCTAssertTrue(
+            pool.activeOrigins.contains("combined"),
+            "combined last-active window must not be dismissed by TTL"
+        )
+    }
+
     // MARK: - Off mode
 
     func testOffModeOriginNeverAppearsInActiveOrigins() {
