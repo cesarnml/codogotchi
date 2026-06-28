@@ -69,6 +69,7 @@ final class LivePollingTests: XCTestCase {
 	private func makeDriver(
 		target: URL,
 		recorder: Recorder,
+		rpgStatePath: URL? = nil,
 		gatePath: URL? = nil,
 		deliveryContextPath: URL? = nil,
 		previewStatePath: URL? = nil,
@@ -79,6 +80,7 @@ final class LivePollingTests: XCTestCase {
 	) -> LivePollingDriver {
 		let driver = LivePollingDriver(
 			pollingTargetPath: target.path,
+			rpgStatePath: rpgStatePath?.path,
 			gatePath: gatePath?.path,
 			deliveryContextPath: deliveryContextPath?.path,
 			previewStatePath: previewStatePath?.path,
@@ -93,6 +95,21 @@ final class LivePollingTests: XCTestCase {
 		driver.applyPlatform = { recorder.platforms.append($0) }
 		driver.applyRPGState = { recorder.rpgStates.append(($0, $1, $2, $3)) }
 		return driver
+	}
+
+	private func writeRpgStateJson(
+		_ url: URL,
+		halfHearts: Int = 6,
+		lastActivityAt: String? = nil,
+		reviveUntil: String? = nil,
+		level: Int = 1,
+		levelFraction: Double = 0.0
+	) throws {
+		let lastActivity = lastActivityAt.map { "\"\($0)\"" } ?? "null"
+		let revive = reviveUntil.map { "\"\($0)\"" } ?? "null"
+		try """
+			{"level":\(level),"level_fraction":\(levelFraction),"half_hearts":\(halfHearts),"active_minutes":0,"last_activity_at":\(lastActivity),"revive_until":\(revive)}
+			""".write(to: url, atomically: true, encoding: .utf8)
 	}
 
 	/// Minimal slice payload for decay tests: fields the decay engine reads.
@@ -211,11 +228,13 @@ final class LivePollingTests: XCTestCase {
 	func testFutureReviveUntilRendersReviveRow() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
+		let rpgTarget = makeSandboxPath()
 		try writeSlice(
-			#"{"activity_state":"implementing","updated_at":"2026-06-08T00:00:00.000Z","level":3,"level_fraction":0.5,"half_hearts":4,"last_activity_at":"2026-06-08T00:00:00.000Z","revive_until":"2099-01-01T00:00:00.000Z"}"#,
+			#"{"activity_state":"implementing","updated_at":"2026-06-08T00:00:00.000Z"}"#,
 			to: target
 		)
-		let driver = makeDriver(target: target, recorder: recorder)
+		try writeRpgStateJson(rpgTarget, reviveUntil: "2099-01-01T00:00:00.000Z")
+		let driver = makeDriver(target: target, recorder: recorder, rpgStatePath: rpgTarget)
 
 		driver.tickForTesting()
 
@@ -555,13 +574,17 @@ final class LivePollingTests: XCTestCase {
 	func testDecaysDisplayedHalfHeartsBelowWrittenValueWhileIdle() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
+		let rpgTarget = makeSandboxPath()
 		let lastActivity = "2026-06-04T00:00:00.000Z"
 		// Written value is full (6); 16h elapsed since last activity → floor(16/8)
 		// = 2 half-hearts of decay, so the HUD must show 4 even though no new hook
 		// write occurred (file unchanged between the activity write and now).
 		try writeV5StateJson(target, halfHearts: 6, lastActivityAt: lastActivity)
+		try writeRpgStateJson(rpgTarget, halfHearts: 6, lastActivityAt: lastActivity)
 		let sixteenHoursLater = ISO8601DateFormatter().date(from: "2026-06-04T16:00:00Z")!
-		let driver = makeDriver(target: target, recorder: recorder, now: { sixteenHoursLater })
+		let driver = makeDriver(
+			target: target, recorder: recorder, rpgStatePath: rpgTarget,
+			now: { sixteenHoursLater })
 
 		driver.tickForTesting()
 
@@ -589,14 +612,17 @@ final class LivePollingTests: XCTestCase {
 	func testDecayCrossingBoundaryReEmitsWithoutFileChange() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
+		let rpgTarget = makeSandboxPath()
 		let lastActivity = "2026-06-04T00:00:00.000Z"
 		try writeV5StateJson(target, halfHearts: 6, lastActivityAt: lastActivity)
+		try writeRpgStateJson(rpgTarget, halfHearts: 6, lastActivityAt: lastActivity)
 		// Advance the injected clock across the 8h decay boundary between ticks
 		// with no file write — proves decay rides the poll loop, not a file change
 		// (the codogotchi-10 change-gate-starvation pattern does not apply because
 		// the displayed value is recomputed against `now` every tick).
 		var current = ISO8601DateFormatter().date(from: "2026-06-04T07:59:00Z")!
-		let driver = makeDriver(target: target, recorder: recorder, now: { current })
+		let driver = makeDriver(
+			target: target, recorder: recorder, rpgStatePath: rpgTarget, now: { current })
 
 		driver.tickForTesting()
 		XCTAssertEqual(recorder.rpgStates.last?.halfHearts, 6, "before 8h: full")

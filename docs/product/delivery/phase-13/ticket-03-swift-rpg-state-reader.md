@@ -47,8 +47,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
+Red first: `RpgStateReader` not in scope → compile error across all four new test cases.
+Why this path: `RpgStateReader` as a namespace enum with `RpgSnapshot` struct mirrors the `StateJsonReader` style, and the `safeDefault` static removes any need for optionality in callers. `Decodable` with optional fields + safe-default fallback is the smallest acceptable path; no throws propagate to `LivePollingDriver`.
 Alternative considered: file watcher (DispatchSource / FSEvents) for `rpg-state.json` — rejected; 1Hz poll latency is imperceptible for RPG values and avoids a new async delivery path and `deinit` cleanup burden.
 Deferred: removing RPG fields from `StateSnapshot` entirely — done in ticket 04 once the pool decouples RPG from per-platform state dispatch.
-Contract note:
+Contract note: `makeDriver` in `LivePollingTests` gained an injectable `rpgStatePath` parameter so decay and revive tests can supply an rpg-state.json fixture; tests without it default to `nil` (safe-default snapshot — no decay, no revive).
