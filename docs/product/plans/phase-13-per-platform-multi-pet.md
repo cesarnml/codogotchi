@@ -1,6 +1,6 @@
 # Phase 13: Per-Platform Multi-Pet & Customization
 
-**Delivery status:** Product plan approved — ready for decomposition.
+**Delivery status:** Delivered — Phase 13, 2026-06-29 (PRs [#131](https://github.com/cesarnml/codogotchi/pull/131)–[#138](https://github.com/cesarnml/codogotchi/pull/138), app v2.0.0).
 
 ## TL;DR
 

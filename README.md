@@ -1,6 +1,6 @@
 # Codogotchi
 
-A macOS desktop companion that reacts to your AI coding agent in real time — idle, thinking, coding, testing, even dying when you neglect it. The pet lives on your menu bar and can float on your desktop while you work.
+A macOS desktop companion that reacts to your AI coding agents in real time — idle, thinking, coding, testing, even dying when you neglect it. The pet floats on your desktop while you work, with one independent window per active AI platform.
 
 **[⬇ Download for macOS](https://codogotchi.app/download)** · [Browse pets](https://codogotchi.app/gallery) · [codogotchi.app](https://codogotchi.app)
 
@@ -25,7 +25,9 @@ That's it. No Terminal setup, no global installs — everything Codogotchi needs
 
 ## How it works
 
-Your AI agent fires lifecycle events as it works. Codogotchi listens and animates the matching mood — coding, reading, testing, waiting, erroring, and more. Stay active and your pet thrives; neglect it and its hearts drain. It's a Tamagotchi for your coding sessions.
+Your AI agents fire lifecycle events as they work. Codogotchi listens and animates the matching mood — coding, reading, testing, waiting, erroring, and more. Stay active and your pet thrives; neglect it and its hearts drain. It's a Tamagotchi for your coding sessions.
+
+With **v2.0.0**, each active AI platform gets its own independent floating pet window. If you have Claude Code and Cursor running simultaneously, you see two separate pets — one reacting to each agent in real time. Open **Settings → Customization** to collapse platforms into a single combined window, turn a platform off, or adjust how long idle windows linger before auto-dismissing.
 
 **Works with:** Claude Code · Codex · Cursor · GitHub Copilot (VS Code) · Google Antigravity
 

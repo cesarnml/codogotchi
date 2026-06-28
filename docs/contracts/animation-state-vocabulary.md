@@ -1,4 +1,4 @@
-# Animation State Vocabulary (v7)
+# Animation State Vocabulary (v8)
 
 The contract for the data the codogotchi hook binary writes to
 `~/.codogotchi/state.d/<origin>:<session_id>.json` on every relevant Claude Code / Codex / Cursor lifecycle event,
@@ -71,8 +71,18 @@ decodes each file as a `SliceEntry` (see § v7 slice-entry shape below), applies
 - The reader ignores slices whose filesystem mtime is more than 2 hours old (stale-slice TTL). `SessionEnd` events delete the slice for the ending origin+session (best-effort).
 - Temporary files matching `*.tmp-*` are never decoded.
 - An empty `state.d/` directory (all slices stale, missing, or temporary) resolves to a synthetic idle default with `schema_version: 7`.
-- The `perPlatform` reducer exists as a pure, unit-tested function but is **not wired to any renderer** in Phase 12. It is the foundation for v3 multi-pet rendering.
+- The `perPlatform` reducer exists as a pure, unit-tested function but is **not wired to any renderer** in Phase 12. It is the foundation for v3 multi-pet rendering (wired in Phase 13).
 - `gate.json` overrides the **global-aggregate resolved state** (Option 2 / ambient gate). Per-session gate stamping (`origin, session_id` in the gate file) is deferred to the v3 per-thread phase. See `gate-json.md`.
+
+**Phase 13 (P13.01–07) is the v8 bump:** slices become pure **activity-signal files** — RPG fields (`level`, `level_fraction`, `hp`, `half_hearts`, `hp_overlay`, `last_activity_at`) are extracted to a separate `~/.codogotchi/rpg-state.json` file. The `perPlatform` reducer is wired to render: the Swift app spawns one independent `FloatingPetWindowPool` entry per active platform origin, each driving its own floating window. Key v8 properties:
+
+- Slice files carry `schema_version: 8` and drop RPG fields. They contain only activity-signal fields: `origin`, `session_id`, `activity_state`, `source_event`, `updated_at`, and optionally `pid` (for CLI-origin liveness checks).
+- `~/.codogotchi/rpg-state.json` is the single source of truth for all RPG values; all floating windows share the same RPG model.
+- `~/.codogotchi/customization.json` controls per-platform display mode (`"own"` / `"combined"` / `"off"`) and idle-dismiss TTL. See `docs/contracts/customization-json.md`.
+- The `perPlatform` reducer is the live render path for platforms in `"own"` mode; `globalAggregate` is used only for platforms in `"combined"` mode.
+- `EXPECTED_STATE_SCHEMA_VERSION = 8` in Swift; `STATE_JSON_SCHEMA_VERSION = 8` in TS CLI.
+- The macOS app is v2.0.0 as of Phase 13. The menubar icon is now a static app icon (no per-tick animation); all animation is in the floating panels.
+- Renderers that expect v7 or lower will gray out on v8 slices (forward-compat policy: refuse higher versions).
 
 ### Forward-compatibility policy
 
