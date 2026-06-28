@@ -57,15 +57,21 @@ activating indefinitely.
 The renderer resolves the final `ActivityState` from gate + hook using this
 chain (highest priority first):
 
+**Phase 12 note (Option 2 / ambient gate):** "hook animation" in this chain refers to the
+`globalAggregate`-resolved state from `state.d/` — the single winner across all concurrent
+sessions. The gate overrides the aggregate, not any individual per-session slice. Per-session
+gate stamping (`origin, session_id` in `gate.json`) is **Option 1** and is deferred to the
+v3 per-thread phase (upstream `cesarnml/son-of-anton` work).
+
 1. **Unexpired gate with a sprite row** — `expires_at > now` AND the gate
    name maps to a valid `ActivityState` AND that state has an entry in
    `CodogotchiPet.rowMap`. The gate state is rendered.
-2. **Expired gate** — `expires_at <= now`. Fall through to hook animation.
+2. **Expired gate** — `expires_at <= now`. Fall through to hook animation (global-aggregate).
 3. **Unknown/skew gate** — the `gate` string is not a valid v4 `ActivityState`
    raw value. Fall through to hook animation; no crash.
 4. **Artless gate** — the gate state is a valid v4 state but has no sprite row
    (e.g. `advance`, `poll_review`). Fall through to hook animation.
-5. **Absent gate.json** — file is missing. Hook animation only.
+5. **Absent gate.json** — file is missing. Hook animation only (global-aggregate).
 6. **Malformed gate.json** — JSON is invalid or required fields are missing.
    Treated as absent; no error surfaced to the user.
 
@@ -111,5 +117,6 @@ orchestrator event wiring land in a future phase:
 
 - Son of Anton Phase 17 (`docs/product/plans/phase-17-codogotchi-direct-gate-write.md`
   in the son-of-anton repo) — the producer implementation.
-- `docs/contracts/animation-state-vocabulary.md` — v4 ActivityState enum.
+- `docs/contracts/animation-state-vocabulary.md` — v7 ActivityState enum, slice-directory model, and `globalAggregate` reducer.
 - `apps/menubar/Sources/GateJsonReader.swift` — renderer implementation.
+- `apps/menubar/Sources/StateJsonReader.swift` — `readDirectory(at:)` and `globalAggregate` collapse (Swift side).

@@ -33,10 +33,12 @@ Red: skip
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+**Red: N/A** — doc-only ticket. No automated test; human review at the PR is the gate.
 
-Red first: N/A (docs-only)
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+**Why this path:** `animation-state-vocabulary.md` is the single source of truth for the data contract vocabulary and schema-version policy. Updating it to v7 keeps the doc and the code constants in sync (`STATE_JSON_SCHEMA_VERSION = 7`, `EXPECTED_STATE_SCHEMA_VERSION = 7`). The slice-entry shape and reducer description belong here, not in scattered code comments.
+
+**Contract note:** On-disk slice files have **no `schema_version` field** — the v7 version is implicit in the writer/reader constants, not in the file itself. The doc reflects this (see "v7 slice-entry shape" section). The resolved `StateJsonV1` output of `globalAggregate` carries `schema_version: 7`.
+
+**Deferred:** Updating `LivePollingTooltips` error-path copy from `state.json` to `state.d/` — low priority since these are error paths only and the behavior is correct. Tracked in retrospective follow-up.
+
+**Doc drift noted:** `gate-json.md` previously described "hook animation" without clarifying that in Phase 12+ this means the `globalAggregate`-resolved state, not a single file read. Updated to name Option 2 / ambient gate explicitly and call out Option 1 (per-session gate stamping) as deferred v3 work.
