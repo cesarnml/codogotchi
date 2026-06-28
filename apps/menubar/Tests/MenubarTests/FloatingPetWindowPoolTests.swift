@@ -173,6 +173,63 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         )
     }
 
+    // MARK: - Live mode changes
+
+    func testOwnToCombinedCollapsesPreviousWindowImmediately() {
+        var createdKeys: [String] = []
+        var customization = makeCustomization()
+        let pool = FloatingPetWindowPool(
+            customizationReader: { customization },
+            windowFactory: { origin in
+                createdKeys.append(origin)
+                return StubWindowController()
+            }
+        )
+        // Tick 1: claude_code is own-mode → gets its own window
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+        ]))
+        XCTAssertTrue(pool.activeOrigins.contains("claude_code"), "own-mode origin must have own window")
+
+        // Tick 2: claude_code switches to combined → old own window must be gone immediately
+        customization = makeCustomization(platformModes: ["claude_code": .combined])
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+        ]))
+        XCTAssertFalse(
+            pool.activeOrigins.contains("claude_code"),
+            "own window must be dismissed immediately when origin switches to combined"
+        )
+        XCTAssertTrue(
+            pool.activeOrigins.contains("combined"),
+            "combined window must be spawned for the combined-mode origin"
+        )
+    }
+
+    func testOwnToOffRemovesWindowBypassingLastActiveImmunity() {
+        var customization = makeCustomization()
+        let pool = FloatingPetWindowPool(
+            customizationReader: { customization },
+            windowFactory: { _ in StubWindowController() }
+        )
+        // Tick 1: claude_code is own-mode and the only origin → it is last-active
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+        ]))
+        XCTAssertTrue(pool.activeOrigins.contains("claude_code"), "own-mode origin must have a window")
+
+        // Tick 2: claude_code switches to off → must be removed even though it is last-active
+        customization = makeCustomization(platformModes: ["claude_code": .off])
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+        ]))
+        XCTAssertFalse(
+            pool.activeOrigins.contains("claude_code"),
+            "off-mode origin must be removed from render pipeline even when last-active"
+        )
+        XCTAssertTrue(pool.activeOrigins.isEmpty, "no windows must remain after last-active origin switches to off")
+    }
+
     // MARK: - Off mode
 
     func testOffModeOriginNeverAppearsInActiveOrigins() {

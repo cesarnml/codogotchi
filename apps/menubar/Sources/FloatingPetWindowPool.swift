@@ -84,7 +84,18 @@ final class FloatingPetWindowPool {
 		// Step 4: compute the key of the window that must not be dismissed
 		let lastActiveWindowKey: String? = lastActiveOrigin.map { windowKey(for: $0) }
 
-		// Step 5: dismiss stale own-mode windows (skip last-active)
+		// Step 5a: force-dismiss off-mode origin windows — no last-active immunity.
+		// An origin switching to .off must exit the render pipeline this tick regardless of
+		// TTL or last-active status. Only own-keyed windows are affected here; the combined
+		// window is handled in Step 8 when combinedOrigins is empty.
+		for origin in snapshot.perPlatform.keys where mode(for: origin) == .off {
+			if windows[origin] != nil {
+				windows[origin]?.setFloatingPetVisible(false)
+				windows.removeValue(forKey: origin)
+			}
+		}
+
+		// Step 5b: dismiss stale own-mode windows (skip last-active)
 		let staleKeys = windows.keys.filter { key in
 			guard key != lastActiveWindowKey else { return false }
 			let ttlDate = lastSeenForWindow(key: key)
@@ -98,6 +109,14 @@ final class FloatingPetWindowPool {
 		// Step 6: separate combined vs own origins
 		let ownOrigins = visibleEntries.keys.filter { mode(for: $0) != .combined }
 		let combinedOrigins = visibleEntries.keys.filter { mode(for: $0) == .combined }
+
+		// Step 6a: collapse own windows for origins that switched to combined mode.
+		// An origin moving own→combined must lose its origin-keyed window immediately
+		// so it doesn't render a second window alongside the shared combined one.
+		for origin in combinedOrigins where windows[origin] != nil {
+			windows[origin]?.setFloatingPetVisible(false)
+			windows.removeValue(forKey: origin)
+		}
 
 		// Step 7: spawn / update own-mode windows
 		for origin in ownOrigins {
