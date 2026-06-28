@@ -285,13 +285,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private func makeDeveloperTabViewModel() -> DeveloperTabViewModel {
 		let home = FileManager.default.homeDirectoryForCurrentUser
 			.appendingPathComponent(".codogotchi")
-		let stateJsonPath = home.appendingPathComponent("state.json").path
+		let stateDirPath = home.appendingPathComponent("state.d").path
 		let gateJsonPath = home.appendingPathComponent("gate.json").path
 		let deliveryContextPath = home.appendingPathComponent("delivery-context.json").path
 		let logPath = TransitionLog.defaultPath().path
 		let snapshot = appStateLoader().hooksStatus
 		return DeveloperTabViewModel(
-			stateJsonPath: stateJsonPath,
+			stateDirPath: stateDirPath,
 			gateJsonPath: gateJsonPath,
 			deliveryContextPath: deliveryContextPath,
 			transitionLogPath: logPath,
@@ -1162,7 +1162,7 @@ private final class DeveloperTabView: NSView {
 		let rv = viewModel.rendererSchemaVersion
 		let mismatch = viewModel.schemaVersionMismatch
 		lines.append("=== Schema ===")
-		lines.append("state.json: v\(sv == 0 ? "?" : "\(sv)")   renderer: v\(rv)")
+		lines.append("state.d/ (latest): v\(sv == 0 ? "?" : "\(sv)")   renderer: v\(rv)")
 		if mismatch {
 			lines.append("⚠️ VERSION MISMATCH — schema v\(sv) is not v\(rv). Update the app or reinstall the hook.")
 		}
@@ -1206,8 +1206,8 @@ private final class DeveloperTabView: NSView {
 			lines.append("")
 		}
 
-		// state.json
-		lines.append("=== state.json ===")
+		// latest slice from state.d/
+		lines.append("=== state.d/ (latest slice) ===")
 		lines.append(viewModel.stateJsonPretty)
 		lines.append("")
 

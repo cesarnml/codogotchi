@@ -18,6 +18,7 @@ import {
   type SourceEvent,
   type SourceEventKind,
   type SourceEventOrigin,
+  STATE_JSON_SCHEMA_VERSION,
   type StateJsonV1,
   sliceEntrySchema,
   sourceEventSchema,
@@ -1217,6 +1218,7 @@ export async function runHook(
     }
 
     const slice: SliceEntry = {
+      schema_version: STATE_JSON_SCHEMA_VERSION,
       origin,
       session_id: sessionId ?? "default",
       activity_state: activityState,

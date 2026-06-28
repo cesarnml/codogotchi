@@ -2308,6 +2308,7 @@ describe("slice-directory writer (P12.02 red)", () => {
     const expected = sliceFilePath(home, "claude_code", sessionId);
     expect(existsSync(expected)).toBe(true);
     const slice = JSON.parse(readFileSync(expected, "utf8"));
+    expect(slice.schema_version).toBe(7);
     expect(slice.origin).toBe("claude_code");
     expect(slice.session_id).toBe(sessionId);
     expect(slice.activity_state).toBeDefined();

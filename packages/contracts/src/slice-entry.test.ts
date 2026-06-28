@@ -1,8 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import type { SliceEntry } from "./slice-entry";
 import { globalAggregate, perPlatform, sliceEntrySchema } from "./slice-entry";
+import { STATE_JSON_SCHEMA_VERSION } from "./state-json";
 
 const makeSlice = (overrides: Partial<SliceEntry> = {}): SliceEntry => ({
+  schema_version: STATE_JSON_SCHEMA_VERSION,
   origin: "claude_code",
   session_id: "test-session-1",
   activity_state: "idle",

@@ -22,13 +22,17 @@ final class DeveloperTabViewModelTests: XCTestCase {
 
 	// MARK: - Helpers
 
-	private func makeStateJson(schemaVersion: Int = 4) -> URL {
-		let url = tmp.appendingPathComponent("state.json")
+	/// Creates a `state.d/` directory containing a single slice file with the given schema version.
+	/// Returns the directory URL (pass as `stateDirURL` to `makeVM`).
+	private func makeStateDir(schemaVersion: Int = EXPECTED_STATE_SCHEMA_VERSION) -> URL {
+		let dir = tmp.appendingPathComponent("state.d")
+		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		let url = dir.appendingPathComponent("claude_code:test-session-id.json")
 		let json = """
-			{"schema_version":\(schemaVersion),"activity_state":"idle","updated_at":"2026-01-01T00:00:00Z"}
+			{"schema_version":\(schemaVersion),"origin":"claude_code","session_id":"test-session-id","activity_state":"idle","updated_at":"2026-01-01T00:00:00Z"}
 			"""
 		try! json.write(to: url, atomically: true, encoding: .utf8)
-		return url
+		return dir
 	}
 
 	private func makeGateJson() -> URL {
@@ -67,11 +71,11 @@ final class DeveloperTabViewModelTests: XCTestCase {
 		return String(data: try! JSONSerialization.data(withJSONObject: obj), encoding: .utf8)!
 	}
 
-	private func makeVM(stateJsonURL: URL? = nil, gateJsonURL: URL? = nil, logURL: URL? = nil)
+	private func makeVM(stateDirURL: URL? = nil, gateJsonURL: URL? = nil, logURL: URL? = nil)
 		-> DeveloperTabViewModel
 	{
 		DeveloperTabViewModel(
-			stateJsonPath: stateJsonURL?.path ?? tmp.appendingPathComponent("missing-state.json").path,
+			stateDirPath: stateDirURL?.path ?? tmp.appendingPathComponent("missing-state.d").path,
 			gateJsonPath: gateJsonURL?.path,
 			transitionLogPath: logURL?.path ?? tmp.appendingPathComponent("missing-log.log").path
 		)
@@ -150,28 +154,36 @@ final class DeveloperTabViewModelTests: XCTestCase {
 	// MARK: - Schema mismatch
 
 	func testSchemaMismatchNotFlaggedWhenVersionsMatch() {
-		let stateURL = makeStateJson(schemaVersion: EXPECTED_STATE_SCHEMA_VERSION)
-		let vm = makeVM(stateJsonURL: stateURL)
+		let dirURL = makeStateDir(schemaVersion: EXPECTED_STATE_SCHEMA_VERSION)
+		let vm = makeVM(stateDirURL: dirURL)
 		XCTAssertFalse(vm.schemaVersionMismatch,
 			"matching schema versions must not flag a mismatch")
 	}
 
 	func testSchemaMismatchFlaggedWhenVersionsDiffer() {
-		let stateURL = makeStateJson(schemaVersion: EXPECTED_STATE_SCHEMA_VERSION - 1)
-		let vm = makeVM(stateJsonURL: stateURL)
+		let dirURL = makeStateDir(schemaVersion: EXPECTED_STATE_SCHEMA_VERSION - 1)
+		let vm = makeVM(stateDirURL: dirURL)
 		XCTAssertTrue(vm.schemaVersionMismatch,
 			"differing schema versions must flag a mismatch")
 	}
 
 	func testSchemaMismatchFlaggedWhenSchemaVersionIsNonInteger() throws {
-		let url = tmp.appendingPathComponent("state.json")
+		let dir = tmp.appendingPathComponent("state.d")
+		try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		let url = dir.appendingPathComponent("claude_code:test-id.json")
 		// schema_version is a string, not an integer — must flag mismatch, not silently pass
 		try """
-			{"schema_version":"4","activity_state":"idle","updated_at":"2026-01-01T00:00:00Z"}
+			{"schema_version":"4","origin":"claude_code","session_id":"test-id","activity_state":"idle","updated_at":"2026-01-01T00:00:00Z"}
 			""".write(to: url, atomically: true, encoding: .utf8)
-		let vm = makeVM(stateJsonURL: url)
+		let vm = makeVM(stateDirURL: dir)
 		XCTAssertTrue(vm.schemaVersionMismatch,
 			"non-integer schema_version must trigger mismatch, not silently return false")
+	}
+
+	func testSchemaMismatchNotFlaggedWhenStateDirAbsent() {
+		let vm = makeVM()  // stateDirURL = nil → missing-state.d path
+		XCTAssertFalse(vm.schemaVersionMismatch,
+			"absent state.d/ must not flag a mismatch")
 	}
 
 	func testRendererSchemaVersionMatchesExpectedConstant() {
@@ -205,9 +217,9 @@ final class DeveloperTabViewModelTests: XCTestCase {
 	}
 
 	func testHooksPresentSummaryFromSnapshot() {
-		let stateURL = makeStateJson()
+		let dirURL = makeStateDir()
 		let vm = DeveloperTabViewModel(
-			stateJsonPath: stateURL.path,
+			stateDirPath: dirURL.path,
 			gateJsonPath: nil,
 			transitionLogPath: tmp.appendingPathComponent("missing.log").path,
 			hooksSnapshot: HooksStatusSnapshot(
@@ -239,19 +251,19 @@ final class DeveloperTabViewModelTests: XCTestCase {
 
 	// MARK: - Pretty JSON
 
-	func testStateJsonPrettyPrintsWhenFileExists() {
-		let stateURL = makeStateJson()
-		let vm = makeVM(stateJsonURL: stateURL)
+	func testStateJsonPrettyPrintsWhenSliceExists() {
+		let dirURL = makeStateDir()
+		let vm = makeVM(stateDirURL: dirURL)
 		let pretty = vm.stateJsonPretty
-		XCTAssertFalse(pretty.isEmpty, "stateJsonPretty must return non-empty string when file exists")
+		XCTAssertFalse(pretty.isEmpty, "stateJsonPretty must return non-empty string when slice exists")
 		XCTAssertTrue(pretty.contains("schema_version"), "pretty JSON must contain the schema_version key")
 	}
 
-	func testStateJsonPrettyShowsAbsentMessageWhenFileMissing() {
+	func testStateJsonPrettyShowsAbsentMessageWhenDirMissing() {
 		let vm = makeVM()
 		let pretty = vm.stateJsonPretty
 		XCTAssertFalse(pretty.isEmpty)
-		XCTAssertFalse(pretty.contains("schema_version"), "missing file must not pretend to have data")
+		XCTAssertFalse(pretty.contains("schema_version"), "missing state.d/ must not pretend to have data")
 	}
 
 	func testGateJsonPrettyShowsNilWhenPathIsNil() {

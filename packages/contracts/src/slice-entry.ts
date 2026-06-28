@@ -15,6 +15,7 @@ const attentionSchema = z.object({
 });
 
 export const sliceEntrySchema = z.object({
+  schema_version: z.literal(STATE_JSON_SCHEMA_VERSION),
   origin: sourceEventOriginSchema,
   session_id: z
     .string()

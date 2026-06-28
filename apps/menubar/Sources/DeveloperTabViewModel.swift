@@ -13,24 +13,25 @@ struct TransitionEntry: Equatable {
 
 /// Read-only observability aggregation for the Developer settings tab (P8.08).
 ///
-/// Reads state.json, gate.json, delivery-context.json, and the last 5 transition
-/// log entries at call time (no polling — call `refresh()` to update). All
-/// properties are computed lazily from the injected paths.
+/// Reads the most-recent slice from state.d/, gate.json, delivery-context.json,
+/// and the last 5 transition log entries at call time (no polling — call
+/// `refresh()` to update). All properties are computed lazily from the injected paths.
 final class DeveloperTabViewModel {
-	let stateJsonPath: String
+	/// Path to the `state.d/` directory written by the hook.
+	let stateDirPath: String
 	let gateJsonPath: String?
 	let deliveryContextPath: String?
 	let transitionLogPath: String
 	let hooksSnapshot: HooksStatusSnapshot?
 
 	init(
-		stateJsonPath: String,
+		stateDirPath: String,
 		gateJsonPath: String?,
 		deliveryContextPath: String? = nil,
 		transitionLogPath: String,
 		hooksSnapshot: HooksStatusSnapshot? = nil
 	) {
-		self.stateJsonPath = stateJsonPath
+		self.stateDirPath = stateDirPath
 		self.gateJsonPath = gateJsonPath
 		self.deliveryContextPath = deliveryContextPath
 		self.transitionLogPath = transitionLogPath
@@ -44,16 +45,39 @@ final class DeveloperTabViewModel {
 		Self.readLastNTransitions(5, from: transitionLogPath)
 	}
 
-	// MARK: - State JSON
+	// MARK: - State (state.d/ latest slice)
 
-	/// Pretty-printed content of state.json, or a short absence message.
+	/// Path to the most-recently modified `.json` slice file in `stateDirPath`,
+	/// or nil when the directory is absent or empty.
+	private var latestSlicePath: String? {
+		let fm = FileManager.default
+		var isDir: ObjCBool = false
+		guard fm.fileExists(atPath: stateDirPath, isDirectory: &isDir), isDir.boolValue else {
+			return nil
+		}
+		guard let names = try? fm.contentsOfDirectory(atPath: stateDirPath) else { return nil }
+		let jsonNames = names.filter { $0.hasSuffix(".json") && !$0.contains(".tmp-") }
+		return jsonNames
+			.compactMap { name -> (path: String, mtime: Date)? in
+				let path = (stateDirPath as NSString).appendingPathComponent(name)
+				guard let attrs = try? fm.attributesOfItem(atPath: path),
+					let mtime = attrs[.modificationDate] as? Date
+				else { return nil }
+				return (path, mtime)
+			}
+			.max(by: { $0.mtime < $1.mtime })
+			.map(\.path)
+	}
+
+	/// Pretty-printed content of the most-recent state.d/ slice, or a short absence message.
 	var stateJsonPretty: String {
-		guard let data = try? Data(contentsOf: URL(fileURLWithPath: stateJsonPath)),
+		guard let path = latestSlicePath,
+			let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
 			let obj = (try? JSONSerialization.jsonObject(with: data)),
 			let pretty = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
 			let str = String(data: pretty, encoding: .utf8)
 		else {
-			return "(state.json absent or unreadable)"
+			return "(state.d/ absent or empty)"
 		}
 		return str
 	}
@@ -89,25 +113,27 @@ final class DeveloperTabViewModel {
 	/// Schema version this renderer understands.
 	var rendererSchemaVersion: Int { EXPECTED_STATE_SCHEMA_VERSION }
 
-	/// Schema version reported by state.json.
-	/// Returns 0 when the file is absent, or -1 when present but `schema_version` is
-	/// missing or not a valid integer (e.g. a string value). -1 triggers a mismatch
-	/// warning so an invalid schema does not silently pass the mismatch check.
+	/// Schema version reported by the most-recent slice in state.d/.
+	/// Returns 0 when state.d/ is absent/empty, or -1 when the latest slice
+	/// is present but `schema_version` is missing or not a valid integer.
+	/// -1 triggers a mismatch warning so a bad payload doesn't silently pass.
 	var stateSchemaVersion: Int {
-		guard let data = try? Data(contentsOf: URL(fileURLWithPath: stateJsonPath)) else {
-			return 0  // absent file — not a mismatch
+		guard let path = latestSlicePath,
+			let data = try? Data(contentsOf: URL(fileURLWithPath: path))
+		else {
+			return 0  // no slice on disk — not a mismatch
 		}
 		guard let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-			return -1  // present but unparseable JSON — flag as problematic
+			return -1  // present but unparseable JSON
 		}
 		guard let v = obj["schema_version"] as? Int else {
-			return -1  // present but schema_version is missing or non-integer
+			return -1  // schema_version missing or non-integer
 		}
 		return v
 	}
 
-	/// True when state.json is present but its schema version differs from the renderer's.
-	/// A file that is absent (sv == 0) does not trigger a mismatch.
+	/// True when a slice is present but its schema version differs from the renderer's.
+	/// A missing state.d/ (sv == 0) does not trigger a mismatch.
 	var schemaVersionMismatch: Bool {
 		let sv = stateSchemaVersion
 		guard sv != 0 else { return false }
