@@ -1,4 +1,4 @@
-import { describe, expect, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { convexTest } from "convex-test";
 import { convexTestModules } from "../test/convex-modules";
 import type { Id } from "./_generated/dataModel";
@@ -87,6 +87,53 @@ describe("POST /sync", () => {
     // The body should mention the missing/invalid field path so a buddy can
     // self-diagnose without server logs.
     expect(text.toLowerCase()).toMatch(/handle|signals|config|now/);
+  });
+});
+
+describe("POST /sync shared-secret gate", () => {
+  const TEST_SECRET = "test-secret-abc-xyz";
+
+  beforeEach(() => {
+    process.env.SYNC_SHARED_SECRET = TEST_SECRET;
+  });
+  afterEach(() => {
+    delete process.env.SYNC_SHARED_SECRET;
+  });
+
+  test("rejects request with no secret header with 401", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const res = await t.fetch("/sync", {
+      method: "POST",
+      body: JSON.stringify(goodBody),
+      headers: { "content-type": "application/json" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("rejects request with wrong secret header with 401", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const res = await t.fetch("/sync", {
+      method: "POST",
+      body: JSON.stringify(goodBody),
+      headers: {
+        "content-type": "application/json",
+        "x-codogotchi-sync-secret": "wrong-secret",
+      },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("accepts request with correct secret header", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const res = await t.fetch("/sync", {
+      method: "POST",
+      body: JSON.stringify(goodBody),
+      headers: {
+        "content-type": "application/json",
+        "x-codogotchi-sync-secret": TEST_SECRET,
+      },
+    });
+    expect(res.status).toBe(200);
   });
 });
 
