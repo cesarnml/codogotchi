@@ -28,6 +28,11 @@ enum CodogotchiFolders {
 		dataFolderURL().appendingPathComponent("rpg-state.json").path
 	}
 
+	/// `~/.codogotchi/customization.json` — per-platform display overrides written by Settings.
+	static func customizationPath() -> String {
+		dataFolderURL().appendingPathComponent("customization.json").path
+	}
+
 	/// Create the folder if missing, then reveal it in Finder. Creating first
 	/// keeps a first-launch open (folder not yet written) from silently no-oping.
 	/// `createDirectory(withIntermediateDirectories:)` is idempotent.

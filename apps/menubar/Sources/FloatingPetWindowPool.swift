@@ -14,9 +14,9 @@ import Foundation
 @MainActor
 final class FloatingPetWindowPool {
 	typealias WindowFactory = (String) -> FloatingPetWindowControlling
+	typealias CustomizationReader = () -> CustomizationSnapshot
 
-	private let ttlSeconds: TimeInterval
-	private let platformModes: [String: String]
+	private let customizationReader: CustomizationReader
 	private let windowFactory: WindowFactory
 	private let now: () -> Date
 
@@ -28,27 +28,34 @@ final class FloatingPetWindowPool {
 	private var lastUpdatedAt: [String: Date] = [:]
 	/// Origin whose snapshot `updated_at` is most recent across all tracked origins.
 	private var lastActiveOrigin: String? = nil
+	/// Most-recently read customization — updated at the start of each tick.
+	private var currentCustomization: CustomizationSnapshot = .safeDefault
 
 	/// Window keys that currently have visible windows.
 	var activeOrigins: [String] { Array(windows.keys).sorted() }
 
 	init(
-		ttlSeconds: TimeInterval = 300,
-		platformModes: [String: String] = [:],
+		customizationReader: @escaping CustomizationReader = {
+			CustomizationJsonReader.read(at: CodogotchiFolders.customizationPath())
+		},
 		windowFactory: @escaping WindowFactory,
 		now: @escaping () -> Date = { Date() }
 	) {
-		self.ttlSeconds = ttlSeconds
-		self.platformModes = platformModes
+		self.customizationReader = customizationReader
 		self.windowFactory = windowFactory
 		self.now = now
 	}
 
 	func update(snapshot: PerPlatformSnapshot) {
+		// Read customization fresh on every tick so Settings writes take effect within one second.
+		currentCustomization = customizationReader()
+		let ttlSeconds: TimeInterval = currentCustomization.idleDismissTtlSeconds == 0
+			? .infinity
+			: TimeInterval(currentCustomization.idleDismissTtlSeconds)
 		let currentTime = now()
 
 		// Step 1: filter off-mode origins
-		let visibleEntries = snapshot.perPlatform.filter { mode(for: $0.key) != "off" }
+		let visibleEntries = snapshot.perPlatform.filter { mode(for: $0.key) != .off }
 
 		// Step 2: update tracking for each visible origin
 		for (origin, state) in visibleEntries {
@@ -89,8 +96,8 @@ final class FloatingPetWindowPool {
 		}
 
 		// Step 6: separate combined vs own origins
-		let ownOrigins = visibleEntries.keys.filter { mode(for: $0) != "combined" }
-		let combinedOrigins = visibleEntries.keys.filter { mode(for: $0) == "combined" }
+		let ownOrigins = visibleEntries.keys.filter { mode(for: $0) != .combined }
+		let combinedOrigins = visibleEntries.keys.filter { mode(for: $0) == .combined }
 
 		// Step 7: spawn / update own-mode windows
 		for origin in ownOrigins {
@@ -169,18 +176,19 @@ final class FloatingPetWindowPool {
 
 	// MARK: - Private helpers
 
-	private func mode(for origin: String) -> String {
-		platformModes[origin] ?? "own"
+	private func mode(for origin: String) -> PlatformMode {
+		currentCustomization.platformModes[origin] ?? .own
 	}
 
 	private func windowKey(for origin: String) -> String {
-		mode(for: origin) == "combined" ? "combined" : origin
+		mode(for: origin) == .combined ? "combined" : origin
 	}
 
 	/// Most-recent lastSeenAt across all origins that map to this window key.
 	private func lastSeenForWindow(key: String) -> Date? {
 		if key == "combined" {
-			let combinedOrigins = platformModes.keys.filter { platformModes[$0] == "combined" }
+			let combinedOrigins = currentCustomization.platformModes.keys
+				.filter { currentCustomization.platformModes[$0] == .combined }
 			return combinedOrigins.compactMap { lastSeenAt[$0] }.max()
 		}
 		return lastSeenAt[key]

@@ -33,6 +33,18 @@ private func makePerPlatformSnapshot(_ map: [String: StateSnapshot]) -> PerPlatf
     PerPlatformSnapshot(perPlatform: map, rpgSnapshot: .safeDefault)
 }
 
+private func makeCustomization(
+    platformModes: [String: PlatformMode] = [:],
+    ttlSeconds: Int = 300,
+    monochrome: Bool = false
+) -> CustomizationSnapshot {
+    CustomizationSnapshot(
+        platformModes: platformModes,
+        idleDismissTtlSeconds: ttlSeconds,
+        menubarIconMonochrome: monochrome
+    )
+}
+
 // MARK: - Test suite
 
 @MainActor
@@ -43,8 +55,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
     func testTwoOriginSnapshotSpawnsTwoWindows() {
         var created: [String] = []
         let pool = FloatingPetWindowPool(
-            ttlSeconds: 300,
-            platformModes: [:],
+            customizationReader: { makeCustomization() },
             windowFactory: { origin in
                 created.append(origin)
                 return StubWindowController()
@@ -64,8 +75,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         var controllers: [String: StubWindowController] = [:]
         var currentTime = Date(timeIntervalSinceReferenceDate: 0)
         let pool = FloatingPetWindowPool(
-            ttlSeconds: 60,
-            platformModes: [:],
+            customizationReader: { makeCustomization(ttlSeconds: 60) },
             windowFactory: { origin in
                 let c = StubWindowController()
                 controllers[origin] = c
@@ -94,8 +104,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
     func testLastActiveWindowNeverDismissedRegardlessOfTTL() {
         var currentTime = Date(timeIntervalSinceReferenceDate: 0)
         let pool = FloatingPetWindowPool(
-            ttlSeconds: 5,
-            platformModes: [:],
+            customizationReader: { makeCustomization(ttlSeconds: 5) },
             windowFactory: { _ in StubWindowController() },
             now: { currentTime }
         )
@@ -117,8 +126,9 @@ final class FloatingPetWindowPoolTests: XCTestCase {
     func testCombinedModeOriginsFoldIntoSingleSharedWindow() {
         var createdKeys: [String] = []
         let pool = FloatingPetWindowPool(
-            ttlSeconds: 300,
-            platformModes: ["claude_code": "combined", "cursor": "combined"],
+            customizationReader: {
+                makeCustomization(platformModes: ["claude_code": .combined, "cursor": .combined])
+            },
             windowFactory: { origin in
                 createdKeys.append(origin)
                 return StubWindowController()
@@ -140,8 +150,9 @@ final class FloatingPetWindowPoolTests: XCTestCase {
     func testCombinedWindowSurvivesTTLWhenLastActive() {
         var currentTime = Date(timeIntervalSinceReferenceDate: 0)
         let pool = FloatingPetWindowPool(
-            ttlSeconds: 60,
-            platformModes: ["claude_code": "combined", "cursor": "combined"],
+            customizationReader: {
+                makeCustomization(platformModes: ["claude_code": .combined, "cursor": .combined], ttlSeconds: 60)
+            },
             windowFactory: { _ in StubWindowController() },
             now: { currentTime }
         )
@@ -167,8 +178,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
     func testOffModeOriginNeverAppearsInActiveOrigins() {
         var factoryCalled = false
         let pool = FloatingPetWindowPool(
-            ttlSeconds: 300,
-            platformModes: ["cursor": "off"],
+            customizationReader: { makeCustomization(platformModes: ["cursor": .off]) },
             windowFactory: { _ in
                 factoryCalled = true
                 return StubWindowController()
