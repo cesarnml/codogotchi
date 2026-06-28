@@ -21,6 +21,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private let generalViewModel: GeneralTabViewModel
 	private let petTabViewModel: PetTabViewModel
 	private let rpgTabViewModel: RPGTabViewModel
+	private let customizationTabViewModel: CustomizationTabViewModel
 
 	private let settingsController: SettingsController
 	private let petImportHelper: PetImportHelper
@@ -42,6 +43,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		petImportHelper: PetImportHelper = PetImportHelper(),
 		petTabViewModel: PetTabViewModel = PetTabViewModel(),
 		rpgTabViewModel: RPGTabViewModel = RPGTabViewModel(),
+		customizationTabViewModel: CustomizationTabViewModel = CustomizationTabViewModel(),
 		aboutViewModel: AboutViewModel = AboutViewModel(),
 		generalViewModel: GeneralTabViewModel = GeneralTabViewModel(),
 		appStateLoader: @escaping () -> FloatingAppState = {
@@ -53,6 +55,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		self.petImportHelper = petImportHelper
 		self.petTabViewModel = petTabViewModel
 		self.rpgTabViewModel = rpgTabViewModel
+		self.customizationTabViewModel = customizationTabViewModel
 		self.aboutViewModel = aboutViewModel
 		self.generalViewModel = generalViewModel
 		self.appStateLoader = appStateLoader
@@ -133,6 +136,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			onImportPet: { [weak self] petId in self?.handleImportPet(id: petId) },
 			onSelectPet: { [weak self] petId in self?.handleSelectPet(id: petId) }
 		)
+		let customization = CustomizationTabView(viewModel: customizationTabViewModel)
 		let rpg = RPGTabView(
 			viewModel: rpgTabViewModel,
 			onToggle: { [weak self] enabled in
@@ -155,6 +159,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		for (tab, view): (SettingsTab, NSView) in [
 			(.general, general),
 			(.pet, pet),
+			(.customization, customization),
 			(.rpg, rpg),
 			(.developer, developer),
 			(.about, about),
@@ -1233,6 +1238,163 @@ private final class DeveloperTabView: NSView {
 
 	@objc private func openDataFolder() {
 		CodogotchiFolders.reveal(CodogotchiFolders.dataFolderURL())
+	}
+}
+
+// MARK: - CustomizationTabView
+
+/// Customization tab — per-platform mode pickers and idle-dismiss TTL.
+///
+/// Origins are shown in the fixed order defined by `CustomizationTabViewModel.origins`
+/// so the UI is stable across sessions regardless of which platforms are active.
+private final class CustomizationTabView: NSView {
+	private var viewModel: CustomizationTabViewModel
+	private var modePickers: [String: NSPopUpButton] = [:]
+	private var ttlPicker: NSPopUpButton = NSPopUpButton()
+
+	init(viewModel: CustomizationTabViewModel) {
+		self.viewModel = viewModel
+		super.init(frame: .zero)
+		setupViews()
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	private func setupViews() {
+		let title = settingsSectionTitle("Customization")
+		addSubview(title)
+
+		let note = settingsBodyLabel(
+			"Choose how each coding platform displays your pet. "
+				+ "Own = dedicated floating window per tool. "
+				+ "Combined = all active tools share one window. "
+				+ "Off = no window for that tool."
+		)
+		addSubview(note)
+
+		// Per-platform mode rows
+		let platformTitle = settingsSectionTitle("Platform display mode")
+		addSubview(platformTitle)
+
+		var previousAnchor: NSLayoutYAxisAnchor = platformTitle.bottomAnchor
+		var previousConstant: CGFloat = 10
+
+		for origin in CustomizationTabViewModel.origins {
+			let label = NSTextField(labelWithString: displayName(for: origin))
+			label.font = .systemFont(ofSize: 13)
+			label.translatesAutoresizingMaskIntoConstraints = false
+			addSubview(label)
+
+			let picker = NSPopUpButton()
+			picker.translatesAutoresizingMaskIntoConstraints = false
+			for mode in [PlatformMode.own, .combined, .off] {
+				picker.addItem(withTitle: mode.rawValue.capitalized)
+				picker.lastItem?.representedObject = mode
+			}
+			picker.selectItem(withTitle: viewModel.mode(for: origin).rawValue.capitalized)
+			picker.target = self
+			picker.action = #selector(modePickerChanged(_:))
+			picker.identifier = NSUserInterfaceItemIdentifier(origin)
+			addSubview(picker)
+			modePickers[origin] = picker
+
+			NSLayoutConstraint.activate([
+				label.topAnchor.constraint(equalTo: previousAnchor, constant: previousConstant),
+				label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+				label.widthAnchor.constraint(equalToConstant: 140),
+
+				picker.centerYAnchor.constraint(equalTo: label.centerYAnchor),
+				picker.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
+				picker.widthAnchor.constraint(equalToConstant: 130),
+			])
+			previousAnchor = label.bottomAnchor
+			previousConstant = 8
+		}
+
+		// TTL row
+		let ttlTitle = settingsSectionTitle("Idle dismiss")
+		addSubview(ttlTitle)
+
+		let ttlLabel = NSTextField(labelWithString: "Dismiss after idle:")
+		ttlLabel.font = .systemFont(ofSize: 13)
+		ttlLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(ttlLabel)
+
+		ttlPicker.translatesAutoresizingMaskIntoConstraints = false
+		for preset in IdleDismissTTL.allCases {
+			ttlPicker.addItem(withTitle: preset.label)
+			ttlPicker.lastItem?.representedObject = preset
+		}
+		let currentPreset = IdleDismissTTL.matching(viewModel.idleDismissTtlSeconds)
+		if let preset = currentPreset {
+			ttlPicker.selectItem(withTitle: preset.label)
+		} else {
+			ttlPicker.selectItem(withTitle: IdleDismissTTL.fiveMinutes.label)
+		}
+		ttlPicker.target = self
+		ttlPicker.action = #selector(ttlPickerChanged(_:))
+		addSubview(ttlPicker)
+
+		let ttlNote = settingsBodyLabel(
+			"\"Never\" keeps the pet visible until you switch tools or quit. "
+				+ "Changes take effect on the next poll cycle."
+		)
+		addSubview(ttlNote)
+
+		NSLayoutConstraint.activate([
+			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			note.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
+			note.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			note.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			platformTitle.topAnchor.constraint(equalTo: note.bottomAnchor, constant: 20),
+			platformTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			platformTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			ttlTitle.topAnchor.constraint(equalTo: previousAnchor, constant: 24),
+			ttlTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			ttlTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			ttlLabel.topAnchor.constraint(equalTo: ttlTitle.bottomAnchor, constant: 10),
+			ttlLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			ttlLabel.widthAnchor.constraint(equalToConstant: 140),
+
+			ttlPicker.centerYAnchor.constraint(equalTo: ttlLabel.centerYAnchor),
+			ttlPicker.leadingAnchor.constraint(equalTo: ttlLabel.trailingAnchor, constant: 8),
+			ttlPicker.widthAnchor.constraint(equalToConstant: 130),
+
+			ttlNote.topAnchor.constraint(equalTo: ttlLabel.bottomAnchor, constant: 8),
+			ttlNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			ttlNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+		])
+	}
+
+	private func displayName(for origin: String) -> String {
+		switch origin {
+		case "claude_code": return "Claude Code"
+		case "vscode": return "VS Code"
+		case "codex": return "Codex"
+		case "cursor": return "Cursor"
+		case "antigravity": return "Antigravity"
+		default: return origin
+		}
+	}
+
+	@objc private func modePickerChanged(_ sender: NSPopUpButton) {
+		guard
+			let origin = sender.identifier?.rawValue,
+			let mode = sender.selectedItem?.representedObject as? PlatformMode
+		else { return }
+		viewModel.setMode(mode, for: origin)
+	}
+
+	@objc private func ttlPickerChanged(_ sender: NSPopUpButton) {
+		guard let preset = sender.selectedItem?.representedObject as? IdleDismissTTL else { return }
+		viewModel.setTTL(preset.rawValue)
 	}
 }
 

@@ -44,8 +44,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
+Red first: compile error — `SettingsTab` had no `customization` member; `testHasSixTabsInOrder` and `testTabTitles` both failed immediately.
+Why this path: smallest acceptable — `CustomizationTabViewModel` reads snapshot on init then does read-merge-write on each change; no live-polling or observation machinery needed for a settings panel opened on demand.
 Alternative considered: showing only currently-active origins in the Customization tab — rejected; users want to pre-configure before opening a tool, and the full origin list is small and known.
 Deferred: live-updating the tab as new platforms become active — the tab shows the full fixed origin list; live detection of "currently active" is a UX polish item.
-Contract note:
+Contract note: `CustomizationTabViewModel.persist()` uses snake_case keys (`platform_modes`, `idle_dismiss_ttl_seconds`) to match what `CustomizationJsonReader` decodes via `.convertFromSnakeCase`. Read-merge-write preserves `menubar_icon_monochrome` and any future unknown keys.
