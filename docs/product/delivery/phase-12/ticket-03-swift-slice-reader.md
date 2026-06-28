@@ -7,7 +7,7 @@ Red: required
 
 ## Outcome
 
-- `StateJsonReader` (or a renamed/added reader) scans the `state.d/` directory, decodes each slice as a `schema_version: 7` slice entry, and collapses the set to a single resolved state via a Swift `globalAggregate` reducer matching the TS tiebreak (most-recent `updated_at` wins).
+- `StateJsonReader` (or a renamed/added reader) scans the `state.d/` directory, decodes each slice as a `SliceEntry` (no top-level `schema_version` field — that is injected by `globalAggregate` on aggregation), and collapses the set to a single resolved state via a Swift `globalAggregate` reducer matching the TS tiebreak (most-recent `updated_at` wins).
 - `EXPECTED_STATE_SCHEMA_VERSION` is bumped to `7` (intra-branch lockstep with P12.01's writer constant).
 - The pet, menubar, and HUD render **identically to v1.1.1** for equivalent input (behavior-invisibility gate).
 - `GateJsonReader` / gate-override precedence is reconciled against the new model: the ambient gate continues to override the **global-aggregate** resolved state. No change to `.son-of-anton`.
@@ -24,7 +24,7 @@ Red: required
 
 ## Green
 
-- Implement the directory scan + per-slice decode + `globalAggregate` collapse. Keep decode tolerant of extra fields (existing best-effort posture) but require `schema_version == 7` per the refuse-newer clause (writer/reader agree within the branch).
+- Implement the directory scan + per-slice decode + `globalAggregate` collapse. Keep decode tolerant of extra fields (existing best-effort posture). Note: slice files carry no top-level `schema_version`; the refuse-newer clause (`EXPECTED_STATE_SCHEMA_VERSION == 7`) applies to the aggregated `StateJsonV1` output, not to individual slice files.
 - Bump `EXPECTED_STATE_SCHEMA_VERSION` to 7.
 - Reconcile `GateJsonReader` precedence to apply over the resolved aggregate state (the existing merge-precedence chain in `gate-json.md` applies to the aggregate, not a per-slice state).
 - Apply mtime TTL filtering; ignore tmp/partial files by name pattern.

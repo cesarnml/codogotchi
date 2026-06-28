@@ -106,9 +106,13 @@ Flags (loot):
   --tier <tier>    Filter to a single tier.
 
 Environment:
-  CODOGOTCHI_HOME      Override the config root (defaults to ~/.codogotchi).
-  CODOGOTCHI_USER_ROOT Override the home dir used for hook installation
-                       (defaults to the OS home dir).
+  CODOGOTCHI_HOME        Override the config root (defaults to ~/.codogotchi).
+  CODOGOTCHI_USER_ROOT   Override the home dir used for hook installation
+                         (defaults to the OS home dir).
+  CODOGOTCHI_SYNC_SECRET Shared-secret header value sent on each \`sync\` POST.
+                         Must match the SYNC_SHARED_SECRET set in the Convex
+                         deployment when server-side enforcement is enabled.
+                         Omit (or leave empty) to use the dev-permissive default.
 `;
 
 function parseSetupFlags(

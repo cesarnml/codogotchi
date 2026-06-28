@@ -8,7 +8,7 @@ Red: required
 ## Outcome
 
 - The `POST /sync` handler in `convex/http.ts` requires a shared-secret header (e.g. `x-codogotchi-sync-secret`) and **rejects with 401/403 any request lacking or mismatching it**, checked against a Convex environment variable (e.g. `SYNC_SHARED_SECRET`).
-- When the env var is **unset**, the handler fails closed in production posture (documented) — define and document the dev/test behavior explicitly (e.g. allow in dev only via an explicit flag) so local development is not silently broken.
+- When the env var is **unset or empty**, the handler is **dev-permissive** (requests proceed to normal payload validation) — preserving backward compatibility for existing local dev environments and production syncs until enforcement is enabled on both sides simultaneously. See Rationale for the enable-enforcement runbook.
 - The CLI (`sync.ts`) reads the secret from config/env and sends it as the header on its `/sync` POST.
 - A valid-secret request still succeeds end-to-end (payload validation + `syncProfile` mutation unchanged).
 

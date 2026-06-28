@@ -2315,7 +2315,7 @@ describe("slice-directory writer (P12.02 red)", () => {
     expect(existsSync(join(home, "state.json"))).toBe(false);
   });
 
-  it("concurrent-write: two origins produce two independent slice files (proves concurrency safety)", async () => {
+  it("concurrent-write: two origins produce two independent slice files (proves same-process async I/O interleaving)", async () => {
     const sidA = "ses-claude-001";
     const sidB = "ses-codex-001";
 

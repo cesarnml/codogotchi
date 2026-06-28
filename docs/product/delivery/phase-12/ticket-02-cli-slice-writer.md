@@ -8,7 +8,7 @@ Red: required
 ## Outcome
 
 - The hook (`hook-binary.ts`) writes its own slice file at `state.d/<origin>:<session_id>.json` (under `CODOGOTCHI_HOME`, default `~/.codogotchi/`) via the existing atomic tmp+rename — **never** read-modify-writing a shared file.
-- The slice file content is a `schema_version: 7` slice entry (P12.01 shape) for that `(origin, session_id)`.
+- The slice file content is a P12.01 `SliceEntry` shape for that `(origin, session_id)` — no top-level `schema_version` field; `schema_version: 7` is injected by `globalAggregate` on read.
 - The `SessionEnd` hook best-effort deletes its own slice file.
 - `codogotchi status` reduces the slice directory via `globalAggregate` and prints the same status it does today for a single active session.
 - **Two concurrent hook invocations from different origins produce two intact slice files** — neither clobbers the other (the correctness win; impossible with the single-file design).
@@ -39,7 +39,7 @@ Red: required
 - The session-id source per platform — is it stable across a thread's lifecycle, or does it churn per hook event? Churn would create orphan slices (mtime TTL in P12.03 covers stale ones, but document the expected cardinality).
 - That the hook stays fire-and-forget: no locking, no read-modify-write, no blocking the host agent.
 - `status` parity: same output as today for the common single-session case.
-- Confirm the writer emits `schema_version: 7` and nothing still writes the old single `state.json`.
+- Confirm the writer emits the correct `SliceEntry` shape (no top-level `schema_version`; that field is injected by `globalAggregate`) and nothing still writes the old single `state.json`.
 
 ## Rationale
 

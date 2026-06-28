@@ -2,14 +2,14 @@ import Foundation
 
 /// Launch-time configuration for the menubar app's polling target.
 ///
-/// `pollingTarget` is the path the polling driver reads. In live mode it is the
-/// real hook output (`~/.codogotchi/state.json`); in demo mode it is a
-/// sandboxed file under `$TMPDIR/codogotchi-demo/state.json` that the
-/// `DemoCycleDriver` cycles fixture payloads through.
+/// `pollingTarget` is the directory the polling driver scans. In live mode it is
+/// `~/.codogotchi/state.d/`; in demo mode it is a sandboxed directory under
+/// `$TMPDIR/codogotchi-demo/state.d/` that `DemoCycleDriver` cycles fixture
+/// slice payloads through.
 ///
 /// The split exists so demo mode exercises the *same* polling read path that
-/// live mode (P2.07) will use — only the bytes' origin differs. The real
-/// `~/.codogotchi/state.json` is never touched in demo mode.
+/// live mode uses — only the bytes' origin differs. The real
+/// `~/.codogotchi/state.d/` is never touched in demo mode.
 struct DemoConfig: Equatable {
 	let isDemoMode: Bool
 	let pollingTarget: URL

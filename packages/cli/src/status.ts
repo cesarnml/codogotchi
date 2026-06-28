@@ -6,7 +6,7 @@ import type {
   SliceEntry,
   StateJsonV1,
 } from "@codogotchi/contracts";
-import { globalAggregate } from "@codogotchi/contracts";
+import { globalAggregate, sliceEntrySchema } from "@codogotchi/contracts";
 import { profileCachePath, readProfileCache } from "./profile-cache";
 
 export const STALE_SYNC_THRESHOLD_MS = 24 * 60 * 60 * 1000;
@@ -66,7 +66,8 @@ export async function readSliceDir(home: string): Promise<SliceEntry[]> {
     if (!name.endsWith(".json")) continue;
     try {
       const raw = await readFile(join(dir, name), "utf8");
-      slices.push(JSON.parse(raw) as SliceEntry);
+      const parsed = sliceEntrySchema.safeParse(JSON.parse(raw));
+      if (parsed.success) slices.push(parsed.data);
     } catch {
       // skip unreadable or malformed slice files
     }
