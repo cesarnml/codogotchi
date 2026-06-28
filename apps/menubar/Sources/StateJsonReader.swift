@@ -5,7 +5,7 @@ import Foundation
 /// is refused; equal or lower versions parse best-effort and tolerate extra
 /// fields. Bump deliberately when the renderer gains support for a newer
 /// schema; do not silently widen.
-let EXPECTED_STATE_SCHEMA_VERSION = 7
+let EXPECTED_STATE_SCHEMA_VERSION = 8
 
 /// Error cases surfaced by `StateJsonReader.read(at:)`.
 ///
@@ -211,12 +211,12 @@ enum StateJsonReader {
 			sourceEvent: slice.sourceEvent,
 			attention: slice.attention,
 			toolCommand: slice.toolCommand,
-			level: slice.level ?? 1,
-			levelFraction: slice.levelFraction ?? 0.0,
-			halfHearts: slice.halfHearts ?? MAX_HALF_HEARTS,
-			activeMinutes: slice.activeMinutes ?? 0,
-			lastActivityAt: slice.lastActivityAt ?? nil,
-			reviveUntil: slice.reviveUntil ?? nil
+			level: 1,
+			levelFraction: 0.0,
+			halfHearts: MAX_HALF_HEARTS,
+			activeMinutes: 0,
+			lastActivityAt: nil,
+			reviveUntil: nil
 		)
 		return .success(
 			StateSnapshot(
@@ -289,20 +289,14 @@ private struct StatePayload: Decodable {
 	let reviveUntil: String??
 }
 
-/// Wire shape for P12 slice files (state.d/<origin>:<session_id>.json).
-/// Identical to `StatePayload` but without `schemaVersion` — slice files
-/// are written by the TS hook without that field. `origin` and `sessionId`
-/// are carried in the filename and not decoded here (best-effort posture).
+/// Wire shape for v8 slice files (state.d/<origin>:<session_id>.json).
+/// RPG fields moved to `rpg-state.json` in schema v8; `Decodable` silently
+/// ignores them if present in older v7 slices. `origin` and `sessionId` are
+/// carried in the filename and not decoded here (best-effort posture).
 private struct SlicePayload: Decodable {
 	let activityState: ActivityState
 	let updatedAt: String
 	let sourceEvent: SourceEvent?
 	let attention: AttentionPayload?
 	let toolCommand: String?
-	let level: Int?
-	let levelFraction: Double?
-	let halfHearts: Int?
-	let activeMinutes: Int?
-	let lastActivityAt: String??
-	let reviveUntil: String??
 }

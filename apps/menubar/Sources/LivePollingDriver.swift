@@ -65,6 +65,7 @@ final class LivePollingDriver {
 	typealias DeliveryContextReaderFn = (String) -> DeliveryContextSnapshot?
 
 	private let pollingTargetPath: String
+	private let rpgStatePath: String?
 	private let gatePath: String?
 	private let deliveryContextPath: String?
 	private let previewStatePath: String?
@@ -127,6 +128,7 @@ final class LivePollingDriver {
 
 	init(
 		pollingTargetPath: String,
+		rpgStatePath: String? = CodogotchiFolders.rpgStatePath(),
 		gatePath: String? = nil,
 		deliveryContextPath: String? = nil,
 		previewStatePath: String? = PreviewOverrideReader.defaultStatePath().path,
@@ -142,6 +144,7 @@ final class LivePollingDriver {
 		now: @escaping () -> Date = { Date() }
 	) {
 		self.pollingTargetPath = pollingTargetPath
+		self.rpgStatePath = rpgStatePath
 		self.gatePath = gatePath
 		self.deliveryContextPath = deliveryContextPath
 		self.previewStatePath = previewStatePath
@@ -204,6 +207,7 @@ final class LivePollingDriver {
 		let previewGate = previewGatePath.flatMap { PreviewOverrideReader.readGate(at: $0) }
 		let previewActive = previewState != nil || previewGate != nil
 		let result = reader(pollingTargetPath)
+		let rpgSnapshot = rpgStatePath.map { RpgStateReader.read(at: $0) } ?? .safeDefault
 		if !previewActive, case .success(let snapshot) = result {
 			let prev = lastAgentState
 			if prev != snapshot.activityState {
@@ -214,7 +218,9 @@ final class LivePollingDriver {
 			}
 			lastAgentState = snapshot.activityState
 		}
-		let outcome = decide(from: result, previewState: previewState, previewGate: previewGate)
+		let outcome = decide(
+			from: result, rpgSnapshot: rpgSnapshot, previewState: previewState,
+			previewGate: previewGate)
 		emit(outcome)
 	}
 
@@ -243,6 +249,7 @@ final class LivePollingDriver {
 
 	private func decide(
 		from result: Result<StateSnapshot, StateReadError>,
+		rpgSnapshot: RpgSnapshot,
 		previewState: PreviewStateOverride?,
 		previewGate: PreviewGateOverride?
 	) -> Outcome {
@@ -262,7 +269,7 @@ final class LivePollingDriver {
 			// once the window lapses.
 			let state = resolveReviveState(
 				base: resolved,
-				reviveUntil: snapshot.reviveUntil,
+				reviveUntil: rpgSnapshot.reviveUntil,
 				codogotchiPet: codogotchiPet,
 				now: now())
 			let gateBadge = resolveGateBadgeContent(
@@ -277,8 +284,8 @@ final class LivePollingDriver {
 			// — the change-gated emit fires only when a half-heart boundary is
 			// crossed (≤ once per 8h), so this is effectively free.
 			let displayedHalfHearts = HalfHeartDecayEngine.displayed(
-				written: snapshot.halfHearts,
-				lastActivityAt: Self.parseISO8601Date(snapshot.lastActivityAt),
+				written: rpgSnapshot.halfHearts,
+				lastActivityAt: Self.parseISO8601Date(rpgSnapshot.lastActivityAt),
 				now: now()
 			)
 			return Outcome(
@@ -289,8 +296,8 @@ final class LivePollingDriver {
 				sourceEvent: snapshot.sourceEvent,
 				gateBadge: gateBadge,
 				rpgState: (
-					displayedHalfHearts, snapshot.levelFraction, snapshot.level,
-					snapshot.activeMinutes
+					displayedHalfHearts, rpgSnapshot.levelFraction, rpgSnapshot.level,
+					rpgSnapshot.activeMinutes
 				)
 			)
 		case .failure(.fileNotFound):

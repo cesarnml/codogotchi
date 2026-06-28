@@ -23,6 +23,11 @@ enum CodogotchiFolders {
 		dataFolderURL().appendingPathComponent("pets", isDirectory: true)
 	}
 
+	/// `~/.codogotchi/rpg-state.json` — RPG progression written by the CLI.
+	static func rpgStatePath() -> String {
+		dataFolderURL().appendingPathComponent("rpg-state.json").path
+	}
+
 	/// Create the folder if missing, then reveal it in Finder. Creating first
 	/// keeps a first-launch open (folder not yet written) from silently no-oping.
 	/// `createDirectory(withIntermediateDirectories:)` is idempotent.
