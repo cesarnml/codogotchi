@@ -46,8 +46,12 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+**Red first:** Wrote failing tests for `sliceEntrySchema`, `globalAggregate`, and `perPlatform` in `slice-entry.test.ts`; imports failed (module didn't exist) — confirmed red before any implementation.
+
+**Why this path:** `sliceEntrySchema` imports shared sub-schemas from existing modules — no field duplication, no drift from `stateJsonV1Schema`. Attention sub-schema defined inline in `slice-entry.ts` to avoid re-exporting it from `state-json.ts`.
+
+**Alternative considered:** Deriving `SliceEntry` from `Omit<StateJsonV1, 'schema_version'>` via `z.omit`. Rejected — couples the new v2 abstraction to the v1 file format. Separate schema is the right seam.
+
+**Deferred:** CLI writer still emits `schema_version: 6` (hardcoded). `stateJsonV1Schema` accepts 1–7 so no breakage. Updating the CLI to emit version 7 is P12.02 scope. Swift `EXPECTED_STATE_SCHEMA_VERSION` bump is P12.03 scope.
+
+**Contract note:** `SliceReducer<T>` is the generic reducer interface. `globalAggregate: SliceReducer<StateJsonV1>` and `perPlatform: SliceReducer<Record<string, StateJsonV1>>` both fit without signature change. A future `perThread` fits identically.
