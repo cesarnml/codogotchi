@@ -17,6 +17,22 @@
       "findings": [],
       "probedSurfaces": [],
       "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "9bd7c06cf298d92d1d19210abb986b89048032a1",
+      "completedAt": "2026-06-28T10:12:14.684Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "outcome": "clean",
+      "acknowledgment": "operator-confirmed-clean",
+      "reason": "Subagent report uses --- horizontal rules (against template policy) causing the section parser to misidentify sections; ledger records outcome:clean with findings:[] and the actual report Actionable findings section is 'None.'; no patches needed"
     }
   ]
 }
