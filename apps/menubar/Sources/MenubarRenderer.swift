@@ -60,6 +60,7 @@ final class MenubarRenderer {
 	private var currentMode: VisualMode = .normal
 	private var currentFrames: [CodexPet.Frame] = []
 	private var frameIndex: Int = 0
+	private var isStaticMode: Bool = false
 
 	init(
 		codexPet: CodexPet,
@@ -72,6 +73,14 @@ final class MenubarRenderer {
 		self.ciContext = CIContext(options: nil)
 		// currentFrames stays empty so the first `update` call always paints,
 		// even when the first state is the default `.idle`.
+	}
+
+	/// Puts the renderer into static mode. In static mode `update` and
+	/// `replacePets` are no-ops for the sink — the menu-bar icon is a fixed
+	/// app-icon image managed by the caller, not a per-state animation frame.
+	/// Floating panels are unaffected (they do not use this renderer).
+	func setStaticMode() {
+		isStaticMode = true
 	}
 
 	/// Switch to `state` in `visualMode`. Repaints exactly when the resolved
@@ -177,6 +186,7 @@ final class MenubarRenderer {
 	}
 
 	private func paintCurrent() {
+		guard !isStaticMode else { return }
 		guard let frame = renderedCurrentFrame() else {
 			return
 		}
