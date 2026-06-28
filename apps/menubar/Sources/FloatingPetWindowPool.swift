@@ -34,6 +34,10 @@ final class FloatingPetWindowPool {
 	/// Window keys that currently have visible windows.
 	var activeOrigins: [String] { Array(windows.keys).sorted() }
 
+	/// Called when `menubarIconMonochrome` changes between ticks. The caller
+	/// uses this to toggle `NSImage.isTemplate` on the status-item button.
+	var onMonochromeChanged: ((Bool) -> Void)?
+
 	init(
 		customizationReader: @escaping CustomizationReader = {
 			CustomizationJsonReader.read(at: CodogotchiFolders.customizationPath())
@@ -48,7 +52,11 @@ final class FloatingPetWindowPool {
 
 	func update(snapshot: PerPlatformSnapshot) {
 		// Read customization fresh on every tick so Settings writes take effect within one second.
+		let prevMonochrome = currentCustomization.menubarIconMonochrome
 		currentCustomization = customizationReader()
+		if currentCustomization.menubarIconMonochrome != prevMonochrome {
+			onMonochromeChanged?(currentCustomization.menubarIconMonochrome)
+		}
 		let ttlSeconds: TimeInterval = currentCustomization.idleDismissTtlSeconds == 0
 			? .infinity
 			: TimeInterval(currentCustomization.idleDismissTtlSeconds)

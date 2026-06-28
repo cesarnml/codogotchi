@@ -103,10 +103,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	func applicationDidFinishLaunching(_ notification: Notification) {
 		let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 		if let button = item.button {
-			button.image = NSImage(
-				systemSymbolName: "pawprint",
-				accessibilityDescription: "Codogotchi"
-			)
+			let initialMonochrome = CustomizationJsonReader.read(
+				at: CodogotchiFolders.customizationPath()
+			).menubarIconMonochrome
+			Self.applyMenubarIcon(to: button, monochrome: initialMonochrome)
 		}
 		self.statusItem = item
 
@@ -169,7 +169,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					item?.button?.image = image
 				}
 			)
-			renderer.update(state: .idle, visualMode: .normal)
+			renderer.setStaticMode()
 			self.renderer = renderer
 
 			self.codexPet = codexPet
@@ -206,6 +206,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					return controller
 				}
 			)
+			pool.onMonochromeChanged = { [weak item] isMonochrome in
+				if let button = item?.button { Self.applyMenubarIcon(to: button, monochrome: isMonochrome) }
+			}
 			self.floatingPetWindowPool = pool
 		} catch {
 			NSLog(
@@ -224,6 +227,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		}
 		settingsController.onRPGHUDEnabledChanged = { _ in
 			// Pool reads PetConfig.resolvedRPGHUDEnabled() on each tick; no direct wire needed.
+		}
+		settingsController.onMonochromeChanged = { [weak item] isMonochrome in
+			if let button = item?.button { Self.applyMenubarIcon(to: button, monochrome: isMonochrome) }
 		}
 		self.settingsWindowController = settingsController
 
@@ -559,5 +565,15 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 
 	private static func visibleFloatingFrame() -> CGRect {
 		NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
+	}
+
+	/// Sets the status-item button image to the Codogotchi app icon at 18×18pt.
+	/// When `monochrome` is true the image renders as a template (adapts to
+	/// light/dark menu bar); when false it renders in full color.
+	static func applyMenubarIcon(to button: NSStatusBarButton, monochrome: Bool) {
+		let icon = NSApp.applicationIconImage.copy() as? NSImage ?? NSImage()
+		icon.size = NSSize(width: 18, height: 18)
+		icon.isTemplate = monochrome
+		button.image = icon
 	}
 }

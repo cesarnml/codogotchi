@@ -34,8 +34,8 @@ targets:
         CFBundleIdentifier: com.codogotchi.app
         CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
-        CFBundleShortVersionString: "1.1.2"
-        CFBundleVersion: "7"
+        CFBundleShortVersionString: "2.0.0"
+        CFBundleVersion: "8"
     settings:
       base:
         PRODUCT_NAME: Codogotchi

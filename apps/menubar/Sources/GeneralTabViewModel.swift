@@ -74,18 +74,51 @@ final class GeneralTabViewModel {
 		return "A new coding tool was detected — click Update to install its hooks."
 	}
 
+	/// Current value of the "Monochrome menu bar icon" toggle.
+	/// Loaded from `customization.json` on init; updated via `setMonochromeMenubarIcon`.
+	private(set) var menubarIconMonochrome: Bool
+
 	private let statusClient: HookStatusClient
 	private let appVersion: String
 	private let hookVersion: String
+	private let customizationFilePath: String
 
 	init(
 		statusClient: HookStatusClient = HookStatusClient(),
 		appVersion: String = AboutViewModel.bundleShortVersion(),
-		hookVersion: String = AboutViewModel.bundledHookVersion()
+		hookVersion: String = AboutViewModel.bundledHookVersion(),
+		customizationFilePath: String = CodogotchiFolders.customizationPath()
 	) {
 		self.statusClient = statusClient
 		self.appVersion = appVersion
 		self.hookVersion = hookVersion
+		self.customizationFilePath = customizationFilePath
+		self.menubarIconMonochrome = CustomizationJsonReader.read(at: customizationFilePath).menubarIconMonochrome
+	}
+
+	/// Persists `menubar_icon_monochrome` to `customization.json` via read-merge-write
+	/// so it does not clobber platform_modes or idle_dismiss_ttl_seconds.
+	func setMonochromeMenubarIcon(_ value: Bool) {
+		menubarIconMonochrome = value
+		let url = URL(fileURLWithPath: customizationFilePath)
+		var payload: [String: Any] = [:]
+		let fileExists = FileManager.default.fileExists(atPath: customizationFilePath)
+		if fileExists {
+			guard let data = try? Data(contentsOf: url),
+				let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+			else {
+				NSLog("GeneralTabViewModel: aborting monochrome write — file unreadable or invalid JSON")
+				return
+			}
+			payload = existing
+		}
+		if payload["schema_version"] == nil { payload["schema_version"] = 1 }
+		payload["menubar_icon_monochrome"] = value
+		guard JSONSerialization.isValidJSONObject(payload),
+			let data = try? JSONSerialization.data(
+				withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+		else { return }
+		try? data.write(to: url, options: .atomic)
 	}
 
 	/// Updates rows from an already-fetched snapshot. Safe to call on any queue.

@@ -40,6 +40,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	/// floating pet live, so the change takes effect without an app restart.
 	var onRPGHUDEnabledChanged: ((Bool) -> Void)?
 
+	/// Called when the user toggles "Monochrome menu bar icon". Receives the new
+	/// state. Wire this in `MenubarApp` to toggle `image.isTemplate` on the status item.
+	var onMonochromeChanged: ((Bool) -> Void)?
+
 	init(
 		settingsController: SettingsController = SettingsController(),
 		petImportHelper: PetImportHelper = PetImportHelper(),
@@ -130,6 +134,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			onUpdateHooks: { [weak self] in self?.handleUpdateHooks() },
 			onUninstallHooks: { [weak self] in self?.handleUninstallHooks() }
 		)
+		general.onMonochromeToggled = { [weak self] isMonochrome in
+			self?.generalViewModel.setMonochromeMenubarIcon(isMonochrome)
+			self?.onMonochromeChanged?(isMonochrome)
+		}
 		petTabViewModel.onActivePetChanged = { [weak self] petId in
 			self?.onPetActivated?(petId)
 		}
@@ -341,10 +349,13 @@ private final class GeneralTabView: NSView {
 	)
 	private let hooksFeedbackLabel = NSTextField(wrappingLabelWithString: "")
 	private let bannerView = UpdateBannerView()
+	private let monochromeToggle = NSButton(
+		checkboxWithTitle: "Monochrome menu bar icon", target: nil, action: nil)
 
 	private let onInstallHooks: () -> Void
 	private let onUpdateHooks: () -> Void
 	private let onUninstallHooks: () -> Void
+	var onMonochromeToggled: ((Bool) -> Void)?
 	private var viewModel: GeneralTabViewModel
 
 	init(
@@ -371,6 +382,7 @@ private final class GeneralTabView: NSView {
 		hooksStatusLabel.stringValue = vm.rows.map { platformLine($0) }.joined(separator: "\n")
 		bannerView.message = vm.updateBannerMessage
 		bannerView.isHidden = !vm.shouldShowUpdateBanner
+		monochromeToggle.state = vm.menubarIconMonochrome ? .on : .off
 	}
 
 	func setHooksWorking(message: String) {
@@ -447,6 +459,11 @@ private final class GeneralTabView: NSView {
 		bannerView.isHidden = true
 		addSubview(bannerView)
 
+		monochromeToggle.target = self
+		monochromeToggle.action = #selector(monochromeToggleChanged)
+		monochromeToggle.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(monochromeToggle)
+
 		NSLayoutConstraint.activate([
 			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
 			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
@@ -473,6 +490,9 @@ private final class GeneralTabView: NSView {
 			bannerView.topAnchor.constraint(equalTo: cursorNote.bottomAnchor, constant: 12),
 			bannerView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			bannerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			monochromeToggle.topAnchor.constraint(equalTo: bannerView.bottomAnchor, constant: 16),
+			monochromeToggle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 		])
 	}
 
@@ -503,6 +523,9 @@ private final class GeneralTabView: NSView {
 	@objc private func installTapped() { onInstallHooks() }
 	@objc private func updateTapped() { onUpdateHooks() }
 	@objc private func removeTapped() { onUninstallHooks() }
+	@objc private func monochromeToggleChanged() {
+		onMonochromeToggled?(monochromeToggle.state == .on)
+	}
 
 	@objc private func copyDiagnosticsTapped() {
 		let json = viewModel.diagnosticsJSON()
