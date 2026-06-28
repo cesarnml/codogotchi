@@ -8,27 +8,32 @@ A macOS desktop pet that reacts to your AI coding agent in real time. Your agent
 
 ## The mental model
 
-Everything flows through one file: `~/.codogotchi/state.json`.
+Each active AI platform writes its own slice file to `~/.codogotchi/state.d/`. The app spawns one floating pet window per active platform.
 
 ```
-  Your AI agent
+  Your AI agents
   (Claude Code · Codex · Cursor · Copilot · Antigravity)
         │
         │  lifecycle hook events
         ▼
   codogotchi-hook  ──────────────  compiled Bun binary, bundled inside the .app
-        │
-        │  writes a closed-enum animation state
+        │                          one hook instance per platform session
+        │  writes a per-platform slice + global RPG state
         ▼
-  ~/.codogotchi/state.json  ◄───── the single contract between writers and renderers
+  ~/.codogotchi/state.d/<origin>:<session_id>.json   ←── activity-signal slice (v8)
+  ~/.codogotchi/rpg-state.json                       ←── global RPG values (level, HP, hearts)
+  ~/.codogotchi/customization.json                   ←── per-platform display mode + TTL
         │
         │  watched by
         ▼
-  Codogotchi.app (Swift + SpriteKit)
-  ├─ menu bar pet (static hero frame)
-  ├─ floating desktop pet (fully animated)
+  Codogotchi.app (Swift + AppKit/SpriteKit) — v2.0.0
+  ├─ menu bar icon (static app icon — no animation)
+  ├─ one floating desktop pet window per active platform (fully animated)
   └─ Settings — the ONLY surface that installs/updates/removes hooks
-        │
+        │   ├─ General: hooks, monochrome icon toggle
+        │   ├─ Pet: active pet selection
+        │   ├─ Customization: per-platform mode (own/combined/off) + idle-dismiss TTL
+        │   └─ RPG: HUD toggle
         ├─ XP / Health / Loot engine (TypeScript, runs locally by default)
         └─ opt-in cloud sync ───►  Convex (profiles, loot, pet gallery)
                                        ▲
@@ -39,7 +44,7 @@ Everything flows through one file: `~/.codogotchi/state.json`.
 Two invariants make the whole system legible:
 
 1. **The app owns all writes.** Hook install/update/remove, onboarding, and pet selection happen in the app's Settings. The `codogotchi` CLI is a read/diagnostic surface (`status`, `hooks status`, `loot`, `config`, `vacation`) plus internal subprocesses the app spawns. End users never need a terminal.
-2. **`state.json` is a closed contract.** The hook binary writes a fixed 19-state animation vocabulary; the Swift app reads it. The TypeScript and Swift sides each pin a schema version and must move in lockstep (see [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md)).
+2. **`state.d/` is a closed contract.** The hook binary writes a fixed 19-state activity vocabulary into per-platform slice files; the Swift app reads the directory and routes each origin to its floating window. The TypeScript and Swift sides each pin `schema_version: 8` and must move in lockstep (see [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md) and [`docs/contracts/customization-json.md`](docs/contracts/customization-json.md)).
 
 ## The five pieces
 
