@@ -33,6 +33,21 @@
       "outcome": "clean",
       "acknowledgment": "operator-confirmed-clean",
       "reason": "Subagent report uses --- horizontal rules (against template policy) causing the section parser to misidentify sections; ledger records outcome:clean with findings:[] and the actual report Actionable findings section is 'None.'; no patches needed"
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "9bd7c06cf298d92d1d19210abb986b89048032a1",
+      "outcome": "deferred",
+      "completedAt": "2026-06-28T10:12:30.496Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "reason": "Report uses prohibited --- horizontal rules causing Condition B false positive; actual Actionable findings section is 'None.' with ledger outcome:clean findings:[]; no patches warranted",
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
     }
   ]
 }
