@@ -242,6 +242,32 @@ final class MenubarRendererTests: XCTestCase {
 		}
 	}
 
+	// MARK: - Static mode
+
+	func testStaticModeSuppressesSinkOnUpdate() throws {
+		var sinkCallCount = 0
+		let renderer = try makeRenderer(sink: { _ in sinkCallCount += 1 })
+		renderer.setStaticMode()
+		sinkCallCount = 0
+		renderer.update(state: .implementing, visualMode: .normal)
+		XCTAssertEqual(
+			sinkCallCount, 0,
+			"update must not call sink when static mode is active"
+		)
+	}
+
+	func testStaticModeDoesNotBlockReplacePets() throws {
+		var sinkCallCount = 0
+		let renderer = try makeRenderer(sink: { _ in sinkCallCount += 1 })
+		renderer.setStaticMode()
+		sinkCallCount = 0
+		renderer.replacePets(codexPet: try makeCodexPet(), codogotchiPet: try makeCodogotchiPet())
+		XCTAssertEqual(
+			sinkCallCount, 0,
+			"replacePets must also not call sink when static mode is active"
+		)
+	}
+
 	// MARK: - Pixel sampling helper
 
 	/// Draw `cg` into a normalized 32-bit RGBA buffer and return up to
