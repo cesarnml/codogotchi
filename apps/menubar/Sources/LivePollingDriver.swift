@@ -60,6 +60,7 @@ final class LivePollingDriver {
 	typealias ApplyGateBadge = (GateBadgeContent?) -> Void
 	typealias ApplyPlatform = (String?) -> Void
 	typealias ApplyRPGState = (Int, Double, Int, Int) -> Void
+	typealias ApplyPerPlatform = (PerPlatformSnapshot) -> Void
 	typealias Reader = (String) -> Result<StateSnapshot, StateReadError>
 	typealias GateReader = (String) -> GateSnapshot?
 	typealias DeliveryContextReaderFn = (String) -> DeliveryContextSnapshot?
@@ -101,6 +102,9 @@ final class LivePollingDriver {
 	/// whenever any of the three values change on a successful read. Not emitted
 	/// on read failures — the HUD retains its last-known values.
 	var applyRPGState: ApplyRPGState?
+	/// Optional sink for the per-platform snapshot. Emitted on every successful read
+	/// so `FloatingPetWindowPool` receives per-origin state routing.
+	var applyPerPlatform: ApplyPerPlatform?
 
 	private var timer: Timer?
 	private var lastRendered: (state: ActivityState, mode: VisualMode)?
@@ -222,6 +226,13 @@ final class LivePollingDriver {
 			from: result, rpgSnapshot: rpgSnapshot, previewState: previewState,
 			previewGate: previewGate)
 		emit(outcome)
+		// Emit per-platform snapshot to pool when not in preview mode and read succeeded.
+		if !previewActive, let sink = applyPerPlatform {
+			let perPlatformResult = StateJsonReader.readPerPlatformDirectory(at: pollingTargetPath)
+			if case .success(let perOriginMap) = perPlatformResult {
+				sink(PerPlatformSnapshot(perPlatform: perOriginMap, rpgSnapshot: rpgSnapshot))
+			}
+		}
 	}
 
 	private struct Outcome: Equatable {

@@ -8,6 +8,17 @@ protocol FloatingPetVisibilityControlling: AnyObject {
 	func setFloatingPetVisible(_ visible: Bool)
 }
 
+/// Unified interface for a single floating-pet window managed by `FloatingPetWindowPool`.
+/// `FloatingPetController` conforms; tests inject lightweight stubs.
+@MainActor
+protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
+	func apply(state: ActivityState, visualMode: VisualMode)
+	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool)
+	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
+	func applyGateBadge(content: GateBadgeContent?)
+	func applyPlatform(origin: String?)
+}
+
 @MainActor
 protocol FloatingPetPanelManaging: AnyObject {
 	func show(frame: CGRect)
@@ -35,7 +46,7 @@ extension FloatingPetPanelManaging {
 }
 
 @MainActor
-final class FloatingPetController: NSObject, FloatingPetVisibilityControlling {
+final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, FloatingPetWindowControlling {
 	private let panel: FloatingPetPanelManaging
 	private let visibleFrameProvider: () -> CGRect
 	private let saveState: (FloatingAppState) throws -> Void

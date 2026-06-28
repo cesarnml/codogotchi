@@ -2,15 +2,9 @@ import AppKit
 
 /// Constructs the menu attached to the menu-bar `NSStatusItem`.
 ///
-/// The menu has four items, in this order:
-///   1. **Show/Hide Pet** — toggles the desktop pet surface.
-///   2. **Settings…** — opens the Settings window (⌘,).
-///   3. **Quit Codogotchi** — terminates the app.
-///   4. **⚠ Hooks not active — Retry install** — hidden until post-onboarding hooks are inactive.
-///
-/// Folder shortcuts moved out of this menu: "Open data folder" lives in
-/// Settings → Developer and "Open pet folder" in Settings → Pet (both via
-/// `CodogotchiFolders`).
+/// The pet section is dynamic: when `FloatingPetWindowPool` has a single active
+/// origin it collapses to a single "Show/Hide Pet" toggle; with two or more
+/// origins it expands to one "Hide <Platform> Pet" item per active origin.
 ///
 /// `MenubarMenu` is itself the action target for all items, so the caller
 /// must retain it for the lifetime of the menu. `NSMenuItem.target` is a
@@ -24,20 +18,22 @@ final class MenubarMenu: NSObject {
 	static let hooksNotActiveTitle = "⚠ Hooks not active — Retry install"
 
 	private let terminate: () -> Void
-	private let floatingPetController: FloatingPetVisibilityControlling?
+	private weak var floatingPetPool: FloatingPetWindowPool?
 	private let retryHooksInstall: (() -> Void)?
 	private let openSettings: (() -> Void)?
 	private weak var builtMenu: NSMenu?
 	private weak var hooksNotActiveItem: NSMenuItem?
+	/// Number of pet-section items currently at the top of `builtMenu`.
+	private var petItemCount: Int = 0
 
 	init(
 		terminate: @escaping () -> Void = { NSApplication.shared.terminate(nil) },
-		floatingPetController: FloatingPetVisibilityControlling? = nil,
+		floatingPetPool: FloatingPetWindowPool? = nil,
 		retryHooksInstall: (() -> Void)? = nil,
 		openSettings: (() -> Void)? = nil
 	) {
 		self.terminate = terminate
-		self.floatingPetController = floatingPetController
+		self.floatingPetPool = floatingPetPool
 		self.retryHooksInstall = retryHooksInstall
 		self.openSettings = openSettings
 		super.init()
@@ -48,14 +44,7 @@ final class MenubarMenu: NSObject {
 		let menu = NSMenu()
 		builtMenu = menu
 
-		let floatingItem = NSMenuItem(
-			title: floatingPetToggleTitle(),
-			action: #selector(toggleFloatingPet(_:)),
-			keyEquivalent: ""
-		)
-		floatingItem.target = self
-		floatingItem.isEnabled = floatingPetController != nil
-		menu.addItem(floatingItem)
+		buildPetSection(in: menu)
 
 		let settingsItem = NSMenuItem(
 			title: Self.settingsTitle,
@@ -94,11 +83,17 @@ final class MenubarMenu: NSObject {
 		hooksNotActiveItem?.isHidden = isActive
 	}
 
+	/// Rebuilds the pet section to reflect the current pool state.
+	/// Called after any visibility change (panel hide button, menu action, pool TTL).
 	@MainActor
-	@objc func toggleFloatingPet(_ sender: Any?) {
-		guard let floatingPetController else { return }
-		floatingPetController.setFloatingPetVisible(!floatingPetController.isFloatingPetVisible)
-		(sender as? NSMenuItem)?.title = floatingPetToggleTitle()
+	func refreshFloatingPetMenuItemTitle() {
+		guard let menu = builtMenu else { return }
+		// Remove current pet items (always at the front of the menu)
+		for _ in 0..<petItemCount {
+			menu.removeItem(at: 0)
+		}
+		petItemCount = 0
+		buildPetSection(in: menu, insertAt: 0)
 	}
 
 	@objc func quitMenubar(_ sender: Any?) {
@@ -113,20 +108,75 @@ final class MenubarMenu: NSObject {
 		openSettings?()
 	}
 
-	/// Keeps the status-item menu toggle label in sync after hiding from the
-	/// floating pet surface (right-click pill or other non-menu paths). The
-	/// toggle is the first menu item.
+	// MARK: - Pet section
+
 	@MainActor
-	func refreshFloatingPetMenuItemTitle() {
-		guard let first = builtMenu?.items.first else { return }
-		first.title = floatingPetToggleTitle()
+	private func buildPetSection(in menu: NSMenu, insertAt index: Int? = nil) {
+		let origins = floatingPetPool?.activeOrigins ?? []
+		let items: [NSMenuItem]
+		if origins.count > 1 {
+			items = origins.map { origin in
+				let item = NSMenuItem(
+					title: "Hide \(displayName(for: origin)) Pet",
+					action: #selector(hideFloatingPetForOrigin(_:)),
+					keyEquivalent: ""
+				)
+				item.target = self
+				item.representedObject = origin
+				return item
+			}
+		} else {
+			let title: String
+			let action: Selector?
+			if origins.isEmpty {
+				title = Self.showFloatingPetTitle
+				action = nil
+			} else {
+				title = Self.hideFloatingPetTitle
+				action = #selector(toggleSingleFloatingPet(_:))
+			}
+			let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+			item.target = self
+			item.isEnabled = !origins.isEmpty
+			items = [item]
+		}
+
+		if let index {
+			for (offset, item) in items.enumerated() {
+				menu.insertItem(item, at: index + offset)
+			}
+		} else {
+			items.forEach { menu.addItem($0) }
+		}
+		petItemCount = items.count
 	}
 
 	@MainActor
-	private func floatingPetToggleTitle() -> String {
-		guard let floatingPetController else { return Self.showFloatingPetTitle }
-		return floatingPetController.isFloatingPetVisible
-			? Self.hideFloatingPetTitle
-			: Self.showFloatingPetTitle
+	@objc private func toggleSingleFloatingPet(_ sender: Any?) {
+		guard let pool = floatingPetPool, let origin = pool.activeOrigins.first else { return }
+		pool.setVisible(false, for: origin)
+		refreshFloatingPetMenuItemTitle()
+	}
+
+	@MainActor
+	@objc private func hideFloatingPetForOrigin(_ sender: Any?) {
+		guard let pool = floatingPetPool,
+			let item = sender as? NSMenuItem,
+			let origin = item.representedObject as? String
+		else { return }
+		pool.setVisible(false, for: origin)
+		refreshFloatingPetMenuItemTitle()
+	}
+
+	private func displayName(for origin: String) -> String {
+		switch origin {
+		case "claude_code": return "Claude Code"
+		case "cursor": return "Cursor"
+		case "vscode": return "VS Code"
+		case "codex": return "Codex"
+		case "windsurf": return "Windsurf"
+		case "antigravity": return "Antigravity"
+		default: return origin.replacingOccurrences(of: "_", with: " ").capitalized
+		}
 	}
 }
