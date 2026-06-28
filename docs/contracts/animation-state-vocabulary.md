@@ -1,11 +1,11 @@
-# Animation State Vocabulary (v6)
+# Animation State Vocabulary (v7)
 
 The contract for the data the codogotchi hook binary writes to
-`~/.codogotchi/state.json` on every relevant Claude Code / Codex / Cursor lifecycle event,
+`~/.codogotchi/state.d/<origin>:<session_id>.json` on every relevant Claude Code / Codex / Cursor lifecycle event,
 and which any future renderer (macOS app, web preview, CLI ascii) consumes.
 
 This doc defines the **closed enums** of activity states and HP overlay states,
-the v6 `state.json` schema (with `schema_version: 6` when local RPG is enabled), and the mapping table from
+the v7 slice-directory model (`state.d/<origin>:<session_id>.json`, no `schema_version` in the on-disk slice file), and the mapping table from
 raw signal classes to activity states. Closed enums mean a renderer can switch
 exhaustively without a `default:` catch-all; adding a state is a deliberate
 schema bump, not a runtime surprise.
@@ -60,6 +60,20 @@ through to the Codex idle row. Renderers that don't understand v6 refuse the
 payload per the forward-compat policy. `revive_until` is absent (not `null`)
 when no health gain occurred; renderers treat absence as "no revive animation".
 
+**Phase 12 (P12.01–03) is the v7 bump:** the hook binary switches from writing a single
+`~/.codogotchi/state.json` file to writing per-`(origin, session_id)` **slice files** in
+`~/.codogotchi/state.d/<origin>:<session_id>.json`. The renderer scans the directory,
+decodes each file as a `SliceEntry` (see § v7 slice-entry shape below), applies the
+`globalAggregate` reducer (most-recent `updated_at` wins), and resolves a single
+`StateSnapshot`/`StateJsonV1` with `schema_version: 7`. Key properties:
+
+- On-disk slice files carry **no `schema_version` field** — versioning lives in the writer/reader constants (`STATE_JSON_SCHEMA_VERSION = 7` in TS, `EXPECTED_STATE_SCHEMA_VERSION = 7` in Swift).
+- The reader ignores slices whose filesystem mtime is more than 2 hours old (stale-slice TTL). `SessionEnd` events delete the slice for the ending origin+session (best-effort).
+- Temporary files matching `*.tmp-*` are never decoded.
+- An empty `state.d/` directory (all slices stale, missing, or temporary) resolves to a synthetic idle default with `schema_version: 7`.
+- The `perPlatform` reducer exists as a pure, unit-tested function but is **not wired to any renderer** in Phase 12. It is the foundation for v3 multi-pet rendering.
+- `gate.json` overrides the **global-aggregate resolved state** (Option 2 / ambient gate). Per-session gate stamping (`origin, session_id` in the gate file) is deferred to the v3 per-thread phase. See `gate-json.md`.
+
 ### Forward-compatibility policy
 
 Renderers are the lagging consumers of this contract. The hook binary is
@@ -97,16 +111,20 @@ will display when the forward-compat policy refuses a payload. The contract
 doc is the source of truth for the wording; renderers must reproduce these
 strings character-for-character (substituting the placeholders).
 
-- Polling target file absent (the `~/.codogotchi/state.json` path does not
+- Polling target absent (the `~/.codogotchi/state.d/` directory does not
   exist on disk — almost certainly because the hook binary is not installed
   or has never run):
   - `codogotchi-hook not detected`
 - Missing or non-integer `schema_version`, **or** malformed JSON that cannot
   be parsed as an object (both fold to the same user-facing copy — the
-  distinction is not actionable for non-developer users):
+  distinction is not actionable for non-developer users). Note: these error
+  paths are only reachable via the legacy `StateJsonReader.read(at:)` path;
+  the v7 directory reader uses best-effort slice decoding (malformed slices
+  silently skipped):
   - `state.json schema_version is missing — codogotchi-hook may be too old.`
 - Newer-than-expected `schema_version` (with `{got}` = observed value,
-  `{expected}` = renderer's `EXPECTED_VERSION`):
+  `{expected}` = renderer's `EXPECTED_VERSION`). Same caveat as above — only
+  via the legacy read path:
   - `state.json schema_version is v{got}; this app supports v{expected}. Update the menu bar app.`
 
 ## Activity States (v4 closed enum — 19 states)
@@ -176,14 +194,15 @@ boundaries are confirmed by the engine implementation in **P1.04** — if P1.04
 discovers a more honest curve (e.g. half-life decay around 50), it updates this
 table and bumps `schema_version`.
 
-## `state.json` v4 schema
+## Resolved state shape (v7)
 
-The hook binary writes the entire object atomically (write-to-tmp + rename) on
-every relevant lifecycle event. Schema:
+The renderer collapses `state.d/` slices via `globalAggregate` into a `StateJsonV1` object with `schema_version: 7`. This is the shape the renderer operates on internally — it is not written to disk as a single file. The on-disk format is the slice-entry shape above.
+
+Resolved state schema (output of `globalAggregate`):
 
 ```json
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "activity_state": "testing",
   "hp_overlay": "thriving",
   "hp": 87,
@@ -252,12 +271,48 @@ decode as `idle` in the Swift renderer (unknown-rawValue fallback). Payloads wit
 
 ### File location
 
-- macOS / Linux: `~/.codogotchi/state.json`
-- Test override: `$CODOGOTCHI_HOME/state.json` when the env var is set
-  (used by the tempdir test convention)
+**v7 (Phase 12+):** slice directory model
 
-The hook binary creates the parent directory on first write. Read paths must
-tolerate missing-file gracefully (treat as `idle` baseline).
+- Slice directory: `~/.codogotchi/state.d/`
+- Per-session slice file: `~/.codogotchi/state.d/<origin>:<session_id>.json`
+  - `<origin>` — `SourceEventOrigin` raw value (e.g. `claude_code`, `codex`, `cursor`)
+  - `<session_id>` — session identifier string, no path separators, defaults to `"default"` when the platform has no stable session ID
+- Test override: `$CODOGOTCHI_HOME/state.d/` when the env var is set
+
+The hook binary creates `state.d/` with `mkdir -p` on first write. Readers must treat a missing or empty `state.d/` as the idle baseline.
+
+**v6 and earlier:** single-file model (legacy, removed in v7 within the branch)
+
+- `~/.codogotchi/state.json`
+
+### v7 slice-entry shape (`state.d/<origin>:<session_id>.json`)
+
+Each slice file is a JSON object validated against `sliceEntrySchema` in `packages/contracts/src/slice-entry.ts`. The file has **no `schema_version` field** — versioning is implicit in the writer/reader constants.
+
+```json
+{
+  "origin": "claude_code",
+  "session_id": "sess-abc123",
+  "activity_state": "testing",
+  "hp_overlay": "thriving",
+  "hp": 87,
+  "level": 12,
+  "level_fraction": 0.42,
+  "half_hearts": 5,
+  "active_minutes": 3,
+  "last_activity_at": "2026-06-03T04:00:00.000Z",
+  "updated_at": "2026-06-03T04:00:01.000Z",
+  "revive_until": "2026-06-03T04:00:06.000Z",
+  "source_event": {
+    "origin": "claude_code",
+    "kind": "tool_use",
+    "name": "Bash"
+  },
+  "tool_command": "bun test packages/contracts"
+}
+```
+
+Required fields: `origin`, `session_id`, `activity_state`, `hp_overlay`, `hp`, `updated_at`, `source_event`. All v5 RPG fields (`level`, `level_fraction`, `half_hearts`, `last_activity_at`) are required when the slice comes from an RPG-enabled session; optional otherwise.
 
 ## Mapping Table (raw signal → activity state) — v4
 
