@@ -13,6 +13,8 @@ import {
 
 const baseConfig: ResolvedOrchestratorConfig = {
   defaultBranch: 'main',
+  deliveryBaseBranch: 'main',
+  closeoutBranch: 'main',
   planRoot: 'docs',
   runtime: 'bun',
   packageManager: 'bun',
@@ -39,12 +41,19 @@ describe('orchestrator config', () => {
     try {
       await writeFile(
         join(tempDir, 'orchestrator.config.json'),
-        JSON.stringify({ defaultBranch: 'develop', runtime: 'node' }),
+        JSON.stringify({
+          defaultBranch: 'develop',
+          deliveryBaseBranch: 'integration',
+          closeoutBranch: 'release',
+          runtime: 'node',
+        }),
       );
 
       const config = await loadOrchestratorConfig(tempDir);
       expect(config).toEqual({
         defaultBranch: 'develop',
+        deliveryBaseBranch: 'integration',
+        closeoutBranch: 'release',
         planRoot: undefined,
         runtime: 'node',
         packageManager: undefined,
@@ -148,12 +157,88 @@ describe('orchestrator config', () => {
     }
   });
 
+  it('throws when deliveryBaseBranch is missing', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'orch-cfg-'));
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({ defaultBranch: 'main', closeoutBranch: 'main' }),
+      );
+
+      await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
+        /deliveryBaseBranch/,
+      );
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+
+  it('throws when closeoutBranch is missing', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'orch-cfg-'));
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({ defaultBranch: 'main', deliveryBaseBranch: 'main' }),
+      );
+
+      await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
+        /closeoutBranch/,
+      );
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+
+  it('throws on blank deliveryBaseBranch', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'orch-cfg-'));
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({
+          defaultBranch: 'main',
+          deliveryBaseBranch: '   ',
+          closeoutBranch: 'main',
+        }),
+      );
+
+      await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
+        /deliveryBaseBranch/,
+      );
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+
+  it('throws on blank closeoutBranch', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'orch-cfg-'));
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({
+          defaultBranch: 'main',
+          deliveryBaseBranch: 'main',
+          closeoutBranch: '   ',
+        }),
+      );
+
+      await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
+        /closeoutBranch/,
+      );
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+
   it('throws on blank planRoot', async () => {
     const tempDir = await mkdtemp(join(tmpdir(), 'orch-cfg-'));
     try {
       await writeFile(
         join(tempDir, 'orchestrator.config.json'),
-        JSON.stringify({ planRoot: '   ' }),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          planRoot: '   ',
+        }),
       );
 
       await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
@@ -170,6 +255,8 @@ describe('orchestrator config', () => {
       const resolved = resolveOrchestratorConfig({}, tempDir);
       expect(resolved).toMatchObject({
         defaultBranch: 'main',
+        deliveryBaseBranch: 'main',
+        closeoutBranch: 'main',
         planRoot: 'docs',
         runtime: 'bun',
         packageManager: 'npm',
@@ -189,10 +276,17 @@ describe('orchestrator config', () => {
     const tempDir = await mkdtemp(join(tmpdir(), 'orch-cfg-resolve-'));
     try {
       const resolved = resolveOrchestratorConfig(
-        { defaultBranch: 'develop', planRoot: 'specifications' },
+        {
+          defaultBranch: 'develop',
+          deliveryBaseBranch: 'integration',
+          closeoutBranch: 'release',
+          planRoot: 'specifications',
+        } as never,
         tempDir,
       );
       expect(resolved.defaultBranch).toBe('develop');
+      expect(resolved.deliveryBaseBranch).toBe('integration');
+      expect(resolved.closeoutBranch).toBe('release');
       expect(resolved.planRoot).toBe('specifications');
       expect(resolved.runtime).toBe('bun');
       expect(resolved.packageManager).toBe('npm');
@@ -264,10 +358,11 @@ describe('orchestrator config', () => {
     }
   });
 
-  it('syncStateFromScratch uses configured defaultBranch for first ticket baseBranch', () => {
+  it('syncStateFromScratch uses configured deliveryBaseBranch for first ticket baseBranch', () => {
     const config: ResolvedOrchestratorConfig = {
       ...baseConfig,
       defaultBranch: 'develop',
+      deliveryBaseBranch: 'release-next',
     };
     const options = createOptions({
       planPath: 'docs/product/delivery/phase-03/implementation-plan.md',
@@ -288,7 +383,7 @@ describe('orchestrator config', () => {
       config,
     );
 
-    expect(synced.tickets[0]?.baseBranch).toBe('develop');
+    expect(synced.tickets[0]?.baseBranch).toBe('release-next');
   });
 });
 
@@ -298,7 +393,11 @@ describe('P2.01 — subagentReview schema, prReview, and prReviewAgents validati
     try {
       await writeFile(
         join(tempDir, 'orchestrator.config.json'),
-        JSON.stringify({ reviewPolicy: { selfAudit: 'disabled' } }),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          reviewPolicy: { selfAudit: 'disabled' },
+        }),
       );
       await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
         /selfAudit/,
@@ -313,7 +412,11 @@ describe('P2.01 — subagentReview schema, prReview, and prReviewAgents validati
     try {
       await writeFile(
         join(tempDir, 'orchestrator.config.json'),
-        JSON.stringify({ reviewPolicy: { codexPreflight: 'disabled' } }),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          reviewPolicy: { codexPreflight: 'disabled' },
+        }),
       );
       await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
         /codexPreflight/,
@@ -328,7 +431,11 @@ describe('P2.01 — subagentReview schema, prReview, and prReviewAgents validati
     try {
       await writeFile(
         join(tempDir, 'orchestrator.config.json'),
-        JSON.stringify({ reviewPolicy: { prReview: 'required' } }),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          reviewPolicy: { prReview: 'required' },
+        }),
       );
       await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
         /prReviewAgents/,
@@ -343,7 +450,11 @@ describe('P2.01 — subagentReview schema, prReview, and prReviewAgents validati
     try {
       await writeFile(
         join(tempDir, 'orchestrator.config.json'),
-        JSON.stringify({ reviewPolicy: { prReview: 'disabled' } }),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          reviewPolicy: { prReview: 'disabled' },
+        }),
       );
       const config = await loadOrchestratorConfig(tempDir);
       expect(config.reviewPolicy?.prReview).toBe('disabled');

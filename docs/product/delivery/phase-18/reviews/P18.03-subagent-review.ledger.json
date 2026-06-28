@@ -1,0 +1,52 @@
+{
+  "ticket": "P18.03",
+  "invocations": [
+    {
+      "runnerKind": "claude-cli",
+      "reviewedHeadSha": "53de7f1c9db546597ec4338ff6a1bb5aeedba5fe",
+      "outcome": "clean",
+      "completedAt": "2026-06-28T02:33:07.973Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-18/reviews/P18.03-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-18/reviews/P18.03-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "codex",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "53de7f1c9db546597ec4338ff6a1bb5aeedba5fe",
+      "completedAt": "2026-06-28T02:33:39.370Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "outcome": "clean",
+      "acknowledgment": "operator-confirmed-clean",
+      "reason": "Subagent report Actionable findings section is None; reconciliation parsed a false positive from runner report formatting."
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "53de7f1c9db546597ec4338ff6a1bb5aeedba5fe",
+      "outcome": "patched",
+      "completedAt": "2026-06-28T02:35:01.943Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": ["4197c0b734b46e1dea57fa90acd605f78d80e254"],
+      "schemaVersion": 1,
+      "primaryAgent": "unknown",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
+    }
+  ]
+}

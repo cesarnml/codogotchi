@@ -248,9 +248,9 @@ bun run deliver triage-standalone --pr <number>
 **Trigger:** `/soa triage-advisory-observations <phase-XX|epic-XX>` or `/soa tao <phase-XX|epic-XX>`
 
 Run the post-phase advisory-observation triage lane after the stacked phase has
-landed on `main` and before the next phase starts. This is for non-blocking
-`Advisory Observations` from subagent-review reports. It is not a per-ticket
-pre-PR gate and it must not apply patches automatically.
+landed on the configured `closeoutBranch` and before the next phase starts. This
+is for non-blocking `Advisory Observations` from subagent-review reports. It is
+not a per-ticket pre-PR gate and it must not apply patches automatically.
 
 1. Parse the phase or epic target and locate its `implementation-plan.md`.
 2. Read `docs/template/delivery/delivery-orchestrator.md` in the source repo
