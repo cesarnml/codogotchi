@@ -308,8 +308,10 @@ enum StateJsonReader {
 
 			guard let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)),
 				let slice = try? decoder.decode(SlicePayload.self, from: data),
-				let origin = slice.sourceEvent?.origin, !origin.isEmpty
+				let rawOrigin = slice.sourceEvent?.origin,
+				!rawOrigin.trimmingCharacters(in: .whitespaces).isEmpty
 			else { continue }
+			let origin = rawOrigin.trimmingCharacters(in: .whitespaces)
 
 			let candidateDate = parseISO8601Date(slice.updatedAt) ?? Date.distantPast
 			if winners[origin] == nil || candidateDate > winners[origin]!.date {

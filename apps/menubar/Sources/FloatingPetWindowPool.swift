@@ -61,9 +61,17 @@ final class FloatingPetWindowPool {
 			}
 		}
 
-		// Step 3: update lastActiveOrigin = origin with max snapshot updated_at
-		if !lastUpdatedAt.isEmpty {
-			lastActiveOrigin = lastUpdatedAt.max(by: { $0.value < $1.value })?.key
+		// Step 3: elect lastActiveOrigin only from origins that are currently visible
+		// OR still within their TTL window. This prevents a clock-skewed origin that
+		// has left state.d/ from holding last-active immunity indefinitely.
+		let eligibleOrigins = Set(visibleEntries.keys).union(
+			lastSeenAt.keys.filter {
+				currentTime.timeIntervalSince(lastSeenAt[$0] ?? .distantPast) <= ttlSeconds
+			}
+		)
+		let eligibleForElection = lastUpdatedAt.filter { eligibleOrigins.contains($0.key) }
+		if !eligibleForElection.isEmpty {
+			lastActiveOrigin = eligibleForElection.max(by: { $0.value < $1.value })?.key
 		}
 
 		// Step 4: compute the key of the window that must not be dismissed
@@ -122,8 +130,9 @@ final class FloatingPetWindowPool {
 				)
 			}
 		} else {
-			// No combined-mode origins → dismiss combined window if present
-			if windows["combined"] != nil {
+			// No combined-mode origins → dismiss combined window if present,
+			// but only when it is not the last-active window (same immunity as own-mode).
+			if windows["combined"] != nil && "combined" != lastActiveWindowKey {
 				windows["combined"]?.setFloatingPetVisible(false)
 				windows.removeValue(forKey: "combined")
 			}
