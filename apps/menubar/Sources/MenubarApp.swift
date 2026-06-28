@@ -174,8 +174,6 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 
 			self.codexPet = codexPet
 			let pool = FloatingPetWindowPool(
-				ttlSeconds: 300,
-				platformModes: [:],
 				windowFactory: { [weak self] origin in
 					guard let self, let codexPet = self.codexPet else {
 						fatalError("FloatingPetWindowPool factory called after app teardown")

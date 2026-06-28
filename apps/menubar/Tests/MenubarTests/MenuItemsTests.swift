@@ -24,8 +24,7 @@ final class MenuItemsTests: XCTestCase {
 
 	private func makePool(origins: [String]) -> FloatingPetWindowPool {
 		let pool = FloatingPetWindowPool(
-			ttlSeconds: 300,
-			platformModes: [:],
+			customizationReader: { .safeDefault },
 			windowFactory: { _ in StubWindow() }
 		)
 		if !origins.isEmpty {

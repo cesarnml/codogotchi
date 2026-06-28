@@ -11,6 +11,7 @@
 		00F9608A6921A6D7A6FD6454 /* PetTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC685626D14E1B7F1A468CC /* PetTabViewModel.swift */; };
 		025D10BD2A8B47BD0991A05D /* MenubarRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */; };
 		04E4BF3ECD02EFD4B252E27C /* FloatingInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97D90D6AFBAC5EB23BBC4A8 /* FloatingInteraction.swift */; };
+		0A2908CC07910B983DD32326 /* CustomizationJsonReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A6437113DF92D5CB7E925C /* CustomizationJsonReader.swift */; };
 		0F18B94E6BE7C17F0F4C1593 /* RpgStateReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61DFF543B14E3A888D094385 /* RpgStateReader.swift */; };
 		121F58B33BBB5B89020FD3A7 /* FloatingPetSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57120C267C3617C32AC0430F /* FloatingPetSceneTests.swift */; };
 		146969BDD756A5353704E961 /* MenubarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E496AEDA38E70CA0C7D4E4F /* MenubarTests.swift */; };
@@ -177,6 +178,7 @@
 		C473FDED57B163FBBB6F3CF1 /* FloatingPetPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetPanel.swift; sourceTree = "<group>"; };
 		D03267BF299C29EE9DC11590 /* LivePollingDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePollingDriver.swift; sourceTree = "<group>"; };
 		D1679B814BC300DCA60C6A97 /* Codogotchi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Codogotchi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D5A6437113DF92D5CB7E925C /* CustomizationJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationJsonReader.swift; sourceTree = "<group>"; };
 		D97B6CBA3971EF14695D74F9 /* GateJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateJsonReaderTests.swift; sourceTree = "<group>"; };
 		DA2D403DBB111D997748F847 /* LivePollingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePollingTests.swift; sourceTree = "<group>"; };
 		DABEF68EEC70787763CE3E3D /* TransitionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLog.swift; sourceTree = "<group>"; };
@@ -268,6 +270,7 @@
 				74CC4170BD102B13FAEADA8B /* CodogotchiFolders.swift */,
 				31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */,
 				BFDA2FD41708D0AEB3230327 /* ConfigBootstrap.swift */,
+				D5A6437113DF92D5CB7E925C /* CustomizationJsonReader.swift */,
 				09112F189EA04FABD5D4833E /* DemoConfig.swift */,
 				B49E0C3473A936DCB90AFE2A /* DemoCycleDriver.swift */,
 				0B22EF406588604AA7D68817 /* DeveloperTabViewModel.swift */,
@@ -465,6 +468,7 @@
 				4ADBB1DD081EE5B9CE110363 /* CodogotchiFolders.swift in Sources */,
 				A28BAB9D5F23FFBE6C429720 /* CodogotchiPet.swift in Sources */,
 				17A4A67B836C574013DB2CDA /* ConfigBootstrap.swift in Sources */,
+				0A2908CC07910B983DD32326 /* CustomizationJsonReader.swift in Sources */,
 				D82CE832ED27D2C047026D62 /* DemoConfig.swift in Sources */,
 				EA37D54D592388A3D881C2B2 /* DemoCycleDriver.swift in Sources */,
 				E404CD73DA9AE54A6860F17D /* DeveloperTabViewModel.swift in Sources */,
