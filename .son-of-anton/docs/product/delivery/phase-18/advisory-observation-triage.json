@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-06-28T03:17:55.884Z",
+  "summary": {
+    "total": 5,
+    "patched": 3,
+    "rejected": 2,
+    "already-covered": 0,
+    "requires-human-review": 0
+  },
+  "dispositions": [
+    {
+      "disposition": "patched",
+      "rationale": "The subagent-review patch removed the unnecessary double casts and reads the resolved branch-role fields directly.",
+      "patch": {
+        "commitSha": "59a728310aa5a62d140d5067e20fd74913f72f51",
+        "files": ["tools/delivery/test/runtime-config.test.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.01-subagent-review.report.md",
+        "ticketId": "P18.01"
+      },
+      "observation": "`runtime-config.test.ts` lines 279 and 283 use double casts (`as never as { deliveryBaseBranch: string }`) to access `resolved.deliveryBaseBranch` and `resolved.closeoutBranch`. Now that `ResolvedOrchestratorConfig` declares these fields, the casts are unnecessary — `resolved.deliveryBaseBranch` is directly accessible. This is cosmetic but suggests the test was updated incrementally and the casts were not cleaned up after the type was finalized. Not a correctness issue."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "This is an environment expectation note, not a Phase 18 defect. The migration intentionally fails loudly when Node is missing rather than silently skipping a required config migration, and this repo's supported delivery runtime already depends on Node-compatible tooling.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.01-subagent-review.report.md",
+        "ticketId": "P18.01"
+      },
+      "observation": "`scripts/soa-sync.sh` `run_migration_2` exits with code 1 when `node` is not available. Consumer repos running in minimal environments (e.g., Alpine-based Docker images without Node) would have their entire `soa-sync` call fail, even if only skill-symlinking was desired. The error message is clear (`node is required to migrate orchestrator.config.json branch roles`), so this is not silent, but it may surprise consumers in node-less environments. Outside ticket scope — advisory only."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "The subagent-review patch added the required branch-role fields to the blank planRoot fixture so the test reaches the intended planRoot validation path.",
+      "patch": {
+        "commitSha": "59a728310aa5a62d140d5067e20fd74913f72f51",
+        "files": ["tools/delivery/test/runtime-config.test.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.01-subagent-review.report.md",
+        "ticketId": "P18.01"
+      },
+      "observation": "The `planRoot: '   '` blank-string test at `runtime-config.test.ts` line 231 catches blanks via `optionalNonBlankString`, but the orchestrator.config.json that triggers this test does not include the now-required `deliveryBaseBranch` / `closeoutBranch`. At runtime this test actually throws on `deliveryBaseBranch` missing before reaching the `planRoot` blank-string check, so it tests the wrong error — but the regex match `/Expected a non-blank string/` happens to match both the `deliveryBaseBranch` missing error (which says \"Expected a non-blank string\") and the intended `planRoot` blank error. The test passes for the wrong reason. This is a test-contract weakness, not a broken invariant. Recommend adding `deliveryBaseBranch: 'main', closeoutBranch: 'main'` to that fixture so the test actually reaches the `planRoot` validation it was written to cover."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "This is a deliberate scope boundary. Body refresh is metadata-only and should not silently restack an operator-mutated PR base during advance; the documented recovery path for base drift is restack or an explicit PR-base correction.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.03-subagent-review.report.md",
+        "ticketId": "P18.03"
+      },
+      "observation": "1. **`updatePullRequestBody` does not re-send `base`** (`pr-metadata.ts:1214`). That function is called from `advanceToNextTicket` and only updates the body. If an operator manually changes the GitHub PR base between `open-pr` and `advance`, the body-only refresh will not re-correct it. This is deliberate (the correct recovery path is `restack`), but it means base-role discipline is not enforced at the `advance` step. Out of scope for P18.03 and noted only for completeness."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "The subagent-review patch strengthened the second PR metadata test to assert the body URL still points at the repo-primary default branch and does not point at the delivery base branch.",
+      "patch": {
+        "commitSha": "4197c0b734b46e1dea57fa90acd605f78d80e254",
+        "files": ["tools/delivery/test/p18-03.test.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.03-subagent-review.report.md",
+        "ticketId": "P18.03"
+      },
+      "observation": "2. **Test 2 body assertion is narrower than test 1.** Test 2 asserts `stringContaining('- stacked base branch: \\`release-next\\`')` but does not also assert the URL contains `/blob/main/`. Test 1 covers that URL regression independently. The coverage is complete across both tests, but a reviewer reading test 2 in isolation would not see the URL invariant tested. This is a test-legibility note, not a coverage gap."
+    }
+  ]
+}

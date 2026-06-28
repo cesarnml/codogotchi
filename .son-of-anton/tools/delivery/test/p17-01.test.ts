@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
+import { execSync } from 'node:child_process';
 import { describe, expect, it } from 'bun:test';
 
 import type { ResolvedOrchestratorConfig } from '../config';
@@ -10,6 +11,8 @@ import { writeGateEvent } from '../codogotchi-gate';
 function enabledConfig(): ResolvedOrchestratorConfig {
   return {
     defaultBranch: 'main',
+    deliveryBaseBranch: 'main',
+    closeoutBranch: 'main',
     planRoot: 'docs',
     runtime: 'bun',
     packageManager: 'bun',
@@ -30,6 +33,14 @@ function makeTmpDir(): string {
   );
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+function canonicalGitRoot(cwd: string): string {
+  const raw = execSync('git rev-parse --git-common-dir', {
+    cwd,
+    encoding: 'utf8',
+  }).trim();
+  return dirname(isAbsolute(raw) ? raw : join(cwd, raw));
 }
 
 describe('P17.01 — writeGateEvent produces gate.json with correct shape', () => {
@@ -64,7 +75,7 @@ describe('P17.01 — writeGateEvent produces gate.json with correct shape', () =
       const context = JSON.parse(contextRaw);
       expect(context.owner).toBe('soa');
       expect(context.status).toBe('active');
-      expect(context.repo_root).toBe(process.cwd());
+      expect(context.repo_root).toBe(canonicalGitRoot(process.cwd()));
       expect(context.plan_key).toBe('phase-17');
       expect(context.ticket_id).toBe('P17.01');
       expect(context.last_gate).toBe('ticket_started');

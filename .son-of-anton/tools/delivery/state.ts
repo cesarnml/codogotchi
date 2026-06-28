@@ -211,7 +211,7 @@ type LoadPlanContextResult = {
 
 type SyncStateDependencies = {
   cwd: string;
-  defaultBranch: string;
+  deliveryBaseBranch: string;
   deriveBranchName: (
     definition: Pick<TicketDefinition, 'id' | 'slug'>,
   ) => string;
@@ -398,7 +398,7 @@ function syncStateWithPlan(
       );
       const inferredBaseBranch =
         index === 0
-          ? dependencies.defaultBranch
+          ? dependencies.deliveryBaseBranch
           : selectBranchValue(
               existingById.get(previousTicket?.id ?? '')?.branch,
               inferredById.get(previousTicket?.id ?? '')?.branch,
@@ -417,7 +417,7 @@ function syncStateWithPlan(
         branch: resolvedBranch,
         baseBranch:
           index === 0
-            ? dependencies.defaultBranch
+            ? dependencies.deliveryBaseBranch
             : selectBranchValue(
                 previous?.baseBranch,
                 inferredTicket?.baseBranch,
@@ -571,7 +571,7 @@ function inferStateFromRepo(
       dependencies.deriveBranchName(definition);
     const baseBranch =
       index === 0
-        ? dependencies.defaultBranch
+        ? dependencies.deliveryBaseBranch
         : (dependencies.findExistingBranch(
             branchCatalog,
             ticketDefinitions[index - 1]!,

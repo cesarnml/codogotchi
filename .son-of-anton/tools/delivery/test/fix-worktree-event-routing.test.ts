@@ -32,6 +32,8 @@ import type { DeliveryState, TicketState } from '../types';
 function enabledConfig(): ResolvedOrchestratorConfig {
   return {
     defaultBranch: 'main',
+    deliveryBaseBranch: 'release-next',
+    closeoutBranch: 'main',
     planRoot: 'docs',
     runtime: 'bun',
     packageManager: 'bun',
@@ -88,6 +90,7 @@ function makeGitWorktreeFixture(): { primary: string; worktree: string } {
   writeFileSync(join(primaryRaw, 'README.md'), '# fixture');
   git(['add', '.']);
   git(['commit', '-m', 'initial']);
+  git(['checkout', '-b', 'release-next']);
   git(['worktree', 'add', '--detach', worktreeRaw]);
 
   // Resolve symlinks so paths match what git worktree list --porcelain reports

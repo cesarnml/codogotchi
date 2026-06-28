@@ -44,6 +44,8 @@ export type CodogotchiConfig = {
 
 export type OrchestratorConfig = {
   defaultBranch?: string;
+  deliveryBaseBranch?: string;
+  closeoutBranch?: string;
   planRoot?: string;
   runtime?: 'bun' | 'node';
   packageManager?: 'bun' | 'npm' | 'pnpm' | 'yarn';
@@ -59,6 +61,8 @@ export type OrchestratorConfig = {
 
 export type ResolvedOrchestratorConfig = {
   defaultBranch: string;
+  deliveryBaseBranch: string;
+  closeoutBranch: string;
   planRoot: string;
   runtime: 'bun' | 'node';
   packageManager: 'bun' | 'npm' | 'pnpm' | 'yarn';
@@ -121,6 +125,16 @@ export async function loadOrchestratorConfig(
   const defaultBranch = optionalNonBlankString(
     raw.defaultBranch,
     'defaultBranch',
+    'orchestrator.config.json',
+  );
+  const deliveryBaseBranch = requiredNonBlankString(
+    raw.deliveryBaseBranch,
+    'deliveryBaseBranch',
+    'orchestrator.config.json',
+  );
+  const closeoutBranch = requiredNonBlankString(
+    raw.closeoutBranch,
+    'closeoutBranch',
     'orchestrator.config.json',
   );
   const planRoot = optionalNonBlankString(
@@ -196,6 +210,8 @@ export async function loadOrchestratorConfig(
 
   return {
     defaultBranch,
+    deliveryBaseBranch,
+    closeoutBranch,
     planRoot,
     runtime: raw.runtime as OrchestratorConfig['runtime'],
     packageManager: raw.packageManager as OrchestratorConfig['packageManager'],
@@ -225,6 +241,8 @@ export function resolveOrchestratorConfig(
 ): ResolvedOrchestratorConfig {
   return {
     defaultBranch: raw.defaultBranch?.trim() || 'main',
+    deliveryBaseBranch: raw.deliveryBaseBranch?.trim() || 'main',
+    closeoutBranch: raw.closeoutBranch?.trim() || 'main',
     planRoot: raw.planRoot?.trim() || 'docs',
     runtime: raw.runtime ?? 'bun',
     packageManager: raw.packageManager ?? inferPackageManager(cwd),
@@ -380,4 +398,18 @@ function optionalNonBlankString(
   }
 
   return normalized;
+}
+
+function requiredNonBlankString(
+  value: unknown,
+  fieldName: string,
+  sourceLabel: string,
+): string {
+  if (value === undefined) {
+    throw new Error(
+      `Invalid ${fieldName} in ${sourceLabel}. Expected a non-blank string.`,
+    );
+  }
+
+  return optionalNonBlankString(value, fieldName, sourceLabel) as string;
 }

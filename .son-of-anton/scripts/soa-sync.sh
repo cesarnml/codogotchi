@@ -17,7 +17,7 @@ set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SKILLS_DEST="$REPO_ROOT/.claude/skills"
-SOA_TARGET_VERSION=1
+SOA_TARGET_VERSION=2
 
 if [ -d "$REPO_ROOT/.agents/skills" ] && [ ! -d "$REPO_ROOT/.son-of-anton" ]; then
   # Source repo: skills live at .agents/skills/ directly
@@ -90,6 +90,35 @@ run_migration_1() {
       git -C "$REPO_ROOT" mv ".agents/delivery/$phase/reviews" "docs/product/delivery/$phase/reviews"
     fi
   done
+}
+
+run_migration_2() {
+  local config="$REPO_ROOT/orchestrator.config.json"
+  if [ ! -f "$config" ]; then
+    return
+  fi
+
+  if command -v node >/dev/null 2>&1; then
+    node - "$config" <<'EOF_NODE'
+const fs = require('node:fs');
+const path = process.argv[2];
+const raw = fs.readFileSync(path, 'utf8');
+const config = JSON.parse(raw);
+if (!config || typeof config !== 'object' || Array.isArray(config)) {
+  throw new Error('orchestrator.config.json must contain a JSON object.');
+}
+
+const normalize = (value) =>
+  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+const fallbackBranch = normalize(config.defaultBranch) ?? 'main';
+config.deliveryBaseBranch = normalize(config.deliveryBaseBranch) ?? fallbackBranch;
+config.closeoutBranch = normalize(config.closeoutBranch) ?? fallbackBranch;
+fs.writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
+EOF_NODE
+  else
+    echo "soa-sync: node is required to migrate orchestrator.config.json branch roles" >&2
+    exit 1
+  fi
 }
 
 apply_migrations() {
@@ -242,6 +271,8 @@ if [ "$IS_SOURCE_REPO" = false ]; then
     cat > "$SOA_CONFIG" <<EOF_CONFIG
 {
   "defaultBranch": "main",
+  "deliveryBaseBranch": "main",
+  "closeoutBranch": "main",
   "planRoot": "docs",
   "runtime": "$_rt",
   "packageManager": "$_pm",

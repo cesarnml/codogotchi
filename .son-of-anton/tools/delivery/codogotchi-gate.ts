@@ -70,7 +70,10 @@ export function resolveCodogotchiHome(): string {
  */
 function resolveCanonicalGitRoot(cwd: string): string {
   try {
-    const raw = execSync('git rev-parse --git-common-dir', { cwd, encoding: 'utf8' }).trim();
+    const raw = execSync('git rev-parse --git-common-dir', {
+      cwd,
+      encoding: 'utf8',
+    }).trim();
     const absoluteCommonDir = isAbsolute(raw) ? raw : join(cwd, raw);
     return dirname(absoluteCommonDir);
   } catch {
@@ -87,7 +90,9 @@ export async function writeGateEvent(
     const home = resolveCodogotchiHome();
     const since = new Date();
     const expiresAt = new Date(since.getTime() + GATE_TTL_MS);
-    const repoRoot = resolveCanonicalGitRoot(resolve(event.repoRoot ?? process.cwd()));
+    const repoRoot = resolveCanonicalGitRoot(
+      resolve(event.repoRoot ?? process.cwd()),
+    );
     const payload: GateJsonPayload = {
       gate: event.gate,
       since: since.toISOString(),
@@ -98,12 +103,15 @@ export async function writeGateEvent(
     mkdirSync(home, { recursive: true });
     const serialized = JSON.stringify(payload);
     writeFileSync(join(home, GATE_JSON_FILENAME), serialized, 'utf8');
-    appendFileSync(join(home, GATE_TRANSITIONS_LOG_FILENAME), `${serialized}\n`, 'utf8');
+    appendFileSync(
+      join(home, GATE_TRANSITIONS_LOG_FILENAME),
+      `${serialized}\n`,
+      'utf8',
+    );
 
     const contextPayload: DeliveryContextJsonPayload = {
       owner: 'soa',
-      status:
-        event.gate === GATE_NAMES.TICKET_COMPLETED ? 'cleared' : 'active',
+      status: event.gate === GATE_NAMES.TICKET_COMPLETED ? 'cleared' : 'active',
       repo_root: repoRoot,
       plan_key: event.planKey,
       ticket_id: event.ticketId,

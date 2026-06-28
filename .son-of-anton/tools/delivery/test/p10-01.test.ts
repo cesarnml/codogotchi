@@ -24,6 +24,8 @@ import type { RunPolicy } from '../types';
 
 const baseResolvedConfig: ResolvedOrchestratorConfig = {
   defaultBranch: 'main',
+  deliveryBaseBranch: 'main',
+  closeoutBranch: 'main',
   planRoot: 'docs',
   runtime: 'bun',
   packageManager: 'bun',
@@ -42,7 +44,11 @@ describe('P10.01 — retired config keys throw on load', () => {
     try {
       await writeFile(
         join(tempDir, 'orchestrator.config.json'),
-        JSON.stringify({ subagentReviewRunner: { kind: 'claude-cli' } }),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          subagentReviewRunner: { kind: 'claude-cli' },
+        }),
       );
       await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
         /subagentReviewRunner.*has been removed/,
@@ -57,7 +63,11 @@ describe('P10.01 — retired config keys throw on load', () => {
     try {
       await writeFile(
         join(tempDir, 'orchestrator.config.json'),
-        JSON.stringify({ reviewSubagentOverride: 'codex:codex-rescue' }),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          reviewSubagentOverride: 'codex:codex-rescue',
+        }),
       );
       await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
         /reviewSubagentOverride.*has been removed/,
@@ -72,7 +82,11 @@ describe('P10.01 — retired config keys throw on load', () => {
     try {
       await writeFile(
         join(tempDir, 'orchestrator.config.json'),
-        JSON.stringify({ ticketBoundaryMode: 'cook' }),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          ticketBoundaryMode: 'cook',
+        }),
       );
       const config = await loadOrchestratorConfig(tempDir);
       expect(config.ticketBoundaryMode).toBe('cook');

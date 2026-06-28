@@ -39,6 +39,8 @@ function git(repo: string, args: string[]) {
 
 const baseConfig: ResolvedOrchestratorConfig = {
   defaultBranch: 'main',
+  deliveryBaseBranch: 'main',
+  closeoutBranch: 'main',
   planRoot: 'docs',
   runtime: 'bun',
   packageManager: 'bun',
@@ -643,6 +645,8 @@ describe('EE8.01 — post-verify observability and reviewPolicy config', () => {
       await writeFile(
         join(tempDir, 'orchestrator.config.json'),
         JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
           reviewPolicy: {
             subagentReview: 'required',
             prReview: 'skip_doc_only',
@@ -668,6 +672,8 @@ describe('EE8.01 — post-verify observability and reviewPolicy config', () => {
       await writeFile(
         join(tempDir, 'orchestrator.config.json'),
         JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
           reviewPolicy: {
             prReview: 'always',
           },
