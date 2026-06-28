@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-06-28T00:47:30.745Z",
+  "summary": {
+    "total": 14,
+    "patched": 6,
+    "rejected": 5,
+    "already-covered": 3,
+    "requires-human-review": 0
+  },
+  "dispositions": [
+    {
+      "disposition": "already-covered",
+      "rationale": "Patched as part of P12.01 actionable-finding resolution before TAO: test at slice-entry.test.ts:149 asserts first-in-array wins on equal timestamps (strict > contract), and the latestSlice comment at slice-entry.ts:72-74 documents the tie-resolution rule explicitly.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.01-subagent-review.report.md",
+        "ticketId": "P12.01"
+      },
+      "observation": "**Equal-`updated_at` tie behavior is untested and undocumented.** When two slices share an identical `updated_at` string, `latestSlice` returns the first-in-array winner (strict `>` means the second never displaces the first). This is a deterministic and defensible choice, but the tests do not cover it and the Rationale does not mention it. If a multi-session writer batches a flush at the same millisecond, the tie-resolution is array-order-dependent. Not a current production risk, but worth a test assertion and a comment on `latestSlice` to lock the contract."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The Rationale in ticket-01 explicitly chose inline to avoid re-exporting attentionSchema from state-json.ts. The extraction or cross-schema equality test is a valid follow-up but deferred to when the attention schema actually evolves. The coupling risk is real but not a current defect; rejecting here does not dismiss the concern — it stays visible in the subagent report if the attention schema diverges in a future phase.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.01-subagent-review.report.md",
+        "ticketId": "P12.01"
+      },
+      "observation": "**Inline attention schema duplication creates a maintenance coupling.** The `attentionSchema` in `slice-entry.ts` and the inline `attention` object schema in `stateJsonV1Schema` are currently identical, but they are structurally independent Zod schemas. A future PR adding a new `reason_kind` to `stateJsonV1Schema` that omits updating the inline copy in `slice-entry.ts` would cause slice validation to accept fewer reason kinds than the canonical schema — silently, with no TypeScript error. An extraction of a shared `attentionSchema` into a dedicated file (or into `state-json.ts` as an export) would eliminate the risk. The Rationale explicitly chose inline to avoid re-exporting from `state-json.ts`; that is a valid tradeoff, but a cross-schema equality test (asserting both inline schemas accept and reject the same payloads) would make the coupling explicit and catch future drift at test time."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Patched as part of P12.01 actionable-finding resolution before TAO: test at slice-entry.test.ts:177 passes a slice with all optional fields through globalAggregate and asserts each field (active_minutes, attention, tool_command, revive_until) appears on the returned StateJsonV1.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.01-subagent-review.report.md",
+        "ticketId": "P12.01"
+      },
+      "observation": "**Optional field round-trip coverage is absent in the test suite.** `slice-entry.test.ts` tests that optional v5 RPG fields are accepted by `sliceEntrySchema`, but no test passes a slice with populated optional fields through `globalAggregate` and asserts those fields appear on the returned `StateJsonV1`. A silent regression in `sliceToStateJson` (e.g., accidentally removing `active_minutes`) would not be caught by any existing test. Adding one round-trip test that populates all optional fields and reads them back off the reducer output would close this gap."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "CODOGOTCHI_DEBUG env-var debug logging is a future enhancement, not a current-phase obligation. The silent-drop posture is intentional (fire-and-forget hook contract); adding a debug-log path would need design around whether the hook stderr is safe to write to. Deferred to a later observability or debugging phase.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.02-subagent-review.report.md",
+        "ticketId": "P12.02"
+      },
+      "observation": "`readSliceDir`'s inner catch silently drops any unreadable or JSON-malformed slice file. Dropped slices produce no log line and no observable failure — the aggregate just returns a potentially older entry. If a future migration introduces a new slice shape that fails `JSON.parse` (or if a buggy writer produces truncated JSON), the failure would be invisible at runtime. Consider adding a debug-level log on the catch path gated behind a `CODOGOTCHI_DEBUG` env var; this costs nothing in the normal path and provides a diagnostic ladder when stale-display bugs are reported."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "No correctness issue. The lock serializes writeCounters (shared .hook-counters.json), and the slice write itself is already safe via atomic rename on distinct filenames. Relaxing the lock scope (separate the counters lock from the slice write) would be a performance optimization that belongs in a dedicated performance phase, not a refactor-phase advisory patch.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.02-subagent-review.report.md",
+        "ticketId": "P12.02"
+      },
+      "observation": "Both `writeSliceAtomic` and `writeCounters` execute inside `withHomeLock`. For cross-origin writes, the per-origin distinct filename makes the lock unnecessary for the slice write itself (atomic rename is sufficient). The lock is required only to protect the shared `.hook-counters.json`. Consequence: two hooks from different origins that arrive simultaneously must still serialize through one process-wide directory lock, adding latency proportional to the number of concurrently active agents. No correctness issue; flag for reviewers evaluating performance under simultaneous multi-agent use."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Replaced `JSON.parse(raw) as SliceEntry` with `sliceEntrySchema.safeParse(JSON.parse(raw))` in readSliceDir. Schema-invalid slices (e.g. a future schema-7.1 writer with extra required fields, or a file with an unknown activity_state value) are now dropped rather than forwarded to globalAggregate. Makes the read path consistent with writeSliceAtomic's validation discipline.",
+      "patch": {
+        "commitSha": "92031c01c3233f2a87fb5aa676b33efd6a664bd5",
+        "files": ["packages/cli/src/status.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.02-subagent-review.report.md",
+        "ticketId": "P12.02"
+      },
+      "observation": "The `readSliceDir` path in `status.ts` does `JSON.parse(raw) as SliceEntry` (a type cast) rather than `sliceEntrySchema.parse`. A valid-JSON-but-schema-invalid file (e.g., written by a future schema-7.1 writer with extra required fields) is silently accepted and passed to `globalAggregate`. If `updated_at` is present but `activity_state` is not a valid enum value, `globalAggregate` might pick that entry as the winner and produce a `StateJsonV1` with an unknown activity state. Adding a `sliceEntrySchema.safeParse` guard on read (dropping the invalid slice rather than using it) would make `readSliceDir` consistent with `writeSliceAtomic`'s validation discipline. This is a forward-compatibility concern, not a current-state defect."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Changed test description from 'proves concurrency safety' to 'proves same-process async I/O interleaving' so future readers understand what the Promise.all test actually asserts — not OS-level multi-process atomicity, which is guaranteed by the atomic-rename-on-distinct-filenames property and cannot be exercised in a JS test.",
+      "patch": {
+        "commitSha": "92031c01c3233f2a87fb5aa676b33efd6a664bd5",
+        "files": ["packages/cli/src/hook-binary.test.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.02-subagent-review.report.md",
+        "ticketId": "P12.02"
+      },
+      "observation": "The concurrent-write test title (\"proves concurrency safety\") overstates what a single-process `Promise.all` demonstrates. The test proves same-process async I/O interleaving leaves both slice files intact; it does not prove multi-process OS-level safety. That safety comes from the atomic-rename-on-distinct-filenames property, which is an OS invariant that no JS test can directly exercise. The comment in the test should narrow its claim to \"proves same-process I/O interleaving\" to avoid misleading future readers about what the test actually asserts."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The Rationale section already documents the deferral explicitly. The Refactor section uses permissive language ('optionally'), so there is no contradiction. Phase is complete and the ticket docs serve as post-hoc delivery evidence; annotating the Refactor section with a pointer to the Rationale is low value and risks introducing confusion about which section is operative.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.02-subagent-review.report.md",
+        "ticketId": "P12.02"
+      },
+      "observation": "The Refactor section of the ticket (ticket-02-cli-slice-writer.md line 35) says \"optionally unlink [state.json] on first slice write.\" The implementation does not do this; the Rationale section (line 56–58) explicitly records the deferral. No contradiction since the Refactor text is permissive, but a reader of the Refactor section alone could expect the unlink. The primary agent may want to annotate the Refactor text with a pointer to the Rationale deferral note to keep the two sections consistent."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Updated ticket-02 (lines 11 and 42) and ticket-03 (lines 10 and 27) to remove incorrect 'schema_version: 7 slice entry' claims. Slice files carry no top-level schema_version field — that field is injected by globalAggregate on aggregation. The implemented writer and reader agree; only the ticket docs were wrong.",
+      "patch": {
+        "commitSha": "92031c01c3233f2a87fb5aa676b33efd6a664bd5",
+        "files": [
+          "docs/product/delivery/phase-12/ticket-02-cli-slice-writer.md",
+          "docs/product/delivery/phase-12/ticket-03-swift-slice-reader.md"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.03-subagent-review.report.md",
+        "ticketId": "P12.03"
+      },
+      "observation": "`docs/product/delivery/phase-12/ticket-03-swift-slice-reader.md:10` and `:27` claim the Swift reader decodes or requires a `schema_version: 7` slice entry, and `docs/product/delivery/phase-12/ticket-02-cli-slice-writer.md` similarly says slice files contain `schema_version: 7`. The actual contract in `docs/product/delivery/phase-12/ticket-01-keyed-slice-contract.md:10`, `packages/contracts/src/slice-entry.ts:17-37`, `packages/cli/src/hook-binary.ts:1219-1237`, and `apps/menubar/Sources/StateJsonReader.swift:292-308` omits top-level `schema_version` from slices and only adds schema version 7 after aggregation. This is doc-vs-code drift, not a blocking code finding, because the implemented writer and reader agree."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "The P12.01 TAO patch (already-covered obs #1) adds a test and latestSlice comment documenting the strict > first-in-array tiebreak. Swift mirrors the same contract and the same filesystem-enumeration caveat. Pre-GA, with a single dev checkout, the risk is theoretical. No additional Swift-side test or comment is warranted at this phase boundary.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.03-subagent-review.report.md",
+        "ticketId": "P12.03"
+      },
+      "observation": "Equal `updated_at` ordering is not pinned. TS documents strict `>` with first-in-array wins, and Swift also uses strict `>`, but both arrays come from filesystem enumeration (`readdir` / `contentsOfDirectory`) with no explicit sort. If two slices have identical timestamps, status and the pet could choose whichever file enumeration yields first. This is outside the stated invariant, which only requires most-recent wins."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Updated DemoConfig.swift docstring (lines 5-12) to reference state.d/ instead of the legacy state.json path. LivePollingTooltips.swift does not exist on disk — the subagent's reference to it was based on an inferred filename that does not correspond to an actual file. Only DemoConfig.swift needed updating.",
+      "patch": {
+        "commitSha": "92031c01c3233f2a87fb5aa676b33efd6a664bd5",
+        "files": ["apps/menubar/Sources/DemoConfig.swift"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.03-subagent-review.report.md",
+        "ticketId": "P12.03"
+      },
+      "observation": "Some comments and tooltip copy still say `state.json` on paths now backed by `state.d/`, especially `LivePollingTooltips` and `DemoConfig` comments. The user-visible schema error copy is mostly legacy-reader/injected-test behavior after this change, so I did not treat it as a ticket-breaking behavior issue."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Updated ticket-04 Outcome section to reflect the implemented dev-permissive-when-unset behavior, removing the contradictory 'fail closed in production posture' wording that conflicted with both the Rationale and the code. The Rationale's runbook (set both SYNC_SHARED_SECRET and CODOGOTCHI_SYNC_SECRET together) is now the authoritative enforcement path.",
+      "patch": {
+        "commitSha": "92031c01c3233f2a87fb5aa676b33efd6a664bd5",
+        "files": [
+          "docs/product/delivery/phase-12/ticket-04-sync-shared-secret.md"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.04-subagent-review.report.md",
+        "ticketId": "P12.04"
+      },
+      "observation": "`docs/product/delivery/phase-12/ticket-04-sync-shared-secret.md` has internal doc drift: the Outcome says unset `SYNC_SHARED_SECRET` should fail closed in production posture, while the Rationale says unset is dev-permissive/backward-compatible and the code implements dev-permissive. This is outside the three finding-discipline clauses because the prompt explicitly selected dev-permissive unset/empty behavior."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added CODOGOTCHI_SYNC_SECRET to the USAGE Environment section in router.ts with a description of when to use it and a reference to the dev-permissive default. Operators enabling enforcement can now discover the env var from codogotchi help without hunting delivery docs.",
+      "patch": {
+        "commitSha": "92031c01c3233f2a87fb5aa676b33efd6a664bd5",
+        "files": ["packages/cli/src/router.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.04-subagent-review.report.md",
+        "ticketId": "P12.04"
+      },
+      "observation": "`packages/cli/src/router.ts` usage text documents `CODOGOTCHI_HOME` and `CODOGOTCHI_USER_ROOT` but not `CODOGOTCHI_SYNC_SECRET`. The env-only design is correct per ticket scope, but operators enabling server enforcement must discover the CLI env var from delivery docs rather than `codogotchi help`."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Collapsing 401 into postSucceeded=false preserves the existing result shape intentionally — the ticket's postSucceeded contract is binary and adding auth-specific error paths would require a new result field or status-code inspection downstream. Out of scope for this phase; no production consumer is affected pre-GA. An explicit auth error path belongs in the leaderboard/identity-auth phase.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-12/reviews/P12.04-subagent-review.report.md",
+        "ticketId": "P12.04"
+      },
+      "observation": "`packages/cli/src/sync.ts` collapses a 401 auth rejection into the same `sync failed`/`postSucceeded = false` path used for network and server failures. That preserves existing result shape and does not violate the ticket, but it gives no auth-specific feedback when the shared secret is missing or wrong."
+    }
+  ]
+}
