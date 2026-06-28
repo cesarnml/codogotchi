@@ -696,4 +696,20 @@ final class SliceDirReaderTests: XCTestCase {
 	func testExpectedSchemaVersionIs7() {
 		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 7)
 	}
+
+	// MARK: - Schema v8 slice (P13.03 — [red])
+
+	func testV8SliceWithNoRpgFieldsDecodesSuccessfully() {
+		// A v8 slice written by the hook omits RPG fields (they moved to
+		// rpg-state.json). readDirectory must accept it and return a valid snapshot.
+		let dir = makeTempSliceDir(slices: [
+			("claude_code:ses-v8.json", #"{"activity_state":"implementing","updated_at":"2026-06-28T10:00:00.000Z"}"#),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.activityState, .implementing)
+	}
 }
