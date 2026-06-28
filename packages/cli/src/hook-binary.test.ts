@@ -28,6 +28,16 @@ import {
 
 const FIXED_NOW = new Date("2026-05-18T15:00:00.000Z");
 
+function readRpgState(home: string): Record<string, unknown> {
+  try {
+    return JSON.parse(
+      readFileSync(join(home, "rpg-state.json"), "utf8"),
+    ) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 function readState(home: string): StateJsonV1 {
   const dir = sliceDirPath(home);
   let names: string[] = [];
@@ -1129,7 +1139,7 @@ describe("runHook", () => {
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(7);
+    expect(state.schema_version).toBe(8);
     expect(state.activity_state).toBe("editing");
     expect(state.hp).toBe(100);
     expect(state.hp_overlay).toBe("thriving");
@@ -1294,7 +1304,7 @@ describe("runHook", () => {
       now: FIXED_NOW,
     });
     const state = readState(home);
-    expect(state.schema_version).toBe(7);
+    expect(state.schema_version).toBe(8);
     expect(state.activity_state).toBe("standby");
   });
 
@@ -2295,20 +2305,26 @@ describe("runHook v5 local RPG fields", () => {
     else process.env.CODOGOTCHI_CODEX_ROOT = origCodexRoot;
   });
 
-  it("claude hook event writes v6 state with level, level_fraction, half_hearts, last_activity_at", async () => {
+  it("claude hook event writes v8 rpg-state.json with level, level_fraction, half_hearts, last_activity_at", async () => {
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(7);
-    expect(state.level).toBe(EXPECTED_LEVEL);
-    expect(state.level_fraction).toBeCloseTo(EXPECTED_LEVEL_FRACTION, 6);
-    expect(state.half_hearts).toBe(6);
-    expect(state.last_activity_at).toBe(FIXED_NOW.toISOString());
-    // Revival-meter source: the active-minute carry is surfaced into state.json
-    // so the renderer can draw revival progress. One event → 1 active-minute.
-    expect(state.active_minutes).toBe(1);
+    const rpg = readRpgState(home);
+    expect(state.schema_version).toBe(8);
+    expect(rpg.level).toBe(EXPECTED_LEVEL);
+    expect(rpg.level_fraction as number).toBeCloseTo(
+      EXPECTED_LEVEL_FRACTION,
+      6,
+    );
+    expect(rpg.half_hearts).toBe(6);
+    expect(rpg.last_activity_at).toBe(FIXED_NOW.toISOString());
+    // Revival-meter source: active-minute carry is now surfaced via rpg-state.json.
+    expect(rpg.active_minutes).toBe(1);
+    // Slice must NOT carry RPG fields.
+    expect(state.level).toBeUndefined();
+    expect(state.half_hearts).toBeUndefined();
   });
 
   it("second identical run does not increase XP (no double count)", async () => {
@@ -2316,17 +2332,17 @@ describe("runHook v5 local RPG fields", () => {
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { home, now: FIXED_NOW },
     );
-    const state1 = readState(home);
-    expect(state1.level).toBe(EXPECTED_LEVEL);
+    const rpg1 = readRpgState(home);
+    expect(rpg1.level).toBe(EXPECTED_LEVEL);
 
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { home, now: FIXED_NOW },
     );
-    const state2 = readState(home);
+    const rpg2 = readRpgState(home);
 
-    expect(state2.level).toBe(EXPECTED_LEVEL);
-    expect(state2.level_fraction).toBe(state1.level_fraction);
+    expect(rpg2.level).toBe(EXPECTED_LEVEL);
+    expect(rpg2.level_fraction).toBe(rpg1.level_fraction);
   });
 
   it("cursor-origin event updates last_activity_at but leaves level unchanged", async () => {
@@ -2335,20 +2351,18 @@ describe("runHook v5 local RPG fields", () => {
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { home, now: FIXED_NOW },
     );
-    const stateAfterClaude = readState(home);
+    const rpgAfterClaude = readRpgState(home);
 
     const laterNow = new Date(FIXED_NOW.getTime() + 30_000);
     await runHook(
       { hook_event_name: "beforeShellExecution" }, // cursor origin
       { home, now: laterNow },
     );
-    const stateAfterCursor = readState(home);
+    const rpgAfterCursor = readRpgState(home);
 
-    expect(stateAfterCursor.last_activity_at).toBe(laterNow.toISOString());
-    expect(stateAfterCursor.level).toBe(stateAfterClaude.level);
-    expect(stateAfterCursor.level_fraction).toBe(
-      stateAfterClaude.level_fraction,
-    );
+    expect(rpgAfterCursor.last_activity_at).toBe(laterNow.toISOString());
+    expect(rpgAfterCursor.level).toBe(rpgAfterClaude.level);
+    expect(rpgAfterCursor.level_fraction).toBe(rpgAfterClaude.level_fraction);
   });
 
   it("succeeds with rpg_enabled:true but no cloud config (no convex_http_url)", async () => {
@@ -2358,10 +2372,11 @@ describe("runHook v5 local RPG fields", () => {
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(7);
-    expect(state.level).toBeDefined();
-    expect(state.half_hearts).toBeDefined();
-    expect(state.last_activity_at).toBeDefined();
+    const rpg = readRpgState(home);
+    expect(state.schema_version).toBe(8);
+    expect(rpg.level).toBeDefined();
+    expect(rpg.half_hearts).toBeDefined();
+    expect(rpg.last_activity_at).toBeDefined();
   });
 
   it("credits at most one active-minute per wall-clock minute (heal unit is a minute, not a hook event)", async () => {
@@ -2432,7 +2447,7 @@ describe("slice-directory writer (P12.02 red)", () => {
     const expected = sliceFilePath(home, "claude_code", sessionId);
     expect(existsSync(expected)).toBe(true);
     const slice = JSON.parse(readFileSync(expected, "utf8"));
-    expect(slice.schema_version).toBe(7);
+    expect(slice.schema_version).toBe(8);
     expect(slice.origin).toBe("claude_code");
     expect(slice.session_id).toBe(sessionId);
     expect(slice.activity_state).toBeDefined();

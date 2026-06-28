@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { activityStateSchema, hpOverlaySchema } from "./animation-state";
 
-export const STATE_JSON_SCHEMA_VERSION = 7;
+export const STATE_JSON_SCHEMA_VERSION = 8;
 
 // Forward-compat policy from docs/contracts/animation-state-vocabulary.md:
 // renderers accept any `schema_version` ≤ EXPECTED_VERSION (this constant),
@@ -84,7 +84,8 @@ export const stateJsonV1Schema = z
     revive_until: z.string().datetime({ offset: true }).nullable().optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.schema_version >= 5) {
+    // RPG fields moved to rpg-state.json in v8; only required for v5–v7 payloads.
+    if (data.schema_version >= 5 && data.schema_version < 8) {
       const required: Array<keyof typeof data> = [
         "level",
         "level_fraction",
@@ -96,7 +97,7 @@ export const stateJsonV1Schema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: [field],
-            message: `${field} is required for schema_version >= 5`,
+            message: `${field} is required for schema_version 5–7`,
           });
         }
       }

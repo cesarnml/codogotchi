@@ -21,8 +21,8 @@ const baseV1Payload = {
 };
 
 describe("STATE_JSON_SCHEMA_VERSION", () => {
-  it("is 7 after the P12.01 keyed-state bump", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(7);
+  it("is 8 after the P13.01 schema v8 bump", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(8);
   });
 });
 
@@ -167,8 +167,8 @@ describe("schema v5 — RPG progression fields (P10.03)", () => {
     last_activity_at: "2026-06-03T00:00:00.000Z",
   };
 
-  it("STATE_JSON_SCHEMA_VERSION is 7", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(7);
+  it("STATE_JSON_SCHEMA_VERSION is 8", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(8);
   });
 
   it("parseStateJson accepts a v5 payload with all four new fields", () => {
@@ -276,27 +276,27 @@ describe("sourceEventOriginSchema — P9.01 vscode/antigravity origins", () => {
 });
 
 describe("forward-compat refusal", () => {
-  const baseV5Fields = {
+  const _baseV5Fields = {
     level: 1,
     level_fraction: 0,
     half_hearts: 6,
     last_activity_at: "2026-06-28T00:00:00.000Z",
   };
 
-  it("accepts schema_version 7 (now current)", () => {
-    const payload = { ...baseV1Payload, ...baseV5Fields, schema_version: 7 };
+  it("accepts schema_version 8 (now current — no RPG fields required)", () => {
+    const payload = { ...baseV1Payload, schema_version: 8 };
     expect(() => parseStateJson(payload)).not.toThrow();
   });
 
-  it("rejects schema_version 8 (one ahead of v7)", () => {
-    const payload = { ...baseV1Payload, ...baseV5Fields, schema_version: 8 };
+  it("rejects schema_version 9 (one ahead of v8)", () => {
+    const payload = { ...baseV1Payload, schema_version: 9 };
     expect(() => parseStateJson(payload)).toThrow();
   });
 });
 
 describe("schema v4 vocabulary", () => {
-  it("STATE_JSON_SCHEMA_VERSION is 7 (v4 vocabulary still tested below)", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(7);
+  it("STATE_JSON_SCHEMA_VERSION is 8 (v4 vocabulary still tested below)", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(8);
   });
 
   it("v4 hook states are members of ACTIVITY_STATES", () => {
@@ -346,15 +346,11 @@ describe("schema v4 vocabulary", () => {
     expect(() => parseStateJson(payload)).not.toThrow();
   });
 
-  it("parseStateJson accepts schema_version 7 (now current)", () => {
+  it("parseStateJson accepts schema_version 8 (now current — no RPG fields)", () => {
     const payload = {
       ...baseV1Payload,
-      schema_version: 7,
+      schema_version: 8,
       activity_state: "idle",
-      level: 1,
-      level_fraction: 0,
-      half_hearts: 6,
-      last_activity_at: "2026-06-28T00:00:00.000Z",
     };
     expect(() => parseStateJson(payload)).not.toThrow();
   });

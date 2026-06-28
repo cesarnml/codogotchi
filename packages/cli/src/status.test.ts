@@ -3,10 +3,11 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-  LootEventResponse,
-  ProfileResponse,
-  StateJsonV1,
+import {
+  type LootEventResponse,
+  type ProfileResponse,
+  STATE_JSON_SCHEMA_VERSION,
+  type StateJsonV1,
 } from "@codogotchi/contracts";
 import { lootLogPath } from "./loot";
 import { profileCachePath, runStatus, sliceDirPath } from "./status";
@@ -44,7 +45,7 @@ function profileFixture(overrides?: Partial<ProfileResponse>): ProfileResponse {
 
 function stateFixture(overrides?: Partial<StateJsonV1>): StateJsonV1 {
   return {
-    schema_version: 1,
+    schema_version: STATE_JSON_SCHEMA_VERSION,
     activity_state: "implementing",
     hp_overlay: "thriving",
     hp: 87,
@@ -243,6 +244,7 @@ describe("runStatus reads from state.d/ slice directory (P12.02 red)", () => {
     await mkdir(dir, { recursive: true });
 
     const olderSlice = {
+      schema_version: STATE_JSON_SCHEMA_VERSION,
       origin: "codex",
       session_id: "ses-codex-old",
       activity_state: "idle",
@@ -252,6 +254,7 @@ describe("runStatus reads from state.d/ slice directory (P12.02 red)", () => {
       source_event: { origin: "codex", kind: "tool_use", name: "Read" },
     };
     const newerSlice = {
+      schema_version: STATE_JSON_SCHEMA_VERSION,
       origin: "claude_code",
       session_id: "ses-claude-new",
       activity_state: "implementing",

@@ -14,28 +14,26 @@ const attentionSchema = z.object({
   expires_at: z.string().datetime({ offset: true }),
 });
 
-export const sliceEntrySchema = z.object({
-  schema_version: z.literal(STATE_JSON_SCHEMA_VERSION),
-  origin: sourceEventOriginSchema,
-  session_id: z
-    .string()
-    .min(1)
-    .regex(/^[^/\\]+$/, "session_id must not contain path separators"),
-  activity_state: activityStateSchema,
-  hp_overlay: hpOverlaySchema,
-  hp: z.number().int().min(-100).max(100),
-  updated_at: z.string().datetime({ offset: true }),
-  source_event: sourceEventSchema,
-  // v5 RPG fields
-  level: z.number().int().min(1).max(100).optional(),
-  level_fraction: z.number().min(0).max(1).optional(),
-  half_hearts: z.number().int().min(0).max(6).optional(),
-  active_minutes: z.number().int().min(0).optional(),
-  last_activity_at: z.string().datetime({ offset: true }).nullable().optional(),
-  attention: attentionSchema.optional(),
-  tool_command: z.string().optional(),
-  revive_until: z.string().datetime({ offset: true }).nullable().optional(),
-});
+// v8: RPG fields removed from slice; they now live in rpg-state.json.
+// .strict() rejects any unknown keys so stale v7 writers that include RPG fields
+// are caught at parse time rather than silently accepted.
+export const sliceEntrySchema = z
+  .object({
+    schema_version: z.literal(STATE_JSON_SCHEMA_VERSION),
+    origin: sourceEventOriginSchema,
+    session_id: z
+      .string()
+      .min(1)
+      .regex(/^[^/\\]+$/, "session_id must not contain path separators"),
+    activity_state: activityStateSchema,
+    hp_overlay: hpOverlaySchema,
+    hp: z.number().int().min(-100).max(100),
+    updated_at: z.string().datetime({ offset: true }),
+    source_event: sourceEventSchema,
+    attention: attentionSchema.optional(),
+    tool_command: z.string().optional(),
+  })
+  .strict();
 
 export type SliceEntry = z.infer<typeof sliceEntrySchema>;
 
@@ -59,14 +57,8 @@ function sliceToStateJson(slice: SliceEntry): StateJsonV1 {
     hp: slice.hp,
     updated_at: slice.updated_at,
     source_event: slice.source_event,
-    level: slice.level,
-    level_fraction: slice.level_fraction,
-    half_hearts: slice.half_hearts,
-    active_minutes: slice.active_minutes,
-    last_activity_at: slice.last_activity_at,
     attention: slice.attention,
     tool_command: slice.tool_command,
-    revive_until: slice.revive_until,
   };
 }
 
