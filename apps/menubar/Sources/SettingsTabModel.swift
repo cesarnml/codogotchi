@@ -4,6 +4,7 @@ import Foundation
 enum SettingsTab: Int, CaseIterable {
 	case general
 	case pet
+	case customization
 	case rpg
 	case developer
 	case about
@@ -12,6 +13,7 @@ enum SettingsTab: Int, CaseIterable {
 		switch self {
 		case .general: return "General"
 		case .pet: return "Pet"
+		case .customization: return "Customization"
 		case .rpg: return "RPG"
 		case .developer: return "Developer"
 		case .about: return "About"
