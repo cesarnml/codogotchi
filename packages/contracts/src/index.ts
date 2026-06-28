@@ -1,5 +1,6 @@
 export * from "./animation-state";
 export * from "./config";
+export * from "./customization";
 export * from "./decay-constants";
 export * from "./slice-entry";
 export * from "./soa-events";
