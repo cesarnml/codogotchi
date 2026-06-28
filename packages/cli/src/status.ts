@@ -25,31 +25,12 @@ function formatNumber(n: number): string {
   return Math.round(n).toLocaleString("en-US");
 }
 
-function stateJsonPath(home: string): string {
-  return join(home, "state.json");
-}
-
 export function sliceDirPath(home: string): string {
   return join(home, "state.d");
 }
 
 function lootLogPath(home: string): string {
   return join(home, "loot.log");
-}
-
-async function readStateJson(home: string): Promise<StateJsonV1 | null> {
-  let raw: string;
-  try {
-    raw = await readFile(stateJsonPath(home), "utf8");
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw err;
-  }
-  try {
-    return JSON.parse(raw) as StateJsonV1;
-  } catch {
-    return null;
-  }
 }
 
 export async function readSliceDir(home: string): Promise<SliceEntry[]> {
@@ -187,11 +168,8 @@ export async function runStatus(deps: StatusDeps): Promise<StatusResult> {
     readSliceDir(deps.home),
     readRecentLoot(deps.home),
   ]);
-  // Use globalAggregate when slice files exist; fall back to legacy state.json.
   const state: StateJsonV1 | null =
-    slices.length > 0
-      ? globalAggregate(slices)
-      : await readStateJson(deps.home);
+    slices.length > 0 ? globalAggregate(slices) : null;
   return {
     missingProfile: false,
     output: formatProfile(profile, state, loot, deps.now()),
@@ -204,6 +182,4 @@ export {
   profileCachePath,
   readProfileCache,
   readRecentLoot,
-  readStateJson,
-  stateJsonPath,
 };

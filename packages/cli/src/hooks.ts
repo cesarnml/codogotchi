@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   copyFile,
   mkdir,
+  readdir,
   readFile,
   rename,
   rm,
@@ -10,20 +11,42 @@ import {
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import type { StateJsonV1 } from "@codogotchi/contracts";
+import { sliceEntrySchema } from "@codogotchi/contracts";
 import type { InstallHooksContext } from "./setup";
 
 const CODOGOTCHI_HOME_REL = ".codogotchi";
-const STATE_JSON_REL = join(CODOGOTCHI_HOME_REL, "state.json");
+const CODOGOTCHI_STATE_D_REL = join(CODOGOTCHI_HOME_REL, "state.d");
 const FIRING_RECENTLY_WINDOW_MS = 5 * 60 * 1000;
 
-async function readStateJson(userRoot: string): Promise<StateJsonV1 | null> {
+async function readLatestSliceForHooks(
+  userRoot: string,
+): Promise<{ updated_at: string; origin: string } | null> {
+  const dir = join(userRoot, CODOGOTCHI_STATE_D_REL);
+  let names: string[];
   try {
-    const raw = await readFile(join(userRoot, STATE_JSON_REL), "utf8");
-    return JSON.parse(raw) as StateJsonV1;
+    names = await readdir(dir);
   } catch {
     return null;
   }
+  let winner: { updated_at: string; origin: string } | null = null;
+  for (const name of names) {
+    if (!name.endsWith(".json")) continue;
+    try {
+      const raw = await readFile(join(dir, name), "utf8");
+      const parsed = sliceEntrySchema.safeParse(JSON.parse(raw));
+      if (!parsed.success) continue;
+      const { updated_at, origin } = parsed.data;
+      if (
+        winner === null ||
+        new Date(updated_at).getTime() > new Date(winner.updated_at).getTime()
+      ) {
+        winner = { updated_at, origin };
+      }
+    } catch {
+      // skip unreadable files
+    }
+  }
+  return winner;
 }
 
 const CLAUDE_SETTINGS_REL = join(".claude", "settings.json");
@@ -1060,7 +1083,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
     fileExists(copilotPath),
     fileExists(geminiPath),
     detectPlatforms(),
-    readStateJson(root),
+    readLatestSliceForHooks(root),
   ]);
 
   const claude = claudePresent
@@ -1080,7 +1103,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
     : ({} as AntigravityHooksFile);
 
   const lastEventAt = state?.updated_at ?? null;
-  const origin = state?.source_event?.origin ?? null;
+  const origin = state?.origin ?? null;
   const firingRecently =
     lastEventAt !== null &&
     Date.now() - new Date(lastEventAt).getTime() < FIRING_RECENTLY_WINDOW_MS;
