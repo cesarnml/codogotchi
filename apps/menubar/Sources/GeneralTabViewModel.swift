@@ -98,8 +98,10 @@ final class GeneralTabViewModel {
 
 	/// Persists `menubar_icon_monochrome` to `customization.json` via read-merge-write
 	/// so it does not clobber platform_modes or idle_dismiss_ttl_seconds.
-	func setMonochromeMenubarIcon(_ value: Bool) {
-		menubarIconMonochrome = value
+	/// Returns `true` when the write succeeded; `false` if persistence was aborted.
+	/// Local state is only updated on success so the in-memory value stays in sync with disk.
+	@discardableResult
+	func setMonochromeMenubarIcon(_ value: Bool) -> Bool {
 		let url = URL(fileURLWithPath: customizationFilePath)
 		var payload: [String: Any] = [:]
 		let fileExists = FileManager.default.fileExists(atPath: customizationFilePath)
@@ -108,7 +110,7 @@ final class GeneralTabViewModel {
 				let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
 			else {
 				NSLog("GeneralTabViewModel: aborting monochrome write — file unreadable or invalid JSON")
-				return
+				return false
 			}
 			payload = existing
 		}
@@ -117,8 +119,15 @@ final class GeneralTabViewModel {
 		guard JSONSerialization.isValidJSONObject(payload),
 			let data = try? JSONSerialization.data(
 				withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
-		else { return }
-		try? data.write(to: url, options: .atomic)
+		else { return false }
+		do {
+			try data.write(to: url, options: .atomic)
+		} catch {
+			NSLog("GeneralTabViewModel: monochrome write failed — \(error)")
+			return false
+		}
+		menubarIconMonochrome = value
+		return true
 	}
 
 	/// Updates rows from an already-fetched snapshot. Safe to call on any queue.
