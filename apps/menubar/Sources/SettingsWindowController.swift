@@ -1,10 +1,12 @@
 import AppKit
 
 /// Shows the Settings window — a standard macOS window (not an `NSPanel`) with
-/// four selectable tabs:
+/// six selectable tabs:
 /// - **General**: per-platform hook install/uninstall/status; Cursor native-hook note.
 /// - **Pet**: list + select pets from `~/.codogotchi/pets/`; import from `~/.codex/pets/`.
-/// - **Developer**: read-only observability (richer wiring lands in P8.08).
+/// - **Customization**: per-platform mode pickers and idle-dismiss TTL.
+/// - **RPG**: HUD opt-out toggle.
+/// - **Developer**: read-only observability.
 /// - **About**: app version, bundled hook-binary version, and product links.
 ///
 /// Tab order and selection state live in the AppKit-free `SettingsTabModel` so

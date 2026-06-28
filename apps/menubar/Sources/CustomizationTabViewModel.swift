@@ -75,10 +75,23 @@ final class CustomizationTabViewModel {
 		// Read-merge-write: load existing keys first so unmanaged keys
 		// (e.g. menubar_icon_monochrome written by P13.07) survive this write.
 		var payload: [String: Any] = [:]
-		if let data = try? Data(contentsOf: url),
-			let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-		{
+		let fileExists = FileManager.default.fileExists(atPath: filePath)
+		if fileExists {
+			// Abort if the file exists but cannot be read or parsed — starting from
+			// {} would silently clobber unmanaged keys like menubar_icon_monochrome.
+			guard let data = try? Data(contentsOf: url),
+				let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+			else {
+				NSLog(
+					"CustomizationTabViewModel: aborting write — existing file unreadable or not a JSON object"
+				)
+				return
+			}
 			payload = existing
+		}
+		// Seed schema_version on new files; preserve it from existing files.
+		if payload["schema_version"] == nil {
+			payload["schema_version"] = 1
 		}
 		let modesPayload: [String: String] = platformModes.mapValues { $0.rawValue }
 		if modesPayload.isEmpty {
