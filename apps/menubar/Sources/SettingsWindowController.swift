@@ -135,8 +135,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			onUninstallHooks: { [weak self] in self?.handleUninstallHooks() }
 		)
 		general.onMonochromeToggled = { [weak self] isMonochrome in
-			self?.generalViewModel.setMonochromeMenubarIcon(isMonochrome)
-			self?.onMonochromeChanged?(isMonochrome)
+			let persisted = self?.generalViewModel.setMonochromeMenubarIcon(isMonochrome) ?? false
+			if persisted { self?.onMonochromeChanged?(isMonochrome) }
 		}
 		petTabViewModel.onActivePetChanged = { [weak self] petId in
 			self?.onPetActivated?(petId)
