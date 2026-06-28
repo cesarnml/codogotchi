@@ -88,6 +88,25 @@ final class CustomizationJsonReaderTests: XCTestCase {
 		XCTAssertEqual(snapshot.platformModes["claude_code"], .own, "invalid mode string must degrade to .own")
 	}
 
+	// MARK: - Negative idle_dismiss_ttl_seconds → clamped to 300
+
+	func testNegativeTtlClampsToDefault() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-neg-ttl-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "platform_modes": {},
+			  "idle_dismiss_ttl_seconds": -1,
+			  "menubar_icon_monochrome": false
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		XCTAssertEqual(snapshot.idleDismissTtlSeconds, 300, "negative TTL must be clamped to 300s default")
+	}
+
 	// MARK: - idle_dismiss_ttl_seconds: 0 → valid (Never)
 
 	func testTtlZeroIsValidNeverDismiss() throws {

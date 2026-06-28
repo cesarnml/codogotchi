@@ -42,9 +42,10 @@ enum CustomizationJsonReader {
 
 		let modes = (payload.platformModes ?? [:])
 			.mapValues { PlatformMode(rawValue: $0) ?? .own }
+		let rawTtl = payload.idleDismissTtlSeconds ?? 300
 		return CustomizationSnapshot(
 			platformModes: modes,
-			idleDismissTtlSeconds: payload.idleDismissTtlSeconds ?? 300,
+			idleDismissTtlSeconds: rawTtl < 0 ? 300 : rawTtl,
 			menubarIconMonochrome: payload.menubarIconMonochrome ?? false
 		)
 	}
