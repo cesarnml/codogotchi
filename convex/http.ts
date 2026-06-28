@@ -18,6 +18,17 @@ http.route({
   path: "/sync",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
+    const requiredSecret = process.env.SYNC_SHARED_SECRET;
+    if (requiredSecret) {
+      const provided = request.headers.get("x-codogotchi-sync-secret") ?? "";
+      if (provided !== requiredSecret) {
+        return jsonError(401, {
+          error: "unauthorized",
+          message: "Missing or invalid x-codogotchi-sync-secret header.",
+        });
+      }
+    }
+
     let raw: unknown;
     try {
       raw = await request.json();

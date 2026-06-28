@@ -295,6 +295,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       readers: defaultReaders(gate.config),
       fetch,
       now: () => new Date(),
+      syncSecret: process.env.CODOGOTCHI_SYNC_SECRET,
     });
     const summary = [
       `sync ${result.exitCode === 0 ? "ok" : "failed"}`,

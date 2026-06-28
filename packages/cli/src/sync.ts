@@ -152,9 +152,15 @@ export async function runSync(deps: SyncDeps): Promise<SyncResult> {
   let postSucceeded = false;
   let response: SyncProfileResponse | null = null;
   try {
+    const fetchHeaders: Record<string, string> = {
+      "content-type": "application/json",
+    };
+    if (deps.syncSecret) {
+      fetchHeaders["x-codogotchi-sync-secret"] = deps.syncSecret;
+    }
     const res = await doFetch(`${config.convex_http_url}/sync`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: fetchHeaders,
       body: JSON.stringify(payload),
     });
     if (res.ok) {

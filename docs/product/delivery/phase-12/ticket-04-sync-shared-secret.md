@@ -40,10 +40,12 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+**Why this path:** Dev-permissive when `SYNC_SHARED_SECRET` is unset — the handler allows requests through if the env var is not set. This means existing production deployments (which do not have the env var configured) are unaffected until the operator explicitly sets the secret in the Convex dashboard. No live syncing buddies are broken by this PR.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+**Alternative considered:** Fail-closed when unset (always reject). Rejected because it would silently break local Convex dev environments and any existing production syncs until every deployment is updated simultaneously. The dev-permissive posture is the safer rollout path.
+
+**Production sync posture confirmed:** Phase 10 shipped sync as available to users. The dev-permissive-when-unset design preserves backward compatibility. To enable enforcement: set `SYNC_SHARED_SECRET` in the Convex dashboard AND set `CODOGOTCHI_SYNC_SECRET` in the CLI config (`process.env`). Both sides must be updated together.
+
+**Deferred:** Identity-grade auth — preventing one enrolled user from POSTing another user's `profile_id`. All CLI clients share the same shared secret; this does not stop impersonation within enrolled users. Deferred to the leaderboard phase per ticket scope.
+
+**Contract note:** `CODOGOTCHI_SYNC_SECRET` is an env-var-only injection into `SyncDeps.syncSecret` at the `router.ts` call site — it is not stored in `~/.codogotchi/config.json`. This keeps the secret out of the on-disk user config and avoids schema churn.
