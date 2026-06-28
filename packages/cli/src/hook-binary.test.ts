@@ -28,6 +28,16 @@ import {
 
 const FIXED_NOW = new Date("2026-05-18T15:00:00.000Z");
 
+function readRpgState(home: string): Record<string, unknown> {
+  try {
+    return JSON.parse(
+      readFileSync(join(home, "rpg-state.json"), "utf8"),
+    ) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 function readState(home: string): StateJsonV1 {
   const dir = sliceDirPath(home);
   let names: string[] = [];
@@ -1129,7 +1139,7 @@ describe("runHook", () => {
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(7);
+    expect(state.schema_version).toBe(8);
     expect(state.activity_state).toBe("editing");
     expect(state.hp).toBe(100);
     expect(state.hp_overlay).toBe("thriving");
@@ -1294,7 +1304,7 @@ describe("runHook", () => {
       now: FIXED_NOW,
     });
     const state = readState(home);
-    expect(state.schema_version).toBe(7);
+    expect(state.schema_version).toBe(8);
     expect(state.activity_state).toBe("standby");
   });
 
@@ -1916,6 +1926,134 @@ describe("shellCommandSegments", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// P13.01 Red tests — rpg-state.json separation
+// runHook must write rpg-state.json with RPG fields and omit them from slices.
+// These tests MUST fail until the implementation is in place.
+// ---------------------------------------------------------------------------
+describe("P13.01 rpg-state.json separation (red)", () => {
+  let home: string;
+  let claudeRoot: string;
+  const origClaudeRoot = process.env.CODOGOTCHI_CLAUDE_ROOT;
+  const origCodexRoot = process.env.CODOGOTCHI_CODEX_ROOT;
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "codogotchi-p1301-"));
+    claudeRoot = join(home, "claude-sessions");
+    mkdirSync(claudeRoot, { recursive: true });
+    process.env.CODOGOTCHI_CLAUDE_ROOT = claudeRoot;
+    process.env.CODOGOTCHI_CODEX_ROOT = join(home, "codex-sessions");
+    writeFileSync(
+      join(home, "config.json"),
+      JSON.stringify({
+        profile_id: "test-profile",
+        features: { rpg_enabled: true },
+      }),
+    );
+    // Pre-seed XP cache so computeAndPersistV5Fields runs its incremental path.
+    const cursorBeforeFixture = new Date(
+      new Date(FIXTURE_EVENT_TS).getTime() - 1000,
+    ).toISOString();
+    writeFileSync(
+      join(home, ".local-xp-cache.json"),
+      JSON.stringify({ last_read_at_claude: cursorBeforeFixture }),
+    );
+    // One fixture JSONL with tokens to drive level computation.
+    const projDir = join(claudeRoot, "fixture-project");
+    mkdirSync(projDir, { recursive: true });
+    writeFileSync(join(projDir, "transcript.jsonl"), `${FIXTURE_JSONL_LINE}\n`);
+  });
+
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+    if (origClaudeRoot === undefined) delete process.env.CODOGOTCHI_CLAUDE_ROOT;
+    else process.env.CODOGOTCHI_CLAUDE_ROOT = origClaudeRoot;
+    if (origCodexRoot === undefined) delete process.env.CODOGOTCHI_CODEX_ROOT;
+    else process.env.CODOGOTCHI_CODEX_ROOT = origCodexRoot;
+  });
+
+  it("runHook with rpg_enabled writes rpg-state.json with level/half_hearts; slice has neither", async () => {
+    const sessionId = "ses-p1301";
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: FIXED_NOW },
+    );
+
+    // rpg-state.json must exist and carry RPG fields
+    const rpgPath = join(home, "rpg-state.json");
+    expect(existsSync(rpgPath)).toBe(true);
+    const rpg = JSON.parse(readFileSync(rpgPath, "utf8"));
+    expect(typeof rpg.level).toBe("number");
+    expect(typeof rpg.half_hearts).toBe("number");
+
+    // slice file must NOT contain RPG fields (they moved to rpg-state.json)
+    const slicePath = sliceFilePath(home, "claude_code", sessionId);
+    expect(existsSync(slicePath)).toBe(true);
+    const slice = JSON.parse(readFileSync(slicePath, "utf8"));
+    expect(slice.level).toBeUndefined();
+    expect(slice.half_hearts).toBeUndefined();
+    expect(slice.level_fraction).toBeUndefined();
+    expect(slice.active_minutes).toBeUndefined();
+    expect(slice.last_activity_at).toBeUndefined();
+    expect(slice.revive_until).toBeUndefined();
+  });
+
+  it("migration seed: v7 slice with half_hearts:4 level:3 seeds rpg-state.json on first runHook", async () => {
+    // Plant a v7 slice in state.d/ (last-writer-wins seed source).
+    const sliceDir = join(home, "state.d");
+    mkdirSync(sliceDir, { recursive: true });
+    const v7Slice = {
+      schema_version: 7,
+      origin: "claude_code",
+      session_id: "seed-session",
+      activity_state: "idle",
+      hp_overlay: "thriving",
+      hp: 100,
+      updated_at: "2026-06-27T12:00:00.000Z",
+      source_event: { origin: "claude_code", kind: "cli", name: "test" },
+      level: 3,
+      level_fraction: 0.25,
+      half_hearts: 4,
+      active_minutes: 10,
+      last_activity_at: "2026-06-27T12:00:00.000Z",
+    };
+    writeFileSync(
+      join(sliceDir, "claude_code:seed-session.json"),
+      JSON.stringify(v7Slice),
+      "utf8",
+    );
+
+    // rpg-state.json must not exist yet
+    expect(existsSync(join(home, "rpg-state.json"))).toBe(false);
+
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: "new-session",
+      },
+      { home, now: FIXED_NOW },
+    );
+
+    // rpg-state.json must be seeded from the v7 slice.
+    // Pin level_fraction and active_minutes too — they uniquely identify the
+    // seed path (v5-computed values cannot yield 0.25 and 10 simultaneously).
+    const rpgPath = join(home, "rpg-state.json");
+    expect(existsSync(rpgPath)).toBe(true);
+    const rpg = JSON.parse(readFileSync(rpgPath, "utf8"));
+    expect(rpg.level).toBe(3);
+    expect(rpg.half_hearts).toBe(4);
+    expect(rpg.level_fraction).toBe(0.25);
+    expect(rpg.active_minutes).toBe(10);
+  });
+});
+
 describe("quoted-pipe search commands classify as searching", () => {
   // Regression for the quote-blind splitShellPipes bug: search-intent commands
   // whose regex/glob contained `|` were misrouted to `implementing`.
@@ -2171,20 +2309,26 @@ describe("runHook v5 local RPG fields", () => {
     else process.env.CODOGOTCHI_CODEX_ROOT = origCodexRoot;
   });
 
-  it("claude hook event writes v6 state with level, level_fraction, half_hearts, last_activity_at", async () => {
+  it("claude hook event writes v8 rpg-state.json with level, level_fraction, half_hearts, last_activity_at", async () => {
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(7);
-    expect(state.level).toBe(EXPECTED_LEVEL);
-    expect(state.level_fraction).toBeCloseTo(EXPECTED_LEVEL_FRACTION, 6);
-    expect(state.half_hearts).toBe(6);
-    expect(state.last_activity_at).toBe(FIXED_NOW.toISOString());
-    // Revival-meter source: the active-minute carry is surfaced into state.json
-    // so the renderer can draw revival progress. One event → 1 active-minute.
-    expect(state.active_minutes).toBe(1);
+    const rpg = readRpgState(home);
+    expect(state.schema_version).toBe(8);
+    expect(rpg.level).toBe(EXPECTED_LEVEL);
+    expect(rpg.level_fraction as number).toBeCloseTo(
+      EXPECTED_LEVEL_FRACTION,
+      6,
+    );
+    expect(rpg.half_hearts).toBe(6);
+    expect(rpg.last_activity_at).toBe(FIXED_NOW.toISOString());
+    // Revival-meter source: active-minute carry is now surfaced via rpg-state.json.
+    expect(rpg.active_minutes).toBe(1);
+    // Slice must NOT carry RPG fields.
+    expect(state.level).toBeUndefined();
+    expect(state.half_hearts).toBeUndefined();
   });
 
   it("second identical run does not increase XP (no double count)", async () => {
@@ -2192,17 +2336,17 @@ describe("runHook v5 local RPG fields", () => {
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { home, now: FIXED_NOW },
     );
-    const state1 = readState(home);
-    expect(state1.level).toBe(EXPECTED_LEVEL);
+    const rpg1 = readRpgState(home);
+    expect(rpg1.level).toBe(EXPECTED_LEVEL);
 
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { home, now: FIXED_NOW },
     );
-    const state2 = readState(home);
+    const rpg2 = readRpgState(home);
 
-    expect(state2.level).toBe(EXPECTED_LEVEL);
-    expect(state2.level_fraction).toBe(state1.level_fraction);
+    expect(rpg2.level).toBe(EXPECTED_LEVEL);
+    expect(rpg2.level_fraction).toBe(rpg1.level_fraction);
   });
 
   it("cursor-origin event updates last_activity_at but leaves level unchanged", async () => {
@@ -2211,20 +2355,18 @@ describe("runHook v5 local RPG fields", () => {
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { home, now: FIXED_NOW },
     );
-    const stateAfterClaude = readState(home);
+    const rpgAfterClaude = readRpgState(home);
 
     const laterNow = new Date(FIXED_NOW.getTime() + 30_000);
     await runHook(
       { hook_event_name: "beforeShellExecution" }, // cursor origin
       { home, now: laterNow },
     );
-    const stateAfterCursor = readState(home);
+    const rpgAfterCursor = readRpgState(home);
 
-    expect(stateAfterCursor.last_activity_at).toBe(laterNow.toISOString());
-    expect(stateAfterCursor.level).toBe(stateAfterClaude.level);
-    expect(stateAfterCursor.level_fraction).toBe(
-      stateAfterClaude.level_fraction,
-    );
+    expect(rpgAfterCursor.last_activity_at).toBe(laterNow.toISOString());
+    expect(rpgAfterCursor.level).toBe(rpgAfterClaude.level);
+    expect(rpgAfterCursor.level_fraction).toBe(rpgAfterClaude.level_fraction);
   });
 
   it("succeeds with rpg_enabled:true but no cloud config (no convex_http_url)", async () => {
@@ -2234,10 +2376,11 @@ describe("runHook v5 local RPG fields", () => {
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(7);
-    expect(state.level).toBeDefined();
-    expect(state.half_hearts).toBeDefined();
-    expect(state.last_activity_at).toBeDefined();
+    const rpg = readRpgState(home);
+    expect(state.schema_version).toBe(8);
+    expect(rpg.level).toBeDefined();
+    expect(rpg.half_hearts).toBeDefined();
+    expect(rpg.last_activity_at).toBeDefined();
   });
 
   it("credits at most one active-minute per wall-clock minute (heal unit is a minute, not a hook event)", async () => {
@@ -2308,7 +2451,7 @@ describe("slice-directory writer (P12.02 red)", () => {
     const expected = sliceFilePath(home, "claude_code", sessionId);
     expect(existsSync(expected)).toBe(true);
     const slice = JSON.parse(readFileSync(expected, "utf8"));
-    expect(slice.schema_version).toBe(7);
+    expect(slice.schema_version).toBe(8);
     expect(slice.origin).toBe("claude_code");
     expect(slice.session_id).toBe(sessionId);
     expect(slice.activity_state).toBeDefined();

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   mkdir,
+  readdir,
   readFile,
   rename,
   rmdir,
@@ -1026,6 +1027,99 @@ export function sliceFilePath(
   return join(sliceDirPath(home), `${origin}:${sessionId}.json`);
 }
 
+export function rpgStatePath(home: string): string {
+  return join(home, "rpg-state.json");
+}
+
+type RpgStateJson = {
+  level: number;
+  level_fraction: number;
+  half_hearts: number;
+  active_minutes: number;
+  last_activity_at: string | null;
+  revive_until: string | null;
+};
+
+async function writeRpgStateAtomic(
+  home: string,
+  fields: RpgStateJson,
+): Promise<void> {
+  const target = rpgStatePath(home);
+  const tmp = tempName(target);
+  await writeFile(tmp, `${JSON.stringify(fields, null, 2)}\n`, "utf8");
+  await rename(tmp, target);
+}
+
+// Scans state.d/ for legacy v7 slices that carry RPG fields. Returns the
+// fields from the slice with the most-recent updated_at (last-writer-wins),
+// or null when no v7-era slices are found (fresh install or already migrated).
+// Falls back to state.json (for users who had no concurrent sessions), then
+// to null (caller uses freshly computed v5 defaults).
+async function seedRpgState(home: string): Promise<RpgStateJson | null> {
+  const dir = sliceDirPath(home);
+  let best: { updatedAt: number; fields: RpgStateJson } | null = null;
+  try {
+    const files = await readdir(dir);
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      try {
+        const raw = await readFile(join(dir, file), "utf8");
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (
+          typeof parsed.level !== "number" ||
+          typeof parsed.half_hearts !== "number"
+        )
+          continue;
+        const updatedAt = new Date(parsed.updated_at as string).getTime();
+        if (!Number.isFinite(updatedAt)) continue;
+        if (best === null || updatedAt > best.updatedAt) {
+          best = {
+            updatedAt,
+            fields: rpgFieldsFromRaw(parsed),
+          };
+        }
+      } catch {
+        // Skip malformed slice files
+      }
+    }
+  } catch {
+    // state.d/ may not exist yet
+  }
+  if (best !== null) return best.fields;
+
+  // Fallback: users with no state.d/ directory had their RPG state in state.json.
+  try {
+    const raw = await readFile(statePath(home), "utf8");
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (
+      typeof parsed.level === "number" &&
+      typeof parsed.half_hearts === "number"
+    ) {
+      return rpgFieldsFromRaw(parsed);
+    }
+  } catch {
+    // state.json absent or malformed — fall through to null
+  }
+
+  return null;
+}
+
+function rpgFieldsFromRaw(parsed: Record<string, unknown>): RpgStateJson {
+  return {
+    level: parsed.level as number,
+    level_fraction:
+      typeof parsed.level_fraction === "number" ? parsed.level_fraction : 0,
+    half_hearts: parsed.half_hearts as number,
+    active_minutes:
+      typeof parsed.active_minutes === "number" ? parsed.active_minutes : 0,
+    last_activity_at:
+      typeof parsed.last_activity_at === "string"
+        ? parsed.last_activity_at
+        : null,
+    revive_until: null,
+  };
+}
+
 export async function writeSliceAtomic(
   home: string,
   slice: SliceEntry,
@@ -1226,19 +1320,35 @@ export async function runHook(
       hp,
       updated_at: opts.now.toISOString(),
       source_event: sourceEvent,
-      ...(v5 !== null && {
-        level: v5.level,
-        level_fraction: v5.level_fraction,
-        half_hearts: v5.half_hearts,
-        active_minutes: v5.active_minutes,
-        last_activity_at: v5.last_activity_at,
-        ...(v5.revive_until !== null && { revive_until: v5.revive_until }),
-      }),
       ...(attention !== undefined && { attention }),
       ...(toolCommand !== undefined && { tool_command: toolCommand }),
     };
 
     await writeSliceAtomic(opts.home, slice);
+
+    // v8: RPG state lives in rpg-state.json, separate from the slice.
+    // On first write (file absent), seed from legacy v7 slices; subsequent
+    // writes use the freshly computed v5 fields from computeAndPersistV5Fields.
+    if (v5 !== null) {
+      const computed: RpgStateJson = {
+        level: v5.level,
+        level_fraction: v5.level_fraction,
+        half_hearts: v5.half_hearts,
+        active_minutes: v5.active_minutes,
+        last_activity_at: v5.last_activity_at,
+        revive_until: v5.revive_until,
+      };
+      let rpgToWrite = computed;
+      try {
+        await stat(rpgStatePath(opts.home));
+      } catch {
+        // First write — try to migrate from v7 slice data.
+        const seeded = await seedRpgState(opts.home);
+        if (seeded !== null) rpgToWrite = seeded;
+      }
+      await writeRpgStateAtomic(opts.home, rpgToWrite);
+    }
+
     await writeCounters(opts.home, {
       read_run: classified.readRun,
     });

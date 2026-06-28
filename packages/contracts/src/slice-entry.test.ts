@@ -47,20 +47,6 @@ describe("sliceEntrySchema — validator", () => {
     expect(() => sliceEntrySchema.parse(noState)).toThrow();
   });
 
-  it("accepts a slice with all optional v5 RPG fields", () => {
-    expect(() =>
-      sliceEntrySchema.parse(
-        makeSlice({
-          level: 5,
-          level_fraction: 0.5,
-          half_hearts: 4,
-          active_minutes: 12,
-          last_activity_at: "2026-06-28T00:00:00.000Z",
-        }),
-      ),
-    ).not.toThrow();
-  });
-
   it("accepts a slice with attention field", () => {
     expect(() =>
       sliceEntrySchema.parse(
@@ -74,6 +60,24 @@ describe("sliceEntrySchema — validator", () => {
         }),
       ),
     ).not.toThrow();
+  });
+
+  // P13.01 red: v8 removes RPG fields from the slice schema (they move to rpg-state.json).
+  // Strict schema must reject a payload that carries RPG fields.
+  it("v8 slice: RPG fields present in payload are rejected (strict — RPG belongs in rpg-state.json)", () => {
+    const payloadWithRpg = {
+      schema_version: STATE_JSON_SCHEMA_VERSION,
+      origin: "claude_code",
+      session_id: "test-v8-rpg",
+      activity_state: "idle",
+      hp_overlay: "thriving",
+      hp: 100,
+      updated_at: "2026-06-28T00:00:00.000Z",
+      source_event: { origin: "claude_code", kind: "cli", name: "test" },
+      level: 5,
+      half_hearts: 4,
+    };
+    expect(() => sliceEntrySchema.parse(payloadWithRpg)).toThrow();
   });
 });
 
@@ -178,13 +182,7 @@ describe("globalAggregate — tiebreak (most-recent updated_at wins)", () => {
 
   it("optional fields survive a globalAggregate round-trip", () => {
     const slice = makeSlice({
-      level: 5,
-      level_fraction: 0.5,
-      half_hearts: 4,
-      active_minutes: 12,
-      last_activity_at: "2026-06-28T00:00:00.000Z",
       tool_command: "bash",
-      revive_until: "2026-06-28T00:00:05.000Z",
       attention: {
         reason_kind: "input_requested",
         summary: "Waiting",
@@ -193,13 +191,7 @@ describe("globalAggregate — tiebreak (most-recent updated_at wins)", () => {
       },
     });
     const result = globalAggregate([slice]);
-    expect(result.level).toBe(5);
-    expect(result.level_fraction).toBe(0.5);
-    expect(result.half_hearts).toBe(4);
-    expect(result.active_minutes).toBe(12);
-    expect(result.last_activity_at).toBe("2026-06-28T00:00:00.000Z");
     expect(result.tool_command).toBe("bash");
-    expect(result.revive_until).toBe("2026-06-28T00:00:05.000Z");
     expect(result.attention?.reason_kind).toBe("input_requested");
   });
 
