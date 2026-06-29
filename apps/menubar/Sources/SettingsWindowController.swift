@@ -1128,6 +1128,11 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 				action: #selector(badgeMenuItemClicked(_:)),
 				keyEquivalent: "")
 			item.state = currentBadges.contains(badgeKey) ? .on : .off
+			// Default cannot be unassigned — disable the checked item so the
+			// menu makes clear it is not a toggle.
+			if badgeKey == "default" && currentBadges.contains("default") {
+				item.isEnabled = false
+			}
 			item.target = self
 			objc_setAssociatedObject(
 				item, &badgeMenuItemKey, (petId, badgeKey), .OBJC_ASSOCIATION_RETAIN)
@@ -1137,7 +1142,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		menu.popUp(positioning: menu.items.first, at: point, in: sender)
 	}
 
-	/// Toggles the badge selected in the assign dropdown and rebuilds the grid.
+	/// Toggles the badge selected in the assign dropdown and reloads the grid.
 	@objc private func badgeMenuItemClicked(_ sender: NSMenuItem) {
 		guard
 			let (petId, badgeKey) = objc_getAssociatedObject(
@@ -1149,7 +1154,9 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		} else {
 			try? viewModel.assign(badge: badgeKey, to: petId)
 		}
-		rebuildGrid()
+		// reloadEntries pulls a fresh catalog (including updated isDefault flags)
+		// so the Default-badge blue border moves to the new holder immediately.
+		reloadEntries()
 	}
 
 	/// Import icon tapped for an importable pet.
