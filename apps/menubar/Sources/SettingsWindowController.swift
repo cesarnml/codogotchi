@@ -404,6 +404,13 @@ private final class GeneralTabView: NSView {
 	}
 
 	private func setupViews() {
+		// Prevent unsatisfiable-constraint log when the view is constructed at
+		// .zero before joining the window hierarchy. The real window min-width
+		// (460pt) wins once the view is in the superview chain.
+		let floor = widthAnchor.constraint(greaterThanOrEqualToConstant: 460)
+		floor.priority = .defaultHigh
+		floor.isActive = true
+
 		let title = settingsSectionTitle("Hooks")
 		addSubview(title)
 
