@@ -67,8 +67,15 @@ final class FloatingPetWindowPool {
 
 		// Step 2: update tracking for each visible origin
 		for (origin, state) in visibleEntries {
-			// TTL clock: record wall-clock time we last observed this origin
-			lastSeenAt[origin] = currentTime
+			// TTL clock: advance only while the origin is doing work. The idle-dismiss
+			// TTL measures how long a pet has been idle, so an idle slice must NOT
+			// refresh this clock — otherwise a still-present idle pet (whose slice
+			// lingers in state.d/ for hours) reads as "just seen" every tick and never
+			// dismisses. Seed on first sight so a freshly-observed idle pet still gets a
+			// full TTL grace window before it disappears.
+			if state.activityState != .idle || lastSeenAt[origin] == nil {
+				lastSeenAt[origin] = currentTime
+			}
 			// Active-origin election: track snapshot's own updated_at timestamp
 			let stateDate = StateJsonReader.parseISO8601Date(state.updatedAt) ?? currentTime
 			if lastUpdatedAt[origin] == nil || stateDate > lastUpdatedAt[origin]! {
@@ -103,12 +110,20 @@ final class FloatingPetWindowPool {
 			}
 		}
 
-		// Step 5b: dismiss stale own-mode windows (skip last-active)
-		let staleKeys = windows.keys.filter { key in
-			guard key != lastActiveWindowKey else { return false }
-			let ttlDate = lastSeenForWindow(key: key)
-			return ttlDate.map { currentTime.timeIntervalSince($0) > ttlSeconds } ?? true
+		// A window key is TTL-expired when it is not the last-active window and its
+		// (idle-frozen) last-seen clock is older than the dismiss TTL. Used both to
+		// dismiss existing windows (Step 5b) and to suppress re-spawn of an idle origin
+		// that has aged out (Steps 7–8): without the spawn guard, 5b would drop the
+		// window and the spawn loop would immediately recreate it from the lingering
+		// idle slice, so the pet would never actually disappear.
+		func isTTLExpired(windowKey: String) -> Bool {
+			guard windowKey != lastActiveWindowKey else { return false }
+			guard let seen = lastSeenForWindow(key: windowKey) else { return true }
+			return currentTime.timeIntervalSince(seen) > ttlSeconds
 		}
+
+		// Step 5b: dismiss stale own-mode windows (skip last-active)
+		let staleKeys = windows.keys.filter { isTTLExpired(windowKey: $0) }
 		for key in staleKeys {
 			windows[key]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: key)
@@ -129,6 +144,15 @@ final class FloatingPetWindowPool {
 		// Step 7: spawn / update own-mode windows
 		for origin in ownOrigins {
 			guard let state = visibleEntries[origin] else { continue }
+			// Idle past TTL: leave it dismissed and do not re-spawn from the lingering
+			// idle slice (Step 5b already removed any window for it).
+			if isTTLExpired(windowKey: origin) {
+				if windows[origin] != nil {
+					windows[origin]?.setFloatingPetVisible(false)
+					windows.removeValue(forKey: origin)
+				}
+				continue
+			}
 			if windows[origin] == nil {
 				let controller = windowFactory(origin)
 				controller.setFloatingPetVisible(true)
@@ -146,22 +170,31 @@ final class FloatingPetWindowPool {
 
 		// Step 8: spawn / update combined window
 		if !combinedOrigins.isEmpty {
-			let combinedStates = combinedOrigins.compactMap { visibleEntries[$0] }
-			let winner = combinedStates.max(by: { a, b in
-				(StateJsonReader.parseISO8601Date(a.updatedAt) ?? .distantPast)
-					< (StateJsonReader.parseISO8601Date(b.updatedAt) ?? .distantPast)
-			})
-			if let winner {
-				if windows["combined"] == nil {
-					let controller = windowFactory("combined")
-					controller.setFloatingPetVisible(true)
-					windows["combined"] = controller
+			if isTTLExpired(windowKey: "combined") {
+				// All combined-mode origins idle past TTL (and not last-active): dismiss
+				// the shared window and do not re-spawn it this tick.
+				if windows["combined"] != nil {
+					windows["combined"]?.setFloatingPetVisible(false)
+					windows.removeValue(forKey: "combined")
 				}
-				windows["combined"]?.apply(state: winner.activityState, visualMode: .normal)
-				windows["combined"]?.applyAttention(
-					payload: winner.attention,
-					sourceEvent: winner.sourceEvent
-				)
+			} else {
+				let combinedStates = combinedOrigins.compactMap { visibleEntries[$0] }
+				let winner = combinedStates.max(by: { a, b in
+					(StateJsonReader.parseISO8601Date(a.updatedAt) ?? .distantPast)
+						< (StateJsonReader.parseISO8601Date(b.updatedAt) ?? .distantPast)
+				})
+				if let winner {
+					if windows["combined"] == nil {
+						let controller = windowFactory("combined")
+						controller.setFloatingPetVisible(true)
+						windows["combined"] = controller
+					}
+					windows["combined"]?.apply(state: winner.activityState, visualMode: .normal)
+					windows["combined"]?.applyAttention(
+						payload: winner.attention,
+						sourceEvent: winner.sourceEvent
+					)
+				}
 			}
 		} else {
 			// No combined-mode origins → dismiss combined window if present,

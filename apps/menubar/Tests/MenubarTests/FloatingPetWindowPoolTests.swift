@@ -101,6 +101,63 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         XCTAssertTrue(pool.activeOrigins.contains("cursor"), "last-active window must survive TTL")
     }
 
+    func testIdleOriginPastTTLIsDismissedWhileStillPresent() {
+        // The spec scenario: leaving a tool idle dismisses its (non-last-active)
+        // window within the TTL even though its slice is still present in state.d/.
+        var currentTime = Date(timeIntervalSinceReferenceDate: 0)
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization(ttlSeconds: 60) },
+            windowFactory: { _ in StubWindowController() },
+            now: { currentTime }
+        )
+
+        // Tick 1: both origins present and idle; cursor newer → last-active.
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(state: .idle, updated: "2026-06-28T09:00:00.000Z"),
+            "cursor": makeSnapshot(state: .idle, updated: "2026-06-28T09:01:00.000Z"),
+        ]))
+        XCTAssertEqual(Set(pool.activeOrigins), Set(["claude_code", "cursor"]))
+
+        // Advance past the TTL with BOTH slices still present and still idle.
+        currentTime = currentTime.addingTimeInterval(61)
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(state: .idle, updated: "2026-06-28T09:00:00.000Z"),
+            "cursor": makeSnapshot(state: .idle, updated: "2026-06-28T09:01:00.000Z"),
+        ]))
+
+        XCTAssertFalse(
+            pool.activeOrigins.contains("claude_code"),
+            "idle non-last-active window must dismiss after TTL even while its slice is still present"
+        )
+        XCTAssertTrue(
+            pool.activeOrigins.contains("cursor"),
+            "last-active window survives TTL per spec"
+        )
+    }
+
+    func testActivityResetsIdleDismissClock() {
+        // A pet that keeps working must never idle-dismiss: each active tick refreshes
+        // the TTL clock, so it survives indefinitely regardless of elapsed wall time.
+        var currentTime = Date(timeIntervalSinceReferenceDate: 0)
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization(ttlSeconds: 60) },
+            windowFactory: { _ in StubWindowController() },
+            now: { currentTime }
+        )
+        // cursor is last-active; claude_code keeps working across a long span.
+        for i in 0...10 {
+            currentTime = Date(timeIntervalSinceReferenceDate: Double(i) * 30)
+            pool.update(snapshot: makePerPlatformSnapshot([
+                "claude_code": makeSnapshot(state: .implementing, updated: "2026-06-28T09:00:00.000Z"),
+                "cursor": makeSnapshot(state: .idle, updated: "2026-06-28T09:01:00.000Z"),
+            ]))
+        }
+        XCTAssertTrue(
+            pool.activeOrigins.contains("claude_code"),
+            "an actively-working origin must not idle-dismiss even after many TTLs of wall time"
+        )
+    }
+
     func testLastActiveWindowNeverDismissedRegardlessOfTTL() {
         var currentTime = Date(timeIntervalSinceReferenceDate: 0)
         let pool = FloatingPetWindowPool(
