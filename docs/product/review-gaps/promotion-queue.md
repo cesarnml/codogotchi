@@ -109,6 +109,25 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   test-strategy-checklist) only on a second time-based feature with the same
   proxy-condition test gap.
 
+### `user-hide-overwritten-by-periodic-respawn`
+- **Seen:** 1× — `codogotchi-21` (P13). Hiding a floating pet removed the window
+  but left no record of user intent. The pool's next `update()` tick found
+  `windows[origin] == nil` and the origin still present in the snapshot, so it
+  re-spawned the window immediately (~1 second later). Also: the menu's "Show Pet"
+  item was always `action = nil`, so there was no interactive path to un-hide.
+- **Proposed clause:** *"When a user-facing action removes an item from a pool or
+  registry that is fed by a continuously-present backing source (a live snapshot,
+  a poll result, a stream), removing the item from the in-memory collection is not
+  enough — the pool's next refresh will re-add it from the source. A persistent
+  user-intent flag (an explicit hide/pin/exclude set) is the correct guard.
+  Attack surface: for any periodic `update()` or refresh that spawns windows/rows
+  from a live source, ask 'if setVisible(false) or remove() fires but the source
+  is still present, what does the next refresh do?'"*
+- **Status:** WAITING — single instance. Needs ≥1 more occurrence to confirm
+  the class before promoting. Note also: after hiding, the pet re-spawned at the
+  default bottom-left spawn position rather than its last persisted position —
+  a related but distinct open issue deferred from this QC fix.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
