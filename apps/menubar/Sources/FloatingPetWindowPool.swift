@@ -13,9 +13,11 @@ import Foundation
 ///   is never dismissed by TTL regardless of elapsed time.
 @MainActor
 final class FloatingPetWindowPool {
-	typealias WindowFactory = (String) -> FloatingPetWindowControlling
+	typealias WindowFactory = (String, String) -> FloatingPetWindowControlling
 	typealias CustomizationReader = () -> CustomizationSnapshot
+	typealias AssignmentsReader = () -> AssignmentsSnapshot
 
+	private let assignmentsReader: AssignmentsReader
 	private let customizationReader: CustomizationReader
 	private let windowFactory: WindowFactory
 	private let now: () -> Date
@@ -30,6 +32,8 @@ final class FloatingPetWindowPool {
 	private var lastActiveOrigin: String? = nil
 	/// Most-recently read customization — updated at the start of each tick.
 	private var currentCustomization: CustomizationSnapshot = .safeDefault
+	/// Most-recently read assignments — updated at the start of each tick.
+	private var currentAssignments: AssignmentsSnapshot = .safeDefault
 
 	/// Window keys that currently have visible windows.
 	var activeOrigins: [String] { Array(windows.keys).sorted() }
@@ -45,21 +49,26 @@ final class FloatingPetWindowPool {
 	var onMonochromeChanged: ((Bool) -> Void)?
 
 	init(
+		assignmentsReader: @escaping AssignmentsReader = {
+			AssignmentsJsonReader.read(at: CodogotchiFolders.assignmentsPath())
+		},
 		customizationReader: @escaping CustomizationReader = {
 			CustomizationJsonReader.read(at: CodogotchiFolders.customizationPath())
 		},
 		windowFactory: @escaping WindowFactory,
 		now: @escaping () -> Date = { Date() }
 	) {
+		self.assignmentsReader = assignmentsReader
 		self.customizationReader = customizationReader
 		self.windowFactory = windowFactory
 		self.now = now
 	}
 
 	func update(snapshot: PerPlatformSnapshot) {
-		// Read customization fresh on every tick so Settings writes take effect within one second.
+		// Read customization and assignments fresh on every tick so Settings writes take effect within one second.
 		let prevMonochrome = currentCustomization.menubarIconMonochrome
 		currentCustomization = customizationReader()
+		currentAssignments = assignmentsReader()
 		if currentCustomization.menubarIconMonochrome != prevMonochrome {
 			onMonochromeChanged?(currentCustomization.menubarIconMonochrome)
 		}
@@ -162,7 +171,8 @@ final class FloatingPetWindowPool {
 			// User-hidden: do not re-spawn until the user explicitly shows the pet.
 			if userHiddenWindowKeys.contains(origin) { continue }
 			if windows[origin] == nil {
-				let controller = windowFactory(origin)
+				let petId = currentAssignments.resolve(origin: origin)
+				let controller = windowFactory(origin, petId)
 				controller.setFloatingPetVisible(true)
 				windows[origin] = controller
 			}
@@ -193,7 +203,8 @@ final class FloatingPetWindowPool {
 				})
 				if let winner {
 					if windows["combined"] == nil {
-						let controller = windowFactory("combined")
+						let petId = currentAssignments.resolve(origin: "combined")
+						let controller = windowFactory("combined", petId)
 						controller.setFloatingPetVisible(true)
 						windows["combined"] = controller
 					}
@@ -202,6 +213,12 @@ final class FloatingPetWindowPool {
 						payload: winner.attention,
 						sourceEvent: winner.sourceEvent
 					)
+					// The combined window carries a persistent ⭐ Default badge while idle,
+					// resolving the asymmetry where own-mode windows badge always but the
+					// combined window only badged when its winner had an active source event.
+					if winner.activityState == .idle {
+						windows["combined"]?.applyPlatform(origin: "combined")
+					}
 				}
 			}
 		} else {
@@ -247,14 +264,13 @@ final class FloatingPetWindowPool {
 	/// per-window callbacks (attention dismiss, app-nap opt-out).
 	func controller(for key: String) -> FloatingPetWindowControlling? { windows[key] }
 
-	/// Live-swap the rendered pet in every active window. Called when the user
-	/// selects a different pet in Settings > Pet so visible windows update without
-	/// waiting for a dismiss/respawn cycle or an app restart. Newly spawned windows
-	/// already pick up the new pet via the factory's captured references.
-	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
-		for controller in windows.values {
-			controller.replacePets(codexPet: codexPet, codogotchiPet: codogotchiPet)
-		}
+	/// Live-swap the rendered pet for one origin's window. Called when the user
+	/// reassigns a platform badge in Settings > Pet so only that platform's window
+	/// updates; other windows are untouched. Newly spawned windows already pick up
+	/// the current assignment via the factory's petId argument.
+	func replacePet(origin: String, codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
+		let key = windowKey(for: origin)
+		windows[key]?.replacePets(codexPet: codexPet, codogotchiPet: codogotchiPet)
 	}
 
 	// MARK: - Private helpers

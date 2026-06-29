@@ -41,8 +41,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here.
+Red first: `testTwoOwnOriginsWithDifferentAssignmentsResolveCorrectPetIds` — extra `assignmentsReader:` label and two-arg factory closure both failed to compile.
+Why this path: `WindowFactory = (String, String)` keeps the petId as a plain string argument to the factory rather than threading a `PetAssetResolver` into the pool; the pool stays responsible only for window lifecycle, while `MenubarApp` owns asset resolution. `replacePet(origin:codexPet:codogotchiPet:)` with explicit pair args is the cleanest call-site (MenubarApp already has the resolver) and avoids an assetLoader injectable in the pool.
+Alternative considered: No-arg `replacePet(origin:)` with an injectable `assetLoader` closure on the pool was sketched first. Rejected because it required either a disk-present fixture in every test or a special default that fails silently; the explicit-pair API is testable with fixtures already in the test suite and cleaner at the MenubarApp call-site.
+Deferred: `petAssetResolver.evict(petId:)` scoped to a single changed pet — `reloadActivePet` currently calls `evictAll()` for simplicity; per-badge eviction is a micro-optimisation for P14.07/08 when the Settings UI changes one badge at a time.
+Contract note: `replacePets(codexPet:codogotchiPet:)` (broadcast) removed from `FloatingPetWindowPool`; replaced by `replacePet(origin:codexPet:codogotchiPet:)`. Existing test `testReplacePetsBroadcastsToEveryActiveWindow` renamed to `testReplacePetPerOriginLiveSwapsOnlyThatWindow` and updated to use the new API.

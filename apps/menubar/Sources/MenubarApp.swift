@@ -67,6 +67,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// when spawning new per-origin windows (and after `reloadActivePet`).
 	var codexPet: CodexPet?
 
+	/// Resolves petId → (CodexPet, CodogotchiPet?) with a shared cache so origins
+	/// assigned the same pet share one loaded CodexPet.
+	var petAssetResolver: PetAssetResolver?
+
 	/// Manages one floating pet window per active AI-platform origin.
 	/// Nil while pet assets are unavailable or in demo mode.
 	var floatingPetWindowPool: FloatingPetWindowPool?
@@ -150,6 +154,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			}
 		}
 
+		// Seed assignments.json from config.pet on first launch. Must run before
+		// pool creation so the pool's first tick reads a valid assignments file.
+		// Use CodogotchiFolders so CODOGOTCHI_HOME overrides are respected for both URLs.
+		AssignmentsMigration.seedIfAbsent(
+			assignmentsURL: URL(fileURLWithPath: CodogotchiFolders.assignmentsPath()),
+			configURL: CodogotchiFolders.dataFolderURL().appendingPathComponent("config.json")
+		)
+
 		do {
 			let codexPet = try CodexPet()
 			// Soft degrade: if the codogotchi pet directory is absent or its
@@ -175,14 +187,26 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			self.renderer = renderer
 
 			self.codexPet = codexPet
+			let resolver = PetAssetResolver()
+			self.petAssetResolver = resolver
 			let pool = FloatingPetWindowPool(
-				windowFactory: { [weak self] origin in
-					guard let self, let codexPet = self.codexPet else {
+				windowFactory: { [weak self] origin, petId in
+					guard let self else {
 						fatalError("FloatingPetWindowPool factory called after app teardown")
 					}
+					let (resolvedCodexPet, resolvedCodogotchiPet): (CodexPet, CodogotchiPet?)
+					if let pair = try? self.petAssetResolver?.resolve(petId: petId) {
+						resolvedCodexPet = pair.0
+						resolvedCodogotchiPet = pair.1
+					} else if let fallback = self.codexPet {
+						resolvedCodexPet = fallback
+						resolvedCodogotchiPet = self.codogotchiPet
+					} else {
+						fatalError("FloatingPetWindowPool factory: no pet assets available")
+					}
 					let panel = FloatingPetPanelController(
-						codexPet: codexPet,
-						codogotchiPet: self.codogotchiPet,
+						codexPet: resolvedCodexPet,
+						codogotchiPet: resolvedCodogotchiPet,
 						demoFrameInterval: nil,
 						idleEscalationConfig: IdleEscalationConfig.resolve(),
 						initialIdleAge: IdleEscalationConfig.backdateSeconds()
@@ -412,9 +436,17 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			self.codogotchiPet = newCodogotchiPet
 			renderer.replacePets(codexPet: newCodexPet, codogotchiPet: newCodogotchiPet)
 			livePollingDriver?.replaceCodogotchiPet(newCodogotchiPet)
-			// Live-swap the pet in every visible pool window so the floating panel
-			// updates immediately; new spawns pick up the new pet via the factory.
-			floatingPetWindowPool?.replacePets(codexPet: newCodexPet, codogotchiPet: newCodogotchiPet)
+			// Evict the resolver cache so reassigned pets load fresh assets,
+			// then live-swap each active pool window scoped to its own assignment.
+			petAssetResolver?.evictAll()
+			let assignments = AssignmentsJsonReader.read(at: CodogotchiFolders.assignmentsPath())
+			for origin in floatingPetWindowPool?.activeOrigins ?? [] {
+				let petId = assignments.resolve(origin: origin)
+				if let (codexPet, codogotchiPet) = try? petAssetResolver?.resolve(petId: petId) {
+					floatingPetWindowPool?.replacePet(
+						origin: origin, codexPet: codexPet, codogotchiPet: codogotchiPet)
+				}
+			}
 		} catch {
 			NSLog("MenubarApp: reloadActivePet failed — %@", error.localizedDescription)
 		}

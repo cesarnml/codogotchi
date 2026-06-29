@@ -26,7 +26,7 @@ final class MenuItemsTests: XCTestCase {
 	private func makePool(origins: [String]) -> FloatingPetWindowPool {
 		let pool = FloatingPetWindowPool(
 			customizationReader: { .safeDefault },
-			windowFactory: { _ in StubWindow() }
+			windowFactory: { _, _ in StubWindow() }
 		)
 		if !origins.isEmpty {
 			let perPlatform = Dictionary(

@@ -15,11 +15,14 @@ enum PlatformAttribution: String {
 	case cursor = "PlatformCursor"
 	case vscode = "PlatformVSCode"
 	case antigravity = "PlatformAntigravity"
+	/// Shown persistently on the combined window while idle; feeds the ⭐ Default pill in Pet tab.
+	case `default` = "PlatformDefault"
 
 	/// Resolve a `source_event.origin` value to a platform, or `nil` when the
 	/// origin is absent, non-platform (`soa`/`sync`/`manual`), or unrecognized.
 	init?(origin: String?) {
 		switch origin {
+		case "combined": self = .default
 		case "claude_code": self = .claudeCode
 		case "codex": self = .codex
 		case "cursor": self = .cursor
@@ -35,6 +38,7 @@ enum PlatformAttribution: String {
 	/// Human-readable name for tooltips and accessibility.
 	var displayName: String {
 		switch self {
+		case .default: "Default"
 		case .claudeCode: "Claude Code"
 		case .codex: "Codex"
 		case .cursor: "Cursor"
