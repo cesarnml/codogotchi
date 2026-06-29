@@ -46,6 +46,11 @@ final class FloatingPetWindowPool {
 
 	private var userHiddenWindowKeys: Set<String> = []
 
+	/// Mode that was active when each window (keyed by origin) was spawned.
+	/// Used to detect own↔minimalist transitions so the stale window is torn
+	/// down and the correct factory runs on the next spawn gate.
+	private var windowSpawnedModes: [String: PlatformMode] = [:]
+
 	/// Called when `menubarIconMonochrome` changes between ticks. The caller
 	/// uses this to toggle `NSImage.isTemplate` on the status-item button.
 	var onMonochromeChanged: ((Bool) -> Void)?
@@ -126,6 +131,7 @@ final class FloatingPetWindowPool {
 			if windows[origin] != nil {
 				windows[origin]?.setFloatingPetVisible(false)
 				windows.removeValue(forKey: origin)
+				windowSpawnedModes.removeValue(forKey: origin)
 			}
 		}
 
@@ -146,6 +152,7 @@ final class FloatingPetWindowPool {
 		for key in staleKeys {
 			windows[key]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: key)
+			windowSpawnedModes.removeValue(forKey: key)
 		}
 
 		// Step 6: separate combined vs own origins
@@ -158,6 +165,19 @@ final class FloatingPetWindowPool {
 		for origin in combinedOrigins where windows[origin] != nil {
 			windows[origin]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: origin)
+			windowSpawnedModes.removeValue(forKey: origin)
+		}
+
+		// Step 6b: collapse windows whose controller type no longer matches the current
+		// mode. own→minimalist and minimalist→own transitions are not covered by Steps
+		// 5a or 6a; if we skip teardown here the wrong-type window stays in `windows`
+		// and the spawn gate below (windows[origin] == nil) is never entered.
+		for origin in ownOrigins where windows[origin] != nil {
+			if let spawnedMode = windowSpawnedModes[origin], spawnedMode != mode(for: origin) {
+				windows[origin]?.setFloatingPetVisible(false)
+				windows.removeValue(forKey: origin)
+				windowSpawnedModes.removeValue(forKey: origin)
+			}
 		}
 
 		// Step 7: spawn / update own-mode windows
@@ -169,6 +189,7 @@ final class FloatingPetWindowPool {
 				if windows[origin] != nil {
 					windows[origin]?.setFloatingPetVisible(false)
 					windows.removeValue(forKey: origin)
+					windowSpawnedModes.removeValue(forKey: origin)
 				}
 				continue
 			}
@@ -188,6 +209,7 @@ final class FloatingPetWindowPool {
 				}
 				controller.setFloatingPetVisible(true)
 				windows[origin] = controller
+				windowSpawnedModes[origin] = mode(for: origin)
 			}
 			windows[origin]?.apply(state: state.activityState, visualMode: .normal)
 			windows[origin]?.applyAttention(
@@ -271,6 +293,7 @@ final class FloatingPetWindowPool {
 		} else {
 			windows[key]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: key)
+			windowSpawnedModes.removeValue(forKey: key)
 			userHiddenWindowKeys.insert(key)
 		}
 	}

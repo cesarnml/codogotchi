@@ -643,6 +643,87 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertTrue(pool.activeOrigins.contains("cursor"))
 	}
 
+	func testOwnToMinimalistTransitionReplacesWindow() {
+		// Regression: own→minimalist left the pet window in place because
+		// windows[origin] was non-nil and the spawn gate was never entered.
+		var petFactoryCalls: [String] = []
+		var minimalistFactoryCalls: [String] = []
+		var currentMode: PlatformMode = .own
+		var stubs: [String: StubWindowController] = [:]
+
+		let pool = FloatingPetWindowPool(
+			customizationReader: { makeCustomization(platformModes: ["codex": currentMode]) },
+			windowFactory: { origin, _ in
+				petFactoryCalls.append(origin)
+				let c = StubWindowController()
+				stubs[origin] = c
+				return c
+			},
+			minimalistWindowFactory: { origin in
+				minimalistFactoryCalls.append(origin)
+				let c = StubWindowController()
+				stubs[origin] = c
+				return c
+			}
+		)
+
+		// Tick 1: spawns a pet window for "codex" in own mode.
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"codex": makeSnapshot(updated: "2026-06-30T10:00:00.000Z"),
+		]))
+		XCTAssertEqual(petFactoryCalls, ["codex"])
+		XCTAssertTrue(minimalistFactoryCalls.isEmpty)
+
+		// Switch to minimalist mode, then tick 2.
+		currentMode = .minimalist
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"codex": makeSnapshot(updated: "2026-06-30T10:00:01.000Z"),
+		]))
+		XCTAssertEqual(minimalistFactoryCalls, ["codex"], "minimalist factory must be called after own→minimalist switch")
+		XCTAssertEqual(petFactoryCalls, ["codex"], "pet factory must not be called again after mode switch")
+		XCTAssertTrue(pool.activeOrigins.contains("codex"))
+	}
+
+	func testMinimalistToOwnTransitionReplacesWindow() {
+		// Regression: minimalist→own left the minimalist window in place.
+		var petFactoryCalls: [String] = []
+		var minimalistFactoryCalls: [String] = []
+		var currentMode: PlatformMode = .minimalist
+		var stubs: [String: StubWindowController] = [:]
+
+		let pool = FloatingPetWindowPool(
+			customizationReader: { makeCustomization(platformModes: ["codex": currentMode]) },
+			windowFactory: { origin, _ in
+				petFactoryCalls.append(origin)
+				let c = StubWindowController()
+				stubs[origin] = c
+				return c
+			},
+			minimalistWindowFactory: { origin in
+				minimalistFactoryCalls.append(origin)
+				let c = StubWindowController()
+				stubs[origin] = c
+				return c
+			}
+		)
+
+		// Tick 1: spawns a minimalist window.
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"codex": makeSnapshot(updated: "2026-06-30T10:00:00.000Z"),
+		]))
+		XCTAssertEqual(minimalistFactoryCalls, ["codex"])
+		XCTAssertTrue(petFactoryCalls.isEmpty)
+
+		// Switch back to own mode, then tick 2.
+		currentMode = .own
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"codex": makeSnapshot(updated: "2026-06-30T10:00:01.000Z"),
+		]))
+		XCTAssertEqual(petFactoryCalls, ["codex"], "pet factory must be called after minimalist→own switch")
+		XCTAssertEqual(minimalistFactoryCalls, ["codex"], "minimalist factory must not be called again after mode switch")
+		XCTAssertTrue(pool.activeOrigins.contains("codex"))
+	}
+
 	func testMinimalistOriginWithoutMinimalistFactoryDoesNotFallBackToPetWindow() {
 		var petFactoryCalls: [String] = []
 		let pool = FloatingPetWindowPool(
