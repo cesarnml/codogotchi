@@ -5,7 +5,7 @@ import { z } from "zod";
 export const customizationJsonSchema = z.object({
   schema_version: z.literal(1),
   platform_modes: z
-    .record(z.string(), z.enum(["own", "combined", "off"]))
+    .record(z.string(), z.enum(["own", "combined", "off", "minimalist"]))
     .default({}),
   idle_dismiss_ttl_seconds: z.number().int().min(0).default(300),
   menubar_icon_monochrome: z.boolean().default(false),
