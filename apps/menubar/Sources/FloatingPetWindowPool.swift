@@ -250,11 +250,13 @@ final class FloatingPetWindowPool {
 						payload: winner.attention,
 						sourceEvent: winner.sourceEvent
 					)
-					// The combined window carries a persistent ⭐ Default badge while idle,
-					// resolving the asymmetry where own-mode windows badge always but the
-					// combined window only badged when its winner had an active source event.
+					// While idle the combined window shows the persistent ⭐ Default badge;
+					// when active it badges with whichever platform triggered the winning
+					// state, matching the pre-phase-13 single-pet behavior.
 					if winner.activityState == .idle {
 						windows["combined"]?.applyPlatform(origin: "combined")
+					} else if let sourceOrigin = winner.sourceEvent?.origin {
+						windows["combined"]?.applyPlatform(origin: sourceOrigin)
 					}
 				}
 			}
