@@ -58,4 +58,14 @@ describe("customizationJsonSchema", () => {
     });
     expect(result.idle_dismiss_ttl_seconds).toBe(0);
   });
+
+  it("parses minimalist as a valid platform_mode and round-trips", () => {
+    const result = customizationJsonSchema.parse({
+      schema_version: 1,
+      platform_modes: { claude_code: "minimalist" },
+      idle_dismiss_ttl_seconds: 300,
+      menubar_icon_monochrome: false,
+    });
+    expect(result.platform_modes.claude_code).toBe("minimalist");
+  });
 });
