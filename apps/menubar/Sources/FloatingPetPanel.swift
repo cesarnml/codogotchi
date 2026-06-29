@@ -14,6 +14,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private var currentActivity: ActivityState = .idle
 	private var currentAttention: AttentionPayload?
 	private var currentPromptSummary = ""
+	private var frameChangeHandler: ((CGRect) -> Void)?
 
 	init(
 		visibleFrameProvider: @escaping () -> CGRect = {
@@ -21,6 +22,12 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		}
 	) {
 		self.visibleFrameProvider = visibleFrameProvider
+		stripView.clampedFrameProvider = { [weak self] origin in
+			self?.clampedFrame(origin: origin) ?? CGRect(origin: origin, size: Layout.size)
+		}
+		stripView.frameChangeHandler = { [weak self] frame in
+			self?.frameChangeHandler?(frame)
+		}
 	}
 
 	func show(frame: CGRect) {
@@ -55,6 +62,10 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	func applyPromptSummary(_ summary: String) {
 		currentPromptSummary = summary
 		applyAll()
+	}
+
+	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
+		frameChangeHandler = handler
 	}
 
 	private func makePanel() -> NSPanel {
@@ -101,6 +112,9 @@ private final class MinimalistStripView: NSView {
 	private let attentionLabel = NSTextField(labelWithString: "")
 	private let promptLabel = NSTextField(labelWithString: "")
 	private let stack = NSStackView()
+	var clampedFrameProvider: ((CGPoint) -> CGRect)?
+	var frameChangeHandler: ((CGRect) -> Void)?
+	private var dragOffsetInScreen: CGPoint?
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -109,6 +123,33 @@ private final class MinimalistStripView: NSView {
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
+
+	override func mouseDown(with event: NSEvent) {
+		guard let window else { return }
+		let point = NSEvent.mouseLocation
+		dragOffsetInScreen = CGPoint(
+			x: point.x - window.frame.origin.x,
+			y: point.y - window.frame.origin.y
+		)
+	}
+
+	override func mouseDragged(with event: NSEvent) {
+		guard let window, let dragOffsetInScreen else { return }
+		let point = NSEvent.mouseLocation
+		let origin = CGPoint(
+			x: point.x - dragOffsetInScreen.x,
+			y: point.y - dragOffsetInScreen.y
+		)
+		let frame = clampedFrameProvider?(origin) ?? CGRect(origin: origin, size: window.frame.size)
+		window.setFrame(frame, display: true)
+	}
+
+	override func mouseUp(with event: NSEvent) {
+		dragOffsetInScreen = nil
+		if let frame = window?.frame {
+			frameChangeHandler?(frame)
+		}
+	}
 
 	func configure(
 		platform: PlatformAttribution?,

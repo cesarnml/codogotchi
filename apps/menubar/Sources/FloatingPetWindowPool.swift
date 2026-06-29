@@ -176,9 +176,16 @@ final class FloatingPetWindowPool {
 			if userHiddenWindowKeys.contains(origin) { continue }
 			if windows[origin] == nil {
 				let petId = currentAssignments.resolve(origin: origin)
-				let controller = mode(for: origin) == .minimalist
-					? (minimalistWindowFactory?(origin) ?? windowFactory(origin, petId))
-					: windowFactory(origin, petId)
+				let controller: FloatingPetWindowControlling
+				if mode(for: origin) == .minimalist {
+					guard let minimalistWindowFactory else {
+						NSLog("FloatingPetWindowPool: minimalist mode requires a minimalistWindowFactory for \(origin)")
+						continue
+					}
+					controller = minimalistWindowFactory(origin)
+				} else {
+					controller = windowFactory(origin, petId)
+				}
 				controller.setFloatingPetVisible(true)
 				windows[origin] = controller
 			}

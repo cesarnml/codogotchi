@@ -31,18 +31,20 @@ private final class StubMinimalistPanel: MinimalistPanelManaging {
     var visible = false
     var platformOrigin: String?
     var activityLabel = ""
-    var attentionSummary = ""
-    var promptSummary = ""
-    var rpgApplyCount = 0
+	var attentionSummary = ""
+	var promptSummary = ""
+	var rpgApplyCount = 0
+	var frameChangeHandler: ((CGRect) -> Void)?
 
-    func show(frame: CGRect) { visible = true }
-    func hide() { visible = false }
-    func applyPlatform(origin: String?) { platformOrigin = origin }
+	func show(frame: CGRect) { visible = true }
+	func hide() { visible = false }
+	func applyPlatform(origin: String?) { platformOrigin = origin }
     func applyActivity(_ state: ActivityState) { activityLabel = state.displayLabel }
-    func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
-        attentionSummary = payload?.summary ?? ""
-    }
-    func applyPromptSummary(_ summary: String) { promptSummary = summary }
+	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
+		attentionSummary = payload?.summary ?? ""
+	}
+	func applyPromptSummary(_ summary: String) { promptSummary = summary }
+	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) { frameChangeHandler = handler }
 }
 
 // MARK: - Helpers
@@ -579,7 +581,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 
     // MARK: - P14.06 Minimalist mode routing
 
-    func testMinimalistOriginUsesMinimalistFactoryAndLifecycleParity() {
+	func testMinimalistOriginUsesMinimalistFactoryAndLifecycleParity() {
         var petFactoryCalls: [String] = []
         var minimalistFactoryCalls: [String] = []
         var currentTime = Date(timeIntervalSinceReferenceDate: 0)
@@ -638,8 +640,28 @@ final class FloatingPetWindowPoolTests: XCTestCase {
             "cursor": makeSnapshot(state: .idle, updated: "2026-06-30T10:00:01.000Z"),
         ]))
         XCTAssertFalse(pool.activeOrigins.contains("codex"), "non-last-active minimalist idle windows must TTL-dismiss")
-        XCTAssertTrue(pool.activeOrigins.contains("cursor"))
-    }
+		XCTAssertTrue(pool.activeOrigins.contains("cursor"))
+	}
+
+	func testMinimalistOriginWithoutMinimalistFactoryDoesNotFallBackToPetWindow() {
+		var petFactoryCalls: [String] = []
+		let pool = FloatingPetWindowPool(
+			customizationReader: {
+				makeCustomization(platformModes: ["codex": .minimalist])
+			},
+			windowFactory: { origin, _ in
+				petFactoryCalls.append(origin)
+				return StubWindowController()
+			}
+		)
+
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"codex": makeSnapshot(updated: "2026-06-30T10:00:00.000Z"),
+		]))
+
+		XCTAssertTrue(petFactoryCalls.isEmpty, "minimalist mode must not fall back to the pet/HUD window factory")
+		XCTAssertFalse(pool.activeOrigins.contains("codex"), "minimalist mode without a factory must fail closed")
+	}
 }
 
 final class PromptAttentionReaderTests: XCTestCase {
@@ -672,7 +694,7 @@ final class PromptAttentionReaderTests: XCTestCase {
         XCTAssertEqual(PromptAttentionReader.latestSummary(origin: "codex", at: url.path), "newer codex prompt")
     }
 
-    func testAbsentOrMalformedFileReturnsEmptySummary() throws {
+	func testAbsentOrMalformedFileReturnsEmptySummary() throws {
         let missing = FileManager.default.temporaryDirectory
             .appendingPathComponent("missing-prompt-attention-\(UUID().uuidString).json")
         XCTAssertEqual(PromptAttentionReader.latestSummary(origin: "codex", at: missing.path), "")
@@ -680,14 +702,35 @@ final class PromptAttentionReaderTests: XCTestCase {
         let malformed = FileManager.default.temporaryDirectory
             .appendingPathComponent("bad-prompt-attention-\(UUID().uuidString).json")
         try "{".write(to: malformed, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: malformed) }
-        XCTAssertEqual(PromptAttentionReader.latestSummary(origin: "codex", at: malformed.path), "")
-    }
+		defer { try? FileManager.default.removeItem(at: malformed) }
+		XCTAssertEqual(PromptAttentionReader.latestSummary(origin: "codex", at: malformed.path), "")
+	}
+
+	func testUnparseableTimestampForMatchingOriginReturnsEmptySummary() throws {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("PromptAttentionReaderTests-\(UUID().uuidString)", isDirectory: true)
+		try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let url = dir.appendingPathComponent("prompt-attention.json")
+		let json = """
+			{
+			  "by_session": {
+			    "codex:bad-date": {
+			      "updated_at": "not-a-date",
+			      "summary": "must not surface"
+			    }
+			  }
+			}
+			"""
+		try json.write(to: url, atomically: true, encoding: .utf8)
+
+		XCTAssertEqual(PromptAttentionReader.latestSummary(origin: "codex", at: url.path), "")
+	}
 }
 
 @MainActor
 final class MinimalistWindowControllerTests: XCTestCase {
-    func testAppliesPlatformAnimationAttentionAndLatestPromptSummary() {
+	func testAppliesPlatformAnimationAttentionAndLatestPromptSummary() {
         let panel = StubMinimalistPanel()
         let controller = MinimalistWindowController(
             origin: "codex",
@@ -725,7 +768,33 @@ final class MinimalistWindowControllerTests: XCTestCase {
         XCTAssertEqual(panel.platformOrigin, "codex")
         XCTAssertEqual(panel.activityLabel, "Testing")
         XCTAssertEqual(panel.attentionSummary, "needs focus")
-        XCTAssertEqual(panel.promptSummary, "Refactor the renderer")
-        XCTAssertEqual(panel.rpgApplyCount, 0, "minimalist window must not render RPG HUD state")
-    }
+		XCTAssertEqual(panel.promptSummary, "Refactor the renderer")
+		XCTAssertEqual(panel.rpgApplyCount, 0, "minimalist window must not render RPG HUD state")
+	}
+
+	func testPersistsCommittedFrameChanges() {
+		let panel = StubMinimalistPanel()
+		var savedStates: [FloatingAppState] = []
+		let controller = MinimalistWindowController(
+			origin: "codex",
+			panel: panel,
+			visibleFrameProvider: { CGRect(x: 0, y: 0, width: 800, height: 600) },
+			saveState: { savedStates.append($0) },
+			initialState: FloatingAppState(
+				isFloatingPetVisible: true,
+				frame: CGRect(x: 20, y: 20, width: 240, height: 64),
+				onboardingCompletedAt: nil,
+				lastHookActivityAt: nil,
+				hooksStatus: nil,
+				installedHookVersion: nil
+			),
+			promptSummaryProvider: { _ in "" }
+		)
+
+		panel.frameChangeHandler?(CGRect(x: 300, y: 320, width: 360, height: 58))
+
+		XCTAssertTrue(controller.isFloatingPetVisible)
+		XCTAssertEqual(savedStates.last?.frame.origin.x, 300)
+		XCTAssertEqual(savedStates.last?.frame.origin.y, 320)
+	}
 }
