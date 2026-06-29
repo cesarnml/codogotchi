@@ -24,11 +24,14 @@ struct PetCatalogEntry: Equatable {
 
 enum PetTabViewModelError: LocalizedError {
 	case petNotAssignable(String)
+	case invalidBadge(String)
 
 	var errorDescription: String? {
 		switch self {
 		case .petNotAssignable(let id):
 			return "Pet '\(id)' is importable-only and cannot be assigned a badge"
+		case .invalidBadge(let key):
+			return "'\(key)' is not a valid badge key"
 		}
 	}
 }
@@ -144,6 +147,9 @@ final class PetTabViewModel {
 	///   importable (codex-only).
 	/// - No-op when `petId` already holds `badge` (does not fire the callback).
 	func assign(badge: String, to petId: String) throws {
+		guard ASSIGNMENT_BADGE_KEYS.contains(badge) else {
+			throw PetTabViewModelError.invalidBadge(badge)
+		}
 		guard isInstalled(petId) else {
 			throw PetTabViewModelError.petNotAssignable(petId)
 		}
