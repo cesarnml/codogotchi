@@ -156,11 +156,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 
 		// Seed assignments.json from config.pet on first launch. Must run before
 		// pool creation so the pool's first tick reads a valid assignments file.
+		// Use CodogotchiFolders so CODOGOTCHI_HOME overrides are respected for both URLs.
 		AssignmentsMigration.seedIfAbsent(
 			assignmentsURL: URL(fileURLWithPath: CodogotchiFolders.assignmentsPath()),
-			configURL: URL(fileURLWithPath: config.pollingTarget.path)
-				.deletingLastPathComponent()
-				.appendingPathComponent("config.json")
+			configURL: CodogotchiFolders.dataFolderURL().appendingPathComponent("config.json")
 		)
 
 		do {
