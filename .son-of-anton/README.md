@@ -61,6 +61,7 @@ orchestrator.
 /soa triage-ticket PR#19                     # reconcile late AI review on a done ticket PR
 /soa triage-standalone PR#19                 # run standalone AI-review triage on a non-ticket PR
 /soa triage-advisory-observations phase-N    # post-phase disposition of advisory observations
+/soa quality-control phase-N: <description> # post-phase fix + review-gap record (alias: /soa qc)
 /soa closeout phase-N                        # you approve; stacked PRs squash-merge to closeoutBranch
 
 # When the idea needs shaping first (optional)
@@ -100,6 +101,16 @@ That post-phase lane records explicit dispositions for non-blocking
 `Advisory Observations` from subagent-review reports. It does not patch source
 files and does not replace the blocking `Actionable findings` reconciliation
 gate.
+
+For small, verified fixes that surface a review gap worth capturing, use
+`/soa quality-control phase-N: <description>` (or `/soa qc` for short). This
+lane is distinct from `/soa tao` — it applies a bounded fix commit and appends
+one JSONL record to `docs/product/review-gaps/ledger.jsonl` with phase
+attribution, commit provenance, round count, and a conservative reachability
+classification. QC does not edit the adversarial-review prompt; it queues
+promotion candidates in `docs/product/review-gaps/promotion-queue.md` for later
+consideration. Larger work that does not fit a single bounded fix should be
+routed to standalone PR triage or `/soa plan` instead.
 
 ---
 
@@ -361,15 +372,16 @@ as instructions. `bun run sync` creates platform-specific adapters (e.g.,
 `.claude/skills/soa-*` symlinks for Claude Code) pointing back to the
 canonical location.
 
-| Skill                     | Trigger                                                                                                                                                                                                                           |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `soa`                     | Main entrypoint: `/soa ideate`, `/soa plan`, `/soa decompose`, `/soa execute`, `/soa resume`, `/soa triage-ticket`, `/soa triage-standalone`, `/soa triage-advisory-observations`, `/soa install`, `/soa update`, `/soa closeout` |
-| `soa-son-of-anton-ethos`  | Auto-invoked on "execute / implement / start / deliver / resume" — owns the per-ticket loop                                                                                                                                       |
-| `soa-grill-me`            | Plan pressure-testing before any implementation                                                                                                                                                                                   |
-| `soa-pr-review`           | Triage CodeRabbit, Qodo, Greptile, SonarQube review comments (`triage`)                                                                                                                                                           |
-| `soa-enter-worktree`      | Bootstrap a fresh worktree with deps and `.env`                                                                                                                                                                                   |
-| `soa-closeout-stack`      | Squash-merge completed stacked PRs onto the configured closeout branch                                                                                                                                                            |
-| `soa-write-retrospective` | Write phase retrospective to `docs/product/retrospectives/`                                                                                                                                                                       |
+| Skill                     | Trigger                                                                                                                                                                                                                                                              |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `soa`                     | Main entrypoint: `/soa ideate`, `/soa plan`, `/soa decompose`, `/soa execute`, `/soa resume`, `/soa triage-ticket`, `/soa triage-standalone`, `/soa triage-advisory-observations`, `/soa quality-control`, `/soa qc`, `/soa install`, `/soa update`, `/soa closeout` |
+| `soa-son-of-anton-ethos`  | Auto-invoked on "execute / implement / start / deliver / resume" — owns the per-ticket loop                                                                                                                                                                          |
+| `soa-grill-me`            | Plan pressure-testing before any implementation                                                                                                                                                                                                                      |
+| `soa-pr-review`           | Triage CodeRabbit, Qodo, Greptile, SonarQube review comments (`triage`)                                                                                                                                                                                              |
+| `soa-quality-control`     | Post-phase fix + review-gap capture (`/soa quality-control phase-N: <desc>` or `/soa qc`)                                                                                                                                                                            |
+| `soa-enter-worktree`      | Bootstrap a fresh worktree with deps and `.env`                                                                                                                                                                                                                      |
+| `soa-closeout-stack`      | Squash-merge completed stacked PRs onto the configured closeout branch                                                                                                                                                                                               |
+| `soa-write-retrospective` | Write phase retrospective to `docs/product/retrospectives/`                                                                                                                                                                                                          |
 
 ---
 

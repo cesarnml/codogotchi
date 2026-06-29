@@ -69,6 +69,21 @@ ensure_gitignore_pattern() {
   echo "  updated: .gitignore ($pattern)"
 }
 
+copy_review_gap_scaffold() {
+  local source_dir="$REPO_ROOT/.son-of-anton/docs/template/review-gaps"
+  local dest_dir="$REPO_ROOT/docs/product/review-gaps"
+
+  [ -d "$source_dir" ] || return 0
+
+  mkdir -p "$dest_dir"
+  for file in README.md ledger.jsonl promotion-queue.md; do
+    if [ ! -e "$dest_dir/$file" ]; then
+      cp "$source_dir/$file" "$dest_dir/$file"
+      echo "  created: docs/product/review-gaps/$file"
+    fi
+  done
+}
+
 # ---------------------------------------------------------------------------
 # Migrations
 # ---------------------------------------------------------------------------
@@ -254,6 +269,8 @@ if [ "$IS_SOURCE_REPO" = false ]; then
   # Inject agent-rule blocks into AGENTS.md and CLAUDE.md
   inject_soa_block ".son-of-anton/AGENTS.soa.md" "AGENTS.md"
   inject_soa_block ".son-of-anton/CLAUDE.soa.md" "CLAUDE.md"
+
+  copy_review_gap_scaffold
 
   # Scaffold orchestrator.config.json if absent.
   # Detects packageManager from lock files; defaults to bun if none found.

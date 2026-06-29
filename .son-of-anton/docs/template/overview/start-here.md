@@ -106,6 +106,26 @@ This scans completed subagent-review reports for non-blocking **Advisory
 Observations** and records explicit operator dispositions in the phase artifact.
 It does not patch source files, and it is not a per-ticket pre-PR gate.
 
+For small verified fixes that reveal a review gap worth capturing, use the
+quality-control lane after `/soa tao` (or independently when no advisory
+observations exist):
+
+```bash
+/soa quality-control phase-16: <description>
+# or the short alias:
+/soa qc phase-16: <description>
+```
+
+`/soa qc` applies a bounded fix commit and appends one JSONL record to
+`docs/product/review-gaps/ledger.jsonl`. It classifies the gap as
+`review-reachable`, `spec-gap`, `qa-gap`, or `completeness-gap` and queues
+promotion candidates in `docs/product/review-gaps/promotion-queue.md` without
+editing the adversarial-review prompt. Larger or ambiguous work is routed
+toward standalone PR triage or `/soa plan`.
+
+The expected post-phase sequence is: **closeout → `/soa tao` → `/soa qc` (when
+applicable) → next phase planning**.
+
 ## Configured branch roles
 
 `orchestrator.config.json` separates three branch roles:
