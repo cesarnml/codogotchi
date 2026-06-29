@@ -627,6 +627,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 	private let emptyLabel = NSTextField(labelWithString: "")
 	private let footerLabel = NSTextField(labelWithString: "")
 	private let feedbackLabel = NSTextField(wrappingLabelWithString: "")
+	private var feedbackHeightConstraint: NSLayoutConstraint?
 
 	/// Idle-frame thumbnails are sliced once and cached by spritesheet path so
 	/// repeated grid rebuilds (resize, assign, search) don't re-decode WebP.
@@ -656,13 +657,11 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 	required init?(coder: NSCoder) { nil }
 
 	func setPetImportSuccess(petId: String) {
-		feedbackLabel.stringValue = "Imported \(petId) to ~/.codogotchi/pets/."
-		feedbackLabel.textColor = .systemGreen
+		setFeedback("Imported \(petId) to ~/.codogotchi/pets/.", color: .systemGreen)
 	}
 
 	func setPetImportError(_ message: String) {
-		feedbackLabel.stringValue = message
-		feedbackLabel.textColor = .systemRed
+		setFeedback(message, color: .systemRed)
 	}
 
 	/// Rebuild the grid from the current ViewModel state (after import).
@@ -732,8 +731,12 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		feedbackLabel.backgroundColor = .clear
 		feedbackLabel.font = .systemFont(ofSize: 11)
 		feedbackLabel.textColor = .secondaryLabelColor
+		feedbackLabel.isHidden = true
+		feedbackLabel.identifier = NSUserInterfaceItemIdentifier("petTabFeedback")
 		feedbackLabel.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(feedbackLabel)
+		feedbackHeightConstraint = feedbackLabel.heightAnchor.constraint(equalToConstant: 0)
+		feedbackHeightConstraint?.isActive = true
 
 		NSLayoutConstraint.activate([
 			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
@@ -753,18 +756,18 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 			storeNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			storeNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			gridScrollView.topAnchor.constraint(equalTo: storeNote.bottomAnchor, constant: 12),
+			feedbackLabel.topAnchor.constraint(equalTo: storeNote.bottomAnchor, constant: 8),
+			feedbackLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			feedbackLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			gridScrollView.topAnchor.constraint(equalTo: feedbackLabel.bottomAnchor, constant: 8),
 			gridScrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			gridScrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
 			emptyLabel.centerXAnchor.constraint(equalTo: gridScrollView.centerXAnchor),
 			emptyLabel.centerYAnchor.constraint(equalTo: gridScrollView.centerYAnchor),
 
-			feedbackLabel.topAnchor.constraint(equalTo: gridScrollView.bottomAnchor, constant: 8),
-			feedbackLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			feedbackLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
-
-			footerLabel.topAnchor.constraint(equalTo: feedbackLabel.bottomAnchor, constant: 6),
+			footerLabel.topAnchor.constraint(equalTo: gridScrollView.bottomAnchor, constant: 8),
 			footerLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			footerLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 			footerLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14),
@@ -1150,13 +1153,44 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		else { return }
 		let currentBadges = viewModel.badges(for: petId)
 		if currentBadges.contains(badgeKey) {
-			viewModel.unassign(badge: badgeKey, from: petId)
+			if viewModel.unassign(badge: badgeKey, from: petId) {
+				clearFeedback()
+			} else {
+				setAssignmentPersistenceError()
+			}
 		} else {
-			try? viewModel.assign(badge: badgeKey, to: petId)
+			do {
+				try viewModel.assign(badge: badgeKey, to: petId)
+				clearFeedback()
+			} catch {
+				NSLog(
+					"PetTabView: failed to persist assignment '%@' for '%@': %@",
+					badgeKey, petId, error.localizedDescription)
+				setAssignmentPersistenceError()
+			}
 		}
 		// reloadEntries pulls a fresh catalog (including updated isDefault flags)
 		// so the Default-badge blue border moves to the new holder immediately.
 		reloadEntries()
+	}
+
+	private func setAssignmentPersistenceError() {
+		setFeedback(
+			"Couldn’t save assignment. Check Codogotchi folder permissions.",
+			color: .systemRed)
+	}
+
+	private func setFeedback(_ message: String, color: NSColor) {
+		feedbackLabel.stringValue = message
+		feedbackLabel.textColor = color
+		feedbackLabel.isHidden = false
+		feedbackHeightConstraint?.isActive = false
+	}
+
+	private func clearFeedback() {
+		feedbackLabel.stringValue = ""
+		feedbackLabel.isHidden = true
+		feedbackHeightConstraint?.isActive = true
 	}
 
 	/// Import icon tapped for an importable pet.

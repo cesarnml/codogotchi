@@ -99,6 +99,13 @@ final class PetTabLayoutTests: XCTestCase {
 		let cards = views(in: content, identifier: "petCard")
 		XCTAssertEqual(cards.count, 3, "one card per pet (maew, felix, zeta)")
 
+		let feedbackLabels = views(in: content, identifier: "petTabFeedback")
+		XCTAssertEqual(feedbackLabels.count, 1, "Pet tab should expose one inline feedback label")
+		if let feedback = feedbackLabels.first as? NSTextField {
+			XCTAssertTrue(feedback.isHidden, "feedback starts hidden until an action reports status")
+			XCTAssertEqual(feedback.stringValue, "")
+		}
+
 		for card in cards {
 			guard let thumb = firstSubview(NSImageView.self, in: card) else {
 				return XCTFail("card missing thumbnail")

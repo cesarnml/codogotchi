@@ -288,8 +288,9 @@ final class PetTabViewModelTests: XCTestCase {
 		let (vm, assignmentsURL) = makeViewModelWithAssignments(canonical: ["pet-a"])
 		try vm.assign(badge: "claude_code", to: "pet-a")
 
-		vm.unassign(badge: "claude_code", from: "pet-a")
+		let didUnassign = vm.unassign(badge: "claude_code", from: "pet-a")
 
+		XCTAssertTrue(didUnassign)
 		XCTAssertFalse(vm.badges(for: "pet-a").contains("claude_code"))
 		let snapshot = AssignmentsJsonReader.read(at: assignmentsURL.path)
 		XCTAssertNil(snapshot.platformOverrides["claude_code"])
@@ -301,8 +302,9 @@ final class PetTabViewModelTests: XCTestCase {
 		var callbackFired = false
 		vm.onAssignmentsChanged = { callbackFired = true }
 
-		vm.unassign(badge: "default", from: "pet-a")
+		let didUnassign = vm.unassign(badge: "default", from: "pet-a")
 
+		XCTAssertFalse(didUnassign)
 		XCTAssertTrue(vm.badges(for: "pet-a").contains("default"))
 		XCTAssertFalse(callbackFired, "default badge cannot be unassigned")
 	}
@@ -328,8 +330,9 @@ final class PetTabViewModelTests: XCTestCase {
 		var callbackFired = false
 		vm.onAssignmentsChanged = { callbackFired = true }
 
-		vm.unassign(badge: "claude_code", from: "pet-a")
+		let didUnassign = vm.unassign(badge: "claude_code", from: "pet-a")
 
+		XCTAssertFalse(didUnassign)
 		XCTAssertTrue(vm.badges(for: "pet-a").contains("claude_code"))
 		XCTAssertFalse(callbackFired, "onAssignmentsChanged must not fire when unassign write fails")
 	}

@@ -174,13 +174,15 @@ final class PetTabViewModel {
 	}
 
 	/// Removes `badge` from `petId` when `petId` currently holds it.
-	/// No-op otherwise. The "default" badge cannot be unassigned.
-	/// Silently no-ops on write failure (persist-first: in-memory state
-	/// is not updated when the file write fails).
-	func unassign(badge: String, from petId: String) {
-		guard badge != "default" else { return }
-		guard assignmentsSnapshot.platformOverrides[badge] == petId else { return }
-		guard (try? ConfigFileWriter.merge([badge: NSNull()], into: assignmentsURL)) != nil else { return }
+	/// Returns true only when the persisted assignment map changed. The
+	/// "default" badge cannot be unassigned.
+	@discardableResult
+	func unassign(badge: String, from petId: String) -> Bool {
+		guard badge != "default" else { return false }
+		guard assignmentsSnapshot.platformOverrides[badge] == petId else { return false }
+		guard (try? ConfigFileWriter.merge([badge: NSNull()], into: assignmentsURL)) != nil else {
+			return false
+		}
 		var newOverrides = assignmentsSnapshot.platformOverrides
 		newOverrides.removeValue(forKey: badge)
 		assignmentsSnapshot = AssignmentsSnapshot(
@@ -188,6 +190,7 @@ final class PetTabViewModel {
 			platformOverrides: newOverrides
 		)
 		onAssignmentsChanged?()
+		return true
 	}
 
 	/// Returns the set of badge keys currently held by `petId`.
