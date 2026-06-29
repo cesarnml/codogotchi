@@ -187,10 +187,16 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						idleEscalationConfig: IdleEscalationConfig.resolve(),
 						initialIdleAge: IdleEscalationConfig.backdateSeconds()
 					)
+					let savedFrame = AppStateStore.loadFrame(
+						for: origin, visibleFrame: Self.visibleFloatingFrame())
 					let controller = FloatingPetController(
 						panel: panel,
 						visibleFrameProvider: Self.visibleFloatingFrame,
-						saveState: { _ in }
+						saveState: { state in
+							try AppStateStore.saveFrame(state.frame, for: origin)
+						},
+						initialState: FloatingAppState(
+							isFloatingPetVisible: false, frame: savedFrame)
 					)
 					controller.onVisibilityChanged = { [weak self] _ in
 						self?.updateAppNapOptOut()

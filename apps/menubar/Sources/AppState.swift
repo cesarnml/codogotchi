@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let APP_STATE_SCHEMA_VERSION = 2
+let APP_STATE_SCHEMA_VERSION = 3
 
 struct FloatingAppState: Codable, Equatable {
 	let isFloatingPetVisible: Bool
@@ -119,12 +119,17 @@ enum AppStateStore {
 			withIntermediateDirectories: true
 		)
 
+		// Preserve per-origin positions written by pool windows so a single-controller
+		// save (e.g. hook-status refresh) doesn't clobber them.
+		let existingPositions = loadRawPayload(url: url)?.floatingPetPositions
+
 		let payload = AppStatePayload(
 			schemaVersion: APP_STATE_SCHEMA_VERSION,
 			floatingPet: FloatingPetPayload(
 				visible: state.isFloatingPetVisible,
 				frame: FloatingFramePayload(state.frame)
 			),
+			floatingPetPositions: existingPositions,
 			onboardingCompletedAt: state.onboardingCompletedAt,
 			lastHookActivityAt: state.lastHookActivityAt,
 			hooksStatus: state.hooksStatus,
@@ -135,6 +140,54 @@ enum AppStateStore {
 		encoder.keyEncodingStrategy = .convertToSnakeCase
 		let data = try encoder.encode(payload)
 		try data.write(to: url, options: .atomic)
+	}
+
+	/// Returns the saved frame for `origin`, or the default frame when none has been stored.
+	static func loadFrame(for origin: String, visibleFrame: CGRect) -> CGRect {
+		guard let payload = loadRawPayload(url: appStateURL()),
+			payload.schemaVersion <= APP_STATE_SCHEMA_VERSION
+		else {
+			return FloatingFramePolicy.defaultFrame(in: visibleFrame)
+		}
+		if let saved = payload.floatingPetPositions?[origin] {
+			return FloatingFramePolicy.clamp(saved.cgRect, to: visibleFrame)
+		}
+		return FloatingFramePolicy.defaultFrame(in: visibleFrame)
+	}
+
+	/// Persists `frame` for `origin` in the `floating_pet_positions` map, leaving all
+	/// other fields in the file untouched.
+	static func saveFrame(_ frame: CGRect, for origin: String) throws {
+		let url = appStateURL()
+		try FileManager.default.createDirectory(
+			at: url.deletingLastPathComponent(),
+			withIntermediateDirectories: true
+		)
+		let existing = loadRawPayload(url: url)
+		var positions = existing?.floatingPetPositions ?? [:]
+		positions[origin] = FloatingFramePayload(frame)
+		let payload = AppStatePayload(
+			schemaVersion: APP_STATE_SCHEMA_VERSION,
+			floatingPet: existing?.floatingPet
+				?? FloatingPetPayload(visible: true, frame: FloatingFramePayload(FloatingFramePolicy.defaultFrame(in: .zero))),
+			floatingPetPositions: positions,
+			onboardingCompletedAt: existing?.onboardingCompletedAt,
+			lastHookActivityAt: existing?.lastHookActivityAt,
+			hooksStatus: existing?.hooksStatus,
+			installedHookVersion: existing?.installedHookVersion
+		)
+		let encoder = JSONEncoder()
+		encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+		encoder.keyEncodingStrategy = .convertToSnakeCase
+		let data = try encoder.encode(payload)
+		try data.write(to: url, options: .atomic)
+	}
+
+	private static func loadRawPayload(url: URL) -> AppStatePayload? {
+		guard let data = try? Data(contentsOf: url) else { return nil }
+		let decoder = JSONDecoder()
+		decoder.keyDecodingStrategy = .convertFromSnakeCase
+		return try? decoder.decode(AppStatePayload.self, from: data)
 	}
 
 	private static func defaultState(visibleFrame: CGRect) -> FloatingAppState {
@@ -148,6 +201,8 @@ enum AppStateStore {
 private struct AppStatePayload: Codable {
 	let schemaVersion: Int
 	let floatingPet: FloatingPetPayload
+	/// Per-origin last-known frame, keyed by window key ("claude_code", "cursor", "combined", …).
+	let floatingPetPositions: [String: FloatingFramePayload]?
 	let onboardingCompletedAt: String?
 	let lastHookActivityAt: String?
 	let hooksStatus: HooksStatusSnapshot?

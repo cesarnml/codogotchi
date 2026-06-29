@@ -65,13 +65,14 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 		panel: FloatingPetPanelManaging,
 		visibleFrameProvider: @escaping () -> CGRect,
 		saveState: @escaping (FloatingAppState) throws -> Void = AppStateStore.save,
-		notificationCenter: NotificationCenter = .default
+		notificationCenter: NotificationCenter = .default,
+		initialState: FloatingAppState? = nil
 	) {
 		self.panel = panel
 		self.visibleFrameProvider = visibleFrameProvider
 		self.saveState = saveState
 		self.notificationCenter = notificationCenter
-		self.state = AppStateStore.load(visibleFrame: visibleFrameProvider())
+		self.state = initialState ?? AppStateStore.load(visibleFrame: visibleFrameProvider())
 		super.init()
 
 		panel.setFrameChangeHandler { [weak self] frame in

@@ -56,7 +56,7 @@ final class AppStateTests: XCTestCase {
 			try writeAppState(
 				#"""
 				{
-				  "schema_version": 3,
+				  "schema_version": 99,
 				  "floating_pet": {
 				    "visible": false,
 				    "frame": { "x": 120, "y": 160, "width": 220, "height": 180 }
@@ -250,6 +250,74 @@ final class AppStateTests: XCTestCase {
 			XCTAssertEqual(AppStateStore.appStateURL(), dir.appendingPathComponent("app-state.json"))
 			XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("app-state.json").path))
 			XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("config.json").path))
+		}
+	}
+
+	// MARK: - Schema v3 / per-origin floating_pet_positions
+
+	func testLoadFrameForUnknownOriginReturnsDefault() {
+		withTempHome { _ in
+			let frame = AppStateStore.loadFrame(for: "cursor", visibleFrame: visibleFrame)
+			XCTAssertEqual(frame, FloatingFramePolicy.defaultFrame(in: visibleFrame))
+		}
+	}
+
+	func testSaveFrameAndLoadFrameRoundTripPerOrigin() throws {
+		try withTempHome { _ in
+			let cursorFrame = CGRect(x: 100, y: 200, width: 160, height: 160)
+			let codexFrame = CGRect(x: 300, y: 400, width: 140, height: 140)
+
+			try AppStateStore.saveFrame(cursorFrame, for: "cursor")
+			try AppStateStore.saveFrame(codexFrame, for: "codex")
+
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: "cursor", visibleFrame: visibleFrame), cursorFrame)
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: "codex", visibleFrame: visibleFrame), codexFrame)
+		}
+	}
+
+	func testSaveFramePreservesOtherOriginFrames() throws {
+		try withTempHome { _ in
+			let firstFrame = CGRect(x: 100, y: 200, width: 160, height: 160)
+			let secondFrame = CGRect(x: 300, y: 400, width: 140, height: 140)
+
+			try AppStateStore.saveFrame(firstFrame, for: "cursor")
+			try AppStateStore.saveFrame(secondFrame, for: "claude_code")
+
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: "cursor", visibleFrame: visibleFrame), firstFrame)
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: "claude_code", visibleFrame: visibleFrame), secondFrame)
+		}
+	}
+
+	func testSavePreservesExistingPerOriginPositions() throws {
+		try withTempHome { _ in
+			let petFrame = CGRect(x: 100, y: 200, width: 160, height: 160)
+			try AppStateStore.saveFrame(petFrame, for: "cursor")
+
+			let state = FloatingAppState(
+				isFloatingPetVisible: true,
+				frame: CGRect(x: 10, y: 20, width: 180, height: 180)
+			)
+			try AppStateStore.save(state)
+
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: "cursor", visibleFrame: visibleFrame), petFrame,
+				"save(_:) must not clobber per-origin positions")
+		}
+	}
+
+	func testSaveFrameClampsOffscreenFrameOnLoad() throws {
+		try withTempHome { _ in
+			let offscreen = CGRect(x: -500, y: 900, width: 2000, height: 40)
+			try AppStateStore.saveFrame(offscreen, for: "cursor")
+
+			let loaded = AppStateStore.loadFrame(for: "cursor", visibleFrame: visibleFrame)
+			XCTAssertGreaterThanOrEqual(loaded.width, FloatingFramePolicy.minimumSize.width)
+			XCTAssertLessThanOrEqual(loaded.width, FloatingFramePolicy.maximumSize.width)
+			XCTAssertTrue(visibleFrame.contains(loaded))
 		}
 	}
 }
