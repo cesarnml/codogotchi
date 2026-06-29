@@ -33,6 +33,11 @@ enum CodogotchiFolders {
 		dataFolderURL().appendingPathComponent("customization.json").path
 	}
 
+	/// `~/.codogotchi/assignments.json` — per-platform pet assignment written by Settings.
+	static func assignmentsPath() -> String {
+		dataFolderURL().appendingPathComponent("assignments.json").path
+	}
+
 	/// Create the folder if missing, then reveal it in Finder. Creating first
 	/// keeps a first-launch open (folder not yet written) from silently no-oping.
 	/// `createDirectory(withIntermediateDirectories:)` is idempotent.

@@ -59,7 +59,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         var created: [String] = []
         let pool = FloatingPetWindowPool(
             customizationReader: { makeCustomization() },
-            windowFactory: { origin in
+            windowFactory: { origin, _ in
                 created.append(origin)
                 return StubWindowController()
             }
@@ -79,7 +79,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         var currentTime = Date(timeIntervalSinceReferenceDate: 0)
         let pool = FloatingPetWindowPool(
             customizationReader: { makeCustomization(ttlSeconds: 60) },
-            windowFactory: { origin in
+            windowFactory: { origin, _ in
                 let c = StubWindowController()
                 controllers[origin] = c
                 return c
@@ -110,7 +110,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         var currentTime = Date(timeIntervalSinceReferenceDate: 0)
         let pool = FloatingPetWindowPool(
             customizationReader: { makeCustomization(ttlSeconds: 60) },
-            windowFactory: { _ in StubWindowController() },
+            windowFactory: { _, _ in StubWindowController() },
             now: { currentTime }
         )
 
@@ -144,7 +144,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         var currentTime = Date(timeIntervalSinceReferenceDate: 0)
         let pool = FloatingPetWindowPool(
             customizationReader: { makeCustomization(ttlSeconds: 60) },
-            windowFactory: { _ in StubWindowController() },
+            windowFactory: { _, _ in StubWindowController() },
             now: { currentTime }
         )
         // cursor is last-active; claude_code keeps working across a long span.
@@ -165,7 +165,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         var currentTime = Date(timeIntervalSinceReferenceDate: 0)
         let pool = FloatingPetWindowPool(
             customizationReader: { makeCustomization(ttlSeconds: 5) },
-            windowFactory: { _ in StubWindowController() },
+            windowFactory: { _, _ in StubWindowController() },
             now: { currentTime }
         )
         let snap = makePerPlatformSnapshot([
@@ -189,7 +189,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
             customizationReader: {
                 makeCustomization(platformModes: ["claude_code": .combined, "cursor": .combined])
             },
-            windowFactory: { origin in
+            windowFactory: { origin, _ in
                 createdKeys.append(origin)
                 return StubWindowController()
             }
@@ -213,7 +213,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
             customizationReader: {
                 makeCustomization(platformModes: ["claude_code": .combined, "cursor": .combined], ttlSeconds: 60)
             },
-            windowFactory: { _ in StubWindowController() },
+            windowFactory: { _, _ in StubWindowController() },
             now: { currentTime }
         )
         let snap = makePerPlatformSnapshot([
@@ -240,7 +240,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         var customization = makeCustomization()
         let pool = FloatingPetWindowPool(
             customizationReader: { customization },
-            windowFactory: { origin in
+            windowFactory: { origin, _ in
                 createdKeys.append(origin)
                 return StubWindowController()
             }
@@ -270,7 +270,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         var customization = makeCustomization()
         let pool = FloatingPetWindowPool(
             customizationReader: { customization },
-            windowFactory: { _ in StubWindowController() }
+            windowFactory: { _, _ in StubWindowController() }
         )
         // Tick 1: claude_code is own-mode and the only origin → it is last-active
         pool.update(snapshot: makePerPlatformSnapshot([
@@ -303,11 +303,11 @@ final class FloatingPetWindowPoolTests: XCTestCase {
             .path
     }
 
-    func testReplacePetsBroadcastsToEveryActiveWindow() throws {
+    func testReplacePetPerOriginLiveSwapsOnlyThatWindow() throws {
         var stubs: [String: StubWindowController] = [:]
         let pool = FloatingPetWindowPool(
             customizationReader: { makeCustomization() },
-            windowFactory: { origin in
+            windowFactory: { origin, _ in
                 let c = StubWindowController()
                 stubs[origin] = c
                 return c
@@ -320,19 +320,19 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         XCTAssertEqual(Set(pool.activeOrigins), Set(["claude_code", "cursor"]))
 
         let pet = try CodexPet(petDirectory: maliFixtureDirectory())
-        pool.replacePets(codexPet: pet, codogotchiPet: nil)
+        pool.replacePet(origin: "claude_code", codexPet: pet, codogotchiPet: nil)
 
         XCTAssertEqual(stubs["claude_code"]?.replacePetsCallCount, 1,
-            "a Settings pet swap must live-update every visible window")
-        XCTAssertEqual(stubs["cursor"]?.replacePetsCallCount, 1,
-            "a Settings pet swap must live-update every visible window")
+            "replacePet must live-update the target window")
+        XCTAssertEqual(stubs["cursor"]?.replacePetsCallCount, 0,
+            "replacePet must not touch other windows")
     }
 
     func testOffModeOriginNeverAppearsInActiveOrigins() {
         var factoryCalled = false
         let pool = FloatingPetWindowPool(
             customizationReader: { makeCustomization(platformModes: ["cursor": .off]) },
-            windowFactory: { _ in
+            windowFactory: { _, _ in
                 factoryCalled = true
                 return StubWindowController()
             }
@@ -352,7 +352,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         var spawnCount = 0
         let pool = FloatingPetWindowPool(
             customizationReader: { makeCustomization() },
-            windowFactory: { _ in
+            windowFactory: { _, _ in
                 spawnCount += 1
                 return StubWindowController()
             }
@@ -379,7 +379,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         var spawnCount = 0
         let pool = FloatingPetWindowPool(
             customizationReader: { makeCustomization() },
-            windowFactory: { _ in
+            windowFactory: { _, _ in
                 spawnCount += 1
                 return StubWindowController()
             }
@@ -406,7 +406,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
             customizationReader: {
                 makeCustomization(platformModes: ["claude_code": .combined, "cursor": .combined])
             },
-            windowFactory: { _ in
+            windowFactory: { _, _ in
                 spawnCount += 1
                 return StubWindowController()
             }
@@ -487,7 +487,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         )
     }
 
-    func testReplacePetForOneOriginDoesNotAffectOtherWindows() {
+    func testReplacePetForOneOriginDoesNotAffectOtherWindows() throws {
         var stubs: [String: StubWindowController] = [:]
         let assignments = AssignmentsSnapshot(default: DEFAULT_PET_NAME, platformOverrides: [:])
         let pool = FloatingPetWindowPool(
@@ -505,7 +505,8 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         ]))
         XCTAssertEqual(Set(pool.activeOrigins), Set(["claude_code", "cursor"]))
 
-        pool.replacePet(origin: "claude_code")
+        let pet = try CodexPet(petDirectory: maliFixtureDirectory())
+        pool.replacePet(origin: "claude_code", codexPet: pet, codogotchiPet: nil)
 
         XCTAssertEqual(
             stubs["claude_code"]?.replacePetsCallCount, 1,
