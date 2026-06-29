@@ -211,6 +211,7 @@ protocol MinimalistPanelManaging: AnyObject {
 	func applyActivity(_ state: ActivityState)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyPromptSummary(_ summary: String)
+	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 }
 
 @MainActor
@@ -219,6 +220,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	private let panel: MinimalistPanelManaging
 	private let visibleFrameProvider: () -> CGRect
 	private let saveState: (FloatingAppState) throws -> Void
+	private let notificationCenter: NotificationCenter
 	private let promptSummaryProvider: (String) -> String
 	private var state: FloatingAppState
 
@@ -230,6 +232,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		panel: MinimalistPanelManaging,
 		visibleFrameProvider: @escaping () -> CGRect,
 		saveState: @escaping (FloatingAppState) throws -> Void = AppStateStore.save,
+		notificationCenter: NotificationCenter = .default,
 		initialState: FloatingAppState? = nil,
 		promptSummaryProvider: @escaping (String) -> String = { PromptAttentionReader.latestSummary(origin: $0) }
 	) {
@@ -237,14 +240,29 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		self.panel = panel
 		self.visibleFrameProvider = visibleFrameProvider
 		self.saveState = saveState
+		self.notificationCenter = notificationCenter
 		self.promptSummaryProvider = promptSummaryProvider
 		self.state = initialState ?? AppStateStore.load(visibleFrame: visibleFrameProvider())
 		super.init()
+
+		panel.setFrameChangeHandler { [weak self] frame in
+			self?.persistFrameChange(frame)
+		}
+		notificationCenter.addObserver(
+			self,
+			selector: #selector(displayParametersDidChange(_:)),
+			name: NSApplication.didChangeScreenParametersNotification,
+			object: nil
+		)
 
 		if state.isFloatingPetVisible {
 			panel.show(frame: state.frame)
 		}
 		onVisibilityChanged?(state.isFloatingPetVisible)
+	}
+
+	deinit {
+		notificationCenter.removeObserver(self)
 	}
 
 	func setFloatingPetVisible(_ visible: Bool) {
@@ -295,7 +313,45 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
 
+	func persistFrameChange(_ frame: CGRect) {
+		saveClampedFrame(frame, visibleFrame: visibleFrameProvider(), logLabel: "frame change")
+	}
+
+	func reclampForVisibleFrameChange() {
+		saveClampedFrame(
+			state.frame,
+			visibleFrame: visibleFrameProvider(),
+			logLabel: "display change"
+		)
+	}
+
+	@objc private func displayParametersDidChange(_ notification: Notification) {
+		reclampForVisibleFrameChange()
+	}
+
 	private func refreshPromptSummary() {
 		panel.applyPromptSummary(promptSummaryProvider(origin))
+	}
+
+	private func saveClampedFrame(_ frame: CGRect, visibleFrame: CGRect, logLabel: String) {
+		let nextState = FloatingAppState(
+			isFloatingPetVisible: state.isFloatingPetVisible,
+			frame: FloatingFramePolicy.clamp(frame, to: visibleFrame),
+			onboardingCompletedAt: state.onboardingCompletedAt,
+			lastHookActivityAt: state.lastHookActivityAt,
+			hooksStatus: state.hooksStatus,
+			installedHookVersion: state.installedHookVersion
+		)
+		do {
+			try saveState(nextState)
+		} catch {
+			NSLog("MinimalistWindowController: failed to persist floating \(logLabel): \(error.localizedDescription)")
+			return
+		}
+
+		state = nextState
+		if nextState.isFloatingPetVisible {
+			panel.show(frame: nextState.frame)
+		}
 	}
 }

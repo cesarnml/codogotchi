@@ -73,13 +73,18 @@ enum PromptAttentionReader {
 		}
 		let prefix = "\(origin):"
 		let latest = payload.bySession
-			.filter { key, entry in
-				key.hasPrefix(prefix) && !(entry.summary ?? "").isEmpty
+			.compactMap { key, entry -> (date: Date, summary: String)? in
+				guard key.hasPrefix(prefix),
+					let summary = entry.summary,
+					!summary.isEmpty,
+					let date = parseDate(entry.updatedAt)
+				else {
+					return nil
+				}
+				return (date: date, summary: summary)
 			}
-			.max { lhs, rhs in
-				parseDate(lhs.value.updatedAt) ?? .distantPast < parseDate(rhs.value.updatedAt) ?? .distantPast
-			}
-		return latest?.value.summary ?? ""
+			.max { lhs, rhs in lhs.date < rhs.date }
+		return latest?.summary ?? ""
 	}
 
 	private static func parseDate(_ value: String?) -> Date? {
