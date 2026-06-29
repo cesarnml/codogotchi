@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-06-28T10:07:02.753Z",
+  "summary": {
+    "total": 8,
+    "patched": 0,
+    "rejected": 7,
+    "already-covered": 1,
+    "requires-human-review": 0
+  },
+  "dispositions": [
+    {
+      "disposition": "rejected",
+      "rationale": "A single trailing blank line is valid JSONL and does not affect any downstream tooling. No change needed.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-19/reviews/P19.01-subagent-review.report.md",
+        "ticketId": "P19.01"
+      },
+      "observation": "**`ledger.jsonl` template has a trailing blank line.** The file contains one blank line (not strictly empty). This is valid as an empty JSONL file and does not affect any downstream tooling described in the ticket."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Existence-only assertions are sufficient for scaffold creation where the source template is the only content producer; content drift in templates is not a sync-test responsibility. The observation is valid as a long-term test hygiene note but does not represent a current defect.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-19/reviews/P19.01-subagent-review.report.md",
+        "ticketId": "P19.01"
+      },
+      "observation": "**Fresh-creation assertions are existence-only.** Both tests check `existsSync(...)` but not file content on initial copy. If `cp` somehow produced a zero-byte file, the tests pass. This is unlikely in practice but means template content drift (e.g., someone empties a template file) is not caught by the test suite at sync time."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Fail-loud behavior on a missing source file is acceptable per the observation's own conclusion. The residual empty directory is a minor operational nuisance, not a correctness issue. The ticket rationale explicitly does not require handling this case.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-19/reviews/P19.01-subagent-review.report.md",
+        "ticketId": "P19.01"
+      },
+      "observation": "**Partial-source failure leaves an empty destination directory.** If `.son-of-anton/docs/template/review-gaps/` exists but is missing one of the three expected files, `copy_review_gap_scaffold` creates `docs/product/review-gaps/` via `mkdir -p`, then exits the entire script when `cp` fails on the missing source file. Subsequent reruns reproduce the same failure. The empty destination directory is left behind. This is fail-loud behavior (acceptable) but the residual empty directory could confuse operators. The ticket's rationale does not require handling this case, so it belongs here rather than as a blocking finding."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The `[ ! -e ]` guard is identical for all three files; the implementation correctness was confirmed by direct probes. Adding a parallel sentinel assertion across all three files is a test-quality improvement, not a correctness gap. Deferring to a future test-hardening pass.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-19/reviews/P19.01-subagent-review.report.md",
+        "ticketId": "P19.01"
+      },
+      "observation": "**Preserve test covers only one file's content.** The preserve test pre-creates `ledger.jsonl` with custom content and verifies it byte-for-byte. It does not place custom content in `README.md` or `promotion-queue.md` before sync and verify those survive unchanged. Because the `[ ! -e ]` guard is identical for all three files, the implementation is correct, but a future change that accidentally breaks the guard for a specific file would go undetected for the two unchecked files. Adding a parallel assertion (write sentinel content into all three, rerun, verify all three unchanged) would close this gap."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The observation itself notes the assertion is redundant coverage with no false-positive risk in current text. Removing it would require a test change commit with no correctness benefit. Leave as-is.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-19/reviews/P19.03-subagent-review.report.md",
+        "ticketId": "P19.03"
+      },
+      "observation": "**`toContain('qc')` in test 2 (line 35) is a loose two-character match.** The assertion would pass on any prose that happened to contain \"qc\" as a substring in an unrelated context. In the current SoA skill text the only occurrences are the alias section heading and the trigger line, so there is no false-positive risk today — but the assertion provides weaker discoverability proof than checking for the alias heading or trigger string explicitly (both of which are already checked by line 34 and line 37–38). The `toContain('qc')` line is essentially redundant coverage."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The invariant holds: both human verification and a commit are required before the ledger append in step 7. Narrative sequence (step 5 before step 6) already implies the intended order. Making the ordering constraint explicit would add prose complexity without closing a real failure mode.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-19/reviews/P19.03-subagent-review.report.md",
+        "ticketId": "P19.03"
+      },
+      "observation": "**Human verification timing is under-constrained relative to the commit.** Step 5 (human verification) is required \"before recording the review gap\" (i.e., before step 7), but there is no explicit constraint that human verification must occur before the commit in step 6. An operator could commit first and then produce human verification. This is within the invariant (both are required before ledger append) but the Workflow's narrative sequence implies verification before commit, and making that explicit would prevent a plausible mis-reading."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "A `not.toContain` assertion on prohibiting language is brittle and adds test maintenance burden without catching real regressions. The ban is enforced by the skill file's explicit language, which is read by human operators. Prose auditing tests are not the right gate for this invariant.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-19/reviews/P19.03-subagent-review.report.md",
+        "ticketId": "P19.03"
+      },
+      "observation": "**No test asserts the ban on `bun run deliver quality-control`.** Both skill files explicitly forbid this command form, but neither test in `p19-03.test.ts` checks for the prohibiting language. If the ban language were accidentally removed from both files, tests would still pass. This is low-risk given the single repo, but the ban is a structural invariant that could be cheaply tested with a `not.toContain('bun run deliver quality-control')` assertion."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "P19.04 (Routing, reachability, and promotion discipline) delivered explicit routing and promotion discipline docs that govern when quality-control capture is appropriate vs. when an operator should escalate to standalone PR triage or a new plan. The soft gate wording in the quality-control skill intentionally preserves operator judgment; P19.04 is the clarifying companion.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-19/reviews/P19.03-subagent-review.report.md",
+        "ticketId": "P19.03"
+      },
+      "observation": "**Soft size gate creates routing ambiguity.** The Scope section (line 30–33 of quality-control/SKILL.md) says \"Do not hard-gate solely on size when the operator is already asking for quality-control capture.\" This softens the \"small enough for one bounded fix commit\" criterion in a way that an operator seeking to avoid standalone PR triage could exploit — asking for QC capture when the fix is medium-sized and routing discipline is the wrong one. If P19.04 is going to tighten routing discipline, this soft gate may be revisited then; flagging it so the P19.04 spec can decide whether to harden it."
+    }
+  ]
+}

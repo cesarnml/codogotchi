@@ -11,6 +11,31 @@ a review gap that should inform future planning or review prompts.
 - `promotion-queue.md` collects candidates for later prompt or process
   promotion. Capture here does not edit the adversarial-review prompt directly.
 
+## Record fields
+
+Write ledger rows through the `appendReviewGapRecord` helper in
+`tools/delivery/review-gap-ledger.ts`, which validates the schema.
+
+Required on every row:
+
+- `phase` (`phase-NN`), `date` (`YYYY-MM-DD`), `kind` (a classification below),
+  `summary` (one-line headline), `fixCommit` (`{ sha, subject }`),
+  `detectionRounds` (how many detection/review rounds before it was found),
+  `reachability` (`{ classification, evidence?, promptLesson? }`).
+
+Optional rich-capture fields — ported from the pioneering codogotchi ad-hoc
+quality-control ledger — carry the experiential detail a one-line `summary`
+cannot. Prefer them whenever a fix exposes reusable learning:
+
+- `id` — a repo-scoped ledger identifier (e.g. `codogotchi-16`).
+- `problem` — the precise failure, in enough detail to reconstruct it.
+- `solution` — what the landed fix actually changed.
+- `defectClass` — a short reusable label for the defect family.
+- `testReachability` — whether/how the gap was reachable by automated tests.
+- `recurrence` — array of prior ledger `id`s this finding recurs from.
+
+Slim rows (no rich fields) stay valid; the rich fields are additive.
+
 ## Classification
 
 Record the narrowest honest gap class:

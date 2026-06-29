@@ -165,4 +165,56 @@ describe('P19.02 review-gap ledger record helper', () => {
       ),
     ).not.toThrow();
   });
+
+  it('round-trips optional rich-capture fields when supplied', () => {
+    const record = validateReviewGapRecord(
+      validRecord({
+        kind: 'qa-gap',
+        reachability: { classification: 'qa-gap' },
+        id: 'codogotchi-16',
+        problem: 'Menubar icon floated small next to system icons.',
+        solution: 'Sized the status item to the menu-bar thickness.',
+        defectClass: 'undersized-static-asset',
+        testReachability: 'Manual: visible only by running the menubar app.',
+        recurrence: ['codogotchi-12'],
+      }),
+    );
+
+    expect(record).toMatchObject({
+      id: 'codogotchi-16',
+      problem: 'Menubar icon floated small next to system icons.',
+      solution: 'Sized the status item to the menu-bar thickness.',
+      defectClass: 'undersized-static-asset',
+      testReachability: 'Manual: visible only by running the menubar app.',
+      recurrence: ['codogotchi-12'],
+    });
+  });
+
+  it('omits rich-capture fields from slim records', () => {
+    const record = validateReviewGapRecord(validRecord());
+
+    expect(record).not.toHaveProperty('id');
+    expect(record).not.toHaveProperty('problem');
+    expect(record).not.toHaveProperty('recurrence');
+  });
+
+  it('drops a recurrence array down to undefined when empty', () => {
+    const record = validateReviewGapRecord(validRecord({ recurrence: [] }));
+
+    expect(record).not.toHaveProperty('recurrence');
+  });
+
+  it('rejects a non-array recurrence value', () => {
+    expect(() =>
+      validateReviewGapRecord(
+        validRecord({ recurrence: 'codogotchi-12' as unknown as string[] }),
+      ),
+    ).toThrow(/recurrence/i);
+  });
+
+  it('rejects empty recurrence ids', () => {
+    expect(() =>
+      validateReviewGapRecord(validRecord({ recurrence: ['  '] })),
+    ).toThrow(/recurrence\[0\]/);
+  });
 });
