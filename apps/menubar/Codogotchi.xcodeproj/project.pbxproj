@@ -99,6 +99,8 @@
 		F0D2A72E1931F49257F1C2A4 /* FloatingPetScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50592CBB8ED4543FDCF95E79 /* FloatingPetScene.swift */; };
 		F7D1881F6D3DB1D5BFC19B63 /* CodexPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6829E3A0570398A50A596E4 /* CodexPet.swift */; };
 		F82F0F3BD0350BC38F97CA27 /* StateJsonWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */; };
+		CF820DBBEBEC4FD7BD11ABAD /* AssignmentsJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4518369EF14F4057A1DAC7E8 /* AssignmentsJsonReaderTests.swift */; };
+		AE68A246D8D640BDB25C71E3 /* AssignmentsJsonReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2EFE189523D4964ACFFFC45 /* AssignmentsJsonReader.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -199,6 +201,8 @@
 		E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStoreSeeder.swift; sourceTree = "<group>"; };
 		EA899400094213B8A814D114 /* FloatingPetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetController.swift; sourceTree = "<group>"; };
 		EED7E5C1185B639D5786A2E2 /* CustomizationJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationJsonReaderTests.swift; sourceTree = "<group>"; };
+		4518369EF14F4057A1DAC7E8 /* AssignmentsJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentsJsonReaderTests.swift; sourceTree = "<group>"; };
+		C2EFE189523D4964ACFFFC45 /* AssignmentsJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentsJsonReader.swift; sourceTree = "<group>"; };
 		F03E85F706D8680019622FDC /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRendererTests.swift; sourceTree = "<group>"; };
 		F38C436FB78D4B7E7895A7EA /* AttentionFocusTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttentionFocusTargetTests.swift; sourceTree = "<group>"; };
@@ -221,6 +225,7 @@
 				4610C19ADA41987592CEE748 /* CodexPetTests.swift */,
 				24FA942D11A38DA6F0B232D9 /* CodogotchiFoldersTests.swift */,
 				E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */,
+				4518369EF14F4057A1DAC7E8 /* AssignmentsJsonReaderTests.swift */,
 				0726E3AFB7210BA52BF1ACFD /* ConfigFileWriterTests.swift */,
 				EED7E5C1185B639D5786A2E2 /* CustomizationJsonReaderTests.swift */,
 				489C5364D39974B530891975 /* DemoModeTests.swift */,
@@ -276,6 +281,7 @@
 				E6829E3A0570398A50A596E4 /* CodexPet.swift */,
 				74CC4170BD102B13FAEADA8B /* CodogotchiFolders.swift */,
 				31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */,
+				C2EFE189523D4964ACFFFC45 /* AssignmentsJsonReader.swift */,
 				BFDA2FD41708D0AEB3230327 /* ConfigBootstrap.swift */,
 				08997AE6D58DB7C54EC4DAC1 /* ConfigFileWriter.swift */,
 				D5A6437113DF92D5CB7E925C /* CustomizationJsonReader.swift */,
@@ -476,6 +482,7 @@
 				F7D1881F6D3DB1D5BFC19B63 /* CodexPet.swift in Sources */,
 				4ADBB1DD081EE5B9CE110363 /* CodogotchiFolders.swift in Sources */,
 				A28BAB9D5F23FFBE6C429720 /* CodogotchiPet.swift in Sources */,
+				AE68A246D8D640BDB25C71E3 /* AssignmentsJsonReader.swift in Sources */,
 				17A4A67B836C574013DB2CDA /* ConfigBootstrap.swift in Sources */,
 				E3A1358DA3174EF2C96F1B01 /* ConfigFileWriter.swift in Sources */,
 				0A2908CC07910B983DD32326 /* CustomizationJsonReader.swift in Sources */,
@@ -533,6 +540,7 @@
 				C81091A2187453263DAF99B7 /* CodexPetTests.swift in Sources */,
 				E8F5637F5C520B780E4D73D3 /* CodogotchiFoldersTests.swift in Sources */,
 				38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */,
+				CF820DBBEBEC4FD7BD11ABAD /* AssignmentsJsonReaderTests.swift in Sources */,
 				430CAFACBB46008FC2F3AAF7 /* ConfigFileWriterTests.swift in Sources */,
 				B2E987D4266CDD1A1AC3AF04 /* CustomizationJsonReaderTests.swift in Sources */,
 				7DC659F8DECEC6D8932E49DE /* DemoModeTests.swift in Sources */,
