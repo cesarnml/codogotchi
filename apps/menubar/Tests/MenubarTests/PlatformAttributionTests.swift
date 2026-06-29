@@ -3,9 +3,9 @@ import XCTest
 @testable import Codogotchi
 
 /// `PlatformAttribution` maps `source_event.origin` strings to the platform logo
-/// the animation badge surfaces. Only the five coding platforms that drive the
-/// pet get a chip; orchestration/bookkeeping origins and unknown/absent values
-/// resolve to `nil` so no chip is drawn.
+/// the animation badge surfaces. Coding platforms get their tool chip, the
+/// synthetic combined origin gets the Default chip, and orchestration/
+/// bookkeeping origins plus unknown/absent values resolve to `nil` so no chip is drawn.
 final class PlatformAttributionTests: XCTestCase {
 	func testCodingPlatformsResolveToTheirLogo() {
 		XCTAssertEqual(PlatformAttribution(origin: "claude_code"), .claudeCode)
@@ -33,6 +33,12 @@ final class PlatformAttributionTests: XCTestCase {
 		XCTAssertEqual(PlatformAttribution(origin: "antigravity")?.assetName, "PlatformAntigravity")
 	}
 
+	func testCombinedOriginResolvesToDefaultPlatform() {
+		XCTAssertEqual(PlatformAttribution(origin: "combined"), .default)
+		XCTAssertEqual(PlatformAttribution(origin: "combined")?.assetName, "PlatformDefault")
+		XCTAssertEqual(PlatformAttribution(origin: "combined")?.displayName, "Default")
+	}
+
 	func testVSCodeDisplayName() {
 		XCTAssertEqual(PlatformAttribution(origin: "vscode")?.displayName, "VS Code")
 	}
@@ -50,6 +56,13 @@ final class PlatformAttributionTests: XCTestCase {
 		XCTAssertEqual(PlatformAttribution.claudeCode.assetName, "PlatformClaudeCode")
 		XCTAssertEqual(PlatformAttribution.codex.assetName, "PlatformCodex")
 		XCTAssertEqual(PlatformAttribution.cursor.assetName, "PlatformCursor")
+		XCTAssertEqual(PlatformAttribution.default.assetName, "PlatformDefault")
+		let defaultAsset = URL(fileURLWithPath: #file)
+			.deletingLastPathComponent()
+			.deletingLastPathComponent()
+			.deletingLastPathComponent()
+			.appendingPathComponent("Assets.xcassets/PlatformDefault.imageset")
+		XCTAssertTrue(FileManager.default.fileExists(atPath: defaultAsset.path))
 	}
 
 	func testDisplayName() {

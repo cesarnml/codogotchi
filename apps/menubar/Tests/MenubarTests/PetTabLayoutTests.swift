@@ -72,7 +72,8 @@ final class PetTabLayoutTests: XCTestCase {
 		let vm = PetTabViewModel(
 			codexPetsRoot: codexRoot,
 			canonicalPetsRoot: canonicalRoot,
-			configURL: tmp.appendingPathComponent("config.json")
+			configURL: tmp.appendingPathComponent("config.json"),
+			assignmentsURL: tmp.appendingPathComponent("assignments.json")
 		)
 		let controller = SettingsWindowController(petTabViewModel: vm)
 		controller.show()

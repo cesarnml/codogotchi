@@ -284,6 +284,56 @@ final class PetTabViewModelTests: XCTestCase {
 		XCTAssertTrue(vm.badges(for: "pet-b").contains("claude_code"))
 	}
 
+	func testUnassignRemovesBadgeAndPersists() throws {
+		let (vm, assignmentsURL) = makeViewModelWithAssignments(canonical: ["pet-a"])
+		try vm.assign(badge: "claude_code", to: "pet-a")
+
+		vm.unassign(badge: "claude_code", from: "pet-a")
+
+		XCTAssertFalse(vm.badges(for: "pet-a").contains("claude_code"))
+		let snapshot = AssignmentsJsonReader.read(at: assignmentsURL.path)
+		XCTAssertNil(snapshot.platformOverrides["claude_code"])
+	}
+
+	func testUnassignDefaultIsNoOp() throws {
+		let (vm, _) = makeViewModelWithAssignments(canonical: ["pet-a"])
+		try vm.assign(badge: "default", to: "pet-a")
+		var callbackFired = false
+		vm.onAssignmentsChanged = { callbackFired = true }
+
+		vm.unassign(badge: "default", from: "pet-a")
+
+		XCTAssertTrue(vm.badges(for: "pet-a").contains("default"))
+		XCTAssertFalse(callbackFired, "default badge cannot be unassigned")
+	}
+
+	func testUnassignDoesNotUpdateInMemoryStateWhenWriteFails() throws {
+		let roots = makePets(canonical: ["pet-a"])
+		let assignmentsURL = tmp.appendingPathComponent("assignments-failing.json")
+		try """
+			{
+			  "schema_version": 1,
+			  "default": "maew",
+			  "claude_code": "pet-a"
+			}
+			""".write(to: assignmentsURL, atomically: true, encoding: .utf8)
+		let vm = PetTabViewModel(
+			codexPetsRoot: roots.codexRoot,
+			canonicalPetsRoot: roots.canonicalRoot,
+			configURL: tmp.appendingPathComponent("config.json"),
+			assignmentsURL: assignmentsURL
+		)
+		try FileManager.default.removeItem(at: assignmentsURL)
+		try FileManager.default.createDirectory(at: assignmentsURL, withIntermediateDirectories: false)
+		var callbackFired = false
+		vm.onAssignmentsChanged = { callbackFired = true }
+
+		vm.unassign(badge: "claude_code", from: "pet-a")
+
+		XCTAssertTrue(vm.badges(for: "pet-a").contains("claude_code"))
+		XCTAssertFalse(callbackFired, "onAssignmentsChanged must not fire when unassign write fails")
+	}
+
 	func testReassigningDefaultMovesIsDefault() throws {
 		let (vm, _) = makeViewModelWithAssignments(canonical: ["pet-a", "pet-b"])
 		try vm.assign(badge: "default", to: "pet-a")

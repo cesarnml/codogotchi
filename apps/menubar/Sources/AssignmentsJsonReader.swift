@@ -34,6 +34,7 @@ enum AssignmentsJsonReader {
 
 		let decoder = JSONDecoder()
 		guard let payload = try? decoder.decode(AssignmentsPayload.self, from: data),
+			payload.schemaVersion == 1,
 			let defaultPet = payload.defaultPet, !defaultPet.isEmpty
 		else { return .safeDefault }
 
@@ -49,6 +50,7 @@ enum AssignmentsJsonReader {
 }
 
 private struct AssignmentsPayload: Decodable {
+	let schemaVersion: Int?
 	let defaultPet: String?
 	let claudeCode: String?
 	let vscode: String?
@@ -57,6 +59,7 @@ private struct AssignmentsPayload: Decodable {
 	let antigravity: String?
 
 	enum CodingKeys: String, CodingKey {
+		case schemaVersion = "schema_version"
 		case defaultPet = "default"
 		case claudeCode = "claude_code"
 		case vscode
@@ -75,6 +78,18 @@ private struct AssignmentsPayload: Decodable {
 /// write by passing only the updated key-value pair to `ConfigFileWriter.merge`,
 /// which preserves all other existing keys.
 enum AssignmentsJsonWriter {
+	enum Error: LocalizedError {
+		case invalidBadge(String)
+		case invalidPetId
+
+		var errorDescription: String? {
+			switch self {
+			case .invalidBadge(let badge): return "'\(badge)' is not a valid assignment badge key"
+			case .invalidPetId: return "petId must be non-empty"
+			}
+		}
+	}
+
 	/// Assigns `petId` to `badge` in the file at `url`.
 	///
 	/// - `badge` must be one of the 6 valid assignment badge keys.
@@ -83,6 +98,13 @@ enum AssignmentsJsonWriter {
 	///   key, seeds `default: DEFAULT_PET_NAME` so the reader always finds a valid key.
 	/// - Throws `ConfigFileWriterError` when the existing file is unreadable.
 	static func write(badge: String, petId: String, to url: URL) throws {
+		guard ASSIGNMENT_BADGE_KEYS.contains(badge) else {
+			throw Error.invalidBadge(badge)
+		}
+		guard !petId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+			throw Error.invalidPetId
+		}
+
 		var update: [String: Any] = [badge: petId]
 		if badge != "default" {
 			let hasValidDefault: Bool = {

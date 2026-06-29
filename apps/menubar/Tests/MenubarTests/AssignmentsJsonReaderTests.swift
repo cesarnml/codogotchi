@@ -30,6 +30,17 @@ final class AssignmentsJsonReaderTests: XCTestCase {
 		XCTAssertEqual(snapshot.platformOverrides, [:])
 	}
 
+	func testBinaryFileReturnsSafeDefault() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("assignments-binary-\(UUID().uuidString).json")
+		try Data([0x00, 0xff, 0x7f, 0x13]).write(to: tmp)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = AssignmentsJsonReader.read(at: tmp.path)
+		XCTAssertEqual(snapshot.default, DEFAULT_PET_NAME)
+		XCTAssertEqual(snapshot.platformOverrides, [:])
+	}
+
 	// MARK: - Full file resolves overrides
 
 	func testValidFileDecodesAllFields() throws {
@@ -40,7 +51,10 @@ final class AssignmentsJsonReaderTests: XCTestCase {
 			  "schema_version": 1,
 			  "default": "maew",
 			  "claude_code": "shiba",
-			  "cursor": "neko"
+			  "vscode": "owl",
+			  "codex": "fox",
+			  "cursor": "neko",
+			  "antigravity": "moth"
 			}
 			"""
 		try json.write(to: tmp, atomically: true, encoding: .utf8)
@@ -49,7 +63,62 @@ final class AssignmentsJsonReaderTests: XCTestCase {
 		let snapshot = AssignmentsJsonReader.read(at: tmp.path)
 		XCTAssertEqual(snapshot.default, "maew")
 		XCTAssertEqual(snapshot.platformOverrides["claude_code"], "shiba")
+		XCTAssertEqual(snapshot.platformOverrides["vscode"], "owl")
+		XCTAssertEqual(snapshot.platformOverrides["codex"], "fox")
 		XCTAssertEqual(snapshot.platformOverrides["cursor"], "neko")
+		XCTAssertEqual(snapshot.platformOverrides["antigravity"], "moth")
+	}
+
+	func testMissingDefaultReturnsSafeDefault() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("assignments-missing-default-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "schema_version": 1,
+			  "claude_code": "shiba"
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = AssignmentsJsonReader.read(at: tmp.path)
+		XCTAssertEqual(snapshot.default, DEFAULT_PET_NAME)
+		XCTAssertEqual(snapshot.platformOverrides, [:])
+	}
+
+	func testEmptyDefaultReturnsSafeDefault() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("assignments-empty-default-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "schema_version": 1,
+			  "default": "",
+			  "claude_code": "shiba"
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = AssignmentsJsonReader.read(at: tmp.path)
+		XCTAssertEqual(snapshot.default, DEFAULT_PET_NAME)
+		XCTAssertEqual(snapshot.platformOverrides, [:])
+	}
+
+	func testUnsupportedSchemaVersionReturnsSafeDefault() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("assignments-new-schema-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "schema_version": 2,
+			  "default": "future-pet"
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = AssignmentsJsonReader.read(at: tmp.path)
+		XCTAssertEqual(snapshot.default, DEFAULT_PET_NAME)
+		XCTAssertEqual(snapshot.platformOverrides, [:])
 	}
 
 	// MARK: - Origin without override → resolves to default
@@ -166,6 +235,18 @@ final class AssignmentsJsonWriterTests: XCTestCase {
 		XCTAssertEqual(snapshot.platformOverrides["claude_code"], "shiba")
 		XCTAssertEqual(snapshot.platformOverrides["cursor"], "neko")
 	}
+
+	func testInvalidBadgeThrowsWithoutWriting() {
+		let url = assignmentsURL()
+		XCTAssertThrowsError(try AssignmentsJsonWriter.write(badge: "bogus", petId: "shiba", to: url))
+		XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+	}
+
+	func testEmptyPetIdThrowsWithoutWriting() {
+		let url = assignmentsURL()
+		XCTAssertThrowsError(try AssignmentsJsonWriter.write(badge: "default", petId: "  ", to: url))
+		XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+	}
 }
 
 final class AssignmentsMigrationTests: XCTestCase {
@@ -211,6 +292,19 @@ final class AssignmentsMigrationTests: XCTestCase {
 		let snapshot = AssignmentsJsonReader.read(at: assignmentsURL.path)
 		XCTAssertEqual(snapshot.default, DEFAULT_PET_NAME,
 			"migration must seed default to maew when both files are absent")
+	}
+
+	func testEmptyConfigPetSeedsDefaultMaew() throws {
+		let assignmentsURL = tmp.appendingPathComponent("assignments.json")
+		let configURL = tmp.appendingPathComponent("config.json")
+		try #"{"pet": "", "features": {"rpg_enabled": true}}"#
+			.write(to: configURL, atomically: true, encoding: .utf8)
+
+		AssignmentsMigration.seedIfAbsent(assignmentsURL: assignmentsURL, configURL: configURL)
+
+		let snapshot = AssignmentsJsonReader.read(at: assignmentsURL.path)
+		XCTAssertEqual(snapshot.default, DEFAULT_PET_NAME,
+			"empty config.pet must fall back to maew during migration")
 	}
 
 	// MARK: - Existing assignments.json is left untouched (idempotent)

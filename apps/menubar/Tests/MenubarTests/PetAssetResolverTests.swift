@@ -28,6 +28,16 @@ final class PetAssetResolverTests: XCTestCase {
 			.appendingPathComponent("Fixtures/maew")
 	}
 
+	private func assertMaewFallbackURL(_ url: URL, file: StaticString = #filePath, line: UInt = #line) {
+		XCTAssertEqual(
+			url.standardizedFileURL.path,
+			maewDirectory().standardizedFileURL.path,
+			"Maew fallback must use the injected maewFallbackURL",
+			file: file,
+			line: line
+		)
+	}
+
 	// MARK: - Resolve returns assets
 
 	func testResolvingIdReturnsCodexPet() throws {
@@ -94,11 +104,17 @@ final class PetAssetResolverTests: XCTestCase {
 	func testNonMaewLoadFailureFallsBackToMaewWithoutThrowing() throws {
 		let resolver = PetAssetResolver(
 			codexLoader: { url in
-				if url.lastPathComponent == DEFAULT_PET_NAME { return try CodexPet(petDirectory: self.maewDirectory().path) }
+				if url.lastPathComponent == DEFAULT_PET_NAME {
+					self.assertMaewFallbackURL(url)
+					return try CodexPet(petDirectory: self.maewDirectory().path)
+				}
 				throw CodexPetLoadError.petJsonNotFound
 			},
 			codogotchiLoader: { url in
-				if url.lastPathComponent == DEFAULT_PET_NAME { return try CodogotchiPet(petDirectory: self.maewDirectory().path) }
+				if url.lastPathComponent == DEFAULT_PET_NAME {
+					self.assertMaewFallbackURL(url)
+					return try CodogotchiPet(petDirectory: self.maewDirectory().path)
+				}
 				throw CodexPetLoadError.petJsonNotFound
 			},
 			maewFallbackURL: maewDirectory()
@@ -113,11 +129,17 @@ final class PetAssetResolverTests: XCTestCase {
 		// Ensure fallback-to-maew path is exercised without a prior maew cache entry.
 		let resolver = PetAssetResolver(
 			codexLoader: { url in
-				if url.lastPathComponent == DEFAULT_PET_NAME { return try CodexPet(petDirectory: self.maewDirectory().path) }
+				if url.lastPathComponent == DEFAULT_PET_NAME {
+					self.assertMaewFallbackURL(url)
+					return try CodexPet(petDirectory: self.maewDirectory().path)
+				}
 				throw CodexPetLoadError.petJsonNotFound
 			},
 			codogotchiLoader: { url in
-				if url.lastPathComponent == DEFAULT_PET_NAME { return try CodogotchiPet(petDirectory: self.maewDirectory().path) }
+				if url.lastPathComponent == DEFAULT_PET_NAME {
+					self.assertMaewFallbackURL(url)
+					return try CodogotchiPet(petDirectory: self.maewDirectory().path)
+				}
 				throw CodexPetLoadError.petJsonNotFound
 			},
 			maewFallbackURL: maewDirectory()
@@ -131,11 +153,17 @@ final class PetAssetResolverTests: XCTestCase {
 	func testPathTraversalPetIdFallsBackToMaewWithoutThrowing() throws {
 		let resolver = PetAssetResolver(
 			codexLoader: { url in
-				if url.lastPathComponent == DEFAULT_PET_NAME { return try CodexPet(petDirectory: self.maewDirectory().path) }
+				if url.lastPathComponent == DEFAULT_PET_NAME {
+					self.assertMaewFallbackURL(url)
+					return try CodexPet(petDirectory: self.maewDirectory().path)
+				}
 				throw CodexPetLoadError.petJsonNotFound
 			},
 			codogotchiLoader: { url in
-				if url.lastPathComponent == DEFAULT_PET_NAME { return try CodogotchiPet(petDirectory: self.maewDirectory().path) }
+				if url.lastPathComponent == DEFAULT_PET_NAME {
+					self.assertMaewFallbackURL(url)
+					return try CodogotchiPet(petDirectory: self.maewDirectory().path)
+				}
 				throw CodexPetLoadError.petJsonNotFound
 			},
 			maewFallbackURL: maewDirectory()
