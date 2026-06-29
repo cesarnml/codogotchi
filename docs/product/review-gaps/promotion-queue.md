@@ -146,6 +146,31 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   `pool-refactor-drops-per-owner-state` class if a third occurrence confirms the pattern.
 - **Status:** WAITING — 1 occurrence. Needs ≥1 more to confirm before promoting.
 
+### `new-enum-case-skips-existing-transition-matrix`
+- **Seen:** 1× — `codogotchi-06` (P14). `FloatingPetWindowPool` already had
+  explicit per-tick teardown for `own->off` and `own->combined` mode
+  transitions (each added when an earlier ticket needed that specific pair).
+  P14.06 added a third `PlatformMode` case, `.minimalist`, routed through the
+  same per-origin window factory — but no one re-checked the full transition
+  matrix against the now-3-case enum, so `own<->minimalist` had zero teardown.
+  Switching a platform's mode in Settings silently no-op'd (the stale window
+  kept running) unless TTL or restart happened to clear it.
+- **Proposed clause:** *"When a ticket adds a new case to an enum that drives a
+  switch/factory dispatch inside a stateful pool or registry, enumerate the
+  full N x N transition matrix against the cases that already have explicit
+  teardown — do not assume the new case only needs a spawn path. Each existing
+  teardown branch (`if mode == X` cleanup) was added reactively for one pair;
+  a new case is invisible to all of them unless someone re-derives the matrix."*
+- **Caveat that blocks naive promotion:** this is a sibling of
+  `side-effect-call-dropped-or-mis-targeted-in-refactor` (both are
+  "old owner's behavior not re-established for the new path") but the trigger
+  here is enum-case *addition*, not a structural refactor — the diff adds new
+  code without touching the existing branches at all, so a diff-reading
+  reviewer has less to anchor on. May fold into that class on a second
+  occurrence rather than standing alone.
+- **Status:** WAITING — single instance. Needs ≥1 more occurrence (ideally a
+  non-Swift-pool example) to decide standalone vs. merge.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
