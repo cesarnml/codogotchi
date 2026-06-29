@@ -50,6 +50,33 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   a per-ticket prompt clause or needs the phase-integration-pass treatment that
   `compound-widget-cohesion-under-transform` also points at.
 
+### `side-effect-call-dropped-or-mis-targeted-in-refactor`
+- **Seen:** 2× — both on `StateJsonWriter.dismissAttention`, both surfacing as
+  the attention bubble failing to clear. `codogotchi-15` (P12): the writer was
+  handed `state.d/` but treated it as a single file, so the call silently
+  no-oped. `codogotchi-18` (P13): the p13.04 pool refactor swapped the single
+  panel controller for a per-origin factory and **dropped the
+  `onAttentionDismissed` wiring entirely**, so the call site vanished. Same
+  feature broke twice across two consecutive phase migrations, both times
+  invisible to units.
+- **Proposed clause:** *"When a refactor replaces a single owner with a
+  factory/pool/registry, grep the removed owner for every `.on<Event> =` /
+  callback assignment and every side-effecting call it made, and confirm each is
+  re-established (or deliberately dropped) in the new path. Pair this with: a
+  helper that fails silently (returns void, swallows errors) must have an
+  integration test asserting its side effect actually occurred — unit-passing
+  the helper and unit-passing the caller in isolation does not prove they are
+  wired together."*
+- **Caveat that blocks naive promotion:** the dropped wiring lives in an AppKit
+  factory closure (live `NSStatusBar`/`NSPanel` + poll loop), so it is **not
+  unit-reachable** — this is a `qa-gap`/integration-pass lever, not a per-ticket
+  diff-review clause. The recurrence is also narrow (same function twice), so the
+  class may be over-fit to `dismissAttention`; a third, unrelated instance would
+  confirm it generalizes.
+- **Status:** WAITING at the 2× bar — same-function recurrence is suggestive but
+  not yet proof of a general class. Reassess on the next dropped/mis-targeted
+  side-effect from a refactor.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
