@@ -69,12 +69,12 @@ Multi-ticket delivery is driven via the Son-of-Anton orchestrator under `.son-of
 `apps/menubar/` is an `LSUIElement` menu bar agent with an optional float-on-top desktop pet and a Settings window (General / Pet / Developer / RPG / About tabs).
 
 - **Settings → General** — the only user-facing surface for Install / Update / Remove hooks.
-- **Settings → Pet** — enumerates and switches pets under `~/.codogotchi/pets/`.
+- **Settings → Pet** — per-platform pet assignment: a Default slot (applies everywhere unassigned) plus optional per-platform overrides for each of the 5 platforms. Assignments persist to `~/.codogotchi/assignments.json` (schema_version 1). Installed pets enumerated from `~/.codogotchi/pets/`.
 - **Settings → RPG** — heart-HUD toggle and local progression controls.
 - **Settings → Developer** — live `state.json`, `gate.json`, last-5 transitions, schema version, Cursor-bridge explainer (read-only).
 - Menu items: **Settings…**, **Show/Hide Floating Pet**, **Open log folder**, **Reveal pet folder**, **Quit**.
 
-The active pet is resolved from `~/.codogotchi/config.json` (`{ "pet": "maew" }`). A missing/malformed/absent `pet` key falls back to `"maew"` silently. `CODOGOTCHI_HOME` overrides the config root and is the test-isolation mechanism used in `PetConfigTests`.
+Per-platform pet identity is resolved from `~/.codogotchi/assignments.json` (`schema_version: 1`). The file has a mandatory `default` key and optional per-platform overrides (`claude_code`, `vscode`, `codex`, `cursor`, `antigravity`). Each key holds a pet ID string. Absent or invalid files fall back to `"maew"` as the Default. The one-time migration seed reads `config.json`'s `pet` key (if present) and writes it as `assignments.default` on first launch after upgrade. `CODOGOTCHI_HOME` overrides the config root and is the test-isolation mechanism.
 
 **Demo mode** (`CODOGOTCHI_DEMO=1` or `--demo`) cycles activity states from a fixture without touching live `state.json`. Developer QA tool only — not a user-facing feature.
 
@@ -121,7 +121,8 @@ See the [platform parity matrix](docs/runbooks/phase-09-platform-parity.md) for 
 
 | Path | Owner | Purpose |
 | --- | --- | --- |
-| `~/.codogotchi/config.json` | app / `config` | Credentials, health knobs, active pet |
+| `~/.codogotchi/config.json` | app / `config` | Credentials, health knobs |
+| `~/.codogotchi/assignments.json` | app | Per-platform pet assignment (Default + 5 platform overrides) |
 | `~/.codogotchi/profile.json` | `sync` | Local cache of Convex profile |
 | `~/.codogotchi/state.json` | `codogotchi-hook` | Animation state for renderers (closed 19-state enum) |
 | `~/.codogotchi/gate.json` | Son-of-Anton | Active delivery-gate state (`expires_at`-bounded) |

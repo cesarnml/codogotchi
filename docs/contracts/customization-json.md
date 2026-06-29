@@ -38,7 +38,10 @@ The file is absent until the user first changes a customization setting via **Se
 |---|---|
 | `"own"` | Platform drives its own independent floating pet window (default). |
 | `"combined"` | Platform's state folds into the shared combined-mode window via `globalAggregate`. |
+| `"minimalist"` | Platform renders a compact chromeless badge strip (platform, animation state, attention, latest prompt summary) — no sprite, no RPG HUD. Introduced in Phase 14 (app v2.1.0). |
 | `"off"` | Platform is invisible — its slices are filtered before any reducer runs. |
+
+`schema_version` remains `1` — `"minimalist"` is additive and unknown values already degrade to `"own"` in older readers, so no version bump was needed.
 
 ### Valid `platform_modes` keys
 
@@ -58,6 +61,6 @@ The Swift `CustomizationJsonReader` returns a `CustomizationSnapshot` with all d
 
 The TypeScript `CustomizationJsonSchema` (Zod, in `packages/contracts`) is the canonical schema for CLI-side reads. Defaults are identical.
 
-## Phase 14 forward note
+## Phase 15 forward note
 
-Per-thread (per-`session_id`) window mode and `SessionIdPanel` UI are deferred to Phase 14. If Phase 14 requires new fields in `customization.json`, it will bump `schema_version` to `2` and document the migration here.
+Per-thread (per-`session_id`) window mode and stacked Minimalist thread rows are deferred to Phase 15. Phase 15 builds on the `"minimalist"` render path added in Phase 14. If Phase 15 requires new fields in `customization.json`, it will evaluate whether a `schema_version` bump to `2` is warranted and document the migration here.

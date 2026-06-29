@@ -23,16 +23,17 @@ Each active AI platform writes its own slice file to `~/.codogotchi/state.d/`. T
   ~/.codogotchi/state.d/<origin>:<session_id>.json   ←── activity-signal slice (v8)
   ~/.codogotchi/rpg-state.json                       ←── global RPG values (level, HP, hearts)
   ~/.codogotchi/customization.json                   ←── per-platform display mode + TTL
+  ~/.codogotchi/assignments.json                     ←── per-platform pet assignment (schema_version: 1)
         │
         │  watched by
         ▼
-  Codogotchi.app (Swift + AppKit/SpriteKit) — v2.0.0
+  Codogotchi.app (Swift + AppKit/SpriteKit) — v2.1.0
   ├─ menu bar icon (static app icon — no animation)
   ├─ one floating desktop pet window per active platform (fully animated)
   └─ Settings — the ONLY surface that installs/updates/removes hooks
         │   ├─ General: hooks, monochrome icon toggle
-        │   ├─ Pet: active pet selection
-        │   ├─ Customization: per-platform mode (own/combined/off) + idle-dismiss TTL
+        │   ├─ Pet: per-platform pet assignment (Default slot + 5 platform overrides)
+        │   ├─ Customization: per-platform mode (own/combined/minimalist/off) + idle-dismiss TTL
         │   └─ RPG: HUD toggle
         ├─ XP / Health / Loot engine (TypeScript, runs locally by default)
         └─ opt-in cloud sync ───►  Convex (profiles, loot, pet gallery)
@@ -43,8 +44,8 @@ Each active AI platform writes its own slice file to `~/.codogotchi/state.d/`. T
 
 Two invariants make the whole system legible:
 
-1. **The app owns all writes.** Hook install/update/remove, onboarding, and pet selection happen in the app's Settings. The `codogotchi` CLI is a read/diagnostic surface (`status`, `hooks status`, `loot`, `config`, `vacation`) plus internal subprocesses the app spawns. End users never need a terminal.
-2. **`state.d/` is a closed contract.** The hook binary writes a fixed 19-state activity vocabulary into per-platform slice files; the Swift app reads the directory and routes each origin to its floating window. The TypeScript and Swift sides each pin `schema_version: 8` and must move in lockstep (see [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md) and [`docs/contracts/customization-json.md`](docs/contracts/customization-json.md)).
+1. **The app owns all writes.** Hook install/update/remove, onboarding, and pet assignment happen in the app's Settings. The `codogotchi` CLI is a read/diagnostic surface (`status`, `hooks status`, `loot`, `config`, `vacation`) plus internal subprocesses the app spawns. End users never need a terminal. **Breaking change in v2.1.0:** `codogotchi config set pet <id>` is removed — use Settings → Pet to assign pets.
+2. **`state.d/` is a closed contract.** The hook binary writes a fixed 19-state activity vocabulary into per-platform slice files; the Swift app reads the directory and routes each origin to its floating window. The TypeScript and Swift sides each pin `schema_version: 8` and must move in lockstep (see [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md) and [`docs/contracts/customization-json.md`](docs/contracts/customization-json.md)). Per-platform pet identity is stored separately in `assignments.json` (schema_version: 1) — it does not flow through state slices and has no lockstep dependency.
 
 ## The five pieces
 
