@@ -344,4 +344,90 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         XCTAssertTrue(pool.activeOrigins.isEmpty, "off-mode origin must not appear in activeOrigins")
         XCTAssertFalse(factoryCalled, "window factory must not be called for off-mode origins")
     }
+
+    // MARK: - User-hide persistence
+
+    func testHideDoesNotRespawnOnNextTick() {
+        var spawnCount = 0
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _ in
+                spawnCount += 1
+                return StubWindowController()
+            }
+        )
+        let snap = makePerPlatformSnapshot([
+            "cursor": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+        ])
+        pool.update(snapshot: snap)
+        XCTAssertEqual(spawnCount, 1)
+        XCTAssertTrue(pool.activeOrigins.contains("cursor"))
+
+        pool.setVisible(false, for: "cursor")
+        XCTAssertFalse(pool.activeOrigins.contains("cursor"), "pet must be hidden immediately")
+        XCTAssertTrue(pool.hiddenWindowKeys.contains("cursor"), "hidden key must be tracked")
+
+        // Subsequent ticks with the same snapshot must NOT re-spawn the window.
+        pool.update(snapshot: snap)
+        pool.update(snapshot: snap)
+        XCTAssertFalse(pool.activeOrigins.contains("cursor"), "hidden pet must not re-spawn on update ticks")
+        XCTAssertEqual(spawnCount, 1, "factory must be called exactly once — no re-spawn while hidden")
+    }
+
+    func testShowClearsHiddenFlagAndRespawnsOnNextTick() {
+        var spawnCount = 0
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _ in
+                spawnCount += 1
+                return StubWindowController()
+            }
+        )
+        let snap = makePerPlatformSnapshot([
+            "cursor": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+        ])
+        pool.update(snapshot: snap)
+        pool.setVisible(false, for: "cursor")
+        XCTAssertTrue(pool.hiddenWindowKeys.contains("cursor"))
+
+        pool.setVisible(true, for: "cursor")
+        XCTAssertFalse(pool.hiddenWindowKeys.contains("cursor"), "hidden flag must be cleared on show")
+
+        // The next tick should re-spawn since the snapshot is still present.
+        pool.update(snapshot: snap)
+        XCTAssertTrue(pool.activeOrigins.contains("cursor"), "pet must reappear after setVisible(true) + tick")
+        XCTAssertEqual(spawnCount, 2, "factory must be called again after show + tick")
+    }
+
+    func testCombinedWindowHideDoesNotRespawnOnNextTick() {
+        var spawnCount = 0
+        let pool = FloatingPetWindowPool(
+            customizationReader: {
+                makeCustomization(platformModes: ["claude_code": .combined, "cursor": .combined])
+            },
+            windowFactory: { _ in
+                spawnCount += 1
+                return StubWindowController()
+            }
+        )
+        let snap = makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+            "cursor": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+        ])
+        pool.update(snapshot: snap)
+        XCTAssertTrue(pool.activeOrigins.contains("combined"))
+        XCTAssertEqual(spawnCount, 1)
+
+        pool.setVisible(false, for: "combined")
+        XCTAssertFalse(pool.activeOrigins.contains("combined"))
+        XCTAssertTrue(pool.hiddenWindowKeys.contains("combined"))
+
+        pool.update(snapshot: snap)
+        pool.update(snapshot: snap)
+        XCTAssertFalse(
+            pool.activeOrigins.contains("combined"),
+            "combined window must not re-spawn while user-hidden"
+        )
+        XCTAssertEqual(spawnCount, 1)
+    }
 }

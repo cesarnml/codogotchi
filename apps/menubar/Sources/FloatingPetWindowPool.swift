@@ -34,6 +34,12 @@ final class FloatingPetWindowPool {
 	/// Window keys that currently have visible windows.
 	var activeOrigins: [String] { Array(windows.keys).sorted() }
 
+	/// Window keys explicitly hidden by the user via "Hide Pet". Excluded from spawning
+	/// until the user explicitly shows them via "Show Pet".
+	var hiddenWindowKeys: [String] { Array(userHiddenWindowKeys).sorted() }
+
+	private var userHiddenWindowKeys: Set<String> = []
+
 	/// Called when `menubarIconMonochrome` changes between ticks. The caller
 	/// uses this to toggle `NSImage.isTemplate` on the status-item button.
 	var onMonochromeChanged: ((Bool) -> Void)?
@@ -153,6 +159,8 @@ final class FloatingPetWindowPool {
 				}
 				continue
 			}
+			// User-hidden: do not re-spawn until the user explicitly shows the pet.
+			if userHiddenWindowKeys.contains(origin) { continue }
 			if windows[origin] == nil {
 				let controller = windowFactory(origin)
 				controller.setFloatingPetVisible(true)
@@ -177,7 +185,7 @@ final class FloatingPetWindowPool {
 					windows["combined"]?.setFloatingPetVisible(false)
 					windows.removeValue(forKey: "combined")
 				}
-			} else {
+			} else if !userHiddenWindowKeys.contains("combined") {
 				let combinedStates = combinedOrigins.compactMap { visibleEntries[$0] }
 				let winner = combinedStates.max(by: { a, b in
 					(StateJsonReader.parseISO8601Date(a.updatedAt) ?? .distantPast)
@@ -222,11 +230,16 @@ final class FloatingPetWindowPool {
 	/// Returns true when the window for the given key is currently in `windows`.
 	func isActive(for key: String) -> Bool { windows[key] != nil }
 
-	/// Hides or shows the window for the given key. No-op when key is unknown.
+	/// Hides or shows the window for the given key.
+	/// Hiding persists across update() ticks until setVisible(true) is called.
 	func setVisible(_ visible: Bool, for key: String) {
-		windows[key]?.setFloatingPetVisible(visible)
-		if !visible {
+		if visible {
+			userHiddenWindowKeys.remove(key)
+			// Re-spawn is handled by the next update() tick once the key is unblocked.
+		} else {
+			windows[key]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: key)
+			userHiddenWindowKeys.insert(key)
 		}
 	}
 

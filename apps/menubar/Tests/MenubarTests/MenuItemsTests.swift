@@ -142,4 +142,34 @@ final class MenuItemsTests: XCTestCase {
 
 		XCTAssertEqual(terminationCount, 1)
 	}
+
+	func testHiddenPetEnablesShowPetItem() {
+		// After setVisible(false), the menu must show an enabled "Show Pet" item.
+		let pool = makePool(origins: ["cursor"])
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		let menu = builder.build()
+		XCTAssertEqual(menu.items[0].title, MenubarMenu.hideFloatingPetTitle)
+
+		pool.setVisible(false, for: "cursor")
+		builder.refreshFloatingPetMenuItemTitle()
+
+		let item = menu.items[0]
+		XCTAssertEqual(item.title, MenubarMenu.showFloatingPetTitle)
+		XCTAssertTrue(item.isEnabled, "Show Pet must be enabled when a hidden key exists")
+		XCTAssertNotNil(item.action, "Show Pet must have an action wired so clicking it works")
+	}
+
+	func testMixedActiveAndHiddenExpandsToPerItemList() {
+		// 1 active + 1 hidden → 2 items ("Hide X Pet" + "Show X Pet")
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		pool.setVisible(false, for: "cursor")
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		let menu = builder.build()
+
+		// 2 pet items + settings + quit + hooks = 5
+		XCTAssertEqual(menu.items.count, 5)
+		let petTitles = Set(menu.items.prefix(2).map { $0.title })
+		XCTAssertTrue(petTitles.contains("Hide Claude Code Pet"), "active origin must have a Hide item")
+		XCTAssertTrue(petTitles.contains("Show Cursor Pet"), "hidden origin must have a Show item")
+	}
 }

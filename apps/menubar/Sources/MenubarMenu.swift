@@ -112,10 +112,38 @@ final class MenubarMenu: NSObject {
 
 	@MainActor
 	private func buildPetSection(in menu: NSMenu, insertAt index: Int? = nil) {
-		let origins = floatingPetPool?.activeOrigins ?? []
+		let active = floatingPetPool?.activeOrigins ?? []
+		let hidden = floatingPetPool?.hiddenWindowKeys ?? []
 		let items: [NSMenuItem]
-		if origins.count > 1 {
-			items = origins.map { origin in
+
+		if active.count == 1 && hidden.isEmpty {
+			// Single visible pet, nothing hidden: one "Hide Pet" toggle.
+			let item = NSMenuItem(
+				title: Self.hideFloatingPetTitle,
+				action: #selector(toggleSingleFloatingPet(_:)),
+				keyEquivalent: ""
+			)
+			item.target = self
+			items = [item]
+		} else if active.isEmpty && hidden.count == 1 {
+			// Nothing visible, one hidden pet: single enabled "Show Pet".
+			let item = NSMenuItem(
+				title: Self.showFloatingPetTitle,
+				action: #selector(showFloatingPetForKey(_:)),
+				keyEquivalent: ""
+			)
+			item.target = self
+			item.representedObject = hidden[0]
+			items = [item]
+		} else if active.isEmpty && hidden.isEmpty {
+			// No pool or no windows at all: disabled "Show Pet" placeholder.
+			let item = NSMenuItem(title: Self.showFloatingPetTitle, action: nil, keyEquivalent: "")
+			item.isEnabled = false
+			items = [item]
+		} else {
+			// Multiple active and/or hidden: one item per window key.
+			var all: [NSMenuItem] = []
+			for origin in active {
 				let item = NSMenuItem(
 					title: "Hide \(displayName(for: origin)) Pet",
 					action: #selector(hideFloatingPetForOrigin(_:)),
@@ -123,22 +151,19 @@ final class MenubarMenu: NSObject {
 				)
 				item.target = self
 				item.representedObject = origin
-				return item
+				all.append(item)
 			}
-		} else {
-			let title: String
-			let action: Selector?
-			if origins.isEmpty {
-				title = Self.showFloatingPetTitle
-				action = nil
-			} else {
-				title = Self.hideFloatingPetTitle
-				action = #selector(toggleSingleFloatingPet(_:))
+			for key in hidden {
+				let item = NSMenuItem(
+					title: "Show \(displayName(for: key)) Pet",
+					action: #selector(showFloatingPetForKey(_:)),
+					keyEquivalent: ""
+				)
+				item.target = self
+				item.representedObject = key
+				all.append(item)
 			}
-			let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
-			item.target = self
-			item.isEnabled = !origins.isEmpty
-			items = [item]
+			items = all
 		}
 
 		if let index {
@@ -165,6 +190,16 @@ final class MenubarMenu: NSObject {
 			let origin = item.representedObject as? String
 		else { return }
 		pool.setVisible(false, for: origin)
+		refreshFloatingPetMenuItemTitle()
+	}
+
+	@MainActor
+	@objc private func showFloatingPetForKey(_ sender: Any?) {
+		guard let pool = floatingPetPool,
+			let item = sender as? NSMenuItem,
+			let key = item.representedObject as? String
+		else { return }
+		pool.setVisible(true, for: key)
 		refreshFloatingPetMenuItemTitle()
 	}
 
