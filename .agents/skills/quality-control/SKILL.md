@@ -67,8 +67,19 @@ already asking for quality-control capture.
   persisted review artifacts show the reviewer had enough evidence at review
   time to catch the issue and the lesson maps to adversarial-review prompt
   vocabulary.
-- Use `spec-gap` when the expected behavior was missing or underspecified in
-  the plan, ticket, or acceptance criteria.
+- Use `spec-gap` when the expected behavior was a genuine decision left missing
+  or underspecified in the plan, ticket, or acceptance criteria — something a
+  competent builder would have had to stop and ask about (a tie-break between
+  two valid behaviors, a timeout or limit value, a multi-instance interaction).
+  Bias against `spec-gap` for implied invariants: behavior so intrinsic to the
+  feature that no competent spec enumerates it and no competent builder would
+  ship it the other way ("the dismiss button dismisses", "save persists",
+  "delete removes"). Apply the litmus test — _would a competent person, given no
+  spec, have built it right on instinct?_ If yes, it is not a `spec-gap`; a
+  shipped violation is a `qa-gap` (nobody exercised it) or `review-reachable` (it
+  was visible in the diff). Classifying a self-evident invariant as `spec-gap`
+  launders an own-goal into a planning miss and leaves the real gap —
+  verification or review — unaddressed.
 - Use `qa-gap` when the issue required experiential, manual, or dogfood
   verification outside the normal code-review surface.
 - Use `completeness-gap` when delivered scope was valid but missed adjacent
