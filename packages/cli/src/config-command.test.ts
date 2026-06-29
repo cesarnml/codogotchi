@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type CodogotchiConfig, configPath, writeConfig } from "./config";
@@ -112,6 +112,34 @@ describe("config command", () => {
       await expect(
         configSet({ home, path: "profile_id", value: "x" }),
       ).rejects.toBeInstanceOf(ConfigCommandError);
+    });
+
+    it("refuses the retired pet key (P14.02)", async () => {
+      await expect(
+        configSet({ home, path: "pet", value: "maew" }),
+      ).rejects.toBeInstanceOf(ConfigCommandError);
+    });
+
+    it("preserves unknown on-disk keys (e.g. leftover pet) when setting an unrelated field (P14.02)", async () => {
+      // Write raw JSON with a pet key so we can verify it survives an unrelated write.
+      const raw = JSON.parse(readFileSync(configPath(home), "utf8")) as Record<
+        string,
+        unknown
+      >;
+      raw.pet = "maew";
+      writeFileSync(
+        configPath(home),
+        `${JSON.stringify(raw, null, 2)}\n`,
+        "utf8",
+      );
+
+      await configSet({ home, path: "handle", value: "newhandle" });
+
+      const afterWrite = JSON.parse(
+        readFileSync(configPath(home), "utf8"),
+      ) as Record<string, unknown>;
+      expect(afterWrite.pet).toBe("maew");
+      expect(afterWrite.handle).toBe("newhandle");
     });
 
     it("validates convex_http_url is an https URL", async () => {

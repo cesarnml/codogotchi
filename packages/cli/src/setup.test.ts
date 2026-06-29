@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { configPath, readConfig } from "./config";
@@ -66,6 +66,18 @@ describe("runSetup (Lite)", () => {
     // Hooks installed exactly once
     expect(hooksRec.calls).toHaveLength(1);
     expect(hooksRec.calls[0]?.home).toBe(home);
+  });
+
+  it("does not seed a pet key in the written config (P14.02)", async () => {
+    const { deps } = makeLiteDeps(home);
+    const result = await runSetup(deps);
+
+    expect("pet" in result.config).toBe(false);
+    const onDisk = JSON.parse(readFileSync(configPath(home), "utf8")) as Record<
+      string,
+      unknown
+    >;
+    expect("pet" in onDisk).toBe(false);
   });
 
   it("refuses to overwrite pre-existing config without force", async () => {
