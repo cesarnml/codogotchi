@@ -35,10 +35,12 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
+Red first: `cannot find type 'PetAssetResolver' in scope` — all 7 tests failed to compile.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here.
+Why this path: injectable loader closures (`CodexLoader` / `CodogotchiLoader`) let tests inject fixture-backed stubs without any filesystem setup; the real default closures delegate directly to `CodexPet(petDirectory:)` / `CodogotchiPet(petDirectory:)`. `resolveMaewFallback()` is a private helper that checks the cache first so a second fallback within the same resolver instance doesn't re-load the bundled sheet.
+
+Alternative considered: injecting a `petDirectoryResolver: (String) -> URL` closure instead of separate loader closures. Rejected because tests needed to control the actual load operation (throw vs. return) independently of the URL derivation — a URL resolver alone couldn't simulate a corrupt-but-present directory.
+
+Deferred: thread safety. `PetAssetResolver` is not thread-safe (`cache` is a plain `Dictionary`). MenubarApp currently calls pet loading on the main actor only; if concurrent access is added, wrap the cache in a lock or make the class `actor`. Noted but not in scope for this ticket.
+
+Contract note: none.

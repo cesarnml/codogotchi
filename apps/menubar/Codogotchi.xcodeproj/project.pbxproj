@@ -23,6 +23,7 @@
 		2428DB31DC98CF0BB7C651F2 /* AboutViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4B2DA7902212941A3DBFFE0 /* AboutViewModelTests.swift */; };
 		252D3E5EACB7EED9A3F079EB /* PetAssetResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 940773DC46C73D897DB1A638 /* PetAssetResolverTests.swift */; };
 		28B80419A453FDCC6A0CD4F6 /* RPGHUDPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63448DB1F4F0A42702BBD634 /* RPGHUDPanel.swift */; };
+		2B9CB86769F2324700BF87F7 /* PetAssetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = E85893A49B1B1E7E05D7EDE4 /* PetAssetResolver.swift */; };
 		2C985DFC0C4B11F3C3BF69F9 /* AppBootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */; };
 		316AA2C6A8C406E70790A264 /* PlatformAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D23A5CD119A7DB5B530305 /* PlatformAttribution.swift */; };
 		3278D5B8A5BF524A956FECEC /* FloatingInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */; };
@@ -201,6 +202,7 @@
 		E28DE61118E480E5703FA445 /* LockstepPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockstepPolicy.swift; sourceTree = "<group>"; };
 		E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiPetTests.swift; sourceTree = "<group>"; };
 		E6829E3A0570398A50A596E4 /* CodexPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPet.swift; sourceTree = "<group>"; };
+		E85893A49B1B1E7E05D7EDE4 /* PetAssetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetAssetResolver.swift; sourceTree = "<group>"; };
 		E97D90D6AFBAC5EB23BBC4A8 /* FloatingInteraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingInteraction.swift; sourceTree = "<group>"; };
 		E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStoreSeeder.swift; sourceTree = "<group>"; };
 		EA899400094213B8A814D114 /* FloatingPetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetController.swift; sourceTree = "<group>"; };
@@ -310,6 +312,7 @@
 				712A24CF66C43196AE34459D /* OnboardingController.swift */,
 				6C36708DADAAEA372DF03A2A /* OnboardingWindowController.swift */,
 				9E218BBA20DB3F443FF460A2 /* PerPlatformSnapshot.swift */,
+				E85893A49B1B1E7E05D7EDE4 /* PetAssetResolver.swift */,
 				9646F68B64C22ABAE0FE52EA /* PetConfig.swift */,
 				16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */,
 				E9C181CCA38D5B07FC393A32 /* PetStoreSeeder.swift */,
@@ -511,6 +514,7 @@
 				3B83084BAD4FC401B7C5CF37 /* OnboardingController.swift in Sources */,
 				CBB4A3FDFAA87B468B862419 /* OnboardingWindowController.swift in Sources */,
 				4BE71F6E5934DC0410EF24B1 /* PerPlatformSnapshot.swift in Sources */,
+				2B9CB86769F2324700BF87F7 /* PetAssetResolver.swift in Sources */,
 				BBAE72D92861A7901C3EBB73 /* PetConfig.swift in Sources */,
 				4C800549CEEB194A42237701 /* PetImportHelper.swift in Sources */,
 				36D30A2BA8D14CA1D7D62D1C /* PetStoreSeeder.swift in Sources */,

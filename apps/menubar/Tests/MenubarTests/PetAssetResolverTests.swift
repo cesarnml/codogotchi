@@ -28,16 +28,6 @@ final class PetAssetResolverTests: XCTestCase {
 			.appendingPathComponent("Fixtures/maew")
 	}
 
-	private func makeCountingCodexLoader(
-		count: inout Int,
-		backing url: URL
-	) -> PetAssetResolver.CodexLoader {
-		{ [u = url] _ in
-			count += 1
-			return try CodexPet(petDirectory: u.path)
-		}
-	}
-
 	// MARK: - Resolve returns assets
 
 	func testResolvingIdReturnsCodexPet() throws {
@@ -63,10 +53,11 @@ final class PetAssetResolverTests: XCTestCase {
 	// MARK: - Cache: loader called once
 
 	func testResolvingTwiceHitsCacheLoaderCalledOnce() throws {
-		var callCount = 0
+		final class Counter { var value = 0 }
+		let counter = Counter()
 		let resolver = PetAssetResolver(
 			codexLoader: { [m = maliDirectory()] _ in
-				callCount += 1
+				counter.value += 1
 				return try CodexPet(petDirectory: m.path)
 			},
 			codogotchiLoader: { _ in try CodogotchiPet(petDirectory: self.maewDirectory().path) },
@@ -76,14 +67,15 @@ final class PetAssetResolverTests: XCTestCase {
 		_ = try resolver.resolve(petId: "mali")
 		_ = try resolver.resolve(petId: "mali")
 
-		XCTAssertEqual(callCount, 1, "codex loader must be called once for two resolves of the same id")
+		XCTAssertEqual(counter.value, 1, "codex loader must be called once for two resolves of the same id")
 	}
 
 	func testTwoDifferentOriginsSamePetIdShareOneLoadedInstance() throws {
-		var callCount = 0
+		final class Counter { var value = 0 }
+		let counter = Counter()
 		let resolver = PetAssetResolver(
 			codexLoader: { [m = maliDirectory()] _ in
-				callCount += 1
+				counter.value += 1
 				return try CodexPet(petDirectory: m.path)
 			},
 			codogotchiLoader: { _ in try CodogotchiPet(petDirectory: self.maewDirectory().path) },
@@ -94,7 +86,7 @@ final class PetAssetResolverTests: XCTestCase {
 		let (pet2, _) = try resolver.resolve(petId: "mali")
 
 		XCTAssertTrue(pet1 === pet2, "two resolves of the same petId must return the same CodexPet instance")
-		XCTAssertEqual(callCount, 1, "loader must fire exactly once for shared pet")
+		XCTAssertEqual(counter.value, 1, "loader must fire exactly once for shared pet")
 	}
 
 	// MARK: - Fallback to Maew
@@ -137,10 +129,11 @@ final class PetAssetResolverTests: XCTestCase {
 	// MARK: - Eviction
 
 	func testEvictionForcesReload() throws {
-		var callCount = 0
+		final class Counter { var value = 0 }
+		let counter = Counter()
 		let resolver = PetAssetResolver(
 			codexLoader: { [m = maliDirectory()] _ in
-				callCount += 1
+				counter.value += 1
 				return try CodexPet(petDirectory: m.path)
 			},
 			codogotchiLoader: { _ in try CodogotchiPet(petDirectory: self.maewDirectory().path) },
@@ -148,23 +141,23 @@ final class PetAssetResolverTests: XCTestCase {
 		)
 
 		_ = try resolver.resolve(petId: "mali")
-		XCTAssertEqual(callCount, 1)
+		XCTAssertEqual(counter.value, 1)
 
 		resolver.evict(petId: "mali")
 		_ = try resolver.resolve(petId: "mali")
-		XCTAssertEqual(callCount, 2, "loader must re-fire after eviction")
+		XCTAssertEqual(counter.value, 2, "loader must re-fire after eviction")
 	}
 
 	func testEvictAllForcesReloadForAllPets() throws {
-		var maliCount = 0
-		var maewCount = 0
+		final class Counters { var mali = 0; var maew = 0 }
+		let c = Counters()
 		let resolver = PetAssetResolver(
 			codexLoader: { [mali = maliDirectory(), maew = maewDirectory()] url in
 				if url.lastPathComponent == "mali" {
-					maliCount += 1
+					c.mali += 1
 					return try CodexPet(petDirectory: mali.path)
 				}
-				maewCount += 1
+				c.maew += 1
 				return try CodexPet(petDirectory: maew.path)
 			},
 			codogotchiLoader: { _ in try CodogotchiPet(petDirectory: self.maewDirectory().path) },
@@ -179,7 +172,7 @@ final class PetAssetResolverTests: XCTestCase {
 		_ = try resolver.resolve(petId: "mali")
 		_ = try resolver.resolve(petId: "maew")
 
-		XCTAssertEqual(maliCount, 2, "mali loader must fire twice: initial + after evictAll")
-		XCTAssertEqual(maewCount, 2, "maew loader must fire twice: initial + after evictAll")
+		XCTAssertEqual(c.mali, 2, "mali loader must fire twice: initial + after evictAll")
+		XCTAssertEqual(c.maew, 2, "maew loader must fire twice: initial + after evictAll")
 	}
 }
