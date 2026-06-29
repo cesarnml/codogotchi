@@ -77,6 +77,30 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   not yet proof of a general class. Reassess on the next dropped/mis-targeted
   side-effect from a refactor.
 
+### `time-based-feature-tested-against-proxy-condition`
+- **Seen:** 1× — `codogotchi-19` (P13). The "Dismiss after idle: N min" TTL was
+  measured against slice *presence* (refreshed every poll) instead of *idle
+  duration*, so it never fired for a still-running tool. Every unit test expired
+  the window by feeding an **empty snapshot** — i.e. it tested slice *absence*
+  (teardown), never the present-but-idle path the spec actually promised. The
+  green test gave false confidence in a completely non-functional feature.
+- **Proposed clause:** *"For any time-based feature (TTL, debounce, staleness,
+  auto-dismiss, retry-after), name the exact signal that advances the clock —
+  presence vs. activity vs. wall-time — and confirm the test holds the entity
+  present-but-inactive across the threshold. A test that expires the entity by
+  removing it is testing teardown, not the timeout. When an acceptance criterion
+  is phrased as a real-world condition ('leave it idle', 'after no input'),
+  reproduce that condition, not a convenient proxy that shares a code path by
+  accident."*
+- **Caveat that blocks naive promotion:** this is `qa-gap`-flavored
+  (scenario-fidelity), not a diff-reading miss — the buggy code reads as a
+  plausible last-seen TTL, so the lever is a test/dogfood-design rule more than
+  an adversarial-review clause. Whether it belongs in the review prompt or a
+  test-strategy checklist is unresolved at 1×.
+- **Status:** WAITING — single instance. Promote (and decide review-clause vs.
+  test-strategy-checklist) only on a second time-based feature with the same
+  proxy-condition test gap.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
