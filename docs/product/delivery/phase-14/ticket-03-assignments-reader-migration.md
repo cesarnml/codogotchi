@@ -59,3 +59,19 @@ the `ASSIGNMENT_BADGE_KEYS` constant is exported for callers. P14.07's ViewModel
 
 Contract note: `applyBadgeAssignment(badge:petId:in:)` is a free function (not a method on
 `AssignmentsJsonWriter`) so P14.07's ViewModel can use it without depending on the URL-based writer API.
+
+Subagent review patches (2026-06-29):
+
+Finding 1 — fresh non-default badge write: `AssignmentsJsonWriter.write(badge:petId:to:)` called with a
+non-default badge on a fresh URL previously produced a file with no `default` key; the reader returned
+`safeDefault` and silently dropped the just-written assignment. Fix: when badge != "default" and the file
+is absent, the merge dict is augmented with `"default": DEFAULT_PET_NAME` so the reader always decodes
+a valid snapshot.
+
+Finding 2 — migration TOCTOU race: `seedIfAbsent` replaced the `fileExists` + `ConfigFileWriter.merge`
+two-step with O_EXCL exclusive-create semantics via `Darwin.open`. `O_CREAT | O_EXCL` fails atomically
+with EEXIST when another process wins the race; the caller treats that as a no-op, matching the idempotency
+contract without risking a silent overwrite of a concurrently-created file.
+
+Green section note: the "snake_case strategy" phrase in the Green checklist is stale; it was written before
+the convertFromSnakeCase conflict was discovered. The appended Rationale (above) documents the actual approach.

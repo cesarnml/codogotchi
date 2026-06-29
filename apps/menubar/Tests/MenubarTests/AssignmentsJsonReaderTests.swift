@@ -140,6 +140,19 @@ final class AssignmentsJsonWriterTests: XCTestCase {
 			"default badge must move to shiba after reassignment")
 	}
 
+	// MARK: - Fresh file with non-default badge auto-seeds default
+
+	func testFreshNonDefaultWriteSeedsDefault() throws {
+		let url = assignmentsURL()
+		try AssignmentsJsonWriter.write(badge: "claude_code", petId: "shiba", to: url)
+
+		let snapshot = AssignmentsJsonReader.read(at: url.path)
+		XCTAssertEqual(snapshot.default, DEFAULT_PET_NAME,
+			"fresh non-default badge write must auto-seed default to DEFAULT_PET_NAME")
+		XCTAssertEqual(snapshot.platformOverrides["claude_code"], "shiba",
+			"fresh non-default badge write must persist the claude_code override")
+	}
+
 	// MARK: - Round-trip through reader
 
 	func testWriteRoundTripsThroughReader() throws {

@@ -79,9 +79,15 @@ enum AssignmentsJsonWriter {
 	///
 	/// - `badge` must be one of the 6 valid assignment badge keys.
 	/// - On success the file reflects the new assignment; all other badges are unchanged.
+	/// - When the file does not yet exist and `badge` is not `"default"`, seeds
+	///   `default: DEFAULT_PET_NAME` so the reader always finds a valid `default` key.
 	/// - Throws `ConfigFileWriterError` when the existing file is unreadable.
 	static func write(badge: String, petId: String, to url: URL) throws {
-		try ConfigFileWriter.merge([badge: petId], into: url)
+		var update: [String: Any] = [badge: petId]
+		if badge != "default", !FileManager.default.fileExists(atPath: url.path) {
+			update["default"] = DEFAULT_PET_NAME
+		}
+		try ConfigFileWriter.merge(update, into: url)
 	}
 }
 
@@ -100,17 +106,17 @@ func applyBadgeAssignment(badge: String, petId: String, in overrides: [String: S
 /// Seeds `assignments.json` on first launch from `config.pet`, then never reads
 /// `config.pet` again.
 enum AssignmentsMigration {
-	/// Seeds `assignments.json` when absent.
+	/// Seeds `assignments.json` when absent using O_EXCL exclusive-create semantics.
 	///
 	/// - If `assignmentsURL` already exists: no-op (idempotent).
 	/// - Otherwise: raw-reads `config.json`'s `pet` key via `JSONSerialization`
 	///   (schema-independent), falls back to `DEFAULT_PET_NAME`, and writes a
 	///   minimal `assignments.json` with `default` set to that pet ID.
+	/// - O_EXCL guarantees another process cannot silently overwrite `assignments.json`
+	///   created in the window between our existence check and our write.
 	///
 	/// Failures are silently swallowed so a migration hiccup never crashes the pool.
 	static func seedIfAbsent(assignmentsURL: URL, configURL: URL) {
-		guard !FileManager.default.fileExists(atPath: assignmentsURL.path) else { return }
-
 		let petId: String
 		if let data = try? Data(contentsOf: configURL),
 			let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -121,6 +127,15 @@ enum AssignmentsMigration {
 			petId = DEFAULT_PET_NAME
 		}
 
-		try? ConfigFileWriter.merge(["default": petId], into: assignmentsURL)
+		let payload: [String: Any] = ["schema_version": 1, "default": petId]
+		guard let data = try? JSONSerialization.data(
+			withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+		else { return }
+
+		// O_CREAT | O_EXCL: fails with EEXIST when file already exists → race-safe no-op.
+		let fd = Darwin.open(assignmentsURL.path, O_CREAT | O_EXCL | O_WRONLY, 0o644)
+		guard fd >= 0 else { return }
+		defer { Darwin.close(fd) }
+		_ = data.withUnsafeBytes { Darwin.write(fd, $0.baseAddress!, $0.count) }
 	}
 }
