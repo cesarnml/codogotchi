@@ -4,7 +4,8 @@ import XCTest
 @testable import Codogotchi
 
 /// Behavior contract for `PetTabViewModel` — enumeration, default selection,
-/// import delegation, persistence, and activation notifications for P8.07.
+/// import delegation, persistence, activation notifications, and badge
+/// assignment model (P14.07).
 final class PetTabViewModelTests: XCTestCase {
 	private var tmp: URL!
 
@@ -268,6 +269,73 @@ final class PetTabViewModelTests: XCTestCase {
 		// makePets writes `{}` — display name must fall back to the directory id.
 		let (vm, _) = makeViewModel(canonical: ["felix"])
 		XCTAssertEqual(entry(vm.catalog(), "felix")?.displayName, "felix")
+	}
+
+	// MARK: - Assignment model (P14.07)
+
+	private func makeViewModelWithAssignments(
+		codex: [String] = [],
+		canonical: [String] = []
+	) -> (vm: PetTabViewModel, assignmentsURL: URL) {
+		let roots = makePets(codex: codex, canonical: canonical)
+		let configURL = tmp.appendingPathComponent("config-assign.json")
+		let assignmentsURL = tmp.appendingPathComponent("assignments-assign.json")
+		let vm = PetTabViewModel(
+			codexPetsRoot: roots.codexRoot,
+			canonicalPetsRoot: roots.canonicalRoot,
+			configURL: configURL,
+			assignmentsURL: assignmentsURL
+		)
+		return (vm, assignmentsURL)
+	}
+
+	func testAssignBadgeRemovesFromPriorHolder() throws {
+		let (vm, _) = makeViewModelWithAssignments(canonical: ["pet-a", "pet-b"])
+		try vm.assign(badge: "claude_code", to: "pet-a")
+		XCTAssertTrue(vm.badges(for: "pet-a").contains("claude_code"))
+		try vm.assign(badge: "claude_code", to: "pet-b")
+		XCTAssertFalse(vm.badges(for: "pet-a").contains("claude_code"),
+			"claude_code must move off pet-a when assigned to pet-b")
+		XCTAssertTrue(vm.badges(for: "pet-b").contains("claude_code"))
+	}
+
+	func testReassigningDefaultMovesIsDefault() throws {
+		let (vm, _) = makeViewModelWithAssignments(canonical: ["pet-a", "pet-b"])
+		try vm.assign(badge: "default", to: "pet-a")
+		XCTAssertTrue(vm.catalog().first { $0.id == "pet-a" }?.isDefault ?? false,
+			"pet-a must be isDefault after receiving the default badge")
+		try vm.assign(badge: "default", to: "pet-b")
+		XCTAssertFalse(vm.catalog().first { $0.id == "pet-a" }?.isDefault ?? true,
+			"pet-a must lose isDefault after default badge moves to pet-b")
+		XCTAssertTrue(vm.catalog().first { $0.id == "pet-b" }?.isDefault ?? false,
+			"pet-b must be isDefault after receiving the default badge")
+	}
+
+	func testAssignToImportablePetIsRejected() {
+		let (vm, _) = makeViewModelWithAssignments(codex: ["importable-pet"])
+		XCTAssertThrowsError(try vm.assign(badge: "default", to: "importable-pet"),
+			"assign to an importable (codex-only) pet must throw")
+	}
+
+	func testOnAssignmentsChangedFiresExactlyWhenMapChanges() throws {
+		let (vm, _) = makeViewModelWithAssignments(canonical: ["pet-a", "pet-b"])
+		var fireCount = 0
+		vm.onAssignmentsChanged = { fireCount += 1 }
+		try vm.assign(badge: "claude_code", to: "pet-a")
+		XCTAssertEqual(fireCount, 1, "onAssignmentsChanged must fire on first assign")
+		try vm.assign(badge: "claude_code", to: "pet-a")
+		XCTAssertEqual(fireCount, 1, "no-op assign (same badge, same pet) must not fire")
+		try vm.assign(badge: "claude_code", to: "pet-b")
+		XCTAssertEqual(fireCount, 2, "onAssignmentsChanged must fire when badge moves to a new pet")
+	}
+
+	func testAssignmentMapRoundTripsThroughWriterAndReader() throws {
+		let (vm, assignmentsURL) = makeViewModelWithAssignments(canonical: ["pet-a", "pet-b"])
+		try vm.assign(badge: "default", to: "pet-a")
+		try vm.assign(badge: "claude_code", to: "pet-b")
+		let snapshot = AssignmentsJsonReader.read(at: assignmentsURL.path)
+		XCTAssertEqual(snapshot.default, "pet-a")
+		XCTAssertEqual(snapshot.platformOverrides["claude_code"], "pet-b")
 	}
 }
 
