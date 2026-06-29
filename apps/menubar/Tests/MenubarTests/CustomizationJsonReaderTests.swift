@@ -27,6 +27,7 @@ final class CustomizationJsonReaderTests: XCTestCase {
 			  "platform_modes": {
 			    "claude_code": "combined",
 			    "cursor": "off",
+			    "codex": "minimalist",
 			    "zed": "own"
 			  },
 			  "idle_dismiss_ttl_seconds": 600,
@@ -39,6 +40,7 @@ final class CustomizationJsonReaderTests: XCTestCase {
 		let snapshot = CustomizationJsonReader.read(at: tmp.path)
 		XCTAssertEqual(snapshot.platformModes["claude_code"], .combined)
 		XCTAssertEqual(snapshot.platformModes["cursor"], .off)
+		XCTAssertEqual(snapshot.platformModes["codex"], .minimalist)
 		XCTAssertEqual(snapshot.platformModes["zed"], .own)
 		XCTAssertEqual(snapshot.idleDismissTtlSeconds, 600)
 		XCTAssertEqual(snapshot.menubarIconMonochrome, true)
