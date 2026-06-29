@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-06-29T22:09:05.023Z",
+  "summary": {
+    "total": 11,
+    "patched": 7,
+    "rejected": 1,
+    "already-covered": 2,
+    "requires-human-review": 1
+  },
+  "dispositions": [
+    {
+      "disposition": "already-covered",
+      "rationale": "P14.09 updated docs/contracts/customization-json.md to state schema_version remains 1 for the additive minimalist mode and moved the possible version-bump note to future Phase 15 fields.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-14/reviews/P14.01-subagent-review.report.md",
+        "ticketId": "P14.01"
+      },
+      "observation": "`docs/contracts/customization-json.md` says Phase 14 would bump `schema_version` to `2` if it requires new fields, while `docs/product/delivery/phase-14/implementation-plan.md` explicitly says Minimalist is additive and `customization.json` stays `schema_version: 1`. The code follows the phase plan; the public contract doc’s forward note is stale."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "P14.09 updated docs/contracts/customization-json.md to document minimalist as a valid platform_modes value, so the public contract now matches packages/contracts/src/customization.ts.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-14/reviews/P14.01-subagent-review.report.md",
+        "ticketId": "P14.01"
+      },
+      "observation": "`docs/contracts/customization-json.md` still documents valid `platform_modes` values as only `\"own\"`, `\"combined\"`, and `\"off\"`, while `packages/contracts/src/customization.ts` now accepts `\"minimalist\"` as a fourth value. This is doc-vs-code drift for the public contract, but P14.09 appears to own the docs sweep."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "AssignmentsJsonWriter now rejects invalid badge keys and blank pet IDs before writing, with targeted tests proving no file is created for those invalid inputs.",
+      "patch": {
+        "commitSha": "e1910561635dc7a09fc052ac9d96462a135f8610",
+        "files": [
+          "apps/menubar/Sources/AssignmentsJsonReader.swift",
+          "apps/menubar/Tests/MenubarTests/AssignmentsJsonReaderTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-14/reviews/P14.03-subagent-review.report.md",
+        "ticketId": "P14.03"
+      },
+      "observation": "`AssignmentsJsonWriter.write` does not validate badge keys or petId emptiness. Badge-key validation is explicitly deferred to P14.07, but direct internal callers can still write unknown keys or overwrite `schema_version`; the current reader mostly ignores that, while the canonical TS schema may reject the file."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "This is historical delivery-ticket checklist drift, not a current product contract issue. The same ticket's Rationale already records why explicit CodingKeys replaced the earlier snake_case strategy, so changing the old checklist after delivery would rewrite the original work plan rather than improve shipped behavior.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-14/reviews/P14.03-subagent-review.report.md",
+        "ticketId": "P14.03"
+      },
+      "observation": "`docs/product/delivery/phase-14/ticket-03-assignments-reader-migration.md:26` still says to mirror `CustomizationJsonReader` with a “snake_case strategy,” while `apps/menubar/Sources/AssignmentsJsonReader.swift:35-66` intentionally uses a plain `JSONDecoder` plus explicit `CodingKeys`. The same ticket’s Rationale at lines 43-47 documents the correction, so this is stale checklist text rather than unexplained code drift."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "AssignmentsJsonReader now decodes schema_version and falls back to the safe default unless it is exactly 1; the targeted tests cover unsupported schema versions.",
+      "patch": {
+        "commitSha": "e1910561635dc7a09fc052ac9d96462a135f8610",
+        "files": [
+          "apps/menubar/Sources/AssignmentsJsonReader.swift",
+          "apps/menubar/Tests/MenubarTests/AssignmentsJsonReaderTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-14/reviews/P14.03-subagent-review.report.md",
+        "ticketId": "P14.03"
+      },
+      "observation": "The Swift reader accepts any `schema_version` because it does not decode the field. That is looser than `packages/contracts/src/assignments.ts:3-10`, which requires `schema_version: 1`; harmless for current v1 payloads, but a future incompatible schema could be silently accepted if it preserves these key names."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added targeted reader and migration tests for binary data, missing default, empty default, empty config.pet, unsupported schema versions, and a full payload containing all five platform keys.",
+      "patch": {
+        "commitSha": "e1910561635dc7a09fc052ac9d96462a135f8610",
+        "files": [
+          "apps/menubar/Tests/MenubarTests/AssignmentsJsonReaderTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-14/reviews/P14.03-subagent-review.report.md",
+        "ticketId": "P14.03"
+      },
+      "observation": "The test suite does not directly exercise all specified fallback guards or all five platform keys in one payload. The implementation covers them by source inspection, but adding tests for binary data, missing `default`, empty `default`, empty `config.pet`, and all optional platform keys would make the contract harder to regress."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "PetAssetResolverTests now assert fallback loaders receive the injected maewFallbackURL path, not just any URL whose lastPathComponent is maew.",
+      "patch": {
+        "commitSha": "e1910561635dc7a09fc052ac9d96462a135f8610",
+        "files": ["apps/menubar/Tests/MenubarTests/PetAssetResolverTests.swift"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-14/reviews/P14.04-subagent-review.report.md",
+        "ticketId": "P14.04"
+      },
+      "observation": "`apps/menubar/Tests/MenubarTests/PetAssetResolverTests.swift:94` and `:112` distinguish fallback by `url.lastPathComponent == DEFAULT_PET_NAME`, so they would still pass if the resolver loaded `~/.codogotchi/pets/maew` instead of the injected `maewFallbackURL`. The implementation currently uses the injected URL correctly; this is only a test-contract blind spot."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "PlatformAttributionTests now cover combined -> .default, assert the PlatformDefault asset name, and verify the PlatformDefault imageset exists.",
+      "patch": {
+        "commitSha": "e1910561635dc7a09fc052ac9d96462a135f8610",
+        "files": [
+          "apps/menubar/Tests/MenubarTests/PlatformAttributionTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-14/reviews/P14.05-subagent-review.report.md",
+        "ticketId": "P14.05"
+      },
+      "observation": "`PlatformAttributionTests` still describes only five coding platforms and does not cover `\"combined\" -> .default`; adding that plus an asset-existence or rendering-path assertion would catch the missing-star issue."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "PetTabViewModelTests now explicitly cover unassign persistence, default unassign no-op behavior, and persist-first behavior when unassign cannot write.",
+      "patch": {
+        "commitSha": "e1910561635dc7a09fc052ac9d96462a135f8610",
+        "files": ["apps/menubar/Tests/MenubarTests/PetTabViewModelTests.swift"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-14/reviews/P14.07-subagent-review.report.md",
+        "ticketId": "P14.07"
+      },
+      "observation": "`docs/product/delivery/phase-14/ticket-07-pet-tab-assignment-model.md:43` says dedicated `unassign` tests were deferred. That matches the current tests, but the same ticket Outcome at line 11 names `unassign(badge:from:)` as required API behavior, so this is a deliberate coverage gap rather than an implementation proof."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "PetTabLayoutTests now inject a temp assignmentsURL alongside temp pet roots, preventing reads from the developer's real ~/.codogotchi/assignments.json.",
+      "patch": {
+        "commitSha": "e1910561635dc7a09fc052ac9d96462a135f8610",
+        "files": ["apps/menubar/Tests/MenubarTests/PetTabLayoutTests.swift"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-14/reviews/P14.08-subagent-review.report.md",
+        "ticketId": "P14.08"
+      },
+      "observation": "`apps/menubar/Tests/MenubarTests/PetTabLayoutTests.swift` constructs `PetTabViewModel` without an `assignmentsURL`, so the test can read the developer’s real `~/.codogotchi/assignments.json`. It also does not cover the badge-pill row or Default-border rendering path, which are central to this ticket’s UI contract."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "The model-level persist-first behavior is covered, but surfacing assignment persistence failures in the AppKit dropdown needs a product/UI decision: inline alert, toast/banner, disabled retry state, or silent log. I did not add ad hoc UI error copy during post-phase triage without that decision.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-14/reviews/P14.08-subagent-review.report.md",
+        "ticketId": "P14.08"
+      },
+      "observation": "`badgeMenuItemClicked(_:)` silently discards `assign` errors via `try?`, and `unassign` silently returns on write failure. The normal UI makes validation errors unlikely, but a persistence failure leaves the user with no feedback beyond the menu/grid not changing."
+    }
+  ]
+}
