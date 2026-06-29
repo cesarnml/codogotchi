@@ -4,6 +4,10 @@ export interface FrameCoord {
   y: number;
 }
 
+export interface FramePixelData {
+  data: ArrayLike<number>;
+}
+
 /**
  * Slices a sprite sheet into per-frame crop coordinates.
  *
@@ -28,4 +32,33 @@ export function sliceFrames(
     }
   }
   return frames;
+}
+
+/**
+ * A frame is renderable when it has at least one visible pixel that is not the
+ * magenta placeholder used by some Codex-compatible sheets for unused cells.
+ */
+export function hasRenderablePixels(frame: FramePixelData): boolean {
+  const { data } = frame;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i] ?? 0;
+    const g = data[i + 1] ?? 0;
+    const b = data[i + 2] ?? 0;
+    const a = data[i + 3] ?? 0;
+
+    if (a <= 8) continue;
+    const isPlaceholderMagenta = r >= 240 && g <= 20 && b >= 240;
+    if (!isPlaceholderMagenta) return true;
+  }
+  return false;
+}
+
+export function keepRenderableFrames<T>(
+  frames: T[],
+  pixelsForFrame: (frame: T, index: number) => FramePixelData,
+): T[] {
+  const renderable = frames.filter((frame, index) =>
+    hasRenderablePixels(pixelsForFrame(frame, index)),
+  );
+  return renderable.length > 0 ? renderable : frames.slice(0, 1);
 }

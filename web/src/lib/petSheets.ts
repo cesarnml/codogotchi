@@ -3,6 +3,7 @@ import JSZip from "jszip";
 // Spritesheet layout constants from packages/pets/src/pet-contract.ts
 export const SHEET_COLS = 8;
 export const CODEX_ROWS = 9;
+export const CODEX_IDLE_FRAME_COUNT = 6;
 
 export interface LoadedSheet {
   url: string;
@@ -31,15 +32,15 @@ export const SHEET_SECTIONS: SheetSection[] = [
     file: "spritesheet.webp",
     rows: 9,
     states: [
-      { row: 0, label: "Idle", frameCount: 8 },
+      { row: 0, label: "Idle", frameCount: CODEX_IDLE_FRAME_COUNT },
       { row: 1, label: "Run right", frameCount: 8 },
       { row: 2, label: "Run left", frameCount: 8 },
-      { row: 3, label: "Waving", frameCount: 8 },
+      { row: 3, label: "Waving", frameCount: 4 },
       { row: 4, label: "Jumping", frameCount: 5 },
       { row: 5, label: "Failed", frameCount: 8 },
-      { row: 6, label: "Waiting", frameCount: 8 },
+      { row: 6, label: "Waiting", frameCount: 6 },
       { row: 7, label: "Running", frameCount: 6 },
-      { row: 8, label: "Review", frameCount: 4 },
+      { row: 8, label: "Review", frameCount: 6 },
     ],
   },
   {

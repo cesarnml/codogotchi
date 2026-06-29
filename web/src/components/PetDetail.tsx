@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { buildInstallStrings } from "../lib/installStrings";
 import {
   CODEX_ROWS,
+  CODEX_IDLE_FRAME_COUNT,
   type LoadedSheet,
   loadPetSheets,
   loadSheetFromUrl,
@@ -158,6 +159,7 @@ export default function PetDetail({
                 frameH={codexSheet.frameH}
                 totalCols={SHEET_COLS}
                 totalRows={CODEX_ROWS}
+                frameCount={CODEX_IDLE_FRAME_COUNT}
               />
             ) : sheetLoading ? (
               <div className="pet-shimmer" aria-hidden="true" />

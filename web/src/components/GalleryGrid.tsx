@@ -3,6 +3,7 @@ import { api } from "~convex/_generated/api";
 import { useEffect, useState } from "react";
 import {
   CODEX_ROWS,
+  CODEX_IDLE_FRAME_COUNT,
   type LoadedSheet,
   loadPetSheets,
   loadSheetFromUrl,
@@ -90,6 +91,7 @@ function CardSprite({
         totalCols={SHEET_COLS}
         totalRows={CODEX_ROWS}
         row={0}
+        frameCount={CODEX_IDLE_FRAME_COUNT}
         displaySize={144}
       />
     );

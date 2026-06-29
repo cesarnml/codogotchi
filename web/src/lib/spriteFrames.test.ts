@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { sliceFrames } from "./spriteFrames";
+import {
+  hasRenderablePixels,
+  keepRenderableFrames,
+  sliceFrames,
+} from "./spriteFrames";
 
 describe("sliceFrames", () => {
   it("1×1 sheet yields a single frame at origin", () => {
@@ -44,5 +48,58 @@ describe("sliceFrames", () => {
       { x: 0, y: 32 },
       { x: 32, y: 32 },
     ]);
+  });
+});
+
+describe("hasRenderablePixels", () => {
+  it("treats fully transparent frames as blank", () => {
+    expect(hasRenderablePixels({ data: [0, 0, 0, 0, 255, 255, 255, 8] })).toBe(false);
+  });
+
+  it("treats pure placeholder magenta frames as blank", () => {
+    expect(hasRenderablePixels({ data: [255, 0, 255, 255, 250, 10, 245, 255] })).toBe(
+      false,
+    );
+  });
+
+  it("keeps frames with any visible non-placeholder pixel", () => {
+    expect(hasRenderablePixels({ data: [255, 0, 255, 255, 12, 34, 56, 255] })).toBe(
+      true,
+    );
+  });
+});
+
+describe("keepRenderableFrames", () => {
+  it("drops transparent and placeholder frames while preserving frame order", () => {
+    const frames = [
+      { x: 0, y: 0 },
+      { x: 32, y: 0 },
+      { x: 64, y: 0 },
+      { x: 96, y: 0 },
+    ];
+    const pixels = [
+      [1, 2, 3, 255],
+      [0, 0, 0, 0],
+      [255, 0, 255, 255],
+      [20, 30, 40, 255],
+    ];
+
+    expect(keepRenderableFrames(frames, (_frame, index) => ({ data: pixels[index] }))).toEqual([
+      { x: 0, y: 0 },
+      { x: 96, y: 0 },
+    ]);
+  });
+
+  it("keeps one frame when every candidate is blank", () => {
+    const frames = [
+      { x: 0, y: 0 },
+      { x: 32, y: 0 },
+    ];
+
+    expect(
+      keepRenderableFrames(frames, () => ({
+        data: [0, 0, 0, 0],
+      })),
+    ).toEqual([{ x: 0, y: 0 }]);
   });
 });
