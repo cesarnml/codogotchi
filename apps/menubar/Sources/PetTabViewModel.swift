@@ -2,15 +2,14 @@ import Foundation
 
 /// A single pet rendered as a card in the Pet tab grid.
 ///
-/// `state` is derived purely from *where the pet lives*: a pet in the canonical
-/// store (`~/.codogotchi/pets/`) is `installed` — and `selected` when it is the
-/// active pet — while a pet that exists only under `~/.codex/pets/` is
-/// `importable`. `assetDirectory` is the directory holding the pet's
-/// `spritesheet.webp`, used to slice a static catalog thumbnail.
+/// `state` is derived from *where the pet lives*: a pet in the canonical
+/// store (`~/.codogotchi/pets/`) is `installed`, while a pet that exists only
+/// under `~/.codex/pets/` is `importable`. `isDefault` is true when this pet
+/// holds the "default" badge in `assignments.json`. `assetDirectory` is the
+/// directory holding the pet's `spritesheet.webp`.
 struct PetCatalogEntry: Equatable {
 	enum State: Equatable {
-		case selected  // installed and currently active
-		case installed  // in the canonical store, not active
+		case installed  // in the canonical store (or bundled Maew)
 		case importable  // present only under ~/.codex/pets
 	}
 
@@ -20,28 +19,41 @@ struct PetCatalogEntry: Equatable {
 	let state: State
 	let assetDirectory: URL
 	let spritesheetURL: URL?
+	let isDefault: Bool  // true when this pet holds the "default" badge
+}
 
-	var isDefault: Bool { id == DEFAULT_PET_NAME }
+enum PetTabViewModelError: LocalizedError {
+	case petNotAssignable(String)
+
+	var errorDescription: String? {
+		switch self {
+		case .petNotAssignable(let id):
+			return "Pet '\(id)' is importable-only and cannot be assigned a badge"
+		}
+	}
 }
 
 /// View model for the Pet tab: enumerates pets from bundled, Codex, and
-/// canonical-store sources; manages active selection and persistence.
+/// canonical-store sources; manages badge assignments and persistence.
 ///
 /// Three sources, deduplicated by pet ID:
 /// 1. Bundled Maew — always present (`DEFAULT_PET_NAME`).
 /// 2. Codex pets — `~/.codex/pets/<id>/` directories (may be absent).
 /// 3. Canonical store pets — `~/.codogotchi/pets/<id>/` directories.
 ///
-/// Active selection persists to `configURL` (defaults to `PetConfig.configURL()`).
+/// Badge assignments persist to `assignmentsURL` (defaults to
+/// `~/.codogotchi/assignments.json`). The "default" badge holder drives the
+/// selection border in the Pet tab card grid.
 final class PetTabViewModel {
 	let codexPetsRoot: URL
 	let canonicalPetsRoot: URL
 	let configURL: URL
+	let assignmentsURL: URL
 
-	private(set) var activePetId: String
+	private(set) var assignmentsSnapshot: AssignmentsSnapshot
 
-	/// Fired only when `selectPet` actually changes the active pet.
-	var onActivePetChanged: ((String) -> Void)?
+	/// Fired when `assign` or `unassign` changes the assignment map.
+	var onAssignmentsChanged: (() -> Void)?
 
 	/// Optional import override — injected by tests to avoid real filesystem I/O.
 	private let importOverride: ((String) throws -> Void)?
@@ -52,13 +64,15 @@ final class PetTabViewModel {
 		canonicalPetsRoot: URL = FileManager.default.homeDirectoryForCurrentUser
 			.appendingPathComponent(".codogotchi/pets"),
 		configURL: URL = PetConfig.configURL(),
-		initialActivePetId: String = PetConfig.resolvedPetName(),
+		assignmentsURL: URL = FileManager.default.homeDirectoryForCurrentUser
+			.appendingPathComponent(".codogotchi/assignments.json"),
 		importOverride: ((String) throws -> Void)? = nil
 	) {
 		self.codexPetsRoot = codexPetsRoot
 		self.canonicalPetsRoot = canonicalPetsRoot
 		self.configURL = configURL
-		self.activePetId = initialActivePetId
+		self.assignmentsURL = assignmentsURL
+		self.assignmentsSnapshot = AssignmentsJsonReader.read(at: assignmentsURL.path)
 		self.importOverride = importOverride
 	}
 
@@ -82,8 +96,8 @@ final class PetTabViewModel {
 
 	/// Rich catalog of all pets for the card grid, deduplicated by ID and sorted
 	/// alphabetically by display name. Sort is deliberately *stable across state
-	/// changes*: a pet's `state` drives its card's button, border, and badge —
-	/// never its position. Importing or selecting a pet must not relocate its
+	/// changes*: a pet's `state` drives its card's button and badge — never its
+	/// position. Importing or assigning a badge to a pet must not relocate its
 	/// card out from under the user.
 	///
 	/// Bundled Maew (`DEFAULT_PET_NAME`) is always treated as installed even if
@@ -95,13 +109,14 @@ final class PetTabViewModel {
 		var ids = canonicalIds.union(codexIds)
 		ids.insert(DEFAULT_PET_NAME)
 
+		let defaultHolder = assignmentsSnapshot.default
+
 		let entries = ids.map { id -> PetCatalogEntry in
 			let installed = canonicalIds.contains(id) || id == DEFAULT_PET_NAME
 			let assetDir = (installed ? canonicalPetsRoot : codexPetsRoot)
 				.appendingPathComponent(id, isDirectory: true)
 			let meta = readMetadata(at: assetDir, fallbackId: id)
-			let state: PetCatalogEntry.State =
-				installed ? (id == activePetId ? .selected : .installed) : .importable
+			let state: PetCatalogEntry.State = installed ? .installed : .importable
 			let sheet = meta.spritesheetPath.map { assetDir.appendingPathComponent($0) }
 			return PetCatalogEntry(
 				id: id,
@@ -109,7 +124,8 @@ final class PetTabViewModel {
 				description: meta.description,
 				state: state,
 				assetDirectory: assetDir,
-				spritesheetURL: sheet
+				spritesheetURL: sheet,
+				isDefault: id == defaultHolder
 			)
 		}
 
@@ -119,6 +135,69 @@ final class PetTabViewModel {
 			// Stable tiebreak on id so equal display names keep a fixed order.
 			return a.id < b.id
 		}
+	}
+
+	/// Assigns `badge` to `petId`, enforcing the uniqueness invariant: the badge
+	/// moves off its prior holder. Reuses `applyBadgeAssignment` from P14.03.
+	///
+	/// - Throws `PetTabViewModelError.petNotAssignable` when `petId` is
+	///   importable (codex-only).
+	/// - No-op when `petId` already holds `badge` (does not fire the callback).
+	func assign(badge: String, to petId: String) throws {
+		guard isInstalled(petId) else {
+			throw PetTabViewModelError.petNotAssignable(petId)
+		}
+
+		let currentHolder: String? =
+			badge == "default"
+			? assignmentsSnapshot.default
+			: assignmentsSnapshot.platformOverrides[badge]
+		guard currentHolder != petId else { return }
+
+		try AssignmentsJsonWriter.write(badge: badge, petId: petId, to: assignmentsURL)
+		let newOverrides =
+			badge == "default"
+			? assignmentsSnapshot.platformOverrides
+			: applyBadgeAssignment(
+				badge: badge, petId: petId, in: assignmentsSnapshot.platformOverrides)
+		assignmentsSnapshot = AssignmentsSnapshot(
+			default: badge == "default" ? petId : assignmentsSnapshot.default,
+			platformOverrides: newOverrides
+		)
+		onAssignmentsChanged?()
+	}
+
+	/// Removes `badge` from `petId` when `petId` currently holds it.
+	/// No-op otherwise. The "default" badge cannot be unassigned.
+	/// Silently no-ops on write failure (persist-first: in-memory state
+	/// is not updated when the file write fails).
+	func unassign(badge: String, from petId: String) {
+		guard badge != "default" else { return }
+		guard assignmentsSnapshot.platformOverrides[badge] == petId else { return }
+		guard (try? ConfigFileWriter.merge([badge: NSNull()], into: assignmentsURL)) != nil else { return }
+		var newOverrides = assignmentsSnapshot.platformOverrides
+		newOverrides.removeValue(forKey: badge)
+		assignmentsSnapshot = AssignmentsSnapshot(
+			default: assignmentsSnapshot.default,
+			platformOverrides: newOverrides
+		)
+		onAssignmentsChanged?()
+	}
+
+	/// Returns the set of badge keys currently held by `petId`.
+	func badges(for petId: String) -> Set<String> {
+		var result = Set<String>()
+		if assignmentsSnapshot.default == petId { result.insert("default") }
+		for (badge, holder) in assignmentsSnapshot.platformOverrides {
+			if holder == petId { result.insert(badge) }
+		}
+		return result
+	}
+
+	// MARK: - Private helpers
+
+	private func isInstalled(_ id: String) -> Bool {
+		id == DEFAULT_PET_NAME || directoryNames(in: canonicalPetsRoot).contains(id)
 	}
 
 	private func directoryNames(in root: URL) -> [String] {
@@ -153,21 +232,6 @@ final class PetTabViewModel {
 		let meta = try? decoder.decode(PetMetadataJSON.self, from: data)
 		let name = meta?.displayName?.isEmpty == false ? meta!.displayName! : fallbackId
 		return (name, meta?.description ?? "", meta?.spritesheetPath ?? "spritesheet.webp")
-	}
-
-	/// Sets the active pet, persists to `configURL`, and fires `onActivePetChanged`.
-	/// No-op when `id` is already active. Aborts without updating in-memory state or
-	/// firing the callback if the config write fails, so the user can retry.
-	func selectPet(id: String) {
-		guard id != activePetId else { return }
-		do {
-			try PetConfig.write(petName: id, to: configURL)
-		} catch {
-			NSLog("PetTabViewModel: failed to persist pet selection for '%@' — %@", id, error.localizedDescription)
-			return
-		}
-		activePetId = id
-		onActivePetChanged?(id)
 	}
 
 	/// Imports a Codex pet via `PetImportHelper` (or the injected test override).

@@ -37,8 +37,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here.
+Red first: `PetTabViewModel` has no member `assign` — compile error on the new test file.
+Why this path: Added `assignmentsURL` as a defaulted `init` parameter so the existing call-sites required no signature change; all new tests use a separate `makeViewModelWithAssignments` helper that passes an explicit tmp URL. Removed `.selected` from `PetCatalogEntry.State` in the same pass rather than deferring, because `SettingsWindowController` already had switch exhaustiveness — keeping `.selected` would have required another pass anyway.
+Alternative considered: Keeping `selectPet`/`activePetId`/`onActivePetChanged` as deprecated wrappers that delegate to `assign`. Rejected — the wrapper layer would require both APIs to exist simultaneously, making the refactor test coverage ambiguous. The ticket explicitly says to replace them.
+Deferred: `unassign` is implemented but not covered by its own red test — `assign` twice is sufficient to verify the uniqueness invariant moves the badge. Dedicated `unassign` tests deferred to a follow-up quality-control entry if coverage gaps emerge.
+Contract note: `PetCatalogEntry.isDefault` changed from a computed property (`id == DEFAULT_PET_NAME`) to a stored `let` property reflecting the assignment snapshot. The semantic shift (bundled Maew → current default badge holder) is intentional per spec.

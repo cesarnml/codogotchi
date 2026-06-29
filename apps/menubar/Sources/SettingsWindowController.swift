@@ -138,8 +138,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			let persisted = self?.generalViewModel.setMonochromeMenubarIcon(isMonochrome) ?? false
 			if persisted { self?.onMonochromeChanged?(isMonochrome) }
 		}
-		petTabViewModel.onActivePetChanged = { [weak self] petId in
-			self?.onPetActivated?(petId)
+		petTabViewModel.onAssignmentsChanged = { [weak self] in
+			self?.onPetActivated?(self?.petTabViewModel.assignmentsSnapshot.default ?? DEFAULT_PET_NAME)
 		}
 		let pet = PetTabView(
 			viewModel: petTabViewModel,
@@ -293,7 +293,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	}
 
 	private func handleSelectPet(id: String) {
-		petTabViewModel.selectPet(id: id)
+		try? petTabViewModel.assign(badge: "default", to: id)
 		petTab?.refreshPetList(viewModel: petTabViewModel)
 	}
 
@@ -896,9 +896,9 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		card.wantsLayer = true
 		card.layer?.cornerRadius = 10
 		card.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.5).cgColor
-		card.layer?.borderWidth = entry.state == .selected ? 2 : 1
+		card.layer?.borderWidth = entry.isDefault ? 2 : 1
 		card.layer?.borderColor =
-			(entry.state == .selected ? NSColor.controlAccentColor : NSColor.separatorColor).cgColor
+			(entry.isDefault ? NSColor.controlAccentColor : NSColor.separatorColor).cgColor
 		card.heightAnchor.constraint(equalToConstant: cardHeight).isActive = true
 		card.identifier = PetTabView.cardIdentifier
 
@@ -988,15 +988,17 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 	private func makeActionButton(for entry: PetCatalogEntry) -> NSButton {
 		let button: NSButton
 		switch entry.state {
-		case .selected:
-			button = NSButton(title: "Selected", target: nil, action: nil)
-			button.bezelStyle = .rounded
-			button.isEnabled = false
 		case .installed:
-			button = NSButton(title: "Select", target: self, action: #selector(petCardAction(_:)))
-			button.bezelStyle = .rounded
-			objc_setAssociatedObject(
-				button, &actionKey, ("select", entry.id), .OBJC_ASSOCIATION_RETAIN)
+			if entry.isDefault {
+				button = NSButton(title: "Selected", target: nil, action: nil)
+				button.bezelStyle = .rounded
+				button.isEnabled = false
+			} else {
+				button = NSButton(title: "Select", target: self, action: #selector(petCardAction(_:)))
+				button.bezelStyle = .rounded
+				objc_setAssociatedObject(
+					button, &actionKey, ("select", entry.id), .OBJC_ASSOCIATION_RETAIN)
+			}
 		case .importable:
 			button = NSButton(title: "Import", target: self, action: #selector(petCardAction(_:)))
 			button.bezelStyle = .rounded

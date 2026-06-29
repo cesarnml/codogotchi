@@ -44,15 +44,21 @@ final class PetTabViewModelTests: XCTestCase {
 	private func makeViewModel(
 		codex: [String] = [],
 		canonical: [String] = [],
-		activePetId: String = DEFAULT_PET_NAME
+		defaultPetId: String = DEFAULT_PET_NAME
 	) -> (PetTabViewModel, configURL: URL) {
 		let roots = makePets(codex: codex, canonical: canonical)
 		let configURL = tmp.appendingPathComponent("config.json")
+		let assignmentsURL = tmp.appendingPathComponent("assignments.json")
+		// Seed the default badge when a non-Maew pet is requested so catalog
+		// tests that rely on isDefault work without round-tripping through disk.
+		if defaultPetId != DEFAULT_PET_NAME {
+			try? AssignmentsJsonWriter.write(badge: "default", petId: defaultPetId, to: assignmentsURL)
+		}
 		let vm = PetTabViewModel(
 			codexPetsRoot: roots.codexRoot,
 			canonicalPetsRoot: roots.canonicalRoot,
 			configURL: configURL,
-			initialActivePetId: activePetId
+			assignmentsURL: assignmentsURL
 		)
 		return (vm, configURL)
 	}
@@ -93,70 +99,53 @@ final class PetTabViewModelTests: XCTestCase {
 		XCTAssertTrue(ids.contains(DEFAULT_PET_NAME))
 	}
 
-	// MARK: - Default selection: Maew
+	// MARK: - Default badge: snapshot reads
 
-	func testDefaultSelectionIsMaewWhenNothingElseConfigured() {
+	func testDefaultBadgeIsMaewWhenNoAssignmentsFileExists() {
 		let (vm, _) = makeViewModel()
-		XCTAssertEqual(vm.activePetId, DEFAULT_PET_NAME,
-			"Active pet must default to maew when no other selection is configured")
+		XCTAssertEqual(vm.assignmentsSnapshot.default, DEFAULT_PET_NAME,
+			"default badge must fall back to maew when no assignments file exists")
 	}
 
-	func testDefaultSelectionHonorsPreviouslyPersistedChoice() {
-		let (vm, _) = makeViewModel(canonical: ["felix"], activePetId: "felix")
-		XCTAssertEqual(vm.activePetId, "felix")
+	func testDefaultBadgeHonorsPreviouslyPersistedAssignment() {
+		let (vm, _) = makeViewModel(canonical: ["felix"], defaultPetId: "felix")
+		XCTAssertEqual(vm.assignmentsSnapshot.default, "felix")
 	}
 
-	// MARK: - selectPet: persistence + notification
+	// MARK: - assign: persistence + notification
 
-	func testSelectPetPersistsChoiceToConfigUrl() throws {
-		let (vm, configURL) = makeViewModel(canonical: ["ruby"])
-		vm.selectPet(id: "ruby")
-		let data = try Data(contentsOf: configURL)
-		let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-		XCTAssertEqual(obj?["pet"] as? String, "ruby", "selectPet must write the chosen id to config.json")
+	func testAssignDefaultBadgePersistsToAssignmentsFile() throws {
+		let (vm, _) = makeViewModelWithAssignments(canonical: ["ruby"])
+		try vm.assign(badge: "default", to: "ruby")
+		let snapshot = AssignmentsJsonReader.read(at: vm.assignmentsURL.path)
+		XCTAssertEqual(snapshot.default, "ruby",
+			"assign(default) must persist to the assignments file")
 	}
 
-	func testSelectPetUpdatesActivePetId() {
-		let (vm, _) = makeViewModel(canonical: ["ruby"])
-		vm.selectPet(id: "ruby")
-		XCTAssertEqual(vm.activePetId, "ruby")
+	func testAssignDefaultBadgeUpdatesSnapshot() throws {
+		let (vm, _) = makeViewModelWithAssignments(canonical: ["ruby"])
+		try vm.assign(badge: "default", to: "ruby")
+		XCTAssertEqual(vm.assignmentsSnapshot.default, "ruby")
 	}
 
-	func testSelectPetFiresOnActivePetChanged() {
-		let (vm, _) = makeViewModel(canonical: ["ruby"])
-		var fired: String?
-		vm.onActivePetChanged = { fired = $0 }
-		vm.selectPet(id: "ruby")
-		XCTAssertEqual(fired, "ruby", "onActivePetChanged must fire with the new pet id")
-	}
-
-	func testSelectPetDoesNotUpdateInMemoryStateWhenWriteFails() {
-		// configURL points to an unwritable path — write must fail.
+	func testAssignDoesNotUpdateInMemoryStateWhenWriteFails() {
 		let roots = makePets(canonical: ["ruby"])
-		// Use a read-only directory as parent so the write throws
-		let unwritableDir = URL(fileURLWithPath: "/dev/null/nonexistent")
-		let badConfigURL = unwritableDir.appendingPathComponent("config.json")
+		let configURL = tmp.appendingPathComponent("config.json")
+		let badAssignmentsURL = URL(fileURLWithPath: "/dev/null/nonexistent/assignments.json")
 		let vm = PetTabViewModel(
 			codexPetsRoot: roots.codexRoot,
 			canonicalPetsRoot: roots.canonicalRoot,
-			configURL: badConfigURL,
-			initialActivePetId: DEFAULT_PET_NAME
+			configURL: configURL,
+			assignmentsURL: badAssignmentsURL
 		)
+		let originalDefault = vm.assignmentsSnapshot.default
 		var callbackFired = false
-		vm.onActivePetChanged = { _ in callbackFired = true }
-		vm.selectPet(id: "ruby")
-		// activePetId must NOT change and callback must NOT fire when write fails
-		XCTAssertEqual(vm.activePetId, DEFAULT_PET_NAME,
-			"activePetId must not change when config write fails")
-		XCTAssertFalse(callbackFired, "onActivePetChanged must not fire when config write fails")
-	}
-
-	func testSelectPetNoOpWhenAlreadyActive() {
-		let (vm, _) = makeViewModel()
-		var callCount = 0
-		vm.onActivePetChanged = { _ in callCount += 1 }
-		vm.selectPet(id: DEFAULT_PET_NAME)
-		XCTAssertEqual(callCount, 0, "selectPet must be a no-op when the pet is already active")
+		vm.onAssignmentsChanged = { callbackFired = true }
+		XCTAssertThrowsError(try vm.assign(badge: "default", to: "ruby"),
+			"assign must throw when the write fails")
+		XCTAssertEqual(vm.assignmentsSnapshot.default, originalDefault,
+			"snapshot.default must not change when write fails")
+		XCTAssertFalse(callbackFired, "onAssignmentsChanged must not fire when write fails")
 	}
 
 	// MARK: - importPet: delegates to PetImportHelper
@@ -169,7 +158,6 @@ final class PetTabViewModelTests: XCTestCase {
 			codexPetsRoot: roots.codexRoot,
 			canonicalPetsRoot: roots.canonicalRoot,
 			configURL: configURL,
-			initialActivePetId: DEFAULT_PET_NAME,
 			importOverride: { id in importedId = id }
 		)
 		try vm.importPet(id: "felix")
@@ -183,8 +171,7 @@ final class PetTabViewModelTests: XCTestCase {
 		let vm = PetTabViewModel(
 			codexPetsRoot: roots.codexRoot,
 			canonicalPetsRoot: canonicalRoot,
-			configURL: configURL,
-			initialActivePetId: DEFAULT_PET_NAME
+			configURL: configURL
 		)
 		// Simulate real import — create the canonical dir manually so enumeration picks it up.
 		let felixDir = canonicalRoot.appendingPathComponent("felix")
@@ -202,16 +189,19 @@ final class PetTabViewModelTests: XCTestCase {
 		catalog.first { $0.id == id }
 	}
 
-	func testCatalogMarksActiveCanonicalPetSelected() {
-		let (vm, _) = makeViewModel(canonical: ["felix"], activePetId: "felix")
+	func testCatalogMarksDefaultBadgeHolderAsIsDefault() {
+		let (vm, _) = makeViewModel(canonical: ["felix"], defaultPetId: "felix")
 		let catalog = vm.catalog()
-		XCTAssertEqual(entry(catalog, "felix")?.state, .selected)
+		XCTAssertTrue(entry(catalog, "felix")?.isDefault ?? false,
+			"the default badge holder must have isDefault == true")
 	}
 
-	func testCatalogMarksNonActiveCanonicalPetInstalled() {
-		let (vm, _) = makeViewModel(canonical: ["felix", "luna"], activePetId: "felix")
+	func testCatalogMarksNonDefaultCanonicalPetInstalled() {
+		let (vm, _) = makeViewModel(canonical: ["felix", "luna"])
 		let catalog = vm.catalog()
 		XCTAssertEqual(entry(catalog, "luna")?.state, .installed)
+		XCTAssertFalse(entry(catalog, "luna")?.isDefault ?? true,
+			"non-default pet must have isDefault == false")
 	}
 
 	func testCatalogMarksCodexOnlyPetImportable() {
@@ -231,19 +221,15 @@ final class PetTabViewModelTests: XCTestCase {
 
 	func testCatalogSortsAlphabeticallyRegardlessOfState() {
 		// Mixed states must interleave by display name, not cluster by tier:
-		// alpha (importable) precedes felix (selected) precedes zeta (installed).
-		let (vm, _) = makeViewModel(
-			codex: ["alpha"], canonical: ["felix", "zeta"], activePetId: "felix")
+		// alpha (importable) precedes felix (installed) precedes zeta (installed).
+		let (vm, _) = makeViewModel(codex: ["alpha"], canonical: ["felix", "zeta"])
 		XCTAssertEqual(vm.catalog().map(\.id), ["alpha", "felix", DEFAULT_PET_NAME, "zeta"])
 	}
 
-	func testCatalogOrderIsStableWhenActiveSelectionChanges() {
-		// Selecting a different pet must not move any card — the ordering is
-		// identical whether felix or zeta is active.
-		let (vmA, _) = makeViewModel(
-			codex: [], canonical: ["felix", "zeta"], activePetId: "felix")
-		let (vmB, _) = makeViewModel(
-			codex: [], canonical: ["felix", "zeta"], activePetId: "zeta")
+	func testCatalogOrderIsStableWhenDefaultBadgeChanges() {
+		// Reassigning the default badge must not relocate any card.
+		let (vmA, _) = makeViewModel(canonical: ["felix", "zeta"], defaultPetId: "felix")
+		let (vmB, _) = makeViewModel(canonical: ["felix", "zeta"], defaultPetId: "zeta")
 		XCTAssertEqual(vmA.catalog().map(\.id), vmB.catalog().map(\.id))
 	}
 
@@ -257,8 +243,7 @@ final class PetTabViewModelTests: XCTestCase {
 		let vm = PetTabViewModel(
 			codexPetsRoot: roots.codexRoot,
 			canonicalPetsRoot: roots.canonicalRoot,
-			configURL: configURL,
-			initialActivePetId: DEFAULT_PET_NAME
+			configURL: configURL
 		)
 		let e = entry(vm.catalog(), "rocky")
 		XCTAssertEqual(e?.displayName, "Rocky")
