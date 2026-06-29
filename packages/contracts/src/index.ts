@@ -1,4 +1,5 @@
 export * from "./animation-state";
+export * from "./assignments";
 export * from "./config";
 export * from "./customization";
 export * from "./decay-constants";
