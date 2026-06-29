@@ -51,31 +51,39 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   `compound-widget-cohesion-under-transform` also points at.
 
 ### `side-effect-call-dropped-or-mis-targeted-in-refactor`
-- **Seen:** 2× — both on `StateJsonWriter.dismissAttention`, both surfacing as
-  the attention bubble failing to clear. `codogotchi-15` (P12): the writer was
+- **Seen:** 3× — `codogotchi-15` (P12): `StateJsonWriter.dismissAttention` was
   handed `state.d/` but treated it as a single file, so the call silently
   no-oped. `codogotchi-18` (P13): the p13.04 pool refactor swapped the single
   panel controller for a per-origin factory and **dropped the
-  `onAttentionDismissed` wiring entirely**, so the call site vanished. Same
-  feature broke twice across two consecutive phase migrations, both times
-  invisible to units.
+  `onAttentionDismissed` wiring entirely**. `codogotchi-20` (P13): the same
+  refactor never wired `reloadActivePet` to push the new pet into pool windows,
+  so a Settings pet change didn't live-swap visible pets. The 3rd instance is a
+  **different surface** (live pet swap, not attention), confirming the class is
+  not over-fit to `dismissAttention`: the common root is *a behavior the old
+  single owner performed was not re-established in the new owner*.
 - **Proposed clause:** *"When a refactor replaces a single owner with a
-  factory/pool/registry, grep the removed owner for every `.on<Event> =` /
-  callback assignment and every side-effecting call it made, and confirm each is
-  re-established (or deliberately dropped) in the new path. Pair this with: a
-  helper that fails silently (returns void, swallows errors) must have an
-  integration test asserting its side effect actually occurred — unit-passing
-  the helper and unit-passing the caller in isolation does not prove they are
-  wired together."*
-- **Caveat that blocks naive promotion:** the dropped wiring lives in an AppKit
-  factory closure (live `NSStatusBar`/`NSPanel` + poll loop), so it is **not
-  unit-reachable** — this is a `qa-gap`/integration-pass lever, not a per-ticket
-  diff-review clause. The recurrence is also narrow (same function twice), so the
-  class may be over-fit to `dismissAttention`; a third, unrelated instance would
-  confirm it generalizes.
-- **Status:** WAITING at the 2× bar — same-function recurrence is suggestive but
-  not yet proof of a general class. Reassess on the next dropped/mis-targeted
-  side-effect from a refactor.
+  factory/pool/registry, enumerate every behavior the old owner performed —
+  `.on<Event> =` callback assignments, side-effecting calls, and live-update
+  paths (reload/replace/refresh) — and confirm each is re-established (or
+  deliberately dropped) in the new path. Two tells: (a) a helper that fails
+  silently needs an integration test asserting its side effect occurred; (b) a
+  comment ADDED by the refactor that announces a new limitation ('retained until
+  respawned', 'takes effect on next restart', 'X no longer happens until Y') is a
+  regression smell — challenge it, do not accept it as intended."*
+- **Caveat that blocks naive promotion:** the **detection lever varies by
+  instance**, which complicates a single prompt clause. `codogotchi-18` was
+  `qa-gap` (dropped wiring buried in an AppKit factory closure, not
+  unit-reachable). `codogotchi-20` was `review-reachable` (the refactor left a
+  self-documenting comment in the diff). So the class is real and now generalized
+  (3×, two surfaces), but it splits across an integration/dogfood lever AND a
+  diff-review lever — promotion may need *two* coordinated clauses (a review
+  prompt for the self-documenting-comment tell, a phase-integration checklist for
+  the silent ones) rather than one.
+- **Status:** AT THRESHOLD (3×, generalized). Ready to promote, but decide the
+  split first: a review-prompt clause for the comment-tell variant vs. a
+  phase-integration-pass item for the silent variant. Promotion edits
+  `adversarial-review-template.md` and is out of scope for the QC lane — route
+  the promotion decision through planning/the review-template owner.
 
 ### `time-based-feature-tested-against-proxy-condition`
 - **Seen:** 1× — `codogotchi-19` (P13). The "Dismiss after idle: N min" TTL was
