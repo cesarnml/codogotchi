@@ -14,7 +14,6 @@ import { dispatch } from "./router";
 function fixture(): CodogotchiConfig {
   return {
     profile_id: "11111111-2222-3333-4444-555555555555",
-    pet: "maew",
     features: { rpg_enabled: true },
     handle: "ada",
     github_token: "ghp_secret",
@@ -183,7 +182,6 @@ describe("config command", () => {
     it("does not synthesize secret fields for Lite configs", async () => {
       await writeConfig(home, {
         profile_id: "lite-profile",
-        pet: "maew",
         features: { rpg_enabled: false },
       });
       const out = await configList({ home });

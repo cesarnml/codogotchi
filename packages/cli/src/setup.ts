@@ -67,7 +67,6 @@ export async function runSetup(
   const profile_id = deps.randomUUID();
   const config: CodogotchiConfig = {
     profile_id,
-    pet: "maew",
     // v1 baseline: local RPG on by default with the HUD visible, so first-run
     // users get a taste of the Tamagotchi loop before deciding. No cloud fields
     // — this is fully local (XP/HP/level computed by the hook). The HUD can be
@@ -212,7 +211,6 @@ export async function runRpg(
 
   const config: CodogotchiConfig = {
     profile_id,
-    pet: "maew",
     features: { rpg_enabled: true },
     handle,
     github_username,

@@ -40,8 +40,12 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here.
+Red first: `config set pet maew` resolving instead of throwing; `setup` seeding `pet: "maew"` in the written config.
+
+Why this path: `readRawConfig` + shallow-merge in `writeConfig(rawBase?)` is the smallest safe path. It reads the raw JSON once in parallel with the Zod parse, then spreads `{...rawBase, ...zodShape}` before writing so any top-level unknown key (including a leftover `pet`) survives an unrelated set. No deep-merge needed since nested `features`/`health` objects are fully owned by the schema.
+
+Alternative considered: storing the raw JSON inside `readConfig`'s return value (a tuple `[CodogotchiConfig, Record<string, unknown>]`). Rejected — it changes every call site that only needs the validated shape, and the raw-only read stays isolated to `configSet`.
+
+Deferred: `configGet pet` (currently throws "Unknown config key") is intentionally left — users who have `pet` on disk cannot read it via CLI. The Swift migration (P14.03) owns actual migration. README/CLI-help updates land in P14.09.
+
+Contract note: no deviations from ticket metadata.

@@ -3,7 +3,6 @@ import { healthConfigSchema } from "./sync-profile";
 
 const configBaseSchema = z.object({
   profile_id: z.string().min(1),
-  pet: z.string().min(1).optional(),
   features: z.object({
     rpg_enabled: z.boolean(),
   }),
@@ -41,7 +40,6 @@ export type CodogotchiConfigShape = z.infer<typeof codogotchiConfigSchema>;
 // Keys that `config set` is allowed to mutate. `profile_id` is intentionally
 // excluded — rotating it would orphan the server-side profile.
 export const SETTABLE_TOP_LEVEL = [
-  "pet",
   "handle",
   "github_token",
   "github_username",

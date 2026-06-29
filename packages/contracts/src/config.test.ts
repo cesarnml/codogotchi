@@ -5,7 +5,6 @@ describe("codogotchiConfigSchema", () => {
   it("accepts Lite config shape with RPG disabled", () => {
     const parsed = codogotchiConfigSchema.safeParse({
       profile_id: "11111111-2222-3333-4444-555555555555",
-      pet: "maew",
       features: { rpg_enabled: false },
     });
     expect(parsed.success).toBe(true);

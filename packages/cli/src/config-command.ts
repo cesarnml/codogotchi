@@ -4,7 +4,7 @@ import {
   SETTABLE_HEALTH_KEYS,
   SETTABLE_TOP_LEVEL,
 } from "@codogotchi/contracts";
-import { readConfig, writeConfig } from "./config";
+import { readConfig, readRawConfig, writeConfig } from "./config";
 
 export class ConfigCommandError extends Error {
   constructor(
@@ -45,7 +45,7 @@ const TOP_NULLABLE_STRING_KEYS = new Set([
   "github_username",
   "wakatime_key",
 ]);
-const TOP_REQUIRED_STRING_KEYS = new Set(["handle", "convex_http_url", "pet"]);
+const TOP_REQUIRED_STRING_KEYS = new Set(["handle", "convex_http_url"]);
 const RPG_ONLY_KEYS = new Set([
   "handle",
   "github_token",
@@ -142,7 +142,7 @@ function getDottedValue(config: CodogotchiConfigShape, path: string): unknown {
     }
     return (config.health as Record<string, unknown>)[rest];
   }
-  if (path === "profile_id" || path === "handle" || path === "pet") {
+  if (path === "profile_id" || path === "handle") {
     return (config as Record<string, unknown>)[path];
   }
   if ((SETTABLE_TOP_LEVEL as readonly string[]).includes(path)) {
@@ -250,7 +250,10 @@ export async function configGet(opts: ConfigGetOptions): Promise<string> {
 }
 
 export async function configSet(opts: ConfigSetOptions): Promise<string> {
-  const config = await loadOrFail(opts.home);
+  const [config, rawBase] = await Promise.all([
+    loadOrFail(opts.home),
+    readRawConfig(opts.home),
+  ]);
   const resolved = resolveConfigPath(opts.path);
   if (resolved === null) {
     throw new ConfigCommandError(
@@ -263,7 +266,7 @@ export async function configSet(opts: ConfigSetOptions): Promise<string> {
       : resolved.kind === "health"
         ? applyHealthValue(config, resolved.key, opts.value)
         : applyFeaturesValue(config, resolved.key, opts.value);
-  await writeConfig(opts.home, next);
+  await writeConfig(opts.home, next, rawBase ?? undefined);
   return `${opts.path}=${
     typeof getDottedValue(next, opts.path) === "string"
       ? getDottedValue(next, opts.path)

@@ -48,7 +48,6 @@ describe("runSetup (Lite)", () => {
 
     expect(result.config.features.rpg_enabled).toBe(true);
     expect(result.config.features.rpg_hud_enabled).toBe(true);
-    expect(result.config.pet).toBe("maew");
     expect(result.config.profile_id).toBe(
       "11111111-2222-3333-4444-555555555555",
     );

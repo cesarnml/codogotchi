@@ -42,6 +42,18 @@ export async function configExists(home: string): Promise<boolean> {
   }
 }
 
+export async function readRawConfig(
+  home: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const raw = await readFile(configPath(home), "utf8");
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+}
+
 export async function readConfig(
   home: string,
 ): Promise<CodogotchiConfig | null> {
@@ -63,10 +75,15 @@ export async function readConfig(
 export async function writeConfig(
   home: string,
   config: CodogotchiConfig,
+  rawBase?: Record<string, unknown>,
 ): Promise<void> {
   await mkdir(home, { recursive: true });
   const target = configPath(home);
   const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
-  await writeFile(tmp, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  // When rawBase is provided, merge validated config over the raw on-disk JSON
+  // so unknown keys (e.g. a leftover `pet` from a not-yet-migrated app) survive
+  // an unrelated `config set` until the owning side migrates them away.
+  const payload = rawBase ? { ...rawBase, ...config } : config;
+  await writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
   await rename(tmp, target);
 }
