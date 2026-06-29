@@ -2,6 +2,177 @@ import AppKit
 import SpriteKit
 
 @MainActor
+final class MinimalistPanelController: MinimalistPanelManaging {
+	private enum Layout {
+		static let size = CGSize(width: 360, height: 58)
+	}
+
+	private let visibleFrameProvider: () -> CGRect
+	private var panel: NSPanel?
+	private let stripView = MinimalistStripView(frame: CGRect(origin: .zero, size: Layout.size))
+	private var currentPlatformOrigin: String?
+	private var currentActivity: ActivityState = .idle
+	private var currentAttention: AttentionPayload?
+	private var currentPromptSummary = ""
+
+	init(
+		visibleFrameProvider: @escaping () -> CGRect = {
+			NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
+		}
+	) {
+		self.visibleFrameProvider = visibleFrameProvider
+	}
+
+	func show(frame: CGRect) {
+		let panel = self.panel ?? makePanel()
+		let sizedFrame = clampedFrame(origin: frame.origin)
+		panel.setFrame(sizedFrame, display: true)
+		panel.orderFrontRegardless()
+		stripView.frame = NSRect(origin: .zero, size: sizedFrame.size)
+		applyAll()
+		self.panel = panel
+	}
+
+	func hide() {
+		panel?.orderOut(nil)
+	}
+
+	func applyPlatform(origin: String?) {
+		currentPlatformOrigin = origin
+		applyAll()
+	}
+
+	func applyActivity(_ state: ActivityState) {
+		currentActivity = state
+		applyAll()
+	}
+
+	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
+		currentAttention = payload?.isExpired() == true ? nil : payload
+		applyAll()
+	}
+
+	func applyPromptSummary(_ summary: String) {
+		currentPromptSummary = summary
+		applyAll()
+	}
+
+	private func makePanel() -> NSPanel {
+		let panel = NSPanel(
+			contentRect: CGRect(origin: .zero, size: Layout.size),
+			styleMask: [.borderless, .nonactivatingPanel],
+			backing: .buffered,
+			defer: false
+		)
+		panel.backgroundColor = .clear
+		panel.isOpaque = false
+		panel.hasShadow = true
+		panel.level = .floating
+		panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+		panel.hidesOnDeactivate = false
+		panel.isReleasedWhenClosed = false
+		panel.ignoresMouseEvents = false
+		panel.contentView = stripView
+		return panel
+	}
+
+	private func clampedFrame(origin: CGPoint) -> CGRect {
+		let visible = visibleFrameProvider().insetBy(dx: 6, dy: 6)
+		let x = max(visible.minX, min(visible.maxX - Layout.size.width, origin.x))
+		let y = max(visible.minY, min(visible.maxY - Layout.size.height, origin.y))
+		return CGRect(x: x, y: y, width: Layout.size.width, height: Layout.size.height)
+	}
+
+	private func applyAll() {
+		stripView.configure(
+			platform: PlatformAttribution(origin: currentPlatformOrigin),
+			platformFallback: currentPlatformOrigin ?? "",
+			activity: currentActivity,
+			attentionSummary: currentAttention?.summary ?? "",
+			promptSummary: currentPromptSummary
+		)
+	}
+}
+
+private final class MinimalistStripView: NSView {
+	private let effectView = NSVisualEffectView(frame: .zero)
+	private let platformLabel = NSTextField(labelWithString: "")
+	private let activityLabel = NSTextField(labelWithString: "")
+	private let attentionLabel = NSTextField(labelWithString: "")
+	private let promptLabel = NSTextField(labelWithString: "")
+	private let stack = NSStackView()
+
+	override init(frame frameRect: NSRect) {
+		super.init(frame: frameRect)
+		buildUI()
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func configure(
+		platform: PlatformAttribution?,
+		platformFallback: String,
+		activity: ActivityState,
+		attentionSummary: String,
+		promptSummary: String
+	) {
+		platformLabel.stringValue = platform?.displayName ?? platformFallback
+		activityLabel.stringValue = activity.displayLabel
+		attentionLabel.stringValue = attentionSummary
+		promptLabel.stringValue = promptSummary
+		attentionLabel.isHidden = attentionSummary.isEmpty
+		promptLabel.isHidden = promptSummary.isEmpty
+	}
+
+	private func buildUI() {
+		wantsLayer = true
+		layer?.cornerRadius = 12
+		layer?.masksToBounds = true
+
+		effectView.material = .hudWindow
+		effectView.blendingMode = .withinWindow
+		effectView.state = .active
+		effectView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(effectView)
+
+		stack.orientation = .horizontal
+		stack.alignment = .centerY
+		stack.spacing = 8
+		stack.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(stack)
+
+		for label in [platformLabel, activityLabel, attentionLabel, promptLabel] {
+			configureBadge(label)
+			stack.addArrangedSubview(label)
+		}
+
+		NSLayoutConstraint.activate([
+			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			effectView.topAnchor.constraint(equalTo: topAnchor),
+			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+			stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+			stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
+			stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+		])
+	}
+
+	private func configureBadge(_ label: NSTextField) {
+		label.font = .systemFont(ofSize: 12, weight: .semibold)
+		label.textColor = .white
+		label.lineBreakMode = .byTruncatingTail
+		label.maximumNumberOfLines = 1
+		label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+		label.translatesAutoresizingMaskIntoConstraints = false
+		label.wantsLayer = true
+		label.layer?.cornerRadius = 7
+		label.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.28).cgColor
+	}
+}
+
+@MainActor
 final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var codexPet: CodexPet
 	private var codogotchiPet: CodogotchiPet?

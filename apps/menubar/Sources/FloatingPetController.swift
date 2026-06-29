@@ -202,3 +202,100 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 		}
 	}
 }
+
+@MainActor
+protocol MinimalistPanelManaging: AnyObject {
+	func show(frame: CGRect)
+	func hide()
+	func applyPlatform(origin: String?)
+	func applyActivity(_ state: ActivityState)
+	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
+	func applyPromptSummary(_ summary: String)
+}
+
+@MainActor
+final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
+	private let origin: String
+	private let panel: MinimalistPanelManaging
+	private let visibleFrameProvider: () -> CGRect
+	private let saveState: (FloatingAppState) throws -> Void
+	private let promptSummaryProvider: (String) -> String
+	private var state: FloatingAppState
+
+	var isFloatingPetVisible: Bool { state.isFloatingPetVisible }
+	var onVisibilityChanged: ((Bool) -> Void)?
+
+	init(
+		origin: String,
+		panel: MinimalistPanelManaging,
+		visibleFrameProvider: @escaping () -> CGRect,
+		saveState: @escaping (FloatingAppState) throws -> Void = AppStateStore.save,
+		initialState: FloatingAppState? = nil,
+		promptSummaryProvider: @escaping (String) -> String = { PromptAttentionReader.latestSummary(origin: $0) }
+	) {
+		self.origin = origin
+		self.panel = panel
+		self.visibleFrameProvider = visibleFrameProvider
+		self.saveState = saveState
+		self.promptSummaryProvider = promptSummaryProvider
+		self.state = initialState ?? AppStateStore.load(visibleFrame: visibleFrameProvider())
+		super.init()
+
+		if state.isFloatingPetVisible {
+			panel.show(frame: state.frame)
+		}
+		onVisibilityChanged?(state.isFloatingPetVisible)
+	}
+
+	func setFloatingPetVisible(_ visible: Bool) {
+		let nextState = FloatingAppState(
+			isFloatingPetVisible: visible,
+			frame: FloatingFramePolicy.clamp(state.frame, to: visibleFrameProvider()),
+			onboardingCompletedAt: state.onboardingCompletedAt,
+			lastHookActivityAt: state.lastHookActivityAt,
+			hooksStatus: state.hooksStatus,
+			installedHookVersion: state.installedHookVersion
+		)
+		do {
+			try saveState(nextState)
+		} catch {
+			NSLog("MinimalistWindowController: failed to persist floating visibility: \(error.localizedDescription)")
+			return
+		}
+
+		state = nextState
+		if visible {
+			panel.show(frame: nextState.frame)
+			refreshPromptSummary()
+		} else {
+			panel.hide()
+		}
+		onVisibilityChanged?(visible)
+	}
+
+	func apply(state: ActivityState, visualMode: VisualMode) {
+		panel.applyActivity(state)
+		refreshPromptSummary()
+	}
+
+	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {
+		// Minimalist mode intentionally has no sprite and no RPG HUD.
+	}
+
+	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
+		panel.applyAttention(payload: payload, sourceEvent: sourceEvent)
+		refreshPromptSummary()
+	}
+
+	func applyGateBadge(content: GateBadgeContent?) {}
+
+	func applyPlatform(origin: String?) {
+		panel.applyPlatform(origin: origin ?? self.origin)
+	}
+
+	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
+
+	private func refreshPromptSummary() {
+		panel.applyPromptSummary(promptSummaryProvider(origin))
+	}
+}

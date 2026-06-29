@@ -26,6 +26,25 @@ private final class StubWindowController: FloatingPetWindowControlling {
     func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) { replacePetsCallCount += 1 }
 }
 
+@MainActor
+private final class StubMinimalistPanel: MinimalistPanelManaging {
+    var visible = false
+    var platformOrigin: String?
+    var activityLabel = ""
+    var attentionSummary = ""
+    var promptSummary = ""
+    var rpgApplyCount = 0
+
+    func show(frame: CGRect) { visible = true }
+    func hide() { visible = false }
+    func applyPlatform(origin: String?) { platformOrigin = origin }
+    func applyActivity(_ state: ActivityState) { activityLabel = state.displayLabel }
+    func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
+        attentionSummary = payload?.summary ?? ""
+    }
+    func applyPromptSummary(_ summary: String) { promptSummary = summary }
+}
+
 // MARK: - Helpers
 
 private func makeSnapshot(

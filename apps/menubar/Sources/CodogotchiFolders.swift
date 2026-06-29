@@ -38,6 +38,11 @@ enum CodogotchiFolders {
 		dataFolderURL().appendingPathComponent("assignments.json").path
 	}
 
+	/// `~/.codogotchi/prompt-attention.json` — latest prompt summaries written by hooks.
+	static func promptAttentionPath() -> String {
+		dataFolderURL().appendingPathComponent("prompt-attention.json").path
+	}
+
 	/// Create the folder if missing, then reveal it in Finder. Creating first
 	/// keeps a first-launch open (folder not yet written) from silently no-oping.
 	/// `createDirectory(withIntermediateDirectories:)` is idempotent.
@@ -50,4 +55,48 @@ enum CodogotchiFolders {
 		try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)
 		return open(url)
 	}
+}
+
+/// Reads latest prompt summaries written by hooks under `prompt-attention.json`.
+/// The file is optional; any missing, stale, or malformed shape degrades to an empty badge.
+enum PromptAttentionReader {
+	static func latestSummary(
+		origin: String,
+		at path: String = CodogotchiFolders.promptAttentionPath()
+	) -> String {
+		let url = URL(fileURLWithPath: path)
+		guard let data = try? Data(contentsOf: url) else { return "" }
+		let decoder = JSONDecoder()
+		decoder.keyDecodingStrategy = .convertFromSnakeCase
+		guard let payload = try? decoder.decode(PromptAttentionPayload.self, from: data) else {
+			return ""
+		}
+		let prefix = "\(origin):"
+		let latest = payload.bySession
+			.filter { key, entry in
+				key.hasPrefix(prefix) && !(entry.summary ?? "").isEmpty
+			}
+			.max { lhs, rhs in
+				parseDate(lhs.value.updatedAt) ?? .distantPast < parseDate(rhs.value.updatedAt) ?? .distantPast
+			}
+		return latest?.value.summary ?? ""
+	}
+
+	private static func parseDate(_ value: String?) -> Date? {
+		guard let value else { return nil }
+		let formatter = ISO8601DateFormatter()
+		formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+		if let date = formatter.date(from: value) { return date }
+		formatter.formatOptions = [.withInternetDateTime]
+		return formatter.date(from: value)
+	}
+}
+
+private struct PromptAttentionPayload: Decodable {
+	let bySession: [String: PromptAttentionEntry]
+}
+
+private struct PromptAttentionEntry: Decodable {
+	let updatedAt: String?
+	let summary: String?
 }

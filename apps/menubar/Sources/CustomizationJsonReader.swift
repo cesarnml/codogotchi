@@ -6,6 +6,8 @@ enum PlatformMode: String, Equatable {
 	case own
 	/// All combined-mode origins share a single floating window.
 	case combined
+	/// Origin renders a compact badge strip instead of a pet sprite and RPG HUD.
+	case minimalist
 	/// Origin is hidden; no window is spawned for it.
 	case off
 }
