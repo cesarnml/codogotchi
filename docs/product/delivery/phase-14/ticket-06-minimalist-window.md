@@ -42,8 +42,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here.
+Red first: `bun run mac:test` failed at compile with `PlatformMode` missing `.minimalist`, before the new pool/controller/reader seams existed.
+Why this path: Added minimalist as an additional pool-routed `FloatingPetWindowControlling` implementation so TTL, hide/show, last-active, and activity/attention fanout stay on the existing pool lifecycle.
+Alternative considered: Reusing `FloatingPetPanelController` with the sprite hidden was rejected because it would keep HUD/sprite lifecycle state alive and make the no-HUD/no-sprite guarantee weaker.
+Deferred: Richer minimalist styling and SoA gate/ticket badges in minimalist mode remain out of this ticket.
+Contract note: No state schema bump; `customization.json` remains schema_version 1 with unknown modes still degrading to `.own`.

@@ -1301,6 +1301,7 @@ private final class CustomizationTabView: NSView {
 			"Choose how each coding platform displays your pet. "
 				+ "Own = dedicated floating window per tool. "
 				+ "Combined = all active tools share one window. "
+				+ "Minimalist = compact badge strip. "
 				+ "Off = no window for that tool."
 		)
 		addSubview(note)
@@ -1320,7 +1321,7 @@ private final class CustomizationTabView: NSView {
 
 			let picker = NSPopUpButton()
 			picker.translatesAutoresizingMaskIntoConstraints = false
-			for mode in [PlatformMode.own, .combined, .off] {
+			for mode in [PlatformMode.own, .combined, .minimalist, .off] {
 				picker.addItem(withTitle: mode.rawValue.capitalized)
 				picker.lastItem?.representedObject = mode
 			}

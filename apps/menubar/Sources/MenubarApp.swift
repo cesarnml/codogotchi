@@ -247,6 +247,25 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						self.menuBuilder?.refreshFloatingPetMenuItemTitle()
 					}
 					return controller
+				},
+				minimalistWindowFactory: { [weak self] origin in
+					let panel = MinimalistPanelController(visibleFrameProvider: Self.visibleFloatingFrame)
+					let savedFrame = AppStateStore.loadFrame(
+						for: origin, visibleFrame: Self.visibleFloatingFrame())
+					let controller = MinimalistWindowController(
+						origin: origin,
+						panel: panel,
+						visibleFrameProvider: Self.visibleFloatingFrame,
+						saveState: { state in
+							try AppStateStore.saveFrame(state.frame, for: origin)
+						},
+						initialState: FloatingAppState(
+							isFloatingPetVisible: false, frame: savedFrame)
+					)
+					controller.onVisibilityChanged = { [weak self] _ in
+						self?.updateAppNapOptOut()
+					}
+					return controller
 				}
 			)
 			pool.onMonochromeChanged = { [weak item] isMonochrome in

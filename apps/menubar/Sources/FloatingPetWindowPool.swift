@@ -14,12 +14,14 @@ import Foundation
 @MainActor
 final class FloatingPetWindowPool {
 	typealias WindowFactory = (String, String) -> FloatingPetWindowControlling
+	typealias MinimalistWindowFactory = (String) -> FloatingPetWindowControlling
 	typealias CustomizationReader = () -> CustomizationSnapshot
 	typealias AssignmentsReader = () -> AssignmentsSnapshot
 
 	private let assignmentsReader: AssignmentsReader
 	private let customizationReader: CustomizationReader
 	private let windowFactory: WindowFactory
+	private let minimalistWindowFactory: MinimalistWindowFactory?
 	private let now: () -> Date
 
 	/// Active windows keyed by window key (origin for "own" mode, "combined" for combined mode).
@@ -56,11 +58,13 @@ final class FloatingPetWindowPool {
 			CustomizationJsonReader.read(at: CodogotchiFolders.customizationPath())
 		},
 		windowFactory: @escaping WindowFactory,
+		minimalistWindowFactory: MinimalistWindowFactory? = nil,
 		now: @escaping () -> Date = { Date() }
 	) {
 		self.assignmentsReader = assignmentsReader
 		self.customizationReader = customizationReader
 		self.windowFactory = windowFactory
+		self.minimalistWindowFactory = minimalistWindowFactory
 		self.now = now
 	}
 
@@ -172,7 +176,9 @@ final class FloatingPetWindowPool {
 			if userHiddenWindowKeys.contains(origin) { continue }
 			if windows[origin] == nil {
 				let petId = currentAssignments.resolve(origin: origin)
-				let controller = windowFactory(origin, petId)
+				let controller = mode(for: origin) == .minimalist
+					? (minimalistWindowFactory?(origin) ?? windowFactory(origin, petId))
+					: windowFactory(origin, petId)
 				controller.setFloatingPetVisible(true)
 				windows[origin] = controller
 			}
@@ -181,7 +187,9 @@ final class FloatingPetWindowPool {
 				payload: state.attention,
 				sourceEvent: state.sourceEvent
 			)
-			if let origin = state.sourceEvent?.origin {
+			if mode(for: origin) == .minimalist {
+				windows[origin]?.applyPlatform(origin: origin)
+			} else if let origin = state.sourceEvent?.origin {
 				windows[origin]?.applyPlatform(origin: origin)
 			}
 		}
