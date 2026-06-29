@@ -195,6 +195,17 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					controller.onVisibilityChanged = { [weak self] _ in
 						self?.updateAppNapOptOut()
 					}
+					// Persist the dismiss/focus so the next poll tick does not re-read
+					// the still-present `attention` and re-show the bubble. Scope the
+					// clear to this window's origin in multi-pet mode; the shared
+					// "combined" window has no single origin, so it clears all slices.
+					let stateDir = config.pollingTarget.path
+					panel.onAttentionDismissed = {
+						StateJsonWriter.dismissAttention(
+							at: stateDir,
+							origin: origin == "combined" ? nil : origin
+						)
+					}
 					panel.onHideFloatingPet = { [weak self, weak controller] in
 						guard let self, let controller else { return }
 						// Find this controller's origin in the pool and dismiss

@@ -84,6 +84,41 @@ final class StateJsonWriterTests: XCTestCase {
 		}
 	}
 
+	// MARK: - Origin-scoped clearing (multi-pet)
+
+	func testDismissAttentionWithOriginClearsOnlyMatchingSlices() {
+		let dir = makeStateDir()
+		writeSlice(
+			"claude_code:session1.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "implementing",
+				"source_event": ["origin": "claude_code"],
+				"attention": ["message": "claude needs you"],
+			])
+		writeSlice(
+			"cursor:session1.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "implementing",
+				"source_event": ["origin": "cursor"],
+				"attention": ["message": "cursor needs you"],
+			])
+
+		StateJsonWriter.dismissAttention(at: dir.path, origin: "claude_code")
+
+		let cleared = readSlice("claude_code:session1.json", in: dir)!
+		XCTAssertEqual(cleared["activity_state"] as? String, "idle")
+		XCTAssertNil(cleared["attention"], "dismissed origin's attention must be removed")
+
+		let untouched = readSlice("cursor:session1.json", in: dir)!
+		XCTAssertEqual(
+			untouched["activity_state"] as? String, "implementing",
+			"a different origin's slice must not be set to idle")
+		XCTAssertNotNil(
+			untouched["attention"], "a different origin's attention must survive a scoped dismiss")
+	}
+
 	// MARK: - Missing directory
 
 	func testDismissAttentionNoOpsWhenDirectoryAbsent() {
