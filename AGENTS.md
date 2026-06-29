@@ -1,6 +1,7 @@
 # Repo Rules
 
 - If the user says `triage`, use the `soa-pr-review` skill at `.agents/skills/pr-review/SKILL.md`.
+- If the user says `/soa quality-control` or `/soa qc`, use the `soa-quality-control` skill at `.agents/skills/quality-control/SKILL.md`. This is the post-phase fix-and-record lane — not a delivery-orchestrator command and not a replacement for `/soa tao` or closeout.
 - For phase work, read `docs/template/overview/start-here.md` and `docs/template/delivery/delivery-orchestrator.md` first, then surface the orchestrator path before coding.
 - Use the `soa-son-of-anton-ethos` skill at `.agents/skills/son-of-anton-ethos/SKILL.md` automatically when executing any approved multi-ticket phase/epic or standalone (non-ticketed) PR — including when the user says execute, begin, start, deliver, implement, continue, resume, run, drive, carry, work on, or explicitly mentions `son of anton` / `son-of-anton ethos`. That skill owns execution mechanics, stop conditions, polling, and review outcome recording.
 - For new product feature-set expansion, phase shaping, or epic decomposition: run a planning pass and use `soa-grill-me` before accepting any plan. Developer approval of ticket decomposition is required before implementation.

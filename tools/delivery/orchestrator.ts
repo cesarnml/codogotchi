@@ -147,6 +147,20 @@ export {
 } from './advisory-observation-warnings';
 export type { AdvisoryObservationWarning } from './advisory-observation-warnings';
 export {
+  appendReviewGapRecord,
+  REVIEW_GAP_KINDS,
+  REVIEW_GAP_REACHABILITY_CLASSIFICATIONS,
+  validateReviewGapRecord,
+} from './review-gap-ledger';
+export type {
+  ReviewGapCommitReferenceInput,
+  ReviewGapKind,
+  ReviewGapReachabilityClassification,
+  ReviewGapReachabilityInput,
+  ReviewGapRecord,
+  ReviewGapRecordInput,
+} from './review-gap-ledger';
+export {
   applyAdvanceBoundaryMode,
   copyLocalBootstrapFilesIfPresent,
   copyLocalEnvIfPresent,

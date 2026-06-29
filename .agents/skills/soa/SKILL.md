@@ -1,6 +1,6 @@
 ---
 name: soa
-description: Son-of-Anton canonical entrypoint. Use for /soa plan, /soa decompose, /soa execute, /soa resume, /soa preflight, /soa triage-ticket, /soa triage-standalone, /soa triage-advisory-observations (/soa tao), /soa install, /soa update, /soa closeout, and /soa ideate. Manages installation, updates, and the full delivery lifecycle.
+description: Son-of-Anton canonical entrypoint. Use for /soa plan, /soa decompose, /soa execute, /soa resume, /soa preflight, /soa triage-ticket, /soa triage-standalone, /soa triage-advisory-observations (/soa tao), /soa quality-control (/soa qc), /soa install, /soa update, /soa closeout, and /soa ideate. Manages installation, updates, quality control, and the full delivery lifecycle.
 ---
 
 # Son-of-Anton Skill
@@ -269,6 +269,22 @@ bun run deliver --plan <plan-path> triage-advisory-observations --dispositions <
    observations or suspicious report evidence. Keep `Actionable findings`
    separate: they remain the blocking reconciliation lane and are not part of
    advisory-observation disposition.
+
+---
+
+### `quality-control` (alias: `qc`)
+
+**Trigger:** `/soa quality-control phase-NN: <description>` or `/soa qc phase-NN: <description>`
+
+Run the post-phase quality control lane for a small, verified fix that should
+create one review-gap ledger entry.
+
+1. Require the `phase-NN` argument before inspecting or changing files. If it is
+   missing or ambiguous, ask for the exact phase.
+2. Invoke the `soa-quality-control` skill. That skill owns fix verification,
+   commit provenance, review-gap ledger capture, and promotion-queue guidance.
+3. Keep this skill-led. Do not add a `bun run deliver quality-control`
+   delivery-orchestrator command for this path.
 
 ---
 
