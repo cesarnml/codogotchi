@@ -1,4 +1,6 @@
 import AppKit
+import CoreImage
+import CoreImage.CIFilterBuiltins
 
 /// Menu-bar agent entry point.
 ///
@@ -574,18 +576,47 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// small and undersized next to neighbors like the calendar) lets that
 	/// intrinsic margin supply the breathing room.
 	///
-	/// When `monochrome` is true the image renders as a template (adapts to
-	/// light/dark menu bar); when false it renders in full color.
-	///
-	/// NOTE: in template mode the full app icon's alpha is a solid rounded
-	/// square, so monochrome currently renders as a filled block on selection.
-	/// A dedicated silhouette source (the pet's hero frame) is tracked as a
-	/// follow-up.
+	/// When `monochrome` is true the same icon is rendered in grayscale
+	/// (saturation collapsed via Core Image) — shape and shading are preserved,
+	/// only the color is removed, so the icon does not change form when the
+	/// setting is toggled. It is intentionally NOT a template image: a template
+	/// flattens the icon to a single-color silhouette (the full app icon's alpha
+	/// is a solid rounded square, which renders as a filled block) and cannot
+	/// carry grayscale shading. The grayscale image is fixed, so it does not
+	/// invert on selection.
 	static func applyMenubarIcon(to button: NSStatusBarButton, monochrome: Bool) {
-		let icon = NSApp.applicationIconImage.copy() as? NSImage ?? NSImage()
 		let side = NSStatusBar.system.thickness
+		let base = NSApp.applicationIconImage.copy() as? NSImage ?? NSImage()
+		let icon = monochrome ? (Self.desaturated(base) ?? base) : base
 		icon.size = NSSize(width: side, height: side)
-		icon.isTemplate = monochrome
+		icon.isTemplate = false
 		button.image = icon
+	}
+
+	/// Returns a grayscale copy of `image` by collapsing saturation to zero via
+	/// Core Image, mirroring `MenubarRenderer.desaturate`. Returns nil when the
+	/// image cannot be bridged to a `CGImage` or the filter produces no output,
+	/// so callers can fall back to the original color image.
+	private static func desaturated(_ image: NSImage) -> NSImage? {
+		guard
+			let cgImage = image.cgImage(
+				forProposedRect: nil,
+				context: nil,
+				hints: nil
+			)
+		else {
+			return nil
+		}
+		let filter = CIFilter.colorControls()
+		filter.inputImage = CIImage(cgImage: cgImage)
+		filter.saturation = 0
+		let context = CIContext(options: nil)
+		guard
+			let output = filter.outputImage,
+			let outputCG = context.createCGImage(output, from: output.extent)
+		else {
+			return nil
+		}
+		return NSImage(cgImage: outputCG, size: image.size)
 	}
 }
