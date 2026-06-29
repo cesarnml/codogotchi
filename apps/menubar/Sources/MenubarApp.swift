@@ -567,12 +567,24 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
 	}
 
-	/// Sets the status-item button image to the Codogotchi app icon at 18×18pt.
+	/// Sets the status-item button image to the Codogotchi app icon, sized to
+	/// the menu-bar thickness so the mark reads at a comparable weight to system
+	/// menu-bar icons. The app icon carries its own internal padding, so sizing
+	/// to the full bar thickness (rather than a hard-coded 18pt, which floated
+	/// small and undersized next to neighbors like the calendar) lets that
+	/// intrinsic margin supply the breathing room.
+	///
 	/// When `monochrome` is true the image renders as a template (adapts to
 	/// light/dark menu bar); when false it renders in full color.
+	///
+	/// NOTE: in template mode the full app icon's alpha is a solid rounded
+	/// square, so monochrome currently renders as a filled block on selection.
+	/// A dedicated silhouette source (the pet's hero frame) is tracked as a
+	/// follow-up.
 	static func applyMenubarIcon(to button: NSStatusBarButton, monochrome: Bool) {
 		let icon = NSApp.applicationIconImage.copy() as? NSImage ?? NSImage()
-		icon.size = NSSize(width: 18, height: 18)
+		let side = NSStatusBar.system.thickness
+		icon.size = NSSize(width: side, height: side)
 		icon.isTemplate = monochrome
 		button.image = icon
 	}
