@@ -79,13 +79,23 @@ enum AssignmentsJsonWriter {
 	///
 	/// - `badge` must be one of the 6 valid assignment badge keys.
 	/// - On success the file reflects the new assignment; all other badges are unchanged.
-	/// - When the file does not yet exist and `badge` is not `"default"`, seeds
-	///   `default: DEFAULT_PET_NAME` so the reader always finds a valid `default` key.
+	/// - When `badge` is not `"default"` and the file is absent or lacks a valid `default`
+	///   key, seeds `default: DEFAULT_PET_NAME` so the reader always finds a valid key.
 	/// - Throws `ConfigFileWriterError` when the existing file is unreadable.
 	static func write(badge: String, petId: String, to url: URL) throws {
 		var update: [String: Any] = [badge: petId]
-		if badge != "default", !FileManager.default.fileExists(atPath: url.path) {
-			update["default"] = DEFAULT_PET_NAME
+		if badge != "default" {
+			let hasValidDefault: Bool = {
+				guard FileManager.default.fileExists(atPath: url.path),
+					let data = try? Data(contentsOf: url),
+					let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+					let def = obj["default"] as? String, !def.isEmpty
+				else { return false }
+				return true
+			}()
+			if !hasValidDefault {
+				update["default"] = DEFAULT_PET_NAME
+			}
 		}
 		try ConfigFileWriter.merge(update, into: url)
 	}
