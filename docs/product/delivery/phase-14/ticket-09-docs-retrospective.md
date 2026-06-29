@@ -37,8 +37,8 @@ Red: skip
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here.
+Red first: Red: skip — doc-only ticket; no automated test. Human review at the PR is the gate.
+Why this path: Version bumped in all three mirrors (Info.plist authoritative, project.yml, download.astro). README and START-HERE.md updated with per-platform assignment, Minimalist mode, and config.pet breaking change. Retrospective written using soa-write-retrospective structure.
+Alternative considered: Splitting README and START-HERE changes into separate commits — rejected as unnecessary churn for a doc sweep.
+Deferred: download.astro shows v2.1.0 but no new DMG release is cut; the page links to releases/latest so the previous DMG remains live until a future release.
+Contract note: No deviation from ticket metadata contract. start-here.md lives at START-HERE.md (repo root user-facing doc), not docs/template/overview/start-here.md (SoA template, read-only). Both were updated where appropriate.

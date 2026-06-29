@@ -29,6 +29,8 @@ Your AI agents fire lifecycle events as they work. Codogotchi listens and animat
 
 With **v2.0.0**, each active AI platform gets its own independent floating pet window. If you have Claude Code and Cursor running simultaneously, you see two separate pets — one reacting to each agent in real time. Open **Settings → Customization** to collapse platforms into a single combined window, turn a platform off, or adjust how long idle windows linger before auto-dismissing.
 
+**v2.1.0** adds per-platform pet assignment and a Minimalist display mode. Open **Settings → Pet** to assign a different installed pet to each platform — leave any platform unassigned and it inherits the **Default** pet (Maew unless you change it). Open **Settings → Customization** and switch any platform to **Minimalist** to replace its pet window with a compact badge strip showing the platform, current state, attention level, and your latest prompt — no sprite, no RPG HUD. Upgrading from v2.0.0 keeps your existing pet as the Default everywhere with no setup.
+
 **Works with:** Claude Code · Codex · Cursor · GitHub Copilot (VS Code) · Google Antigravity
 
 Turn hooks on or off for any editor anytime in **Settings → General → Install / Update hooks**.
@@ -46,7 +48,7 @@ Codogotchi ships with **Maew**, a cute-flirty buddy animated across every agent 
 | 👥 **Adopt a community pet** | Browse pets made by other developers and install them in a click. → [codogotchi.app/gallery](https://codogotchi.app/gallery) |
 | 🎨 **Draw your own** | Hand-draw a spritesheet using the reference spec. → [codogotchi.app/docs/spritesheet](https://codogotchi.app/docs/spritesheet) |
 
-Switch between installed pets anytime in **Settings → Pet**. To publish a pet you made for others to adopt, sign in at [codogotchi.app/upload](https://codogotchi.app/upload).
+Switch between installed pets anytime in **Settings → Pet**, or assign a different pet to each AI platform. To publish a pet you made for others to adopt, sign in at [codogotchi.app/upload](https://codogotchi.app/upload).
 
 ---
 
