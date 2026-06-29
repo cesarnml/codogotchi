@@ -20,6 +20,7 @@ final class MenuItemsTests: XCTestCase {
 		func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 		func applyGateBadge(content: GateBadgeContent?) {}
 		func applyPlatform(origin: String?) {}
+		func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
 	}
 
 	private func makePool(origins: [String]) -> FloatingPetWindowPool {

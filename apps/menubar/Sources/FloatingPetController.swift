@@ -17,6 +17,7 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
 	func applyPlatform(origin: String?)
+	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?)
 }
 
 @MainActor
@@ -24,6 +25,7 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func show(frame: CGRect)
 	func hide()
 	func apply(state: ActivityState, visualMode: VisualMode)
+	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
 	func applyPlatform(origin: String?)
@@ -36,6 +38,7 @@ protocol FloatingPetPanelManaging: AnyObject {
 }
 
 extension FloatingPetPanelManaging {
+	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 	func applyGateBadge(content: GateBadgeContent?) {}
 	func applyPlatform(origin: String?) {}
@@ -120,6 +123,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 
 	func apply(state: ActivityState, visualMode: VisualMode) {
 		panel.apply(state: state, visualMode: visualMode)
+	}
+
+	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
+		panel.replacePets(codexPet: codexPet, codogotchiPet: codogotchiPet)
 	}
 
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {

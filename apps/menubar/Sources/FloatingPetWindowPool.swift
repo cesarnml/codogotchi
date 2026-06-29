@@ -234,6 +234,16 @@ final class FloatingPetWindowPool {
 	/// per-window callbacks (attention dismiss, app-nap opt-out).
 	func controller(for key: String) -> FloatingPetWindowControlling? { windows[key] }
 
+	/// Live-swap the rendered pet in every active window. Called when the user
+	/// selects a different pet in Settings > Pet so visible windows update without
+	/// waiting for a dismiss/respawn cycle or an app restart. Newly spawned windows
+	/// already pick up the new pet via the factory's captured references.
+	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
+		for controller in windows.values {
+			controller.replacePets(codexPet: codexPet, codogotchiPet: codogotchiPet)
+		}
+	}
+
 	// MARK: - Private helpers
 
 	private func mode(for origin: String) -> PlatformMode {

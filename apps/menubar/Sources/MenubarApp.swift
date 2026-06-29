@@ -406,7 +406,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			self.codogotchiPet = newCodogotchiPet
 			renderer.replacePets(codexPet: newCodexPet, codogotchiPet: newCodogotchiPet)
 			livePollingDriver?.replaceCodogotchiPet(newCodogotchiPet)
-			// Pool-owned windows retain their existing pet until naturally respawned on next tick.
+			// Live-swap the pet in every visible pool window so the floating panel
+			// updates immediately; new spawns pick up the new pet via the factory.
+			floatingPetWindowPool?.replacePets(codexPet: newCodexPet, codogotchiPet: newCodogotchiPet)
 		} catch {
 			NSLog("MenubarApp: reloadActivePet failed — %@", error.localizedDescription)
 		}

@@ -8,6 +8,7 @@ import XCTest
 private final class StubWindowController: FloatingPetWindowControlling {
     var isFloatingPetVisible: Bool = false
     var appliedStates: [(ActivityState, VisualMode)] = []
+    var replacePetsCallCount = 0
 
     func setFloatingPetVisible(_ visible: Bool) { isFloatingPetVisible = visible }
     func apply(state: ActivityState, visualMode: VisualMode) { appliedStates.append((state, visualMode)) }
@@ -15,6 +16,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
     func applyGateBadge(content: GateBadgeContent?) {}
     func applyPlatform(origin: String?) {}
+    func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) { replacePetsCallCount += 1 }
 }
 
 // MARK: - Helpers
@@ -288,6 +290,42 @@ final class FloatingPetWindowPoolTests: XCTestCase {
     }
 
     // MARK: - Off mode
+
+    // MARK: - Live pet swap
+
+    private func maliFixtureDirectory() -> String {
+        URL(fileURLWithPath: #file)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/mali")
+            .path
+    }
+
+    func testReplacePetsBroadcastsToEveryActiveWindow() throws {
+        var stubs: [String: StubWindowController] = [:]
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { origin in
+                let c = StubWindowController()
+                stubs[origin] = c
+                return c
+            }
+        )
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+            "cursor": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+        ]))
+        XCTAssertEqual(Set(pool.activeOrigins), Set(["claude_code", "cursor"]))
+
+        let pet = try CodexPet(petDirectory: maliFixtureDirectory())
+        pool.replacePets(codexPet: pet, codogotchiPet: nil)
+
+        XCTAssertEqual(stubs["claude_code"]?.replacePetsCallCount, 1,
+            "a Settings pet swap must live-update every visible window")
+        XCTAssertEqual(stubs["cursor"]?.replacePetsCallCount, 1,
+            "a Settings pet swap must live-update every visible window")
+    }
 
     func testOffModeOriginNeverAppearsInActiveOrigins() {
         var factoryCalled = false
