@@ -126,6 +126,26 @@ final class PetAssetResolverTests: XCTestCase {
 		XCTAssertNoThrow(try resolver.resolve(petId: "noSuchPet"))
 	}
 
+	// MARK: - Path traversal rejection
+
+	func testPathTraversalPetIdFallsBackToMaewWithoutThrowing() throws {
+		let resolver = PetAssetResolver(
+			codexLoader: { url in
+				if url.lastPathComponent == DEFAULT_PET_NAME { return try CodexPet(petDirectory: self.maewDirectory().path) }
+				throw CodexPetLoadError.petJsonNotFound
+			},
+			codogotchiLoader: { url in
+				if url.lastPathComponent == DEFAULT_PET_NAME { return try CodogotchiPet(petDirectory: self.maewDirectory().path) }
+				throw CodexPetLoadError.petJsonNotFound
+			},
+			maewFallbackURL: maewDirectory()
+		)
+
+		// A traversal petId must never reach the loader — it falls back to Maew.
+		let (codexPet, _) = try resolver.resolve(petId: "../evil")
+		XCTAssertEqual(codexPet.id, "maew", "path-traversal petId must fall back to maew")
+	}
+
 	// MARK: - Eviction
 
 	func testEvictionForcesReload() throws {

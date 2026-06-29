@@ -43,7 +43,16 @@ final class PetAssetResolver {
 	func resolve(petId: String) throws -> (CodexPet, CodogotchiPet?) {
 		if let cached = cache[petId] { return cached }
 
-		let dirURL = petId == DEFAULT_PET_NAME ? maewFallbackURL : petsBaseURL(petId: petId)
+		let dirURL: URL
+		if petId == DEFAULT_PET_NAME {
+			dirURL = maewFallbackURL
+		} else {
+			guard let safe = petsBaseURL(petId: petId) else {
+				NSLog("PetAssetResolver: invalid petId '%@' — falling back to Maew", petId)
+				return try resolveMaewFallback()
+			}
+			dirURL = safe
+		}
 
 		do {
 			let codexPet = try codexLoader(dirURL)
@@ -81,16 +90,24 @@ final class PetAssetResolver {
 		return pair
 	}
 
-	private func petsBaseURL(petId: String) -> URL {
+	/// Returns the pets directory URL for `petId`, or `nil` when the petId
+	/// would escape the canonical pets root via path traversal (e.g. `"../evil"`).
+	private func petsBaseURL(petId: String) -> URL? {
+		let root = petsRootURL()
+		let candidate = root.appendingPathComponent(petId).standardizedFileURL
+		let rootStd = root.standardizedFileURL
+		let rootPath = rootStd.path.hasSuffix("/") ? rootStd.path : rootStd.path + "/"
+		guard candidate.path.hasPrefix(rootPath) else { return nil }
+		return root.appendingPathComponent(petId)
+	}
+
+	private func petsRootURL() -> URL {
 		if let cStr = getenv("CODOGOTCHI_HOME"), let base = String(validatingUTF8: cStr) {
-			return URL(fileURLWithPath: base)
-				.appendingPathComponent("pets")
-				.appendingPathComponent(petId)
+			return URL(fileURLWithPath: base).appendingPathComponent("pets")
 		}
 		return FileManager.default.homeDirectoryForCurrentUser
 			.appendingPathComponent(".codogotchi")
 			.appendingPathComponent("pets")
-			.appendingPathComponent(petId)
 	}
 
 	/// Bundled maew asset directory: `Codogotchi.app/Contents/Resources/maew/`.
