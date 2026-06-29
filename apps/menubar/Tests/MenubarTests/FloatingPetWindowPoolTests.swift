@@ -9,13 +9,14 @@ private final class StubWindowController: FloatingPetWindowControlling {
     var isFloatingPetVisible: Bool = false
     var appliedStates: [(ActivityState, VisualMode)] = []
     var replacePetsCallCount = 0
+    var appliedPlatforms: [String?] = []
 
     func setFloatingPetVisible(_ visible: Bool) { isFloatingPetVisible = visible }
     func apply(state: ActivityState, visualMode: VisualMode) { appliedStates.append((state, visualMode)) }
     func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {}
     func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
     func applyGateBadge(content: GateBadgeContent?) {}
-    func applyPlatform(origin: String?) {}
+    func applyPlatform(origin: String?) { appliedPlatforms.append(origin) }
     func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) { replacePetsCallCount += 1 }
 }
 
@@ -429,5 +430,119 @@ final class FloatingPetWindowPoolTests: XCTestCase {
             "combined window must not re-spawn while user-hidden"
         )
         XCTAssertEqual(spawnCount, 1)
+    }
+
+    // MARK: - P14.05 Per-platform pet routing + combined idle Default badge
+
+    func testTwoOwnOriginsWithDifferentAssignmentsResolveCorrectPetIds() {
+        var resolvedPetIds: [String: String] = [:]
+        let assignments = AssignmentsSnapshot(
+            default: DEFAULT_PET_NAME,
+            platformOverrides: ["claude_code": "mali", "cursor": DEFAULT_PET_NAME]
+        )
+        let pool = FloatingPetWindowPool(
+            assignmentsReader: { assignments },
+            customizationReader: { makeCustomization() },
+            windowFactory: { origin, petId in
+                resolvedPetIds[origin] = petId
+                return StubWindowController()
+            }
+        )
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-30T10:00:00.000Z"),
+            "cursor": makeSnapshot(updated: "2026-06-30T10:00:01.000Z"),
+        ]))
+        XCTAssertEqual(
+            resolvedPetIds["claude_code"], "mali",
+            "own-mode origin assigned 'mali' must spawn with petId 'mali'"
+        )
+        XCTAssertEqual(
+            resolvedPetIds["cursor"], DEFAULT_PET_NAME,
+            "own-mode origin with no override must fall through to the default petId"
+        )
+    }
+
+    func testCombinedWindowReceivesDefaultPetId() {
+        var resolvedPetIds: [String: String] = [:]
+        let assignments = AssignmentsSnapshot(
+            default: "mali",
+            platformOverrides: ["claude_code": "some-other-pet"]
+        )
+        let pool = FloatingPetWindowPool(
+            assignmentsReader: { assignments },
+            customizationReader: {
+                makeCustomization(platformModes: ["claude_code": .combined])
+            },
+            windowFactory: { origin, petId in
+                resolvedPetIds[origin] = petId
+                return StubWindowController()
+            }
+        )
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-30T10:00:00.000Z"),
+        ]))
+        XCTAssertEqual(
+            resolvedPetIds["combined"], "mali",
+            "combined window must always resolve the default petId regardless of per-origin overrides"
+        )
+    }
+
+    func testReplacePetForOneOriginDoesNotAffectOtherWindows() {
+        var stubs: [String: StubWindowController] = [:]
+        let assignments = AssignmentsSnapshot(default: DEFAULT_PET_NAME, platformOverrides: [:])
+        let pool = FloatingPetWindowPool(
+            assignmentsReader: { assignments },
+            customizationReader: { makeCustomization() },
+            windowFactory: { origin, _ in
+                let c = StubWindowController()
+                stubs[origin] = c
+                return c
+            }
+        )
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-30T10:00:00.000Z"),
+            "cursor": makeSnapshot(updated: "2026-06-30T10:00:01.000Z"),
+        ]))
+        XCTAssertEqual(Set(pool.activeOrigins), Set(["claude_code", "cursor"]))
+
+        pool.replacePet(origin: "claude_code")
+
+        XCTAssertEqual(
+            stubs["claude_code"]?.replacePetsCallCount, 1,
+            "changing one origin's assignment must update only that origin's window"
+        )
+        XCTAssertEqual(
+            stubs["cursor"]?.replacePetsCallCount, 0,
+            "changing one origin's assignment must not disturb other windows"
+        )
+    }
+
+    func testCombinedWindowAppliesDefaultBadgeWhenIdle() {
+        var stubs: [String: StubWindowController] = [:]
+        let assignments = AssignmentsSnapshot(default: DEFAULT_PET_NAME, platformOverrides: [:])
+        let pool = FloatingPetWindowPool(
+            assignmentsReader: { assignments },
+            customizationReader: {
+                makeCustomization(
+                    platformModes: ["claude_code": .combined, "cursor": .combined]
+                )
+            },
+            windowFactory: { origin, _ in
+                let c = StubWindowController()
+                stubs[origin] = c
+                return c
+            }
+        )
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(state: .idle, updated: "2026-06-30T10:00:00.000Z"),
+            "cursor": makeSnapshot(state: .idle, updated: "2026-06-30T10:00:01.000Z"),
+        ]))
+
+        XCTAssertTrue(pool.activeOrigins.contains("combined"), "combined window must be present")
+        XCTAssertEqual(
+            stubs["combined"]?.appliedPlatforms.last,
+            "combined",
+            "combined window must call applyPlatform('combined') when its winner state is idle to show the ⭐ Default badge"
+        )
     }
 }
