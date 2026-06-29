@@ -112,7 +112,9 @@ final class LivePollingTests: XCTestCase {
 			""".write(to: url, atomically: true, encoding: .utf8)
 	}
 
-	/// Minimal slice payload for decay tests: fields the decay engine reads.
+	/// Writes a v8-format slice for tests that need to drive activity state.
+	/// RPG fields embedded in the JSON (level, half_hearts, last_activity_at) are silently
+	/// ignored by SlicePayload in v8 — see writeRpgStateJson for RPG test inputs.
 	private func writeV5StateJson(
 		_ target: URL,
 		halfHearts: Int,
@@ -598,7 +600,9 @@ final class LivePollingTests: XCTestCase {
 	func testNullLastActivityAtDoesNotDecay() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
-		// Fresh profile: last_activity_at is null → no decay regardless of clock.
+		// No rpgStatePath supplied → driver uses .safeDefault (halfHearts=6, lastActivityAt=nil).
+		// The assertion holds because safeDefault has no timestamp to trigger decay, not
+		// because the slice's null last_activity_at is read (v8 ignores slice RPG fields).
 		try writeV5StateJson(target, halfHearts: 6, lastActivityAt: nil)
 		let driver = makeDriver(
 			target: target, recorder: recorder,

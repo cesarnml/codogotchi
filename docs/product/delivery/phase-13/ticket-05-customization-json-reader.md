@@ -46,8 +46,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
+Red first: `testCustomizationJsonReaderReturnsDefaultsWhenFileAbsent` — confirmed the reader returned a non-default value before defaults-on-absence was wired.
+Why this path: closure-injected `CustomizationReader = () -> CustomizationSnapshot` typealias enables pure-function testing without touching the filesystem; the `try?`-based read with per-field defaults is the smallest implementation that satisfies the "absent file → all defaults" contract without introducing an async read path.
 Alternative considered: observing `customization.json` via `DispatchSource` / FSEvents — rejected; 1Hz re-read is sufficient latency for a user toggling a settings picker, and avoids a new async delivery path.
 Deferred: `menubar_icon_monochrome` field is read here but not consumed until ticket 07.
 Contract note:

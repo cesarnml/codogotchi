@@ -11,7 +11,7 @@ Red: required
 - When `menubar_icon_monochrome: true` in `customization.json`, the status item uses `NSImage.isTemplate = true` (monochrome, adapts to light/dark menu bar theme); when false, uses the color variant
 - `MenubarRenderer` no longer writes to the status item's `button.image` after initial setup — all animation stays in floating panels
 - Settings > General gains a "Monochrome menu bar icon" toggle; toggling it writes `menubar_icon_monochrome` to `customization.json` and the menu bar icon updates within one poll tick
-- Version bumped to `2.0.0` in `Info.plist`, `project.yml`, and `apps/site/src/pages/download.astro`
+- Version bumped to `2.0.0` in `Info.plist`, `project.yml`, and `web/src/pages/download.astro`
 - `bun run mac:test` passes
 
 ## Red

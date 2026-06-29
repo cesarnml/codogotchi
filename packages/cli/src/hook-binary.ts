@@ -1324,6 +1324,11 @@ export async function runHook(
       ...(toolCommand !== undefined && { tool_command: toolCommand }),
     };
 
+    // Point of no return for v7 migration data: writeSliceAtomic overwrites the
+    // existing slice (same origin + session_id), converting any v7 data it held
+    // to v8 format. If SIGKILL follows before writeRpgStateAtomic below, and this
+    // was the only v7 slice on disk, seedRpgState on the next invocation finds no
+    // v7 data and rpg-state.json is seeded from safe defaults instead.
     await writeSliceAtomic(opts.home, slice);
 
     // v8: RPG state lives in rpg-state.json, separate from the slice.

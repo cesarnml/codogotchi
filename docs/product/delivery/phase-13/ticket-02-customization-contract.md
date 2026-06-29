@@ -36,7 +36,7 @@ Red: required
 
 ## Review Focus
 
-- `platform_modes` should use `z.record(sourceEventOriginSchema, z.enum(["own", "combined", "off"]))` not a plain `z.record` — ensure origin keys are validated
+- `platform_modes` key schema: Note — Zod v4 changed `z.record(enumSchema, valueSchema)` semantics to require all enum keys be present, making unknown-key passthrough impossible. The implementation deliberately uses `z.string()` as the key validator (not `sourceEventOriginSchema`) so that unknown origin keys are tolerated per the Outcome spec. Do not revert this to `sourceEventOriginSchema`.
 - `idle_dismiss_ttl_seconds: 0` must be valid (represents "Never" dismiss)
 - `schema_version` is a literal `1` — not the same constant as `STATE_JSON_SCHEMA_VERSION`; this is a separate config file with its own versioning
 
@@ -44,8 +44,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
+Red first: `testCustomizationJsonSchemaRejectsUnknownPlatformMode` — confirmed the schema rejected an unknown string like `"hover"` for a platform mode value before the enum was wired.
+Why this path: Zod v4 forced `z.string()` as the key validator (see Review Focus note above). The value enum (`"own" | "combined" | "off"`) was kept strict. This is the smallest schema that satisfies the Outcome's "unknown origin keys tolerated, unknown mode values rejected" contract.
 Alternative considered: storing display prefs in `app-state.json` — rejected; `customization.json` is the coherent home for all user-facing display preferences written by both CLI and Swift.
 Deferred: migration of existing per-platform settings from older config formats — no prior format exists.
 Contract note:
