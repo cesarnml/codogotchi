@@ -143,8 +143,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		}
 		let pet = PetTabView(
 			viewModel: petTabViewModel,
-			onImportPet: { [weak self] petId in self?.handleImportPet(id: petId) },
-			onSelectPet: { [weak self] petId in self?.handleSelectPet(id: petId) }
+			onImportPet: { [weak self] petId in self?.handleImportPet(id: petId) }
 		)
 		let customization = CustomizationTabView(viewModel: customizationTabViewModel)
 		let rpg = RPGTabView(
@@ -290,11 +289,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		} catch {
 			petTab?.setPetImportError(String(describing: error))
 		}
-	}
-
-	private func handleSelectPet(id: String) {
-		try? petTabViewModel.assign(badge: "default", to: id)
-		petTab?.refreshPetList(viewModel: petTabViewModel)
 	}
 
 	private func makeDeveloperTabViewModel() -> DeveloperTabViewModel {
@@ -607,18 +601,13 @@ private final class UpdateBannerView: NSView {
 // MARK: - PetTabView
 
 /// Pet tab — a single flat grid of pet cards. Every pet appears once,
-/// deduplicated across the bundled, Codex, and canonical-store sources, in one
-/// of three states keyed purely on where it lives:
+/// deduplicated across the bundled, Codex, and canonical-store sources.
 ///
-/// - `Selected` — the active pet (disabled button, accent border, Default badge
-///   for bundled Maew).
-/// - `Installed` — in `~/.codogotchi/pets/`, offers a `Select` action.
-/// - `Importable` — present only under `~/.codex/pets/`, offers an `Import`
-///   action that copies it into the canonical store (after which it becomes an
-///   ordinary installed pet — no auto-select).
-///
-/// A search field filters by display name / ID, and a footer reports installed
-/// vs. importable counts. Thumbnails are the static idle first frame.
+/// Installed pets show a portrait thumbnail (raised to align with the pet name)
+/// and an Assign icon in the name row that opens a multiselect badge dropdown.
+/// Importable pets (present only under `~/.codex/pets/`) show an Import icon
+/// centered beneath the thumbnail. Assigned badge pills appear below the
+/// description. The Default badge holder carries a blue selection border.
 private final class PetTabView: NSView, NSSearchFieldDelegate {
 	/// View identifiers used by layout tests to locate cards and their
 	/// description labels in the rendered hierarchy.
@@ -627,7 +616,6 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 
 	private var viewModel: PetTabViewModel
 	private let onImportPet: (String) -> Void
-	private let onSelectPet: (String) -> Void
 
 	private let searchField = NSSearchField()
 	private let openFolderButton = NSButton(title: "Open pet folder", target: nil, action: nil)
@@ -641,14 +629,13 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 	private let feedbackLabel = NSTextField(wrappingLabelWithString: "")
 
 	/// Idle-frame thumbnails are sliced once and cached by spritesheet path so
-	/// repeated grid rebuilds (resize, select, search) don't re-decode WebP.
+	/// repeated grid rebuilds (resize, assign, search) don't re-decode WebP.
 	private var thumbnailCache: [String: NSImage?] = [:]
 	/// Column count last laid out — guards `layout()` from rebuilding the grid
 	/// on every resize tick, only when the responsive column count changes.
 	private var lastColumnCount = 0
 	private var currentEntries: [PetCatalogEntry] = []
 
-	private let cardHeight: CGFloat = 128
 	private let cardSpacing: CGFloat = 12
 	private let minCardWidth: CGFloat = 300
 	private let maxColumns = 3
@@ -656,12 +643,10 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 
 	init(
 		viewModel: PetTabViewModel,
-		onImportPet: @escaping (String) -> Void,
-		onSelectPet: @escaping (String) -> Void
+		onImportPet: @escaping (String) -> Void
 	) {
 		self.viewModel = viewModel
 		self.onImportPet = onImportPet
-		self.onSelectPet = onSelectPet
 		super.init(frame: .zero)
 		setupViews()
 		reloadEntries()
@@ -680,7 +665,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		feedbackLabel.textColor = .systemRed
 	}
 
-	/// Rebuild the grid from the current ViewModel state (after import/select).
+	/// Rebuild the grid from the current ViewModel state (after import).
 	func refreshPetList(viewModel: PetTabViewModel) {
 		self.viewModel = viewModel
 		reloadEntries()
@@ -841,7 +826,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		if entries.isEmpty {
 			let query = searchField.stringValue.trimmingCharacters(in: .whitespaces)
 			emptyLabel.stringValue =
-				query.isEmpty ? "No pets available." : "No pets match “\(query)”."
+				query.isEmpty ? "No pets available." : "No pets match \"\(query)\"."
 			emptyLabel.isHidden = false
 			lastColumnCount = columnCount(forWidth: gridScrollView.contentView.bounds.width)
 			sizeDocumentToFit()
@@ -899,10 +884,10 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		card.layer?.borderWidth = entry.isDefault ? 2 : 1
 		card.layer?.borderColor =
 			(entry.isDefault ? NSColor.controlAccentColor : NSColor.separatorColor).cgColor
-		card.heightAnchor.constraint(equalToConstant: cardHeight).isActive = true
 		card.identifier = PetTabView.cardIdentifier
+		card.heightAnchor.constraint(greaterThanOrEqualToConstant: 90).isActive = true
 
-		// Thumbnail on a rounded dark tile, vertically centered (Codex-style).
+		// Thumbnail — left column, raised to align with the pet name row.
 		let thumb = NSImageView()
 		thumb.translatesAutoresizingMaskIntoConstraints = false
 		thumb.imageScaling = .scaleProportionallyUpOrDown
@@ -913,101 +898,165 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		thumb.layer?.masksToBounds = true
 		card.addSubview(thumb)
 
+		NSLayoutConstraint.activate([
+			thumb.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+			thumb.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+			thumb.widthAnchor.constraint(equalToConstant: thumbSize),
+			thumb.heightAnchor.constraint(equalToConstant: thumbSize),
+		])
+
+		// Import icon — centered beneath thumbnail, only for importable pets.
+		var leftBottomAnchor: NSLayoutYAxisAnchor = thumb.bottomAnchor
+		var leftBottomConstant: CGFloat = 14
+		if entry.state == .importable {
+			let importBtn = makeImportIconButton(for: entry)
+			card.addSubview(importBtn)
+			NSLayoutConstraint.activate([
+				importBtn.topAnchor.constraint(equalTo: thumb.bottomAnchor, constant: 6),
+				importBtn.centerXAnchor.constraint(equalTo: thumb.centerXAnchor),
+			])
+			leftBottomAnchor = importBtn.bottomAnchor
+			leftBottomConstant = 12
+		}
+
+		// Name label — truncates tail when the name is long.
 		let nameLabel = NSTextField(labelWithString: entry.displayName)
 		nameLabel.font = .systemFont(ofSize: 14, weight: .medium)
 		nameLabel.lineBreakMode = .byTruncatingTail
 		nameLabel.translatesAutoresizingMaskIntoConstraints = false
+		nameLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
 		nameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-		let nameRow = NSStackView(views: [nameLabel])
+		// Assign icon — right-aligned in the name row, only for installed pets.
+		let nameRowViews: [NSView]
+		if entry.state == .installed {
+			let assignBtn = makeAssignButton(for: entry)
+			nameRowViews = [nameLabel, assignBtn]
+		} else {
+			nameRowViews = [nameLabel]
+		}
+
+		let nameRow = NSStackView(views: nameRowViews)
 		nameRow.orientation = .horizontal
 		nameRow.spacing = 6
 		nameRow.alignment = .centerY
-		if entry.isDefault {
-			nameRow.addArrangedSubview(makeBadge(text: "Default", tint: .systemGreen))
-		}
-		if entry.state == .importable {
-			nameRow.addArrangedSubview(makeBadge(text: "~/.codex", tint: .secondaryLabelColor))
-		}
-
 		nameRow.translatesAutoresizingMaskIntoConstraints = false
 
+		// Description — full-width in the right column, wraps up to 5 lines.
 		let descLabel = NSTextField(wrappingLabelWithString: entry.description)
 		descLabel.font = .systemFont(ofSize: 12)
 		descLabel.textColor = .secondaryLabelColor
 		descLabel.maximumNumberOfLines = 5
-		// Word-wrap (not truncating-tail, which collapses to one line) capped at
-		// 5 lines, with an ellipsis on the last line when the text overflows.
 		descLabel.lineBreakMode = .byWordWrapping
 		descLabel.cell?.truncatesLastVisibleLine = true
 		descLabel.identifier = PetTabView.descriptionIdentifier
 		descLabel.translatesAutoresizingMaskIntoConstraints = false
 		descLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-		// Name + description in a container, vertically centered against the card
-		// so short and long descriptions both stay balanced with the thumbnail
-		// and the action button. The container's leading/trailing are pinned so
-		// the wrapping description has a fixed width to wrap within (a bare
-		// wrapping label in a stack collapses to one truncated line).
-		let textContainer = NSView()
-		textContainer.translatesAutoresizingMaskIntoConstraints = false
-		textContainer.addSubview(nameRow)
-		textContainer.addSubview(descLabel)
-		card.addSubview(textContainer)
-
-		let button = makeActionButton(for: entry)
-		card.addSubview(button)
+		card.addSubview(nameRow)
+		card.addSubview(descLabel)
 
 		NSLayoutConstraint.activate([
-			thumb.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-			thumb.centerYAnchor.constraint(equalTo: card.centerYAnchor),
-			thumb.widthAnchor.constraint(equalToConstant: thumbSize),
-			thumb.heightAnchor.constraint(equalToConstant: thumbSize),
-
-			textContainer.leadingAnchor.constraint(equalTo: thumb.trailingAnchor, constant: 14),
-			textContainer.trailingAnchor.constraint(equalTo: button.leadingAnchor, constant: -12),
-			textContainer.centerYAnchor.constraint(equalTo: card.centerYAnchor),
-			textContainer.topAnchor.constraint(greaterThanOrEqualTo: card.topAnchor, constant: 12),
-
-			nameRow.topAnchor.constraint(equalTo: textContainer.topAnchor),
-			nameRow.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor),
-			nameRow.trailingAnchor.constraint(lessThanOrEqualTo: textContainer.trailingAnchor),
+			nameRow.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+			nameRow.leadingAnchor.constraint(equalTo: thumb.trailingAnchor, constant: 14),
+			nameRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -16),
 
 			descLabel.topAnchor.constraint(equalTo: nameRow.bottomAnchor, constant: 4),
-			descLabel.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor),
-			descLabel.trailingAnchor.constraint(equalTo: textContainer.trailingAnchor),
-			descLabel.bottomAnchor.constraint(equalTo: textContainer.bottomAnchor),
-
-			button.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -16),
-			button.centerYAnchor.constraint(equalTo: card.centerYAnchor),
+			descLabel.leadingAnchor.constraint(equalTo: nameRow.leadingAnchor),
+			descLabel.trailingAnchor.constraint(equalTo: nameRow.trailingAnchor),
 		])
+
+		// Badge pills — beneath the description, only when this pet holds at least one badge.
+		var rightBottomAnchor: NSLayoutYAxisAnchor = descLabel.bottomAnchor
+		var rightBottomConstant: CGFloat = 14
+
+		let entryBadges = viewModel.badges(for: entry.id)
+		if !entryBadges.isEmpty {
+			let pillsRow = makeBadgePillsRow(badges: entryBadges)
+			card.addSubview(pillsRow)
+			NSLayoutConstraint.activate([
+				pillsRow.topAnchor.constraint(equalTo: descLabel.bottomAnchor, constant: 6),
+				pillsRow.leadingAnchor.constraint(equalTo: descLabel.leadingAnchor),
+				pillsRow.trailingAnchor.constraint(
+					lessThanOrEqualTo: card.trailingAnchor, constant: -16),
+			])
+			rightBottomAnchor = pillsRow.bottomAnchor
+			rightBottomConstant = 12
+		}
+
+		// Card bottom is driven by the taller of the two columns.
+		// The `.defaultHigh` equality tracks the right column exactly; the
+		// required `>=` from the left column overrides upward when taller.
+		let leftBottom = card.bottomAnchor.constraint(
+			greaterThanOrEqualTo: leftBottomAnchor, constant: leftBottomConstant)
+		let rightBottom = card.bottomAnchor.constraint(
+			greaterThanOrEqualTo: rightBottomAnchor, constant: rightBottomConstant)
+		let preferRight = card.bottomAnchor.constraint(
+			equalTo: rightBottomAnchor, constant: rightBottomConstant)
+		preferRight.priority = .defaultHigh
+		NSLayoutConstraint.activate([leftBottom, rightBottom, preferRight])
 
 		return card
 	}
 
-	private func makeActionButton(for entry: PetCatalogEntry) -> NSButton {
-		let button: NSButton
-		switch entry.state {
-		case .installed:
-			if entry.isDefault {
-				button = NSButton(title: "Selected", target: nil, action: nil)
-				button.bezelStyle = .rounded
-				button.isEnabled = false
-			} else {
-				button = NSButton(title: "Select", target: self, action: #selector(petCardAction(_:)))
-				button.bezelStyle = .rounded
-				objc_setAssociatedObject(
-					button, &actionKey, ("select", entry.id), .OBJC_ASSOCIATION_RETAIN)
-			}
-		case .importable:
-			button = NSButton(title: "Import", target: self, action: #selector(petCardAction(_:)))
-			button.bezelStyle = .rounded
-			objc_setAssociatedObject(
-				button, &actionKey, ("import", entry.id), .OBJC_ASSOCIATION_RETAIN)
+	// MARK: - Card sub-views
+
+	/// Small icon button in the pet name row. Tapping opens the badge dropdown.
+	private func makeAssignButton(for entry: PetCatalogEntry) -> NSButton {
+		let btn = NSButton()
+		btn.isBordered = false
+		btn.imagePosition = .imageOnly
+		btn.imageScaling = .scaleProportionallyUpOrDown
+		btn.image = NSImage(
+			systemSymbolName: "person.badge.plus",
+			accessibilityDescription: "Assign platform badge")
+		btn.contentTintColor = .secondaryLabelColor
+		btn.translatesAutoresizingMaskIntoConstraints = false
+		btn.setContentHuggingPriority(.required, for: .horizontal)
+		NSLayoutConstraint.activate([
+			btn.widthAnchor.constraint(equalToConstant: 20),
+			btn.heightAnchor.constraint(equalToConstant: 20),
+		])
+		btn.target = self
+		btn.action = #selector(assignButtonTapped(_:))
+		objc_setAssociatedObject(btn, &assignBtnKey, entry.id, .OBJC_ASSOCIATION_RETAIN)
+		return btn
+	}
+
+	/// Small icon button centered beneath the thumbnail for importable pets.
+	private func makeImportIconButton(for entry: PetCatalogEntry) -> NSButton {
+		let btn = NSButton()
+		btn.isBordered = false
+		btn.imagePosition = .imageOnly
+		btn.imageScaling = .scaleProportionallyUpOrDown
+		btn.image = NSImage(
+			systemSymbolName: "square.and.arrow.down",
+			accessibilityDescription: "Import pet")
+		btn.contentTintColor = .secondaryLabelColor
+		btn.translatesAutoresizingMaskIntoConstraints = false
+		NSLayoutConstraint.activate([
+			btn.widthAnchor.constraint(equalToConstant: 20),
+			btn.heightAnchor.constraint(equalToConstant: 20),
+		])
+		btn.target = self
+		btn.action = #selector(importIconTapped(_:))
+		objc_setAssociatedObject(btn, &importBtnKey, entry.id, .OBJC_ASSOCIATION_RETAIN)
+		return btn
+	}
+
+	/// Horizontal row of compact badge pills for all badges held by this pet.
+	private func makeBadgePillsRow(badges: Set<String>) -> NSView {
+		let sorted = ASSIGNMENT_BADGE_KEYS.filter { badges.contains($0) }
+		let pills = sorted.map { key -> NSView in
+			let tint: NSColor = key == "default" ? .systemGreen : .secondaryLabelColor
+			return makeBadge(text: badgeDisplayName(key), tint: tint)
 		}
-		button.translatesAutoresizingMaskIntoConstraints = false
-		button.setContentHuggingPriority(.required, for: .horizontal)
-		return button
+		let row = NSStackView(views: pills)
+		row.orientation = .horizontal
+		row.spacing = 6
+		row.alignment = .centerY
+		row.translatesAutoresizingMaskIntoConstraints = false
+		return row
 	}
 
 	private func makeBadge(text: String, tint: NSColor) -> NSView {
@@ -1036,6 +1085,18 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		return container
 	}
 
+	private func badgeDisplayName(_ key: String) -> String {
+		switch key {
+		case "default": return "⭐ Default"
+		case "claude_code": return "Claude Code"
+		case "vscode": return "VS Code"
+		case "codex": return "Codex"
+		case "cursor": return "Cursor"
+		case "antigravity": return "Antigravity"
+		default: return key
+		}
+	}
+
 	private func thumbnail(for entry: PetCatalogEntry) -> NSImage? {
 		guard let sheet = entry.spritesheetURL else { return nil }
 		let key = sheet.path
@@ -1056,18 +1117,51 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		CodogotchiFolders.reveal(CodogotchiFolders.petFolderURL())
 	}
 
-	@objc private func petCardAction(_ sender: NSButton) {
-		guard let (action, petId) = objc_getAssociatedObject(sender, &actionKey) as? (String, String)
-		else { return }
-		switch action {
-		case "import": onImportPet(petId)
-		case "select": onSelectPet(petId)
-		default: break
+	/// Opens a badge dropdown for `sender`'s associated pet.
+	@objc private func assignButtonTapped(_ sender: NSButton) {
+		guard let petId = objc_getAssociatedObject(sender, &assignBtnKey) as? String else { return }
+		let menu = NSMenu()
+		let currentBadges = viewModel.badges(for: petId)
+		for badgeKey in ASSIGNMENT_BADGE_KEYS {
+			let item = NSMenuItem(
+				title: badgeDisplayName(badgeKey),
+				action: #selector(badgeMenuItemClicked(_:)),
+				keyEquivalent: "")
+			item.state = currentBadges.contains(badgeKey) ? .on : .off
+			item.target = self
+			objc_setAssociatedObject(
+				item, &badgeMenuItemKey, (petId, badgeKey), .OBJC_ASSOCIATION_RETAIN)
+			menu.addItem(item)
 		}
+		let point = NSPoint(x: 0, y: sender.bounds.height + 2)
+		menu.popUp(positioning: menu.items.first, at: point, in: sender)
+	}
+
+	/// Toggles the badge selected in the assign dropdown and rebuilds the grid.
+	@objc private func badgeMenuItemClicked(_ sender: NSMenuItem) {
+		guard
+			let (petId, badgeKey) = objc_getAssociatedObject(
+				sender, &badgeMenuItemKey) as? (String, String)
+		else { return }
+		let currentBadges = viewModel.badges(for: petId)
+		if currentBadges.contains(badgeKey) {
+			viewModel.unassign(badge: badgeKey, from: petId)
+		} else {
+			try? viewModel.assign(badge: badgeKey, to: petId)
+		}
+		rebuildGrid()
+	}
+
+	/// Import icon tapped for an importable pet.
+	@objc private func importIconTapped(_ sender: NSButton) {
+		guard let petId = objc_getAssociatedObject(sender, &importBtnKey) as? String else { return }
+		onImportPet(petId)
 	}
 }
 
-private var actionKey: UInt8 = 0
+private var assignBtnKey: UInt8 = 0
+private var badgeMenuItemKey: UInt8 = 1
+private var importBtnKey: UInt8 = 2
 
 /// Top-left origin so a short pet grid anchors to the top of its scroll view
 /// instead of sinking to the bottom (the default non-flipped behavior).

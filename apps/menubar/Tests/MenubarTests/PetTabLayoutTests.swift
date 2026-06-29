@@ -6,8 +6,8 @@ import XCTest
 /// Layout-invariant guard for the Pet tab card grid. Rather than compare golden
 /// pixels (brittle across OS/font/appearance), it builds the real Settings
 /// window, selects the Pet tab, and asserts the structural promises of the
-/// Codex-style card: a fixed-size thumbnail, the thumbnail and action button
-/// vertically centered (the balanced row), and a multi-line description.
+/// redesigned card: a fixed-size thumbnail pinned to the top, the first action
+/// button in the upper portion of the card, and a multi-line description.
 ///
 /// Cards and their description labels are located by the identifiers
 /// `PetTabView` stamps on them (`"petCard"` / `"petCardDescription"`).
@@ -110,14 +110,39 @@ final class PetTabLayoutTests: XCTestCase {
 			XCTAssertEqual(thumb.frame.width, 64, accuracy: 0.5)
 			XCTAssertEqual(thumb.frame.height, 64, accuracy: 0.5)
 
-			// Thumbnail and button are vertically centered in the card — the
-			// "balanced row" symmetry.
-			let cardMidY = card.bounds.midY
-			XCTAssertEqual(thumb.frame.midY, cardMidY, accuracy: 1.0)
-			XCTAssertEqual(button.frame.midY, cardMidY, accuracy: 1.0)
+			// Thumbnail is top-aligned: its top edge is within 20pt of the card top.
+			// In non-flipped AppKit coords, visual top = bounds.height (maxY).
+			let thumbTopGap = card.bounds.height - thumb.frame.maxY
+			XCTAssertLessThan(thumbTopGap, 20, "thumbnail should be top-aligned in the card")
 
-			// Button sits inside the card's right edge.
-			XCTAssertLessThanOrEqual(button.frame.maxX, card.bounds.maxX)
+			// Convert to card coordinates — the assign button is nested inside nameRow.
+			let buttonRectInCard: CGRect
+			if let parent = button.superview {
+				buttonRectInCard = card.convert(button.frame, from: parent)
+			} else {
+				buttonRectInCard = button.frame
+			}
+
+			// Assign button (installed pet, nested in name row) should be in the
+			// upper half of the card. Import icon (importable pet, below thumbnail)
+			// is intentionally in the lower visual area — only check it stays within
+			// the card bounds.
+			let isDirectSubview = button.superview === card
+			if isDirectSubview {
+				// Import icon button — must be visible within the card.
+				XCTAssertTrue(
+					card.bounds.intersects(buttonRectInCard),
+					"import icon should be within card bounds")
+			} else {
+				// Assign button — lives in the name row at the top of the card.
+				let cardMidY = card.bounds.midY
+				XCTAssertGreaterThan(
+					buttonRectInCard.midY, cardMidY,
+					"assign button should be in the upper half of the card")
+			}
+
+			// Button sits inside the card's right edge (in card coordinates).
+			XCTAssertLessThanOrEqual(buttonRectInCard.maxX, card.bounds.maxX)
 
 			// Description wraps to more than one line for long text.
 			let desc = views(in: card, identifier: "petCardDescription").first
