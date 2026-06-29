@@ -34,7 +34,7 @@ This phase should leave the product in a state where:
 - An operator can invoke `/soa quality-control phase-NN: <description>` or `/soa qc phase-NN: <description>` after phase closeout and get guided through a post-phase fix capture flow
 - A fresh consumer repo that runs `soa-sync.sh` has a `docs/product/review-gaps/` home with a documented schema, empty append-only ledger, and promotion queue stub
 - Each recorded item represents exactly one verified fix commit, captures the real commit provenance, and includes the number of propose-verify rounds before landing
-- Review-gap classification is conservative: `review-reachable` must be earned by citing what a per-ticket reviewer could actually see, while spec, experiential, and completeness gaps route elsewhere
+- Review-gap classification is conservative: `review-reachable` must be earned by citing what a per-ticket reviewer could actually see, while spec, qa, and completeness gaps route elsewhere
 - Operators can see which fixes might eventually inform the adversarial-review prompt without the quality-control command editing that prompt directly
 
 ## Committed Scope
@@ -64,8 +64,8 @@ This phase should leave the product in a state where:
 ### Conservative Reachability Routing
 
 - Make `review-reachable` the hardest classification to claim: it requires a concrete diff hunk and ticket clause that a per-ticket reviewer had in front of them.
-- Default uncertain cases away from review blame and toward `spec-gap`, `experiential-only`, or `completeness-gap`.
-- Use routing as guidance: review-reachable items can feed the promotion queue, spec gaps can feed planning, experiential-only items belong in QA/dogfood learning, and completeness gaps can feed ideation.
+- Default uncertain cases away from review blame and toward `spec-gap`, `qa-gap`, or `completeness-gap`.
+- Use routing as guidance: review-reachable items can feed the promotion queue, spec gaps can feed planning, qa-gap items belong in QA/dogfood learning, and completeness gaps can feed ideation.
 - Keep capture separate from promotion. The command may append ledger rows and queue candidates, but it must not edit the upstream adversarial-review prompt.
 
 ### Discoverability And Documentation

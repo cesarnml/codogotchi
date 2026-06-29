@@ -46,7 +46,11 @@ already asking for quality-control capture.
 7. Append exactly one JSONL record to `docs/product/review-gaps/ledger.jsonl`
    using the review-gap ledger helper contract from
    `tools/delivery/review-gap-ledger.ts`. Treat this as the `record-review-gap`
-   step: one verified fix, one commit, one ledger line.
+   step: one verified fix, one commit, one ledger line. Prefer the optional
+   rich-capture fields (`problem`, `solution`, `defectClass`, `testReachability`,
+   `recurrence`, `id`) whenever the fix exposes reusable learning — a one-line
+   `summary` alone discards the experiential detail that makes the ledger
+   valuable for future planning and review prompts.
 8. If the learning may deserve future prompt or process changes, add a concise
    candidate to `docs/product/review-gaps/promotion-queue.md`.
 9. Run formatting and the relevant verification command after editing the

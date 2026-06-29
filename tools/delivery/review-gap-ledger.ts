@@ -38,6 +38,20 @@ export interface ReviewGapRecordInput {
   fixCommit: ReviewGapCommitReferenceInput;
   detectionRounds: number;
   reachability: ReviewGapReachabilityInput;
+  /**
+   * Optional rich-capture fields ported from the pioneering codogotchi ad-hoc
+   * quality-control ledger. They carry the experiential detail a one-line
+   * `summary` cannot: the precise failure, the fix shape, a defect-class label,
+   * how testable the gap was, and prior ledger ids this recurs from. All are
+   * optional so slim records stay valid; rich records are preferred when a fix
+   * exposes reusable learning.
+   */
+  id?: string;
+  problem?: string;
+  solution?: string;
+  defectClass?: string;
+  testReachability?: string;
+  recurrence?: string[];
 }
 
 export interface ReviewGapRecord extends Omit<
@@ -143,6 +157,26 @@ function normalizeOptionalString(
   return trimmed === '' ? undefined : trimmed;
 }
 
+function assertValidRecurrence(
+  value: string[] | undefined,
+): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(
+      "Review-gap ledger field 'recurrence' must be an array of ledger ids.",
+    );
+  }
+
+  const ids = value.map((entry, index) =>
+    assertNonEmptyString(entry, `recurrence[${index}]`),
+  );
+
+  return ids.length > 0 ? ids : undefined;
+}
+
 function assertValidReachability(
   value: ReviewGapReachabilityInput,
 ): ReviewGapRecord['reachability'] {
@@ -189,14 +223,27 @@ export function validateReviewGapRecord(
     );
   }
 
+  const id = normalizeOptionalString(input.id);
+  const problem = normalizeOptionalString(input.problem);
+  const solution = normalizeOptionalString(input.solution);
+  const defectClass = normalizeOptionalString(input.defectClass);
+  const testReachability = normalizeOptionalString(input.testReachability);
+  const recurrence = assertValidRecurrence(input.recurrence);
+
   const record: ReviewGapRecord = {
+    ...(id ? { id } : {}),
     phase: assertValidPhase(input.phase),
     date: assertValidDate(input.date),
     kind,
     summary: assertNonEmptyString(input.summary, 'summary'),
+    ...(problem ? { problem } : {}),
+    ...(solution ? { solution } : {}),
+    ...(defectClass ? { defectClass } : {}),
     fixCommit: assertValidCommit(input.fixCommit),
     detectionRounds: assertPositiveInteger(input.detectionRounds),
     reachability,
+    ...(testReachability ? { testReachability } : {}),
+    ...(recurrence ? { recurrence } : {}),
   };
 
   return record;
