@@ -124,9 +124,27 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   from a live source, ask 'if setVisible(false) or remove() fires but the source
   is still present, what does the next refresh do?'"*
 - **Status:** WAITING — single instance. Needs ≥1 more occurrence to confirm
-  the class before promoting. Note also: after hiding, the pet re-spawned at the
-  default bottom-left spawn position rather than its last persisted position —
-  a related but distinct open issue deferred from this QC fix.
+  the class before promoting. The related spawn-position issue (pets always
+  spawning at the same bottom-left coordinate) was fixed in `codogotchi-22`
+  (per-origin position persistence, schema v3).
+
+### `pool-spawn-position-not-per-origin`
+- **Seen:** 1× — `codogotchi-22` (P13). The pool factory passed `saveState: { _ in }` to
+  suppress the single-owner global-visibility write, but this also silently discarded
+  per-owner frame persistence. All pets spawned at the same coordinate because every
+  controller called `AppStateStore.load()` (global frame) and never wrote back.
+- **Proposed clause:** *"When a refactor replaces a single stateful owner with a pool or
+  registry, enumerate every piece of per-owner state (position, saved frame, last-seen
+  timestamp, visibility flag) and explicitly decide: global, per-owner, or discarded.
+  A no-op override in a factory closure (`saveState: { _ in }`) suppresses all side-effects
+  indiscriminately — confirm it is not also suppressing a necessary persistence path.
+  Ask: does each pool member need its own copy of this state, or is the global copy
+  correct for multi-instance use?"*
+- **Relationship to `user-hide-overwritten-by-periodic-respawn`:** same root class
+  (pool spawning with shared/missing state instead of per-owner state); different
+  manifestation (position vs. visibility intent). Possible merge into a broader
+  `pool-refactor-drops-per-owner-state` class if a third occurrence confirms the pattern.
+- **Status:** WAITING — 1 occurrence. Needs ≥1 more to confirm before promoting.
 
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
