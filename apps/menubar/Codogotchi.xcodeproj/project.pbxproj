@@ -30,6 +30,7 @@
 		38FAEA0F65A0C396AC8AD302 /* FloatingPetController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA899400094213B8A814D114 /* FloatingPetController.swift */; };
 		38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */; };
 		3B83084BAD4FC401B7C5CF37 /* OnboardingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712A24CF66C43196AE34459D /* OnboardingController.swift */; };
+		430CAFACBB46008FC2F3AAF7 /* ConfigFileWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0726E3AFB7210BA52BF1ACFD /* ConfigFileWriterTests.swift */; };
 		44B3B26199E887E9A287C821 /* GeneralTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FD7EFDA095F2FA6876AF23 /* GeneralTabViewModel.swift */; };
 		49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */; };
 		4AA0492AB89E3CFCC1550BFA /* AboutViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4D4D8341FA731AE0AE8723E /* AboutViewModel.swift */; };
@@ -85,6 +86,7 @@
 		DB71B313809B37E9F1F2EA32 /* StateJsonReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BC14DBFFFD8DF9F8C3DDA8F /* StateJsonReader.swift */; };
 		DE504FA1DB60F4386784784C /* HooksStatusSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435A8FD674326013FF142B52 /* HooksStatusSnapshot.swift */; };
 		E28014AC2F3B192E3A1BAE57 /* OnboardingControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6F4B753185486F7E7FCCC6 /* OnboardingControllerTests.swift */; };
+		E3A1358DA3174EF2C96F1B01 /* ConfigFileWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08997AE6D58DB7C54EC4DAC1 /* ConfigFileWriter.swift */; };
 		E404CD73DA9AE54A6860F17D /* DeveloperTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B22EF406588604AA7D68817 /* DeveloperTabViewModel.swift */; };
 		E8712303792CE42D957E76EA /* AttentionBubblePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8503B3E0903814CC7FC6DF40 /* AttentionBubblePanel.swift */; };
 		E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */; };
@@ -114,7 +116,9 @@
 		02675B5F9E50F8DB86AA76E0 /* HalfHeartDecayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HalfHeartDecayTests.swift; sourceTree = "<group>"; };
 		05DA62A749E277B164B28878 /* HalfHeartDecayEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HalfHeartDecayEngine.swift; sourceTree = "<group>"; };
 		05EB20E9AD12E7E2765C3217 /* SettingsTabModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabModelTests.swift; sourceTree = "<group>"; };
+		0726E3AFB7210BA52BF1ACFD /* ConfigFileWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigFileWriterTests.swift; sourceTree = "<group>"; };
 		073E1DA7FD402C40CFEA5439 /* RPGTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGTabViewModelTests.swift; sourceTree = "<group>"; };
+		08997AE6D58DB7C54EC4DAC1 /* ConfigFileWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigFileWriter.swift; sourceTree = "<group>"; };
 		09112F189EA04FABD5D4833E /* DemoConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoConfig.swift; sourceTree = "<group>"; };
 		0B22EF406588604AA7D68817 /* DeveloperTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperTabViewModel.swift; sourceTree = "<group>"; };
 		0C648B3B6E8C5F97123E808D /* PetConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfigTests.swift; sourceTree = "<group>"; };
@@ -217,6 +221,7 @@
 				4610C19ADA41987592CEE748 /* CodexPetTests.swift */,
 				24FA942D11A38DA6F0B232D9 /* CodogotchiFoldersTests.swift */,
 				E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */,
+				0726E3AFB7210BA52BF1ACFD /* ConfigFileWriterTests.swift */,
 				EED7E5C1185B639D5786A2E2 /* CustomizationJsonReaderTests.swift */,
 				489C5364D39974B530891975 /* DemoModeTests.swift */,
 				A3B9E962BBA7B8B1B05F9F77 /* DeveloperTabViewModelTests.swift */,
@@ -272,6 +277,7 @@
 				74CC4170BD102B13FAEADA8B /* CodogotchiFolders.swift */,
 				31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */,
 				BFDA2FD41708D0AEB3230327 /* ConfigBootstrap.swift */,
+				08997AE6D58DB7C54EC4DAC1 /* ConfigFileWriter.swift */,
 				D5A6437113DF92D5CB7E925C /* CustomizationJsonReader.swift */,
 				585425FAA416914A5706D550 /* CustomizationTabViewModel.swift */,
 				09112F189EA04FABD5D4833E /* DemoConfig.swift */,
@@ -471,6 +477,7 @@
 				4ADBB1DD081EE5B9CE110363 /* CodogotchiFolders.swift in Sources */,
 				A28BAB9D5F23FFBE6C429720 /* CodogotchiPet.swift in Sources */,
 				17A4A67B836C574013DB2CDA /* ConfigBootstrap.swift in Sources */,
+				E3A1358DA3174EF2C96F1B01 /* ConfigFileWriter.swift in Sources */,
 				0A2908CC07910B983DD32326 /* CustomizationJsonReader.swift in Sources */,
 				213E87C60B33B6698F9EAE7D /* CustomizationTabViewModel.swift in Sources */,
 				D82CE832ED27D2C047026D62 /* DemoConfig.swift in Sources */,
@@ -526,6 +533,7 @@
 				C81091A2187453263DAF99B7 /* CodexPetTests.swift in Sources */,
 				E8F5637F5C520B780E4D73D3 /* CodogotchiFoldersTests.swift in Sources */,
 				38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */,
+				430CAFACBB46008FC2F3AAF7 /* ConfigFileWriterTests.swift in Sources */,
 				B2E987D4266CDD1A1AC3AF04 /* CustomizationJsonReaderTests.swift in Sources */,
 				7DC659F8DECEC6D8932E49DE /* DemoModeTests.swift in Sources */,
 				D4B25DD9B2E2825856181DBC /* DeveloperTabViewModelTests.swift in Sources */,

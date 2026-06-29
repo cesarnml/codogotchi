@@ -55,55 +55,36 @@ final class CustomizationTabViewModel {
 	}
 
 	func setMode(_ mode: PlatformMode, for origin: String) {
+		var proposed = platformModes
 		if mode == .own {
-			platformModes.removeValue(forKey: origin)
+			proposed.removeValue(forKey: origin)
 		} else {
-			platformModes[origin] = mode
+			proposed[origin] = mode
 		}
-		persist()
+		// NSNull removes the key when all modes are default (.own), avoiding an
+		// empty platform_modes object in the file.
+		let modesValue: Any =
+			proposed.isEmpty ? NSNull() : proposed.mapValues { $0.rawValue }
+		do {
+			try ConfigFileWriter.merge(
+				["platform_modes": modesValue],
+				into: URL(fileURLWithPath: filePath)
+			)
+			platformModes = proposed
+		} catch {
+			NSLog("CustomizationTabViewModel: mode write failed — \(error)")
+		}
 	}
 
 	func setTTL(_ seconds: Int) {
-		idleDismissTtlSeconds = seconds
-		persist()
-	}
-
-	// MARK: - Private
-
-	private func persist() {
-		let url = URL(fileURLWithPath: filePath)
-		// Read-merge-write: load existing keys first so unmanaged keys
-		// (e.g. menubar_icon_monochrome written by P13.07) survive this write.
-		var payload: [String: Any] = [:]
-		let fileExists = FileManager.default.fileExists(atPath: filePath)
-		if fileExists {
-			// Abort if the file exists but cannot be read or parsed — starting from
-			// {} would silently clobber unmanaged keys like menubar_icon_monochrome.
-			guard let data = try? Data(contentsOf: url),
-				let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-			else {
-				NSLog(
-					"CustomizationTabViewModel: aborting write — existing file unreadable or not a JSON object"
-				)
-				return
-			}
-			payload = existing
+		do {
+			try ConfigFileWriter.merge(
+				["idle_dismiss_ttl_seconds": seconds],
+				into: URL(fileURLWithPath: filePath)
+			)
+			idleDismissTtlSeconds = seconds
+		} catch {
+			NSLog("CustomizationTabViewModel: TTL write failed — \(error)")
 		}
-		// Seed schema_version on new files; preserve it from existing files.
-		if payload["schema_version"] == nil {
-			payload["schema_version"] = 1
-		}
-		let modesPayload: [String: String] = platformModes.mapValues { $0.rawValue }
-		if modesPayload.isEmpty {
-			payload.removeValue(forKey: "platform_modes")
-		} else {
-			payload["platform_modes"] = modesPayload
-		}
-		payload["idle_dismiss_ttl_seconds"] = idleDismissTtlSeconds
-		guard JSONSerialization.isValidJSONObject(payload),
-			let data = try? JSONSerialization.data(
-				withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
-		else { return }
-		try? data.write(to: url, options: .atomic)
 	}
 }

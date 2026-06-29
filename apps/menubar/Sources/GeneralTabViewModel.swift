@@ -96,32 +96,16 @@ final class GeneralTabViewModel {
 		self.menubarIconMonochrome = CustomizationJsonReader.read(at: customizationFilePath).menubarIconMonochrome
 	}
 
-	/// Persists `menubar_icon_monochrome` to `customization.json` via read-merge-write
-	/// so it does not clobber platform_modes or idle_dismiss_ttl_seconds.
-	/// Returns `true` when the write succeeded; `false` if persistence was aborted.
-	/// Local state is only updated on success so the in-memory value stays in sync with disk.
+	/// Persists `menubar_icon_monochrome` to `customization.json` without clobbering
+	/// unmanaged keys. Returns `true` when the write succeeded; in-memory state is
+	/// only updated on success so it stays in sync with what survives a relaunch.
 	@discardableResult
 	func setMonochromeMenubarIcon(_ value: Bool) -> Bool {
-		let url = URL(fileURLWithPath: customizationFilePath)
-		var payload: [String: Any] = [:]
-		let fileExists = FileManager.default.fileExists(atPath: customizationFilePath)
-		if fileExists {
-			guard let data = try? Data(contentsOf: url),
-				let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-			else {
-				NSLog("GeneralTabViewModel: aborting monochrome write — file unreadable or invalid JSON")
-				return false
-			}
-			payload = existing
-		}
-		if payload["schema_version"] == nil { payload["schema_version"] = 1 }
-		payload["menubar_icon_monochrome"] = value
-		guard JSONSerialization.isValidJSONObject(payload),
-			let data = try? JSONSerialization.data(
-				withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
-		else { return false }
 		do {
-			try data.write(to: url, options: .atomic)
+			try ConfigFileWriter.merge(
+				["menubar_icon_monochrome": value],
+				into: URL(fileURLWithPath: customizationFilePath)
+			)
 		} catch {
 			NSLog("GeneralTabViewModel: monochrome write failed — \(error)")
 			return false
