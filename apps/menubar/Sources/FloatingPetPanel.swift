@@ -18,6 +18,9 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private var currentActivity: ActivityState = .idle
 	private var currentAttention: AttentionPayload?
 	private var currentSourceEvent: SourceEvent?
+	/// Tracks the payload that was last passed to bubble.configure() so we can
+	/// skip redundant configure calls that would reset hover state every poll tick.
+	private var lastConfiguredAttention: AttentionPayload?
 	private var frameChangeHandler: ((CGRect) -> Void)?
 	private var isShown = false
 	private var lastStripFrame: CGRect = .zero
@@ -132,11 +135,17 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 				stripView.frame = NSRect(origin: .zero, size: newFrame.size)
 				lastStripFrame = newFrame
 			}
-			bubble.configure(
-				summary: attention.summary ?? "",
-				reasonKind: attention.reasonKind ?? "",
-				sourceEvent: currentSourceEvent
-			)
+			// configure() calls setHovered(false) internally, which would hide the
+			// dismiss/focus buttons on every poll tick even while the user is
+			// hovering over them. Only reconfigure when the payload actually changed.
+			if attention != lastConfiguredAttention {
+				bubble.configure(
+					summary: attention.summary ?? "",
+					reasonKind: attention.reasonKind ?? "",
+					sourceEvent: currentSourceEvent
+				)
+				lastConfiguredAttention = attention
+			}
 		} else {
 			// Badge: show PlatformChip + ActivityLabel, resize to content-tight width.
 			stripView.hideBubble()
@@ -160,6 +169,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 	private func handleBubbleDismiss() {
 		currentAttention = nil
+		lastConfiguredAttention = nil
 		currentActivity = .idle
 		applyAll()
 		onAttentionDismissed?()
@@ -190,6 +200,13 @@ private final class MinimalistStripView: NSView {
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
+
+	override func viewDidMoveToWindow() {
+		super.viewDidMoveToWindow()
+		wantsLayer = true
+		layer?.borderColor = NSColor.systemRed.cgColor
+		layer?.borderWidth = 1
+	}
 
 	// MARK: - Badge mode
 
@@ -225,9 +242,13 @@ private final class MinimalistStripView: NSView {
 			let b = AttentionBubbleView(frame: bounds)
 			b.suppressWindowDismissal = true  // strip panel owns its own lifecycle
 			b.autoresizingMask = [.width, .height]
-			addSubview(b)
 			embeddedBubble = b
 			bubble = b
+		}
+		// Always re-add: hideBubble() removes from superview so the bubble's
+		// internal constraints cannot interfere with badge-mode layout.
+		if bubble.superview == nil {
+			addSubview(bubble)
 		}
 		bubble.onDismiss = onDismiss
 		bubble.isHidden = false
@@ -235,7 +256,12 @@ private final class MinimalistStripView: NSView {
 	}
 
 	func hideBubble() {
-		embeddedBubble?.isHidden = true
+		// Remove from the view hierarchy entirely rather than just hiding.
+		// A hidden-but-present AttentionBubbleView has internal required-priority
+		// constraints that conflict with TAMIC when the strip shrinks to badge
+		// width, causing Auto Layout to break TAMIC and let the bubble re-expand
+		// — which then bleeds into badgePreferredWidth via parent layout passes.
+		embeddedBubble?.removeFromSuperview()
 		badgeStack.isHidden = false
 	}
 
