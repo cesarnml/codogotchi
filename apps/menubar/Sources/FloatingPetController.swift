@@ -334,9 +334,24 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	}
 
 	private func saveClampedFrame(_ frame: CGRect, visibleFrame: CGRect, logLabel: String) {
+		// The minimalist strip has a fixed size (360×58) incompatible with
+		// FloatingPetPanel constraints. Preserve the pet-panel size from `state` so
+		// Own mode gets a valid panel frame when the user switches back. Falls back
+		// to the default size when state holds an out-of-range value.
+		let petPanelSize: CGSize = {
+			let s = state.frame.size
+			let fp = FloatingFramePolicy.self
+			guard s.width >= fp.minimumSize.width, s.width <= fp.maximumSize.width,
+				s.height >= fp.minimumSize.height, s.height <= fp.maximumSize.height
+			else { return fp.defaultSize }
+			return s
+		}()
 		let nextState = FloatingAppState(
 			isFloatingPetVisible: state.isFloatingPetVisible,
-			frame: FloatingFramePolicy.clamp(frame, to: visibleFrame),
+			frame: FloatingFramePolicy.clamp(
+				CGRect(origin: frame.origin, size: petPanelSize),
+				to: visibleFrame
+			),
 			onboardingCompletedAt: state.onboardingCompletedAt,
 			lastHookActivityAt: state.lastHookActivityAt,
 			hooksStatus: state.hooksStatus,
