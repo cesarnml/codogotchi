@@ -66,18 +66,18 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 	func applyPlatform(origin: String?) {
 		currentPlatformOrigin = origin
-		applyAll()
+		scheduleApplyAll()
 	}
 
 	func applyActivity(_ state: ActivityState) {
 		currentActivity = state
-		applyAll()
+		scheduleApplyAll()
 	}
 
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
 		currentAttention = payload?.isExpired() == true ? nil : payload
 		currentSourceEvent = sourceEvent
-		applyAll()
+		scheduleApplyAll()
 	}
 
 	func applyPromptSummary(_ summary: String) {
@@ -88,7 +88,26 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		let newMetrics = GateBadgeLayout.metrics(scale: CGFloat(scale))
 		guard newMetrics != currentBadgeMetrics else { return }
 		currentBadgeMetrics = newMetrics
-		applyAll()
+		scheduleApplyAll()
+	}
+
+	/// Coalesces same-tick mutations into a single applyAll() pass. The window
+	/// pool calls apply(state:)/applyAttention(...)/applyPlatform(...) back to
+	/// back on every poll tick; for the shared combined window the "winner"
+	/// origin can change in the same tick a bubble dismisses (e.g. falling
+	/// back to the idle ⭐ default chip), which previously meant two distinct
+	/// resizes of the same panel within nanoseconds of each other — visible as
+	/// a torn repaint. Deferring to the next runloop turn lets all three
+	/// setters land first so only the final, correct state is ever rendered.
+	private var applyAllScheduled = false
+	private func scheduleApplyAll() {
+		guard !applyAllScheduled else { return }
+		applyAllScheduled = true
+		DispatchQueue.main.async { [weak self] in
+			guard let self else { return }
+			self.applyAllScheduled = false
+			self.applyAll()
+		}
 	}
 
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
