@@ -244,10 +244,6 @@ final class AttentionBubbleView: NSView {
 	)
 
 	var onDismiss: (() -> Void)?
-	/// When true (embedded inside a parent view that manages its own window lifecycle)
-	/// the dismiss/action handlers skip `window?.orderOut(nil)` so the host panel
-	/// is not closed automatically.
-	var suppressWindowDismissal: Bool = false
 
 	private var trackingArea: NSTrackingArea?
 	private var isHovered = false
@@ -506,15 +502,14 @@ final class AttentionBubbleView: NSView {
 
 	@objc private func dismissBubble() {
 		onDismiss?()
-		if !suppressWindowDismissal { window?.orderOut(nil) }
+		window?.orderOut(nil)
 	}
 
 	@objc private func performAction() {
 		let bundleId = AttentionFocusTarget.bundleId(for: sourceEvent)
-		let suppress = suppressWindowDismissal
 		defer {
 			onDismiss?()
-			if !suppress { window?.orderOut(nil) }
+			window?.orderOut(nil)
 		}
 		guard let bundleId else { return }
 		let running = NSWorkspace.shared.runningApplications.first {
