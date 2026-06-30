@@ -1649,8 +1649,7 @@ private final class CustomizationTabView: NSView {
 		addSubview(combinedMinimalistCheckbox)
 
 		let combinedMinimalistNote = settingsBodyLabel(
-			"When enabled, all platforms set to Minimalist share a single compact panel "
-				+ "instead of one strip per platform."
+			"When enabled, all platforms set to Combined render to a single Minimalist-mode panel."
 		)
 		addSubview(combinedMinimalistNote)
 

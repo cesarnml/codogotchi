@@ -50,6 +50,11 @@ final class FloatingPetWindowPool {
 	/// Used to detect own↔minimalist transitions so the stale window is torn
 	/// down and the correct factory runs on the next spawn gate.
 	private var windowSpawnedModes: [String: PlatformMode] = [:]
+	/// Renderer the current "combined" window was spawned with — nil when no
+	/// combined window exists. Used to detect the combinedMinimalistEnabled
+	/// setting toggling mid-flight so the window is torn down and respawned
+	/// with the correct factory.
+	private var combinedWindowIsMinimalist: Bool?
 
 	/// Called when `menubarIconMonochrome` changes between ticks. The caller
 	/// uses this to toggle `NSImage.isTemplate` on the status-item button.
@@ -155,25 +160,14 @@ final class FloatingPetWindowPool {
 			windowSpawnedModes.removeValue(forKey: key)
 		}
 
-		// Step 6: separate combined / combined-minimalist / own origins
+		// Step 6: separate combined vs own origins
+		let ownOrigins = visibleEntries.keys.filter { mode(for: $0) != .combined }
 		let combinedOrigins = visibleEntries.keys.filter { mode(for: $0) == .combined }
-		let combinedMinimalistOrigins = visibleEntries.keys.filter {
-			mode(for: $0) == .minimalist && currentCustomization.combinedMinimalistEnabled
-		}
-		let ownOrigins = visibleEntries.keys.filter {
-			mode(for: $0) != .combined
-				&& !(mode(for: $0) == .minimalist && currentCustomization.combinedMinimalistEnabled)
-		}
 
-		// Step 6a: collapse own windows for origins that switched to combined mode,
-		// or to combined-minimalist mode. Either transition must lose its origin-keyed
-		// window immediately so it doesn't render a second window alongside the shared one.
+		// Step 6a: collapse own windows for origins that switched to combined mode.
+		// An origin moving own→combined must lose its origin-keyed window immediately
+		// so it doesn't render a second window alongside the shared combined one.
 		for origin in combinedOrigins where windows[origin] != nil {
-			windows[origin]?.setFloatingPetVisible(false)
-			windows.removeValue(forKey: origin)
-			windowSpawnedModes.removeValue(forKey: origin)
-		}
-		for origin in combinedMinimalistOrigins where windows[origin] != nil {
 			windows[origin]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: origin)
 			windowSpawnedModes.removeValue(forKey: origin)
@@ -236,6 +230,15 @@ final class FloatingPetWindowPool {
 
 		// Step 8: spawn / update combined window
 		if !combinedOrigins.isEmpty {
+			// Style toggle: if the existing combined window was spawned with the wrong
+			// renderer for the current combinedMinimalistEnabled setting, tear it down so
+			// the spawn gate below recreates it with the correct factory.
+			if let combined = windows["combined"],
+				combinedWindowIsMinimalist != currentCustomization.combinedMinimalistEnabled
+			{
+				combined.setFloatingPetVisible(false)
+				windows.removeValue(forKey: "combined")
+			}
 			if isTTLExpired(windowKey: "combined") {
 				// All combined-mode origins idle past TTL (and not last-active): dismiss
 				// the shared window and do not re-spawn it this tick.
@@ -251,10 +254,21 @@ final class FloatingPetWindowPool {
 				})
 				if let winner {
 					if windows["combined"] == nil {
-						let petId = currentAssignments.resolve(origin: "combined")
-						let controller = windowFactory("combined", petId)
+						let useMinimalist = currentCustomization.combinedMinimalistEnabled
+						let controller: FloatingPetWindowControlling
+						if useMinimalist {
+							guard let minimalistWindowFactory else {
+								NSLog("FloatingPetWindowPool: combined-minimalist mode requires a minimalistWindowFactory")
+								return
+							}
+							controller = minimalistWindowFactory("combined")
+						} else {
+							let petId = currentAssignments.resolve(origin: "combined")
+							controller = windowFactory("combined", petId)
+						}
 						controller.setFloatingPetVisible(true)
 						windows["combined"] = controller
+						combinedWindowIsMinimalist = useMinimalist
 					}
 					windows["combined"]?.apply(state: winner.activityState, visualMode: .normal)
 					windows["combined"]?.applyAttention(
@@ -277,49 +291,6 @@ final class FloatingPetWindowPool {
 			if windows["combined"] != nil && "combined" != lastActiveWindowKey {
 				windows["combined"]?.setFloatingPetVisible(false)
 				windows.removeValue(forKey: "combined")
-			}
-		}
-
-		// Step 8b: spawn / update shared combined-minimalist window
-		let combinedMinimalistKey = "combined-minimalist"
-		if !combinedMinimalistOrigins.isEmpty {
-			if isTTLExpired(windowKey: combinedMinimalistKey) {
-				if windows[combinedMinimalistKey] != nil {
-					windows[combinedMinimalistKey]?.setFloatingPetVisible(false)
-					windows.removeValue(forKey: combinedMinimalistKey)
-				}
-			} else if !userHiddenWindowKeys.contains(combinedMinimalistKey) {
-				let combinedStates = combinedMinimalistOrigins.compactMap { origin in
-					visibleEntries[origin].map { (origin, $0) }
-				}
-				let winner = combinedStates.max(by: { a, b in
-					(StateJsonReader.parseISO8601Date(a.1.updatedAt) ?? .distantPast)
-						< (StateJsonReader.parseISO8601Date(b.1.updatedAt) ?? .distantPast)
-				})
-				if let winner {
-					if windows[combinedMinimalistKey] == nil {
-						if let minimalistWindowFactory {
-							let controller = minimalistWindowFactory(combinedMinimalistKey)
-							controller.setFloatingPetVisible(true)
-							windows[combinedMinimalistKey] = controller
-						} else {
-							NSLog(
-								"FloatingPetWindowPool: combined-minimalist mode requires a minimalistWindowFactory"
-							)
-						}
-					}
-					windows[combinedMinimalistKey]?.apply(state: winner.1.activityState, visualMode: .normal)
-					windows[combinedMinimalistKey]?.applyAttention(
-						payload: winner.1.attention,
-						sourceEvent: winner.1.sourceEvent
-					)
-					windows[combinedMinimalistKey]?.applyPlatform(origin: winner.0)
-				}
-			}
-		} else {
-			if windows[combinedMinimalistKey] != nil && combinedMinimalistKey != lastActiveWindowKey {
-				windows[combinedMinimalistKey]?.setFloatingPetVisible(false)
-				windows.removeValue(forKey: combinedMinimalistKey)
 			}
 		}
 
@@ -374,10 +345,7 @@ final class FloatingPetWindowPool {
 	}
 
 	private func windowKey(for origin: String) -> String {
-		let m = mode(for: origin)
-		if m == .combined { return "combined" }
-		if m == .minimalist && currentCustomization.combinedMinimalistEnabled { return "combined-minimalist" }
-		return origin
+		mode(for: origin) == .combined ? "combined" : origin
 	}
 
 	/// Most-recent lastSeenAt across all origins that map to this window key.
@@ -386,12 +354,6 @@ final class FloatingPetWindowPool {
 			let combinedOrigins = currentCustomization.platformModes.keys
 				.filter { currentCustomization.platformModes[$0] == .combined }
 			return combinedOrigins.compactMap { lastSeenAt[$0] }.max()
-		}
-		if key == "combined-minimalist" {
-			guard currentCustomization.combinedMinimalistEnabled else { return lastSeenAt[key] }
-			let minimalistOrigins = currentCustomization.platformModes.keys
-				.filter { currentCustomization.platformModes[$0] == .minimalist }
-			return minimalistOrigins.compactMap { lastSeenAt[$0] }.max()
 		}
 		return lastSeenAt[key]
 	}
