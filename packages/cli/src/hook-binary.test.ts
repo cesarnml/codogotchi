@@ -2535,4 +2535,25 @@ describe("slice-directory writer (P12.02 red)", () => {
     expect(existsSync(pathA)).toBe(false);
     expect(existsSync(pathB)).toBe(true);
   });
+
+  it("writes active-session.json inside the detected repository root", async () => {
+    const sessionId = "ses-test-active-session";
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+        cwd: home,
+      },
+      { home, now: FIXED_NOW },
+    );
+
+    const activeSessionPath = join(home, ".soa", "active-session.json");
+    expect(existsSync(activeSessionPath)).toBe(true);
+    const content = JSON.parse(readFileSync(activeSessionPath, "utf8"));
+    expect(content.origin).toBe("claude_code");
+    expect(content.session_id).toBe(sessionId);
+    expect(content.updated_at).toBe(FIXED_NOW.toISOString());
+  });
 });

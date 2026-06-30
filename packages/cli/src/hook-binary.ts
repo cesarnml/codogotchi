@@ -1264,6 +1264,28 @@ export async function runHook(
 
     const terminalBundleId = detectTerminalBundleId(process.env);
     const repoRoot = detectRepoRoot(input, process.env);
+
+    // Save active session details to repository-local .soa/active-session.json for CLI orchestrator retrieval
+    try {
+      const soaDir = join(repoRoot, ".soa");
+      await mkdir(soaDir, { recursive: true });
+      await writeFile(
+        join(soaDir, "active-session.json"),
+        `${JSON.stringify(
+          {
+            origin,
+            session_id: sessionId ?? "default",
+            updated_at: opts.now.toISOString(),
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+    } catch {
+      // Best-effort: failures should never crash the hook
+    }
+
     const sourceEvent: SourceEvent = {
       ...classified.sourceEvent,
       repo_root: repoRoot,
