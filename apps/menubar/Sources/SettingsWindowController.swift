@@ -968,6 +968,11 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		descLabel.identifier = PetTabView.descriptionIdentifier
 		descLabel.translatesAutoresizingMaskIntoConstraints = false
 		descLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+		// Prevent the label from stretching below its intrinsic height.
+		// When equal-height constraints force a shorter card to match a taller sibling,
+		// the preferRight anchor (card.bottom = descLabel.bottom + 14, .defaultHigh)
+		// would otherwise pull descLabel's bottom down to fill the extra space.
+		descLabel.setContentHuggingPriority(.required, for: .vertical)
 
 		card.addSubview(nameRow)
 		card.addSubview(descLabel)
