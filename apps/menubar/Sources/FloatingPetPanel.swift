@@ -4,23 +4,24 @@ import SpriteKit
 @MainActor
 final class MinimalistPanelController: MinimalistPanelManaging {
 	private enum Layout {
-		static let size = CGSize(width: 360, height: 58)
+		static let height: CGFloat = 58
+		static let hPad: CGFloat = 10
+		static let minBadgeWidth: CGFloat = 80
+		/// Bubble uses the maximum attention-bubble width for the best reading layout.
+		static let bubbleWidth: CGFloat = AttentionBubbleLayoutMetrics.maxBubbleWidth
 	}
 
 	private let visibleFrameProvider: () -> CGRect
 	private var panel: NSPanel?
-	private let stripView = MinimalistStripView(frame: CGRect(origin: .zero, size: Layout.size))
+	private let stripView = MinimalistStripView(frame: .zero)
 	private var currentPlatformOrigin: String?
 	private var currentActivity: ActivityState = .idle
 	private var currentAttention: AttentionPayload?
 	private var currentSourceEvent: SourceEvent?
 	private var frameChangeHandler: ((CGRect) -> Void)?
 	private var isShown = false
-	/// Last frame at which the strip was positioned; used to anchor the attention
-	/// bubble when the strip is hidden during a standby/error/input-requested state.
 	private var lastStripFrame: CGRect = .zero
-	private var attentionBubble: AttentionBubblePanel?
-	/// Called after the user dismisses or focuses away from the attention bubble.
+	/// Called after the user dismisses or focuses away from the embedded attention bubble.
 	var onAttentionDismissed: (() -> Void)?
 
 	init(
@@ -29,8 +30,12 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		}
 	) {
 		self.visibleFrameProvider = visibleFrameProvider
+		// Provide a clamped-origin frame using the panel's current size so the drag
+		// respects screen bounds regardless of whether badge or bubble is shown.
 		stripView.clampedFrameProvider = { [weak self] origin in
-			self?.clampedFrame(origin: origin) ?? CGRect(origin: origin, size: Layout.size)
+			guard let self else { return CGRect(origin: origin, size: .zero) }
+			let size = self.panel?.frame.size ?? CGSize(width: Layout.minBadgeWidth, height: Layout.height)
+			return self.clampedFrame(origin: origin, size: size)
 		}
 		stripView.frameChangeHandler = { [weak self] frame in
 			self?.lastStripFrame = frame
@@ -40,19 +45,16 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 	func show(frame: CGRect) {
 		let panel = self.panel ?? makePanel()
-		let sizedFrame = clampedFrame(origin: frame.origin)
-		lastStripFrame = sizedFrame
-		panel.setFrame(sizedFrame, display: true)
-		stripView.frame = NSRect(origin: .zero, size: sizedFrame.size)
 		self.panel = panel
 		isShown = true
-		applyAll()
+		// Use the saved origin; content-tight size is computed in applyAll.
+		applyAll(anchorOrigin: frame.origin)
+		panel.orderFrontRegardless()
 	}
 
 	func hide() {
 		isShown = false
 		panel?.orderOut(nil)
-		attentionBubble?.orderOut(nil)
 	}
 
 	func applyPlatform(origin: String?) {
@@ -80,8 +82,9 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	}
 
 	private func makePanel() -> NSPanel {
+		let initialSize = CGSize(width: Layout.minBadgeWidth, height: Layout.height)
 		let panel = NSPanel(
-			contentRect: CGRect(origin: .zero, size: Layout.size),
+			contentRect: CGRect(origin: .zero, size: initialSize),
 			styleMask: [.borderless, .nonactivatingPanel],
 			backing: .buffered,
 			defer: false
@@ -98,41 +101,50 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		return panel
 	}
 
-	private func clampedFrame(origin: CGPoint) -> CGRect {
+	/// Clamps `origin` so a panel of `size` stays fully within the visible frame.
+	private func clampedFrame(origin: CGPoint, size: CGSize) -> CGRect {
 		let visible = visibleFrameProvider().insetBy(dx: 6, dy: 6)
-		let x = max(visible.minX, min(visible.maxX - Layout.size.width, origin.x))
-		let y = max(visible.minY, min(visible.maxY - Layout.size.height, origin.y))
-		return CGRect(x: x, y: y, width: Layout.size.width, height: Layout.size.height)
+		let x = max(visible.minX, min(visible.maxX - size.width, origin.x))
+		let y = max(visible.minY, min(visible.maxY - size.height, origin.y))
+		return CGRect(x: x, y: y, width: size.width, height: size.height)
 	}
 
-	private func applyAll() {
-		guard isShown else { return }
-		stripView.configure(
-			platform: PlatformAttribution(origin: currentPlatformOrigin),
-			activity: currentActivity
-		)
+	/// Resize and repaint the strip panel to match the current state.
+	/// `anchorOrigin` is used for the initial show; subsequent calls keep the
+	/// existing panel origin so the badge does not jump on every state tick.
+	private func applyAll(anchorOrigin: CGPoint? = nil) {
+		guard isShown, let panel else { return }
+		let origin = anchorOrigin ?? panel.frame.origin
+
 		if let attention = currentAttention {
-			// Attention active: hide the strip and show the bubble instead so the
-			// minimalist view presents the same standby/error/input-requested chrome as
-			// the Own/Combined floating pet.
-			panel?.orderOut(nil)
-			showBubble(attention)
+			// Attention: embed the bubble view directly in the strip panel so the
+			// user can drag it from the same surface (no separate floating window).
+			let bubble = stripView.showBubble { [weak self] in self?.handleBubbleDismiss() }
+			bubble.configure(
+				summary: attention.summary ?? "",
+				reasonKind: attention.reasonKind ?? "",
+				sourceEvent: currentSourceEvent
+			)
+			let newSize = CGSize(width: Layout.bubbleWidth, height: Layout.height)
+			let newFrame = clampedFrame(origin: origin, size: newSize)
+			panel.setFrame(newFrame, display: true)
+			stripView.frame = NSRect(origin: .zero, size: newFrame.size)
+			lastStripFrame = newFrame
 		} else {
-			attentionBubble?.orderOut(nil)
-			panel?.orderFrontRegardless()
+			// Badge: show PlatformChip + ActivityLabel, resize to content-tight width.
+			stripView.hideBubble()
+			stripView.configureBadge(
+				platform: PlatformAttribution(origin: currentPlatformOrigin),
+				activity: currentActivity
+			)
+			let badgeW = max(Layout.minBadgeWidth, stripView.badgePreferredWidth)
+			let newSize = CGSize(width: badgeW, height: Layout.height)
+			let newFrame = clampedFrame(origin: origin, size: newSize)
+			panel.setFrame(newFrame, display: true)
+			stripView.frame = NSRect(origin: .zero, size: newFrame.size)
+			lastStripFrame = newFrame
 		}
-	}
-
-	private func showBubble(_ attention: AttentionPayload) {
-		let bubble = attentionBubble ?? {
-			let b = AttentionBubblePanel()
-			b.onDismiss = { [weak self] in self?.handleBubbleDismiss() }
-			attentionBubble = b
-			return b
-		}()
-		bubble.update(payload: attention, sourceEvent: currentSourceEvent)
-		bubble.reposition(relativeTo: lastStripFrame, visibleFrame: visibleFrameProvider())
-		bubble.orderFrontRegardless()
+		panel.orderFrontRegardless()
 	}
 
 	private func handleBubbleDismiss() {
@@ -144,15 +156,21 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 }
 
 private final class MinimalistStripView: NSView {
-	private let animationBadge = AnimationBadgeView(frame: .zero)
-	private let stack = NSStackView()
-	var clampedFrameProvider: ((CGPoint) -> CGRect)?
-	var frameChangeHandler: ((CGRect) -> Void)?
-	private var dragOffsetInScreen: CGPoint?
-
+	private static let hPad: CGFloat = 10
 	private static let stripMetrics = GateBadgeLayout.metrics(
 		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
 	)
+
+	// Badge mode
+	private let animationBadge = AnimationBadgeView(frame: .zero)
+	private let badgeStack = NSStackView()
+
+	// Bubble mode (lazy — created on first attention event)
+	private var embeddedBubble: AttentionBubbleView?
+
+	var clampedFrameProvider: ((CGPoint) -> CGRect)?
+	var frameChangeHandler: ((CGRect) -> Void)?
+	private var dragOffsetInScreen: CGPoint?
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -162,13 +180,57 @@ private final class MinimalistStripView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	override func hitTest(_ point: NSPoint) -> NSView? {
-		// Only accept mouse events within the visible pill area (the stack and a
-		// small halo for shadow). Clicks on the transparent background fall through
-		// to windows below instead of being swallowed by the 360×58 panel area.
-		guard stack.frame.insetBy(dx: -6, dy: -6).contains(point) else { return nil }
-		return super.hitTest(point)
+	// MARK: - Badge mode
+
+	func configureBadge(platform: PlatformAttribution?, activity: ActivityState) {
+		animationBadge.configure(
+			text: activity.displayLabel,
+			platform: platform,
+			inFlight: activity.isInFlight,
+			metrics: Self.stripMetrics
+		)
 	}
+
+	/// Width the badge content needs plus horizontal padding.
+	var badgePreferredWidth: CGFloat {
+		animationBadge.preferredSize.width + Self.hPad * 2
+	}
+
+	// MARK: - Bubble mode
+
+	/// Switch to bubble mode: hide the badge stack, embed (or reuse) an
+	/// AttentionBubbleView that fills the strip panel. Returns the view so the
+	/// caller can configure its content.
+	func showBubble(onDismiss: @escaping () -> Void) -> AttentionBubbleView {
+		badgeStack.isHidden = true
+		let bubble: AttentionBubbleView
+		if let existing = embeddedBubble {
+			bubble = existing
+		} else {
+			let b = AttentionBubbleView(frame: .zero)
+			b.suppressWindowDismissal = true  // strip panel owns its own lifecycle
+			b.translatesAutoresizingMaskIntoConstraints = false
+			addSubview(b)
+			NSLayoutConstraint.activate([
+				b.leadingAnchor.constraint(equalTo: leadingAnchor),
+				b.trailingAnchor.constraint(equalTo: trailingAnchor),
+				b.topAnchor.constraint(equalTo: topAnchor),
+				b.bottomAnchor.constraint(equalTo: bottomAnchor),
+			])
+			embeddedBubble = b
+			bubble = b
+		}
+		bubble.onDismiss = onDismiss
+		bubble.isHidden = false
+		return bubble
+	}
+
+	func hideBubble() {
+		embeddedBubble?.isHidden = true
+		badgeStack.isHidden = false
+	}
+
+	// MARK: - Drag
 
 	override func mouseDown(with event: NSEvent) {
 		guard let window else { return }
@@ -197,29 +259,20 @@ private final class MinimalistStripView: NSView {
 		}
 	}
 
-	func configure(platform: PlatformAttribution?, activity: ActivityState) {
-		animationBadge.configure(
-			text: activity.displayLabel,
-			platform: platform,
-			inFlight: activity.isInFlight,
-			metrics: Self.stripMetrics
-		)
-	}
+	// MARK: - Layout
 
 	private func buildUI() {
 		wantsLayer = true
-
-		stack.orientation = .horizontal
-		stack.alignment = .centerY
-		stack.spacing = 8
-		stack.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(stack)
-		stack.addArrangedSubview(animationBadge)
-
+		badgeStack.orientation = .horizontal
+		badgeStack.alignment = .centerY
+		badgeStack.spacing = 8
+		badgeStack.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(badgeStack)
+		badgeStack.addArrangedSubview(animationBadge)
 		NSLayoutConstraint.activate([
-			stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-			stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
-			stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+			badgeStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.hPad),
+			badgeStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -Self.hPad),
+			badgeStack.centerYAnchor.constraint(equalTo: centerYAnchor),
 		])
 	}
 }

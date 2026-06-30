@@ -120,7 +120,7 @@ final class AttentionBubblePanel: NSPanel {
 
 // MARK: - View
 
-private final class AttentionBubbleView: NSView {
+final class AttentionBubbleView: NSView {
 	private enum HoverButtonShape {
 		case circle
 		case capsule
@@ -244,6 +244,10 @@ private final class AttentionBubbleView: NSView {
 	)
 
 	var onDismiss: (() -> Void)?
+	/// When true (embedded inside a parent view that manages its own window lifecycle)
+	/// the dismiss/action handlers skip `window?.orderOut(nil)` so the host panel
+	/// is not closed automatically.
+	var suppressWindowDismissal: Bool = false
 
 	private var trackingArea: NSTrackingArea?
 	private var isHovered = false
@@ -502,14 +506,15 @@ private final class AttentionBubbleView: NSView {
 
 	@objc private func dismissBubble() {
 		onDismiss?()
-		window?.orderOut(nil)
+		if !suppressWindowDismissal { window?.orderOut(nil) }
 	}
 
 	@objc private func performAction() {
 		let bundleId = AttentionFocusTarget.bundleId(for: sourceEvent)
+		let suppress = suppressWindowDismissal
 		defer {
 			onDismiss?()
-			window?.orderOut(nil)
+			if !suppress { window?.orderOut(nil) }
 		}
 		guard let bundleId else { return }
 		let running = NSWorkspace.shared.runningApplications.first {
