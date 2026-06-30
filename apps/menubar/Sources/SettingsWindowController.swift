@@ -636,6 +636,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 	/// on every resize tick, only when the responsive column count changes.
 	private var lastColumnCount = 0
 	private var currentEntries: [PetCatalogEntry] = []
+	private var activeAssignPopover: NSPopover?
 
 	private let cardSpacing: CGFloat = 12
 	private let minCardWidth: CGFloat = 300
@@ -857,6 +858,14 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 			row.alignment = .top
 			row.spacing = cardSpacing
 			row.translatesAutoresizingMaskIntoConstraints = false
+			// All real cards in the row adopt the height of the tallest card.
+			let realCount = slice.count
+			if realCount > 1 {
+				for i in 1..<realCount {
+					rowViews[i].heightAnchor.constraint(equalTo: rowViews[0].heightAnchor).isActive =
+						true
+				}
+			}
 			gridStack.addArrangedSubview(row)
 			// Pin width only after the row joins the stack — activating a
 			// cross-view constraint before they share an ancestor throws
@@ -942,8 +951,12 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		let nameRow = NSStackView(views: nameRowViews)
 		nameRow.orientation = .horizontal
 		nameRow.spacing = 6
-		nameRow.alignment = .centerY
+		nameRow.alignment = .top
+		nameRow.distribution = .fill
 		nameRow.translatesAutoresizingMaskIntoConstraints = false
+		// Cards with no assignBtn have a shorter intrinsic nameRow (~17pt vs 20pt).
+		// A minimum height normalises the gap so descLabel always starts at the same Y.
+		nameRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 20).isActive = true
 
 		// Description — full-width in the right column, wraps up to 5 lines.
 		let descLabel = NSTextField(wrappingLabelWithString: entry.description)
@@ -1047,57 +1060,44 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		return btn
 	}
 
-	/// Horizontal row of compact badge pills for all badges held by this pet.
+	/// Horizontal row of compact icon-only badge pills for all badges held by this pet.
 	private func makeBadgePillsRow(badges: Set<String>) -> NSView {
 		let sorted = ASSIGNMENT_BADGE_KEYS.filter { badges.contains($0) }
-		let pills = sorted.map { key -> NSView in
-			let tint: NSColor = key == "default" ? .systemGreen : .secondaryLabelColor
-			return makeBadge(text: badgeDisplayName(key), tint: tint)
-		}
+		let pills = sorted.map { key -> NSView in makePlatformIconPill(key: key) }
 		let row = NSStackView(views: pills)
 		row.orientation = .horizontal
-		row.spacing = 6
+		row.spacing = 4
 		row.alignment = .centerY
 		row.translatesAutoresizingMaskIntoConstraints = false
 		return row
 	}
 
-	private func makeBadge(text: String, tint: NSColor) -> NSView {
-		let label = NSTextField(labelWithString: text)
-		label.font = .systemFont(ofSize: 10, weight: .medium)
-		label.textColor = tint
-		label.alignment = .center
-		label.translatesAutoresizingMaskIntoConstraints = false
-		label.wantsLayer = true
-		label.drawsBackground = true
-		label.backgroundColor = tint.withAlphaComponent(0.14)
-		label.layer?.cornerRadius = 5
-		label.layer?.masksToBounds = true
-		label.setContentHuggingPriority(.required, for: .horizontal)
-		label.setContentCompressionResistancePriority(.required, for: .horizontal)
+	private func makePlatformIconPill(key: String) -> NSView {
+		let tint: NSColor = key == "default" ? .systemGreen : .secondaryLabelColor
 		let container = NSView()
+		container.wantsLayer = true
+		container.layer?.cornerRadius = 5
+		container.layer?.backgroundColor = tint.withAlphaComponent(0.14).cgColor
 		container.translatesAutoresizingMaskIntoConstraints = false
-		container.addSubview(label)
-		NSLayoutConstraint.activate([
-			label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 5),
-			label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -5),
-			label.topAnchor.constraint(equalTo: container.topAnchor, constant: 1),
-			label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -1),
-		])
-		container.setContentHuggingPriority(.required, for: .horizontal)
-		return container
-	}
 
-	private func badgeDisplayName(_ key: String) -> String {
-		switch key {
-		case "default": return "⭐ Default"
-		case "claude_code": return "Claude Code"
-		case "vscode": return "VS Code"
-		case "codex": return "Codex"
-		case "cursor": return "Cursor"
-		case "antigravity": return "Antigravity"
-		default: return key
+		let iconView = NSImageView()
+		iconView.translatesAutoresizingMaskIntoConstraints = false
+		iconView.imageScaling = .scaleProportionallyUpOrDown
+		if let attr = platformAttribution(forBadgeKey: key) {
+			iconView.image = NSImage(named: attr.assetName)
 		}
+		iconView.contentTintColor = tint
+
+		container.addSubview(iconView)
+		NSLayoutConstraint.activate([
+			iconView.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+			iconView.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+			iconView.widthAnchor.constraint(equalToConstant: 12),
+			iconView.heightAnchor.constraint(equalToConstant: 12),
+			container.widthAnchor.constraint(equalToConstant: 22),
+			container.heightAnchor.constraint(equalToConstant: 18),
+		])
+		return container
 	}
 
 	private func thumbnail(for entry: PetCatalogEntry) -> NSImage? {
@@ -1120,58 +1120,20 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		CodogotchiFolders.reveal(CodogotchiFolders.petFolderURL())
 	}
 
-	/// Opens a badge dropdown for `sender`'s associated pet.
+	/// Opens a persistent badge popover for `sender`'s associated pet.
+	/// The popover stays open while the user toggles platforms and dismisses on outside click.
 	@objc private func assignButtonTapped(_ sender: NSButton) {
 		guard let petId = objc_getAssociatedObject(sender, &assignBtnKey) as? String else { return }
-		let menu = NSMenu()
-		let currentBadges = viewModel.badges(for: petId)
-		for badgeKey in ASSIGNMENT_BADGE_KEYS {
-			let item = NSMenuItem(
-				title: badgeDisplayName(badgeKey),
-				action: #selector(badgeMenuItemClicked(_:)),
-				keyEquivalent: "")
-			item.state = currentBadges.contains(badgeKey) ? .on : .off
-			// Default cannot be unassigned — disable the checked item so the
-			// menu makes clear it is not a toggle.
-			if badgeKey == "default" && currentBadges.contains("default") {
-				item.isEnabled = false
-			}
-			item.target = self
-			objc_setAssociatedObject(
-				item, &badgeMenuItemKey, (petId, badgeKey), .OBJC_ASSOCIATION_RETAIN)
-			menu.addItem(item)
-		}
-		let point = NSPoint(x: 0, y: sender.bounds.height + 2)
-		menu.popUp(positioning: menu.items.first, at: point, in: sender)
-	}
+		activeAssignPopover?.close()
+		activeAssignPopover = nil
 
-	/// Toggles the badge selected in the assign dropdown and reloads the grid.
-	@objc private func badgeMenuItemClicked(_ sender: NSMenuItem) {
-		guard
-			let (petId, badgeKey) = objc_getAssociatedObject(
-				sender, &badgeMenuItemKey) as? (String, String)
-		else { return }
-		let currentBadges = viewModel.badges(for: petId)
-		if currentBadges.contains(badgeKey) {
-			if viewModel.unassign(badge: badgeKey, from: petId) {
-				clearFeedback()
-			} else {
-				setAssignmentPersistenceError()
-			}
-		} else {
-			do {
-				try viewModel.assign(badge: badgeKey, to: petId)
-				clearFeedback()
-			} catch {
-				NSLog(
-					"PetTabView: failed to persist assignment '%@' for '%@': %@",
-					badgeKey, petId, error.localizedDescription)
-				setAssignmentPersistenceError()
-			}
-		}
-		// reloadEntries pulls a fresh catalog (including updated isDefault flags)
-		// so the Default-badge blue border moves to the new holder immediately.
-		reloadEntries()
+		let vc = PetAssignPopoverController(petId: petId, viewModel: viewModel)
+		let popover = NSPopover()
+		popover.contentViewController = vc
+		popover.behavior = .transient
+		popover.delegate = self
+		popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+		activeAssignPopover = popover
 	}
 
 	private func setAssignmentPersistenceError() {
@@ -1200,8 +1162,193 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 	}
 }
 
+extension PetTabView: NSPopoverDelegate {
+	func popoverDidClose(_ notification: Notification) {
+		// Rebuild the grid so badge pills reflect any toggles made in the popover.
+		reloadEntries()
+		activeAssignPopover = nil
+	}
+}
+
+// MARK: - Assign popover
+
+/// A persistent popover listing all assignable platforms for one pet.
+/// Rows toggle without closing the popover; clicking outside dismisses it.
+private final class PetAssignPopoverController: NSViewController {
+	private let petId: String
+	private let viewModel: PetTabViewModel
+	private var rowViews: [String: BadgeRowView] = [:]
+
+	init(petId: String, viewModel: PetTabViewModel) {
+		self.petId = petId
+		self.viewModel = viewModel
+		super.init(nibName: nil, bundle: nil)
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	override func loadView() {
+		let stack = NSStackView()
+		stack.orientation = .vertical
+		stack.spacing = 1
+		stack.translatesAutoresizingMaskIntoConstraints = false
+
+		for key in ASSIGNMENT_BADGE_KEYS {
+			let row = makePlatformRow(for: key)
+			rowViews[key] = row
+			stack.addArrangedSubview(row)
+		}
+
+		let wrapper = NSView()
+		wrapper.translatesAutoresizingMaskIntoConstraints = false
+		wrapper.addSubview(stack)
+		NSLayoutConstraint.activate([
+			stack.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 6),
+			stack.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -6),
+			stack.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
+			stack.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor),
+			wrapper.widthAnchor.constraint(equalToConstant: 200),
+		])
+		view = wrapper
+	}
+
+	private func makePlatformRow(for key: String) -> BadgeRowView {
+		let badges = viewModel.badges(for: petId)
+		let isChecked = badges.contains(key)
+		let isDefaultHeld = key == "default" && isChecked
+		let row = BadgeRowView(isDisabled: isDefaultHeld)
+		row.translatesAutoresizingMaskIntoConstraints = false
+		row.heightAnchor.constraint(equalToConstant: 32).isActive = true
+
+		let iconView = NSImageView()
+		iconView.translatesAutoresizingMaskIntoConstraints = false
+		iconView.imageScaling = .scaleProportionallyUpOrDown
+		if let attr = platformAttribution(forBadgeKey: key) {
+			iconView.image = NSImage(named: attr.assetName)
+		}
+		iconView.contentTintColor = .labelColor
+
+		let label = NSTextField(labelWithString: badgeDisplayName(key))
+		label.font = .systemFont(ofSize: 13)
+		label.translatesAutoresizingMaskIntoConstraints = false
+
+		let check = NSImageView()
+		check.image = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)
+		check.contentTintColor = .controlAccentColor
+		check.isHidden = !isChecked
+		check.translatesAutoresizingMaskIntoConstraints = false
+		row.checkmark = check
+
+		row.addSubview(iconView)
+		row.addSubview(label)
+		row.addSubview(check)
+
+		NSLayoutConstraint.activate([
+			iconView.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 12),
+			iconView.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+			iconView.widthAnchor.constraint(equalToConstant: 16),
+			iconView.heightAnchor.constraint(equalToConstant: 16),
+			label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
+			label.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+			label.trailingAnchor.constraint(lessThanOrEqualTo: check.leadingAnchor, constant: -4),
+			check.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -12),
+			check.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+			check.widthAnchor.constraint(equalToConstant: 12),
+			check.heightAnchor.constraint(equalToConstant: 12),
+		])
+
+		row.onTap = { [weak self] in self?.toggleBadge(key) }
+		return row
+	}
+
+	private func toggleBadge(_ key: String) {
+		let isChecked = viewModel.badges(for: petId).contains(key)
+		if isChecked {
+			_ = viewModel.unassign(badge: key, from: petId)
+		} else {
+			try? viewModel.assign(badge: key, to: petId)
+		}
+		// Refresh all rows — e.g. assigning Default moves it off the previous holder.
+		let updated = viewModel.badges(for: petId)
+		for (k, row) in rowViews {
+			let nowChecked = updated.contains(k)
+			row.update(isChecked: nowChecked, isDisabled: k == "default" && nowChecked)
+		}
+	}
+}
+
+private final class BadgeRowView: NSView {
+	private var isDisabled: Bool
+	var onTap: (() -> Void)?
+	var checkmark: NSImageView?
+
+	init(isDisabled: Bool) {
+		self.isDisabled = isDisabled
+		super.init(frame: .zero)
+		wantsLayer = true
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func update(isChecked: Bool, isDisabled: Bool) {
+		self.isDisabled = isDisabled
+		checkmark?.isHidden = !isChecked
+		updateTrackingAreas()
+	}
+
+	override func mouseUp(with event: NSEvent) {
+		guard !isDisabled else { return }
+		onTap?()
+	}
+
+	override func updateTrackingAreas() {
+		super.updateTrackingAreas()
+		trackingAreas.forEach { removeTrackingArea($0) }
+		guard !isDisabled else { return }
+		addTrackingArea(NSTrackingArea(
+			rect: bounds,
+			options: [.mouseEnteredAndExited, .activeInActiveApp],
+			owner: self,
+			userInfo: nil
+		))
+	}
+
+	override func mouseEntered(with event: NSEvent) {
+		layer?.backgroundColor = NSColor.selectedContentBackgroundColor.withAlphaComponent(0.1).cgColor
+	}
+
+	override func mouseExited(with event: NSEvent) {
+		layer?.backgroundColor = .clear
+	}
+}
+
+private func badgeDisplayName(_ key: String) -> String {
+	switch key {
+	case "default": return "Default"
+	case "claude_code": return "Claude Code"
+	case "vscode": return "VS Code"
+	case "codex": return "Codex"
+	case "cursor": return "Cursor"
+	case "antigravity": return "Antigravity"
+	default: return key
+	}
+}
+
+private func platformAttribution(forBadgeKey key: String) -> PlatformAttribution? {
+	switch key {
+	case "default": return .default
+	case "claude_code": return .claudeCode
+	case "vscode": return .vscode
+	case "codex": return .codex
+	case "cursor": return .cursor
+	case "antigravity": return .antigravity
+	default: return nil
+	}
+}
+
 private var assignBtnKey: UInt8 = 0
-private var badgeMenuItemKey: UInt8 = 1
 private var importBtnKey: UInt8 = 2
 
 /// Top-left origin so a short pet grid anchors to the top of its scroll view
