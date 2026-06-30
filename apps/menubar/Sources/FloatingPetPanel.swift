@@ -13,8 +13,15 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private var currentPlatformOrigin: String?
 	private var currentActivity: ActivityState = .idle
 	private var currentAttention: AttentionPayload?
-	private var currentPromptSummary = ""
+	private var currentSourceEvent: SourceEvent?
 	private var frameChangeHandler: ((CGRect) -> Void)?
+	private var isShown = false
+	/// Last frame at which the strip was positioned; used to anchor the attention
+	/// bubble when the strip is hidden during a standby/error/input-requested state.
+	private var lastStripFrame: CGRect = .zero
+	private var attentionBubble: AttentionBubblePanel?
+	/// Called after the user dismisses or focuses away from the attention bubble.
+	var onAttentionDismissed: (() -> Void)?
 
 	init(
 		visibleFrameProvider: @escaping () -> CGRect = {
@@ -26,6 +33,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 			self?.clampedFrame(origin: origin) ?? CGRect(origin: origin, size: Layout.size)
 		}
 		stripView.frameChangeHandler = { [weak self] frame in
+			self?.lastStripFrame = frame
 			self?.frameChangeHandler?(frame)
 		}
 	}
@@ -33,15 +41,18 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	func show(frame: CGRect) {
 		let panel = self.panel ?? makePanel()
 		let sizedFrame = clampedFrame(origin: frame.origin)
+		lastStripFrame = sizedFrame
 		panel.setFrame(sizedFrame, display: true)
-		panel.orderFrontRegardless()
 		stripView.frame = NSRect(origin: .zero, size: sizedFrame.size)
-		applyAll()
 		self.panel = panel
+		isShown = true
+		applyAll()
 	}
 
 	func hide() {
+		isShown = false
 		panel?.orderOut(nil)
+		attentionBubble?.orderOut(nil)
 	}
 
 	func applyPlatform(origin: String?) {
@@ -56,12 +67,12 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
 		currentAttention = payload?.isExpired() == true ? nil : payload
+		currentSourceEvent = sourceEvent
 		applyAll()
 	}
 
 	func applyPromptSummary(_ summary: String) {
-		currentPromptSummary = summary
-		applyAll()
+		// Prompt summary is not shown for platform-linked minimalist panels.
 	}
 
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
@@ -77,7 +88,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		)
 		panel.backgroundColor = .clear
 		panel.isOpaque = false
-		panel.hasShadow = true
+		panel.hasShadow = false
 		panel.level = .floating
 		panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 		panel.hidesOnDeactivate = false
@@ -95,20 +106,45 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	}
 
 	private func applyAll() {
+		guard isShown else { return }
 		stripView.configure(
 			platform: PlatformAttribution(origin: currentPlatformOrigin),
-			activity: currentActivity,
-			attentionSummary: currentAttention?.summary ?? "",
-			promptSummary: currentPromptSummary
+			activity: currentActivity
 		)
+		if let attention = currentAttention {
+			// Attention active: hide the strip and show the bubble instead so the
+			// minimalist view presents the same standby/error/input-requested chrome as
+			// the Own/Combined floating pet.
+			panel?.orderOut(nil)
+			showBubble(attention)
+		} else {
+			attentionBubble?.orderOut(nil)
+			panel?.orderFrontRegardless()
+		}
+	}
+
+	private func showBubble(_ attention: AttentionPayload) {
+		let bubble = attentionBubble ?? {
+			let b = AttentionBubblePanel()
+			b.onDismiss = { [weak self] in self?.handleBubbleDismiss() }
+			attentionBubble = b
+			return b
+		}()
+		bubble.update(payload: attention, sourceEvent: currentSourceEvent)
+		bubble.reposition(relativeTo: lastStripFrame, visibleFrame: visibleFrameProvider())
+		bubble.orderFrontRegardless()
+	}
+
+	private func handleBubbleDismiss() {
+		currentAttention = nil
+		currentActivity = .idle
+		applyAll()
+		onAttentionDismissed?()
 	}
 }
 
 private final class MinimalistStripView: NSView {
-	private let effectView = NSVisualEffectView(frame: .zero)
 	private let animationBadge = AnimationBadgeView(frame: .zero)
-	private let attentionPill = AnimationLabelPillView(frame: .zero)
-	private let promptPill = AnimationLabelPillView(frame: .zero)
 	private let stack = NSStackView()
 	var clampedFrameProvider: ((CGPoint) -> CGRect)?
 	var frameChangeHandler: ((CGRect) -> Void)?
@@ -125,6 +161,14 @@ private final class MinimalistStripView: NSView {
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
+
+	override func hitTest(_ point: NSPoint) -> NSView? {
+		// Only accept mouse events within the visible pill area (the stack and a
+		// small halo for shadow). Clicks on the transparent background fall through
+		// to windows below instead of being swallowed by the 360×58 panel area.
+		guard stack.frame.insetBy(dx: -6, dy: -6).contains(point) else { return nil }
+		return super.hitTest(point)
+	}
 
 	override func mouseDown(with event: NSEvent) {
 		guard let window else { return }
@@ -153,35 +197,17 @@ private final class MinimalistStripView: NSView {
 		}
 	}
 
-	func configure(
-		platform: PlatformAttribution?,
-		activity: ActivityState,
-		attentionSummary: String,
-		promptSummary: String
-	) {
-		let metrics = Self.stripMetrics
+	func configure(platform: PlatformAttribution?, activity: ActivityState) {
 		animationBadge.configure(
 			text: activity.displayLabel,
 			platform: platform,
 			inFlight: activity.isInFlight,
-			metrics: metrics
+			metrics: Self.stripMetrics
 		)
-		attentionPill.configure(text: attentionSummary, inFlight: false, metrics: metrics)
-		attentionPill.isHidden = attentionSummary.isEmpty
-		promptPill.configure(text: promptSummary, inFlight: false, metrics: metrics)
-		promptPill.isHidden = promptSummary.isEmpty
 	}
 
 	private func buildUI() {
 		wantsLayer = true
-		layer?.cornerRadius = 12
-		layer?.masksToBounds = true
-
-		effectView.material = .hudWindow
-		effectView.blendingMode = .withinWindow
-		effectView.state = .active
-		effectView.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(effectView)
 
 		stack.orientation = .horizontal
 		stack.alignment = .centerY
@@ -189,17 +215,8 @@ private final class MinimalistStripView: NSView {
 		stack.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(stack)
 		stack.addArrangedSubview(animationBadge)
-		attentionPill.isHidden = true
-		stack.addArrangedSubview(attentionPill)
-		promptPill.isHidden = true
-		stack.addArrangedSubview(promptPill)
 
 		NSLayoutConstraint.activate([
-			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
-			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
-			effectView.topAnchor.constraint(equalTo: topAnchor),
-			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
-
 			stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
 			stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
 			stack.centerYAnchor.constraint(equalTo: centerYAnchor),

@@ -250,6 +250,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				},
 				minimalistWindowFactory: { [weak self] origin in
 					let panel = MinimalistPanelController(visibleFrameProvider: Self.visibleFloatingFrame)
+					let stateDir = config.pollingTarget.path
+					panel.onAttentionDismissed = {
+						StateJsonWriter.dismissAttention(at: stateDir, origin: origin)
+					}
 					let savedFrame = AppStateStore.loadFrame(
 						for: origin, visibleFrame: Self.visibleFloatingFrame())
 					let controller = MinimalistWindowController(
