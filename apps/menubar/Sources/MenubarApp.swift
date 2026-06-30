@@ -354,18 +354,21 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			// Live polling — read the hook's `~/.codogotchi/state.json` at 1Hz
 			// and route success/failure into renderer + status-item tooltip.
 			// Mutually exclusive with demo mode by construction (the `else` arm).
-			let gateJsonPath = config.pollingTarget
+			// Gate and context files are discovered by the driver from state.d/
+			// (per-platform+session `origin:session_id.{gate,context}.json`), with
+			// legacy flat-file fallback for installs without the new SoA hook.
+			let legacyGatePath = config.pollingTarget
 				.deletingLastPathComponent()
 				.appendingPathComponent("gate.json")
 				.path
-			let deliveryContextPath = config.pollingTarget
+			let legacyContextPath = config.pollingTarget
 				.deletingLastPathComponent()
 				.appendingPathComponent("delivery-context.json")
 				.path
 			let driver = LivePollingDriver(
 				pollingTargetPath: config.pollingTarget.path,
-				gatePath: gateJsonPath,
-				deliveryContextPath: deliveryContextPath,
+				gatePath: legacyGatePath,
+				deliveryContextPath: legacyContextPath,
 				apply: { [weak renderer = self.renderer] state, mode in
 					renderer?.update(state: state, visualMode: mode)
 				},

@@ -258,6 +258,29 @@ final class LivePollingDriver {
 		}
 	}
 
+	/// Scans `state.d/` for `*.<suffix>` files and returns the path of the
+	/// most recently modified one. Returns `nil` when the directory is absent
+	/// or contains no matching files.
+	private func newestFile(suffix: String) -> String? {
+		let fm = FileManager.default
+		guard let names = try? fm.contentsOfDirectory(atPath: pollingTargetPath) else {
+			return nil
+		}
+		let matches = names.filter { $0.hasSuffix(suffix) }
+		guard !matches.isEmpty else { return nil }
+		return matches
+			.compactMap { name -> (path: String, mtime: Date)? in
+				let fullPath = (pollingTargetPath as NSString).appendingPathComponent(name)
+				guard
+					let attrs = try? fm.attributesOfItem(atPath: fullPath),
+					let mtime = attrs[.modificationDate] as? Date
+				else { return nil }
+				return (fullPath, mtime)
+			}
+			.sorted { $0.mtime > $1.mtime }
+			.first?.path
+	}
+
 	private func decide(
 		from result: Result<StateSnapshot, StateReadError>,
 		rpgSnapshot: RpgSnapshot,
@@ -269,8 +292,11 @@ final class LivePollingDriver {
 		{
 			return previewOutcome
 		}
-		let gate = gatePath.flatMap { gateReader($0) }
-		let deliveryContext = deliveryContextPath.flatMap { deliveryContextReader($0) }
+		// Prefer per-platform+session files in state.d/; fall back to legacy flat files.
+		let resolvedGatePath = newestFile(suffix: ".gate.json") ?? gatePath
+		let resolvedContextPath = newestFile(suffix: ".context.json") ?? deliveryContextPath
+		let gate = resolvedGatePath.flatMap { gateReader($0) }
+		let deliveryContext = resolvedContextPath.flatMap { deliveryContextReader($0) }
 		switch result {
 		case .success(let snapshot):
 			let resolved = resolveActivityState(
