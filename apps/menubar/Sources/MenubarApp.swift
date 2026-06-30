@@ -251,8 +251,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				minimalistWindowFactory: { [weak self] origin in
 					let panel = MinimalistPanelController(visibleFrameProvider: Self.visibleFloatingFrame)
 					let stateDir = config.pollingTarget.path
+					// The combined-minimalist window is spawned with origin "combined",
+					// which is not a real state.d slice. Clear all slices for it (same as
+					// the combined own-mode window); scope to the single origin otherwise.
 					panel.onAttentionDismissed = {
-						StateJsonWriter.dismissAttention(at: stateDir, origin: origin)
+						StateJsonWriter.dismissAttention(
+							at: stateDir,
+							origin: origin == "combined" ? nil : origin
+						)
 					}
 					let savedFrame = AppStateStore.loadFrame(
 						for: origin, visibleFrame: Self.visibleFloatingFrame())

@@ -173,6 +173,8 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		let bubble = bubblePanel ?? {
 			let b = AttentionBubblePanel()
 			b.onDismiss = { [weak self] in self?.handleBubbleDismiss() }
+			// The badge already shows the platform chip directly above the bubble.
+			b.showsPlatformChip = false
 			bubblePanel = b
 			return b
 		}()

@@ -100,6 +100,13 @@ final class AttentionBubblePanel: NSPanel {
 		set { bubbleView.onDismiss = newValue }
 	}
 
+	/// Forwards to the bubble view; minimalist mode sets this false to avoid a
+	/// platform chip that duplicates the one already on the badge.
+	var showsPlatformChip: Bool {
+		get { bubbleView.showsPlatformChip }
+		set { bubbleView.showsPlatformChip = newValue }
+	}
+
 	func update(payload: AttentionPayload, sourceEvent: SourceEvent?) {
 		bubbleView.configure(
 			summary: payload.summary ?? "",
@@ -244,6 +251,14 @@ final class AttentionBubbleView: NSView {
 	)
 
 	var onDismiss: (() -> Void)?
+	/// When false, the in-bubble platform chip is never shown. Minimalist mode
+	/// already renders a platform chip on the badge directly above the bubble, so
+	/// repeating it here is redundant. Defaults true for Own/combined mode.
+	var showsPlatformChip: Bool = true {
+		didSet { guard oldValue != showsPlatformChip else { return }
+			applyPlatformChip()
+		}
+	}
 
 	private var trackingArea: NSTrackingArea?
 	private var isHovered = false
@@ -360,6 +375,23 @@ final class AttentionBubbleView: NSView {
 		applyChromeStyle()
 	}
 
+	/// Resolve the in-bubble platform chip from the current `sourceEvent`,
+	/// honoring `showsPlatformChip`. Collapses to zero width and hides when there
+	/// is no platform or when the chip is suppressed (minimalist mode).
+	private func applyPlatformChip() {
+		let platform = showsPlatformChip ? PlatformAttribution(origin: sourceEvent?.origin) : nil
+		platformChip.configure(platform: platform)
+		if let platform {
+			platformChip.toolTip = "Focus opens \(platform.displayName)"
+			platformChipWidthConstraint?.constant = BubbleLayout.iconSize
+			platformChip.isHidden = false
+		} else {
+			platformChip.toolTip = nil
+			platformChipWidthConstraint?.constant = 0
+			platformChip.isHidden = true
+		}
+	}
+
 	private func applyPromptSubtitle() {
 		guard reasonKind == "input_requested" else { return }
 		let contentWidth = AttentionBubbleLayoutMetrics.subtitleContentWidth(
@@ -407,17 +439,7 @@ final class AttentionBubbleView: NSView {
 
 		applyPromptSubtitle()
 
-		let platform = PlatformAttribution(origin: sourceEvent?.origin)
-		platformChip.configure(platform: platform)
-		if let platform {
-			platformChip.toolTip = "Focus opens \(platform.displayName)"
-			platformChipWidthConstraint?.constant = BubbleLayout.iconSize
-			platformChip.isHidden = false
-		} else {
-			platformChip.toolTip = nil
-			platformChipWidthConstraint?.constant = 0
-			platformChip.isHidden = true
-		}
+		applyPlatformChip()
 
 		// Action button always does the same thing: focus the source app
 		// (`performAction`). Both standby (input_requested) and error (error_blocked)
