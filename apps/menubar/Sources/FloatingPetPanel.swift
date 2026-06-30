@@ -97,7 +97,6 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private func applyAll() {
 		stripView.configure(
 			platform: PlatformAttribution(origin: currentPlatformOrigin),
-			platformFallback: currentPlatformOrigin ?? "",
 			activity: currentActivity,
 			attentionSummary: currentAttention?.summary ?? "",
 			promptSummary: currentPromptSummary
@@ -107,14 +106,17 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 private final class MinimalistStripView: NSView {
 	private let effectView = NSVisualEffectView(frame: .zero)
-	private let platformLabel = NSTextField(labelWithString: "")
-	private let activityLabel = NSTextField(labelWithString: "")
-	private let attentionLabel = NSTextField(labelWithString: "")
-	private let promptLabel = NSTextField(labelWithString: "")
+	private let animationBadge = AnimationBadgeView(frame: .zero)
+	private let attentionPill = AnimationLabelPillView(frame: .zero)
+	private let promptPill = AnimationLabelPillView(frame: .zero)
 	private let stack = NSStackView()
 	var clampedFrameProvider: ((CGPoint) -> CGRect)?
 	var frameChangeHandler: ((CGRect) -> Void)?
 	private var dragOffsetInScreen: CGPoint?
+
+	private static let stripMetrics = GateBadgeLayout.metrics(
+		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
+	)
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -153,17 +155,31 @@ private final class MinimalistStripView: NSView {
 
 	func configure(
 		platform: PlatformAttribution?,
-		platformFallback: String,
 		activity: ActivityState,
 		attentionSummary: String,
 		promptSummary: String
 	) {
-		platformLabel.stringValue = platform?.displayName ?? platformFallback
-		activityLabel.stringValue = activity.displayLabel
-		attentionLabel.stringValue = attentionSummary
-		promptLabel.stringValue = promptSummary
-		attentionLabel.isHidden = attentionSummary.isEmpty
-		promptLabel.isHidden = promptSummary.isEmpty
+		let metrics = Self.stripMetrics
+		animationBadge.configure(
+			text: activity.displayLabel,
+			platform: platform,
+			inFlight: activity.isInFlight,
+			metrics: metrics
+		)
+		if !attentionSummary.isEmpty {
+			attentionPill.configure(text: attentionSummary, inFlight: false, metrics: metrics)
+			if attentionPill.superview == nil { stack.addArrangedSubview(attentionPill) }
+		} else if attentionPill.superview != nil {
+			stack.removeArrangedSubview(attentionPill)
+			attentionPill.removeFromSuperview()
+		}
+		if !promptSummary.isEmpty {
+			promptPill.configure(text: promptSummary, inFlight: false, metrics: metrics)
+			if promptPill.superview == nil { stack.addArrangedSubview(promptPill) }
+		} else if promptPill.superview != nil {
+			stack.removeArrangedSubview(promptPill)
+			promptPill.removeFromSuperview()
+		}
 	}
 
 	private func buildUI() {
@@ -182,11 +198,7 @@ private final class MinimalistStripView: NSView {
 		stack.spacing = 8
 		stack.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(stack)
-
-		for label in [platformLabel, activityLabel, attentionLabel, promptLabel] {
-			configureBadge(label)
-			stack.addArrangedSubview(label)
-		}
+		stack.addArrangedSubview(animationBadge)
 
 		NSLayoutConstraint.activate([
 			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -198,18 +210,6 @@ private final class MinimalistStripView: NSView {
 			stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
 			stack.centerYAnchor.constraint(equalTo: centerYAnchor),
 		])
-	}
-
-	private func configureBadge(_ label: NSTextField) {
-		label.font = .systemFont(ofSize: 12, weight: .semibold)
-		label.textColor = .white
-		label.lineBreakMode = .byTruncatingTail
-		label.maximumNumberOfLines = 1
-		label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-		label.translatesAutoresizingMaskIntoConstraints = false
-		label.wantsLayer = true
-		label.layer?.cornerRadius = 7
-		label.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.28).cgColor
 	}
 }
 
@@ -1004,7 +1004,7 @@ final class GateBadgePanel: NSPanel {
 	}
 }
 
-private final class GateBadgeView: NSView {
+final class GateBadgeView: NSView {
 	/// Dark-navy tint for the ticket token — keeps a blue hue but much darker
 	/// than the old bright blue, layered over the frosted material.
 	private static let ticketTint = NSColor(calibratedRed: 0.10, green: 0.18, blue: 0.33, alpha: 0.90)
@@ -1328,7 +1328,7 @@ enum AnimationBadgeChrome {
 /// Square frosted chip carrying the driving platform's logo, shown immediately
 /// left of the animation badge. The logo is a template (monochrome) asset tinted
 /// to the badge text color so it reads on both light and dark backdrops.
-private final class PlatformChipView: NSView {
+final class PlatformChipView: NSView {
 	private let effectView = AnimationBadgeChrome.makeEffectView()
 	private let tintView = AnimationBadgeChrome.makeTintView()
 	private let imageView = NSImageView()
@@ -1403,7 +1403,7 @@ private final class PlatformChipView: NSView {
 
 /// Frosted label pill: the activity-state name on the same chrome as the
 /// platform chip. Sizing/scaling follows the gate badge metrics.
-private final class AnimationLabelPillView: NSView {
+final class AnimationLabelPillView: NSView {
 	/// Base label opacity while the agent is working: dimmed so the bright sweep
 	/// reads as a highlight passing through. Restored to `restColor` at rest.
 	private static let inFlightColor = NSColor(calibratedWhite: 0.58, alpha: 1.0)
@@ -1670,7 +1670,7 @@ private final class AnimationLabelPillView: NSView {
 /// Transparent container laying out an optional platform chip immediately left
 /// of the activity-state label pill. When no platform is attributed the chip is
 /// detached and the pill stands alone, preserving the prior single-pill look.
-private final class AnimationBadgeView: NSView {
+final class AnimationBadgeView: NSView {
 	private let chipView = PlatformChipView(frame: .zero)
 	private let pillView = AnimationLabelPillView(frame: .zero)
 	private let stackView = NSStackView()

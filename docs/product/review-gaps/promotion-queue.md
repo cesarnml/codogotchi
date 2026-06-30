@@ -171,6 +171,39 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
 - **Status:** WAITING — single instance. Needs ≥1 more occurrence (ideally a
   non-Swift-pool example) to decide standalone vs. merge.
 
+### `flagged-spec-divergence-dropped-without-escalation`
+- **Seen:** 1× — P14.06 (minimalist window). The subagent review prompt itself
+  named the gap: "The ticket asks for badge/attention composition; the
+  implementation uses a new compact strip view, so decide whether this is an
+  acceptable implementation detail or a product/spec drift." The review then
+  recorded `"outcome": "clean"`, `"findings": []` — the question was posed and
+  never answered. The ticket spec (`ticket-06-minimalist-window.md:32`)
+  explicitly named the anti-pattern being committed ("do not fork their
+  rendering"), and the shipped code did exactly that: `MinimalistStripView` is
+  four bare `NSTextField`s, reusing none of `GateBadgeView`,
+  `AnimationBadgeView`, or `AttentionBubblePanel`. This was not a silent miss —
+  the reviewer's own uncertainty was captured in the review prompt and then
+  discarded by the outcome-recording step.
+- **Proposed clause / process fix:** *"When a review prompt poses an open
+  decide-this question about spec/implementation divergence, the orchestrator
+  must not allow the review outcome to resolve to 'clean' with empty findings
+  while that question is unanswered. A self-flagged uncertainty is a forced
+  escalation, not an optional one — route it to the human operator rather than
+  letting a downstream 'findings: []' silently close it."*
+- **Caveat that blocks naive promotion:** this is an orchestration/tooling gap
+  (how review outcomes are reconciled against open questions in the review
+  prompt), not a prompt-clause gap — promoting it may mean a change to the SoA
+  review-recording pipeline itself (upstream `son-of-anton`), not the
+  adversarial-review template. Needs scoping with the subtree owner before
+  deciding where the fix lives.
+- **Status:** WAITING — single instance, first of its kind in the ledger
+  (distinct from the per-ticket review-content classes above; this is about
+  the *outcome-recording* step swallowing a flagged question). Ledger row
+  pending: the actual fix (rebuilding `MinimalistStripView` as true
+  badge/bubble composition) is being routed through a standalone PR, not a
+  reopened phase-14 ticket — the review-gap ledger row will be appended once
+  that PR's fix commit lands, citing it as `fixCommit`.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's

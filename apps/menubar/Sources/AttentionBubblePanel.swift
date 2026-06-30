@@ -120,7 +120,7 @@ final class AttentionBubblePanel: NSPanel {
 
 // MARK: - View
 
-private final class AttentionBubbleView: NSView {
+final class AttentionBubbleView: NSView {
 	private enum HoverButtonShape {
 		case circle
 		case capsule
