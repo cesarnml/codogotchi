@@ -201,13 +201,6 @@ private final class MinimalistStripView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	override func viewDidMoveToWindow() {
-		super.viewDidMoveToWindow()
-		wantsLayer = true
-		layer?.borderColor = NSColor.systemRed.cgColor
-		layer?.borderWidth = 1
-	}
-
 	// MARK: - Badge mode
 
 	func configureBadge(platform: PlatformAttribution?, activity: ActivityState) {
