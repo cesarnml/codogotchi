@@ -44,6 +44,7 @@ private final class StubMinimalistPanel: MinimalistPanelManaging {
 		attentionSummary = payload?.summary ?? ""
 	}
 	func applyPromptSummary(_ summary: String) { promptSummary = summary }
+	func applyBadgeScale(_ scale: Double) {}
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) { frameChangeHandler = handler }
 }
 
@@ -71,12 +72,16 @@ private func makePerPlatformSnapshot(_ map: [String: StateSnapshot]) -> PerPlatf
 private func makeCustomization(
     platformModes: [String: PlatformMode] = [:],
     ttlSeconds: Int = 300,
-    monochrome: Bool = false
+    monochrome: Bool = false,
+    combinedMinimalistEnabled: Bool = false,
+    minimalistBadgeScale: Double = 1.0
 ) -> CustomizationSnapshot {
     CustomizationSnapshot(
         platformModes: platformModes,
         idleDismissTtlSeconds: ttlSeconds,
-        menubarIconMonochrome: monochrome
+        menubarIconMonochrome: monochrome,
+        combinedMinimalistEnabled: combinedMinimalistEnabled,
+        minimalistBadgeScale: minimalistBadgeScale
     )
 }
 

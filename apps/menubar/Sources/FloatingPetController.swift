@@ -211,7 +211,7 @@ protocol MinimalistPanelManaging: AnyObject {
 	func applyActivity(_ state: ActivityState)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyPromptSummary(_ summary: String)
-	func applyPetPanelSize(_ size: CGSize)
+	func applyBadgeScale(_ scale: Double)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 }
 
@@ -223,7 +223,13 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	private let saveState: (FloatingAppState) throws -> Void
 	private let notificationCenter: NotificationCenter
 	private let promptSummaryProvider: (String) -> String
+	private let badgeScaleProvider: () -> Double
 	private var state: FloatingAppState
+	/// Most recent origin passed to applyPlatform(origin:). Defaults to the
+	/// controller's own origin; tracked separately so a combined-minimalist
+	/// window's prompt summary follows whichever platform last won the badge
+	/// rather than always reading the controller's nominal origin.
+	private var lastAppliedOrigin: String
 
 	var isFloatingPetVisible: Bool { state.isFloatingPetVisible }
 	var onVisibilityChanged: ((Bool) -> Void)?
@@ -235,7 +241,10 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		saveState: @escaping (FloatingAppState) throws -> Void = AppStateStore.save,
 		notificationCenter: NotificationCenter = .default,
 		initialState: FloatingAppState? = nil,
-		promptSummaryProvider: @escaping (String) -> String = { PromptAttentionReader.latestSummary(origin: $0) }
+		promptSummaryProvider: @escaping (String) -> String = { PromptAttentionReader.latestSummary(origin: $0) },
+		badgeScaleProvider: @escaping () -> Double = {
+			CustomizationJsonReader.read(at: CodogotchiFolders.customizationPath()).minimalistBadgeScale
+		}
 	) {
 		self.origin = origin
 		self.panel = panel
@@ -243,6 +252,8 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		self.saveState = saveState
 		self.notificationCenter = notificationCenter
 		self.promptSummaryProvider = promptSummaryProvider
+		self.badgeScaleProvider = badgeScaleProvider
+		self.lastAppliedOrigin = origin
 		self.state = initialState ?? AppStateStore.load(visibleFrame: visibleFrameProvider())
 		super.init()
 
@@ -257,7 +268,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		)
 
 		if state.isFloatingPetVisible {
-			panel.applyPetPanelSize(state.frame.size)
+			panel.applyBadgeScale(badgeScaleProvider())
 			panel.show(frame: state.frame)
 		}
 		onVisibilityChanged?(state.isFloatingPetVisible)
@@ -285,7 +296,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 
 		state = nextState
 		if visible {
-			panel.applyPetPanelSize(nextState.frame.size)
+			panel.applyBadgeScale(badgeScaleProvider())
 			panel.show(frame: nextState.frame)
 			refreshPromptSummary()
 		} else {
@@ -295,7 +306,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	}
 
 	func apply(state: ActivityState, visualMode: VisualMode) {
-		panel.applyPetPanelSize(self.state.frame.size)
+		panel.applyBadgeScale(badgeScaleProvider())
 		panel.applyActivity(state)
 		refreshPromptSummary()
 	}
@@ -312,7 +323,8 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	func applyGateBadge(content: GateBadgeContent?) {}
 
 	func applyPlatform(origin: String?) {
-		panel.applyPlatform(origin: origin ?? self.origin)
+		lastAppliedOrigin = origin ?? self.origin
+		panel.applyPlatform(origin: lastAppliedOrigin)
 	}
 
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
@@ -334,7 +346,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	}
 
 	private func refreshPromptSummary() {
-		panel.applyPromptSummary(promptSummaryProvider(origin))
+		panel.applyPromptSummary(promptSummaryProvider(lastAppliedOrigin))
 	}
 
 	private func saveClampedFrame(_ frame: CGRect, visibleFrame: CGRect, logLabel: String) {

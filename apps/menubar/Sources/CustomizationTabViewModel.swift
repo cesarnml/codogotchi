@@ -41,6 +41,8 @@ final class CustomizationTabViewModel {
 
 	private(set) var platformModes: [String: PlatformMode]
 	private(set) var idleDismissTtlSeconds: Int
+	private(set) var combinedMinimalistEnabled: Bool
+	private(set) var minimalistBadgeScale: Double
 	private let filePath: String
 
 	init(filePath: String = CodogotchiFolders.customizationPath()) {
@@ -48,6 +50,8 @@ final class CustomizationTabViewModel {
 		let snapshot = CustomizationJsonReader.read(at: filePath)
 		self.platformModes = snapshot.platformModes
 		self.idleDismissTtlSeconds = snapshot.idleDismissTtlSeconds
+		self.combinedMinimalistEnabled = snapshot.combinedMinimalistEnabled
+		self.minimalistBadgeScale = snapshot.minimalistBadgeScale
 	}
 
 	func mode(for origin: String) -> PlatformMode {
@@ -85,6 +89,31 @@ final class CustomizationTabViewModel {
 			idleDismissTtlSeconds = seconds
 		} catch {
 			NSLog("CustomizationTabViewModel: TTL write failed — \(error)")
+		}
+	}
+
+	func setCombinedMinimalistEnabled(_ enabled: Bool) {
+		do {
+			try ConfigFileWriter.merge(
+				["combined_minimalist_enabled": enabled],
+				into: URL(fileURLWithPath: filePath)
+			)
+			combinedMinimalistEnabled = enabled
+		} catch {
+			NSLog("CustomizationTabViewModel: combined-minimalist write failed — \(error)")
+		}
+	}
+
+	func setMinimalistBadgeScale(_ scale: Double) {
+		let clamped = max(Double(GateBadgeLayout.minScale), min(Double(GateBadgeLayout.maxScale), scale))
+		do {
+			try ConfigFileWriter.merge(
+				["minimalist_badge_scale": clamped],
+				into: URL(fileURLWithPath: filePath)
+			)
+			minimalistBadgeScale = clamped
+		} catch {
+			NSLog("CustomizationTabViewModel: badge scale write failed — \(error)")
 		}
 	}
 }

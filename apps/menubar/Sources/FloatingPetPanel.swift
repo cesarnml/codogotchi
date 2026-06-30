@@ -21,12 +21,9 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// Tracks the payload that was last passed to bubble.configure() so we can
 	/// skip redundant configure calls that would reset hover state every poll tick.
 	private var lastConfiguredAttention: AttentionPayload?
-	/// Badge metrics derived from the saved pet-panel size. Updated via
-	/// applyPetPanelSize(_:) so the minimalist badge scales the same way as the
-	/// Own-mode badge (font, height, padding all scale with panel width).
-	private var currentBadgeMetrics = GateBadgeLayout.metrics(
-		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: GateBadgeLayout.baselinePetWidth)
-	)
+	/// Badge metrics driven by the user's "PlatformChip and AnimationBadge Size"
+	/// slider in Settings > Customization. Updated via applyBadgeScale(_:).
+	private var currentBadgeMetrics = GateBadgeLayout.metrics(scale: 1.0)
 	private var frameChangeHandler: ((CGRect) -> Void)?
 	private var isShown = false
 	private var lastStripFrame: CGRect = .zero
@@ -86,9 +83,8 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		// Prompt summary is not shown for platform-linked minimalist panels.
 	}
 
-	func applyPetPanelSize(_ size: CGSize) {
-		let frame = CGRect(origin: .zero, size: size)
-		let newMetrics = GateBadgeLayout.metrics(for: frame)
+	func applyBadgeScale(_ scale: Double) {
+		let newMetrics = GateBadgeLayout.metrics(scale: CGFloat(scale))
 		guard newMetrics != currentBadgeMetrics else { return }
 		currentBadgeMetrics = newMetrics
 		applyAll()
@@ -1040,8 +1036,18 @@ enum GateBadgeLayout {
 		let fontSize: CGFloat
 	}
 
+	/// Minimum/maximum scale factor accepted by `metrics(scale:)`. Mirrors the
+	/// Own-mode pet panel's effective scale range so the minimalist badge-size
+	/// slider in Settings can offer the exact same Small…Large bounds.
+	static let minScale: CGFloat = 0.75
+	static let maxScale: CGFloat = 1.5
+
 	static func metrics(for petFrame: CGRect) -> Metrics {
-		let scale = max(0.75, min(1.5, petFrame.width / baselinePetWidth))
+		metrics(scale: petFrame.width / baselinePetWidth)
+	}
+
+	static func metrics(scale rawScale: CGFloat) -> Metrics {
+		let scale = max(minScale, min(maxScale, rawScale))
 		// Base 8.7 → max font 13.05 at the 1.5 cap, i.e. just a hair above the
 		// attention bubble's 12pt summary. Padding/height reduced to match the
 		// smaller type.

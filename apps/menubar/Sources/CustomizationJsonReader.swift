@@ -18,11 +18,19 @@ struct CustomizationSnapshot {
 	let platformModes: [String: PlatformMode]
 	let idleDismissTtlSeconds: Int
 	let menubarIconMonochrome: Bool
+	/// When true, all Minimalist-mode origins share a single compact panel
+	/// instead of one strip per origin, mirroring Combined mode's grouping.
+	let combinedMinimalistEnabled: Bool
+	/// Scale factor (0.75…1.5) applied to the Minimalist PlatformChip and
+	/// AnimationBadge, set by the Settings > Customization size slider.
+	let minimalistBadgeScale: Double
 
 	static let safeDefault = CustomizationSnapshot(
 		platformModes: [:],
 		idleDismissTtlSeconds: 300,
-		menubarIconMonochrome: false
+		menubarIconMonochrome: false,
+		combinedMinimalistEnabled: false,
+		minimalistBadgeScale: 1.0
 	)
 }
 
@@ -45,10 +53,15 @@ enum CustomizationJsonReader {
 		let modes = (payload.platformModes ?? [:])
 			.mapValues { PlatformMode(rawValue: $0) ?? .own }
 		let rawTtl = payload.idleDismissTtlSeconds ?? 300
+		let rawScale = payload.minimalistBadgeScale ?? 1.0
 		return CustomizationSnapshot(
 			platformModes: modes,
 			idleDismissTtlSeconds: rawTtl < 0 ? 300 : rawTtl,
-			menubarIconMonochrome: payload.menubarIconMonochrome ?? false
+			menubarIconMonochrome: payload.menubarIconMonochrome ?? false,
+			combinedMinimalistEnabled: payload.combinedMinimalistEnabled ?? false,
+			minimalistBadgeScale: max(
+				Double(GateBadgeLayout.minScale), min(Double(GateBadgeLayout.maxScale), rawScale)
+			)
 		)
 	}
 }
@@ -57,4 +70,6 @@ private struct CustomizationPayload: Decodable {
 	let platformModes: [String: String]?
 	let idleDismissTtlSeconds: Int?
 	let menubarIconMonochrome: Bool?
+	let combinedMinimalistEnabled: Bool?
+	let minimalistBadgeScale: Double?
 }

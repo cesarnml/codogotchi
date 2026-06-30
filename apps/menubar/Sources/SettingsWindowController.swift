@@ -1571,6 +1571,8 @@ private final class CustomizationTabView: NSView {
 	private var viewModel: CustomizationTabViewModel
 	private var modePickers: [String: NSPopUpButton] = [:]
 	private var ttlPicker: NSPopUpButton = NSPopUpButton()
+	private var combinedMinimalistCheckbox = NSButton()
+	private var badgeScaleSlider = NSSlider()
 
 	init(viewModel: CustomizationTabViewModel) {
 		self.viewModel = viewModel
@@ -1633,6 +1635,56 @@ private final class CustomizationTabView: NSView {
 			previousConstant = 8
 		}
 
+		// Minimalist panel options
+		let minimalistTitle = settingsSectionTitle("Minimalist panel options")
+		addSubview(minimalistTitle)
+
+		combinedMinimalistCheckbox = NSButton(
+			checkboxWithTitle: "Enable Minimalist mode for Combined pet",
+			target: self,
+			action: #selector(combinedMinimalistChanged(_:))
+		)
+		combinedMinimalistCheckbox.state = viewModel.combinedMinimalistEnabled ? .on : .off
+		combinedMinimalistCheckbox.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(combinedMinimalistCheckbox)
+
+		let combinedMinimalistNote = settingsBodyLabel(
+			"When enabled, all platforms set to Minimalist share a single compact panel "
+				+ "instead of one strip per platform."
+		)
+		addSubview(combinedMinimalistNote)
+
+		let scaleLabel = NSTextField(labelWithString: "PlatformChip and AnimationBadge size:")
+		scaleLabel.font = .systemFont(ofSize: 13)
+		scaleLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(scaleLabel)
+
+		badgeScaleSlider.translatesAutoresizingMaskIntoConstraints = false
+		badgeScaleSlider.minValue = Double(GateBadgeLayout.minScale)
+		badgeScaleSlider.maxValue = Double(GateBadgeLayout.maxScale)
+		badgeScaleSlider.doubleValue = viewModel.minimalistBadgeScale
+		badgeScaleSlider.isContinuous = true
+		badgeScaleSlider.target = self
+		badgeScaleSlider.action = #selector(badgeScaleChanged(_:))
+		addSubview(badgeScaleSlider)
+
+		let smallLabel = NSTextField(labelWithString: "Small")
+		smallLabel.font = .systemFont(ofSize: 11)
+		smallLabel.textColor = .secondaryLabelColor
+		smallLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(smallLabel)
+
+		let largeLabel = NSTextField(labelWithString: "Large")
+		largeLabel.font = .systemFont(ofSize: 11)
+		largeLabel.textColor = .secondaryLabelColor
+		largeLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(largeLabel)
+
+		let scaleNote = settingsBodyLabel(
+			"Adjusts the size of the Minimalist PlatformChip and AnimationBadge."
+		)
+		addSubview(scaleNote)
+
 		// TTL row
 		let ttlTitle = settingsSectionTitle("Idle dismiss")
 		addSubview(ttlTitle)
@@ -1676,7 +1728,37 @@ private final class CustomizationTabView: NSView {
 			platformTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			platformTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			ttlTitle.topAnchor.constraint(equalTo: previousAnchor, constant: 24),
+			minimalistTitle.topAnchor.constraint(equalTo: previousAnchor, constant: 24),
+			minimalistTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			minimalistTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			combinedMinimalistCheckbox.topAnchor.constraint(
+				equalTo: minimalistTitle.bottomAnchor, constant: 10),
+			combinedMinimalistCheckbox.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+
+			combinedMinimalistNote.topAnchor.constraint(
+				equalTo: combinedMinimalistCheckbox.bottomAnchor, constant: 4),
+			combinedMinimalistNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			combinedMinimalistNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			scaleLabel.topAnchor.constraint(equalTo: combinedMinimalistNote.bottomAnchor, constant: 16),
+			scaleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+
+			badgeScaleSlider.topAnchor.constraint(equalTo: scaleLabel.bottomAnchor, constant: 8),
+			badgeScaleSlider.leadingAnchor.constraint(equalTo: smallLabel.trailingAnchor, constant: 6),
+			badgeScaleSlider.trailingAnchor.constraint(equalTo: largeLabel.leadingAnchor, constant: -6),
+			badgeScaleSlider.widthAnchor.constraint(equalToConstant: 240),
+
+			smallLabel.centerYAnchor.constraint(equalTo: badgeScaleSlider.centerYAnchor),
+			smallLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+
+			largeLabel.centerYAnchor.constraint(equalTo: badgeScaleSlider.centerYAnchor),
+
+			scaleNote.topAnchor.constraint(equalTo: badgeScaleSlider.bottomAnchor, constant: 6),
+			scaleNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			scaleNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			ttlTitle.topAnchor.constraint(equalTo: scaleNote.bottomAnchor, constant: 24),
 			ttlTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			ttlTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
@@ -1716,6 +1798,14 @@ private final class CustomizationTabView: NSView {
 	@objc private func ttlPickerChanged(_ sender: NSPopUpButton) {
 		guard let preset = sender.selectedItem?.representedObject as? IdleDismissTTL else { return }
 		viewModel.setTTL(preset.rawValue)
+	}
+
+	@objc private func combinedMinimalistChanged(_ sender: NSButton) {
+		viewModel.setCombinedMinimalistEnabled(sender.state == .on)
+	}
+
+	@objc private func badgeScaleChanged(_ sender: NSSlider) {
+		viewModel.setMinimalistBadgeScale(sender.doubleValue)
 	}
 }
 
