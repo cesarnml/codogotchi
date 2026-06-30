@@ -166,20 +166,10 @@ private final class MinimalistStripView: NSView {
 			inFlight: activity.isInFlight,
 			metrics: metrics
 		)
-		if !attentionSummary.isEmpty {
-			attentionPill.configure(text: attentionSummary, inFlight: false, metrics: metrics)
-			if attentionPill.superview == nil { stack.addArrangedSubview(attentionPill) }
-		} else if attentionPill.superview != nil {
-			stack.removeArrangedSubview(attentionPill)
-			attentionPill.removeFromSuperview()
-		}
-		if !promptSummary.isEmpty {
-			promptPill.configure(text: promptSummary, inFlight: false, metrics: metrics)
-			if promptPill.superview == nil { stack.addArrangedSubview(promptPill) }
-		} else if promptPill.superview != nil {
-			stack.removeArrangedSubview(promptPill)
-			promptPill.removeFromSuperview()
-		}
+		attentionPill.configure(text: attentionSummary, inFlight: false, metrics: metrics)
+		attentionPill.isHidden = attentionSummary.isEmpty
+		promptPill.configure(text: promptSummary, inFlight: false, metrics: metrics)
+		promptPill.isHidden = promptSummary.isEmpty
 	}
 
 	private func buildUI() {
@@ -199,6 +189,10 @@ private final class MinimalistStripView: NSView {
 		stack.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(stack)
 		stack.addArrangedSubview(animationBadge)
+		attentionPill.isHidden = true
+		stack.addArrangedSubview(attentionPill)
+		promptPill.isHidden = true
+		stack.addArrangedSubview(promptPill)
 
 		NSLayoutConstraint.activate([
 			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
