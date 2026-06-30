@@ -120,16 +120,23 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 			// Attention: embed the bubble view directly in the strip panel so the
 			// user can drag it from the same surface (no separate floating window).
 			let bubble = stripView.showBubble { [weak self] in self?.handleBubbleDismiss() }
+			let newSize = CGSize(width: Layout.bubbleWidth, height: Layout.height)
+			let newFrame = clampedFrame(origin: origin, size: newSize)
+			// Resize BEFORE configure() so the bubble's bounds are already
+			// Layout.bubbleWidth pt wide when applyPromptSubtitle() runs inside
+			// configure(). Without this, bounds.width == 0 at configure time and
+			// truncation receives a negative content-width, leaving the full
+			// prompt string in the label and allowing the panel to grow.
+			if newFrame.size != panel.frame.size || anchorOrigin != nil {
+				panel.setFrame(newFrame, display: true)
+				stripView.frame = NSRect(origin: .zero, size: newFrame.size)
+				lastStripFrame = newFrame
+			}
 			bubble.configure(
 				summary: attention.summary ?? "",
 				reasonKind: attention.reasonKind ?? "",
 				sourceEvent: currentSourceEvent
 			)
-			let newSize = CGSize(width: Layout.bubbleWidth, height: Layout.height)
-			let newFrame = clampedFrame(origin: origin, size: newSize)
-			panel.setFrame(newFrame, display: true)
-			stripView.frame = NSRect(origin: .zero, size: newFrame.size)
-			lastStripFrame = newFrame
 		} else {
 			// Badge: show PlatformChip + ActivityLabel, resize to content-tight width.
 			stripView.hideBubble()
@@ -140,9 +147,13 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 			let badgeW = max(Layout.minBadgeWidth, stripView.badgePreferredWidth)
 			let newSize = CGSize(width: badgeW, height: Layout.height)
 			let newFrame = clampedFrame(origin: origin, size: newSize)
-			panel.setFrame(newFrame, display: true)
-			stripView.frame = NSRect(origin: .zero, size: newFrame.size)
-			lastStripFrame = newFrame
+			// Skip setFrame when the size is unchanged to avoid an AutoLayout pass
+			// on every polling tick, which causes visible stutter during drag.
+			if newFrame.size != panel.frame.size || anchorOrigin != nil {
+				panel.setFrame(newFrame, display: true)
+				stripView.frame = NSRect(origin: .zero, size: newFrame.size)
+				lastStripFrame = newFrame
+			}
 		}
 		panel.orderFrontRegardless()
 	}
@@ -207,16 +218,14 @@ private final class MinimalistStripView: NSView {
 		if let existing = embeddedBubble {
 			bubble = existing
 		} else {
-			let b = AttentionBubbleView(frame: .zero)
+			// Use frame-based sizing so the bubble's label intrinsic-content-size
+			// cannot conflict with required-priority TAMIC constraints and push the
+			// panel wider than Layout.bubbleWidth. The caller sets the bubble's
+			// frame explicitly after resizing the strip (see applyAll).
+			let b = AttentionBubbleView(frame: bounds)
 			b.suppressWindowDismissal = true  // strip panel owns its own lifecycle
-			b.translatesAutoresizingMaskIntoConstraints = false
+			b.autoresizingMask = [.width, .height]
 			addSubview(b)
-			NSLayoutConstraint.activate([
-				b.leadingAnchor.constraint(equalTo: leadingAnchor),
-				b.trailingAnchor.constraint(equalTo: trailingAnchor),
-				b.topAnchor.constraint(equalTo: topAnchor),
-				b.bottomAnchor.constraint(equalTo: bottomAnchor),
-			])
 			embeddedBubble = b
 			bubble = b
 		}

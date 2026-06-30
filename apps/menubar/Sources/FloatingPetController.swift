@@ -334,10 +334,10 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	}
 
 	private func saveClampedFrame(_ frame: CGRect, visibleFrame: CGRect, logLabel: String) {
-		// The minimalist strip has a fixed size (360×58) incompatible with
-		// FloatingPetPanel constraints. Preserve the pet-panel size from `state` so
-		// Own mode gets a valid panel frame when the user switches back. Falls back
-		// to the default size when state holds an out-of-range value.
+		// The strip is content-tight (small), but Own mode needs a larger pet-panel
+		// frame. Clamp the origin using the STRIP's actual size so the badge/bubble
+		// can reach the screen edge; save with petPanelSize so Own-mode restore is
+		// valid. FloatingPetController re-clamps when it spawns Own mode.
 		let petPanelSize: CGSize = {
 			let s = state.frame.size
 			let fp = FloatingFramePolicy.self
@@ -346,12 +346,17 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 			else { return fp.defaultSize }
 			return s
 		}()
+		// Clamp origin so the strip itself (frame.size) stays within the visible
+		// frame with a 6pt inset — same margin used in clampedFrame(origin:size:).
+		let margin: CGFloat = 6
+		let safe = visibleFrame.insetBy(dx: margin, dy: margin)
+		let clampedOrigin = CGPoint(
+			x: max(safe.minX, min(safe.maxX - frame.size.width, frame.origin.x)),
+			y: max(safe.minY, min(safe.maxY - frame.size.height, frame.origin.y))
+		)
 		let nextState = FloatingAppState(
 			isFloatingPetVisible: state.isFloatingPetVisible,
-			frame: FloatingFramePolicy.clamp(
-				CGRect(origin: frame.origin, size: petPanelSize),
-				to: visibleFrame
-			),
+			frame: CGRect(origin: clampedOrigin, size: petPanelSize),
 			onboardingCompletedAt: state.onboardingCompletedAt,
 			lastHookActivityAt: state.lastHookActivityAt,
 			hooksStatus: state.hooksStatus,
@@ -365,8 +370,10 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		}
 
 		state = nextState
+		// Re-show at the STRIP's actual clamped position, not the pet-panel-clamped
+		// one, so the badge stays where the user left it after a drag.
 		if nextState.isFloatingPetVisible {
-			panel.show(frame: nextState.frame)
+			panel.show(frame: CGRect(origin: clampedOrigin, size: frame.size))
 		}
 	}
 }
