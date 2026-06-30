@@ -105,7 +105,9 @@ final class CustomizationTabViewModel {
 	}
 
 	func setMinimalistBadgeScale(_ scale: Double) {
-		let clamped = max(Double(GateBadgeLayout.minScale), min(Double(GateBadgeLayout.maxScale), scale))
+		let clamped = max(
+			Double(GateBadgeLayout.achievableMinScale), min(Double(GateBadgeLayout.achievableMaxScale), scale)
+		)
 		do {
 			try ConfigFileWriter.merge(
 				["minimalist_badge_scale": clamped],

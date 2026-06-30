@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SpriteKit
 
 @MainActor
@@ -141,9 +142,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 			// truncation receives a negative content-width, leaving the full
 			// prompt string in the label and allowing the panel to grow.
 			if newFrame.size != panel.frame.size || anchorOrigin != nil {
-				panel.setFrame(newFrame, display: true)
-				stripView.frame = NSRect(origin: .zero, size: newFrame.size)
-				lastStripFrame = newFrame
+				resizePanel(panel, to: newFrame)
 			}
 			// configure() calls setHovered(false) internally, which would hide the
 			// dismiss/focus buttons on every poll tick even while the user is
@@ -170,12 +169,28 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 			// Skip setFrame when the size is unchanged to avoid an AutoLayout pass
 			// on every polling tick, which causes visible stutter during drag.
 			if newFrame.size != panel.frame.size || anchorOrigin != nil {
-				panel.setFrame(newFrame, display: true)
-				stripView.frame = NSRect(origin: .zero, size: newFrame.size)
-				lastStripFrame = newFrame
+				resizePanel(panel, to: newFrame)
 			}
 		}
 		panel.orderFrontRegardless()
+	}
+
+	/// Resizes the strip panel and forces a full repaint of its content. Two
+	/// resizes can land in quick succession — e.g. a bubble dismiss followed
+	/// moments later by a combined-window platform-chip swap changing the
+	/// badge width — and without disabling implicit layer animation + forcing
+	/// a fresh display pass, the layer-backed strip view can leave a stale
+	/// sliver of the previous frame's content un-repainted ("chunk missing").
+	private func resizePanel(_ panel: NSPanel, to frame: CGRect) {
+		CATransaction.begin()
+		CATransaction.setDisableActions(true)
+		panel.setFrame(frame, display: true)
+		stripView.frame = NSRect(origin: .zero, size: frame.size)
+		stripView.needsLayout = true
+		stripView.needsDisplay = true
+		stripView.displayIfNeeded()
+		CATransaction.commit()
+		lastStripFrame = frame
 	}
 
 	private func handleBubbleDismiss() {
@@ -1036,11 +1051,22 @@ enum GateBadgeLayout {
 		let fontSize: CGFloat
 	}
 
-	/// Minimum/maximum scale factor accepted by `metrics(scale:)`. Mirrors the
-	/// Own-mode pet panel's effective scale range so the minimalist badge-size
-	/// slider in Settings can offer the exact same Small…Large bounds.
+	/// Hard floor/ceiling accepted by `metrics(scale:)`. Wider than the range
+	/// Own mode can actually reach (see `achievableMinScale`/`achievableMaxScale`)
+	/// so this stays a safety clamp, not a UI bound.
 	static let minScale: CGFloat = 0.75
 	static let maxScale: CGFloat = 1.5
+
+	/// Smallest/largest scale Own mode can actually reach, derived from
+	/// `FloatingFramePolicy`'s pet-panel size bounds. The Minimalist badge-size
+	/// slider in Settings uses this narrower range — not `minScale`/`maxScale` —
+	/// so "Large" never exceeds what an Own-mode badge ever renders at.
+	static let achievableMinScale: CGFloat = max(
+		minScale, FloatingFramePolicy.minimumSize.width / baselinePetWidth
+	)
+	static let achievableMaxScale: CGFloat = min(
+		maxScale, FloatingFramePolicy.maximumSize.width / baselinePetWidth
+	)
 
 	static func metrics(for petFrame: CGRect) -> Metrics {
 		metrics(scale: petFrame.width / baselinePetWidth)

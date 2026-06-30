@@ -1659,8 +1659,8 @@ private final class CustomizationTabView: NSView {
 		addSubview(scaleLabel)
 
 		badgeScaleSlider.translatesAutoresizingMaskIntoConstraints = false
-		badgeScaleSlider.minValue = Double(GateBadgeLayout.minScale)
-		badgeScaleSlider.maxValue = Double(GateBadgeLayout.maxScale)
+		badgeScaleSlider.minValue = Double(GateBadgeLayout.achievableMinScale)
+		badgeScaleSlider.maxValue = Double(GateBadgeLayout.achievableMaxScale)
 		badgeScaleSlider.doubleValue = viewModel.minimalistBadgeScale
 		badgeScaleSlider.isContinuous = true
 		badgeScaleSlider.target = self

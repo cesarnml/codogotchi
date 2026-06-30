@@ -60,7 +60,7 @@ enum CustomizationJsonReader {
 			menubarIconMonochrome: payload.menubarIconMonochrome ?? false,
 			combinedMinimalistEnabled: payload.combinedMinimalistEnabled ?? false,
 			minimalistBadgeScale: max(
-				Double(GateBadgeLayout.minScale), min(Double(GateBadgeLayout.maxScale), rawScale)
+				Double(GateBadgeLayout.achievableMinScale), min(Double(GateBadgeLayout.achievableMaxScale), rawScale)
 			)
 		)
 	}
