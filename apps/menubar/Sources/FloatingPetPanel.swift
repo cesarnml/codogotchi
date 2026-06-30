@@ -21,6 +21,12 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// Tracks the payload that was last passed to bubble.configure() so we can
 	/// skip redundant configure calls that would reset hover state every poll tick.
 	private var lastConfiguredAttention: AttentionPayload?
+	/// Badge metrics derived from the saved pet-panel size. Updated via
+	/// applyPetPanelSize(_:) so the minimalist badge scales the same way as the
+	/// Own-mode badge (font, height, padding all scale with panel width).
+	private var currentBadgeMetrics = GateBadgeLayout.metrics(
+		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: GateBadgeLayout.baselinePetWidth)
+	)
 	private var frameChangeHandler: ((CGRect) -> Void)?
 	private var isShown = false
 	private var lastStripFrame: CGRect = .zero
@@ -78,6 +84,14 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 	func applyPromptSummary(_ summary: String) {
 		// Prompt summary is not shown for platform-linked minimalist panels.
+	}
+
+	func applyPetPanelSize(_ size: CGSize) {
+		let frame = CGRect(origin: .zero, size: size)
+		let newMetrics = GateBadgeLayout.metrics(for: frame)
+		guard newMetrics != currentBadgeMetrics else { return }
+		currentBadgeMetrics = newMetrics
+		applyAll()
 	}
 
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
@@ -151,7 +165,8 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 			stripView.hideBubble()
 			stripView.configureBadge(
 				platform: PlatformAttribution(origin: currentPlatformOrigin),
-				activity: currentActivity
+				activity: currentActivity,
+				metrics: currentBadgeMetrics
 			)
 			let badgeW = max(Layout.minBadgeWidth, stripView.badgePreferredWidth)
 			let newSize = CGSize(width: badgeW, height: Layout.height)
@@ -178,9 +193,6 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 private final class MinimalistStripView: NSView {
 	private static let hPad: CGFloat = 10
-	private static let stripMetrics = GateBadgeLayout.metrics(
-		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
-	)
 
 	// Badge mode
 	private let animationBadge = AnimationBadgeView(frame: .zero)
@@ -203,12 +215,18 @@ private final class MinimalistStripView: NSView {
 
 	// MARK: - Badge mode
 
-	func configureBadge(platform: PlatformAttribution?, activity: ActivityState) {
+	func configureBadge(
+		platform: PlatformAttribution?,
+		activity: ActivityState,
+		metrics: GateBadgeLayout.Metrics = GateBadgeLayout.metrics(
+			for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: GateBadgeLayout.baselinePetWidth)
+		)
+	) {
 		animationBadge.configure(
 			text: activity.displayLabel,
 			platform: platform,
 			inFlight: activity.isInFlight,
-			metrics: Self.stripMetrics
+			metrics: metrics
 		)
 	}
 

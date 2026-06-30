@@ -211,6 +211,7 @@ protocol MinimalistPanelManaging: AnyObject {
 	func applyActivity(_ state: ActivityState)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyPromptSummary(_ summary: String)
+	func applyPetPanelSize(_ size: CGSize)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 }
 
@@ -256,6 +257,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		)
 
 		if state.isFloatingPetVisible {
+			panel.applyPetPanelSize(state.frame.size)
 			panel.show(frame: state.frame)
 		}
 		onVisibilityChanged?(state.isFloatingPetVisible)
@@ -283,6 +285,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 
 		state = nextState
 		if visible {
+			panel.applyPetPanelSize(nextState.frame.size)
 			panel.show(frame: nextState.frame)
 			refreshPromptSummary()
 		} else {
@@ -292,6 +295,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	}
 
 	func apply(state: ActivityState, visualMode: VisualMode) {
+		panel.applyPetPanelSize(self.state.frame.size)
 		panel.applyActivity(state)
 		refreshPromptSummary()
 	}
