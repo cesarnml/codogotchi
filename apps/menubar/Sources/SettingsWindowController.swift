@@ -987,23 +987,22 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 			descLabel.trailingAnchor.constraint(equalTo: nameRow.trailingAnchor),
 		])
 
-		// Badge pills — beneath the description, only when this pet holds at least one badge.
-		var rightBottomAnchor: NSLayoutYAxisAnchor = descLabel.bottomAnchor
-		var rightBottomConstant: CGFloat = 14
-
+		// Badge pills — always present (zero-height "invisible pill" when this pet holds no
+		// badges) so every card's right column ends on the same anchor. The top gap is a
+		// `>=` minimum, not a fixed offset: when the equal-height row constraint forces a
+		// shorter card taller, the slack must open up here (between description and pills)
+		// rather than stretching descLabel or leaving pills floating high above the bottom.
 		let entryBadges = viewModel.badges(for: entry.id)
-		if !entryBadges.isEmpty {
-			let pillsRow = makeBadgePillsRow(badges: entryBadges)
-			card.addSubview(pillsRow)
-			NSLayoutConstraint.activate([
-				pillsRow.topAnchor.constraint(equalTo: descLabel.bottomAnchor, constant: 6),
-				pillsRow.leadingAnchor.constraint(equalTo: descLabel.leadingAnchor),
-				pillsRow.trailingAnchor.constraint(
-					lessThanOrEqualTo: card.trailingAnchor, constant: -16),
-			])
-			rightBottomAnchor = pillsRow.bottomAnchor
-			rightBottomConstant = 12
-		}
+		let pillsRow = makeBadgePillsRow(badges: entryBadges)
+		card.addSubview(pillsRow)
+		NSLayoutConstraint.activate([
+			pillsRow.topAnchor.constraint(greaterThanOrEqualTo: descLabel.bottomAnchor, constant: 6),
+			pillsRow.leadingAnchor.constraint(equalTo: descLabel.leadingAnchor),
+			pillsRow.trailingAnchor.constraint(
+				lessThanOrEqualTo: card.trailingAnchor, constant: -16),
+		])
+		let rightBottomAnchor: NSLayoutYAxisAnchor = pillsRow.bottomAnchor
+		let rightBottomConstant: CGFloat = 14
 
 		// Card bottom is driven by the taller of the two columns.
 		// The `.defaultHigh` equality tracks the right column exactly; the
