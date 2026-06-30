@@ -42,14 +42,24 @@ final class PetAssetResolver {
 	///   bundled assets should always be present).
 	func resolve(petId: String) throws -> (CodexPet, CodogotchiPet?) {
 		if let cached = cache[petId] { return cached }
+		let pair = try loadFresh(petId: petId)
+		cache[petId] = pair
+		return pair
+	}
 
+	/// Load `petId` from disk without touching the cache. Unlike `resolve`,
+	/// this performs no shared mutable state access, so it is safe to call
+	/// from a background thread/task — the expensive spritesheet decode and
+	/// frame-slicing work happens here. Callers that want the result cached
+	/// must call `insert(petId:pair:)` back on the resolver's owning thread.
+	func loadFresh(petId: String) throws -> (CodexPet, CodogotchiPet?) {
 		let dirURL: URL
 		if petId == DEFAULT_PET_NAME {
 			dirURL = maewFallbackURL
 		} else {
 			guard let safe = petsBaseURL(petId: petId) else {
 				NSLog("PetAssetResolver: invalid petId '%@' — falling back to Maew", petId)
-				return try resolveMaewFallback()
+				return try loadMaewFallback()
 			}
 			dirURL = safe
 		}
@@ -57,16 +67,21 @@ final class PetAssetResolver {
 		do {
 			let codexPet = try codexLoader(dirURL)
 			let codogotchiPet = try? codogotchiLoader(dirURL)
-			let pair = (codexPet, codogotchiPet)
-			cache[petId] = pair
-			return pair
+			return (codexPet, codogotchiPet)
 		} catch {
 			guard petId != DEFAULT_PET_NAME else { throw error }
 			NSLog(
 				"PetAssetResolver: failed to load '%@' from %@ (%@) — falling back to Maew",
 				petId, dirURL.path, error.localizedDescription)
-			return try resolveMaewFallback()
+			return try loadMaewFallback()
 		}
+	}
+
+	/// Insert an already-loaded pair into the cache, as if `resolve(petId:)`
+	/// had loaded it. Lets callers pair background loading (`loadFresh`) with
+	/// a cheap, main-thread cache write.
+	func insert(petId: String, pair: (CodexPet, CodogotchiPet?)) {
+		cache[petId] = pair
 	}
 
 	/// Drop the cached entry for `petId` so the next `resolve` re-loads from disk.
@@ -81,13 +96,10 @@ final class PetAssetResolver {
 
 	// MARK: - Private
 
-	private func resolveMaewFallback() throws -> (CodexPet, CodogotchiPet?) {
-		if let cached = cache[DEFAULT_PET_NAME] { return cached }
+	private func loadMaewFallback() throws -> (CodexPet, CodogotchiPet?) {
 		let codexPet = try codexLoader(maewFallbackURL)
 		let codogotchiPet = try? codogotchiLoader(maewFallbackURL)
-		let pair = (codexPet, codogotchiPet)
-		cache[DEFAULT_PET_NAME] = pair
-		return pair
+		return (codexPet, codogotchiPet)
 	}
 
 	/// Returns the pets directory URL for `petId`, or `nil` when the petId

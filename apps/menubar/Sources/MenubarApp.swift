@@ -445,29 +445,53 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 
 	/// Reload the active pet from the canonical store and repaint all renderers.
 	/// Called when the user selects a different pet in Settings.
+	///
+	/// Loading a pet decodes its spritesheet(s) and slices every animation row
+	/// up front (~hundreds of ms each, per `CodexPet.prewarmFloatingInteractionFrameCache`).
+	/// Doing that synchronously on the main thread — once for the default pet
+	/// and once per active floating-pet origin, since assignment used to evict
+	/// the whole resolver cache — froze the whole app (spinning beach ball) for
+	/// several seconds on every single assignment. The actual decode/slice work
+	/// now runs off the main thread; only the cheap pointer-swap/UI steps below
+	/// stay on the main actor.
 	@MainActor
 	func reloadActivePet() {
-		guard let renderer else { return }
-		do {
-			let newCodexPet = try CodexPet()
+		guard let renderer, let petAssetResolver else { return }
+		let assignments = AssignmentsJsonReader.read(at: CodogotchiFolders.assignmentsPath())
+		let origins = floatingPetWindowPool?.activeOrigins ?? []
+		let originPetIds = Dictionary(uniqueKeysWithValues: origins.map { ($0, assignments.resolve(origin: $0)) })
+		let petIdsToReload = Set(originPetIds.values)
+
+		Task.detached(priority: .userInitiated) {
+			let newCodexPet = try? CodexPet()
 			let newCodogotchiPet = try? CodogotchiPet()
-			self.codexPet = newCodexPet
-			self.codogotchiPet = newCodogotchiPet
-			renderer.replacePets(codexPet: newCodexPet, codogotchiPet: newCodogotchiPet)
-			livePollingDriver?.replaceCodogotchiPet(newCodogotchiPet)
-			// Evict the resolver cache so reassigned pets load fresh assets,
-			// then live-swap each active pool window scoped to its own assignment.
-			petAssetResolver?.evictAll()
-			let assignments = AssignmentsJsonReader.read(at: CodogotchiFolders.assignmentsPath())
-			for origin in floatingPetWindowPool?.activeOrigins ?? [] {
-				let petId = assignments.resolve(origin: origin)
-				if let (codexPet, codogotchiPet) = try? petAssetResolver?.resolve(petId: petId) {
-					floatingPetWindowPool?.replacePet(
-						origin: origin, codexPet: codexPet, codogotchiPet: codogotchiPet)
+			var freshPairs: [String: (CodexPet, CodogotchiPet?)] = [:]
+			for petId in petIdsToReload {
+				freshPairs[petId] = try? petAssetResolver.loadFresh(petId: petId)
+			}
+
+			await MainActor.run { [weak self] in
+				guard let self, let newCodexPet else {
+					NSLog("MenubarApp: reloadActivePet failed to load the default pet")
+					return
+				}
+				self.codexPet = newCodexPet
+				self.codogotchiPet = newCodogotchiPet
+				renderer.replacePets(codexPet: newCodexPet, codogotchiPet: newCodogotchiPet)
+				self.livePollingDriver?.replaceCodogotchiPet(newCodogotchiPet)
+				// Evict, then reinsert only the pets we just reloaded — leaves
+				// any other still-cached, unaffected pet alone.
+				petAssetResolver.evictAll()
+				for (petId, pair) in freshPairs {
+					petAssetResolver.insert(petId: petId, pair: pair)
+				}
+				for (origin, petId) in originPetIds {
+					if let pair = freshPairs[petId] {
+						self.floatingPetWindowPool?.replacePet(
+							origin: origin, codexPet: pair.0, codogotchiPet: pair.1)
+					}
 				}
 			}
-		} catch {
-			NSLog("MenubarApp: reloadActivePet failed — %@", error.localizedDescription)
 		}
 	}
 
