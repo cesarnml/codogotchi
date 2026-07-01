@@ -836,7 +836,11 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	}
 
 	/// Steady reveal while hovering: cancel any transient timer, hold visible.
+	/// Skipped mid-drag — an RPG-state poll tick can land while the pointer is
+	/// still over the pet (true for the whole drag), and reposition here would
+	/// glue the HUD to a stale frame despite the drag's own order-out/guard.
 	private func showHUDForHover() {
+		guard !isDraggingPet else { return }
 		guard isPanelShown, rpgHUDViewModel.isHUDEnabled else { return }
 		cancelHUDAutoHide()
 		cancelHUDHoverMonitor()
@@ -858,7 +862,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	/// Brief reveal on an animation moment while not hovering: fade in, then fade
 	/// out after `hudTransientSeconds` unless the pointer started hovering.
+	/// Skipped mid-drag for the same reason as `showHUDForHover`.
 	private func revealHUDTransiently() {
+		guard !isDraggingPet else { return }
 		guard isPanelShown, rpgHUDViewModel.isHUDEnabled else { return }
 		refreshHUDContent()?.fadeIn()
 		cancelHUDAutoHide()
