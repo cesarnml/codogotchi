@@ -275,6 +275,17 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					controller.onVisibilityChanged = { [weak self] _ in
 						self?.updateAppNapOptOut()
 					}
+					// Right-click "Hide panel" on the badge hides this window, mirroring
+					// Own mode's right-click "Hide pet".
+					panel.onHidePanel = { [weak self, weak controller] in
+						guard let self, let controller else { return }
+						if let key = self.floatingPetWindowPool?.activeOrigins.first(where: {
+							self.floatingPetWindowPool?.controller(for: $0) === controller
+						}) {
+							self.floatingPetWindowPool?.setVisible(false, for: key)
+						}
+						self.menuBuilder?.refreshFloatingPetMenuItemTitle()
+					}
 					return controller
 				}
 			)

@@ -135,6 +135,16 @@ final class FloatingInteractionTests: XCTestCase {
 		XCTAssertGreaterThan(size.height, 24)
 	}
 
+	func testHidePanelPromptTitleForMinimalistBadge() {
+		XCTAssertEqual(FloatingPetHidePrompt.panelTitle, "Hide panel")
+	}
+
+	func testHidePanelPromptPreferredSizeFitsTitle() {
+		let size = FloatingPetHidePrompt.preferredSize(title: FloatingPetHidePrompt.panelTitle)
+		XCTAssertGreaterThan(size.width, 70)
+		XCTAssertGreaterThan(size.height, 24)
+	}
+
 	func testHidePromptFrameAnchorsTopLeftAtClick() {
 		let bounds = CGRect(x: 0, y: 0, width: 200, height: 160)
 		let anchor = CGPoint(x: 48, y: 120)

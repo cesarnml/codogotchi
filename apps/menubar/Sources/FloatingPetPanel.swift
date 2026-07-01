@@ -41,6 +41,10 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private var isShown = false
 	/// Called after the user dismisses or focuses away from the attention bubble.
 	var onAttentionDismissed: (() -> Void)?
+	/// Called when the user activates the badge's right-click "Hide panel"
+	/// affordance. Mirrors `FloatingPetPanelController.onHideFloatingPet`; the app
+	/// wires this to hide this window via the window pool.
+	var onHidePanel: (() -> Void)?
 
 	init(
 		visibleFrameProvider: @escaping () -> CGRect = {
@@ -62,6 +66,10 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		badgeView.frameChangeHandler = { [weak self] frame in
 			self?.frameChangeHandler?(frame)
 		}
+		// Right-click "Hide panel" affordance on the badge (chip or activity pill).
+		badgeView.onHidePanelRequested = { [weak self] in
+			self?.onHidePanel?()
+		}
 	}
 
 	func show(frame: CGRect) {
@@ -75,6 +83,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 	func hide() {
 		isShown = false
+		badgeView.dismissHidePromptIfPresent()
 		badgePanel?.orderOut(nil)
 		bubblePanel?.orderOut(nil)
 	}
@@ -212,7 +221,14 @@ private final class MinimalistBadgeView: NSView {
 	var onDragMoved: ((CGRect) -> Void)?
 	/// Fires once on mouse-up with the final frame for persistence.
 	var frameChangeHandler: ((CGRect) -> Void)?
+	/// Fires when the user activates the right-click "Hide panel" pill.
+	var onHidePanelRequested: (() -> Void)?
 	private var dragOffsetInScreen: CGPoint?
+
+	private var hidePromptPanel: FloatingPetHidePromptPanel?
+	private var hidePromptObservers: [NSObjectProtocol] = []
+	private var hidePromptGlobalMouseMonitor: Any?
+	private var hidePromptGlobalKeyboardMonitor: Any?
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -221,6 +237,10 @@ private final class MinimalistBadgeView: NSView {
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
+
+	deinit {
+		removeHidePromptDismissObservers()
+	}
 
 	func configureBadge(
 		platform: PlatformAttribution?,
@@ -244,6 +264,7 @@ private final class MinimalistBadgeView: NSView {
 
 	override func mouseDown(with event: NSEvent) {
 		guard let window else { return }
+		dismissHidePrompt()
 		let point = NSEvent.mouseLocation
 		dragOffsetInScreen = CGPoint(
 			x: point.x - window.frame.origin.x,
@@ -267,6 +288,100 @@ private final class MinimalistBadgeView: NSView {
 		dragOffsetInScreen = nil
 		if let frame = window?.frame {
 			frameChangeHandler?(frame)
+		}
+	}
+
+	// MARK: - Hide-panel affordance
+
+	/// Right-click anywhere on the badge (platform chip or activity pill) surfaces
+	/// the same frosted "Hide" pill Own mode uses, retitled "Hide panel" since it
+	/// hides the whole minimalist strip.
+	override func rightMouseDown(with event: NSEvent) {
+		guard window != nil else { return }
+		if hidePromptPanel != nil {
+			dismissHidePrompt()
+		}
+		presentHidePrompt(for: event)
+	}
+
+	func dismissHidePromptIfPresent() {
+		dismissHidePrompt()
+	}
+
+	private func presentHidePrompt(for event: NSEvent) {
+		guard let window else { return }
+		dismissHidePrompt()
+		let anchorInScreen = window.convertPoint(toScreen: event.locationInWindow)
+		let promptSize = FloatingPetHidePrompt.preferredSize(title: FloatingPetHidePrompt.panelTitle)
+		let visibleFrame = window.screen?.visibleFrame
+			?? NSScreen.main?.visibleFrame
+			?? CGRect(x: 0, y: 0, width: 800, height: 600)
+		let screenFrame = FloatingPetHidePrompt.screenFrame(
+			anchor: anchorInScreen,
+			promptSize: promptSize,
+			visibleFrame: visibleFrame
+		)
+		let panel = FloatingPetHidePromptPanel(
+			frame: screenFrame,
+			title: FloatingPetHidePrompt.panelTitle
+		) { [weak self] in
+			self?.dismissHidePrompt()
+			self?.onHidePanelRequested?()
+		}
+		panel.orderFrontRegardless()
+		hidePromptPanel = panel
+		installHidePromptDismissObservers()
+	}
+
+	private func dismissHidePrompt() {
+		guard hidePromptPanel != nil else { return }
+		hidePromptPanel?.orderOut(nil)
+		hidePromptPanel = nil
+		removeHidePromptDismissObservers()
+	}
+
+	private func installHidePromptDismissObservers() {
+		removeHidePromptDismissObservers()
+
+		hidePromptObservers.append(
+			NotificationCenter.default.addObserver(
+				forName: NSApplication.didResignActiveNotification,
+				object: nil,
+				queue: .main
+			) { [weak self] _ in
+				Task { @MainActor in self?.dismissHidePrompt() }
+			}
+		)
+
+		// Any click outside the pill dismisses it. Clicks landing on the pill are
+		// handled by the pill's own view before this monitor sees them.
+		hidePromptGlobalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
+			matching: [.leftMouseDown, .rightMouseDown]
+		) { [weak self] _ in
+			Task { @MainActor in self?.dismissHidePrompt() }
+		}
+
+		// Dismiss on any keyboard input (including app switchers) so the pill never
+		// lingers over the UI while the user changes apps or windows.
+		hidePromptGlobalKeyboardMonitor = NSEvent.addGlobalMonitorForEvents(
+			matching: [.keyDown, .keyUp, .flagsChanged]
+		) { [weak self] _ in
+			Task { @MainActor in self?.dismissHidePrompt() }
+		}
+	}
+
+	private func removeHidePromptDismissObservers() {
+		for observer in hidePromptObservers {
+			NotificationCenter.default.removeObserver(observer)
+		}
+		hidePromptObservers.removeAll()
+		if let hidePromptGlobalMouseMonitor {
+			NSEvent.removeMonitor(hidePromptGlobalMouseMonitor)
+			self.hidePromptGlobalMouseMonitor = nil
+		}
+		if let hidePromptGlobalKeyboardMonitor {
+			NSEvent.removeMonitor(hidePromptGlobalKeyboardMonitor)
+			self.hidePromptGlobalKeyboardMonitor = nil
 		}
 	}
 
@@ -1835,6 +1950,9 @@ final class AnimationBadgeView: NSView {
 /// Layout for the in-frame “Hide pet” pill shown on right-click (Codex-style).
 enum FloatingPetHidePrompt {
 	static let title = "Hide pet"
+	/// Title for the minimalist badge's right-click affordance, which hides the
+	/// whole platform strip rather than an Own-mode pet sprite.
+	static let panelTitle = "Hide panel"
 	static let font = NSFont.systemFont(ofSize: 13, weight: .medium)
 	static let horizontalPadding: CGFloat = 14
 	static let verticalPadding: CGFloat = 7
@@ -2774,9 +2892,10 @@ extension FloatingPetHidePrompt {
 private final class FloatingPetHidePromptPanel: NSPanel {
 	private let promptView: FloatingPetHidePromptView
 
-	init(frame: CGRect, onActivate: @escaping () -> Void) {
+	init(frame: CGRect, title: String = FloatingPetHidePrompt.title, onActivate: @escaping () -> Void) {
 		self.promptView = FloatingPetHidePromptView(
 			frame: CGRect(origin: .zero, size: frame.size),
+			title: title,
 			onActivate: onActivate
 		)
 		super.init(
@@ -2810,10 +2929,11 @@ private final class FloatingPetHidePromptView: NSView {
 
 	private let effectView = NSVisualEffectView(frame: .zero)
 	private let tintView = FloatingPetHidePromptTintView(frame: .zero)
-	private let label = NSTextField(labelWithString: FloatingPetHidePrompt.title)
+	private let label: NSTextField
 
-	init(frame frameRect: NSRect, onActivate: @escaping () -> Void) {
+	init(frame frameRect: NSRect, title: String = FloatingPetHidePrompt.title, onActivate: @escaping () -> Void) {
 		self.onActivate = onActivate
+		self.label = NSTextField(labelWithString: title)
 		super.init(frame: frameRect)
 		wantsLayer = true
 		layer?.masksToBounds = false
