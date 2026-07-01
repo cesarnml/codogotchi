@@ -2556,4 +2556,76 @@ describe("slice-directory writer (P12.02 red)", () => {
     expect(content.session_id).toBe(sessionId);
     expect(content.updated_at).toBe(FIXED_NOW.toISOString());
   });
+
+  it("writes active-session.json to the main root when cwd is a linked worktree", async () => {
+    // Real linked-worktree layout: main checkout has a `.git` directory; the
+    // worktree has a `.git` file pointing at the main's worktrees dir. SoA reads
+    // active-session.json from the canonical main root, so the hook must write
+    // there too — not into the worktree's own .soa/.
+    const repoParent = mkdtempSync(join(tmpdir(), "codogotchi-wt-"));
+    try {
+      const mainRoot = join(repoParent, "codogotchi");
+      const worktree = join(repoParent, "codogotchi_p13_04");
+      mkdirSync(join(mainRoot, ".git", "worktrees", "codogotchi_p13_04"), {
+        recursive: true,
+      });
+      mkdirSync(worktree, { recursive: true });
+      writeFileSync(
+        join(worktree, ".git"),
+        `gitdir: ${join(mainRoot, ".git", "worktrees", "codogotchi_p13_04")}\n`,
+        "utf8",
+      );
+
+      await runHook(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Edit",
+          session_id: "ses-worktree",
+          cwd: worktree,
+        },
+        { home, now: FIXED_NOW },
+      );
+
+      // Lands at the main root, NOT the worktree.
+      const mainActiveSession = join(mainRoot, ".soa", "active-session.json");
+      const worktreeActiveSession = join(
+        worktree,
+        ".soa",
+        "active-session.json",
+      );
+      expect(existsSync(mainActiveSession)).toBe(true);
+      expect(existsSync(worktreeActiveSession)).toBe(false);
+      const content = JSON.parse(readFileSync(mainActiveSession, "utf8"));
+      expect(content.origin).toBe("claude_code");
+      expect(content.session_id).toBe("ses-worktree");
+    } finally {
+      rmSync(repoParent, { recursive: true, force: true });
+    }
+  });
+
+  it("writes active-session.json to the raw cwd when it is not a git checkout", async () => {
+    // No `.git` present → canonicalRepoRoot degrades to the input path, so the
+    // file lands directly under the detected repo root.
+    const nonGitRoot = mkdtempSync(join(tmpdir(), "codogotchi-nogit-"));
+    try {
+      await runHook(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Edit",
+          session_id: "ses-nogit",
+          cwd: nonGitRoot,
+        },
+        { home, now: FIXED_NOW },
+      );
+
+      const activeSessionPath = join(nonGitRoot, ".soa", "active-session.json");
+      expect(existsSync(activeSessionPath)).toBe(true);
+      const content = JSON.parse(readFileSync(activeSessionPath, "utf8"));
+      expect(content.session_id).toBe("ses-nogit");
+    } finally {
+      rmSync(nonGitRoot, { recursive: true, force: true });
+    }
+  });
 });

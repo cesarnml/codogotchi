@@ -276,6 +276,53 @@ function detectRepoRoot(input: HookInput, env: NodeJS.ProcessEnv): string {
   return resolve(workspaceRoot ?? cwd ?? env.PWD ?? process.cwd());
 }
 
+/**
+ * Normalizes a checkout path to its main-worktree root using only the
+ * filesystem — no `git` subprocess (this runs on the hot per-event hook path).
+ * Mirrors the Swift `canonicalRepoRoot` in the menubar renderer so both sides
+ * resolve a linked worktree to the same main root.
+ *
+ * SoA delivery runs ticket work inside a *linked worktree*, but its
+ * `writeGateEvent` canonicalizes any worktree back to the main checkout before
+ * reading `.soa/active-session.json`. Writing that file to the raw worktree cwd
+ * would miss the reader during cook-mode delivery; resolving to the main root
+ * here makes writer and reader meet.
+ *
+ * - A primary checkout has a `.git` *directory*; the path is returned unchanged.
+ * - A linked worktree has a `.git` *file* containing
+ *   `gitdir: <main>/.git/worktrees/<name>`; the main root is the prefix before
+ *   `/.git/worktrees/`.
+ * - Any unrecognized shape (missing `.git`, pruned worktree, unexpected
+ *   contents) returns the input unchanged so the write degrades to the raw cwd
+ *   rather than guessing.
+ */
+export async function canonicalRepoRoot(path: string): Promise<string> {
+  const normalized =
+    path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+  const dotGit = `${normalized}/.git`;
+  let info: Awaited<ReturnType<typeof stat>>;
+  try {
+    info = await stat(dotGit);
+  } catch {
+    return normalized;
+  }
+  if (info.isDirectory()) return normalized;
+  let contents: string;
+  try {
+    contents = await readFile(dotGit, "utf8");
+  } catch {
+    return normalized;
+  }
+  const trimmed = contents.trim();
+  const prefix = "gitdir:";
+  if (!trimmed.startsWith(prefix)) return normalized;
+  const gitdir = trimmed.slice(prefix.length).trim();
+  const marker = "/.git/worktrees/";
+  const idx = gitdir.indexOf(marker);
+  if (idx === -1) return normalized;
+  return gitdir.slice(0, idx);
+}
+
 function rawHookOrigin(input: HookInput): SourceEventOrigin {
   // Explicit env override — used by platform hook commands (e.g. Codex Desktop)
   // that share PascalCase event names with Claude Code and would otherwise be
@@ -1265,9 +1312,13 @@ export async function runHook(
     const terminalBundleId = detectTerminalBundleId(process.env);
     const repoRoot = detectRepoRoot(input, process.env);
 
-    // Save active session details to repository-local .soa/active-session.json for CLI orchestrator retrieval
+    // Save active session details to the main-worktree root's
+    // .soa/active-session.json for SoA orchestrator retrieval. SoA's
+    // writeGateEvent canonicalizes linked worktrees to the main checkout before
+    // reading this file, so canonicalize here too (source_event.repo_root below
+    // stays the raw cwd — the renderer normalizes both sides at compare time).
     try {
-      const soaDir = join(repoRoot, ".soa");
+      const soaDir = join(await canonicalRepoRoot(repoRoot), ".soa");
       await mkdir(soaDir, { recursive: true });
       await writeFile(
         join(soaDir, "active-session.json"),
