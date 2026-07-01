@@ -44,6 +44,10 @@ final class FloatingPetWindowPool {
 	/// until the user explicitly shows them via "Show Pet".
 	var hiddenWindowKeys: [String] { Array(userHiddenWindowKeys).sorted() }
 
+	/// The pet ID currently assigned to the Default badge, read fresh from
+	/// assignments.json on each `update()` tick.
+	var defaultPetId: String { currentAssignments.default }
+
 	/// Origins currently assigned to combined mode, read fresh from customization.
 	/// The shared combined window folds all of these into one pet, so its right-click
 	/// "Force Idle" must reset exactly this set — never every slice on disk, which

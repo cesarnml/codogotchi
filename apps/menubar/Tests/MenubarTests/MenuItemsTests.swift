@@ -5,12 +5,23 @@ import XCTest
 
 /// Behavior tests for the menu-bar `NSStatusItem` menu.
 ///
+/// Layout: header (disabled "Codogotchi"), separator, "Default Pet: …", the
+/// dynamic pet section, separator, "Show All Pets", "Hide All Pets",
+/// separator, "Website…", "Settings…", separator, "Quit Codogotchi", and a
+/// hidden "Hooks not active" item.
+///
 /// Tests inject `FloatingPetWindowPool` (with stub windows) in place of the
 /// old single-controller spy. The pool drives the pet section: nil pool →
 /// disabled "Show Pet"; 0 origins → disabled "Show Pet"; 1 origin → "Hide Pet";
 /// 2+ origins → per-origin hide items.
 @MainActor
 final class MenuItemsTests: XCTestCase {
+	// Fixed item count surrounding the variable-length pet section:
+	// header, separator, defaultPet, [pet section], separator, showAll,
+	// hideAll, separator, website, settings, separator, quit, hooksItem.
+	private static let petSectionStartIndex = 3
+	private static let fixedItemCount = 12
+
 	// Minimal stub that conforms to FloatingPetWindowControlling for test injection.
 	private final class StubWindow: FloatingPetWindowControlling {
 		var isFloatingPetVisible: Bool = false
@@ -48,16 +59,36 @@ final class MenuItemsTests: XCTestCase {
 		return pool
 	}
 
+	/// Index of the trailing (non-pet-section) items, offset by however many
+	/// pet-section items are currently rendered.
+	private func trailingIndex(_ offset: Int, petItemCount: Int) -> Int {
+		Self.petSectionStartIndex + petItemCount + offset
+	}
+
 	func testMenuItemOrderWithNilPool() {
 		let builder = MenubarMenu(terminate: {})
 		let menu = builder.build()
 
-		XCTAssertEqual(menu.items.count, 4)
-		XCTAssertEqual(menu.items[0].title, MenubarMenu.showFloatingPetTitle)
-		XCTAssertEqual(menu.items[1].title, MenubarMenu.settingsTitle)
-		XCTAssertEqual(menu.items[2].title, MenubarMenu.quitTitle)
-		XCTAssertEqual(menu.items[3].title, MenubarMenu.hooksNotActiveTitle)
-		XCTAssertTrue(menu.items[3].isHidden, "Hooks not active item should start hidden")
+		XCTAssertEqual(menu.items.count, Self.fixedItemCount + 1)
+		XCTAssertEqual(menu.items[0].title, MenubarMenu.headerTitle)
+		XCTAssertFalse(menu.items[0].isEnabled, "Header item should be a non-actionable label")
+		XCTAssertTrue(menu.items[1].isSeparatorItem)
+		XCTAssertEqual(menu.items[2].title, "\(MenubarMenu.defaultPetPrefix)Maew")
+
+		let petIndex = Self.petSectionStartIndex
+		XCTAssertEqual(menu.items[petIndex].title, MenubarMenu.showFloatingPetTitle)
+
+		let sepIndex = trailingIndex(0, petItemCount: 1)
+		XCTAssertTrue(menu.items[sepIndex].isSeparatorItem)
+		XCTAssertEqual(menu.items[trailingIndex(1, petItemCount: 1)].title, MenubarMenu.showAllPetsTitle)
+		XCTAssertEqual(menu.items[trailingIndex(2, petItemCount: 1)].title, MenubarMenu.hideAllPetsTitle)
+		XCTAssertTrue(menu.items[trailingIndex(3, petItemCount: 1)].isSeparatorItem)
+		XCTAssertEqual(menu.items[trailingIndex(4, petItemCount: 1)].title, MenubarMenu.websiteTitle)
+		XCTAssertEqual(menu.items[trailingIndex(5, petItemCount: 1)].title, MenubarMenu.settingsTitle)
+		XCTAssertTrue(menu.items[trailingIndex(6, petItemCount: 1)].isSeparatorItem)
+		XCTAssertEqual(menu.items[trailingIndex(7, petItemCount: 1)].title, MenubarMenu.quitTitle)
+		XCTAssertEqual(menu.items[trailingIndex(8, petItemCount: 1)].title, MenubarMenu.hooksNotActiveTitle)
+		XCTAssertTrue(menu.items[trailingIndex(8, petItemCount: 1)].isHidden, "Hooks not active item should start hidden")
 	}
 
 	func testFloatingPetToggleTitleReflectsVisibleState() {
@@ -66,8 +97,9 @@ final class MenuItemsTests: XCTestCase {
 		let visibleBuilder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let hiddenBuilder = MenubarMenu(terminate: {})
 
-		XCTAssertEqual(visibleBuilder.build().items[0].title, MenubarMenu.hideFloatingPetTitle)
-		XCTAssertEqual(hiddenBuilder.build().items[0].title, MenubarMenu.showFloatingPetTitle)
+		let petIndex = Self.petSectionStartIndex
+		XCTAssertEqual(visibleBuilder.build().items[petIndex].title, MenubarMenu.hideFloatingPetTitle)
+		XCTAssertEqual(hiddenBuilder.build().items[petIndex].title, MenubarMenu.showFloatingPetTitle)
 		_ = pool  // keep alive
 	}
 
@@ -75,24 +107,24 @@ final class MenuItemsTests: XCTestCase {
 		let pool = makePool(origins: ["cursor"])
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
-		XCTAssertEqual(menu.items[0].title, MenubarMenu.hideFloatingPetTitle)
+		let petIndex = Self.petSectionStartIndex
+		XCTAssertEqual(menu.items[petIndex].title, MenubarMenu.hideFloatingPetTitle)
 
 		// Simulate external hide: pool removes origin
 		pool.setVisible(false, for: "cursor")
 		builder.refreshFloatingPetMenuItemTitle()
 
-		// After rebuild the first item reflects "Show Pet"
-		XCTAssertEqual(menu.items[0].title, MenubarMenu.showFloatingPetTitle)
+		// After rebuild the pet item reflects "Show Pet"
+		XCTAssertEqual(menu.items[petIndex].title, MenubarMenu.showFloatingPetTitle)
 	}
 
 	func testFloatingPetToggleIsPresentButDisabledWhenPoolIsNil() {
 		let builder = MenubarMenu(terminate: {})
 		let menu = builder.build()
-		let toggleItem = menu.items[0]
+		let toggleItem = menu.items[Self.petSectionStartIndex]
 
 		XCTAssertEqual(toggleItem.title, MenubarMenu.showFloatingPetTitle)
 		XCTAssertFalse(toggleItem.isEnabled)
-		XCTAssertEqual(menu.items[2].title, MenubarMenu.quitTitle)
 	}
 
 	func testTwoOriginsExpandToTwoPetItems() {
@@ -100,19 +132,34 @@ final class MenuItemsTests: XCTestCase {
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
 
-		// 2 pet items + settings + quit + hooks = 5
-		XCTAssertEqual(menu.items.count, 5)
-		let titles = Set(menu.items.prefix(2).map { $0.title })
+		XCTAssertEqual(menu.items.count, Self.fixedItemCount + 2)
+		let titles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
 		XCTAssertTrue(titles.contains("Hide Claude Code Pet"))
 		XCTAssertTrue(titles.contains("Hide Cursor Pet"))
 		_ = pool  // keep alive
 	}
 
+	func testDefaultPetItemInvokesOpenSettingsWithPetTab() {
+		var openedTab: SettingsTab??
+		let builder = MenubarMenu(terminate: {}, openSettings: { openedTab = $0 })
+		let menu = builder.build()
+		let defaultPetItem = menu.items[2]
+		XCTAssertEqual(defaultPetItem.title, "\(MenubarMenu.defaultPetPrefix)Maew")
+		XCTAssertTrue(defaultPetItem.isEnabled)
+
+		guard let action = defaultPetItem.action, let target = defaultPetItem.target else {
+			return XCTFail("Default Pet menu item must have an action and target")
+		}
+		_ = target.perform(action, with: defaultPetItem)
+		XCTAssertEqual(openedTab, .pet)
+	}
+
 	func testSettingsItemInvokesOpenSettingsCallback() {
 		var settingsOpenCount = 0
-		let builder = MenubarMenu(terminate: {}, openSettings: { settingsOpenCount += 1 })
+		let builder = MenubarMenu(terminate: {}, openSettings: { _ in settingsOpenCount += 1 })
 		let menu = builder.build()
-		let settingsItem = menu.items[1]
+		let settingsIndex = trailingIndex(5, petItemCount: 1)
+		let settingsItem = menu.items[settingsIndex]
 		XCTAssertEqual(settingsItem.title, MenubarMenu.settingsTitle)
 		XCTAssertTrue(settingsItem.isEnabled)
 
@@ -126,14 +173,14 @@ final class MenuItemsTests: XCTestCase {
 	func testSettingsItemIsDisabledWhenCallbackIsNil() {
 		let builder = MenubarMenu(terminate: {})
 		let menu = builder.build()
-		XCTAssertFalse(menu.items[1].isEnabled)
+		XCTAssertFalse(menu.items[trailingIndex(5, petItemCount: 1)].isEnabled)
 	}
 
 	func testQuitCodogotchiActionInvokesTerminationSpy() {
 		var terminationCount = 0
 		let builder = MenubarMenu(terminate: { terminationCount += 1 })
 		let menu = builder.build()
-		let quitItem = menu.items[2]
+		let quitItem = menu.items[trailingIndex(7, petItemCount: 1)]
 
 		guard let action = quitItem.action, let target = quitItem.target else {
 			return XCTFail("Quit Codogotchi menu item must have an action and target")
@@ -143,17 +190,53 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(terminationCount, 1)
 	}
 
+	func testWebsiteActionInvokesOpenURLWithCodogotchiSite() {
+		var openedURL: URL?
+		let builder = MenubarMenu(terminate: {}, openURL: { openedURL = $0 })
+		let menu = builder.build()
+		let websiteItem = menu.items[trailingIndex(4, petItemCount: 1)]
+		XCTAssertEqual(websiteItem.title, MenubarMenu.websiteTitle)
+
+		guard let action = websiteItem.action, let target = websiteItem.target else {
+			return XCTFail("Website menu item must have an action and target")
+		}
+		_ = target.perform(action, with: websiteItem)
+		XCTAssertEqual(openedURL, MenubarMenu.websiteURL)
+	}
+
+	func testShowAllPetsShowsEveryHiddenKey() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		pool.setVisible(false, for: "claude_code")
+		pool.setVisible(false, for: "cursor")
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		_ = builder.build()
+
+		builder.showAllPets(nil)
+		XCTAssertTrue(pool.hiddenWindowKeys.isEmpty)
+	}
+
+	func testHideAllPetsHidesEveryActiveOrigin() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		_ = builder.build()
+
+		builder.hideAllPets(nil)
+		XCTAssertTrue(pool.activeOrigins.isEmpty)
+		XCTAssertEqual(Set(pool.hiddenWindowKeys), Set(["claude_code", "cursor"]))
+	}
+
 	func testHiddenPetEnablesShowPetItem() {
 		// After setVisible(false), the menu must show an enabled "Show Pet" item.
 		let pool = makePool(origins: ["cursor"])
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
-		XCTAssertEqual(menu.items[0].title, MenubarMenu.hideFloatingPetTitle)
+		let petIndex = Self.petSectionStartIndex
+		XCTAssertEqual(menu.items[petIndex].title, MenubarMenu.hideFloatingPetTitle)
 
 		pool.setVisible(false, for: "cursor")
 		builder.refreshFloatingPetMenuItemTitle()
 
-		let item = menu.items[0]
+		let item = menu.items[petIndex]
 		XCTAssertEqual(item.title, MenubarMenu.showFloatingPetTitle)
 		XCTAssertTrue(item.isEnabled, "Show Pet must be enabled when a hidden key exists")
 		XCTAssertNotNil(item.action, "Show Pet must have an action wired so clicking it works")
@@ -166,9 +249,8 @@ final class MenuItemsTests: XCTestCase {
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
 
-		// 2 pet items + settings + quit + hooks = 5
-		XCTAssertEqual(menu.items.count, 5)
-		let petTitles = Set(menu.items.prefix(2).map { $0.title })
+		XCTAssertEqual(menu.items.count, Self.fixedItemCount + 2)
+		let petTitles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
 		XCTAssertTrue(petTitles.contains("Hide Claude Code Pet"), "active origin must have a Hide item")
 		XCTAssertTrue(petTitles.contains("Show Cursor Pet"), "hidden origin must have a Show item")
 	}

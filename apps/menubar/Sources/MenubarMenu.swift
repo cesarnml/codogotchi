@@ -2,6 +2,10 @@ import AppKit
 
 /// Constructs the menu attached to the menu-bar `NSStatusItem`.
 ///
+/// Layout: a disabled "Codogotchi" header, a separator, "Default Pet: …" (jumps
+/// to Settings > Pet), the dynamic pet section, "Show/Hide All Pets", "Website…",
+/// "Settings…", and "Quit Codogotchi".
+///
 /// The pet section is dynamic: when `FloatingPetWindowPool` has a single active
 /// origin it collapses to a single "Show/Hide Pet" toggle; with two or more
 /// origins it expands to one "Hide <Platform> Pet" item per active origin.
@@ -11,31 +15,44 @@ import AppKit
 /// weak reference (a known AppKit pitfall: dropping the target makes the
 /// items "do nothing"), so `MenubarApp` holds a strong reference.
 final class MenubarMenu: NSObject {
+	static let headerTitle = "Codogotchi"
+	static let defaultPetPrefix = "Default Pet: "
 	static let showFloatingPetTitle = "Show Pet"
 	static let hideFloatingPetTitle = "Hide Pet"
+	static let showAllPetsTitle = "Show All Pets"
+	static let hideAllPetsTitle = "Hide All Pets"
+	static let websiteTitle = "Website…"
 	static let settingsTitle = "Settings…"
 	static let quitTitle = "Quit Codogotchi"
 	static let hooksNotActiveTitle = "⚠ Hooks not active — Retry install"
+	static let websiteURL = URL(string: "https://codogotchi.app")!
 
 	private let terminate: () -> Void
 	private weak var floatingPetPool: FloatingPetWindowPool?
 	private let retryHooksInstall: (() -> Void)?
-	private let openSettings: (() -> Void)?
+	private let openSettings: ((SettingsTab?) -> Void)?
+	private let openURL: (URL) -> Void
 	private weak var builtMenu: NSMenu?
 	private weak var hooksNotActiveItem: NSMenuItem?
-	/// Number of pet-section items currently at the top of `builtMenu`.
+	private weak var defaultPetItem: NSMenuItem?
+	/// Index of the first pet-section item within `builtMenu` (after the header,
+	/// separator, and Default Pet items).
+	private var petSectionStartIndex: Int = 0
+	/// Number of pet-section items currently at `petSectionStartIndex`.
 	private var petItemCount: Int = 0
 
 	init(
 		terminate: @escaping () -> Void = { NSApplication.shared.terminate(nil) },
 		floatingPetPool: FloatingPetWindowPool? = nil,
 		retryHooksInstall: (() -> Void)? = nil,
-		openSettings: (() -> Void)? = nil
+		openSettings: ((SettingsTab?) -> Void)? = nil,
+		openURL: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) }
 	) {
 		self.terminate = terminate
 		self.floatingPetPool = floatingPetPool
 		self.retryHooksInstall = retryHooksInstall
 		self.openSettings = openSettings
+		self.openURL = openURL
 		super.init()
 	}
 
@@ -44,7 +61,51 @@ final class MenubarMenu: NSObject {
 		let menu = NSMenu()
 		builtMenu = menu
 
+		let header = NSMenuItem(title: Self.headerTitle, action: nil, keyEquivalent: "")
+		header.isEnabled = false
+		menu.addItem(header)
+		menu.addItem(.separator())
+
+		let defaultPetItem = NSMenuItem(
+			title: "\(Self.defaultPetPrefix)\(defaultPetDisplayName())",
+			action: #selector(openPetSettingsAction(_:)),
+			keyEquivalent: ""
+		)
+		defaultPetItem.target = self
+		defaultPetItem.isEnabled = openSettings != nil
+		menu.addItem(defaultPetItem)
+		self.defaultPetItem = defaultPetItem
+
+		petSectionStartIndex = menu.numberOfItems
 		buildPetSection(in: menu)
+
+		menu.addItem(.separator())
+
+		let showAllItem = NSMenuItem(
+			title: Self.showAllPetsTitle,
+			action: #selector(showAllPets(_:)),
+			keyEquivalent: ""
+		)
+		showAllItem.target = self
+		menu.addItem(showAllItem)
+
+		let hideAllItem = NSMenuItem(
+			title: Self.hideAllPetsTitle,
+			action: #selector(hideAllPets(_:)),
+			keyEquivalent: ""
+		)
+		hideAllItem.target = self
+		menu.addItem(hideAllItem)
+
+		menu.addItem(.separator())
+
+		let websiteItem = NSMenuItem(
+			title: Self.websiteTitle,
+			action: #selector(openWebsiteAction(_:)),
+			keyEquivalent: ""
+		)
+		websiteItem.target = self
+		menu.addItem(websiteItem)
 
 		let settingsItem = NSMenuItem(
 			title: Self.settingsTitle,
@@ -54,6 +115,8 @@ final class MenubarMenu: NSObject {
 		settingsItem.target = self
 		settingsItem.isEnabled = openSettings != nil
 		menu.addItem(settingsItem)
+
+		menu.addItem(.separator())
 
 		let quitItem = NSMenuItem(
 			title: Self.quitTitle,
@@ -83,17 +146,18 @@ final class MenubarMenu: NSObject {
 		hooksNotActiveItem?.isHidden = isActive
 	}
 
-	/// Rebuilds the pet section to reflect the current pool state.
-	/// Called after any visibility change (panel hide button, menu action, pool TTL).
+	/// Rebuilds the pet section to reflect the current pool state, and refreshes
+	/// the "Default Pet: …" label. Called after any visibility change (panel hide
+	/// button, menu action, pool TTL) or pet reassignment.
 	@MainActor
 	func refreshFloatingPetMenuItemTitle() {
 		guard let menu = builtMenu else { return }
-		// Remove current pet items (always at the front of the menu)
 		for _ in 0..<petItemCount {
-			menu.removeItem(at: 0)
+			menu.removeItem(at: petSectionStartIndex)
 		}
 		petItemCount = 0
-		buildPetSection(in: menu, insertAt: 0)
+		buildPetSection(in: menu, insertAt: petSectionStartIndex)
+		defaultPetItem?.title = "\(Self.defaultPetPrefix)\(defaultPetDisplayName())"
 	}
 
 	@objc func quitMenubar(_ sender: Any?) {
@@ -105,7 +169,33 @@ final class MenubarMenu: NSObject {
 	}
 
 	@objc func openSettingsAction(_ sender: Any?) {
-		openSettings?()
+		openSettings?(nil)
+	}
+
+	@objc func openPetSettingsAction(_ sender: Any?) {
+		openSettings?(.pet)
+	}
+
+	@objc func openWebsiteAction(_ sender: Any?) {
+		openURL(Self.websiteURL)
+	}
+
+	@MainActor
+	@objc func showAllPets(_ sender: Any?) {
+		guard let pool = floatingPetPool else { return }
+		for key in pool.hiddenWindowKeys {
+			pool.setVisible(true, for: key)
+		}
+		refreshFloatingPetMenuItemTitle()
+	}
+
+	@MainActor
+	@objc func hideAllPets(_ sender: Any?) {
+		guard let pool = floatingPetPool else { return }
+		for origin in pool.activeOrigins {
+			pool.setVisible(false, for: origin)
+		}
+		refreshFloatingPetMenuItemTitle()
 	}
 
 	// MARK: - Pet section
@@ -201,6 +291,11 @@ final class MenubarMenu: NSObject {
 		else { return }
 		pool.setVisible(true, for: key)
 		refreshFloatingPetMenuItemTitle()
+	}
+
+	@MainActor
+	private func defaultPetDisplayName() -> String {
+		(floatingPetPool?.defaultPetId ?? DEFAULT_PET_NAME).capitalized
 	}
 
 	private func displayName(for origin: String) -> String {

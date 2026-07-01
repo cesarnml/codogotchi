@@ -19,6 +19,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private var window: NSWindow?
 	private var generalTab: GeneralTabView?
 	private var petTab: PetTabView?
+	private weak var tabView: NSTabView?
 	private let tabModel = SettingsTabModel()
 	private let generalViewModel: GeneralTabViewModel
 	private let petTabViewModel: PetTabViewModel
@@ -68,11 +69,18 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		self.appStateSaver = appStateSaver
 	}
 
-	/// Opens (or brings to front) the settings window.
-	func show() {
+	/// Opens (or brings to front) the settings window. Pass `tab` to land on a
+	/// specific tab (e.g. the menu-bar "Default Pet" item jumps to `.pet`).
+	func show(tab: SettingsTab? = nil) {
+		if let tab {
+			tabModel.select(tab)
+		}
 		if let existing = window {
 			existing.makeKeyAndOrderFront(nil)
 			NSApp.activate(ignoringOtherApps: true)
+			if let tab {
+				tabView?.selectTabViewItem(at: tab.rawValue)
+			}
 			return
 		}
 		openWindow()
@@ -90,6 +98,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		window = nil
 		generalTab = nil
 		petTab = nil
+		tabView = nil
 	}
 
 	// MARK: - NSTabViewDelegate
@@ -162,7 +171,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 
 		let tabView = NSTabView()
 		tabView.tabViewType = .topTabsBezelBorder
-		tabView.delegate = self
 		tabView.translatesAutoresizingMaskIntoConstraints = false
 
 		for (tab, view): (SettingsTab, NSView) in [
@@ -188,13 +196,19 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			tabView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12),
 		])
 		w.contentView = container
+		// Adding tab view items above auto-selects the first one, which would fire
+		// the delegate and reset `tabModel.selected` back to `.general` if the
+		// delegate were already wired. Select the real target, then attach the
+		// delegate so subsequent user-driven tab clicks are tracked correctly.
 		tabView.selectTabViewItem(at: tabModel.selected.rawValue)
+		tabView.delegate = self
 
 		w.makeKeyAndOrderFront(nil)
 		NSApp.activate(ignoringOtherApps: true)
 		self.window = w
 		self.generalTab = general
 		self.petTab = pet
+		self.tabView = tabView
 	}
 
 	private func handleInstallHooks() {
@@ -1586,6 +1600,19 @@ private final class CustomizationTabView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
+	/// Styled container used for the "Platform Display Mode" and "Minimalist Panel
+	/// Options" columns, matching the pet-card look elsewhere in Settings.
+	private func makeSettingsCard() -> NSView {
+		let card = NSView()
+		card.translatesAutoresizingMaskIntoConstraints = false
+		card.wantsLayer = true
+		card.layer?.cornerRadius = 10
+		card.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.5).cgColor
+		card.layer?.borderWidth = 1
+		card.layer?.borderColor = NSColor.separatorColor.cgColor
+		return card
+	}
+
 	private func setupViews() {
 		let title = settingsSectionTitle("Customization")
 		addSubview(title)
@@ -1599,9 +1626,13 @@ private final class CustomizationTabView: NSView {
 		)
 		addSubview(note)
 
-		// Per-platform mode rows
-		let platformTitle = settingsSectionTitle("Platform display mode")
-		addSubview(platformTitle)
+		// MARK: Platform Display Mode card (left column)
+
+		let platformCard = makeSettingsCard()
+		addSubview(platformCard)
+
+		let platformTitle = settingsSectionTitle("Platform Display Mode")
+		platformCard.addSubview(platformTitle)
 
 		var previousAnchor: NSLayoutYAxisAnchor = platformTitle.bottomAnchor
 		var previousConstant: CGFloat = 10
@@ -1610,7 +1641,7 @@ private final class CustomizationTabView: NSView {
 			let label = NSTextField(labelWithString: displayName(for: origin))
 			label.font = .systemFont(ofSize: 13)
 			label.translatesAutoresizingMaskIntoConstraints = false
-			addSubview(label)
+			platformCard.addSubview(label)
 
 			let picker = NSPopUpButton()
 			picker.translatesAutoresizingMaskIntoConstraints = false
@@ -1622,25 +1653,29 @@ private final class CustomizationTabView: NSView {
 			picker.target = self
 			picker.action = #selector(modePickerChanged(_:))
 			picker.identifier = NSUserInterfaceItemIdentifier(origin)
-			addSubview(picker)
+			platformCard.addSubview(picker)
 			modePickers[origin] = picker
 
 			NSLayoutConstraint.activate([
 				label.topAnchor.constraint(equalTo: previousAnchor, constant: previousConstant),
-				label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-				label.widthAnchor.constraint(equalToConstant: 140),
+				label.leadingAnchor.constraint(equalTo: platformCard.leadingAnchor, constant: 16),
+				label.widthAnchor.constraint(equalToConstant: 110),
 
 				picker.centerYAnchor.constraint(equalTo: label.centerYAnchor),
 				picker.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
-				picker.widthAnchor.constraint(equalToConstant: 130),
+				picker.trailingAnchor.constraint(equalTo: platformCard.trailingAnchor, constant: -16),
 			])
 			previousAnchor = label.bottomAnchor
-			previousConstant = 8
+			previousConstant = 10
 		}
 
-		// Minimalist panel options
-		let minimalistTitle = settingsSectionTitle("Minimalist panel options")
-		addSubview(minimalistTitle)
+		// MARK: Minimalist Panel Options card (right column)
+
+		let minimalistCard = makeSettingsCard()
+		addSubview(minimalistCard)
+
+		let minimalistTitle = settingsSectionTitle("Minimalist Panel Options")
+		minimalistCard.addSubview(minimalistTitle)
 
 		combinedMinimalistCheckbox = NSButton(
 			checkboxWithTitle: "Enable Minimalist mode for Combined pet",
@@ -1649,17 +1684,17 @@ private final class CustomizationTabView: NSView {
 		)
 		combinedMinimalistCheckbox.state = viewModel.combinedMinimalistEnabled ? .on : .off
 		combinedMinimalistCheckbox.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(combinedMinimalistCheckbox)
+		minimalistCard.addSubview(combinedMinimalistCheckbox)
 
 		let combinedMinimalistNote = settingsBodyLabel(
 			"When enabled, all platforms set to Combined render to a single Minimalist-mode panel."
 		)
-		addSubview(combinedMinimalistNote)
+		minimalistCard.addSubview(combinedMinimalistNote)
 
-		let scaleLabel = NSTextField(labelWithString: "PlatformChip and AnimationBadge size:")
+		let scaleLabel = NSTextField(labelWithString: "PlatformChip and AnimationBadge Size:")
 		scaleLabel.font = .systemFont(ofSize: 13)
 		scaleLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(scaleLabel)
+		minimalistCard.addSubview(scaleLabel)
 
 		badgeScaleSlider.translatesAutoresizingMaskIntoConstraints = false
 		badgeScaleSlider.minValue = Double(GateBadgeLayout.achievableMinScale)
@@ -1668,27 +1703,28 @@ private final class CustomizationTabView: NSView {
 		badgeScaleSlider.isContinuous = true
 		badgeScaleSlider.target = self
 		badgeScaleSlider.action = #selector(badgeScaleChanged(_:))
-		addSubview(badgeScaleSlider)
+		minimalistCard.addSubview(badgeScaleSlider)
 
 		let smallLabel = NSTextField(labelWithString: "Small")
 		smallLabel.font = .systemFont(ofSize: 11)
 		smallLabel.textColor = .secondaryLabelColor
 		smallLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(smallLabel)
+		minimalistCard.addSubview(smallLabel)
 
 		let largeLabel = NSTextField(labelWithString: "Large")
 		largeLabel.font = .systemFont(ofSize: 11)
 		largeLabel.textColor = .secondaryLabelColor
 		largeLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(largeLabel)
+		minimalistCard.addSubview(largeLabel)
 
 		let scaleNote = settingsBodyLabel(
 			"Adjusts the size of the Minimalist PlatformChip and AnimationBadge."
 		)
-		addSubview(scaleNote)
+		minimalistCard.addSubview(scaleNote)
 
-		// TTL row
-		let ttlTitle = settingsSectionTitle("Idle dismiss")
+		// MARK: Idle Dismiss (full width, below both cards)
+
+		let ttlTitle = settingsSectionTitle("Idle Dismiss")
 		addSubview(ttlTitle)
 
 		let ttlLabel = NSTextField(labelWithString: "Dismiss after idle:")
@@ -1717,6 +1753,18 @@ private final class CustomizationTabView: NSView {
 		)
 		addSubview(ttlNote)
 
+		// Both cards align to the same top edge; whichever is taller determines
+		// where the Idle Dismiss section starts (required >= plus a low-priority
+		// == on each column pins the section to the taller of the two).
+		let rowsTop = note.bottomAnchor
+
+		let platformCardBottomPreferred = ttlTitle.topAnchor.constraint(
+			equalTo: platformCard.bottomAnchor, constant: 24)
+		platformCardBottomPreferred.priority = .defaultLow
+		let minimalistCardBottomPreferred = ttlTitle.topAnchor.constraint(
+			equalTo: minimalistCard.bottomAnchor, constant: 24)
+		minimalistCardBottomPreferred.priority = .defaultLow
+
 		NSLayoutConstraint.activate([
 			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
 			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
@@ -1726,41 +1774,62 @@ private final class CustomizationTabView: NSView {
 			note.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			note.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			platformTitle.topAnchor.constraint(equalTo: note.bottomAnchor, constant: 20),
-			platformTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			platformTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			// Two equal-width columns.
+			platformCard.topAnchor.constraint(equalTo: rowsTop, constant: 20),
+			platformCard.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 
-			minimalistTitle.topAnchor.constraint(equalTo: previousAnchor, constant: 24),
-			minimalistTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			minimalistTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			minimalistCard.topAnchor.constraint(equalTo: rowsTop, constant: 20),
+			minimalistCard.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			minimalistCard.leadingAnchor.constraint(equalTo: platformCard.trailingAnchor, constant: 16),
+			minimalistCard.widthAnchor.constraint(equalTo: platformCard.widthAnchor),
+
+			platformTitle.topAnchor.constraint(equalTo: platformCard.topAnchor, constant: 16),
+			platformTitle.leadingAnchor.constraint(equalTo: platformCard.leadingAnchor, constant: 16),
+			platformTitle.trailingAnchor.constraint(equalTo: platformCard.trailingAnchor, constant: -16),
+
+			previousAnchor.constraint(equalTo: platformCard.bottomAnchor, constant: -16),
+
+			minimalistTitle.topAnchor.constraint(equalTo: minimalistCard.topAnchor, constant: 16),
+			minimalistTitle.leadingAnchor.constraint(equalTo: minimalistCard.leadingAnchor, constant: 16),
+			minimalistTitle.trailingAnchor.constraint(equalTo: minimalistCard.trailingAnchor, constant: -16),
 
 			combinedMinimalistCheckbox.topAnchor.constraint(
 				equalTo: minimalistTitle.bottomAnchor, constant: 10),
-			combinedMinimalistCheckbox.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			combinedMinimalistCheckbox.leadingAnchor.constraint(
+				equalTo: minimalistCard.leadingAnchor, constant: 16),
 
 			combinedMinimalistNote.topAnchor.constraint(
 				equalTo: combinedMinimalistCheckbox.bottomAnchor, constant: 4),
-			combinedMinimalistNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			combinedMinimalistNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			combinedMinimalistNote.leadingAnchor.constraint(
+				equalTo: minimalistCard.leadingAnchor, constant: 16),
+			combinedMinimalistNote.trailingAnchor.constraint(
+				equalTo: minimalistCard.trailingAnchor, constant: -16),
 
 			scaleLabel.topAnchor.constraint(equalTo: combinedMinimalistNote.bottomAnchor, constant: 16),
-			scaleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			scaleLabel.leadingAnchor.constraint(equalTo: minimalistCard.leadingAnchor, constant: 16),
 
 			badgeScaleSlider.topAnchor.constraint(equalTo: scaleLabel.bottomAnchor, constant: 8),
 			badgeScaleSlider.leadingAnchor.constraint(equalTo: smallLabel.trailingAnchor, constant: 6),
 			badgeScaleSlider.trailingAnchor.constraint(equalTo: largeLabel.leadingAnchor, constant: -6),
-			badgeScaleSlider.widthAnchor.constraint(equalToConstant: 240),
 
 			smallLabel.centerYAnchor.constraint(equalTo: badgeScaleSlider.centerYAnchor),
-			smallLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			smallLabel.leadingAnchor.constraint(equalTo: minimalistCard.leadingAnchor, constant: 16),
 
 			largeLabel.centerYAnchor.constraint(equalTo: badgeScaleSlider.centerYAnchor),
+			largeLabel.trailingAnchor.constraint(equalTo: minimalistCard.trailingAnchor, constant: -16),
 
 			scaleNote.topAnchor.constraint(equalTo: badgeScaleSlider.bottomAnchor, constant: 6),
-			scaleNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			scaleNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			scaleNote.leadingAnchor.constraint(equalTo: minimalistCard.leadingAnchor, constant: 16),
+			scaleNote.trailingAnchor.constraint(equalTo: minimalistCard.trailingAnchor, constant: -16),
 
-			ttlTitle.topAnchor.constraint(equalTo: scaleNote.bottomAnchor, constant: 24),
+			scaleNote.bottomAnchor.constraint(equalTo: minimalistCard.bottomAnchor, constant: -16),
+
+			ttlTitle.topAnchor.constraint(
+				greaterThanOrEqualTo: platformCard.bottomAnchor, constant: 24),
+			ttlTitle.topAnchor.constraint(
+				greaterThanOrEqualTo: minimalistCard.bottomAnchor, constant: 24),
+			platformCardBottomPreferred,
+			minimalistCardBottomPreferred,
 			ttlTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			ttlTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 

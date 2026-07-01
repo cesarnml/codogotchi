@@ -345,8 +345,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			retryHooksInstall: { [weak onboardingController] in
 				onboardingController?.showIfNeeded()
 			},
-			openSettings: { [weak settingsController] in
-				settingsController?.show()
+			openSettings: { [weak settingsController] tab in
+				settingsController?.show(tab: tab)
 			}
 		)
 		item.menu = menuBuilder.build()
@@ -547,6 +547,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 							origin: origin, codexPet: pair.0, codogotchiPet: pair.1)
 					}
 				}
+				self.menuBuilder?.refreshFloatingPetMenuItemTitle()
 			}
 		}
 	}
