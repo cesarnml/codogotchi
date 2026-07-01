@@ -45,6 +45,16 @@ final class FloatingPetWindowPool {
 	private var currentCustomization: CustomizationSnapshot = .safeDefault
 	/// Most-recently read assignments — updated at the start of each tick.
 	private var currentAssignments: AssignmentsSnapshot = .safeDefault
+	/// The `(origin, session_id)` identity behind each render key, from the
+	/// latest `update(snapshot:)` tick — used to drive session-number
+	/// assign/release without threading the identity map through every
+	/// removal call site individually.
+	private var currentRenderKeyIdentities: [String: RenderKeyIdentity] = [:]
+	/// Free-list session-number allocator, keyed per-origin internally.
+	/// Assign/release only apply to session-keyed windows (an `origin:session_id`
+	/// render key) — plain-origin windows (session-pets off) and the literal
+	/// "combined" window never carry a session number.
+	private let sessionNumberAllocator = SessionNumberAllocator()
 
 	/// Window keys that currently have visible windows.
 	var activeOrigins: [String] { Array(windows.keys).sorted() }
@@ -115,6 +125,7 @@ final class FloatingPetWindowPool {
 		let prevMonochrome = currentCustomization.menubarIconMonochrome
 		currentCustomization = customizationReader()
 		currentAssignments = assignmentsReader()
+		currentRenderKeyIdentities = snapshot.renderKeyIdentities
 		if currentCustomization.menubarIconMonochrome != prevMonochrome {
 			onMonochromeChanged?(currentCustomization.menubarIconMonochrome)
 		}
@@ -169,6 +180,7 @@ final class FloatingPetWindowPool {
 				windows[renderKey]?.setFloatingPetVisible(false)
 				windows.removeValue(forKey: renderKey)
 				windowSpawnedModes.removeValue(forKey: renderKey)
+				releaseSessionNumber(forWindowKey: renderKey)
 			}
 		}
 
@@ -190,6 +202,7 @@ final class FloatingPetWindowPool {
 			windows[key]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: key)
 			windowSpawnedModes.removeValue(forKey: key)
+			releaseSessionNumber(forWindowKey: key)
 		}
 
 		// Step 6: separate combined vs directly-keyed entries. The driver pre-folds
@@ -206,6 +219,7 @@ final class FloatingPetWindowPool {
 			windows[renderKey]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: renderKey)
 			windowSpawnedModes.removeValue(forKey: renderKey)
+			releaseSessionNumber(forWindowKey: renderKey)
 		}
 
 		// Step 6b: collapse windows whose controller type no longer matches the current
@@ -219,6 +233,7 @@ final class FloatingPetWindowPool {
 				windows[renderKey]?.setFloatingPetVisible(false)
 				windows.removeValue(forKey: renderKey)
 				windowSpawnedModes.removeValue(forKey: renderKey)
+				releaseSessionNumber(forWindowKey: renderKey)
 			}
 		}
 
@@ -232,6 +247,7 @@ final class FloatingPetWindowPool {
 					windows[renderKey]?.setFloatingPetVisible(false)
 					windows.removeValue(forKey: renderKey)
 					windowSpawnedModes.removeValue(forKey: renderKey)
+					releaseSessionNumber(forWindowKey: renderKey)
 				}
 				continue
 			}
@@ -242,6 +258,7 @@ final class FloatingPetWindowPool {
 			let origin = Self.origin(forWindowKey: renderKey)
 			if windows[renderKey] == nil {
 				let petId = currentAssignments.resolve(origin: origin)
+				assignSessionNumber(forWindowKey: renderKey)
 				let controller: FloatingPetWindowControlling
 				if mode(for: origin) == .minimalist {
 					guard let minimalistWindowFactory else {
@@ -267,6 +284,7 @@ final class FloatingPetWindowPool {
 			} else if let sourceOrigin = state.sourceEvent?.origin {
 				windows[renderKey]?.applyPlatform(origin: sourceOrigin)
 			}
+			windows[renderKey]?.applySessionNumber(sessionNumber(forWindowKey: renderKey))
 		}
 
 		// Step 8: spawn / update combined window
@@ -371,6 +389,7 @@ final class FloatingPetWindowPool {
 			windows[key]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: key)
 			windowSpawnedModes.removeValue(forKey: key)
+			releaseSessionNumber(forWindowKey: key)
 			userHiddenWindowKeys.insert(key)
 		}
 	}
@@ -393,10 +412,44 @@ final class FloatingPetWindowPool {
 		}
 	}
 
+	/// Session number assigned to `windowKey`, or `nil` for a plain-origin or
+	/// "combined" window (session numbering only applies to session-keyed
+	/// windows). Consumers (e.g. `MenubarApp` wiring the session badge) call
+	/// this after a window is spawned/updated.
+	func sessionNumber(forWindowKey key: String) -> Int? {
+		guard let identity = currentRenderKeyIdentities[key] else { return nil }
+		return sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
+	}
+
 	// MARK: - Private helpers
 
 	private func mode(for origin: String) -> PlatformMode {
 		currentCustomization.platformModes[origin] ?? .own
+	}
+
+	/// True when `key` is a session-keyed render key (`origin:session_id`),
+	/// as opposed to a plain origin (session-pets off) or the literal
+	/// "combined" key. Session numbering only ever applies to these keys.
+	private func isSessionKeyed(_ key: String) -> Bool {
+		key != "combined" && key.contains(":")
+	}
+
+	/// Assigns a session number for a newly-spawned session-keyed window.
+	/// No-op for plain-origin or "combined" windows.
+	private func assignSessionNumber(forWindowKey key: String) {
+		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return }
+		let unlimited = (currentCustomization.sessionCap[identity.origin] ?? 3) == 0
+		sessionNumberAllocator.setUnlimited(unlimited, origin: identity.origin)
+		sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
+	}
+
+	/// Releases the session number for a dismissed session-keyed window.
+	/// No-op for plain-origin or "combined" windows.
+	private func releaseSessionNumber(forWindowKey key: String) {
+		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return }
+		let unlimited = (currentCustomization.sessionCap[identity.origin] ?? 3) == 0
+		sessionNumberAllocator.setUnlimited(unlimited, origin: identity.origin)
+		sessionNumberAllocator.release(origin: identity.origin, sessionId: identity.sessionId)
 	}
 
 	private func mode(forWindowKey key: String) -> PlatformMode {

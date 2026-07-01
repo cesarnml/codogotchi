@@ -18,6 +18,14 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	func applyGateBadge(content: GateBadgeContent?)
 	func applyPlatform(origin: String?)
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?)
+	/// Assigned session number for this window (nil for a plain-origin or
+	/// "combined" window — session numbering only applies to session-keyed
+	/// windows). Drives the `PlatformSessionBadge` row.
+	func applySessionNumber(_ number: Int?)
+}
+
+extension FloatingPetWindowControlling {
+	func applySessionNumber(_ number: Int?) {}
 }
 
 @MainActor
@@ -35,6 +43,8 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func setHUDPinned(_ pinned: Bool)
 	func setInteraction(_ interaction: FloatingInteraction?)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
+	/// Assigned session number for this panel (nil clears the session badge row).
+	func applySessionNumber(_ number: Int?)
 }
 
 extension FloatingPetPanelManaging {
@@ -46,6 +56,7 @@ extension FloatingPetPanelManaging {
 	func setRPGHUDEnabled(_ enabled: Bool) {}
 	func setHUDDemoActive(_ active: Bool) {}
 	func setHUDPinned(_ pinned: Bool) {}
+	func applySessionNumber(_ number: Int?) {}
 }
 
 @MainActor
@@ -142,6 +153,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 		panel.applyPlatform(origin: origin)
 	}
 
+	func applySessionNumber(_ number: Int?) {
+		panel.applySessionNumber(number)
+	}
+
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {
 		panel.applyRPGState(
 			halfHearts: halfHearts,
@@ -214,6 +229,8 @@ protocol MinimalistPanelManaging: AnyObject {
 	func applyBadgeScale(_ scale: Double)
 	func applyGateBadge(content: GateBadgeContent?)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
+	/// Assigned session number for this strip (nil clears the session badge row).
+	func applySessionNumber(_ number: Int?)
 }
 
 @MainActor
@@ -328,6 +345,10 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	func applyPlatform(origin: String?) {
 		lastAppliedOrigin = origin ?? self.origin
 		panel.applyPlatform(origin: lastAppliedOrigin)
+	}
+
+	func applySessionNumber(_ number: Int?) {
+		panel.applySessionNumber(number)
 	}
 
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}

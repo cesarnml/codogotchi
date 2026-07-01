@@ -20,6 +20,15 @@ import SpriteKit
 final class MinimalistPanelController: MinimalistPanelManaging {
 	private enum Layout {
 		static let height: CGFloat = 58
+		/// Extra vertical room for the `PlatformSessionBadge` row, only added
+		/// when a session number is actually assigned to this panel (i.e. the
+		/// window is session-keyed and session-pets is on) — a plain-origin
+		/// Minimalist strip never grows. `AttentionBubblePanel.reposition`
+		/// anchors off this panel's actual on-screen frame
+		/// (`BubbleLayout.frame`: `y = petFrame.minY - gapBelowPet - height`),
+		/// so growing the badge panel's height naturally pushes the bubble down
+		/// without a separate offset constant.
+		static let sessionRowExtraHeight: CGFloat = 26
 		static let minBadgeWidth: CGFloat = 80
 	}
 
@@ -39,9 +48,18 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private var currentAttention: AttentionPayload?
 	private var currentSourceEvent: SourceEvent?
 	private var currentGateBadge: GateBadgeContent?
+	/// Session number assigned to this window by `FloatingPetWindowPool`, or
+	/// `nil` for a plain-origin/combined window. Non-nil grows the panel to
+	/// make room for the `PlatformSessionBadge` row.
+	private var currentSessionNumber: Int?
 	/// Badge metrics driven by the user's "PlatformChip and AnimationBadge Size"
 	/// slider in Settings > Customization. Updated via applyBadgeScale(_:).
 	private var currentBadgeMetrics = GateBadgeLayout.metrics(scale: 1.0)
+	/// Panel height for the current tick — base height, or base + the session
+	/// row's extra height while a session number is assigned.
+	private var panelHeight: CGFloat {
+		currentSessionNumber != nil ? Layout.height + Layout.sessionRowExtraHeight : Layout.height
+	}
 	private var frameChangeHandler: ((CGRect) -> Void)?
 	private var isShown = false
 	/// Called after the user dismisses or focuses away from the attention bubble.
@@ -64,7 +82,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		badgeView.clampedFrameProvider = { [weak self] origin in
 			guard let self else { return CGRect(origin: origin, size: .zero) }
 			let size = self.badgePanel?.frame.size
-				?? CGSize(width: Layout.minBadgeWidth, height: Layout.height)
+				?? CGSize(width: Layout.minBadgeWidth, height: self.panelHeight)
 			return self.clampedFrame(origin: origin, size: size)
 		}
 		// Keep the bubble and gate badge anchored to the badge while it is dragged.
@@ -131,6 +149,13 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		applyBadge()
 	}
 
+	func applySessionNumber(_ number: Int?) {
+		guard currentSessionNumber != number else { return }
+		currentSessionNumber = number
+		badgeView.configureSessionNumber(number)
+		applyBadge()
+	}
+
 	func applyGateBadge(content: GateBadgeContent?) {
 		currentGateBadge = content
 		applyGateBadgePanel(badgeFrame: badgePanel?.frame ?? .zero)
@@ -141,7 +166,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	}
 
 	private func makeBadgePanel() -> NSPanel {
-		let initialSize = CGSize(width: Layout.minBadgeWidth, height: Layout.height)
+		let initialSize = CGSize(width: Layout.minBadgeWidth, height: panelHeight)
 		let panel = NSPanel(
 			contentRect: CGRect(origin: .zero, size: initialSize),
 			styleMask: [.borderless, .nonactivatingPanel],
@@ -183,7 +208,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		)
 		let origin = anchorOrigin ?? panel.frame.origin
 		let badgeW = max(Layout.minBadgeWidth, badgeView.badgePreferredWidth)
-		let newFrame = clampedFrame(origin: origin, size: CGSize(width: badgeW, height: Layout.height))
+		let newFrame = clampedFrame(origin: origin, size: CGSize(width: badgeW, height: panelHeight))
 		if newFrame != panel.frame {
 			panel.setFrame(newFrame, display: true)
 		}
@@ -258,9 +283,13 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 /// bubble — that lives in its own panel.
 private final class MinimalistBadgeView: NSView {
 	private static let hPad: CGFloat = 10
+	private static let rowSpacing: CGFloat = 4
 
 	private let animationBadge = AnimationBadgeView(frame: .zero)
+	private let sessionBadge = PlatformSessionBadge(frame: .zero)
 	private let badgeStack = NSStackView()
+	private let outerStack = NSStackView()
+	private var currentMetrics = GateBadgeLayout.metrics(scale: 1.0)
 
 	var clampedFrameProvider: ((CGPoint) -> CGRect)?
 	/// Fires on every drag step with the live window frame so the controller can
@@ -301,17 +330,36 @@ private final class MinimalistBadgeView: NSView {
 		metrics: GateBadgeLayout.Metrics
 	) {
 		currentActivity = activity
+		currentMetrics = metrics
 		animationBadge.configure(
 			text: activity.displayLabel,
 			platform: platform,
 			inFlight: activity.isInFlight,
 			metrics: metrics
 		)
+		sessionBadge.configure(number: currentSessionNumber, metrics: metrics)
 	}
 
-	/// Width the badge content needs plus horizontal padding.
+	/// Latest session number applied via `configureSessionNumber(_:)`. Mirrored
+	/// so a later `configureBadge` (metrics/activity refresh) can re-apply it
+	/// without the caller having to resend the number every tick.
+	private var currentSessionNumber: Int?
+
+	/// Shows/hides and labels the session badge row. `nil` hides the row
+	/// entirely (session-pets off, or a plain-origin/combined window).
+	func configureSessionNumber(_ number: Int?) {
+		currentSessionNumber = number
+		sessionBadge.configure(number: number, metrics: currentMetrics)
+	}
+
+	/// Width the badge content needs plus horizontal padding. When the session
+	/// row is visible, the wider of the two rows drives the panel width.
 	var badgePreferredWidth: CGFloat {
-		animationBadge.preferredSize.width + Self.hPad * 2
+		var width = animationBadge.preferredSize.width
+		if !sessionBadge.isHidden {
+			width = max(width, sessionBadge.intrinsicContentSize.width)
+		}
+		return width + Self.hPad * 2
 	}
 
 	// MARK: - Drag
@@ -460,13 +508,21 @@ private final class MinimalistBadgeView: NSView {
 		badgeStack.orientation = .horizontal
 		badgeStack.alignment = .centerY
 		badgeStack.spacing = 8
-		badgeStack.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(badgeStack)
 		badgeStack.addArrangedSubview(animationBadge)
+
+		sessionBadge.isHidden = true
+
+		outerStack.orientation = .vertical
+		outerStack.alignment = .centerX
+		outerStack.spacing = Self.rowSpacing
+		outerStack.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(outerStack)
+		outerStack.addArrangedSubview(badgeStack)
+		outerStack.addArrangedSubview(sessionBadge)
 		NSLayoutConstraint.activate([
-			badgeStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.hPad),
-			badgeStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -Self.hPad),
-			badgeStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+			outerStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.hPad),
+			outerStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -Self.hPad),
+			outerStack.centerYAnchor.constraint(equalTo: centerYAnchor),
 		])
 	}
 }
@@ -512,6 +568,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// logo chip shown immediately left of the animation badge. `nil` when the
 	/// origin is absent or non-platform, in which case no chip is drawn.
 	private var currentPlatform: PlatformAttribution?
+	/// Session number assigned to this window by `FloatingPetWindowPool`, or
+	/// `nil` for a plain-origin/combined window. Drives the `PlatformSessionBadge`
+	/// row beneath the platform chip + animation badge.
+	private var currentSessionNumber: Int?
 
 	// RPG HUD — shown on hover, and transiently revealed on animation moments
 	// (lose/gain a half-heart, level up) when not hovering.
@@ -695,6 +755,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		// Origin can change without the activity state changing (e.g. claude_code
 		// idle → cursor idle), so refresh the badge directly here rather than
 		// relying on an `apply(state:)` tick.
+		repositionAndShowAnimationBadge()
+	}
+
+	func applySessionNumber(_ number: Int?) {
+		guard currentSessionNumber != number else { return }
+		currentSessionNumber = number
 		repositionAndShowAnimationBadge()
 	}
 
@@ -970,6 +1036,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
+			sessionNumber: currentSessionNumber,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
@@ -1076,6 +1143,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
+			sessionNumber: currentSessionNumber,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
@@ -1569,6 +1637,7 @@ final class AnimationBadgePanel: NSPanel {
 		label: String,
 		platform: PlatformAttribution?,
 		inFlight: Bool,
+		sessionNumber: Int? = nil,
 		relativeTo petFrame: CGRect,
 		visibleFrame: CGRect
 	) {
@@ -1578,6 +1647,7 @@ final class AnimationBadgePanel: NSPanel {
 			inFlight: inFlight,
 			metrics: AnimationBadgeLayout.metrics(for: petFrame)
 		)
+		badgeView.configureSessionNumber(sessionNumber)
 		let size = badgeView.preferredSize
 		let frame = AnimationBadgeLayout.frame(
 			relativeTo: petFrame,
@@ -1983,13 +2053,16 @@ final class AnimationLabelPillView: NSView {
 	}
 }
 
-/// Transparent container laying out an optional platform chip immediately left
-/// of the activity-state label pill. When no platform is attributed the chip is
-/// detached and the pill stands alone, preserving the prior single-pill look.
-final class AnimationBadgeView: NSView {
-	private let chipView = PlatformChipView(frame: .zero)
-	private let pillView = AnimationLabelPillView(frame: .zero)
-	private let stackView = NSStackView()
+/// Session-label pill shown as a second row beneath the platform chip +
+/// animation badge, centered horizontally. Renders "Session N" for the
+/// number assigned by `SessionNumberAllocator`; rename support is out of
+/// scope for this ticket (P15.06), so the label is always this fixed format.
+/// Reuses the same frosted chrome and `GateBadgeLayout.Metrics` scaling as
+/// the animation badge pill — single source of scaling truth.
+final class PlatformSessionBadge: NSView {
+	private let effectView = AnimationBadgeChrome.makeEffectView()
+	private let tintView = AnimationBadgeChrome.makeTintView()
+	private let label = NSTextField(labelWithString: "")
 	private var metrics = GateBadgeLayout.metrics(
 		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
 	)
@@ -1999,16 +2072,105 @@ final class AnimationBadgeView: NSView {
 		wantsLayer = true
 		layer?.masksToBounds = false
 
+		addSubview(effectView)
+		addSubview(tintView)
+
+		label.lineBreakMode = .byTruncatingTail
+		label.maximumNumberOfLines = 1
+		label.alignment = .center
+		label.textColor = AnimationBadgeChrome.textColor
+		label.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(label)
+
+		NSLayoutConstraint.activate([
+			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			effectView.topAnchor.constraint(equalTo: topAnchor),
+			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			tintView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			tintView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			tintView.topAnchor.constraint(equalTo: topAnchor),
+			tintView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			label.centerXAnchor.constraint(equalTo: centerXAnchor),
+			label.centerYAnchor.constraint(equalTo: centerYAnchor),
+		])
+		applyMetrics()
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	/// Configures the badge for session `number` and returns whether it should
+	/// be visible at all — `nil` (no session assigned, e.g. session-pets off or
+	/// a plain-origin/combined window) hides the row entirely.
+	func configure(number: Int?, metrics: GateBadgeLayout.Metrics) {
+		self.metrics = metrics
+		if let number {
+			label.stringValue = "Session \(number)"
+			isHidden = false
+		} else {
+			isHidden = true
+		}
+		applyMetrics()
+		invalidateIntrinsicContentSize()
+	}
+
+	override var intrinsicContentSize: NSSize {
+		NSSize(
+			width: label.intrinsicContentSize.width + metrics.horizontalPadding * 2,
+			height: metrics.badgeHeight
+		)
+	}
+
+	override func layout() {
+		super.layout()
+		applyMetrics()
+	}
+
+	private func applyMetrics() {
+		let font = NSFont.monospacedSystemFont(ofSize: metrics.fontSize, weight: .medium)
+		label.font = font
+		AnimationBadgeChrome.apply(to: self, effect: effectView, tint: tintView, cornerRadius: metrics.cornerRadius)
+	}
+}
+
+/// Transparent container laying out an optional platform chip immediately left
+/// of the activity-state label pill. When no platform is attributed the chip is
+/// detached and the pill stands alone, preserving the prior single-pill look.
+final class AnimationBadgeView: NSView {
+	private let chipView = PlatformChipView(frame: .zero)
+	private let pillView = AnimationLabelPillView(frame: .zero)
+	private let stackView = NSStackView()
+	private let sessionBadge = PlatformSessionBadge(frame: .zero)
+	private let outerStack = NSStackView()
+	private var metrics = GateBadgeLayout.metrics(
+		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
+	)
+	private var currentSessionNumber: Int?
+
+	override init(frame frameRect: NSRect) {
+		super.init(frame: frameRect)
+		wantsLayer = true
+		layer?.masksToBounds = false
+
 		stackView.orientation = .horizontal
 		stackView.alignment = .centerY
-		stackView.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(stackView)
 		stackView.addArrangedSubview(pillView)
+
+		sessionBadge.isHidden = true
+
+		outerStack.orientation = .vertical
+		outerStack.alignment = .centerX
+		outerStack.spacing = 4
+		outerStack.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(outerStack)
+		outerStack.addArrangedSubview(stackView)
+		outerStack.addArrangedSubview(sessionBadge)
 		NSLayoutConstraint.activate([
-			stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
-			stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
-			stackView.topAnchor.constraint(equalTo: topAnchor),
-			stackView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			outerStack.leadingAnchor.constraint(equalTo: leadingAnchor),
+			outerStack.trailingAnchor.constraint(equalTo: trailingAnchor),
+			outerStack.topAnchor.constraint(equalTo: topAnchor),
+			outerStack.bottomAnchor.constraint(equalTo: bottomAnchor),
 		])
 	}
 
@@ -2033,12 +2195,27 @@ final class AnimationBadgeView: NSView {
 			stackView.removeArrangedSubview(chipView)
 			chipView.removeFromSuperview()
 		}
+		sessionBadge.configure(number: currentSessionNumber, metrics: metrics)
+		layoutSubtreeIfNeeded()
+	}
+
+	/// Shows/hides and labels the session badge row beneath the chip + pill
+	/// row. `nil` hides the row entirely (session-pets off, or a
+	/// plain-origin/combined window).
+	func configureSessionNumber(_ number: Int?) {
+		currentSessionNumber = number
+		sessionBadge.configure(number: number, metrics: metrics)
 		layoutSubtreeIfNeeded()
 	}
 
 	var preferredSize: CGSize {
 		layoutSubtreeIfNeeded()
-		return stackView.fittingSize
+		var size = stackView.fittingSize
+		if !sessionBadge.isHidden {
+			size.width = max(size.width, sessionBadge.intrinsicContentSize.width)
+			size.height += 4 + sessionBadge.intrinsicContentSize.height
+		}
+		return size
 	}
 
 	/// X-coordinate (in badge-local space) of the label pill's horizontal center.

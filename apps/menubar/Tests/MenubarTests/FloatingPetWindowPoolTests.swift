@@ -13,6 +13,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     var appliedAttention: [(AttentionPayload?, SourceEvent?)] = []
     var appliedRPGStates: [(Int, Double, Int, Int, Bool)] = []
     var appliedGateBadges: [GateBadgeContent?] = []
+    var appliedSessionNumbers: [Int?] = []
 
     func setFloatingPetVisible(_ visible: Bool) { isFloatingPetVisible = visible }
     func apply(state: ActivityState, visualMode: VisualMode) { appliedStates.append((state, visualMode)) }
@@ -25,6 +26,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     func applyGateBadge(content: GateBadgeContent?) { appliedGateBadges.append(content) }
     func applyPlatform(origin: String?) { appliedPlatforms.append(origin) }
     func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) { replacePetsCallCount += 1 }
+    func applySessionNumber(_ number: Int?) { appliedSessionNumbers.append(number) }
 }
 
 @MainActor
@@ -37,6 +39,7 @@ private final class StubMinimalistPanel: MinimalistPanelManaging {
 	var rpgApplyCount = 0
 	var frameChangeHandler: ((CGRect) -> Void)?
 	var gateBadge: GateBadgeContent?
+	var sessionNumber: Int?
 
 	func show(frame: CGRect) { visible = true }
 	func hide() { visible = false }
@@ -49,6 +52,7 @@ private final class StubMinimalistPanel: MinimalistPanelManaging {
 	func applyBadgeScale(_ scale: Double) {}
 	func applyGateBadge(content: GateBadgeContent?) { gateBadge = content }
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) { frameChangeHandler = handler }
+	func applySessionNumber(_ number: Int?) { sessionNumber = number }
 }
 
 // MARK: - Helpers

@@ -38,8 +38,50 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [record any deviation from the ticket metadata contract here]
+Red first: `SessionNumberAllocatorTests` (5 cases: sequential 1/2/3, freed-#2 reuse
+as lowest-free, never-renumber-a-live-session, Unlimited-cap monotonic with no
+reuse, per-platform independence) — all 5 failed to compile with "cannot find
+'SessionNumberAllocator' in scope" before the type existed. Committed as
+`612861cc test(P15.05): per-platform session free-list numbering [red]`
+(this commit also carries the regenerated `project.pbxproj` diff needed to
+register the new test file with the `CodogotchiTests` target — XcodeGen's
+filesystem-synced Sources groups still require a project regen to pick up a
+brand-new file, so that diff is inseparable from the red test landing at all).
+
+Why this path: `SessionNumberAllocator` is a plain (non-`@MainActor`) final
+class holding two dictionaries per origin (`assigned`, `freeNumbers`) plus a
+monotonic `nextNumber` counter — the smallest structure that satisfies
+"lowest free number, never renumber a live session, Unlimited stays
+monotonic." `assign`/`release` take `origin` explicitly (no implicit
+call-site depending on ordering), and Unlimited-ness is a separate
+`setUnlimited(_:origin:)` call the pool feeds from `sessionCap` each tick,
+because the ticket's own `assign(origin:sessionId:)`/`release(origin:sessionId:)`
+signatures (no `unlimited` parameter) implied the mode should live as
+allocator-internal state rather than being threaded through every call.
+`FloatingPetWindowPool` owns one allocator instance (per-origin state lives
+inside it) and calls `assignSessionNumber`/`releaseSessionNumber` at every
+existing spawn/removal site, gated by `isSessionKeyed` (`key != "combined" &&
+key.contains(":")`) so plain-origin and combined windows are always no-ops.
+
+Alternative considered: threading `unlimited: Bool` as a parameter on every
+`assign`/`release` call (matching the ticket's literal Green-section
+signatures more closely for those two methods) was rejected — it would force
+every call site to re-derive `sessionCap` lookup logic inline instead of
+having the allocator remember the mode, and every test scenario would need to
+repeat the bool on each call even when it never changes within a scenario.
+The chosen `setUnlimited(_:origin:)` keeps `assign`/`release` reading exactly
+as specified in the ticket's Red section while still letting `sessionCap`
+toggle be applied once per tick from the pool.
+
+Deferred: rename support (P15.06) — the badge always reads "Session N", no UI
+to edit it. No persistence of session numbers across launches (explicitly
+in-memory per the Outcome section — rebuilds from whichever sessions are
+observed on the first ticks after each launch, which is expected to reassign
+numbers rather than preserve exact prior numbering across a restart).
+
+Contract note: none — the allocator's public shape
+(`assign(origin:sessionId:) -> Int`, `release(origin:sessionId:)`, plus the
+internal `setUnlimited(_:origin:)`) matches the ticket's Green section aside
+from the `unlimited` mode being allocator state instead of a call parameter,
+which is called out above as a deliberate, ticket-compatible interpretation
+rather than a deviation from the required test coverage.
