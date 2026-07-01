@@ -4,35 +4,118 @@ import Foundation
 /// hook-owned state (e.g. dismissing an attention payload so a relaunch does
 /// not re-show the bubble).
 enum StateJsonWriter {
-	/// Clears `attention` and sets `activity_state` to `"idle"` in slice files
-	/// inside the `state.d/` directory. Fails silently — the worst outcome
-	/// is the bubble reappears on relaunch.
+	/// Clears `attention` and sets `activity_state` to `"idle"` on the currently
+	/// displayed slice of each `origins` entry, so a dismissed attention bubble
+	/// does not re-show on the next poll or relaunch. Shares the winner-only
+	/// mechanics (and rationale) of `forceIdle`: the bubble is drawn for the
+	/// winner slice, so clearing that one is sufficient — and rewriting every
+	/// session slice would freeze the UI and resurrect aged-out pets by refreshing
+	/// their mtimes. Fails silently; the worst outcome is the bubble reappears.
 	///
-	/// When `origin` is non-nil, only slices whose `source_event.origin` matches
-	/// are cleared. Multi-pet mode renders one window per origin, so dismissing
-	/// one pet's bubble must not silence pending attention on the others. When
-	/// `origin` is nil (the combined-window and legacy single-state paths) every
-	/// slice is cleared.
-	static func dismissAttention(at dir: String, origin: String? = nil) {
+	/// `origins` is one entry for an own/minimalist pet, or the full combined-mode
+	/// set for the shared combined window. Runs off the main thread.
+	static func dismissAttention(
+		at dir: String,
+		origins: Set<String>,
+		now: Date = Date(),
+		staleTTL: TimeInterval = 2 * 60 * 60,
+		queue: DispatchQueue = DispatchQueue.global(qos: .userInitiated),
+		completion: (() -> Void)? = nil
+	) {
+		guard !origins.isEmpty else {
+			completion?()
+			return
+		}
+		queue.async {
+			resetWinnersToIdle(at: dir, origins: origins, now: now, staleTTL: staleTTL)
+			if let completion {
+				DispatchQueue.main.async(execute: completion)
+			}
+		}
+	}
+
+	/// Escape hatch for a pet stuck in a non-idle animation because a prompt
+	/// failed (rate limit) or was manually stopped, so the hook never emitted a
+	/// terminal event and `state.d/` still names the stale in-flight state.
+	///
+	/// Rewrites ONLY the *currently-displayed* slice of each target origin — the
+	/// freshest (max `updated_at`) slice with a non-stale mtime, exactly the
+	/// "winner" `StateJsonReader.readPerPlatformDirectory` picks. This is
+	/// deliberately narrow, because a real `state.d/` accumulates one slice per
+	/// session (hundreds of files): rewriting them all would (1) freeze the UI on
+	/// a storm of atomic writes, and (2) refresh the mtime of long-stale slices,
+	/// resurrecting pets whose windows had already aged out past the reader's 2h
+	/// mtime TTL. Touching only the visible winner avoids both.
+	///
+	/// `origins` scopes the reset: one entry for an own/minimalist pet, or the full
+	/// set of combined-mode origins for the shared combined window. The directory
+	/// scan + writes run off the main thread so the click never stutters.
+	static func forceIdle(
+		at dir: String,
+		origins: Set<String>,
+		now: Date = Date(),
+		staleTTL: TimeInterval = 2 * 60 * 60,
+		queue: DispatchQueue = DispatchQueue.global(qos: .userInitiated),
+		completion: (() -> Void)? = nil
+	) {
+		guard !origins.isEmpty else {
+			completion?()
+			return
+		}
+		queue.async {
+			resetWinnersToIdle(at: dir, origins: origins, now: now, staleTTL: staleTTL)
+			if let completion {
+				DispatchQueue.main.async(execute: completion)
+			}
+		}
+	}
+
+	/// Finds the winner slice (freshest `updated_at`, non-stale mtime) for each
+	/// origin in `origins` and rewrites just those to idle. Runs synchronously on
+	/// the caller's queue; `forceIdle` dispatches it off-main.
+	private static func resetWinnersToIdle(
+		at dir: String,
+		origins: Set<String>,
+		now: Date,
+		staleTTL: TimeInterval
+	) {
 		let fm = FileManager.default
 		guard let names = try? fm.contentsOfDirectory(atPath: dir) else { return }
+
+		// Per target origin, track the freshest slice by `updated_at`.
+		var winners: [String: (date: Date, url: URL, root: [String: Any])] = [:]
 		for name in names {
 			guard name.hasSuffix(".json"), !name.hasPrefix(".") else { continue }
 			let path = (dir as NSString).appendingPathComponent(name)
 			let url = URL(fileURLWithPath: path)
-			guard let data = try? Data(contentsOf: url),
-				var root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-			else { continue }
-			if let origin {
-				let sliceOrigin = (root["source_event"] as? [String: Any])?["origin"] as? String
-				guard sliceOrigin?.trimmingCharacters(in: .whitespaces) == origin else { continue }
+			// Skip slices the reader would ignore as stale, so we never refresh a
+			// long-dead slice's mtime and resurrect an aged-out pet.
+			if let attrs = try? fm.attributesOfItem(atPath: path),
+				let mtime = attrs[.modificationDate] as? Date,
+				now.timeIntervalSince(mtime) > staleTTL
+			{
+				continue
 			}
+			guard let data = try? Data(contentsOf: url),
+				let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+			else { continue }
+			let sliceOrigin = ((root["source_event"] as? [String: Any])?["origin"] as? String)?
+				.trimmingCharacters(in: .whitespaces)
+			guard let sliceOrigin, origins.contains(sliceOrigin) else { continue }
+			let updatedAt = (root["updated_at"] as? String)
+				.flatMap { StateJsonReader.parseISO8601Date($0) } ?? .distantPast
+			if let existing = winners[sliceOrigin], existing.date >= updatedAt { continue }
+			winners[sliceOrigin] = (updatedAt, url, root)
+		}
+
+		for winner in winners.values {
+			var root = winner.root
 			root["activity_state"] = "idle"
 			root.removeValue(forKey: "attention")
-			guard let written = try? JSONSerialization.data(
+			guard let out = try? JSONSerialization.data(
 				withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
 			else { continue }
-			try? written.write(to: url, options: .atomic)
+			try? out.write(to: winner.url, options: .atomic)
 		}
 	}
 }

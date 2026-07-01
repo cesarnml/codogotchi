@@ -33,6 +33,7 @@
 		38FAEA0F65A0C396AC8AD302 /* FloatingPetController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA899400094213B8A814D114 /* FloatingPetController.swift */; };
 		38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */; };
 		3B83084BAD4FC401B7C5CF37 /* OnboardingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712A24CF66C43196AE34459D /* OnboardingController.swift */; };
+		42657A110D312A56DE5ECF5E /* SlicePruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC23D93C9BBF53E1E90C6DCA /* SlicePruner.swift */; };
 		430CAFACBB46008FC2F3AAF7 /* ConfigFileWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0726E3AFB7210BA52BF1ACFD /* ConfigFileWriterTests.swift */; };
 		44B3B26199E887E9A287C821 /* GeneralTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FD7EFDA095F2FA6876AF23 /* GeneralTabViewModel.swift */; };
 		49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */; };
@@ -47,6 +48,7 @@
 		560036137684236CE680D9F3 /* ReloadActivePetResponsivenessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D0B6066DEB36E24086A2094 /* ReloadActivePetResponsivenessTests.swift */; };
 		5BCBBEDB079EFB169F7D3314 /* SettingsTabModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8376E8D645FB7A0F189A4BF7 /* SettingsTabModel.swift */; };
 		5D332CB1205CD66508BB99BD /* ActivityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB013AD16C8FDB083F522012 /* ActivityState.swift */; };
+		61E9DE2A91231473078CC77A /* SlicePrunerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3889340A4D00B900836757F /* SlicePrunerTests.swift */; };
 		64CF81E02A4ED90F47B5A796 /* AttentionSubtitleFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CFB15552DA5880C593A2C60 /* AttentionSubtitleFormatting.swift */; };
 		66B5C50B58C2A0D21B2D59A6 /* AssignmentsJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B088460D34832B339123365F /* AssignmentsJsonReaderTests.swift */; };
 		6A78A39CED185B02C213FE62 /* MenuItemsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */; };
@@ -211,11 +213,13 @@
 		EED7E5C1185B639D5786A2E2 /* CustomizationJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationJsonReaderTests.swift; sourceTree = "<group>"; };
 		F03E85F706D8680019622FDC /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRendererTests.swift; sourceTree = "<group>"; };
+		F3889340A4D00B900836757F /* SlicePrunerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlicePrunerTests.swift; sourceTree = "<group>"; };
 		F38C436FB78D4B7E7895A7EA /* AttentionFocusTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttentionFocusTargetTests.swift; sourceTree = "<group>"; };
 		F4B2DA7902212941A3DBFFE0 /* AboutViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModelTests.swift; sourceTree = "<group>"; };
 		F4D4D8341FA731AE0AE8723E /* AboutViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModel.swift; sourceTree = "<group>"; };
 		F60153C0C8806DC3EB2137C9 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		FB013AD16C8FDB083F522012 /* ActivityState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityState.swift; sourceTree = "<group>"; };
+		FC23D93C9BBF53E1E90C6DCA /* SlicePruner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlicePruner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -262,6 +266,7 @@
 				DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */,
 				05EB20E9AD12E7E2765C3217 /* SettingsTabModelTests.swift */,
 				14570954EC4AB5F26AFE2173 /* SettingsWindowOpenTests.swift */,
+				F3889340A4D00B900836757F /* SlicePrunerTests.swift */,
 				9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */,
 				3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */,
 				5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */,
@@ -329,6 +334,7 @@
 				73B325A85B9C3A8AFB02C5BA /* SettingsController.swift */,
 				8376E8D645FB7A0F189A4BF7 /* SettingsTabModel.swift */,
 				F03E85F706D8680019622FDC /* SettingsWindowController.swift */,
+				FC23D93C9BBF53E1E90C6DCA /* SlicePruner.swift */,
 				8BC14DBFFFD8DF9F8C3DDA8F /* StateJsonReader.swift */,
 				929D7ABA7E1617690CAFA85E /* StateJsonWriter.swift */,
 				DABEF68EEC70787763CE3E3D /* TransitionLog.swift */,
@@ -531,6 +537,7 @@
 				71AFF145FBC55826CFD98324 /* SettingsController.swift in Sources */,
 				5BCBBEDB079EFB169F7D3314 /* SettingsTabModel.swift in Sources */,
 				9B062BB29847EA8ABCE06338 /* SettingsWindowController.swift in Sources */,
+				42657A110D312A56DE5ECF5E /* SlicePruner.swift in Sources */,
 				DB71B313809B37E9F1F2EA32 /* StateJsonReader.swift in Sources */,
 				002AD852F73AF75236E5B410 /* StateJsonWriter.swift in Sources */,
 				CAB640A6BB3B62D88C3DC0FC /* TransitionLog.swift in Sources */,
@@ -581,6 +588,7 @@
 				49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */,
 				EDFFAD8F83BE0E484D996FCB /* SettingsTabModelTests.swift in Sources */,
 				7A7D6AF5F7CAC9C273EDC5FF /* SettingsWindowOpenTests.swift in Sources */,
+				61E9DE2A91231473078CC77A /* SlicePrunerTests.swift in Sources */,
 				C4F4151A25F6ED0D587172FD /* StateJsonReaderTests.swift in Sources */,
 				F82F0F3BD0350BC38F97CA27 /* StateJsonWriterTests.swift in Sources */,
 				E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */,

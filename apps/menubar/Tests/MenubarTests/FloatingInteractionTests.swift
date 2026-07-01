@@ -145,6 +145,140 @@ final class FloatingInteractionTests: XCTestCase {
 		XCTAssertGreaterThan(size.height, 24)
 	}
 
+	// MARK: - Force Idle escape-hatch gate
+
+	func testOffersForceIdleForEveryNonIdleState() {
+		for state in ActivityState.allCases where state != .idle {
+			XCTAssertTrue(
+				FloatingPetHidePrompt.offersForceIdle(for: state),
+				"\(state.rawValue) should offer Force Idle")
+		}
+	}
+
+	func testDoesNotOfferForceIdleWhenIdle() {
+		// The idle "set" (idle / impatient / frustrated) all share the .idle wire
+		// state, so this single check suppresses Force Idle for all three.
+		XCTAssertFalse(FloatingPetHidePrompt.offersForceIdle(for: .idle))
+	}
+
+	func testForceIdlePromptTitle() {
+		XCTAssertEqual(FloatingPetHidePrompt.forceIdleTitle, "Force Idle")
+	}
+
+	func testStackSizeSingleTitleMatchesPreferredSize() {
+		let single = FloatingPetHidePrompt.preferredSize(title: FloatingPetHidePrompt.title)
+		let stacked = FloatingPetHidePrompt.stackSize(titles: [FloatingPetHidePrompt.title])
+		XCTAssertEqual(stacked.width, single.width, accuracy: 0.5)
+		XCTAssertEqual(stacked.height, single.height, accuracy: 0.5)
+	}
+
+	func testStackSizeTwoRowsIsTallerAndFitsWidestTitle() {
+		let titles = [FloatingPetHidePrompt.forceIdleTitle, FloatingPetHidePrompt.title]
+		let rowHeight = FloatingPetHidePrompt.preferredSize().height
+		let stacked = FloatingPetHidePrompt.stackSize(titles: titles)
+		// Two rows plus one inter-row gap.
+		XCTAssertEqual(
+			stacked.height,
+			rowHeight * 2 + FloatingPetHidePrompt.rowSpacing,
+			accuracy: 0.5)
+		let widest = titles
+			.map { FloatingPetHidePrompt.preferredSize(title: $0).width }
+			.max() ?? 0
+		XCTAssertEqual(stacked.width, widest, accuracy: 0.5)
+	}
+
+	// MARK: - Stacked-row layout geometry
+
+	func testRowFrameTopRowPinnedToTopEdge() {
+		let panelSize = FloatingPetHidePrompt.stackSize(
+			titles: [FloatingPetHidePrompt.forceIdleTitle, FloatingPetHidePrompt.title])
+		let top = FloatingPetHidePrompt.rowFrame(index: 0, count: 2, panelSize: panelSize)
+		XCTAssertEqual(top.maxY, panelSize.height, accuracy: 0.5,
+			"the first row (Force Idle) must sit flush against the top edge of the panel")
+		XCTAssertGreaterThan(top.minY, 0,
+			"the top row must not start at the bottom — a non-zero origin is exactly what the hitTest bug tripped on")
+	}
+
+	func testRowFrameBottomRowPinnedToBottomEdge() {
+		let panelSize = FloatingPetHidePrompt.stackSize(
+			titles: [FloatingPetHidePrompt.forceIdleTitle, FloatingPetHidePrompt.title])
+		let bottom = FloatingPetHidePrompt.rowFrame(index: 1, count: 2, panelSize: panelSize)
+		XCTAssertEqual(bottom.minY, 0, accuracy: 0.5,
+			"the last row (Hide) must sit flush against the bottom edge")
+	}
+
+	func testRowFramesDoNotOverlapAndLeaveSpacingGap() {
+		let panelSize = FloatingPetHidePrompt.stackSize(
+			titles: [FloatingPetHidePrompt.forceIdleTitle, FloatingPetHidePrompt.title])
+		let top = FloatingPetHidePrompt.rowFrame(index: 0, count: 2, panelSize: panelSize)
+		let bottom = FloatingPetHidePrompt.rowFrame(index: 1, count: 2, panelSize: panelSize)
+		XCTAssertEqual(
+			top.minY - bottom.maxY,
+			FloatingPetHidePrompt.rowSpacing,
+			accuracy: 0.5,
+			"rows must be separated by exactly rowSpacing with no overlap")
+	}
+
+	// MARK: - Prompt coordinator (single active prompt across panels)
+
+	func testCoordinatorDismissesOtherOwnerWhenPresentingElsewhere() {
+		let coordinator = FloatingPetPromptCoordinator()
+		let ownerA = NSObject()
+		let ownerB = NSObject()
+		var dismissedA = false
+
+		coordinator.willPresent(owner: ownerA) { dismissedA = true }
+		XCTAssertFalse(dismissedA, "presenting A must not immediately dismiss A")
+
+		coordinator.willPresent(owner: ownerB) { }
+		XCTAssertTrue(
+			dismissedA,
+			"presenting on a different owner (right-clicking a different panel) must dismiss the previously active owner's prompt")
+	}
+
+	func testCoordinatorRepresentingSameOwnerDoesNotSelfDismiss() {
+		let coordinator = FloatingPetPromptCoordinator()
+		let owner = NSObject()
+		var dismissCount = 0
+
+		coordinator.willPresent(owner: owner) { dismissCount += 1 }
+		coordinator.willPresent(owner: owner) { dismissCount += 1 }
+
+		XCTAssertEqual(
+			dismissCount, 0,
+			"re-presenting on the same owner (double right-click on one panel) must not fire either dismiss closure")
+	}
+
+	func testCoordinatorDidDismissFromNonActiveOwnerIsNoOp() {
+		let coordinator = FloatingPetPromptCoordinator()
+		let ownerA = NSObject()
+		let ownerB = NSObject()
+		var dismissedB = false
+
+		coordinator.willPresent(owner: ownerB) { dismissedB = true }
+		// ownerA was never registered active; its dismiss must not clear B's state.
+		coordinator.didDismiss(owner: ownerA)
+
+		coordinator.willPresent(owner: NSObject()) { }
+		XCTAssertTrue(
+			dismissedB,
+			"an unrelated owner's didDismiss must not clear a different owner's active registration")
+	}
+
+	func testCoordinatorDidDismissClearsActiveOwnerSoNextPresentDoesNotRefire() {
+		let coordinator = FloatingPetPromptCoordinator()
+		let owner = NSObject()
+		var dismissCount = 0
+
+		coordinator.willPresent(owner: owner) { dismissCount += 1 }
+		coordinator.didDismiss(owner: owner)
+
+		coordinator.willPresent(owner: NSObject()) { }
+		XCTAssertEqual(
+			dismissCount, 0,
+			"once an owner's own dismiss has run, the coordinator must not invoke its stale dismiss closure again")
+	}
+
 	func testHidePromptFrameAnchorsTopLeftAtClick() {
 		let bounds = CGRect(x: 0, y: 0, width: 200, height: 160)
 		let anchor = CGPoint(x: 48, y: 120)

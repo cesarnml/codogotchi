@@ -45,6 +45,10 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// affordance. Mirrors `FloatingPetPanelController.onHideFloatingPet`; the app
 	/// wires this to hide this window via the window pool.
 	var onHidePanel: (() -> Void)?
+	/// Called when the user activates the badge's right-click "Force Idle"
+	/// affordance (only offered while non-idle). The app wires this to rewrite
+	/// this origin's `state.d/` slice back to idle.
+	var onForceIdle: (() -> Void)?
 
 	init(
 		visibleFrameProvider: @escaping () -> CGRect = {
@@ -69,6 +73,10 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		// Right-click "Hide panel" affordance on the badge (chip or activity pill).
 		badgeView.onHidePanelRequested = { [weak self] in
 			self?.onHidePanel?()
+		}
+		// Right-click "Force Idle" affordance, shown only while non-idle.
+		badgeView.onForceIdleRequested = { [weak self] in
+			self?.onForceIdle?()
 		}
 	}
 
@@ -223,6 +231,12 @@ private final class MinimalistBadgeView: NSView {
 	var frameChangeHandler: ((CGRect) -> Void)?
 	/// Fires when the user activates the right-click "Hide panel" pill.
 	var onHidePanelRequested: (() -> Void)?
+	/// Fires when the user activates the right-click "Force Idle" pill. Only shown
+	/// while the badge represents a non-idle activity (see `currentActivity`).
+	var onForceIdleRequested: (() -> Void)?
+	/// Latest activity the badge is displaying, mirrored so the right-click prompt
+	/// can decide whether to offer "Force Idle".
+	private var currentActivity: ActivityState = .idle
 	private var dragOffsetInScreen: CGPoint?
 
 	private var hidePromptPanel: FloatingPetHidePromptPanel?
@@ -247,6 +261,7 @@ private final class MinimalistBadgeView: NSView {
 		activity: ActivityState,
 		metrics: GateBadgeLayout.Metrics
 	) {
+		currentActivity = activity
 		animationBadge.configure(
 			text: activity.displayLabel,
 			platform: platform,
@@ -311,8 +326,27 @@ private final class MinimalistBadgeView: NSView {
 	private func presentHidePrompt(for event: NSEvent) {
 		guard let window else { return }
 		dismissHidePrompt()
+		let offersForceIdle = FloatingPetHidePrompt.offersForceIdle(for: currentActivity)
+		FloatingPetPromptCoordinator.shared.willPresent(owner: self) { [weak self] in
+			self?.dismissHidePrompt()
+		}
 		let anchorInScreen = window.convertPoint(toScreen: event.locationInWindow)
-		let promptSize = FloatingPetHidePrompt.preferredSize(title: FloatingPetHidePrompt.panelTitle)
+		var items: [FloatingPetPromptItem] = []
+		// Escape hatch when the pet is stuck mid-animation (rate-limited or
+		// manually-stopped prompt): sits above "Hide panel" as the primary action.
+		if offersForceIdle {
+			items.append(
+				FloatingPetPromptItem(title: FloatingPetHidePrompt.forceIdleTitle) { [weak self] in
+					self?.dismissHidePrompt()
+					self?.onForceIdleRequested?()
+				})
+		}
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.panelTitle) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.onHidePanelRequested?()
+			})
+		let promptSize = FloatingPetHidePrompt.stackSize(titles: items.map(\.title))
 		let visibleFrame = window.screen?.visibleFrame
 			?? NSScreen.main?.visibleFrame
 			?? CGRect(x: 0, y: 0, width: 800, height: 600)
@@ -321,19 +355,14 @@ private final class MinimalistBadgeView: NSView {
 			promptSize: promptSize,
 			visibleFrame: visibleFrame
 		)
-		let panel = FloatingPetHidePromptPanel(
-			frame: screenFrame,
-			title: FloatingPetHidePrompt.panelTitle
-		) { [weak self] in
-			self?.dismissHidePrompt()
-			self?.onHidePanelRequested?()
-		}
+		let panel = FloatingPetHidePromptPanel(frame: screenFrame, items: items)
 		panel.orderFrontRegardless()
 		hidePromptPanel = panel
 		installHidePromptDismissObservers()
 	}
 
 	private func dismissHidePrompt() {
+		FloatingPetPromptCoordinator.shared.didDismiss(owner: self)
 		guard hidePromptPanel != nil else { return }
 		hidePromptPanel?.orderOut(nil)
 		hidePromptPanel = nil
@@ -419,6 +448,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var currentSicknessLevel: SicknessLevel = .none
 	private var frameChangeHandler: ((CGRect) -> Void)?
 	var onHideFloatingPet: (() -> Void)?
+	/// Called when the user activates the right-click "Force Idle" affordance
+	/// (only offered while non-idle). The app wires this to rewrite this pet's
+	/// `state.d/` slice back to idle — an escape hatch for a stuck animation.
+	var onForceIdle: (() -> Void)?
 	/// Called when the user dismisses or focuses away from the attention bubble.
 	/// Intended for the caller to persist the idle state back to state.json so a
 	/// relaunch does not re-show the bubble.
@@ -918,6 +951,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		currentState = state
 		currentMode = visualMode
 		scene?.update(state: state, visualMode: visualMode)
+		// Keep the right-click prompt's "Force Idle" gate in sync with the live
+		// state so the escape hatch only appears while the pet is non-idle.
+		(panel?.contentView as? FloatingPetInteractionView)?.isForceIdleAvailable =
+			FloatingPetHidePrompt.offersForceIdle(for: state)
 		// Refresh the animation badge label; no-op while the pet is hidden.
 		repositionAndShowAnimationBadge()
 	}
@@ -1082,6 +1119,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		wireFrameHandlers(on: view)
 		view.hideFloatingPetHandler = { [weak self] in
 			self?.onHideFloatingPet?()
+		}
+		view.isForceIdleAvailable = FloatingPetHidePrompt.offersForceIdle(for: currentState)
+		view.forceIdleHandler = { [weak self] in
+			self?.onForceIdle?()
 		}
 		view.holdDeEscalationHandler = { [weak self] in
 			self?.scene?.decrementIdleEscalation()
@@ -1953,15 +1994,56 @@ enum FloatingPetHidePrompt {
 	/// Title for the minimalist badge's right-click affordance, which hides the
 	/// whole platform strip rather than an Own-mode pet sprite.
 	static let panelTitle = "Hide panel"
+	/// Title for the right-click "Force Idle" escape hatch. Surfaced only when the
+	/// pet is stuck in a non-idle animation (see `offersForceIdle(for:)`); resets
+	/// the pet to idle by rewriting its `state.d/` slice.
+	static let forceIdleTitle = "Force Idle"
 	static let font = NSFont.systemFont(ofSize: 13, weight: .medium)
 	static let horizontalPadding: CGFloat = 14
 	static let verticalPadding: CGFloat = 7
+	/// Vertical gap between stacked pill rows when the prompt shows more than one
+	/// action (e.g. "Force Idle" above "Hide pet").
+	static let rowSpacing: CGFloat = 6
 
 	static func preferredSize(title: String = FloatingPetHidePrompt.title) -> CGSize {
 		let textSize = (title as NSString).size(withAttributes: [.font: font])
 		let height = ceil(textSize.height) + verticalPadding * 2
 		let width = ceil(textSize.width) + horizontalPadding * 2
 		return CGSize(width: width, height: height)
+	}
+
+	/// Size of a vertical stack of pill rows: width fits the widest title, height
+	/// sums the equal-height rows plus `rowSpacing` between them. A single title
+	/// reduces to `preferredSize(title:)`.
+	static func stackSize(titles: [String]) -> CGSize {
+		guard !titles.isEmpty else { return .zero }
+		let rowSizes = titles.map { preferredSize(title: $0) }
+		let width = rowSizes.map(\.width).max() ?? 0
+		let rowHeight = rowSizes.first?.height ?? 0
+		let height = rowHeight * CGFloat(titles.count)
+			+ rowSpacing * CGFloat(titles.count - 1)
+		return CGSize(width: width, height: height)
+	}
+
+	/// Whether the right-click prompt should offer the "Force Idle" escape hatch
+	/// for `state`. Offered for every state except `idle` — the idle "set"
+	/// (idle / impatient / frustrated) all share the `.idle` wire state, since
+	/// escalation is renderer-internal, so this single check covers all three.
+	static func offersForceIdle(for state: ActivityState) -> Bool {
+		state != .idle
+	}
+
+	/// Frame for row `index` (0 = top) within a prompt panel of `panelSize` that
+	/// holds `count` equal-height rows separated by `rowSpacing`. AppKit's origin
+	/// is bottom-left, so index 0 is pinned to the top edge and the last row sits
+	/// on the bottom edge. Shared by the panel's row layout and its tests so the
+	/// stacking geometry has one source of truth.
+	static func rowFrame(index: Int, count: Int, panelSize: CGSize) -> CGRect {
+		let rowHeight = preferredSize().height
+		let minY = panelSize.height
+			- CGFloat(index + 1) * rowHeight
+			- CGFloat(index) * rowSpacing
+		return CGRect(x: 0, y: minY, width: panelSize.width, height: rowHeight)
 	}
 
 	/// Places the pill so the right-click point is its top-left corner (AppKit
@@ -2218,6 +2300,12 @@ private final class FloatingPetInteractionView: NSView {
 	/// Fired when the user holds a stationary click on the pet body for ≥5 s.
 	var holdDeEscalationHandler: (() -> Void)?
 	var hideFloatingPetHandler: (() -> Void)?
+	/// Fired when the user activates the right-click "Force Idle" pill. Only
+	/// offered while `isForceIdleAvailable` (the pet is not idle).
+	var forceIdleHandler: (() -> Void)?
+	/// Whether the right-click prompt should offer "Force Idle". Kept in sync by
+	/// the controller from the latest applied `ActivityState`.
+	var isForceIdleAvailable = false
 	/// Fired when the pointer enters or leaves the pet frame. `true` = entered.
 	var onHoverChange: ((Bool) -> Void)?
 	/// Fired on every pointer event while tracking (moved, entered, exited).
@@ -2348,11 +2436,12 @@ private final class FloatingPetInteractionView: NSView {
 
 	override func rightMouseDown(with event: NSEvent) {
 		let localPoint = convert(event.locationInWindow, from: nil)
-		guard FloatingPetHidePrompt.shouldPresent(
+		let shouldPresent = FloatingPetHidePrompt.shouldPresent(
 			at: localPoint,
 			in: bounds,
 			hasActivePointerInteraction: activeInteraction != nil
-		) else {
+		)
+		guard shouldPresent else {
 			dismissHidePrompt()
 			return
 		}
@@ -2420,20 +2509,16 @@ private final class FloatingPetInteractionView: NSView {
 			emitInteraction(interaction, reason: "mouseDragged-\(hitTarget)")
 			return
 		case let .resize(startFrame, startScreenPoint):
-			let dragDelta: CGSize
 			let rawDelta = CGSize(
 				width: currentPoint.x - startScreenPoint.x,
 				height: currentPoint.y - startScreenPoint.y
 			)
-			dragDelta = FloatingInteractionPolicy.resizeDragDelta(from: rawDelta)
 			hitTarget = .resizeAffordance
-			let startAspect = startFrame.height > 0 ? startFrame.width / startFrame.height : 1
 			nextFrame = FloatingInteractionPolicy.resizedFrame(
 				from: startFrame,
 				dragDelta: rawDelta,
 				visibleFrame: visibleFrameProvider()
 			)
-			let endAspect = nextFrame.height > 0 ? nextFrame.width / nextFrame.height : 1
 			applyPanelFrame(nextFrame, isTranslate: false)
 			let stepDelta = CGSize(width: event.deltaX, height: event.deltaY)
 			let interaction = FloatingInteractionPolicy.interaction(
@@ -2556,17 +2641,32 @@ private final class FloatingPetInteractionView: NSView {
 	private func presentHidePrompt(anchorInScreen: CGPoint, localPoint: CGPoint) {
 		dismissHidePrompt()
 		guard let window else { return }
-		let promptSize = FloatingPetHidePrompt.preferredSize()
+		FloatingPetPromptCoordinator.shared.willPresent(owner: self) { [weak self] in
+			self?.dismissHidePrompt()
+		}
+		var items: [FloatingPetPromptItem] = []
+		// Escape hatch when the pet is stuck mid-animation (rate-limited or
+		// manually-stopped prompt): sits above "Hide pet" as the primary action.
+		if isForceIdleAvailable {
+			items.append(
+				FloatingPetPromptItem(title: FloatingPetHidePrompt.forceIdleTitle) { [weak self] in
+					self?.dismissHidePrompt()
+					self?.forceIdleHandler?()
+				})
+		}
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.title) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.hideFloatingPetHandler?()
+			})
+		let promptSize = FloatingPetHidePrompt.stackSize(titles: items.map(\.title))
 		let visibleFrame = window.screen?.visibleFrame ?? visibleFrameProvider()
 		let screenFrame = FloatingPetHidePrompt.screenFrame(
 			anchor: anchorInScreen,
 			promptSize: promptSize,
 			visibleFrame: visibleFrame
 		)
-		let panel = FloatingPetHidePromptPanel(frame: screenFrame) { [weak self] in
-			self?.dismissHidePrompt()
-			self?.hideFloatingPetHandler?()
-		}
+		let panel = FloatingPetHidePromptPanel(frame: screenFrame, items: items)
 		panel.orderFrontRegardless()
 		hidePromptPanel = panel
 		installHidePromptDismissObservers()
@@ -2577,6 +2677,7 @@ private final class FloatingPetInteractionView: NSView {
 	}
 
 	private func dismissHidePrompt() {
+		FloatingPetPromptCoordinator.shared.didDismiss(owner: self)
 		hidePromptPanel?.orderOut(nil)
 		hidePromptPanel = nil
 		removeHidePromptDismissObservers()
@@ -2889,15 +2990,60 @@ extension FloatingPetHidePrompt {
 	}
 }
 
-private final class FloatingPetHidePromptPanel: NSPanel {
-	private let promptView: FloatingPetHidePromptView
+/// One activatable row in the right-click prompt. A prompt with a single item is
+/// the classic single "Hide" pill; multiple items stack vertically (e.g. a
+/// "Force Idle" escape hatch above "Hide pet").
+struct FloatingPetPromptItem {
+	let title: String
+	let onActivate: () -> Void
+}
 
-	init(frame: CGRect, title: String = FloatingPetHidePrompt.title, onActivate: @escaping () -> Void) {
-		self.promptView = FloatingPetHidePromptView(
-			frame: CGRect(origin: .zero, size: frame.size),
-			title: title,
-			onActivate: onActivate
-		)
+/// Ensures only one right-click prompt (Force Idle / Hide) is visible across
+/// every floating panel at once. `NSEvent.addGlobalMonitorForEvents` only
+/// reports events from *other* applications, so a right-click on a different
+/// in-app panel is invisible to the previous panel's own dismiss-on-click-away
+/// monitor — without this coordinator, that previous prompt is stranded on
+/// screen (each panel can only dismiss its own). Every presenter asks the
+/// coordinator to take over before showing its prompt, which dismisses
+/// whichever other panel is currently active, mirroring the same-panel
+/// re-right-click behavior the rest of the UI already has.
+///
+/// Internal (not file-private) so `FloatingInteractionTests` can exercise the
+/// owner-handoff logic directly with fake owners — no live window session
+/// needed since this class holds no AppKit state of its own.
+final class FloatingPetPromptCoordinator {
+	static let shared = FloatingPetPromptCoordinator()
+
+	private weak var activeOwner: AnyObject?
+	private var activeDismiss: (() -> Void)?
+
+	/// Not `private` so tests can construct isolated instances rather than
+	/// sharing mutable state through `.shared` across test methods.
+	init() {}
+
+	/// Call immediately before presenting a new prompt. Dismisses any other
+	/// panel's currently active prompt, then registers `owner` as active.
+	func willPresent(owner: AnyObject, dismiss: @escaping () -> Void) {
+		if activeOwner !== owner {
+			activeDismiss?()
+		}
+		activeOwner = owner
+		activeDismiss = dismiss
+	}
+
+	/// Call whenever `owner` dismisses its own prompt, for any reason, so a
+	/// stale dismiss closure is never retained once that prompt is gone.
+	func didDismiss(owner: AnyObject) {
+		guard activeOwner === owner else { return }
+		activeOwner = nil
+		activeDismiss = nil
+	}
+}
+
+private final class FloatingPetHidePromptPanel: NSPanel {
+	private var rowViews: [FloatingPetHidePromptView] = []
+
+	init(frame: CGRect, items: [FloatingPetPromptItem]) {
 		super.init(
 			contentRect: frame,
 			styleMask: [.borderless, .nonactivatingPanel],
@@ -2908,13 +3054,39 @@ private final class FloatingPetHidePromptPanel: NSPanel {
 		backgroundColor = .clear
 		isOpaque = false
 		hasShadow = false
-		level = .floating
+		// A right-click context menu must sit ABOVE the pet chrome (platform chip,
+		// animation badge, attention bubble — all `.floating`). Those panels are
+		// re-ordered front on every ~1s poll tick, which would otherwise bury this
+		// prompt seconds after it appears, so left-clicks on "Force Idle" / "Hide"
+		// landed on the buried-under chrome instead of the pill. `.popUpMenu`
+		// (level 101 vs `.floating` = 3) keeps the prompt reliably on top.
+		level = .popUpMenu
 		collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 		hidesOnDeactivate = false
 		isReleasedWhenClosed = false
 		ignoresMouseEvents = false
 		acceptsMouseMovedEvents = true
-		contentView = promptView
+
+		let container = NSView(frame: CGRect(origin: .zero, size: frame.size))
+		container.autoresizingMask = [.width, .height]
+		// All rows share the same font/padding, so each is one preferred-height
+		// tall. Lay them top-to-bottom (AppKit origin is bottom-left) so items[0]
+		// renders at the top of the stack.
+		for (index, item) in items.enumerated() {
+			let rowFrame = FloatingPetHidePrompt.rowFrame(
+				index: index,
+				count: items.count,
+				panelSize: frame.size
+			)
+			let row = FloatingPetHidePromptView(
+				frame: rowFrame,
+				title: item.title,
+				onActivate: item.onActivate
+			)
+			container.addSubview(row)
+			rowViews.append(row)
+		}
+		contentView = container
 	}
 
 	override var canBecomeKey: Bool { false }
@@ -3014,7 +3186,14 @@ private final class FloatingPetHidePromptView: NSView {
 	}
 
 	override func hitTest(_ point: NSPoint) -> NSView? {
-		bounds.contains(point) ? self : nil
+		// `point` arrives in our SUPERVIEW's coordinate system; convert to our own
+		// bounds before testing. When this row is a stacked subview (frame origin
+		// != 0,0 — e.g. the top "Force Idle" row) comparing the raw superview-space
+		// point against local `bounds` misses entirely, so the click falls through
+		// to the container and nothing fires. This bug only spared the bottom row,
+		// whose origin happens to be (0,0).
+		let local = superview.map { convert(point, from: $0) } ?? point
+		return bounds.contains(local) ? self : nil
 	}
 
 	override func mouseDown(with event: NSEvent) {

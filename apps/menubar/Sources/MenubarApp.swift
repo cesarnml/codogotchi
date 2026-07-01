@@ -47,6 +47,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// renderer at a time.
 	var livePollingDriver: LivePollingDriver?
 
+	/// Held strongly so the periodic `state.d/` prune `Timer` survives. Nil in
+	/// demo mode (the sandboxed fixture dir is not pruned).
+	var slicePruneScheduler: SlicePruneScheduler?
+
 	/// Resolved at launch: tells the app whether to run the demo cycle and
 	/// which polling target to read. Exposed for diagnostics; live polling
 	/// (P2.07) will also consume `pollingTarget`.
@@ -230,10 +234,22 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// clear to this window's origin in multi-pet mode; the shared
 					// "combined" window has no single origin, so it clears all slices.
 					let stateDir = config.pollingTarget.path
-					panel.onAttentionDismissed = {
+					panel.onAttentionDismissed = { [weak self] in
 						StateJsonWriter.dismissAttention(
 							at: stateDir,
-							origin: origin == "combined" ? nil : origin
+							origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
+						)
+					}
+					// Right-click "Force Idle" escape hatch: rewrite this pet's displayed
+					// slice back to idle so a stuck (rate-limited / manually-stopped)
+					// animation clears. A combined window folds several origins into one
+					// pet, so it resets exactly that combined set; an own window resets
+					// just its origin. Never all slices — that idles unrelated pets and
+					// resurrects aged-out ones by refreshing their mtimes.
+					panel.onForceIdle = { [weak self] in
+						StateJsonWriter.forceIdle(
+							at: stateDir,
+							origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
 						)
 					}
 					panel.onHideFloatingPet = { [weak self, weak controller] in
@@ -251,13 +267,21 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				minimalistWindowFactory: { [weak self] origin in
 					let panel = MinimalistPanelController(visibleFrameProvider: Self.visibleFloatingFrame)
 					let stateDir = config.pollingTarget.path
-					// The combined-minimalist window is spawned with origin "combined",
-					// which is not a real state.d slice. Clear all slices for it (same as
-					// the combined own-mode window); scope to the single origin otherwise.
-					panel.onAttentionDismissed = {
+					// The combined-minimalist window folds several origins into one badge;
+					// scope both writes to that combined set (or the single origin).
+					panel.onAttentionDismissed = { [weak self] in
 						StateJsonWriter.dismissAttention(
 							at: stateDir,
-							origin: origin == "combined" ? nil : origin
+							origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
+						)
+					}
+					// Right-click "Force Idle" escape hatch on the minimalist badge,
+					// mirroring Own mode; resets the combined set for the combined
+					// window, or just this origin otherwise.
+					panel.onForceIdle = { [weak self] in
+						StateJsonWriter.forceIdle(
+							at: stateDir,
+							origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
 						)
 					}
 					let savedFrame = AppStateStore.loadFrame(
@@ -402,6 +426,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			}
 			driver.start()
 			self.livePollingDriver = driver
+
+			// Session slices in state.d/ are never removed by the hooks, so they
+			// accumulate one-per-session forever. Prune the ones the reader already
+			// ignores (mtime past its staleTTL) on launch and periodically, keeping
+			// the per-tick scan and the winner-only writers cheap.
+			let pruneScheduler = SlicePruneScheduler(dir: config.pollingTarget.path)
+			pruneScheduler.start()
+			self.slicePruneScheduler = pruneScheduler
 		}
 
 		// HUD demo (developer convenience): pin the floating pet + HUD and sweep
@@ -524,6 +556,18 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	private func updateAppNapOptOut() {
 		let anyVisible = !(floatingPetWindowPool?.activeOrigins.isEmpty ?? true)
 		setFloatingPetAppNapOptOut(active: anyVisible)
+	}
+
+	/// Resolves a window's `state.d/` origins for the winner-only writers
+	/// (`forceIdle` / `dismissAttention`). The shared combined window folds every
+	/// combined-mode origin into one pet, so it expands to that live set; any other
+	/// window key is itself a single origin.
+	@MainActor
+	private func resolveWindowOrigins(windowKey: String) -> Set<String> {
+		if windowKey == "combined" {
+			return Set(floatingPetWindowPool?.combinedModeOrigins() ?? [])
+		}
+		return [windowKey]
 	}
 
 	private func setFloatingPetAppNapOptOut(active: Bool) {

@@ -44,6 +44,17 @@ final class FloatingPetWindowPool {
 	/// until the user explicitly shows them via "Show Pet".
 	var hiddenWindowKeys: [String] { Array(userHiddenWindowKeys).sorted() }
 
+	/// Origins currently assigned to combined mode, read fresh from customization.
+	/// The shared combined window folds all of these into one pet, so its right-click
+	/// "Force Idle" must reset exactly this set — never every slice on disk, which
+	/// would also idle independently-windowed pets.
+	func combinedModeOrigins() -> [String] {
+		let customization = customizationReader()
+		return customization.platformModes
+			.filter { $0.value == .combined }
+			.map(\.key)
+	}
+
 	private var userHiddenWindowKeys: Set<String> = []
 
 	/// Mode that was active when each window (keyed by origin) was spawned.

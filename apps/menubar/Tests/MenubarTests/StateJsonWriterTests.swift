@@ -40,6 +40,15 @@ final class StateJsonWriterTests: XCTestCase {
 		return obj
 	}
 
+	/// Runs the async `dismissAttention` and blocks until it completes.
+	private func runDismissAttention(dir: URL, origins: Set<String>, now: Date = Date()) {
+		let done = expectation(description: "dismissAttention")
+		StateJsonWriter.dismissAttention(at: dir.path, origins: origins, now: now) {
+			done.fulfill()
+		}
+		wait(for: [done], timeout: 5)
+	}
+
 	// MARK: - Single slice with attention
 
 	func testDismissAttentionClearsAttentionAndSetsIdle() {
@@ -49,44 +58,56 @@ final class StateJsonWriterTests: XCTestCase {
 			json: [
 				"schema_version": 6,
 				"activity_state": "implementing",
+				"source_event": ["origin": "claude_code"],
 				"attention": ["message": "look at me"],
 			])
 
-		StateJsonWriter.dismissAttention(at: dir.path)
+		runDismissAttention(dir: dir, origins: ["claude_code"])
 
 		let result = readSlice("claude_code:session1.json", in: dir)!
 		XCTAssertEqual(result["activity_state"] as? String, "idle")
 		XCTAssertNil(result["attention"], "attention must be removed after dismissAttention")
 	}
 
-	// MARK: - Multiple slices
+	// MARK: - Winner-only (only the displayed slice is cleared)
 
-	func testDismissAttentionPatchesAllSlices() {
+	func testDismissAttentionClearsOnlyTheWinnerSlice() {
 		let dir = makeStateDir()
-		for i in 1...3 {
-			writeSlice(
-				"claude_code:session\(i).json", in: dir,
-				json: [
-					"schema_version": 6,
-					"activity_state": "red_tdd",
-					"attention": ["message": "notice \(i)"],
-				])
-		}
+		// The bubble is drawn for the freshest slice; only that one must be cleared.
+		writeSlice(
+			"claude_code:old.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "red_tdd",
+				"updated_at": "2026-07-01T10:00:00Z",
+				"source_event": ["origin": "claude_code"],
+				"attention": ["message": "old notice"],
+			])
+		writeSlice(
+			"claude_code:new.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "red_tdd",
+				"updated_at": "2026-07-01T11:00:00Z",
+				"source_event": ["origin": "claude_code"],
+				"attention": ["message": "current notice"],
+			])
 
-		StateJsonWriter.dismissAttention(at: dir.path)
+		runDismissAttention(dir: dir, origins: ["claude_code"])
 
-		for i in 1...3 {
-			let result = readSlice("claude_code:session\(i).json", in: dir)!
-			XCTAssertEqual(
-				result["activity_state"] as? String, "idle",
-				"slice \(i) must have activity_state=idle")
-			XCTAssertNil(result["attention"], "slice \(i) must have attention removed")
-		}
+		let winner = readSlice("claude_code:new.json", in: dir)!
+		XCTAssertEqual(winner["activity_state"] as? String, "idle")
+		XCTAssertNil(winner["attention"], "the displayed slice's attention must be removed")
+
+		let older = readSlice("claude_code:old.json", in: dir)!
+		XCTAssertEqual(older["activity_state"] as? String, "red_tdd",
+			"an older, non-displayed slice must be left untouched")
+		XCTAssertNotNil(older["attention"], "a non-winner slice's attention must survive")
 	}
 
 	// MARK: - Origin-scoped clearing (multi-pet)
 
-	func testDismissAttentionWithOriginClearsOnlyMatchingSlices() {
+	func testDismissAttentionClearsOnlyTargetedOrigins() {
 		let dir = makeStateDir()
 		writeSlice(
 			"claude_code:session1.json", in: dir,
@@ -105,7 +126,7 @@ final class StateJsonWriterTests: XCTestCase {
 				"attention": ["message": "cursor needs you"],
 			])
 
-		StateJsonWriter.dismissAttention(at: dir.path, origin: "claude_code")
+		runDismissAttention(dir: dir, origins: ["claude_code"])
 
 		let cleared = readSlice("claude_code:session1.json", in: dir)!
 		XCTAssertEqual(cleared["activity_state"] as? String, "idle")
@@ -124,26 +145,7 @@ final class StateJsonWriterTests: XCTestCase {
 	func testDismissAttentionNoOpsWhenDirectoryAbsent() {
 		let missing = tmp.appendingPathComponent("state.d").path
 		// Must not crash
-		StateJsonWriter.dismissAttention(at: missing)
-	}
-
-	// MARK: - Non-.json files are skipped
-
-	func testDismissAttentionSkipsNonJsonFiles() {
-		let dir = makeStateDir()
-		// A .tmp partial file that should be ignored
-		let tmpFile = dir.appendingPathComponent(".tmp-partial")
-		try! Data("{\"activity_state\":\"implementing\",\"attention\":{}}".utf8).write(to: tmpFile)
-		// A subdirectory that should be skipped
-		let subdir = dir.appendingPathComponent("subdir.json")
-		try! FileManager.default.createDirectory(at: subdir, withIntermediateDirectories: true)
-
-		// Must not crash and must not touch the .tmp file
-		StateJsonWriter.dismissAttention(at: dir.path)
-
-		// The .tmp file should be unchanged (still has attention key)
-		let raw = try! String(contentsOf: tmpFile, encoding: .utf8)
-		XCTAssertTrue(raw.contains("attention"), ".tmp file must not be modified by dismissAttention")
+		runDismissAttention(dir: URL(fileURLWithPath: missing), origins: ["claude_code"])
 	}
 
 	// MARK: - Slice without attention field
@@ -155,13 +157,192 @@ final class StateJsonWriterTests: XCTestCase {
 			json: [
 				"schema_version": 6,
 				"activity_state": "implementing",
+				"source_event": ["origin": "cursor"],
 			])
 
-		StateJsonWriter.dismissAttention(at: dir.path)
+		runDismissAttention(dir: dir, origins: ["cursor"])
 
 		let result = readSlice("cursor:session1.json", in: dir)!
 		XCTAssertEqual(result["activity_state"] as? String, "idle",
 			"activity_state must be set to idle even when attention key was absent")
 		XCTAssertNil(result["attention"])
+	}
+
+	// MARK: - Force Idle escape hatch
+
+	/// Runs the async `forceIdle` and blocks until it completes so assertions see
+	/// the finished writes.
+	private func runForceIdle(dir: URL, origins: Set<String>, now: Date = Date()) {
+		let done = expectation(description: "forceIdle")
+		StateJsonWriter.forceIdle(at: dir.path, origins: origins, now: now) {
+			done.fulfill()
+		}
+		wait(for: [done], timeout: 5)
+	}
+
+	private func setMTime(_ filename: String, in dir: URL, to date: Date) {
+		try! FileManager.default.setAttributes(
+			[.modificationDate: date],
+			ofItemAtPath: dir.appendingPathComponent(filename).path)
+	}
+
+	func testForceIdleResetsStuckStateToIdle() {
+		let dir = makeStateDir()
+		// A prompt that failed (rate limit) leaves the slice on a stale in-flight
+		// state with no terminal event; Force Idle must clear it.
+		writeSlice(
+			"codex:session1.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "thinking",
+				"source_event": ["origin": "codex"],
+			])
+
+		runForceIdle(dir: dir, origins: ["codex"])
+
+		let result = readSlice("codex:session1.json", in: dir)!
+		XCTAssertEqual(result["activity_state"] as? String, "idle",
+			"forceIdle must reset a stuck non-idle state to idle")
+	}
+
+	func testForceIdleResetsOnlyTargetedOrigins() {
+		let dir = makeStateDir()
+		writeSlice(
+			"claude_code:session1.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "testing",
+				"source_event": ["origin": "claude_code"],
+			])
+		writeSlice(
+			"cursor:session1.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "testing",
+				"source_event": ["origin": "cursor"],
+			])
+
+		runForceIdle(dir: dir, origins: ["claude_code"])
+
+		XCTAssertEqual(
+			readSlice("claude_code:session1.json", in: dir)!["activity_state"] as? String, "idle",
+			"the targeted origin must be reset to idle")
+		XCTAssertEqual(
+			readSlice("cursor:session1.json", in: dir)!["activity_state"] as? String, "testing",
+			"an origin outside the target set must survive — this is the combined-window "
+				+ "over-reach that idled the independently-windowed Claude pet")
+	}
+
+	func testForceIdleResetsCombinedSetAcrossOrigins() {
+		let dir = makeStateDir()
+		for origin in ["antigravity", "codex", "vscode"] {
+			writeSlice(
+				"\(origin):session1.json", in: dir,
+				json: [
+					"schema_version": 6,
+					"activity_state": "thinking",
+					"source_event": ["origin": origin],
+				])
+		}
+		writeSlice(
+			"claude_code:session1.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "implementing",
+				"source_event": ["origin": "claude_code"],
+			])
+
+		// Combined window folds antigravity+codex+vscode into one pet; claude_code
+		// has its own window and must be untouched.
+		runForceIdle(dir: dir, origins: ["antigravity", "codex", "vscode"])
+
+		for origin in ["antigravity", "codex", "vscode"] {
+			XCTAssertEqual(
+				readSlice("\(origin):session1.json", in: dir)!["activity_state"] as? String, "idle",
+				"\(origin) is in the combined set and must be reset")
+		}
+		XCTAssertEqual(
+			readSlice("claude_code:session1.json", in: dir)!["activity_state"] as? String,
+			"implementing",
+			"claude_code is outside the combined set and must survive")
+	}
+
+	func testForceIdleRewritesOnlyTheFreshestWinnerSlice() {
+		let dir = makeStateDir()
+		// Two live sessions for the same origin; the reader renders the freshest
+		// (max updated_at). Force Idle must touch only that winner — rewriting the
+		// older session is wasted work and, on a real 100+ slice dir, the source of
+		// the freeze.
+		writeSlice(
+			"claude_code:old.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "reading",
+				"updated_at": "2026-07-01T10:00:00Z",
+				"source_event": ["origin": "claude_code"],
+			])
+		writeSlice(
+			"claude_code:new.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "thinking",
+				"updated_at": "2026-07-01T11:00:00Z",
+				"source_event": ["origin": "claude_code"],
+			])
+
+		runForceIdle(dir: dir, origins: ["claude_code"])
+
+		XCTAssertEqual(
+			readSlice("claude_code:new.json", in: dir)!["activity_state"] as? String, "idle",
+			"the freshest (winner) slice must be reset to idle")
+		XCTAssertEqual(
+			readSlice("claude_code:old.json", in: dir)!["activity_state"] as? String, "reading",
+			"an older, non-displayed slice must be left untouched")
+	}
+
+	func testForceIdleSkipsStaleMTimeSlicesToAvoidResurrection() {
+		let dir = makeStateDir()
+		let filename = "codex:ancient.json"
+		writeSlice(
+			filename, in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "thinking",
+				"updated_at": "2026-07-01T09:00:00Z",
+				"source_event": ["origin": "codex"],
+			])
+		// Age the file past the reader's 2h mtime TTL: the reader ignores it (no
+		// visible pet), so Force Idle must NOT rewrite it — doing so refreshes its
+		// mtime and resurrects an aged-out pet (the "3 pets suddenly appeared" bug).
+		let now = Date()
+		setMTime(filename, in: dir, to: now.addingTimeInterval(-3 * 60 * 60))
+
+		runForceIdle(dir: dir, origins: ["codex"], now: now)
+
+		XCTAssertEqual(
+			readSlice(filename, in: dir)!["activity_state"] as? String, "thinking",
+			"a stale-mtime slice must not be rewritten by Force Idle")
+		let mtime = try! FileManager.default.attributesOfItem(
+			atPath: dir.appendingPathComponent(filename).path)[.modificationDate] as! Date
+		XCTAssertLessThan(
+			mtime.timeIntervalSince(now), -2 * 60 * 60,
+			"the stale slice's mtime must be left old so the reader keeps ignoring it")
+	}
+
+	func testForceIdleWithEmptyOriginsIsNoOp() {
+		let dir = makeStateDir()
+		writeSlice(
+			"codex:session1.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "thinking",
+				"source_event": ["origin": "codex"],
+			])
+
+		runForceIdle(dir: dir, origins: [])
+
+		XCTAssertEqual(
+			readSlice("codex:session1.json", in: dir)!["activity_state"] as? String, "thinking",
+			"forceIdle with no target origins must change nothing")
 	}
 }
