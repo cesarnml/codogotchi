@@ -204,6 +204,43 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   reopened phase-14 ticket — the review-gap ledger row will be appended once
   that PR's fix commit lands, citing it as `fixCommit`.
 
+### `staleness-cta-gated-on-proxy-not-true-predicate`
+- **Seen:** 1× — `codogotchi-27` (P8). The lockstep "Hooks are out of date —
+  click Update" banner was gated on `bundledVersion != installedVersion`. That
+  version string is a *proxy* for the real condition ("the installed hook
+  registration differs from what we'd write now"): it also moves on
+  binary-internals-only bumps (c52a5bb0, the 1.0.0->1.0.1 hook-binary bump) that
+  change nothing on disk, so Update would rewrite byte-identical config. The true
+  predicate was already computable — `hooks status` exposed per-platform wiring
+  (`installed`/`partially_installed`) — but the banner reached past it to the
+  weaker version comparison. Fix added a `registration_current` fingerprint the
+  banner keys on instead; version drift is now silent.
+- **Proposed clause:** *"For any banner/CTA that tells the user something is
+  stale, broken, or out-of-date and offers a fix button, the gate must be the
+  narrowest TRUE predicate for the action that button performs — not a broader
+  proxy (a version string, a timestamp, a build id, an mtime) that can move
+  without the fixable condition changing. Ask: can this proxy differ from
+  'the fix would actually change something'? If yes, the CTA fires no-op work
+  and trains the user to ignore it. Corollary: if the system already computes
+  the true condition elsewhere (here `hooks status` registration wiring),
+  reaching for a proxy is the smell."*
+- **Relationship to existing candidates:** same proxy-vs-truth root as
+  `time-based-feature-tested-against-proxy-condition` (codogotchi-19), but the
+  divergence surfaces at the *trigger of a user action* rather than in a test's
+  scenario fidelity; and a cousin of
+  `control-signal-starved-by-change-gated-callback` (a signal riding the wrong
+  condition). Possible future merge into a broader
+  `proxy-condition-substituted-for-true-predicate` family if a third proxy-vs-
+  truth instance lands on another surface.
+- **Caveat that blocks naive promotion:** classified `review-reachable` here
+  because the true signal already existed in the same subsystem, making the
+  proxy visible as a proxy at review time — but that "true signal was already
+  present" evidence may not hold for every instance of the class, so confirm
+  demonstrability before promoting.
+- **Status:** WAITING — single instance. Needs ≥1 more occurrence (ideally a
+  non-menubar surface) to confirm the class and settle standalone vs. merge into
+  a proxy-condition family.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
