@@ -9,13 +9,19 @@ final class GeneralTabViewModelTests: XCTestCase {
 	private func makeSnapshot(
 		codexInstalled: Bool = false,
 		codexFiring: Bool = false,
-		codexDetected: Bool = false
+		codexDetected: Bool = false,
+		codexPartiallyInstalled: Bool = false,
+		// Defaults to matching `installed`: a fresh install is registration-current
+		// unless a test deliberately simulates drift.
+		codexRegistrationCurrent: Bool? = nil
 	) -> HooksStatusSnapshot {
 		let codex = HooksStatusSnapshot.Platform(
 			presentOnDisk: codexInstalled,
 			installableInPhase: true,
 			detected: codexDetected || codexInstalled,
 			installed: codexInstalled,
+			partiallyInstalled: codexPartiallyInstalled,
+			registrationCurrent: codexRegistrationCurrent ?? codexInstalled,
 			firingRecently: codexFiring,
 			lastEventAt: codexFiring ? "2026-05-31T12:00:00Z" : nil,
 			sourceOrigin: nil
@@ -182,6 +188,52 @@ final class GeneralTabViewModelTests: XCTestCase {
 		vm.installedHookVersion = "1.2.0"
 		XCTAssertFalse(vm.hasUnhookedDetectedPlatform)
 		XCTAssertFalse(vm.shouldShowUpdateBanner)
+	}
+
+	// MARK: - Registration-drift vs version-drift banner
+
+	/// The core P8.05 fix: a pure binary-version bump (e.g. 1.0.0 -> 1.0.1) whose
+	/// registration is byte-identical must NOT surface an Update banner, even
+	/// though the version predicate still reports drift.
+	func testNoBannerWhenVersionDiffersButRegistrationCurrent() {
+		let vm = GeneralTabViewModel(hookVersion: "1.0.1")
+		vm.applySnapshot(
+			makeSnapshot(codexInstalled: true, codexRegistrationCurrent: true))
+		vm.installedHookVersion = "1.0.0"
+		XCTAssertTrue(vm.needsBannerUpdate, "version predicate still sees drift")
+		XCTAssertFalse(vm.hasStaleRegistration)
+		XCTAssertFalse(
+			vm.shouldShowUpdateBanner,
+			"a version-only bump with unchanged registration must not nag")
+	}
+
+	/// True registration drift on a fully-installed platform (e.g. a stale command
+	/// path) is actionable regardless of the version string.
+	func testBannerWhenRegistrationStaleEvenIfVersionsMatch() {
+		let vm = GeneralTabViewModel(hookVersion: "1.0.1")
+		vm.applySnapshot(
+			makeSnapshot(codexInstalled: true, codexRegistrationCurrent: false))
+		vm.installedHookVersion = "1.0.1"
+		XCTAssertFalse(vm.needsBannerUpdate)
+		XCTAssertTrue(vm.hasStaleRegistration)
+		XCTAssertTrue(vm.shouldShowUpdateBanner)
+		XCTAssertEqual(
+			vm.updateBannerMessage,
+			"Hooks are out of date — click Update to re-register them.")
+	}
+
+	/// A present-but-partial install (new event slot added since install) reports
+	/// registration_current=false and is caught by hasStaleRegistration.
+	func testStaleRegistrationCoversPartialInstall() {
+		let vm = GeneralTabViewModel(hookVersion: "1.0.1")
+		vm.applySnapshot(
+			makeSnapshot(
+				codexInstalled: false,
+				codexPartiallyInstalled: true,
+				codexRegistrationCurrent: false))
+		vm.installedHookVersion = "1.0.1"
+		XCTAssertTrue(vm.hasStaleRegistration)
+		XCTAssertTrue(vm.shouldShowUpdateBanner)
 	}
 
 	func testDiagnosticsJSONIsValidJSON() {

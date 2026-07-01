@@ -71,6 +71,10 @@ describe("router hooks commands", () => {
     const parsed = JSON.parse(stdoutChunks.join(""));
     expect(parsed.codex.installed).toBe(true);
     expect(parsed.claude_code.installed).toBe(true);
+    // install + status run via the same binary, so the fresh registration
+    // matches what it would write.
+    expect(parsed.claude_code.registration_current).toBe(true);
+    expect(parsed.codex.registration_current).toBe(true);
 
     stdoutChunks.length = 0;
     expect((await dispatch(["hooks", "uninstall"])).exitCode).toBe(0);

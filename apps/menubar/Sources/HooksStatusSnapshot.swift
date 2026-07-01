@@ -22,6 +22,14 @@ struct HooksStatusSnapshot: Codable, Equatable {
 		/// expected event set (e.g. an install predating a newly-added event).
 		/// The integration is real and firing, so it counts as present.
 		var partiallyInstalled: Bool = false
+		/// The installed registration matches what the current binary would write
+		/// (all expected events wired AND, for Claude Code/Codex, the resolved hook
+		/// path is current). This is the signal the update banner keys on INSTEAD OF
+		/// the raw version string: a pure binary-internals bump leaves this `true`
+		/// (no nag), while genuine registration drift flips it `false` (actionable).
+		/// Defaults `true` so an older cached snapshot missing the field never
+		/// spuriously surfaces a stale-registration prompt.
+		var registrationCurrent: Bool = true
 		var firingRecently: Bool
 		var lastEventAt: String?
 		var sourceOrigin: String?
@@ -67,7 +75,7 @@ struct HooksStatusSnapshot: Codable, Equatable {
 extension HooksStatusSnapshot.Platform {
 	private enum CodingKeys: String, CodingKey {
 		case presentOnDisk, installableInPhase, detected, installed, partiallyInstalled
-		case firingRecently, lastEventAt, sourceOrigin
+		case registrationCurrent, firingRecently, lastEventAt, sourceOrigin
 	}
 
 	/// Custom decode so a snapshot written by an older build — or a cached
@@ -82,6 +90,8 @@ extension HooksStatusSnapshot.Platform {
 		installed = try c.decode(Bool.self, forKey: .installed)
 		partiallyInstalled =
 			try c.decodeIfPresent(Bool.self, forKey: .partiallyInstalled) ?? false
+		registrationCurrent =
+			try c.decodeIfPresent(Bool.self, forKey: .registrationCurrent) ?? true
 		firingRecently = try c.decode(Bool.self, forKey: .firingRecently)
 		lastEventAt = try c.decodeIfPresent(String.self, forKey: .lastEventAt)
 		sourceOrigin = try c.decodeIfPresent(String.self, forKey: .sourceOrigin)

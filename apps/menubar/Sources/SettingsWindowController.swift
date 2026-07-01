@@ -539,8 +539,11 @@ private final class GeneralTabView: NSView {
 
 // MARK: - UpdateBannerView
 
-/// Persistent non-blocking banner shown when the bundled hook binary is newer
-/// than the last-recorded installed version. Cleared after a successful update.
+/// Persistent non-blocking banner shown when the installed hook registration
+/// drifted from what the current binary would write (missing event slots or a
+/// stale command path), or a newly detected tool has no hooks yet. A pure
+/// binary-version bump with an unchanged registration shows nothing. Cleared
+/// after a successful update.
 private final class UpdateBannerView: NSView {
 	var onUpdate: (() -> Void)?
 

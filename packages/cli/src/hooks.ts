@@ -95,6 +95,18 @@ export type HookPlatformStatus = {
   // The integration is real and firing; the UI shows it as installed with an
   // update available rather than the misleading "not installed".
   partially_installed: boolean;
+  // True when the installed registration matches what the CURRENT binary would
+  // write: every expected event is wired AND (for platforms that embed the
+  // resolved hook path — Claude Code and Codex) the wired entry invokes the
+  // executable path this binary resolves now. This is the registration
+  // fingerprint the app compares INSTEAD OF the raw `--version` string: a pure
+  // binary-internals bump (same command path, same event slots) leaves this
+  // `true`, so it never nags an Update, while genuine registration drift
+  // (added event slots, or a command-format change such as a prior bare-name
+  // install when the bundle now writes an absolute path) flips it `false` and
+  // is actionable. Distinct from `installed`, whose loose token match cannot
+  // see command-format drift.
+  registration_current: boolean;
   firing_recently: boolean;
   last_event_at: string | null;
 };
@@ -766,6 +778,54 @@ function claudeAnyWired(hooks: ClaudeHooks): boolean {
   return CODOGOTCHI_EVENTS.some((event) => claudeEventWired(hooks, event));
 }
 
+// Registration is "current" when every expected event carries a codogotchi
+// entry whose command invokes `expectedCommand` — the hook executable the
+// running binary resolves NOW (already shell-quoted). This is stricter than
+// `claudeInstalled`, whose loose `isCodogotchiCommand` token match treats a
+// prior bare-name install and the current absolute-bundle-path install as
+// identical. Comparing against the resolved command instead catches that
+// command-format drift, which is exactly the "true registration drift" the
+// version string used to stand in for. The stored command contains
+// `expectedCommand` verbatim (Claude stores it as the whole command; the check
+// stays a substring test for symmetry with Codex's env-prefixed form).
+function claudeRegistrationCurrent(
+  hooks: ClaudeHooks,
+  expectedCommand: string,
+): boolean {
+  return CODOGOTCHI_EVENTS.every((event) => {
+    const slot = hooks[event];
+    if (!Array.isArray(slot)) return false;
+    return slot.some(
+      (matcher) =>
+        isHookMatcher(matcher) &&
+        matcher.hooks.some(
+          (h) =>
+            isCodogotchiCommand(h.command) &&
+            h.command.includes(expectedCommand),
+        ),
+    );
+  });
+}
+
+function codexRegistrationCurrent(
+  hooks: CodexHooks,
+  expectedCommand: string,
+): boolean {
+  return CODEX_CODOGOTCHI_EVENTS.every((event) => {
+    const slot = hooks[event];
+    if (!Array.isArray(slot)) return false;
+    return slot.some(
+      (matcher) =>
+        isCodexHookMatcher(matcher) &&
+        matcher.hooks.some(
+          (h) =>
+            isCodogotchiCommand(h.command) &&
+            h.command.includes(expectedCommand),
+        ),
+    );
+  });
+}
+
 // Per-platform detection markers. A platform counts as "present on this
 // machine" when its root config directory exists, independent of whether
 // codogotchi hooks are wired into it yet. This is the basis for installing
@@ -1060,8 +1120,21 @@ export async function uninstallCursorHooks(): Promise<void> {
   await writeText(cursorPath, `${JSON.stringify(existing, null, 2)}\n`);
 }
 
-export async function hooksStatus(): Promise<HooksStatus> {
+export async function hooksStatus(
+  opts: { execPath?: string } = {},
+): Promise<HooksStatus> {
   const root = getUserRoot();
+  // The executable the running binary would register now, shell-quoted exactly
+  // as the installer writes it. `hooks status` runs as the bundled binary, so
+  // `process.execPath` resolves the same sibling `codogotchi-hook` an install
+  // from this binary would wire — making the registration fingerprint below a
+  // faithful "does the installed registration match what I'd write" check.
+  // Only Claude Code and Codex embed this resolved path; Cursor, VS Code, and
+  // Antigravity always invoke the bare command name, so their registration is
+  // "current" exactly when fully installed (no path to drift).
+  const expectedCommand = shellQuoteIfNeeded(
+    await resolveHookCommand(opts.execPath ?? process.execPath),
+  );
   const claudePath = join(root, CLAUDE_SETTINGS_REL);
   const codexJsonPath = join(root, CODEX_HOOKS_JSON_REL);
   const cursorPath = join(root, CURSOR_HOOKS_REL);
@@ -1129,6 +1202,17 @@ export async function hooksStatus(): Promise<HooksStatus> {
   const claudePartial = !claudeCodeInstalled && claudeAnyWired(claudeHooks);
   const cursorPartial = !cursorNativeInstalled && cursorNativeAnyWired;
 
+  // Registration fingerprint: does the installed registration match what THIS
+  // binary would write now, independent of the reported version string? For
+  // Claude Code and Codex this additionally verifies the resolved hook-command
+  // path. Cursor/VS Code/Antigravity invoke the bare command name (no resolved
+  // path embedded), so their registration is current exactly when fully wired.
+  const claudeRegCurrent = claudeRegistrationCurrent(
+    claudeHooks,
+    expectedCommand,
+  );
+  const codexRegCurrent = codexRegistrationCurrent(codexHooks, expectedCommand);
+
   return {
     codex: {
       present_on_disk: codexPresent,
@@ -1136,6 +1220,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
       detected: detected.codex,
       installed: codexFullyInstalled,
       partially_installed: codexPartial,
+      registration_current: codexRegCurrent,
       firing_recently: firingRecently && origin === "codex",
       last_event_at: origin === "codex" ? lastEventAt : null,
     },
@@ -1145,6 +1230,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
       detected: detected.claude_code,
       installed: claudeCodeInstalled,
       partially_installed: claudePartial,
+      registration_current: claudeRegCurrent,
       firing_recently: firingRecently && origin === "claude_code",
       last_event_at: origin === "claude_code" ? lastEventAt : null,
     },
@@ -1154,6 +1240,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
       detected: detected.cursor,
       installed: cursorNativeInstalled,
       partially_installed: cursorPartial,
+      registration_current: cursorNativeInstalled,
       firing_recently: firingRecently && origin === "cursor",
       last_event_at: origin === "cursor" ? lastEventAt : null,
     },
@@ -1163,6 +1250,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
       detected: detected.vscode,
       installed: vscodeFullyInstalled,
       partially_installed: false,
+      registration_current: vscodeFullyInstalled,
       firing_recently: firingRecently && origin === "vscode",
       last_event_at: origin === "vscode" ? lastEventAt : null,
     },
@@ -1172,6 +1260,7 @@ export async function hooksStatus(): Promise<HooksStatus> {
       detected: detected.antigravity,
       installed: antigravityFullyInstalled,
       partially_installed: false,
+      registration_current: antigravityFullyInstalled,
       firing_recently: firingRecently && origin === "antigravity",
       last_event_at: origin === "antigravity" ? lastEventAt : null,
     },

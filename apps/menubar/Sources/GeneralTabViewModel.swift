@@ -17,6 +17,10 @@ final class GeneralTabViewModel {
 		let installable: Bool
 		/// The platform is present on this machine but may not have hooks yet.
 		let detected: Bool
+		/// The installed registration matches what the current binary would write.
+		/// `false` means genuine registration drift (missing event slots or a stale
+		/// command path) that re-running Update actually fixes.
+		let registrationCurrent: Bool
 	}
 
 	/// Current per-platform rows. Updated by `applySnapshot(_:)` and `refresh()`.
@@ -29,7 +33,16 @@ final class GeneralTabViewModel {
 	/// Set by `SettingsWindowController` after a successful hook operation.
 	var installedHookVersion: String?
 
-	/// True when the bundled binary is newer than the last-recorded installed version.
+	/// True when the bundled binary reports a different version than the one last
+	/// recorded at install/update time.
+	///
+	/// This is NO LONGER a banner trigger: a version bump can be pure
+	/// binary-internals drift (same registered command path, same event slots),
+	/// in which case re-registering is a no-op and prompting the user is noise.
+	/// The binary version is surfaced informationally in the About tab instead.
+	/// The actionable signal is `hasStaleRegistration`, which compares the
+	/// installed registration against what the current binary would write. Kept
+	/// as a predicate for diagnostics and tests.
 	var needsBannerUpdate: Bool {
 		LockstepPolicy.needsUpdate(
 			hooksInstalled: rows.contains { $0.installed },
@@ -38,11 +51,17 @@ final class GeneralTabViewModel {
 		)
 	}
 
-	/// True when an installable platform has codogotchi hooks present but not
-	/// fully wired for the current expected event set. Re-running Install/Update
-	/// hooks adds the missing events (idempotently).
-	var hasIncompleteInstall: Bool {
-		rows.contains { $0.installable && $0.partiallyInstalled }
+	/// True when an installable platform HAS codogotchi hooks (fully or partially
+	/// wired) whose registration no longer matches what the current binary would
+	/// write — missing event slots OR a stale command path. Re-running Update
+	/// re-registers them (idempotently). This subsumes the old
+	/// partially-installed-only check and additionally catches command-format
+	/// drift that a version-string comparison used to stand in for.
+	var hasStaleRegistration: Bool {
+		rows.contains {
+			$0.installable && ($0.installed || $0.partiallyInstalled)
+				&& !$0.registrationCurrent
+		}
 	}
 
 	/// True when a coding tool is present on this machine but has no codogotchi
@@ -54,22 +73,19 @@ final class GeneralTabViewModel {
 		}
 	}
 
-	/// Whether to show the update banner at all: a newer bundled binary, a
-	/// present-but-incomplete install that needs its wiring finished, OR a newly
-	/// detected tool that has no hooks yet.
+	/// Whether to show the update banner at all: an installed registration that
+	/// drifted from what the current binary would write, OR a newly detected tool
+	/// that has no hooks yet. A pure binary-version bump with an unchanged
+	/// registration deliberately shows nothing.
 	var shouldShowUpdateBanner: Bool {
-		needsBannerUpdate || hasIncompleteInstall || hasUnhookedDetectedPlatform
+		hasStaleRegistration || hasUnhookedDetectedPlatform
 	}
 
-	/// Banner copy reflecting why an update is offered. A stale binary takes
-	/// precedence (updating it re-wires everything anyway); then incomplete
-	/// wiring; then a newly detected tool with no hooks.
+	/// Banner copy reflecting why an update is offered. Stale registration takes
+	/// precedence over a newly detected tool with no hooks.
 	var updateBannerMessage: String {
-		if needsBannerUpdate {
-			return "Hooks are out of date — click Update to apply the bundled version."
-		}
-		if hasIncompleteInstall {
-			return "Some hooks aren't fully wired — click Update to finish installing them."
+		if hasStaleRegistration {
+			return "Hooks are out of date — click Update to re-register them."
 		}
 		return "A new coding tool was detected — click Update to install its hooks."
 	}
@@ -173,6 +189,7 @@ final class GeneralTabViewModel {
 			"detected": p.detected,
 			"installed": p.installed,
 			"partially_installed": p.partiallyInstalled,
+			"registration_current": p.registrationCurrent,
 			"firing_recently": p.firingRecently,
 			"last_event_at": p.lastEventAt.map { $0 as Any } ?? (NSNull() as Any),
 			"source_origin": p.sourceOrigin.map { $0 as Any } ?? (NSNull() as Any),
@@ -188,7 +205,8 @@ final class GeneralTabViewModel {
 			lastEventAt: p.lastEventAt,
 			sourceOrigin: p.sourceOrigin,
 			installable: p.installableInPhase,
-			detected: p.detected
+			detected: p.detected,
+			registrationCurrent: p.registrationCurrent
 		)
 	}
 }

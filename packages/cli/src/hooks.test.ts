@@ -1167,3 +1167,86 @@ describe("antigravity hooks", () => {
     expect(entries.some((e) => e.includes(".tmp-"))).toBe(false);
   });
 });
+
+describe("hooksStatus registration_current fingerprint", () => {
+  let userRoot: string;
+  let prevUserRoot: string | undefined;
+  let bundleDir: string;
+
+  beforeEach(() => {
+    userRoot = mkdtempSync(join(tmpdir(), "hooks-regcur-"));
+    mkdirSync(join(userRoot, ".codogotchi"), { recursive: true });
+    mkdirSync(join(userRoot, ".claude"), { recursive: true });
+    writeFileSync(
+      join(userRoot, ".codogotchi", "config.json"),
+      `${JSON.stringify({ profile_id: "p", pet: "maew", features: { rpg_enabled: false } })}\n`,
+      "utf8",
+    );
+    bundleDir = mkdtempSync(join(tmpdir(), "hooks-bundle-"));
+    prevUserRoot = process.env.CODOGOTCHI_USER_ROOT;
+    process.env.CODOGOTCHI_USER_ROOT = userRoot;
+  });
+
+  afterEach(() => {
+    rmSync(userRoot, { recursive: true, force: true });
+    rmSync(bundleDir, { recursive: true, force: true });
+    if (prevUserRoot === undefined) delete process.env.CODOGOTCHI_USER_ROOT;
+    else process.env.CODOGOTCHI_USER_ROOT = prevUserRoot;
+  });
+
+  // A fake .app bundle: `codogotchi` with its sibling `codogotchi-hook`, so
+  // resolveHookCommand(execPath) yields that absolute path (as the shipped app
+  // does), not the bare dev-fallback name.
+  function makeBundleExec(): string {
+    const execPath = join(bundleDir, "codogotchi");
+    writeFileSync(execPath, "#!/bin/sh\n", "utf8");
+    writeFileSync(join(bundleDir, "codogotchi-hook"), "#!/bin/sh\n", "utf8");
+    return execPath;
+  }
+
+  it("registration_current=true immediately after a fresh install", async () => {
+    const execPath = makeBundleExec();
+    await installHooks({ home: "/home/user/.codogotchi", execPath });
+    const status = await hooksStatus({ execPath });
+    expect(status.claude_code.installed).toBe(true);
+    expect(status.claude_code.registration_current).toBe(true);
+    expect(status.codex.registration_current).toBe(true);
+  });
+
+  it("registration_current=false when the resolved command path drifted (installed stays true)", async () => {
+    // Older install wrote the bare dev-fallback command (no bundle sibling).
+    await installHooks({ home: "/home/user/.codogotchi" });
+    // Now evaluate as the shipped binary whose sibling resolves an absolute path.
+    const execPath = makeBundleExec();
+    const status = await hooksStatus({ execPath });
+    // Loose token match still sees it as installed ...
+    expect(status.claude_code.installed).toBe(true);
+    // ... but the registration no longer matches what this binary would write.
+    expect(status.claude_code.registration_current).toBe(false);
+    expect(status.codex.registration_current).toBe(false);
+  });
+
+  it("registration_current=false when an expected event slot is missing", async () => {
+    // Wired for every Claude event except StopFailure: partially installed, so
+    // the registration is not current regardless of command path.
+    const cmd = "codogotchi-hook";
+    const slot = [{ matcher: "", hooks: [{ type: "command", command: cmd }] }];
+    writeFileSync(
+      join(userRoot, ".claude", "settings.json"),
+      JSON.stringify({
+        hooks: {
+          UserPromptSubmit: slot,
+          PreToolUse: slot,
+          PostToolUseFailure: slot,
+          PermissionRequest: slot,
+          Stop: slot,
+        },
+      }),
+      "utf8",
+    );
+    const status = await hooksStatus();
+    expect(status.claude_code.installed).toBe(false);
+    expect(status.claude_code.partially_installed).toBe(true);
+    expect(status.claude_code.registration_current).toBe(false);
+  });
+});
