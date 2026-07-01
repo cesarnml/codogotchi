@@ -34,8 +34,11 @@ struct RenderKeyResolution: Equatable {
 ///
 /// Within every render key the winner is the session with the newest
 /// `updated_at` (strict `>`), matching `readPerPlatformDirectoryImpl`'s
-/// last-writer-wins tie-break. With an all-default customization (every origin
-/// `.own`, session-pets off) this reproduces today's per-origin map exactly.
+/// last-writer-wins tie-break. Sessions sharing an identical `updated_at`
+/// resolve deterministically to the lexicographically smallest per-session
+/// key (sorted iteration + strict `>` keeps the first seen). With an
+/// all-default customization (every origin `.own`, session-pets off) this
+/// reproduces today's per-origin map exactly.
 func resolveRenderKeys(
 	perSession: [String: StateSnapshot],
 	customization: CustomizationSnapshot
@@ -53,7 +56,10 @@ func resolveRenderKeys(
 		identities[renderKey] = RenderKeyIdentity(origin: origin, sessionId: sessionId)
 	}
 
-	for (key, snapshot) in perSession {
+	// Sorted iteration makes the equal-`updated_at` tie deterministic — plain
+	// Dictionary order is unspecified and would pick an arbitrary winner.
+	for key in perSession.keys.sorted() {
+		guard let snapshot = perSession[key] else { continue }
 		let (origin, sessionId) = splitSessionKey(key)
 		let mode = customization.platformModes[origin] ?? .own
 		let renderKey: String

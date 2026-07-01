@@ -163,6 +163,36 @@ final class PerSessionReaderTests: XCTestCase {
 			"the render key must recover the winning (origin, session_id) for downstream labeling")
 	}
 
+	/// Subagent-review F1: equal `updated_at` across sessions folding to one
+	/// render key must resolve deterministically (sorted key iteration + strict
+	/// `>` keeps the lexicographically smallest per-session key), not by
+	/// unspecified Dictionary order.
+	func testEqualTimestampTieBreaksToLexicographicallySmallestSessionKey() throws {
+		let dir = makeTempDir()
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let now = Date()
+		let iso = "2026-06-28T10:00:00.000Z"
+		try writeSlice(
+			dir, filename: "claude_code:s2.json", origin: "claude_code", state: "thinking",
+			updatedAt: iso)
+		try writeSlice(
+			dir, filename: "claude_code:s1.json", origin: "claude_code", state: "implementing",
+			updatedAt: iso)
+
+		guard case .success(let perSession) = StateJsonReader.readPerSessionDirectory(
+			at: dir.path, now: now)
+		else { return XCTFail("read must succeed") }
+
+		let resolution = resolveRenderKeys(perSession: perSession, customization: customization())
+
+		XCTAssertEqual(
+			resolution.identities["claude_code"],
+			RenderKeyIdentity(origin: "claude_code", sessionId: "s1"),
+			"equal-timestamp ties must deterministically keep the lexicographically smallest session key"
+		)
+		XCTAssertEqual(resolution.states["claude_code"]?.activityState, .implementing)
+	}
+
 	func testSessionPetsOnKeepsEachSessionKey() throws {
 		let dir = makeTempDir()
 		defer { try? FileManager.default.removeItem(at: dir) }
