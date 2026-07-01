@@ -44,6 +44,7 @@
 		4AA882970E413D5E8CA15AD2 /* HalfHeartDecayEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05DA62A749E277B164B28878 /* HalfHeartDecayEngine.swift */; };
 		4ADBB1DD081EE5B9CE110363 /* CodogotchiFolders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CC4170BD102B13FAEADA8B /* CodogotchiFolders.swift */; };
 		4BE71F6E5934DC0410EF24B1 /* PerPlatformSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E218BBA20DB3F443FF460A2 /* PerPlatformSnapshot.swift */; };
+		AA11BB22CC33DD44EE55FF68 /* RenderKeyResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF69 /* RenderKeyResolver.swift */; };
 		4C800549CEEB194A42237701 /* PetImportHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */; };
 		4EF5166A016D9F70390B8829 /* GeneralTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A2902FB13A70CEF8221A21A /* GeneralTabViewModelTests.swift */; };
 		50F12FB03948E281C4BDFFE1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0D359A7765F7ACDDA24C16CB /* Assets.xcassets */; };
@@ -187,6 +188,7 @@
 		AA11BB22CC33DD44EE55FF67 /* PerSessionReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerSessionReaderTests.swift; sourceTree = "<group>"; };
 		9BCAD41ECE980A5E83D5AE20 /* RpgStateReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RpgStateReaderTests.swift; sourceTree = "<group>"; };
 		9E218BBA20DB3F443FF460A2 /* PerPlatformSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerPlatformSnapshot.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF69 /* RenderKeyResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderKeyResolver.swift; sourceTree = "<group>"; };
 		9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonReaderTests.swift; sourceTree = "<group>"; };
 		9E7256729C3F274DFB3A5204 /* BundledMaewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledMaewTests.swift; sourceTree = "<group>"; };
 		A3B9E962BBA7B8B1B05F9F77 /* DeveloperTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperTabViewModelTests.swift; sourceTree = "<group>"; };
@@ -328,6 +330,7 @@
 				712A24CF66C43196AE34459D /* OnboardingController.swift */,
 				6C36708DADAAEA372DF03A2A /* OnboardingWindowController.swift */,
 				9E218BBA20DB3F443FF460A2 /* PerPlatformSnapshot.swift */,
+				AA11BB22CC33DD44EE55FF69 /* RenderKeyResolver.swift */,
 				E85893A49B1B1E7E05D7EDE4 /* PetAssetResolver.swift */,
 				9646F68B64C22ABAE0FE52EA /* PetConfig.swift */,
 				16AB1C9D025D206DCABAF2A6 /* PetImportHelper.swift */,
@@ -532,6 +535,7 @@
 				3B83084BAD4FC401B7C5CF37 /* OnboardingController.swift in Sources */,
 				CBB4A3FDFAA87B468B862419 /* OnboardingWindowController.swift in Sources */,
 				4BE71F6E5934DC0410EF24B1 /* PerPlatformSnapshot.swift in Sources */,
+				AA11BB22CC33DD44EE55FF68 /* RenderKeyResolver.swift in Sources */,
 				2B9CB86769F2324700BF87F7 /* PetAssetResolver.swift in Sources */,
 				BBAE72D92861A7901C3EBB73 /* PetConfig.swift in Sources */,
 				4C800549CEEB194A42237701 /* PetImportHelper.swift in Sources */,

@@ -350,6 +350,136 @@ enum StateJsonReader {
 		}
 		return .success(result)
 	}
+
+	/// Parses a `state.d/` slice filename into its `(origin, sessionId)` identity.
+	///
+	/// The CLI writes slices as `<origin>:<session_id>.json` (see
+	/// `sliceFilePath` in `packages/cli/src/hook-binary.ts`, where `sessionId`
+	/// defaults to `"default"`). We split on the **first** colon so a
+	/// `session_id` that itself contains a colon still resolves — `origin` is a
+	/// fixed enum value that never contains one. A filename with no colon keys
+	/// as `origin:default`, matching the CLI writer's `sessionId ?? "default"`
+	/// fallback for a session that never set an id.
+	///
+	/// Returns `nil` — the slice is skipped — for non-slice entries (`.tmp-`
+	/// temp writes, the `.gate.json` / `.context.json` sidecars that share the
+	/// `.json` suffix), a name with no `.json` suffix, or an empty origin
+	/// component (an unparseable filename such as `:orphan.json`).
+	static func parseSliceFilename(_ name: String) -> (origin: String, sessionId: String)? {
+		guard name.hasSuffix(".json"), !name.contains(".tmp-") else { return nil }
+		if name.hasSuffix(".gate.json") || name.hasSuffix(".context.json") { return nil }
+		let stem = String(name.dropLast(".json".count))
+		guard !stem.isEmpty else { return nil }
+		guard let colon = stem.firstIndex(of: ":") else {
+			return (stem, "default")
+		}
+		let origin = String(stem[stem.startIndex..<colon])
+		guard !origin.isEmpty else { return nil }
+		let session = String(stem[stem.index(after: colon)...])
+		return (origin, session.isEmpty ? "default" : session)
+	}
+
+	/// Full per-session granularity: groups fresh `state.d/` slices by the
+	/// `origin:session_id` identity parsed from each filename, applying the same
+	/// stale-TTL filter and `resolveActivityState` treatment as
+	/// `readPerPlatformDirectory`. Slices whose filename lacks a parseable origin
+	/// are skipped.
+	///
+	/// Keys are `"<origin>:<session_id>"`. Returns `.failure(.fileNotFound)` when
+	/// the directory does not exist and `.success([:])` when it is empty or all
+	/// slices are stale.
+	static func readPerSessionDirectory(
+		at dirPath: String,
+		listing: StateDirectoryListing? = nil
+	) -> Result<[String: StateSnapshot], StateReadError> {
+		readPerSessionDirectoryImpl(at: dirPath, now: Date(), staleTTL: 2 * 60 * 60, listing: listing)
+	}
+
+	static func readPerSessionDirectory(
+		at dirPath: String,
+		now: Date,
+		staleTTL: TimeInterval = 2 * 60 * 60,
+		listing: StateDirectoryListing? = nil
+	) -> Result<[String: StateSnapshot], StateReadError> {
+		readPerSessionDirectoryImpl(at: dirPath, now: now, staleTTL: staleTTL, listing: listing)
+	}
+
+	/// `listing`, when supplied, is the shared per-tick `state.d/` enumeration
+	/// (P15.02); the reader consumes it instead of re-scanning. When omitted it
+	/// self-scans, preserving the `.fileNotFound` (missing dir) vs `.malformed`
+	/// (unreadable dir) distinction. Slice construction mirrors
+	/// `readPerPlatformDirectoryImpl` field-for-field so an all-default
+	/// `resolveRenderKeys` collapse is byte-identical to the per-origin map.
+	private static func readPerSessionDirectoryImpl(
+		at dirPath: String,
+		now: Date,
+		staleTTL: TimeInterval,
+		listing: StateDirectoryListing?
+	) -> Result<[String: StateSnapshot], StateReadError> {
+		let fm = FileManager.default
+
+		let entries: [StateDirectoryListing.Entry]
+		if let listing {
+			entries = listing.entries
+		} else {
+			var isDir: ObjCBool = false
+			guard fm.fileExists(atPath: dirPath, isDirectory: &isDir), isDir.boolValue else {
+				return .failure(.fileNotFound)
+			}
+			guard let scanned = StateDirectoryListing.scan(at: dirPath) else {
+				return .failure(.malformed)
+			}
+			entries = scanned.entries
+		}
+
+		let decoder = JSONDecoder()
+		decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+		// One winner per (origin, session) key. Distinct filenames normally map
+		// to distinct keys, but the strict-`>` tie-break is kept so this matches
+		// the per-origin reader's grouping semantics exactly.
+		var winners: [String: (date: Date, slice: SlicePayload)] = [:]
+
+		for entry in entries {
+			guard let (origin, sessionId) = parseSliceFilename(entry.name) else { continue }
+			let filePath = (dirPath as NSString).appendingPathComponent(entry.name)
+
+			if let mtime = entry.mtime, now.timeIntervalSince(mtime) > staleTTL {
+				continue
+			}
+
+			guard let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)),
+				let slice = try? decoder.decode(SlicePayload.self, from: data)
+			else { continue }
+
+			let key = "\(origin):\(sessionId)"
+			let candidateDate = parseISO8601Date(slice.updatedAt) ?? Date.distantPast
+			if winners[key] == nil || candidateDate > winners[key]!.date {
+				winners[key] = (candidateDate, slice)
+			}
+		}
+
+		var result: [String: StateSnapshot] = [:]
+		for (key, (_, slice)) in winners {
+			let raw = StateSnapshot(
+				schemaVersion: EXPECTED_STATE_SCHEMA_VERSION,
+				activityState: slice.activityState,
+				updatedAt: slice.updatedAt,
+				sourceEvent: slice.sourceEvent,
+				attention: slice.attention,
+				toolCommand: slice.toolCommand
+			)
+			result[key] = StateSnapshot(
+				schemaVersion: raw.schemaVersion,
+				activityState: resolveActivityState(raw, now: now),
+				updatedAt: raw.updatedAt,
+				sourceEvent: raw.sourceEvent,
+				attention: raw.attention,
+				toolCommand: raw.toolCommand
+			)
+		}
+		return .success(result)
+	}
 }
 
 /// Private wire shape: matches v1 schema keys after snake-case conversion.
