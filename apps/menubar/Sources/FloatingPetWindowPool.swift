@@ -417,7 +417,7 @@ final class FloatingPetWindowPool {
 	/// windows). Consumers (e.g. `MenubarApp` wiring the session badge) call
 	/// this after a window is spawned/updated.
 	func sessionNumber(forWindowKey key: String) -> Int? {
-		guard let identity = currentRenderKeyIdentities[key] else { return nil }
+		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return nil }
 		return sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
 	}
 
