@@ -5,4 +5,4 @@
 //
 // P8.05 (lockstep) builds the installed-vs-bundled comparison on top of this
 // reported value; this ticket only establishes the command surface.
-export const CLI_VERSION = "1.0.0";
+export const CLI_VERSION = "1.0.1";
