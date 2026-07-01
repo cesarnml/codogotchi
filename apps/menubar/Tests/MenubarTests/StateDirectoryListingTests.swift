@@ -47,4 +47,38 @@ final class StateDirectoryListingTests: XCTestCase {
 			XCTAssertNotNil(entry.mtime, "a real regular file must carry a filesystem mtime")
 		}
 	}
+
+	// MARK: - Listing branch ≡ self-scan branch (the P15.03 seam)
+
+	/// The pre-existing suite only exercises the self-scan (`listing == nil`)
+	/// path; nothing proves the shared-listing branch yields identical results.
+	/// This equivalence check locks that guarantee for `readPerPlatformDirectory`,
+	/// which is the exact consumer P15.03 extends to per-session granularity.
+	func testListingBranchMatchesSelfScanForReadPerPlatformDirectory() throws {
+		let dir = makeTempDir()
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let now = Date()
+		let iso = ISO8601DateFormatter().string(from: now)
+		func slice(origin: String, state: String) -> String {
+			"""
+			{ "activity_state": "\(state)", "updated_at": "\(iso)", "source_event": { "origin": "\(origin)" } }
+			"""
+		}
+		try slice(origin: "claude_code", state: "focused")
+			.write(to: dir.appendingPathComponent("claude_code:s1.json"), atomically: true, encoding: .utf8)
+		try slice(origin: "cursor", state: "editing")
+			.write(to: dir.appendingPathComponent("cursor:s1.json"), atomically: true, encoding: .utf8)
+
+		let listing = try XCTUnwrap(StateDirectoryListing.scan(at: dir.path))
+		let selfScan = StateJsonReader.readPerPlatformDirectory(at: dir.path, now: now)
+		let viaListing = StateJsonReader.readPerPlatformDirectory(at: dir.path, now: now, listing: listing)
+
+		guard case .success(let selfMap) = selfScan, case .success(let listingMap) = viaListing else {
+			return XCTFail("both the self-scan and shared-listing reads must succeed")
+		}
+		XCTAssertEqual(
+			selfMap, listingMap,
+			"the shared-listing branch must produce results identical to the self-scan branch")
+		XCTAssertEqual(Set(selfMap.keys), ["claude_code", "cursor"], "both origins must be grouped")
+	}
 }
