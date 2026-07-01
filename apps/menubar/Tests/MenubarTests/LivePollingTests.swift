@@ -76,6 +76,7 @@ final class LivePollingTests: XCTestCase {
 		previewGatePath: URL? = nil,
 		transitionLog: TransitionLog? = nil,
 		reader: LivePollingDriver.Reader? = nil,
+		customization: CustomizationSnapshot = .safeDefault,
 		now: @escaping () -> Date = { Date() }
 	) -> LivePollingDriver {
 		let driver = LivePollingDriver(
@@ -88,6 +89,9 @@ final class LivePollingTests: XCTestCase {
 			apply: { state, mode in recorder.renders.append((state, mode)) },
 			setTooltip: { tip in recorder.tooltips.append(tip) },
 			reader: reader ?? StateJsonReader.readDirectory(at:),
+			// Hermetic: default to safeDefault so tests never read the dev
+			// machine's real ~/.codogotchi/customization.json.
+			customizationReader: { customization },
 			transitionLog: transitionLog,
 			now: now
 		)

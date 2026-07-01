@@ -64,6 +64,7 @@ final class LivePollingDriver {
 	typealias Reader = (String) -> Result<StateSnapshot, StateReadError>
 	typealias GateReader = (String) -> GateSnapshot?
 	typealias DeliveryContextReaderFn = (String) -> DeliveryContextSnapshot?
+	typealias CustomizationReaderFn = () -> CustomizationSnapshot
 
 	private let pollingTargetPath: String
 	private let rpgStatePath: String?
@@ -76,6 +77,10 @@ final class LivePollingDriver {
 	private let reader: Reader
 	private let gateReader: GateReader
 	private let deliveryContextReader: DeliveryContextReaderFn
+	/// Reads `customization.json` fresh each tick so the render-key collapse (per-
+	/// origin fold vs per-session keep vs combined fold) tracks Settings writes
+	/// within one poll. Injected so tests stay hermetic (default `.safeDefault`).
+	private let customizationReader: CustomizationReaderFn
 	private let tickInterval: TimeInterval
 	private let transitionLog: TransitionLog?
 	private var codogotchiPet: CodogotchiPet?
@@ -142,6 +147,9 @@ final class LivePollingDriver {
 		reader: @escaping Reader = StateJsonReader.readDirectory(at:),
 		gateReader: @escaping GateReader = GateJsonReader.read(at:),
 		deliveryContextReader: @escaping DeliveryContextReaderFn = DeliveryContextReader.read(at:),
+		customizationReader: @escaping CustomizationReaderFn = {
+			CustomizationJsonReader.read(at: CodogotchiFolders.customizationPath())
+		},
 		tickInterval: TimeInterval = 1.0,
 		transitionLog: TransitionLog? = nil,
 		codogotchiPet: CodogotchiPet? = nil,
@@ -158,6 +166,7 @@ final class LivePollingDriver {
 		self.reader = reader
 		self.gateReader = gateReader
 		self.deliveryContextReader = deliveryContextReader
+		self.customizationReader = customizationReader
 		self.tickInterval = tickInterval
 		self.transitionLog = transitionLog
 		self.codogotchiPet = codogotchiPet
@@ -236,46 +245,64 @@ final class LivePollingDriver {
 		emit(outcome)
 		// Emit per-platform snapshot to pool when not in preview mode and read succeeded.
 		if !previewActive, let sink = applyPerPlatform {
-			let perPlatformResult = StateJsonReader.readPerPlatformDirectory(
+			let perSessionResult = StateJsonReader.readPerSessionDirectory(
 				at: pollingTargetPath, listing: sharedListing)
-			if case .success(let perOriginMap) = perPlatformResult {
+			if case .success(let perSessionMap) = perSessionResult {
+				// Collapse full per-session granularity to the render set for the
+				// current customization. With session-pets off everywhere (the
+				// default) this reproduces today's per-origin map byte-for-byte.
+				let resolution = resolveRenderKeys(
+					perSession: perSessionMap, customization: customizationReader())
 				let perOriginGate = PerPlatformGateReader.read(
 					at: pollingTargetPath, listing: sharedListing)
 				let legacyGate = gatePath.flatMap { gateReader($0) }
 				let legacyContext = deliveryContextPath.flatMap { deliveryContextReader($0) }
-				let (mergedStates, gateBadges) = resolvePerPlatform(
-					perOriginMap: perOriginMap,
+				let (mergedStates, gateBadges) = resolveRenderedPlatforms(
+					renderStates: resolution.states,
+					identities: resolution.identities,
 					perOriginGate: perOriginGate,
 					legacyGate: legacyGate,
 					legacyContext: legacyContext
 				)
 				sink(
 					PerPlatformSnapshot(
-						perPlatform: mergedStates, gateBadges: gateBadges, rpgSnapshot: rpgSnapshot))
+						perPlatform: mergedStates,
+						gateBadges: gateBadges,
+						rpgSnapshot: rpgSnapshot,
+						renderKeyIdentities: resolution.identities))
 			}
 		}
 	}
 
-	/// Merges each origin's own SoA gate into its activity state (so the gate's
-	/// 30s animation plays on the platform that actually drove it, not just the
-	/// legacy single-window status item) and resolves each origin's persistent
-	/// ticket/gate badge content.
+	/// Merges each render key's owning-origin SoA gate into its activity state
+	/// (so the gate's 30s animation plays on the platform that actually drove it,
+	/// not just the legacy single-window status item) and resolves each render
+	/// key's persistent ticket/gate badge content.
 	///
-	/// Falls back to the legacy flat `gate.json`/`delivery-context.json` only
-	/// when exactly one origin is active — a pre-Phase-17 hook writes those with
-	/// no origin at all, so attributing them to a specific platform while
-	/// several are active would risk badging the wrong window.
-	private func resolvePerPlatform(
-		perOriginMap: [String: StateSnapshot],
+	/// The gate/context lookup is keyed by the winning slice's **origin** (from
+	/// `identities`), because gate/context files are per-origin — a plain-origin
+	/// key, an `origin:session_id` key, and a folded `"combined"` key all resolve
+	/// to their owning origin's gate. Falls back to the legacy flat
+	/// `gate.json`/`delivery-context.json` only when exactly one origin is active
+	/// (a pre-Phase-17 hook writes those with no origin at all, so attributing
+	/// them while several are active would risk badging the wrong window).
+	///
+	/// With session-pets off (render key == origin, identity origin == that
+	/// origin) this is identical to the pre-P15.03 per-origin merge.
+	private func resolveRenderedPlatforms(
+		renderStates: [String: StateSnapshot],
+		identities: [String: RenderKeyIdentity],
 		perOriginGate: [String: PerPlatformGateReader.Entry],
 		legacyGate: GateSnapshot?,
 		legacyContext: DeliveryContextSnapshot?
 	) -> (states: [String: StateSnapshot], gateBadges: [String: GateBadgeContent]) {
 		var states: [String: StateSnapshot] = [:]
 		var badges: [String: GateBadgeContent] = [:]
-		let singleOrigin = perOriginMap.count == 1 ? perOriginMap.keys.first : nil
+		let distinctOrigins = Set(identities.values.map(\.origin))
+		let singleOrigin = distinctOrigins.count == 1 ? distinctOrigins.first : nil
 
-		for (origin, snapshot) in perOriginMap {
+		for (renderKey, snapshot) in renderStates {
+			let origin = identities[renderKey]?.origin ?? renderKey
 			let entry = perOriginGate[origin]
 			let gate = entry?.gate ?? (origin == singleOrigin ? legacyGate : nil)
 			let context = entry?.context ?? (origin == singleOrigin ? legacyContext : nil)
@@ -283,7 +310,7 @@ final class LivePollingDriver {
 			let mergedActivity = resolveActivityState(
 				gate: gate, hookState: snapshot.activityState, codogotchiPet: codogotchiPet
 			)
-			states[origin] = StateSnapshot(
+			states[renderKey] = StateSnapshot(
 				schemaVersion: snapshot.schemaVersion,
 				activityState: mergedActivity,
 				updatedAt: snapshot.updatedAt,
@@ -301,7 +328,7 @@ final class LivePollingDriver {
 			if let badge = resolveGateBadgeContent(
 				deliveryContext: context, sourceEvent: snapshot.sourceEvent)
 			{
-				badges[origin] = badge
+				badges[renderKey] = badge
 			}
 		}
 		return (states, badges)

@@ -40,8 +40,12 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [record any deviation from the ticket metadata contract here]
+Red first: `PerSessionReaderTests` failed to compile — `StateJsonReader.readPerSessionDirectory` and `resolveRenderKeys`/`RenderKeyIdentity` did not exist yet. The suite covers per-session granularity (two sessions/one origin → two entries, no-colon filename → `origin:default`, unparseable filename skipped), the four `resolveRenderKeys` modes (session-pets off collapse, session-pets on keep, combined fold, mixed platforms), and the byte-identical guarantee against `readPerPlatformDirectory`.
+
+Why this path: `readPerSessionDirectory` mirrors `readPerPlatformDirectoryImpl` field-for-field (same stale-TTL filter, same `resolveActivityState`, same strict-`>` winner) so an all-default `resolveRenderKeys` collapse reproduces the per-origin map exactly — the whole composite-key foundation rests on that equivalence and it is asserted directly (`testAllDefaultCollapseEqualsPerOriginMap`). Origin+session are parsed from the filename (split on the first colon; origin is a colon-free enum, so a `session_id` containing a colon still resolves), matching the CLI writer's `${origin}:${sessionId}.json` with `sessionId ?? "default"`. `resolveRenderKeys` is a pure free function (data in → data out) so P15.04 and tests exercise it without pool/window concerns. The driver now reads `customization.json` each tick (new injected `customizationReader`, hermetic `.safeDefault` in tests) and routes the per-platform emission through `readPerSessionDirectory` → `resolveRenderKeys` → a render-key-aware gate/context join (`resolveRenderedPlatforms`, keyed by the winning slice's origin from `identities`). `PerPlatformSnapshot` gained a defaulted `renderKeyIdentities` map so downstream labeling can recover `(origin, session_id)` per render key without breaking existing per-origin construction sites.
+
+Alternative considered: deriving the grouping origin from slice **content** (`sourceEvent.origin`, as `readPerPlatformDirectory` does) instead of the filename. Rejected because the ticket makes the filename authoritative for the `origin:session_id` key, and for every real slice the CLI writes the filename origin === content origin, so filename-based grouping is byte-identical on real data while also honoring the spec's "filename lacks a parseable origin → skip" rule.
+
+Deferred: the pool is unchanged this ticket — it still receives a per-origin-shaped render set because the shipping default is session-pets off. Per-session window fan-out (consuming `origin:session_id` and `renderKeyIdentities`) lands in P15.04. Note: `resolveRenderKeys` folds combined-mode origins to `"combined"` at the driver as specified; the current pool also folds combined itself, so combined-mode routing is only fully reconciled once P15.04 refactors the pool to consume render keys directly. This is a within-stack transient resolved before closeout (the shipping default has no combined origins configured).
+
+Contract note: none — `Red: required` honored; scope stayed within the reader, the pure resolver, and the driver wiring.
