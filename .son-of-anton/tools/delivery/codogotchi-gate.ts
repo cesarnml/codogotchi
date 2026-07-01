@@ -1,4 +1,9 @@
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { execSync } from 'node:child_process';
@@ -81,6 +86,31 @@ function resolveCanonicalGitRoot(cwd: string): string {
   }
 }
 
+type ActiveSession = {
+  origin: string | undefined;
+  sessionId: string | undefined;
+};
+
+function readActiveSession(repoRoot: string): ActiveSession {
+  try {
+    const raw = readFileSync(
+      join(repoRoot, '.soa', 'active-session.json'),
+      'utf8',
+    );
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return {
+        origin: typeof parsed.origin === 'string' ? parsed.origin : undefined,
+        sessionId:
+          typeof parsed.session_id === 'string' ? parsed.session_id : undefined,
+      };
+    }
+  } catch {
+    // File absent or malformed — fall back to legacy single-file mode
+  }
+  return { origin: undefined, sessionId: undefined };
+}
+
 export async function writeGateEvent(
   config: ResolvedOrchestratorConfig,
   event: GateEvent,
@@ -93,6 +123,9 @@ export async function writeGateEvent(
     const repoRoot = resolveCanonicalGitRoot(
       resolve(event.repoRoot ?? process.cwd()),
     );
+
+    const { origin, sessionId } = readActiveSession(repoRoot);
+
     const payload: GateJsonPayload = {
       gate: event.gate,
       since: since.toISOString(),
@@ -100,9 +133,22 @@ export async function writeGateEvent(
       plan_key: event.planKey,
       ticket_id: event.ticketId,
     };
+
+    const stateDir = join(home, 'state.d');
+    const gateFile =
+      origin && sessionId
+        ? join(stateDir, `${origin}:${sessionId}.gate.json`)
+        : join(home, GATE_JSON_FILENAME);
+    const contextFile =
+      origin && sessionId
+        ? join(stateDir, `${origin}:${sessionId}.context.json`)
+        : join(home, DELIVERY_CONTEXT_JSON_FILENAME);
+
     mkdirSync(home, { recursive: true });
+    if (origin && sessionId) mkdirSync(stateDir, { recursive: true });
     const serialized = JSON.stringify(payload);
-    writeFileSync(join(home, GATE_JSON_FILENAME), serialized, 'utf8');
+    writeFileSync(gateFile, serialized, 'utf8');
+
     appendFileSync(
       join(home, GATE_TRANSITIONS_LOG_FILENAME),
       `${serialized}\n`,
@@ -121,11 +167,7 @@ export async function writeGateEvent(
         since.getTime() + DELIVERY_CONTEXT_LEASE_MS,
       ).toISOString(),
     };
-    writeFileSync(
-      join(home, DELIVERY_CONTEXT_JSON_FILENAME),
-      JSON.stringify(contextPayload),
-      'utf8',
-    );
+    writeFileSync(contextFile, JSON.stringify(contextPayload), 'utf8');
   } catch {
     // best-effort: write failures never abort a delivery command
   }
