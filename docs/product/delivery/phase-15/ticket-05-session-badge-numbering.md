@@ -85,3 +85,47 @@ internal `setUnlimited(_:origin:)`) matches the ticket's Green section aside
 from the `unlimited` mode being allocator state instead of a call parameter,
 which is called out above as a deliberate, ticket-compatible interpretation
 rather than a deviation from the required test coverage.
+
+Subagent-review follow-up (`[subagent-review]` patch commit, post `612861cc`
+red / `704fc899` green / `dae59b5a` post-verify):
+
+- The post-verify commit (`dae59b5a`) gated the PUBLIC
+  `sessionNumber(forWindowKey:)` on `isSessionKeyed` in addition to the
+  private `assignSessionNumber`/`releaseSessionNumber` helpers — closing a gap
+  where a plain-origin window (session-pets off) would still resolve a
+  `RenderKeyIdentity` (session id degrades to `"default"`) and wrongly be
+  handed a session number. This should have been listed above at the time;
+  recorded now per the subagent's doc-drift observation.
+- **F-1 (actionable, patched):** `releaseSessionNumber` originally resolved
+  the session identity from `currentRenderKeyIdentities`, the map refreshed
+  from the LATEST tick's snapshot. A session ending deletes its `state.d`
+  slice immediately, so its identity drops out of that map before its window
+  is torn down (the window survives until TTL expiry, ~5 minutes later by
+  default). By the time TTL fired and `releaseSessionNumber` ran, the lookup
+  silently missed and the number was never returned to the free list —
+  a permanent leak under a bounded cap. Fixed by adding
+  `windowSessionIdentities: [String: RenderKeyIdentity]`, populated at assign
+  time and consumed (and cleared) at release time, so release no longer
+  depends on the session still being present in the current snapshot.
+  Covered by
+  `testTTLDismissedSessionReleasesItsNumberEvenAfterItsIdentityLeavesTheSnapshot`.
+- **Incidental fix (found while adding the regression test above, same
+  patch):** `directKeys` (the render keys driving Step 7's spawn loop) was an
+  unsorted `Dictionary.keys` filter — iteration order is unspecified, so when
+  two brand-new sessions for the same origin appeared in the same tick, which
+  one got the lower number was nondeterministic across process launches
+  (Swift's per-process dictionary hash seed). Sorted `directKeys` for
+  deterministic assignment order, matching the existing sorted-iteration
+  convention in `resolveRenderKeys`.
+- Deferred from the subagent's Advisory Observations (not patched, tracked
+  here for later phases): (1) `sessionRowExtraHeight` (26pt fixed) is 1pt
+  short of the actual scaled badge-row height (27pt) at
+  `achievableMaxScale` — confirmed visually negligible (no bubble overlap,
+  sub-perceptual at 1x), not worth a patch this ticket. (2) negative
+  `sessionCap` values are not normalized to the default cap of 3 by the
+  allocator call sites — moot until P15.09 adds a Settings UI that could
+  write a negative value; revisit there. (3)
+  `testCombinedWindowNeverGetsASessionNumber` could additionally assert
+  `appliedSessionNumbers == []` on the combined stub for stronger coverage —
+  left as-is since the existing assertion already covers the public-method
+  gate.

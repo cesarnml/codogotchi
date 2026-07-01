@@ -1180,6 +1180,76 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		)
 	}
 
+	func testTTLDismissedSessionReleasesItsNumberEvenAfterItsIdentityLeavesTheSnapshot() {
+		// Regression: a session ending deletes its state.d slice, so its
+		// RenderKeyIdentity drops out of the snapshot immediately — but the
+		// window itself lingers until TTL expiry. releaseSessionNumber must
+		// resolve the identity from assign-time bookkeeping, not from the
+		// (by-then-stale) latest snapshot, or the freed number leaks forever.
+		var stubs: [String: StubWindowController] = [:]
+		var currentTime = Date(timeIntervalSinceReferenceDate: 0)
+		let customization = makeCustomization(ttlSeconds: 60, sessionPetsEnabled: ["claude_code": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			now: { currentTime }
+		)
+
+		// Tick 1: two sessions spawn, get numbers 1 and 2. s2 is the busier /
+		// more-recently-updated session so it (not s1) holds last-active immunity.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:s1": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:s2": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["claude_code:s1"]?.appliedSessionNumbers.last ?? nil, 1)
+		XCTAssertEqual(stubs["claude_code:s2"]?.appliedSessionNumbers.last ?? nil, 2)
+
+		// Tick 2: s1's session ends — its state.d slice is gone, so it drops out
+		// of the snapshot entirely. Its window is still within its TTL grace
+		// window, so it must still be present (not yet dismissed).
+		currentTime = currentTime.addingTimeInterval(1)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:s2": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertTrue(pool.activeOrigins.contains("claude_code:s1"), "s1 must survive within its TTL grace window")
+
+		// Tick 3: advance past the TTL. s1's window is now dismissed via Step 5b
+		// with NO entry for "claude_code:s1" in this tick's renderKeyIdentities.
+		currentTime = currentTime.addingTimeInterval(61)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:s2": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertFalse(pool.activeOrigins.contains("claude_code:s1"), "s1 must be dismissed once its TTL expires")
+
+		// Tick 4: a brand-new session arrives. If s1's number (1) was correctly
+		// released, the new session reuses it (lowest free) instead of climbing
+		// to 3.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:s2": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:s3": makeSnapshot(state: .idle, updated: "2026-07-01T10:02:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(
+			stubs["claude_code:s3"]?.appliedSessionNumbers.last ?? nil, 1,
+			"a released number must be reused by the next new session, not leaked forever"
+		)
+	}
+
 	func testCombinedWindowNeverGetsASessionNumber() {
 		var stubs: [String: StubWindowController] = [:]
 		let customization = makeCustomization(platformModes: ["codex": .combined])

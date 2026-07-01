@@ -46,10 +46,19 @@ final class FloatingPetWindowPool {
 	/// Most-recently read assignments — updated at the start of each tick.
 	private var currentAssignments: AssignmentsSnapshot = .safeDefault
 	/// The `(origin, session_id)` identity behind each render key, from the
-	/// latest `update(snapshot:)` tick — used to drive session-number
-	/// assign/release without threading the identity map through every
-	/// removal call site individually.
+	/// latest `update(snapshot:)` tick — used to assign a session number when a
+	/// window is spawned. NOT used to release, because a session's identity can
+	/// (and, on the normal TTL-dismiss path, does) disappear from the snapshot
+	/// before the window itself is torn down — see `windowSessionIdentities`.
 	private var currentRenderKeyIdentities: [String: RenderKeyIdentity] = [:]
+	/// Identity captured at assign time for every window key that currently
+	/// holds a session number, keyed independently of `currentRenderKeyIdentities`.
+	/// `releaseSessionNumber` must read from here, not from the latest snapshot:
+	/// once a session ends, its `state.d` slice is deleted and its identity
+	/// drops out of `snapshot.renderKeyIdentities` on the very next tick, but the
+	/// window itself lingers until its TTL expires. Releasing from the stale
+	/// snapshot would silently no-op and leak the number under a bounded cap.
+	private var windowSessionIdentities: [String: RenderKeyIdentity] = [:]
 	/// Free-list session-number allocator, keyed per-origin internally.
 	/// Assign/release only apply to session-keyed windows (an `origin:session_id`
 	/// render key) — plain-origin windows (session-pets off) and the literal
@@ -208,7 +217,13 @@ final class FloatingPetWindowPool {
 		// Step 6: separate combined vs directly-keyed entries. The driver pre-folds
 		// combined origins to the literal "combined" key; unfolded per-origin input
 		// (the pre-P15.03 shape the existing tests feed) folds here via windowKey.
-		let directKeys = visibleEntries.keys.filter { windowKey(for: $0) != "combined" }
+		// Sorted so Step 7's session-number assignment is deterministic when two
+		// or more brand-new sessions for the same origin appear in the same tick —
+		// `visibleEntries.keys` is a Dictionary view with unspecified iteration
+		// order, and without sorting, which session gets the lower number would
+		// vary run to run (same nondeterminism `resolveRenderKeys` already guards
+		// against via sorted iteration).
+		let directKeys = visibleEntries.keys.filter { windowKey(for: $0) != "combined" }.sorted()
 		let combinedKeys = visibleEntries.keys.filter { windowKey(for: $0) == "combined" }
 
 		// Step 6a: collapse directly-keyed windows for keys that switched to combined
@@ -434,19 +449,28 @@ final class FloatingPetWindowPool {
 		key != "combined" && key.contains(":")
 	}
 
-	/// Assigns a session number for a newly-spawned session-keyed window.
-	/// No-op for plain-origin or "combined" windows.
+	/// Assigns a session number for a newly-spawned session-keyed window and
+	/// remembers the identity under `windowSessionIdentities` so a later
+	/// `releaseSessionNumber` call — which may land well after this session's
+	/// identity has dropped out of `currentRenderKeyIdentities` (TTL dismiss of
+	/// an already-ended session) — can still resolve the correct
+	/// (origin, sessionId) pair to free. No-op for plain-origin or "combined"
+	/// windows.
 	private func assignSessionNumber(forWindowKey key: String) {
 		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return }
 		let unlimited = (currentCustomization.sessionCap[identity.origin] ?? 3) == 0
 		sessionNumberAllocator.setUnlimited(unlimited, origin: identity.origin)
 		sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
+		windowSessionIdentities[key] = identity
 	}
 
-	/// Releases the session number for a dismissed session-keyed window.
-	/// No-op for plain-origin or "combined" windows.
+	/// Releases the session number for a dismissed session-keyed window, using
+	/// the identity captured at assign time rather than the latest snapshot —
+	/// see `windowSessionIdentities`. No-op for plain-origin or "combined"
+	/// windows, and a safe no-op if the window never held a session number
+	/// (e.g. it was torn down before ever being assigned one).
 	private func releaseSessionNumber(forWindowKey key: String) {
-		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return }
+		guard isSessionKeyed(key), let identity = windowSessionIdentities.removeValue(forKey: key) else { return }
 		let unlimited = (currentCustomization.sessionCap[identity.origin] ?? 3) == 0
 		sessionNumberAllocator.setUnlimited(unlimited, origin: identity.origin)
 		sessionNumberAllocator.release(origin: identity.origin, sessionId: identity.sessionId)
