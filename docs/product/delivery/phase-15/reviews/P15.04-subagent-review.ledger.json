@@ -17,6 +17,22 @@
       "findings": [],
       "probedSurfaces": [],
       "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "d6a58956d3392e4f0d2e11a1585a1bbd96f88349",
+      "completedAt": "2026-07-01T20:58:43.769Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [],
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "outcome": "clean",
+      "acknowledgment": "operator-confirmed-clean",
+      "reason": "reconcile-subagent-review Condition B false-positive: report's Actionable findings section reads 'None.' but a stray --- divider immediately follows it (report.md lines 13/43), which parseActionableFindings does not strip (only parseAdvisoryObservations does). Manually re-read the full report: 3/3 invariants held, 6/6 ticket surfaces + 7/7 diff-derived surfaces probed with no findings, runnerStatus completed. No actual actionable content."
     }
   ]
 }
