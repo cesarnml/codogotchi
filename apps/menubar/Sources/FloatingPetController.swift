@@ -212,6 +212,7 @@ protocol MinimalistPanelManaging: AnyObject {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyPromptSummary(_ summary: String)
 	func applyBadgeScale(_ scale: Double)
+	func applyGateBadge(content: GateBadgeContent?)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 }
 
@@ -320,7 +321,9 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		refreshPromptSummary()
 	}
 
-	func applyGateBadge(content: GateBadgeContent?) {}
+	func applyGateBadge(content: GateBadgeContent?) {
+		panel.applyGateBadge(content: content)
+	}
 
 	func applyPlatform(origin: String?) {
 		lastAppliedOrigin = origin ?? self.origin

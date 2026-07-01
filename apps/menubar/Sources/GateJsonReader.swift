@@ -107,6 +107,73 @@ enum DeliveryContextReader {
 	}
 }
 
+/// Reads per-origin gate/context slices out of `state.d/`, keyed by the origin
+/// encoded in `<origin>:<session_id>.gate.json` / `.context.json` filenames
+/// (son-of-anton Phase 17's direct-gate-write). Mirrors
+/// `StateJsonReader.readPerPlatformDirectory`'s directory-scan shape so the
+/// per-platform window pool can badge each origin's own gate independently
+/// instead of the single most-recently-written file across every platform.
+enum PerPlatformGateReader {
+	struct Entry {
+		let gate: GateSnapshot?
+		let context: DeliveryContextSnapshot?
+	}
+
+	static func read(at dirPath: String) -> [String: Entry] {
+		readImpl(at: dirPath)
+	}
+
+	private static func readImpl(at dirPath: String) -> [String: Entry] {
+		let fm = FileManager.default
+		guard let names = try? fm.contentsOfDirectory(atPath: dirPath) else { return [:] }
+
+		var gates: [String: (mtime: Date, snapshot: GateSnapshot)] = [:]
+		var contexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)] = [:]
+
+		for name in names {
+			guard !name.contains(".tmp-") else { continue }
+			let filePath = (dirPath as NSString).appendingPathComponent(name)
+			guard let attrs = try? fm.attributesOfItem(atPath: filePath),
+				let mtime = attrs[.modificationDate] as? Date
+			else { continue }
+
+			if name.hasSuffix(".gate.json"),
+				let origin = originPrefix(of: name, suffix: ".gate.json"),
+				let snapshot = GateJsonReader.read(at: filePath)
+			{
+				if gates[origin] == nil || mtime > gates[origin]!.mtime {
+					gates[origin] = (mtime, snapshot)
+				}
+			} else if name.hasSuffix(".context.json"),
+				let origin = originPrefix(of: name, suffix: ".context.json"),
+				let snapshot = DeliveryContextReader.read(at: filePath)
+			{
+				if contexts[origin] == nil || mtime > contexts[origin]!.mtime {
+					contexts[origin] = (mtime, snapshot)
+				}
+			}
+		}
+
+		var result: [String: Entry] = [:]
+		for origin in Set(gates.keys).union(contexts.keys) {
+			result[origin] = Entry(gate: gates[origin]?.snapshot, context: contexts[origin]?.snapshot)
+		}
+		return result
+	}
+
+	/// Extracts the origin from a `<origin>:<session_id>.<suffix>` filename.
+	/// Returns nil when the name has no `:` separator — a legacy flat file or a
+	/// malformed slice — so the caller skips it rather than mis-keying on the
+	/// whole filename.
+	private static func originPrefix(of name: String, suffix: String) -> String? {
+		let base = String(name.dropLast(suffix.count))
+		guard let colonIndex = base.firstIndex(of: ":") else { return nil }
+		let origin = String(base[base.startIndex..<colonIndex])
+			.trimmingCharacters(in: .whitespaces)
+		return origin.isEmpty ? nil : origin
+	}
+}
+
 /// Merge resolver: returns the `ActivityState` to render given an optional
 /// gate snapshot and the hook's current `state.json` activity state.
 ///

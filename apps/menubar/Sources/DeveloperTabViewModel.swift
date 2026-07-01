@@ -82,28 +82,74 @@ final class DeveloperTabViewModel {
 		return str
 	}
 
-	/// Pretty-printed content of gate.json, or nil when no gate path is configured.
+	/// Newest `*.<suffix>` file directly inside `stateDirPath` (state.d/), or nil
+	/// when the directory is absent or has no matching file.
+	private func newestStateDirFile(suffix: String) -> String? {
+		let fm = FileManager.default
+		guard let names = try? fm.contentsOfDirectory(atPath: stateDirPath) else { return nil }
+		return names
+			.filter { $0.hasSuffix(suffix) && !$0.contains(".tmp-") }
+			.compactMap { name -> (path: String, mtime: Date)? in
+				let path = (stateDirPath as NSString).appendingPathComponent(name)
+				guard let attrs = try? fm.attributesOfItem(atPath: path),
+					let mtime = attrs[.modificationDate] as? Date
+				else { return nil }
+				return (path, mtime)
+			}
+			.max(by: { $0.mtime < $1.mtime })
+			.map(\.path)
+	}
+
+	/// Path backing `gateJsonPretty`: prefers the newest per-origin
+	/// `<origin>:<session_id>.gate.json` slice in state.d/ over the legacy flat
+	/// `gate.json`. son-of-anton (Phase 17) writes the per-origin file whenever
+	/// it can resolve an active session; the flat file is the pre-Phase-17
+	/// fallback, kept for installs the orchestrator hasn't attributed yet.
+	private var resolvedGateJsonPath: String? {
+		newestStateDirFile(suffix: ".gate.json") ?? gateJsonPath
+	}
+
+	/// Same preference order as `resolvedGateJsonPath`, for delivery-context.json.
+	private var resolvedDeliveryContextPath: String? {
+		newestStateDirFile(suffix: ".context.json") ?? deliveryContextPath
+	}
+
+	/// Section header label for the gate JSON block — the per-origin filename
+	/// when that's the source, so the Developer tab makes clear *which*
+	/// platform's gate is shown rather than always reading "gate.json".
+	var gateJsonSourceLabel: String {
+		guard let path = resolvedGateJsonPath else { return "gate.json" }
+		return (path as NSString).lastPathComponent
+	}
+
+	/// Same labeling as `gateJsonSourceLabel`, for delivery-context.json.
+	var deliveryContextSourceLabel: String {
+		guard let path = resolvedDeliveryContextPath else { return "delivery-context.json" }
+		return (path as NSString).lastPathComponent
+	}
+
+	/// Pretty-printed content of the resolved gate JSON, or nil when no path is configured.
 	var gateJsonPretty: String? {
-		guard let path = gateJsonPath else { return nil }
+		guard let path = resolvedGateJsonPath else { return nil }
 		guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
 			let obj = (try? JSONSerialization.jsonObject(with: data)),
 			let pretty = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
 			let str = String(data: pretty, encoding: .utf8)
 		else {
-			return "(gate.json absent or unreadable)"
+			return "(\(gateJsonSourceLabel) absent or unreadable)"
 		}
 		return str
 	}
 
-	/// Pretty-printed content of delivery-context.json, or nil when no path is configured.
+	/// Pretty-printed content of the resolved delivery-context JSON, or nil when no path is configured.
 	var deliveryContextPretty: String? {
-		guard let path = deliveryContextPath else { return nil }
+		guard let path = resolvedDeliveryContextPath else { return nil }
 		guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
 			let obj = (try? JSONSerialization.jsonObject(with: data)),
 			let pretty = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
 			let str = String(data: pretty, encoding: .utf8)
 		else {
-			return "(delivery-context.json absent or unreadable)"
+			return "(\(deliveryContextSourceLabel) absent or unreadable)"
 		}
 		return str
 	}

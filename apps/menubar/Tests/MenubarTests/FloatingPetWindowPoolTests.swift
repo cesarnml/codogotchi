@@ -12,6 +12,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     var appliedPlatforms: [String?] = []
     var appliedAttention: [(AttentionPayload?, SourceEvent?)] = []
     var appliedRPGStates: [(Int, Double, Int, Int, Bool)] = []
+    var appliedGateBadges: [GateBadgeContent?] = []
 
     func setFloatingPetVisible(_ visible: Bool) { isFloatingPetVisible = visible }
     func apply(state: ActivityState, visualMode: VisualMode) { appliedStates.append((state, visualMode)) }
@@ -21,7 +22,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
         appliedAttention.append((payload, sourceEvent))
     }
-    func applyGateBadge(content: GateBadgeContent?) {}
+    func applyGateBadge(content: GateBadgeContent?) { appliedGateBadges.append(content) }
     func applyPlatform(origin: String?) { appliedPlatforms.append(origin) }
     func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) { replacePetsCallCount += 1 }
 }
@@ -35,6 +36,7 @@ private final class StubMinimalistPanel: MinimalistPanelManaging {
 	var promptSummary = ""
 	var rpgApplyCount = 0
 	var frameChangeHandler: ((CGRect) -> Void)?
+	var gateBadge: GateBadgeContent?
 
 	func show(frame: CGRect) { visible = true }
 	func hide() { visible = false }
@@ -45,6 +47,7 @@ private final class StubMinimalistPanel: MinimalistPanelManaging {
 	}
 	func applyPromptSummary(_ summary: String) { promptSummary = summary }
 	func applyBadgeScale(_ scale: Double) {}
+	func applyGateBadge(content: GateBadgeContent?) { gateBadge = content }
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) { frameChangeHandler = handler }
 }
 
@@ -65,8 +68,11 @@ private func makeSnapshot(
     )
 }
 
-private func makePerPlatformSnapshot(_ map: [String: StateSnapshot]) -> PerPlatformSnapshot {
-    PerPlatformSnapshot(perPlatform: map, rpgSnapshot: .safeDefault)
+private func makePerPlatformSnapshot(
+    _ map: [String: StateSnapshot],
+    gateBadges: [String: GateBadgeContent] = [:]
+) -> PerPlatformSnapshot {
+    PerPlatformSnapshot(perPlatform: map, gateBadges: gateBadges, rpgSnapshot: .safeDefault)
 }
 
 private func makeCustomization(
@@ -582,6 +588,120 @@ final class FloatingPetWindowPoolTests: XCTestCase {
             "combined",
             "combined window must call applyPlatform('combined') when its winner state is idle to show the ⭐ Default badge"
         )
+    }
+
+    // MARK: - Phase 15: per-origin gate badge routing
+
+    /// Own-mode windows must each receive their own origin's gate badge, not
+    /// each other's — the pool used to call `applyGateBadge` on no window at
+    /// all (dead sink), so this is the regression guard for that gap.
+    func testOwnModeWindowsReceiveTheirOwnGateBadge() {
+        var stubs: [String: StubWindowController] = [:]
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { origin, _ in
+                let c = StubWindowController()
+                stubs[origin] = c
+                return c
+            }
+        )
+        let claudeBadge = GateBadgeContent(ticketId: "P15.01", gate: "red_tdd")
+        let cursorBadge = GateBadgeContent(ticketId: "P15.04", gate: "open_pr")
+        pool.update(
+            snapshot: makePerPlatformSnapshot(
+                [
+                    "claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+                    "cursor": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+                ],
+                gateBadges: ["claude_code": claudeBadge, "cursor": cursorBadge]
+            ))
+
+        XCTAssertEqual(stubs["claude_code"]?.appliedGateBadges.last ?? nil, claudeBadge)
+        XCTAssertEqual(stubs["cursor"]?.appliedGateBadges.last ?? nil, cursorBadge)
+    }
+
+    /// An origin's gate badge must clear on the tick it disappears — a stale
+    /// badge left behind after a delivery context clears would misattribute
+    /// the previous ticket to whatever runs next on that platform.
+    func testGateBadgeClearsWhenOriginNoLongerHasOne() {
+        var stub: StubWindowController!
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in
+                stub = StubWindowController()
+                return stub
+            }
+        )
+        let badge = GateBadgeContent(ticketId: "P15.01", gate: "red_tdd")
+        pool.update(
+            snapshot: makePerPlatformSnapshot(
+                ["claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
+                gateBadges: ["claude_code": badge]
+            ))
+        XCTAssertEqual(stub.appliedGateBadges.last ?? nil, badge)
+
+        pool.update(
+            snapshot: makePerPlatformSnapshot(
+                ["claude_code": makeSnapshot(updated: "2026-06-28T10:00:01.000Z")],
+                gateBadges: [:]
+            ))
+        XCTAssertEqual(stub.appliedGateBadges.last ?? nil, nil, "badge must clear once the origin's ticket is no longer active")
+    }
+
+    /// The combined window's gate badge follows whichever origin is currently
+    /// winning the shared pet — mirroring the existing platform-chip precedent
+    /// (`applyPlatform`) rather than always showing a fixed origin's ticket.
+    func testCombinedWindowGateBadgeFollowsTheWinningOrigin() {
+        var stub: StubWindowController!
+        let pool = FloatingPetWindowPool(
+            customizationReader: {
+                makeCustomization(platformModes: ["claude_code": .combined, "cursor": .combined])
+            },
+            windowFactory: { _, _ in
+                stub = StubWindowController()
+                return stub
+            }
+        )
+        let cursorBadge = GateBadgeContent(ticketId: "P15.04", gate: "open_pr")
+        pool.update(
+            snapshot: makePerPlatformSnapshot(
+                [
+                    "claude_code": makeSnapshot(updated: "2026-06-30T10:00:00.000Z"),
+                    "cursor": makeSnapshot(updated: "2026-06-30T10:00:01.000Z"),
+                ],
+                gateBadges: [
+                    "claude_code": GateBadgeContent(ticketId: "P15.01", gate: "red_tdd"),
+                    "cursor": cursorBadge,
+                ]
+            ))
+
+        XCTAssertEqual(
+            stub.appliedGateBadges.last ?? nil, cursorBadge,
+            "combined window must badge with the later-updated (winning) origin's ticket")
+    }
+
+    /// Minimalist windows must receive gate badges through the same pool path
+    /// as Own-mode windows — the pool loop that calls `applyGateBadge` is
+    /// shared between the two, so this guards against a future split reintroducing
+    /// the gap where only Own-mode windows got badged.
+    func testMinimalistWindowReceivesGateBadge() {
+        var stub: StubWindowController!
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization(platformModes: ["cursor": .minimalist]) },
+            windowFactory: { _, _ in StubWindowController() },
+            minimalistWindowFactory: { _ in
+                stub = StubWindowController()
+                return stub
+            }
+        )
+        let badge = GateBadgeContent(ticketId: "P15.04", gate: "open_pr")
+        pool.update(
+            snapshot: makePerPlatformSnapshot(
+                ["cursor": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
+                gateBadges: ["cursor": badge]
+            ))
+
+        XCTAssertEqual(stub.appliedGateBadges.last ?? nil, badge)
     }
 
     // MARK: - P14.06 Minimalist mode routing

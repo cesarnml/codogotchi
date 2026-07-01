@@ -53,6 +53,7 @@ final class MenuItemsTests: XCTestCase {
 			)
 			pool.update(snapshot: PerPlatformSnapshot(
 				perPlatform: perPlatform,
+				gateBadges: [:],
 				rpgSnapshot: .safeDefault
 			))
 		}

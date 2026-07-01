@@ -236,6 +236,7 @@ final class FloatingPetWindowPool {
 				payload: state.attention,
 				sourceEvent: state.sourceEvent
 			)
+			windows[origin]?.applyGateBadge(content: snapshot.gateBadges[origin])
 			if mode(for: origin) == .minimalist {
 				windows[origin]?.applyPlatform(origin: origin)
 			} else if let origin = state.sourceEvent?.origin {
@@ -262,12 +263,15 @@ final class FloatingPetWindowPool {
 					windows.removeValue(forKey: "combined")
 				}
 			} else if !userHiddenWindowKeys.contains("combined") {
-				let combinedStates = combinedOrigins.compactMap { visibleEntries[$0] }
-				let winner = combinedStates.max(by: { a, b in
-					(StateJsonReader.parseISO8601Date(a.updatedAt) ?? .distantPast)
-						< (StateJsonReader.parseISO8601Date(b.updatedAt) ?? .distantPast)
+				let combinedEntries = combinedOrigins.compactMap { origin in
+					visibleEntries[origin].map { (origin: origin, state: $0) }
+				}
+				let winnerEntry = combinedEntries.max(by: { a, b in
+					(StateJsonReader.parseISO8601Date(a.state.updatedAt) ?? .distantPast)
+						< (StateJsonReader.parseISO8601Date(b.state.updatedAt) ?? .distantPast)
 				})
-				if let winner {
+				if let winnerEntry {
+					let winner = winnerEntry.state
 					if windows["combined"] == nil {
 						let useMinimalist = currentCustomization.combinedMinimalistEnabled
 						let controller: FloatingPetWindowControlling
@@ -290,6 +294,10 @@ final class FloatingPetWindowPool {
 						payload: winner.attention,
 						sourceEvent: winner.sourceEvent
 					)
+					// The combined window's gate badge follows whichever origin is
+					// currently winning the shared pet, mirroring the platform-chip
+					// precedent below.
+					windows["combined"]?.applyGateBadge(content: snapshot.gateBadges[winnerEntry.origin])
 					// While idle the combined window shows the persistent ⭐ Default badge;
 					// when active it badges with whichever platform triggered the winning
 					// state, matching the pre-phase-13 single-pet behavior.

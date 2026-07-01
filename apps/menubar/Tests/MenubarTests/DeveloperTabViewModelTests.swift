@@ -280,4 +280,57 @@ final class DeveloperTabViewModelTests: XCTestCase {
 		}
 		XCTAssertTrue(pretty.contains("ticket_started"))
 	}
+
+	// MARK: - Per-origin gate/context slice preference
+
+	/// son-of-anton Phase 17 writes `<origin>:<session_id>.gate.json` directly into
+	/// state.d/ when it can resolve an active session. The Developer tab must show
+	/// that slice — not the legacy flat gate.json — once it exists, so operators
+	/// debugging a specific platform's gate see the file that's actually driving it.
+	func testGateJsonPrettyPrefersPerOriginSliceOverLegacyFile() throws {
+		let dirURL = makeStateDir()
+		try """
+			{"gate":"open_pr","since":"2026-01-01T00:00:00Z","expires_at":"2026-12-31T00:00:00Z","ticket_id":"P15.01"}
+			""".write(
+				to: dirURL.appendingPathComponent("claude_code:test-session-id.gate.json"),
+				atomically: true, encoding: .utf8)
+		let legacyGateURL = makeGateJson()
+		let vm = makeVM(stateDirURL: dirURL, gateJsonURL: legacyGateURL)
+
+		guard let pretty = vm.gateJsonPretty else {
+			XCTFail("gateJsonPretty must be non-nil when a per-origin slice exists")
+			return
+		}
+		XCTAssertTrue(pretty.contains("open_pr"), "must show the per-origin slice's gate")
+		XCTAssertFalse(pretty.contains("ticket_started"), "must not show the legacy flat gate.json once a per-origin slice exists")
+		XCTAssertEqual(vm.gateJsonSourceLabel, "claude_code:test-session-id.gate.json")
+	}
+
+	func testGateJsonSourceLabelFallsBackToLegacyFilename() {
+		let gateURL = makeGateJson()
+		let vm = makeVM(gateJsonURL: gateURL)
+		XCTAssertEqual(vm.gateJsonSourceLabel, "gate.json")
+	}
+
+	func testDeliveryContextPrettyPrefersPerOriginSliceOverLegacyFile() throws {
+		let dirURL = makeStateDir()
+		try """
+			{"owner":"soa","status":"active","ticket_id":"P15.01","last_gate":"open_pr","updated_at":"2026-01-01T00:00:00Z","lease_expires_at":"2026-12-31T00:00:00Z"}
+			""".write(
+				to: dirURL.appendingPathComponent("claude_code:test-session-id.context.json"),
+				atomically: true, encoding: .utf8)
+		let vm = DeveloperTabViewModel(
+			stateDirPath: dirURL.path,
+			gateJsonPath: nil,
+			deliveryContextPath: tmp.appendingPathComponent("delivery-context.json").path,
+			transitionLogPath: tmp.appendingPathComponent("missing-log.log").path
+		)
+
+		guard let pretty = vm.deliveryContextPretty else {
+			XCTFail("deliveryContextPretty must be non-nil when a per-origin slice exists")
+			return
+		}
+		XCTAssertTrue(pretty.contains("P15.01"))
+		XCTAssertEqual(vm.deliveryContextSourceLabel, "claude_code:test-session-id.context.json")
+	}
 }

@@ -1553,16 +1553,16 @@ private final class DeveloperTabView: NSView {
 		lines.append(viewModel.stateJsonPretty)
 		lines.append("")
 
-		// gate.json
+		// gate.json (per-origin state.d/ slice when present, else the legacy flat file)
 		if let gatePretty = viewModel.gateJsonPretty {
-			lines.append("=== gate.json ===")
+			lines.append("=== \(viewModel.gateJsonSourceLabel) (latest) ===")
 			lines.append(gatePretty)
 			lines.append("")
 		}
 
-		// delivery-context.json
+		// delivery-context.json (per-origin state.d/ slice when present, else the legacy flat file)
 		if let deliveryContextPretty = viewModel.deliveryContextPretty {
-			lines.append("=== delivery-context.json ===")
+			lines.append("=== \(viewModel.deliveryContextSourceLabel) (latest) ===")
 			lines.append(deliveryContextPretty)
 		}
 

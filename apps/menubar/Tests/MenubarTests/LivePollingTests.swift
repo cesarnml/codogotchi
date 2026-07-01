@@ -674,4 +674,98 @@ final class LivePollingTests: XCTestCase {
 			"applyPerPlatform must receive both origins"
 		)
 	}
+
+	// MARK: - Per-origin SoA gate/context (Phase 15)
+
+	/// End-to-end contract for the Phase 15 fix: two platforms concurrently
+	/// mid-delivery (each with its own `<origin>:<session_id>.gate.json` /
+	/// `.context.json` written by son-of-anton Phase 17) must each animate and
+	/// badge with *their own* gate/ticket — not the single most-recently-written
+	/// file across every platform, and not silently lost by the pool.
+	func testConcurrentOriginsEachGetTheirOwnGateAnimationAndBadge() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+
+		// claude_code: mid red_tdd ticket P15.01, gate written first.
+		try """
+			{"schema_version":8,"origin":"claude_code","session_id":"s1","activity_state":"implementing","updated_at":"2026-06-28T10:00:00.000Z","source_event":{"origin":"claude_code","kind":"tool_use","name":"Bash"}}
+			""".write(to: target.appendingPathComponent("claude_code:s1.json"), atomically: true, encoding: .utf8)
+		try """
+			{"gate":"red_tdd","since":"2026-06-28T09:59:00.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"P15.01"}
+			""".write(to: target.appendingPathComponent("claude_code:s1.gate.json"), atomically: true, encoding: .utf8)
+		try """
+			{"owner":"soa","status":"active","plan_key":"phase-15","ticket_id":"P15.01","last_gate":"red_tdd","updated_at":"2026-06-28T09:59:00.000Z","lease_expires_at":"2099-01-01T00:00:00.000Z"}
+			""".write(to: target.appendingPathComponent("claude_code:s1.context.json"), atomically: true, encoding: .utf8)
+
+		// cursor: mid open_pr ticket P15.04, gate written later — must NOT clobber
+		// claude_code's badge/animation, and must NOT itself be suppressed.
+		try """
+			{"schema_version":8,"origin":"cursor","session_id":"s2","activity_state":"implementing","updated_at":"2026-06-28T10:00:01.000Z","source_event":{"origin":"cursor","kind":"tool_use","name":"Edit"}}
+			""".write(to: target.appendingPathComponent("cursor:s2.json"), atomically: true, encoding: .utf8)
+		try """
+			{"gate":"open_pr","since":"2026-06-28T10:00:01.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"P15.04"}
+			""".write(to: target.appendingPathComponent("cursor:s2.gate.json"), atomically: true, encoding: .utf8)
+		try """
+			{"owner":"soa","status":"active","plan_key":"phase-15","ticket_id":"P15.04","last_gate":"open_pr","updated_at":"2026-06-28T10:00:01.000Z","lease_expires_at":"2099-01-01T00:00:00.000Z"}
+			""".write(to: target.appendingPathComponent("cursor:s2.context.json"), atomically: true, encoding: .utf8)
+
+		var perPlatformSnapshots: [PerPlatformSnapshot] = []
+		let driver = makeDriver(target: target, recorder: recorder)
+		driver.applyPerPlatform = { snap in perPlatformSnapshots.append(snap) }
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(perPlatformSnapshots.count, 1)
+		let snapshot = try XCTUnwrap(perPlatformSnapshots.first)
+
+		// Each origin's own gate merges into its own animation state — the
+		// legacy single global gate.json/decide() path only ever reached the
+		// menubar status item, never the per-platform windows.
+		XCTAssertEqual(
+			snapshot.perPlatform["claude_code"]?.activityState, .redTdd,
+			"claude_code must animate its own red_tdd gate")
+		XCTAssertEqual(
+			snapshot.perPlatform["cursor"]?.activityState, .openPr,
+			"cursor must animate its own open_pr gate, unaffected by claude_code's gate")
+
+		// Each origin's persistent ticket/gate badge is independent.
+		XCTAssertEqual(snapshot.gateBadges["claude_code"]?.ticketId, "P15.01")
+		XCTAssertEqual(snapshot.gateBadges["claude_code"]?.gate, "red_tdd")
+		XCTAssertEqual(snapshot.gateBadges["cursor"]?.ticketId, "P15.04")
+		XCTAssertEqual(snapshot.gateBadges["cursor"]?.gate, "open_pr")
+	}
+
+	/// A single-platform install with only the legacy flat `gate.json` /
+	/// `delivery-context.json` (no `active-session.json` origin resolved, e.g. an
+	/// older son-of-anton or a hook that never wrote a per-origin slice) must
+	/// still badge that one active origin — the fallback path.
+	func testSingleOriginFallsBackToLegacyFlatGateFiles() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+		try """
+			{"schema_version":8,"origin":"claude_code","session_id":"s1","activity_state":"implementing","updated_at":"2026-06-28T10:00:00.000Z","source_event":{"origin":"claude_code","kind":"tool_use","name":"Bash"}}
+			""".write(to: target.appendingPathComponent("claude_code:s1.json"), atomically: true, encoding: .utf8)
+
+		let gatePath = makeSiblingGatePath(for: target)
+		let contextPath = makeSiblingDeliveryContextPath(for: target)
+		try """
+			{"gate":"poll_review","since":"2026-06-28T09:59:00.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"P15.09"}
+			""".write(to: gatePath, atomically: true, encoding: .utf8)
+		try """
+			{"owner":"soa","status":"active","plan_key":"phase-15","ticket_id":"P15.09","last_gate":"poll_review","updated_at":"2026-06-28T09:59:00.000Z","lease_expires_at":"2099-01-01T00:00:00.000Z"}
+			""".write(to: contextPath, atomically: true, encoding: .utf8)
+
+		var perPlatformSnapshots: [PerPlatformSnapshot] = []
+		let driver = makeDriver(
+			target: target, recorder: recorder, gatePath: gatePath, deliveryContextPath: contextPath)
+		driver.applyPerPlatform = { snap in perPlatformSnapshots.append(snap) }
+
+		driver.tickForTesting()
+
+		let snapshot = try XCTUnwrap(perPlatformSnapshots.first)
+		XCTAssertEqual(snapshot.perPlatform["claude_code"]?.activityState, .pollReview)
+		XCTAssertEqual(snapshot.gateBadges["claude_code"]?.ticketId, "P15.09")
+	}
 }

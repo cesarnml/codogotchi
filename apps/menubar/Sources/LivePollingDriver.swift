@@ -230,9 +230,71 @@ final class LivePollingDriver {
 		if !previewActive, let sink = applyPerPlatform {
 			let perPlatformResult = StateJsonReader.readPerPlatformDirectory(at: pollingTargetPath)
 			if case .success(let perOriginMap) = perPlatformResult {
-				sink(PerPlatformSnapshot(perPlatform: perOriginMap, rpgSnapshot: rpgSnapshot))
+				let perOriginGate = PerPlatformGateReader.read(at: pollingTargetPath)
+				let legacyGate = gatePath.flatMap { gateReader($0) }
+				let legacyContext = deliveryContextPath.flatMap { deliveryContextReader($0) }
+				let (mergedStates, gateBadges) = resolvePerPlatform(
+					perOriginMap: perOriginMap,
+					perOriginGate: perOriginGate,
+					legacyGate: legacyGate,
+					legacyContext: legacyContext
+				)
+				sink(
+					PerPlatformSnapshot(
+						perPlatform: mergedStates, gateBadges: gateBadges, rpgSnapshot: rpgSnapshot))
 			}
 		}
+	}
+
+	/// Merges each origin's own SoA gate into its activity state (so the gate's
+	/// 30s animation plays on the platform that actually drove it, not just the
+	/// legacy single-window status item) and resolves each origin's persistent
+	/// ticket/gate badge content.
+	///
+	/// Falls back to the legacy flat `gate.json`/`delivery-context.json` only
+	/// when exactly one origin is active — a pre-Phase-17 hook writes those with
+	/// no origin at all, so attributing them to a specific platform while
+	/// several are active would risk badging the wrong window.
+	private func resolvePerPlatform(
+		perOriginMap: [String: StateSnapshot],
+		perOriginGate: [String: PerPlatformGateReader.Entry],
+		legacyGate: GateSnapshot?,
+		legacyContext: DeliveryContextSnapshot?
+	) -> (states: [String: StateSnapshot], gateBadges: [String: GateBadgeContent]) {
+		var states: [String: StateSnapshot] = [:]
+		var badges: [String: GateBadgeContent] = [:]
+		let singleOrigin = perOriginMap.count == 1 ? perOriginMap.keys.first : nil
+
+		for (origin, snapshot) in perOriginMap {
+			let entry = perOriginGate[origin]
+			let gate = entry?.gate ?? (origin == singleOrigin ? legacyGate : nil)
+			let context = entry?.context ?? (origin == singleOrigin ? legacyContext : nil)
+
+			let mergedActivity = resolveActivityState(
+				gate: gate, hookState: snapshot.activityState, codogotchiPet: codogotchiPet
+			)
+			states[origin] = StateSnapshot(
+				schemaVersion: snapshot.schemaVersion,
+				activityState: mergedActivity,
+				updatedAt: snapshot.updatedAt,
+				sourceEvent: snapshot.sourceEvent,
+				attention: snapshot.attention,
+				toolCommand: snapshot.toolCommand,
+				level: snapshot.level,
+				levelFraction: snapshot.levelFraction,
+				halfHearts: snapshot.halfHearts,
+				activeMinutes: snapshot.activeMinutes,
+				lastActivityAt: snapshot.lastActivityAt,
+				reviveUntil: snapshot.reviveUntil
+			)
+
+			if let badge = resolveGateBadgeContent(
+				deliveryContext: context, sourceEvent: snapshot.sourceEvent)
+			{
+				badges[origin] = badge
+			}
+		}
+		return (states, badges)
 	}
 
 	private struct Outcome: Equatable {

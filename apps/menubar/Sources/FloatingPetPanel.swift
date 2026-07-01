@@ -29,11 +29,16 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// Separate attention-bubble panel — the same component Own mode uses,
 	/// created lazily on first attention event.
 	private var bubblePanel: AttentionBubblePanel?
+	/// Ticket/gate badge panel, stacked above the strip (ticket over gate,
+	/// centered on the strip's midX) — the same `GateBadgePanel` Own mode uses,
+	/// created lazily on the first non-nil gate badge.
+	private var gateBadgePanel: GateBadgePanel?
 
 	private var currentPlatformOrigin: String?
 	private var currentActivity: ActivityState = .idle
 	private var currentAttention: AttentionPayload?
 	private var currentSourceEvent: SourceEvent?
+	private var currentGateBadge: GateBadgeContent?
 	/// Badge metrics driven by the user's "PlatformChip and AnimationBadge Size"
 	/// slider in Settings > Customization. Updated via applyBadgeScale(_:).
 	private var currentBadgeMetrics = GateBadgeLayout.metrics(scale: 1.0)
@@ -62,9 +67,10 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 				?? CGSize(width: Layout.minBadgeWidth, height: Layout.height)
 			return self.clampedFrame(origin: origin, size: size)
 		}
-		// Keep the bubble anchored to the badge while the badge is dragged.
+		// Keep the bubble and gate badge anchored to the badge while it is dragged.
 		badgeView.onDragMoved = { [weak self] frame in
 			self?.repositionBubble(badgeFrame: frame)
+			self?.applyGateBadgePanel(badgeFrame: frame)
 		}
 		// Persist the badge frame when the drag ends.
 		badgeView.frameChangeHandler = { [weak self] frame in
@@ -94,6 +100,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		badgeView.dismissHidePromptIfPresent()
 		badgePanel?.orderOut(nil)
 		bubblePanel?.orderOut(nil)
+		gateBadgePanel?.orderOut(nil)
 	}
 
 	func applyPlatform(origin: String?) {
@@ -122,6 +129,11 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		guard newMetrics != currentBadgeMetrics else { return }
 		currentBadgeMetrics = newMetrics
 		applyBadge()
+	}
+
+	func applyGateBadge(content: GateBadgeContent?) {
+		currentGateBadge = content
+		applyGateBadgePanel(badgeFrame: badgePanel?.frame ?? .zero)
 	}
 
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
@@ -176,6 +188,33 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 			panel.setFrame(newFrame, display: true)
 		}
 		repositionBubble(badgeFrame: newFrame)
+		applyGateBadgePanel(badgeFrame: newFrame)
+	}
+
+	// MARK: - Gate badge panel (independent window, stacked above the strip)
+
+	/// Order the gate badge panel in or out and, when visible, reposition it
+	/// centered above `badgeFrame` (the strip containing the platform chip +
+	/// animation badge) — reusing `GateBadgeLayout`'s "centered on midX, just
+	/// above the anchor" placement verbatim from Own mode.
+	private func applyGateBadgePanel(badgeFrame: CGRect) {
+		guard isShown else { return }
+		guard let content = currentGateBadge else {
+			gateBadgePanel?.orderOut(nil)
+			return
+		}
+		let badge = gateBadgePanel ?? {
+			let panel = GateBadgePanel()
+			gateBadgePanel = panel
+			return panel
+		}()
+		badge.reposition(
+			content: content,
+			metrics: currentBadgeMetrics,
+			relativeTo: badgeFrame,
+			visibleFrame: visibleFrameProvider()
+		)
+		badge.orderFrontRegardless()
 	}
 
 	// MARK: - Bubble panel (independent window, mirrors Own mode)
@@ -1248,12 +1287,31 @@ final class GateBadgePanel: NSPanel {
 		badgeView.configure(content: content, metrics: GateBadgeLayout.metrics(for: petFrame))
 	}
 
+	/// Own-mode entry point: metrics scale off the pet frame's own width.
 	func reposition(content: GateBadgeContent, relativeTo petFrame: CGRect, visibleFrame: CGRect) {
-		badgeView.configure(content: content, metrics: GateBadgeLayout.metrics(for: petFrame))
+		reposition(
+			content: content,
+			metrics: GateBadgeLayout.metrics(for: petFrame),
+			relativeTo: petFrame,
+			visibleFrame: visibleFrame
+		)
+	}
+
+	/// Minimalist-mode entry point: the anchor frame is a chromeless badge strip,
+	/// not a pet sprite, so its width cannot drive `GateBadgeLayout.metrics(for:)`
+	/// (baselined against a ~220pt pet). Callers pass the user's chosen badge
+	/// scale directly instead.
+	func reposition(
+		content: GateBadgeContent,
+		metrics: GateBadgeLayout.Metrics,
+		relativeTo anchorFrame: CGRect,
+		visibleFrame: CGRect
+	) {
+		badgeView.configure(content: content, metrics: metrics)
 		// Hug the stacked tokens (ticket over gate, both left-aligned).
 		let size = badgeView.preferredSize
 		let frame = GateBadgeLayout.frame(
-			relativeTo: petFrame,
+			relativeTo: anchorFrame,
 			badgeSize: size,
 			visibleFrame: visibleFrame
 		)
