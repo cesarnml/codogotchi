@@ -514,7 +514,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	func reloadActivePet() {
 		guard let renderer, let petAssetResolver else { return }
 		let assignments = AssignmentsJsonReader.read(at: CodogotchiFolders.assignmentsPath())
-		let origins = floatingPetWindowPool?.activeOrigins ?? []
+		// Active window keys may be per-session (`origin:session_id`); pet identity
+		// is per-origin, so fold the keys down to their owning origins before
+		// resolving — `replacePet(origin:)` then fans back out to every session
+		// window of that origin.
+		let origins = Set(
+			(floatingPetWindowPool?.activeOrigins ?? [])
+				.map { FloatingPetWindowPool.origin(forWindowKey: $0) }
+		)
 		let originPetIds = Dictionary(uniqueKeysWithValues: origins.map { ($0, assignments.resolve(origin: $0)) })
 		let petIdsToReload = Set(originPetIds.values)
 
@@ -562,13 +569,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// Resolves a window's `state.d/` origins for the winner-only writers
 	/// (`forceIdle` / `dismissAttention`). The shared combined window folds every
 	/// combined-mode origin into one pet, so it expands to that live set; any other
-	/// window key is itself a single origin.
+	/// window key (plain origin or per-session `origin:session_id`) resolves to its
+	/// owning origin, whose winner slice the writers target.
 	@MainActor
 	private func resolveWindowOrigins(windowKey: String) -> Set<String> {
 		if windowKey == "combined" {
 			return Set(floatingPetWindowPool?.combinedModeOrigins() ?? [])
 		}
-		return [windowKey]
+		return [FloatingPetWindowPool.origin(forWindowKey: windowKey)]
 	}
 
 	private func setFloatingPetAppNapOptOut(active: Bool) {
