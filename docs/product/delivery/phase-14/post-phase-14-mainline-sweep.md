@@ -98,6 +98,18 @@ Direct-to-main changes made in this session (self-reviewed via `/code-review`, n
 
 **Remaining gap for Phase 15 to pick up:** the animation-state and badge merge above is per-*origin*, not per-*session* — a platform driving two concurrent sessions (the literal Phase 15 scope, "pet per active agent thread") will still collapse to one merged state per origin, same as `readPerPlatformDirectory` does for the base activity state today.
 
+## Addendum (2026-07-01): Settings window gains Dock/Cmd+Tab presence while open
+
+Small direct-to-main follow-up requested after this ledger was first committed, same "narrow, developer-approved fix" exception as the gate-badge work above — not routed through SoA tickets.
+
+Codogotchi runs as an `LSUIElement` (`.accessory`) menu-bar agent, so its Settings window previously had no Dock icon and no Cmd+Tab entry — easy to lose track of behind other windows. Mirrors Tailscale's own Settings window behavior:
+
+- **`SettingsWindowController.swift`** — `show(tab:)` now calls `NSApp.setActivationPolicy(.regular)` before creating or resurfacing the window; `windowWillClose` reverts to `.accessory`. No other window (onboarding, floating pet panels) needs `.regular`, so the revert is always clean.
+- **Regression coverage:** `testSettingsWindowTogglesActivationPolicy` in `SettingsWindowOpenTests.swift` asserts the `.accessory → .regular → .accessory` round trip directly against `NSApp.activationPolicy()`.
+- Verified manually by the developer in the running app; the assistant's own GUI-automation verification attempt was inconclusive (see below) and unit tests were used as the substitute check.
+
+**Incident note:** while verifying this change, an assistant-run `pkill -f "Codogotchi.app/Contents/MacOS/Codogotchi"` matched both the debug build under DerivedData and the developer's live installed app at `/Applications/Codogotchi.app`, killing the running production instance. It auto-relaunched and returned to a healthy `.accessory` state, but the pattern was too broad — should have scoped to the DerivedData path only. Flagging here so the habit doesn't repeat: prefer `pkill -f <derived-data-path>` or matching by PID over a substring that also matches `/Applications`.
+
 ## Follow-up recommendations
 
 1. **This file is the closeout ledger for the Phase-14→Phase-15 mainline window.** New work resumes under structured SoA phase/ticket delivery for Phase 15.
