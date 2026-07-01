@@ -1119,6 +1119,85 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			"replacePet must not touch other platforms' windows"
 		)
 	}
+
+	// MARK: - P15.05 Session number gating
+
+	func testSessionKeyedWindowsGetSessionNumbersStartingAtOne() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+				"codex:s2": makeSnapshot(updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(
+			stubs["codex:s1"]?.appliedSessionNumbers.last ?? nil, 1,
+			"first session-keyed window must be numbered 1"
+		)
+		XCTAssertEqual(
+			stubs["codex:s2"]?.appliedSessionNumbers.last ?? nil, 2,
+			"second session-keyed window must be numbered 2"
+		)
+	}
+
+	func testPlainOriginWindowWithSessionPetsOffNeverGetsASessionNumber() {
+		// Regression: `sessionNumber(forWindowKey:)` must gate on isSessionKeyed
+		// the same way the private assign/release helpers do. A plain-origin
+		// render key still carries a `RenderKeyIdentity` (session_id degrades to
+		// "default"), so an ungated lookup would wrongly hand out a number.
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": false])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), Set(["codex"]))
+		XCTAssertNil(pool.sessionNumber(forWindowKey: "codex"))
+		XCTAssertEqual(
+			stubs["codex"]?.appliedSessionNumbers,
+			[nil],
+			"a plain-origin window (session-pets off) must never receive a session number"
+		)
+	}
+
+	func testCombinedWindowNeverGetsASessionNumber() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(platformModes: ["codex": .combined])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+		let snap = makePerPlatformSnapshot([
+			"codex": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+		])
+		pool.update(snapshot: snap)
+		XCTAssertEqual(pool.activeOrigins, ["combined"])
+		XCTAssertNil(pool.sessionNumber(forWindowKey: "combined"))
+	}
 }
 
 final class PromptAttentionReaderTests: XCTestCase {
