@@ -206,5 +206,35 @@ final class CustomizationJsonReaderTests: XCTestCase {
 		XCTAssertEqual(
 			snapshot.sessionPetsEnabled, [:],
 			"a malformed session_pets_enabled value must degrade to the empty-map safe default without throwing")
+		// A malformed value throws the whole payload decode, so sessionCap must
+		// also fall to the empty-map default. Asserting both closes the gap where
+		// a future partial-recovery refactor could keep one map while dropping the
+		// other and still pass this test.
+		XCTAssertEqual(
+			snapshot.sessionCap, [:],
+			"a malformed session_pets_enabled must also degrade session_cap to the empty-map safe default")
+	}
+
+	// MARK: - Session cap: negative value passes through verbatim (no reader clamp)
+
+	func testNegativeSessionCapPassesThroughVerbatim() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-neg-session-cap-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "session_pets_enabled": { "claude_code": true },
+			  "session_cap": { "claude_code": -1 }
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		// Consumers (P15.04/P15.07/P15.09) own default-3 resolution; the reader
+		// must not clamp negatives (unlike the neighboring idle_dismiss_ttl guard)
+		// and must not conflate -1 with the 0 Unlimited sentinel.
+		XCTAssertEqual(
+			snapshot.sessionCap["claude_code"], -1,
+			"negative session_cap must pass through verbatim; the reader applies no clamp")
 	}
 }
