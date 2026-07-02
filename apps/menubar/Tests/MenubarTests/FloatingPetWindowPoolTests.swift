@@ -1127,6 +1127,62 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			"a blocked newcomer active session must never evict an already-rendered active session")
 	}
 
+	/// A blocked all-active origin must expose the block via `blockedOrigins`,
+	/// not just via the rendered-set partition — P15.08's conflict-bubble
+	/// signal reads this property directly.
+	func testAllActiveCapPressureIsExposedThroughBlockedOrigins() {
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+		let first = [
+			"claude_code:a": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:00.000Z"),
+			"claude_code:b": makeSnapshot(state: .thinking, updated: "2026-07-01T10:00:01.000Z"),
+		]
+		pool.update(snapshot: makeResolvedSnapshot(perSession: first, customization: customization))
+		XCTAssertTrue(pool.blockedOrigins.isEmpty, "no blocked origin while all sessions fit under cap")
+
+		let second = first.merging([
+			"claude_code:c": makeSnapshot(state: .editing, updated: "2026-07-01T10:00:02.000Z")
+		]) { _, new in new }
+		pool.update(snapshot: makeResolvedSnapshot(perSession: second, customization: customization))
+
+		XCTAssertEqual(
+			pool.blockedOrigins, ["claude_code"],
+			"an all-active origin over cap must report itself in blockedOrigins")
+	}
+
+	/// A negative persisted `session_cap` must resolve to the shared default
+	/// cap (3), matching `CustomizationSnapshot.sessionCap`'s documented
+	/// "absent or negative" contract — not fall through to
+	/// `SessionSelectionPolicy.select`'s `cap > 0` guard, which would silently
+	/// treat any non-positive cap as Unlimited.
+	func testNegativeSessionCapResolvesToDefaultCapNotUnlimited() {
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": -1])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+		let perSession = [
+			"claude_code:a": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:00.000Z"),
+			"claude_code:b": makeSnapshot(state: .thinking, updated: "2026-07-01T10:00:01.000Z"),
+			"claude_code:c": makeSnapshot(state: .editing, updated: "2026-07-01T10:00:02.000Z"),
+			"claude_code:d": makeSnapshot(state: .reading, updated: "2026-07-01T10:00:03.000Z"),
+		]
+
+		pool.update(snapshot: makeResolvedSnapshot(perSession: perSession, customization: customization))
+
+		XCTAssertEqual(
+			pool.activeOrigins.count, 3,
+			"a negative session_cap must resolve to the default cap of 3, not Unlimited")
+		XCTAssertEqual(
+			pool.blockedOrigins, ["claude_code"],
+			"a negative session_cap must still block the fourth session under the resolved default cap")
+	}
+
 	/// (4 review focus) Manual Prune atomicity: destroys the panel, deletes the
 	/// slice, releases the number, and removes the label key together.
 	func testPruneSessionDestroysPanelSliceNumberAndLabelTogether() {
@@ -1471,6 +1527,9 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		pool.update(snapshot: snap)
 		XCTAssertEqual(pool.activeOrigins, ["combined"])
 		XCTAssertNil(pool.sessionNumber(forWindowKey: "combined"))
+		XCTAssertEqual(
+			stubs["combined"]?.appliedSessionNumbers, [],
+			"applySessionNumber must never be dispatched to the combined controller")
 	}
 
 	// MARK: - P15.06 Session label resolution
@@ -1536,6 +1595,53 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			customization: customization
 		))
 		XCTAssertEqual(stubs["codex"]?.appliedSessionLabels, [nil])
+	}
+
+	/// Mirrors `testSessionKeyedWindowWithSidecarLabelDisplaysItInsteadOfSessionN`
+	/// for `applySessionTooltip` — the pool-level path was previously untested
+	/// even though the label path had symmetric coverage.
+	func testSessionKeyedWindowWithPromptSummaryAppliesItAsTooltip() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionPromptSummaryReader: { key in key == "codex:s1" ? "Fix the login bug" : nil }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionTooltips.last ?? nil, "Fix the login bug")
+	}
+
+	/// Mirrors `testPlainOriginWindowNeverAppliesASessionLabelEvenIfReaderHasOne`
+	/// for `applySessionTooltip`.
+	func testPlainOriginWindowNeverAppliesASessionTooltipEvenIfReaderHasOne() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": false])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionPromptSummaryReader: { _ in "should never surface" }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex"]?.appliedSessionTooltips, [nil])
 	}
 }
 

@@ -306,7 +306,7 @@ final class FloatingPetWindowPool {
 			let states: [String: ActivityState] = keys.reduce(into: [:]) { acc, key in
 				acc[key] = visibleEntries[key]?.activityState
 			}
-			let cap = currentCustomization.sessionCap[origin] ?? CustomizationSnapshot.defaultSessionCap
+			let cap = resolvedSessionCap(for: origin)
 			let currentlyRendered = Set(keys.filter { windows[$0] != nil })
 			let selection = SessionSelectionPolicy.select(
 				sessions: states, cap: cap, currentlyRendered: currentlyRendered)
@@ -629,8 +629,21 @@ final class FloatingPetWindowPool {
 	/// resolving an absent cap to the shared default first (see
 	/// `CustomizationSnapshot.defaultSessionCap`).
 	private func isUnlimited(origin: String) -> Bool {
-		let cap = currentCustomization.sessionCap[origin] ?? CustomizationSnapshot.defaultSessionCap
-		return cap == CustomizationSnapshot.unlimitedSessionCap
+		resolvedSessionCap(for: origin) == CustomizationSnapshot.unlimitedSessionCap
+	}
+
+	/// `origin`'s session cap per `CustomizationSnapshot.sessionCap`'s documented
+	/// contract: an absent entry OR a negative value resolves to the shared
+	/// default (`CustomizationSnapshot.defaultSessionCap`); `0` (Unlimited) and
+	/// positive values pass through unchanged. A negative value can only reach
+	/// this map via manual `customization.json` editing today, but without this
+	/// guard `SessionSelectionPolicy.select`'s `cap > 0` check would silently
+	/// treat it as Unlimited rather than the documented default-3 fallback.
+	private func resolvedSessionCap(for origin: String) -> Int {
+		guard let cap = currentCustomization.sessionCap[origin], cap >= 0 else {
+			return CustomizationSnapshot.defaultSessionCap
+		}
+		return cap
 	}
 
 	private func mode(forWindowKey key: String) -> PlatformMode {
