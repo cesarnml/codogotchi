@@ -312,6 +312,12 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					panel.onOpenSettingsRequested = { [weak self] in
 						self?.settingsWindowController?.show(tab: .customization)
 					}
+					// Right-click "Rename…", mirroring Own mode: `origin` here is
+					// the resolved render key, which for a session-keyed window IS
+					// already the "origin:session_id" SessionLabelStore key.
+					panel.onRenameRequested = { newLabel in
+						SessionLabelStore.setLabel(newLabel, for: origin)
+					}
 					// A session-keyed minimalist badge targets exactly its own slice
 					// (P15.04 session-precise fix); the combined-minimalist window folds
 					// several origins into one badge, so it scopes both writes to that

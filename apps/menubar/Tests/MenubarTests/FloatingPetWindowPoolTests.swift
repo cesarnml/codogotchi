@@ -46,6 +46,8 @@ private final class StubMinimalistPanel: MinimalistPanelManaging {
 	var frameChangeHandler: ((CGRect) -> Void)?
 	var gateBadge: GateBadgeContent?
 	var sessionNumber: Int?
+	var sessionLabel: String?
+	var sessionTooltip: String?
 
 	func show(frame: CGRect) { visible = true }
 	func hide() { visible = false }
@@ -59,6 +61,8 @@ private final class StubMinimalistPanel: MinimalistPanelManaging {
 	func applyGateBadge(content: GateBadgeContent?) { gateBadge = content }
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) { frameChangeHandler = handler }
 	func applySessionNumber(_ number: Int?) { sessionNumber = number }
+	func applySessionLabel(_ label: String?) { sessionLabel = label }
+	func applySessionTooltip(_ summary: String?) { sessionTooltip = summary }
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
 }
 
@@ -2001,5 +2005,37 @@ final class MinimalistWindowControllerTests: XCTestCase {
 		XCTAssertTrue(controller.isFloatingPetVisible)
 		XCTAssertEqual(savedStates.last?.frame.origin.x, 300)
 		XCTAssertEqual(savedStates.last?.frame.origin.y, 320)
+	}
+
+	/// Regression test for the bug where Minimalist mode never surfaced a
+	/// session's rename (P15.06): `MinimalistWindowController` inherited the
+	/// `FloatingPetWindowControlling` default no-op for `applySessionLabel`/
+	/// `applySessionTooltip` instead of forwarding to its panel, so a label the
+	/// user set in Own mode never appeared after switching a platform to
+	/// Minimalist even though `SessionLabelStore` is shared, origin-keyed
+	/// storage read by both modes.
+	func testForwardsSessionLabelAndTooltipToPanel() {
+		let panel = StubMinimalistPanel()
+		let controller = MinimalistWindowController(
+			origin: "codex:s1",
+			panel: panel,
+			visibleFrameProvider: { CGRect(x: 0, y: 0, width: 800, height: 600) },
+			saveState: { _ in },
+			initialState: FloatingAppState(
+				isFloatingPetVisible: false,
+				frame: CGRect(x: 20, y: 20, width: 240, height: 64),
+				onboardingCompletedAt: nil,
+				lastHookActivityAt: nil,
+				hooksStatus: nil,
+				installedHookVersion: nil
+			),
+			promptSummaryProvider: { _ in "" }
+		)
+
+		controller.applySessionLabel("Refactor pass")
+		controller.applySessionTooltip("Fix the login bug")
+
+		XCTAssertEqual(panel.sessionLabel, "Refactor pass")
+		XCTAssertEqual(panel.sessionTooltip, "Fix the login bug")
 	}
 }

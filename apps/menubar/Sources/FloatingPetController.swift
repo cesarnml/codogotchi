@@ -268,8 +268,20 @@ protocol MinimalistPanelManaging: AnyObject {
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 	/// Assigned session number for this strip (nil clears the session badge row).
 	func applySessionNumber(_ number: Int?)
+	/// User-set rename label for this session (from `SessionLabelStore`), or
+	/// `nil` to fall back to "Session N". No-op for plain-origin/"combined"
+	/// windows, mirroring `applySessionNumber`.
+	func applySessionLabel(_ label: String?)
+	/// Last submitted prompt for this exact session, shown as a delayed hover
+	/// tooltip on the session badge. `nil`/empty clears the tooltip.
+	func applySessionTooltip(_ summary: String?)
 	/// Reversible P15.08 conflict-bubble presentation; `nil` hides it.
 	func applyConflictBubble(_ payload: ConflictBubblePayload?)
+}
+
+extension MinimalistPanelManaging {
+	func applySessionLabel(_ label: String?) {}
+	func applySessionTooltip(_ summary: String?) {}
 }
 
 @MainActor
@@ -388,6 +400,14 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 
 	func applySessionNumber(_ number: Int?) {
 		panel.applySessionNumber(number)
+	}
+
+	func applySessionLabel(_ label: String?) {
+		panel.applySessionLabel(label)
+	}
+
+	func applySessionTooltip(_ summary: String?) {
+		panel.applySessionTooltip(summary)
 	}
 
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {

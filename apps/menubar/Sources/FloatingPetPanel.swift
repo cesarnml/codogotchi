@@ -56,6 +56,12 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// `nil` for a plain-origin/combined window. Non-nil grows the panel to
 	/// make room for the `PlatformSessionBadge` row.
 	private var currentSessionNumber: Int?
+	/// User-set rename label for this session (P15.06), or `nil` to fall back
+	/// to "Session N".
+	private var currentSessionLabel: String?
+	/// Last submitted prompt for this session, shown as a delayed hover
+	/// tooltip on the session badge.
+	private var currentSessionTooltip: String?
 	/// Badge metrics driven by the user's "PlatformChip and AnimationBadge Size"
 	/// slider in Settings > Customization. Updated via applyBadgeScale(_:).
 	private var currentBadgeMetrics = GateBadgeLayout.metrics(scale: 1.0)
@@ -79,6 +85,10 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// Called when the user clicks the P15.08 conflict bubble's action button.
 	/// Wired by the caller to open Settings > Customization.
 	var onOpenSettingsRequested: (() -> Void)?
+	/// Fired with the trimmed/capped label the user commits via the badge's
+	/// right-click rename affordance. Wired by the caller (`MenubarApp`) to
+	/// persist to `SessionLabelStore` — mirrors Own mode's `onRenameRequested`.
+	var onRenameRequested: ((String) -> Void)?
 
 	init(
 		visibleFrameProvider: @escaping () -> CGRect = {
@@ -109,6 +119,12 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		// Right-click "Force Idle" affordance, shown only while non-idle.
 		badgeView.onForceIdleRequested = { [weak self] in
 			self?.onForceIdle?()
+		}
+		// Right-click "Rename…" affordance, offered only while a session number
+		// is assigned. This panel never writes the sidecar itself.
+		badgeView.renameHandler = { [weak self] newLabel in
+			self?.applySessionLabel(newLabel)
+			self?.onRenameRequested?(newLabel)
 		}
 	}
 
@@ -167,8 +183,21 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	func applySessionNumber(_ number: Int?) {
 		guard currentSessionNumber != number else { return }
 		currentSessionNumber = number
-		badgeView.configureSessionNumber(number)
+		badgeView.configureSessionNumber(number, label: currentSessionLabel, tooltip: currentSessionTooltip)
 		applyBadge()
+	}
+
+	func applySessionLabel(_ label: String?) {
+		guard currentSessionLabel != label else { return }
+		currentSessionLabel = label
+		badgeView.configureSessionNumber(currentSessionNumber, label: label, tooltip: currentSessionTooltip)
+		applyBadge()
+	}
+
+	func applySessionTooltip(_ summary: String?) {
+		guard currentSessionTooltip != summary else { return }
+		currentSessionTooltip = summary
+		badgeView.configureSessionNumber(currentSessionNumber, label: currentSessionLabel, tooltip: summary)
 	}
 
 	func applyGateBadge(content: GateBadgeContent?) {
@@ -345,6 +374,10 @@ private final class MinimalistBadgeView: NSView {
 	/// Fires when the user activates the right-click "Force Idle" pill. Only shown
 	/// while the badge represents a non-idle activity (see `currentActivity`).
 	var onForceIdleRequested: (() -> Void)?
+	/// Fires with the trimmed/capped label the user commits via the right-click
+	/// "Rename…" affordance. Not fired when the user cancels or commits an
+	/// empty/whitespace-only label. Mirrors Own mode's `renameHandler`.
+	var renameHandler: ((String) -> Void)?
 	/// Latest activity the badge is displaying, mirrored so the right-click prompt
 	/// can decide whether to offer "Force Idle".
 	private var currentActivity: ActivityState = .idle
@@ -380,19 +413,29 @@ private final class MinimalistBadgeView: NSView {
 			inFlight: activity.isInFlight,
 			metrics: metrics
 		)
-		sessionBadge.configure(number: currentSessionNumber, metrics: metrics)
+		sessionBadge.configure(
+			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,
+			metrics: metrics)
 	}
 
-	/// Latest session number applied via `configureSessionNumber(_:)`. Mirrored
-	/// so a later `configureBadge` (metrics/activity refresh) can re-apply it
-	/// without the caller having to resend the number every tick.
+	/// Latest session number/label/tooltip applied via `configureSessionNumber`.
+	/// Mirrored so a later `configureBadge` (metrics/activity refresh) can
+	/// re-apply them without the caller having to resend them every tick.
 	private var currentSessionNumber: Int?
+	/// User-set rename label for this session (P15.06), or `nil` to fall back
+	/// to "Session N". Also prefills the rename alert's text field.
+	private var currentSessionLabel: String?
+	private var currentSessionTooltip: String?
 
-	/// Shows/hides and labels the session badge row. `nil` hides the row
-	/// entirely (session-pets off, or a plain-origin/combined window).
-	func configureSessionNumber(_ number: Int?) {
+	/// Shows/hides and labels the session badge row. `nil` number hides the row
+	/// entirely (session-pets off, or a plain-origin/combined window). `label`,
+	/// when present, replaces "Session N" with the user's rename; `tooltip` is
+	/// the delayed hover tooltip showing the session's last submitted prompt.
+	func configureSessionNumber(_ number: Int?, label: String? = nil, tooltip: String? = nil) {
 		currentSessionNumber = number
-		sessionBadge.configure(number: number, metrics: currentMetrics)
+		currentSessionLabel = label
+		currentSessionTooltip = tooltip
+		sessionBadge.configure(number: number, label: label, tooltip: tooltip, metrics: currentMetrics)
 	}
 
 	/// Width the badge content needs plus horizontal padding. When the session
@@ -471,6 +514,16 @@ private final class MinimalistBadgeView: NSView {
 					self?.onForceIdleRequested?()
 				})
 		}
+		// Rename is only meaningful for a session-keyed strip (one that
+		// currently carries a session number); sits above "Hide panel",
+		// mirroring Own mode's placement.
+		if currentSessionNumber != nil {
+			items.append(
+				FloatingPetPromptItem(title: FloatingPetHidePrompt.renameTitle) { [weak self] in
+					self?.dismissHidePrompt()
+					self?.presentRenameAlert()
+				})
+		}
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.panelTitle) { [weak self] in
 				self?.dismissHidePrompt()
@@ -489,6 +542,26 @@ private final class MinimalistBadgeView: NSView {
 		panel.orderFrontRegardless()
 		hidePromptPanel = panel
 		installHidePromptDismissObservers()
+	}
+
+	/// Presents a modal text-entry alert for renaming this session. Trims and
+	/// caps the result at `SessionLabelStore.maxLength`; an empty/whitespace
+	/// result (or Cancel) is treated as "no rename" and `renameHandler` is not
+	/// fired. Mirrors Own mode's `presentRenameAlert`.
+	private func presentRenameAlert() {
+		let alert = NSAlert()
+		alert.messageText = "Rename Session"
+		alert.informativeText = "Up to \(SessionLabelStore.maxLength) characters."
+		alert.addButton(withTitle: "Rename")
+		alert.addButton(withTitle: "Cancel")
+		let field = NSTextField(frame: CGRect(x: 0, y: 0, width: 240, height: 24))
+		field.stringValue = currentSessionLabel ?? ""
+		alert.accessoryView = field
+		alert.window.initialFirstResponder = field
+		guard alert.runModal() == .alertFirstButtonReturn else { return }
+		let normalized = SessionLabelStore.normalize(field.stringValue)
+		guard !normalized.isEmpty else { return }
+		renameHandler?(normalized)
 	}
 
 	private func dismissHidePrompt() {
