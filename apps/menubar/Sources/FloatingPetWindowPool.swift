@@ -228,6 +228,21 @@ final class FloatingPetWindowPool {
 			lastActiveRenderKey = eligibleForElection.max(by: { $0.value < $1.value })?.key
 		}
 
+		// Bound firstSeenAt/lastSeenAt/lastUpdatedAt to the same eligibility
+		// window computed above — without this they grow one entry per render
+		// key ever seen for the lifetime of the app process (P15.08
+		// advisory-observation triage). A key outside eligibleKeys is neither
+		// visible nor within its TTL grace window, so nothing later in this
+		// tick — or any future tick — can legitimately reference it: render
+		// key identities are agent-generated session ids that do not recur.
+		// Any key with an open window is guaranteed to remain in
+		// eligibleKeys (its TTL can't have expired, or Step 5b would already
+		// have torn the window down), so this can never prune a live window's
+		// bookkeeping out from under Step 6c.
+		firstSeenAt = firstSeenAt.filter { eligibleKeys.contains($0.key) }
+		lastSeenAt = lastSeenAt.filter { eligibleKeys.contains($0.key) }
+		lastUpdatedAt = lastUpdatedAt.filter { eligibleKeys.contains($0.key) }
+
 		// Step 4: compute the key of the window that must not be dismissed
 		let lastActiveWindowKey: String? = lastActiveRenderKey.map { windowKey(for: $0) }
 

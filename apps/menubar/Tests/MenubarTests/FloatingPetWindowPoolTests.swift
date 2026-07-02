@@ -1236,6 +1236,92 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 				+ "bypassing the one-hour rate limit — this is the same ongoing conflict, not a new one")
 	}
 
+	/// P15.08 advisory-observation fix: firstSeenAt (and lastSeenAt /
+	/// lastUpdatedAt alongside it) must not retain a render key's ancient
+	/// timestamp forever. Once a key drops out of the snapshot for longer
+	/// than its TTL grace window, its bookkeeping must be forgotten — so if
+	/// the same render key is later observed again, it is treated as a fresh
+	/// first sighting rather than recalling a tenure from a previous,
+	/// unrelated episode. Observable via conflict-bubble target selection,
+	/// which picks the earliest firstSeenAt among currently-rendered sessions.
+	func testFirstSeenAtForgetsARenderKeyThatAgedOutPastItsTTLWindow() {
+		let customization = makeCustomization(
+			ttlSeconds: 300, sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
+		var stubs: [String: StubWindowController] = [:]
+		var currentTime = Date(timeIntervalSinceReferenceDate: 0)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			now: { currentTime }
+		)
+
+		// Tick 1: "a" alone, rendered.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["claude_code:a": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization))
+
+		// Tick 2: "b" joins; both fit under cap 2, both render. firstSeenAt
+		// captures a:T+0, b:T+1 — "a" is the more tenured of the two.
+		currentTime = currentTime.addingTimeInterval(1)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:a": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:b": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization))
+
+		// Tick 3: "a" vanishes entirely (its hook session ended) for far
+		// longer than the 300s TTL. Its window is dismissed, and — with the
+		// fix — its firstSeenAt/lastSeenAt/lastUpdatedAt entries are pruned.
+		currentTime = currentTime.addingTimeInterval(400)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["claude_code:b": makeSnapshot(state: .implementing, updated: "2026-07-01T10:06:41.000Z")],
+			customization: customization))
+
+		// Tick 4: "a" reappears (session id reused) alongside continuing "b" —
+		// just the two of them, still under cap, so both render with no
+		// eviction contest. This lets "a" settle back into an incumbent
+		// window before the next tick introduces cap pressure, isolating what
+		// we actually want to test: whether "a"'s firstSeenAt was correctly
+		// reset to this tick (the fix) or still carries its tick-1 value (the
+		// bug) — `SessionSelectionPolicy.select`'s eviction sort never looks
+		// at firstSeenAt itself, only rank/incumbency/lex, so this can only be
+		// observed via which incumbent conflict-bubble target selection picks
+		// once both are incumbents.
+		currentTime = currentTime.addingTimeInterval(1)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:a": makeSnapshot(state: .implementing, updated: "2026-07-01T10:06:42.000Z"),
+				"claude_code:b": makeSnapshot(state: .implementing, updated: "2026-07-01T10:06:41.000Z"),
+			],
+			customization: customization))
+
+		// Tick 5: "c" joins as a third in-flight session, pushing the origin
+		// over cap. "a" and "b" are now both incumbents, so the sole
+		// non-incumbent "c" is evicted regardless of rank or lex order —
+		// deterministic. "c" is in-flight, so this eviction counts as a real
+		// conflict (`blocked == true`).
+		currentTime = currentTime.addingTimeInterval(1)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:a": makeSnapshot(state: .implementing, updated: "2026-07-01T10:06:43.000Z"),
+				"claude_code:b": makeSnapshot(state: .implementing, updated: "2026-07-01T10:06:43.000Z"),
+				"claude_code:c": makeSnapshot(state: .thinking, updated: "2026-07-01T10:06:43.000Z"),
+			],
+			customization: customization))
+
+		XCTAssertEqual(pool.blockedOrigins, ["claude_code"])
+		XCTAssertEqual(
+			stubs["claude_code:b"]?.appliedConflictBubbles.last ?? nil,
+			ConflictBubblePayload(origin: "claude_code"),
+			"\"b\" must win the conflict-bubble target: \"a\" was reset to a fresh firstSeenAt on "
+				+ "reappearance rather than retaining its ancient tick-1 tenure over continuously-present \"b\"")
+	}
+
 	/// A negative persisted `session_cap` must resolve to the shared default
 	/// cap (3), matching `CustomizationSnapshot.sessionCap`'s documented
 	/// "absent or negative" contract — not fall through to
