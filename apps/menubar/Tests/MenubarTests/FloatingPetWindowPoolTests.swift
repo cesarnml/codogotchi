@@ -468,6 +468,79 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         XCTAssertEqual(pool.activeOrigins, ["combined"])
     }
 
+    /// Phase-15 QC regression: enabling Session Pets for an Own-mode origin
+    /// (with no sessions before) must dismiss the plain-origin window. The
+    /// plain "claude_code" key vanishes from the snapshot entirely once
+    /// sessionPetsEnabled flips on (resolveRenderKeys now emits
+    /// "claude_code:sess-N" keys instead), so no existing teardown branch's
+    /// precondition — which all key off snapshot presence under the SAME
+    /// string, or off mode changes — is ever met without this fix.
+    func testEnablingSessionPetsDismissesPlainOriginWindow() {
+        var customization = makeCustomization()
+        let pool = FloatingPetWindowPool(
+            customizationReader: { customization },
+            windowFactory: { _, _ in StubWindowController() }
+        )
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
+            customization: customization
+        ))
+        XCTAssertEqual(pool.activeOrigins, ["claude_code"])
+
+        customization = makeCustomization(sessionPetsEnabled: ["claude_code": true])
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: [
+                "claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+                "claude_code:sess-2": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+            ],
+            customization: customization
+        ))
+        XCTAssertFalse(
+            pool.activeOrigins.contains("claude_code"),
+            "stale plain-origin window must be dismissed when session-pets turns on for its origin"
+        )
+        XCTAssertEqual(
+            Set(pool.activeOrigins), Set(["claude_code:sess-1", "claude_code:sess-2"]),
+            "session-keyed windows must spawn for the newly-visible sessions"
+        )
+    }
+
+    /// Phase-15 QC regression: disabling Session Pets for an Own-mode origin
+    /// must dismiss every now-stale session-keyed window (the reverse of the
+    /// test above). The session-keyed keys vanish from the snapshot entirely
+    /// once sessionPetsEnabled flips off (resolveRenderKeys now folds to the
+    /// plain "claude_code" key), so the same class of gap applies in reverse.
+    func testDisablingSessionPetsDismissesSessionKeyedWindows() {
+        var customization = makeCustomization(sessionPetsEnabled: ["claude_code": true])
+        let pool = FloatingPetWindowPool(
+            customizationReader: { customization },
+            windowFactory: { _, _ in StubWindowController() }
+        )
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: [
+                "claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+                "claude_code:sess-2": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+            ],
+            customization: customization
+        ))
+        XCTAssertEqual(Set(pool.activeOrigins), Set(["claude_code:sess-1", "claude_code:sess-2"]))
+
+        customization = makeCustomization(sessionPetsEnabled: ["claude_code": false])
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:01.000Z")],
+            customization: customization
+        ))
+        XCTAssertFalse(
+            pool.activeOrigins.contains("claude_code:sess-1"),
+            "stale session-keyed windows must be dismissed when session-pets turns off for their origin"
+        )
+        XCTAssertFalse(pool.activeOrigins.contains("claude_code:sess-2"))
+        XCTAssertEqual(
+            pool.activeOrigins, ["claude_code"],
+            "plain-origin window must spawn once session-pets is off"
+        )
+    }
+
     func testOwnToOffRemovesWindowBypassingLastActiveImmunity() {
         var customization = makeCustomization()
         let pool = FloatingPetWindowPool(

@@ -308,6 +308,34 @@ final class FloatingPetWindowPool {
 			releaseSessionNumber(forWindowKey: key)
 		}
 
+		// Step 6a2: collapse windows whose origin's session-pets setting no longer
+		// matches the window's key SHAPE (plain origin vs origin:session_id).
+		// sessionPetsEnabled is read only in resolveRenderKeys (independent of
+		// mode) to decide which shape a non-combined origin's render keys take;
+		// toggling it makes the OLD shape's key vanish from the snapshot entirely
+		// while the NEW shape's key(s) appear under a completely different
+		// string, so none of the mode-keyed teardown branches above (5a, 6a, or
+		// 6b below) ever observe the transition — 6b in particular only
+		// re-checks a render key that is still present in this tick's snapshot
+		// under the SAME key string, which is exactly what does not happen here.
+		// Excludes combined-mode origins: combined folds unconditionally
+		// regardless of sessionPetsEnabled (see resolveRenderKeys), so a
+		// combined origin's windows are never plain/session-keyed to begin with
+		// — Step 6a already owns their collapse.
+		let sessionShapeMismatchKeys = windows.keys.filter { key in
+			guard key != "combined" else { return false }
+			let origin = Self.origin(forWindowKey: key)
+			guard mode(for: origin) != .combined else { return false }
+			let sessionsOn = currentCustomization.sessionPetsEnabled[origin] ?? false
+			return isSessionKeyed(key) != sessionsOn
+		}
+		for key in sessionShapeMismatchKeys {
+			windows[key]?.setFloatingPetVisible(false)
+			windows.removeValue(forKey: key)
+			windowSpawnedModes.removeValue(forKey: key)
+			releaseSessionNumber(forWindowKey: key)
+		}
+
 		// Step 6b: collapse windows whose controller type no longer matches the current
 		// mode. own→minimalist and minimalist→own transitions are not covered by Steps
 		// 5a or 6a; if we skip teardown here the wrong-type window stays in `windows`
