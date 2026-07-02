@@ -38,6 +38,12 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
+Red first: rate-limiter tests (`ConflictBubbleRateLimiterTests`) and target-selector tests (`ConflictBubbleTargetSelectorTests`) failed to compile — `ConflictBubbleRateLimiter` / `ConflictBubbleTargetSelector` did not exist.
+Why this path: two pure, independently-testable types (`ConflictBubbleRateLimiter.shouldShow(origin:now:)`/`recordShown`, `ConflictBubbleTargetSelector.longestLivedKey(firstSeenAt:)`) consumed by `FloatingPetWindowPool` in Step 6c, right where `blockedOrigins` is already computed (P15.07). The pool fires at most once per origin per rate-limit window and only clears the bubble (via a new `applyConflictBubble(_:)` protocol method, default no-op) when the origin leaves `blockedOrigins` — it never re-fires just because `blocked` is still true on a later tick. `firstSeenAt` is a new pool dictionary mirroring `lastSeenAt`'s lifecycle (set once, never explicitly cleared) so the target selector always has a stable "longest-lived" candidate.
+Alternative considered: forking a brand-new bubble panel type for the conflict notice. Rejected — the ticket calls for reusing the attention-bubble primitive, and `AttentionBubblePanel`/`AttentionBubbleView` already had the exact reposition/dismiss/action-button machinery needed; a `reasonKind == "session_conflict"` branch plus a `configureConflict(origin:)` entry point and an `onOpenSettings` callback was the smallest addition. Each window controller (`FloatingPetPanelController`, `MinimalistPanelController`) owns a *second*, independent `AttentionBubblePanel` instance for the conflict notice so it never contends with a real per-session attention payload on the same window.
+Deferred: retargeting the bubble mid-episode if the longest-lived session's window is torn down while the rate limiter is still within its lockout window — the bubble simply disappears with that window until the next allowed fire. Not covered by the ticket's required test list and not expected to be user-visible in practice (a torn-down session was, by definition, no longer blocking).
+Contract note: none — `ConflictBubblePayload` is a new pool-level type distinct from `AttentionPayload`, added per the ticket's "Refactor" note to keep the rate limiter and target selector standalone testable types.
+
 Red first: [what test failed first]
 Why this path: [why this implementation was the smallest acceptable]
 Alternative considered: [one rejected alternative and why]

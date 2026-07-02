@@ -44,6 +44,10 @@ final class FloatingPetWindowPool {
 	private var windows: [String: FloatingPetWindowControlling] = [:]
 	/// Tracks the `now()` clock time when each render key was last present in a snapshot (TTL clock).
 	private var lastSeenAt: [String: Date] = [:]
+	/// First-seen clock per render key — unlike `lastSeenAt` this is set once
+	/// and never refreshed, so P15.08's target selector can always find the
+	/// longest-lived currently-rendered session for a blocked origin.
+	private var firstSeenAt: [String: Date] = [:]
 	/// Tracks the most-recent snapshot `updated_at` per render key (used to elect lastActiveRenderKey).
 	private var lastUpdatedAt: [String: Date] = [:]
 	/// Render key whose snapshot `updated_at` is most recent across all tracked keys.
@@ -77,6 +81,15 @@ final class FloatingPetWindowPool {
 	/// Recomputed fresh every `update()` tick; consumed by P15.08's conflict
 	/// bubble, never rendered here.
 	private(set) var blockedOrigins: Set<String> = []
+	/// Rate-limits P15.08 conflict-bubble presentation to at most one fire per
+	/// platform per hour — `blockedOrigins` is recomputed fresh every tick, so
+	/// without this gate a persisting conflict would re-front the bubble on
+	/// every tick, including right after the user dismissed it.
+	private var conflictBubbleRateLimiter = ConflictBubbleRateLimiter()
+	/// Window key currently showing the P15.08 conflict bubble for each
+	/// blocked origin, so an origin that clears from `blockedOrigins` can be
+	/// told to hide its bubble.
+	private var activeConflictBubbleTargets: [String: String] = [:]
 
 	/// Window keys that currently have visible windows.
 	var activeOrigins: [String] { Array(windows.keys).sorted() }
@@ -175,6 +188,11 @@ final class FloatingPetWindowPool {
 			// full TTL grace window before it disappears.
 			if state.activityState != .idle || lastSeenAt[renderKey] == nil {
 				lastSeenAt[renderKey] = currentTime
+			}
+			// First-seen clock: set once, never refreshed — P15.08's target
+			// selector uses this to find the longest-lived rendered session.
+			if firstSeenAt[renderKey] == nil {
+				firstSeenAt[renderKey] = currentTime
 			}
 			// Active-key election: track snapshot's own updated_at timestamp
 			let stateDate = StateJsonReader.parseISO8601Date(state.updatedAt) ?? currentTime
@@ -293,9 +311,30 @@ final class FloatingPetWindowPool {
 			let selection = SessionSelectionPolicy.select(
 				sessions: states, cap: cap, currentlyRendered: currentlyRendered)
 			pendingWindowKeys.formUnion(selection.pending)
-			if selection.blocked { computedBlockedOrigins.insert(origin) }
+			guard selection.blocked else { continue }
+			computedBlockedOrigins.insert(origin)
+			// P15.08: fire the conflict bubble on the longest-lived
+			// currently-rendered session, subject to the per-platform rate
+			// limit — this signal is recomputed fresh every tick, so without
+			// the rate limiter a persisting conflict would re-front the
+			// bubble every tick.
+			guard conflictBubbleRateLimiter.shouldShow(origin: origin, now: currentTime) else { continue }
+			let candidates = firstSeenAt.filter { currentlyRendered.contains($0.key) }
+			guard let target = ConflictBubbleTargetSelector.longestLivedKey(firstSeenAt: candidates)
+			else { continue }
+			conflictBubbleRateLimiter.recordShown(origin: origin, now: currentTime)
+			activeConflictBubbleTargets[origin] = target
+			windows[target]?.applyConflictBubble(ConflictBubblePayload(origin: origin))
 		}
 		blockedOrigins = computedBlockedOrigins
+		// Clear the conflict bubble for any origin that resolved this tick —
+		// promotion (P15.07) freed the withheld slot, so the conflict no
+		// longer applies. The one-hour rate limit is untouched by this clear.
+		for (origin, targetKey) in activeConflictBubbleTargets
+		where !computedBlockedOrigins.contains(origin) {
+			windows[targetKey]?.applyConflictBubble(nil)
+			activeConflictBubbleTargets.removeValue(forKey: origin)
+		}
 
 		// Step 7: spawn / update directly-keyed windows
 		for renderKey in directKeys {

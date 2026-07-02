@@ -267,6 +267,11 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						self?.floatingPetWindowPool?.pruneSession(
 							windowKey: origin, stateDirectory: stateDir)
 					}
+					// P15.08: left-clicking the conflict bubble deep-links to
+					// Settings > Customization so the user can raise the cap.
+					panel.onOpenSettingsRequested = { [weak self] in
+						self?.settingsWindowController?.show(tab: .customization)
+					}
 					panel.onHideFloatingPet = { [weak self, weak controller] in
 						guard let self, let controller else { return }
 						// Find this controller's origin in the pool and dismiss
@@ -282,6 +287,11 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 				minimalistWindowFactory: { [weak self] origin in
 					let panel = MinimalistPanelController(visibleFrameProvider: Self.visibleFloatingFrame)
 					let stateDir = config.pollingTarget.path
+					// P15.08: left-clicking the conflict bubble deep-links to
+					// Settings > Customization so the user can raise the cap.
+					panel.onOpenSettingsRequested = { [weak self] in
+						self?.settingsWindowController?.show(tab: .customization)
+					}
 					// The combined-minimalist window folds several origins into one badge;
 					// scope both writes to that combined set (or the single origin).
 					panel.onAttentionDismissed = { [weak self] in
