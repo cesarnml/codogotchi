@@ -10,6 +10,13 @@ enum PlatformMode: String, Equatable {
 	case minimalist
 	/// Origin is hidden; no window is spawned for it.
 	case off
+
+	/// Whether per-session pet panels are offerable for a platform in this mode.
+	/// Combined folds all sessions into one shared window and Off spawns no
+	/// window at all, so session-pets has nothing to attach to in either case.
+	var supportsSessionPets: Bool {
+		self == .own || self == .minimalist
+	}
 }
 
 /// Decoded form of `~/.codogotchi/customization.json`. All fields have safe
@@ -31,6 +38,15 @@ struct CustomizationSnapshot {
 	/// negative values resolve to the default cap of 3 at the point of use
 	/// (P15.04/P15.07/P15.09), never in this reader.
 	let sessionCap: [String: Int]
+
+	/// Sentinel written to `session_cap` for the Unlimited option — every
+	/// session-keyed panel renders, nothing is evicted (see `SessionSelectionPolicy`).
+	static let unlimitedSessionCap = 0
+	/// Default per-origin cap when an origin has session-pets enabled but no
+	/// explicit cap has ever been persisted. Single source of truth for the
+	/// consumers that resolve this default (`FloatingPetWindowPool`,
+	/// `SessionNumberAllocator`, `CustomizationTabViewModel`/Settings UI).
+	static let defaultSessionCap = 3
 
 	/// Explicit initializer (not the synthesized memberwise init) so the two new
 	/// session-pets maps carry `[:]` defaults. This keeps existing

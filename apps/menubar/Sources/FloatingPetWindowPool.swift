@@ -306,7 +306,7 @@ final class FloatingPetWindowPool {
 			let states: [String: ActivityState] = keys.reduce(into: [:]) { acc, key in
 				acc[key] = visibleEntries[key]?.activityState
 			}
-			let cap = currentCustomization.sessionCap[origin] ?? 3
+			let cap = currentCustomization.sessionCap[origin] ?? CustomizationSnapshot.defaultSessionCap
 			let currentlyRendered = Set(keys.filter { windows[$0] != nil })
 			let selection = SessionSelectionPolicy.select(
 				sessions: states, cap: cap, currentlyRendered: currentlyRendered)
@@ -607,7 +607,7 @@ final class FloatingPetWindowPool {
 	/// windows.
 	private func assignSessionNumber(forWindowKey key: String) {
 		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return }
-		let unlimited = (currentCustomization.sessionCap[identity.origin] ?? 3) == 0
+		let unlimited = isUnlimited(origin: identity.origin)
 		sessionNumberAllocator.setUnlimited(unlimited, origin: identity.origin)
 		sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
 		windowSessionIdentities[key] = identity
@@ -620,9 +620,17 @@ final class FloatingPetWindowPool {
 	/// (e.g. it was torn down before ever being assigned one).
 	private func releaseSessionNumber(forWindowKey key: String) {
 		guard isSessionKeyed(key), let identity = windowSessionIdentities.removeValue(forKey: key) else { return }
-		let unlimited = (currentCustomization.sessionCap[identity.origin] ?? 3) == 0
+		let unlimited = isUnlimited(origin: identity.origin)
 		sessionNumberAllocator.setUnlimited(unlimited, origin: identity.origin)
 		sessionNumberAllocator.release(origin: identity.origin, sessionId: identity.sessionId)
+	}
+
+	/// Whether `origin`'s current session cap is the Unlimited sentinel,
+	/// resolving an absent cap to the shared default first (see
+	/// `CustomizationSnapshot.defaultSessionCap`).
+	private func isUnlimited(origin: String) -> Bool {
+		let cap = currentCustomization.sessionCap[origin] ?? CustomizationSnapshot.defaultSessionCap
+		return cap == CustomizationSnapshot.unlimitedSessionCap
 	}
 
 	private func mode(forWindowKey key: String) -> PlatformMode {

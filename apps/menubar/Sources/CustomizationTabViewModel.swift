@@ -26,6 +26,23 @@ enum IdleDismissTTL: Int, CaseIterable {
 	}
 }
 
+/// Session Cap dropdown options for the Platform Settings card: 2–10 (no 1,
+/// since a cap of 1 defeats the point of session-keyed panels) plus Unlimited,
+/// which persists as `CustomizationSnapshot.unlimitedSessionCap` (`0`).
+enum SessionCapOption: Int, CaseIterable {
+	case two = 2, three = 3, four = 4, five = 5, six = 6, seven = 7, eight = 8, nine = 9, ten = 10
+	case unlimited = 0
+
+	var label: String {
+		self == .unlimited ? "Unlimited" : "\(rawValue)"
+	}
+
+	/// Returns the option whose rawValue matches `cap`, or nil if no match.
+	static func matching(_ cap: Int) -> SessionCapOption? {
+		allCases.first { $0.rawValue == cap }
+	}
+}
+
 /// View model for the Customization settings tab.
 ///
 /// Exposes per-platform mode pickers and an idle-dismiss TTL picker.
@@ -43,6 +60,8 @@ final class CustomizationTabViewModel {
 	private(set) var idleDismissTtlSeconds: Int
 	private(set) var combinedMinimalistEnabled: Bool
 	private(set) var minimalistBadgeScale: Double
+	private(set) var sessionPetsEnabled: [String: Bool]
+	private(set) var sessionCap: [String: Int]
 	private let filePath: String
 
 	init(filePath: String = CodogotchiFolders.customizationPath()) {
@@ -52,6 +71,8 @@ final class CustomizationTabViewModel {
 		self.idleDismissTtlSeconds = snapshot.idleDismissTtlSeconds
 		self.combinedMinimalistEnabled = snapshot.combinedMinimalistEnabled
 		self.minimalistBadgeScale = snapshot.minimalistBadgeScale
+		self.sessionPetsEnabled = snapshot.sessionPetsEnabled
+		self.sessionCap = snapshot.sessionCap
 	}
 
 	func mode(for origin: String) -> PlatformMode {
@@ -101,6 +122,44 @@ final class CustomizationTabViewModel {
 			combinedMinimalistEnabled = enabled
 		} catch {
 			NSLog("CustomizationTabViewModel: combined-minimalist write failed — \(error)")
+		}
+	}
+
+	/// Effective per-origin session cap for UI display: the persisted value, or
+	/// the shared default (`CustomizationSnapshot.defaultSessionCap`) when the
+	/// origin has never had an explicit cap written. Read-only resolution —
+	/// does not itself persist anything.
+	func effectiveSessionCap(for origin: String) -> Int {
+		sessionCap[origin] ?? CustomizationSnapshot.defaultSessionCap
+	}
+
+	func setSessionPetsEnabled(_ enabled: Bool, for origin: String) {
+		var proposed = sessionPetsEnabled
+		proposed[origin] = enabled
+		do {
+			try ConfigFileWriter.merge(
+				["session_pets_enabled": proposed],
+				into: URL(fileURLWithPath: filePath)
+			)
+			sessionPetsEnabled = proposed
+		} catch {
+			NSLog("CustomizationTabViewModel: session-pets-enabled write failed — \(error)")
+		}
+	}
+
+	/// Persists the per-origin session cap. Callers pass
+	/// `CustomizationSnapshot.unlimitedSessionCap` (`0`) for the Unlimited option.
+	func setSessionCap(_ cap: Int, for origin: String) {
+		var proposed = sessionCap
+		proposed[origin] = cap
+		do {
+			try ConfigFileWriter.merge(
+				["session_cap": proposed],
+				into: URL(fileURLWithPath: filePath)
+			)
+			sessionCap = proposed
+		} catch {
+			NSLog("CustomizationTabViewModel: session-cap write failed — \(error)")
 		}
 	}
 
