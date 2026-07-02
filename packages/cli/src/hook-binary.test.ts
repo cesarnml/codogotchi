@@ -2537,7 +2537,7 @@ describe("slice-directory writer (P12.02 red)", () => {
   });
 
   it("writes active-session.json inside the detected repository root", async () => {
-    const sessionId = "ses-test-active-session";
+    const sessionId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
     await runHook(
       {
         origin: "claude_code",
@@ -2581,7 +2581,7 @@ describe("slice-directory writer (P12.02 red)", () => {
           origin: "claude_code",
           kind: "tool_use",
           name: "Edit",
-          session_id: "ses-worktree",
+          session_id: "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff",
           cwd: worktree,
         },
         { home, now: FIXED_NOW },
@@ -2598,7 +2598,7 @@ describe("slice-directory writer (P12.02 red)", () => {
       expect(existsSync(worktreeActiveSession)).toBe(false);
       const content = JSON.parse(readFileSync(mainActiveSession, "utf8"));
       expect(content.origin).toBe("claude_code");
-      expect(content.session_id).toBe("ses-worktree");
+      expect(content.session_id).toBe("bbbbbbbb-cccc-4ddd-8eee-ffffffffffff");
     } finally {
       rmSync(repoParent, { recursive: true, force: true });
     }
@@ -2614,7 +2614,7 @@ describe("slice-directory writer (P12.02 red)", () => {
           origin: "claude_code",
           kind: "tool_use",
           name: "Edit",
-          session_id: "ses-nogit",
+          session_id: "cccccccc-dddd-4eee-8fff-000000000000",
           cwd: nonGitRoot,
         },
         { home, now: FIXED_NOW },
@@ -2623,7 +2623,81 @@ describe("slice-directory writer (P12.02 red)", () => {
       const activeSessionPath = join(nonGitRoot, ".soa", "active-session.json");
       expect(existsSync(activeSessionPath)).toBe(true);
       const content = JSON.parse(readFileSync(activeSessionPath, "utf8"));
-      expect(content.session_id).toBe("ses-nogit");
+      expect(content.session_id).toBe("cccccccc-dddd-4eee-8fff-000000000000");
+    } finally {
+      rmSync(nonGitRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("does not write active-session.json when the event carries no session id", async () => {
+    const nonGitRoot = mkdtempSync(join(tmpdir(), "codogotchi-nosession-"));
+    try {
+      await runHook(
+        {
+          origin: "cursor",
+          kind: "prompt_submit",
+          cwd: nonGitRoot,
+        },
+        { home, now: FIXED_NOW },
+      );
+
+      const activeSessionPath = join(nonGitRoot, ".soa", "active-session.json");
+      expect(existsSync(activeSessionPath)).toBe(false);
+    } finally {
+      rmSync(nonGitRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("does not write active-session.json when the session id is not UUID-shaped", async () => {
+    const nonGitRoot = mkdtempSync(join(tmpdir(), "codogotchi-badsession-"));
+    try {
+      await runHook(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Edit",
+          session_id: "ses-codex-keep",
+          cwd: nonGitRoot,
+        },
+        { home, now: FIXED_NOW },
+      );
+
+      const activeSessionPath = join(nonGitRoot, ".soa", "active-session.json");
+      expect(existsSync(activeSessionPath)).toBe(false);
+    } finally {
+      rmSync(nonGitRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves a prior valid active-session.json when a later event has an unroutable session id", async () => {
+    const nonGitRoot = mkdtempSync(join(tmpdir(), "codogotchi-preserve-"));
+    try {
+      await runHook(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Edit",
+          session_id: "dddddddd-eeee-4fff-8000-111111111111",
+          cwd: nonGitRoot,
+        },
+        { home, now: FIXED_NOW },
+      );
+
+      await runHook(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Edit",
+          session_id: "ses-codex-keep",
+          cwd: nonGitRoot,
+        },
+        { home, now: new Date(FIXED_NOW.getTime() + 1000) },
+      );
+
+      const activeSessionPath = join(nonGitRoot, ".soa", "active-session.json");
+      const content = JSON.parse(readFileSync(activeSessionPath, "utf8"));
+      expect(content.origin).toBe("claude_code");
+      expect(content.session_id).toBe("dddddddd-eeee-4fff-8000-111111111111");
     } finally {
       rmSync(nonGitRoot, { recursive: true, force: true });
     }
