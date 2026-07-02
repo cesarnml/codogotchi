@@ -40,6 +40,18 @@ final class ConflictBubbleRateLimiterTests: XCTestCase {
 			"a block after the hour elapses must fire again")
 	}
 
+	func testExactlyOneHourStillSuppresses() {
+		var limiter = ConflictBubbleRateLimiter()
+		let t0 = Date()
+		limiter.recordShown(origin: "claude_code", now: t0)
+
+		let t1 = t0.addingTimeInterval(3600)
+
+		XCTAssertFalse(
+			limiter.shouldShow(origin: "claude_code", now: t1),
+			"exactly one hour elapsed must still suppress — the window is strictly greater-than")
+	}
+
 	func testTwoPlatformsRateLimitIndependently() {
 		var limiter = ConflictBubbleRateLimiter()
 		let t0 = Date()

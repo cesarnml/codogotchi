@@ -65,6 +65,8 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func applySessionLabel(_ label: String?)
 	/// Last submitted prompt for this exact session, shown as a delayed hover tooltip.
 	func applySessionTooltip(_ summary: String?)
+	/// Reversible P15.08 conflict-bubble presentation; `nil` hides it.
+	func applyConflictBubble(_ payload: ConflictBubblePayload?)
 }
 
 extension FloatingPetPanelManaging {
@@ -79,6 +81,7 @@ extension FloatingPetPanelManaging {
 	func applySessionNumber(_ number: Int?) {}
 	func applySessionLabel(_ label: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
+	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
 }
 
 @MainActor
@@ -187,6 +190,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 		panel.applySessionTooltip(summary)
 	}
 
+	func applyConflictBubble(_ payload: ConflictBubblePayload?) {
+		panel.applyConflictBubble(payload)
+	}
+
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {
 		panel.applyRPGState(
 			halfHearts: halfHearts,
@@ -261,6 +268,8 @@ protocol MinimalistPanelManaging: AnyObject {
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 	/// Assigned session number for this strip (nil clears the session badge row).
 	func applySessionNumber(_ number: Int?)
+	/// Reversible P15.08 conflict-bubble presentation; `nil` hides it.
+	func applyConflictBubble(_ payload: ConflictBubblePayload?)
 }
 
 @MainActor
@@ -379,6 +388,10 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 
 	func applySessionNumber(_ number: Int?) {
 		panel.applySessionNumber(number)
+	}
+
+	func applyConflictBubble(_ payload: ConflictBubblePayload?) {
+		panel.applyConflictBubble(payload)
 	}
 
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
