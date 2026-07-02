@@ -31,7 +31,11 @@ const RM = rec as unknown as {
     rawOutput?: string;
   }>;
   reconcileReview?: (input: {
-    artifactRows: Array<{ outcome: string; reviewedHeadSha?: string }>;
+    artifactRows: Array<{
+      outcome: string;
+      reviewedHeadSha?: string;
+      acknowledgment?: string;
+    }>;
     reportMarkdown: string;
     reviewedHeadSha: string;
     headSha: string;
@@ -191,6 +195,12 @@ describe('P14.03 — parseActionableFindings', () => {
     expect(RM.parseActionableFindings).toBeDefined();
     const md =
       'The phrase **Actionable findings** appears inline, but this is not a report section.';
+    expect(RM.parseActionableFindings!(md)).toBe(false);
+  });
+
+  it('ignores a stray --- divider immediately after "None." (P15.07 false positive)', () => {
+    expect(RM.parseActionableFindings).toBeDefined();
+    const md = `**Actionable findings**\nNone.\n\n---\n\n**Advisory Observations**\nNone.\n`;
     expect(RM.parseActionableFindings!(md)).toBe(false);
   });
 });
@@ -394,6 +404,56 @@ describe('P14.03 — reconcileReview', () => {
       listCommitFiles: () => ['src/foo.ts'],
     });
     expect(result.kind).toBe('clean');
+  });
+
+  it('does NOT block Condition A when a clean-variant acknowledgment row already exists for the same reviewedHeadSha', () => {
+    expect(RM.reconcileReview).toBeDefined();
+    const result = RM.reconcileReview!({
+      ...baseInput,
+      artifactRows: [
+        { outcome: 'clean', reviewedHeadSha: 'rev0' },
+        {
+          outcome: 'clean',
+          reviewedHeadSha: 'rev0',
+          acknowledgment: 'operator-confirmed-clean',
+        },
+      ],
+      listChangedPathsInRange: () => ['src/foo.ts'],
+      listCommitSubjects: () => [{ sha: 'x1', subject: 'fix: no label' }],
+      listCommitFiles: () => ['src/foo.ts'],
+    });
+    expect(result.kind).toBe('clean');
+  });
+
+  it('does NOT block Condition B when a clean-variant acknowledgment row already exists for the same reviewedHeadSha', () => {
+    expect(RM.reconcileReview).toBeDefined();
+    const result = RM.reconcileReview!({
+      ...baseInput,
+      reportMarkdown:
+        '**Actionable findings**\n\n- src/foo.ts: missing null-check\n\n**Findings for human review**\nNone.\n',
+      artifactRows: [
+        { outcome: 'clean', reviewedHeadSha: 'rev0' },
+        {
+          outcome: 'clean',
+          reviewedHeadSha: 'rev0',
+          acknowledgment: 'operator-confirmed-clean',
+        },
+      ],
+    });
+    expect(result.kind).toBe('clean');
+  });
+
+  it('still blocks Condition B when the clean row is unacknowledged (plain runner "clean" outcome, no operator ack)', () => {
+    expect(RM.reconcileReview).toBeDefined();
+    const result = RM.reconcileReview!({
+      ...baseInput,
+      reportMarkdown:
+        '**Actionable findings**\n\n- src/foo.ts: missing null-check\n\n**Findings for human review**\nNone.\n',
+      artifactRows: [{ outcome: 'clean', reviewedHeadSha: 'rev0' }],
+    });
+    expect(result.kind).toBe('blocked');
+    if (result.kind !== 'blocked') return;
+    expect(result.condition).toBe('B');
   });
 });
 
