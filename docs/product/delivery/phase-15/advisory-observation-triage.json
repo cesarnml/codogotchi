@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "recordedAt": "2026-07-02T14:06:59.447Z",
+  "recordedAt": "2026-07-02T18:05:26.059Z",
   "summary": {
     "total": 34,
-    "patched": 5,
+    "patched": 10,
     "rejected": 15,
     "already-covered": 9,
-    "requires-human-review": 5
+    "requires-human-review": 0
   },
   "dispositions": [
     {
@@ -73,8 +73,16 @@
       "observation": "**A1 — `.tmp-` filter could silently skip a session whose `session_id` contains the literal substring `.tmp-`.** An agent that generates a session ID like `mytmp-abc` would write `claude_code:mytmp-abc.json` and the `contains(\".tmp-\")` check would skip it. This is the same filter used across all three readers (`readDirectoryImpl`, `readPerPlatformDirectoryImpl`, `readPerSessionDirectoryImpl`), so the risk is not new to P15.03 — but the per-session path makes it more reachable because session IDs are agent-generated strings rather than fixed origin enum values. The ticket does not name this as a skip rule in Invariant 2. Outside the three finding-discipline clauses (session ID format is not specified as guaranteed `.tmp-`-free, so this is a latent interface assumption, not a code break)."
     },
     {
-      "disposition": "requires-human-review",
-      "rationale": "Confirmed still open in current code: LivePollingDriver.swift resolveRenderedPlatforms (lines 301-308) still applies the flat legacy gate/context to ALL sessions of the single active origin when session-pets is ON and exactly one origin is active — the P15.03 report's expectation that this would be \"fully reconciled in P15.04\" did not hold; P15.04's pool refactor addressed window fan-out, not this specific gate/context fallback-merge logic. This only activates with legacy (pre-Phase-17) flat gate.json/delivery-context.json files under session-pets-on, a narrowing scenario, but the correct target semantics (apply to first-seen session only? none? all?) is a product decision, not a mechanical fix. Recommend the developer decide the intended behavior before a follow-up ticket.",
+      "disposition": "patched",
+      "rationale": "Rather than changing the fallback-merge logic in LivePollingDriver.resolveRenderedPlatforms (a behavior change to a code path with no writer left to exercise it), the developer chose to eliminate the fallback's data source instead: gate.json and delivery-context.json are dead files nothing writes anymore (confirmed via full-repo audit), so LegacyStateFileCleanup.run() deletes them unconditionally at every app launch. Once removed they stay removed, and legacyGate/legacyContext are permanently nil for any tester who has launched the updated app once — the buggy single-origin fallback can no longer fire. state.json is deleted only once rpg-state.json already exists, so the app never races the CLI's own RPG-progress migration.",
+      "patch": {
+        "commitSha": "df9cf2d9c93f5bf85c5675dd3a4ed9b26ba42b79",
+        "files": [
+          "apps/menubar/Sources/LegacyStateFileCleanup.swift",
+          "apps/menubar/Sources/MenubarApp.swift",
+          "apps/menubar/Tests/MenubarTests/LegacyStateFileCleanupTests.swift"
+        ]
+      },
       "source": {
         "reportPath": "docs/product/delivery/phase-15/reviews/P15.03-subagent-review.report.md",
         "ticketId": "P15.03"
@@ -100,8 +108,18 @@
       "observation": "**A4 — One-tick torn render set during Settings writes.** The shared listing is captured before `customizationReader()` is called in the same tick. A user toggling session-pets ON in Settings between those two operations gets one tick where old session data is collapsed using the new customization. Self-corrects on the next poll. No data loss or persisted inconsistency. Inherent to non-atomic multi-file polling at 1 Hz."
     },
     {
-      "disposition": "requires-human-review",
-      "rationale": "Confirmed still open: StateJsonWriter.forceIdle (StateJsonWriter.swift:53) and its MenubarApp.swift call sites still operate at origin granularity, not session-precise. Checked ticket-07's Rationale/Deferred section (the ticket the P15.04 report expected to close this) — it defers a different item (the \"blocked (all-active)\" render signal to P15.08) and does not mention Force Idle writer scoping at all, so P15.07 did not close this gap as anticipated. Right-clicking Force Idle on one session window can reset a fresher sibling session's state.d slice for up to one polling period. Self-corrects on the sibling's next hook event (no persistent data loss), but it is a real, user-visible one-tick animation reset on an unrelated session. Fixing it requires session-keyed writer scoping (a StateJsonWriter API change plus MenubarApp call-site updates) — a deliberate design change, not a quick patch. Recommend a follow-up ticket if the developer judges the UX cost worth addressing now.",
+      "disposition": "patched",
+      "rationale": "Added session-precise overloads StateJsonWriter.forceIdle/dismissAttention(at:origin:sessionId:) that read/write exactly origin:sessionId.json — no directory scan, no winner-selection ambiguity — plus FloatingPetWindowPool.sessionIdentity(forWindowKey:) to derive the exact identity from a session-keyed window key. Wired into all four MenubarApp call sites (Own + Minimalist x Force Idle + dismiss attention). The origin-scoped overload is unchanged and still used for combined/plain-origin windows, where there is no single session to target.",
+      "patch": {
+        "commitSha": "4ad00562cc3245053673b2887ad9a048ee716431",
+        "files": [
+          "apps/menubar/Sources/StateJsonWriter.swift",
+          "apps/menubar/Sources/FloatingPetWindowPool.swift",
+          "apps/menubar/Sources/MenubarApp.swift",
+          "apps/menubar/Tests/MenubarTests/StateJsonWriterTests.swift",
+          "apps/menubar/Tests/MenubarTests/FloatingPetWindowPoolTests.swift"
+        ]
+      },
       "source": {
         "reportPath": "docs/product/delivery/phase-15/reviews/P15.04-subagent-review.report.md",
         "ticketId": "P15.04"
@@ -242,8 +260,15 @@
       "observation": "The pool-level `blockedOrigins` wiring (Step 6c accumulating `computedBlockedOrigins` into `blockedOrigins`) has no pool-level test asserting on that property. The policy-layer test covers `blocked` emission, and the ticket explicitly defers `blockedOrigins` consumption to P15.08. If P15.08 assumes `blockedOrigins` is correctly set per tick, the connecting contract (Step 6c → pool property) is only implicitly covered. A single pool test asserting `pool.blockedOrigins.contains(\"claude_code\")` after the all-active scenario would close this seam. This is in-scope for P15.08's test setup."
     },
     {
-      "disposition": "requires-human-review",
-      "rationale": "Confirmed still open in current code (FloatingPetWindowPool.swift): activeConflictBubbleTargets is cleared only on resolution (origin leaves blockedOrigins, lines ~331-336), not on non-resolution window teardown (TTL expiry, mode switch, pending transition). ticket-08-conflict-bubble.md Rationale (line 47) already names this as one of three observations \"deliberately deferred... none are reachable through the pool's actual lifecycle today and are lower-value than a dedicated cleanup ticket.\" A correct fix requires auditing every window-teardown call site across Step 5b/6/7/8 of the tick() function to add matching cleanup without missing a site or double-clearing — a deliberate scoped change, not a same-pass patch. Recommend the developer decide whether to open the dedicated cleanup ticket the ticket author already flagged.",
+      "disposition": "patched",
+      "rationale": "Upgraded from the literally-suggested fix (clear the stale dict entry) after determining that fix was observably inert — nothing else reads the entry before the rate limiter naturally overwrites it on its own next fire. Instead, when a still-blocked origin's tracked target dies for a non-resolution reason, the pool now re-homes the bubble onto the current longest-lived live window immediately, without calling the rate limiter's recordShown — the same ongoing conflict continuing to display, not a new one, so the one-hour lockout is never extended. Verified red (a regression test that prunes the bubble's host window while three other sessions keep the origin blocked) fails without the fix and passes with it.",
+      "patch": {
+        "commitSha": "093109a1fd0058e4bedce9d537c99ebb882b905e",
+        "files": [
+          "apps/menubar/Sources/FloatingPetWindowPool.swift",
+          "apps/menubar/Tests/MenubarTests/FloatingPetWindowPoolTests.swift"
+        ]
+      },
       "source": {
         "reportPath": "docs/product/delivery/phase-15/reviews/P15.08-subagent-review.report.md",
         "ticketId": "P15.08"
@@ -251,8 +276,15 @@
       "observation": "**A1 — `activeConflictBubbleTargets` not cleared on non-resolution window teardown.** If the conflict bubble's target window is torn down by TTL expiry, mode switch, or the pending path while the origin is still in `blockedOrigins`, `activeConflictBubbleTargets[origin]` continues pointing to the now-dead key. The rate limiter suppresses re-fire for up to one hour. After the window expires, the pool would pick a new longest-lived target and fire correctly once the rate limit clears. This is per the deferred note in the Rationale (\"the bubble simply disappears with that window until the next allowed fire\") but is worth flagging for a subsequent cleanup pass: `activeConflictBubbleTargets.removeValue(forKey: …)` at each non-resolution window teardown site would reset the rate limiter's effective \"orphaned\" window to zero without affecting the timebased lockout."
     },
     {
-      "disposition": "requires-human-review",
-      "rationale": "Confirmed via code read: firstSeenAt (FloatingPetWindowPool.swift:47) is set once per render key and never evicted — growth is real. Correcting the observation's own suggested fix reference: there is no existing \"lastSeenAt eviction pattern\" to mirror — lastSeenAt (line 46) is also never pruned from the dictionary itself (only read through a non-mutating .filter at line 208-209). This is a systemic pattern affecting multiple pool tracking dictionaries (firstSeenAt, lastSeenAt, lastUpdatedAt), not something unique to firstSeenAt or introduced by P15.08. ticket-08's Rationale (line 47) already named this as deliberately deferred to a dedicated cleanup ticket, same as the other two P15.08 advisory items. A proper fix needs a general eviction/cleanup strategy design decision for the pool actor's tracking state, not a one-line patch. Recommend the developer scope a cleanup ticket covering all three dictionaries together, given the corrected scope.",
+      "disposition": "patched",
+      "rationale": "Considered and rejected tying eviction to SlicePruner's 30-minute/24-hour schedule: SlicePruner and the pool are architecturally decoupled (disk-file lifecycle vs. in-memory pool state), and 24 hours is far looser than the pool's own minutes-scale relevance window. Instead, firstSeenAt/lastSeenAt/lastUpdatedAt are now pruned every tick down to the same eligibleKeys set the pool already computes for last-active-render-key election (visibleEntries plus any lastSeenAt key still within the idle-dismiss TTL) — no new timer, no new cross-component dependency. Verified red (a render key that ages out past its TTL and reappears must be treated as a fresh sighting, not recall its ancient tenure) fails without the fix.",
+      "patch": {
+        "commitSha": "56b121ba533881704d29fec41b7c25d17be0e3ca",
+        "files": [
+          "apps/menubar/Sources/FloatingPetWindowPool.swift",
+          "apps/menubar/Tests/MenubarTests/FloatingPetWindowPoolTests.swift"
+        ]
+      },
       "source": {
         "reportPath": "docs/product/delivery/phase-15/reviews/P15.08-subagent-review.report.md",
         "ticketId": "P15.08"
@@ -260,8 +292,17 @@
       "observation": "**A2 — `firstSeenAt` grows unboundedly.** The dictionary is set on first sight and never compacted. For a long-running app with high session churn, this will accumulate one entry per ever-seen render key indefinitely. The `filter { currentlyRendered.contains($0.key) }` call on every tick iterates the full uncompacted dictionary. In normal use the set is small, but a cleanup sweep (e.g., mirror the `lastSeenAt` eviction pattern) would keep this bounded."
     },
     {
-      "disposition": "requires-human-review",
-      "rationale": "ticket-08-conflict-bubble.md Rationale (line 47) already names this as deliberately deferred: \"no guard against the real-attention and conflict bubbles overlapping if simultaneously active... not reachable through the pool's actual lifecycle today.\" A safe fix requires a layout-priority design decision (which bubble wins, or how they should stack) rather than a mechanical patch. Recommend the developer decide the intended visual behavior before scoping a fix.",
+      "disposition": "patched",
+      "rationale": "Resolved at the root rather than adding an overlap guard: the conflict bubble and the real attention bubble were the exact same AttentionBubblePanel type and screen anchor, so identical \"form\" (the developer's phrase) was guaranteed by construction, not just an unlucky position clash. Built a new, separate SpeechBubblePanel/SpeechBubbleView/SpeechBubbleLayout — header icon + title + rule line + message body, casual first-person copy, anchored above the pet frame with a thought-bubble tail — replacing the conflict bubble's reuse of AttentionBubblePanel in both FloatingPetPanelController and MinimalistPanelController. AttentionBubblePanel's now-dead session_conflict branches (onOpenSettings, updateConflict/configureConflict) were removed. Visually verified live against the running app (4 fake in-flight session slices written to state.d/ to exceed the cap) and iterated on copy per that review: header title corrected from a speaker label (\"Codogotchi\") to user-facing status (\"Session Cap Reached\"), and the message corrected from an inaccurate \"pick who stays in Settings\" to the two real actions (Prune a Session via right-click, or raise the cap in Settings).",
+      "patch": {
+        "commitSha": "0556bf93af9240c4072516c4d0e8d773006bbdd9",
+        "files": [
+          "apps/menubar/Sources/SpeechBubblePanel.swift",
+          "apps/menubar/Sources/FloatingPetPanel.swift",
+          "apps/menubar/Sources/AttentionBubblePanel.swift",
+          "apps/menubar/Tests/MenubarTests/SpeechBubbleLayoutTests.swift"
+        ]
+      },
       "source": {
         "reportPath": "docs/product/delivery/phase-15/reviews/P15.08-subagent-review.report.md",
         "ticketId": "P15.08"
