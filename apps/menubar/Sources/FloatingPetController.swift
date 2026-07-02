@@ -22,10 +22,19 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	/// "combined" window — session numbering only applies to session-keyed
 	/// windows). Drives the `PlatformSessionBadge` row.
 	func applySessionNumber(_ number: Int?)
+	/// User-set rename label for this session (from `SessionLabelStore`), or
+	/// `nil` to fall back to "Session N". No-op for plain-origin/"combined"
+	/// windows, mirroring `applySessionNumber`.
+	func applySessionLabel(_ label: String?)
+	/// Last submitted prompt for this exact session, shown as a delayed hover
+	/// tooltip on the session badge. `nil`/empty clears the tooltip.
+	func applySessionTooltip(_ summary: String?)
 }
 
 extension FloatingPetWindowControlling {
 	func applySessionNumber(_ number: Int?) {}
+	func applySessionLabel(_ label: String?) {}
+	func applySessionTooltip(_ summary: String?) {}
 }
 
 @MainActor
@@ -45,6 +54,10 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 	/// Assigned session number for this panel (nil clears the session badge row).
 	func applySessionNumber(_ number: Int?)
+	/// User-set rename label for this session, or `nil` to fall back to "Session N".
+	func applySessionLabel(_ label: String?)
+	/// Last submitted prompt for this exact session, shown as a delayed hover tooltip.
+	func applySessionTooltip(_ summary: String?)
 }
 
 extension FloatingPetPanelManaging {
@@ -57,6 +70,8 @@ extension FloatingPetPanelManaging {
 	func setHUDDemoActive(_ active: Bool) {}
 	func setHUDPinned(_ pinned: Bool) {}
 	func applySessionNumber(_ number: Int?) {}
+	func applySessionLabel(_ label: String?) {}
+	func applySessionTooltip(_ summary: String?) {}
 }
 
 @MainActor
@@ -155,6 +170,14 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 
 	func applySessionNumber(_ number: Int?) {
 		panel.applySessionNumber(number)
+	}
+
+	func applySessionLabel(_ label: String?) {
+		panel.applySessionLabel(label)
+	}
+
+	func applySessionTooltip(_ summary: String?) {
+		panel.applySessionTooltip(summary)
 	}
 
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {

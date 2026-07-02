@@ -87,6 +87,25 @@ enum PromptAttentionReader {
 		return latest?.summary ?? ""
 	}
 
+	/// The last submitted prompt summary for one exact session, keyed by the
+	/// full `"origin:session_id"` string — unlike `latestSummary(origin:)`,
+	/// which collapses every session under an origin and returns whichever is
+	/// newest, this looks up a single `by_session` entry directly so a
+	/// per-session tooltip never leaks another session's prompt.
+	static func summary(
+		forSessionKey key: String,
+		at path: String = CodogotchiFolders.promptAttentionPath()
+	) -> String {
+		let url = URL(fileURLWithPath: path)
+		guard let data = try? Data(contentsOf: url) else { return "" }
+		let decoder = JSONDecoder()
+		decoder.keyDecodingStrategy = .convertFromSnakeCase
+		guard let payload = try? decoder.decode(PromptAttentionPayload.self, from: data) else {
+			return ""
+		}
+		return payload.bySession[key]?.summary ?? ""
+	}
+
 	private static func parseDate(_ value: String?) -> Date? {
 		guard let value else { return nil }
 		let formatter = ISO8601DateFormatter()

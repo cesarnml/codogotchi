@@ -252,6 +252,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 							origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
 						)
 					}
+					// Right-click "Rename…" (P15.06): `origin` here is the resolved
+					// render key, which for a session-keyed window IS already the
+					// "origin:session_id" SessionLabelStore key — no identity lookup
+					// needed.
+					panel.onRenameRequested = { newLabel in
+						SessionLabelStore.setLabel(newLabel, for: origin)
+					}
 					panel.onHideFloatingPet = { [weak self, weak controller] in
 						guard let self, let controller else { return }
 						// Find this controller's origin in the pool and dismiss

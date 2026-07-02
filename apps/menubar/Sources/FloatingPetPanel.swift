@@ -572,6 +572,16 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// `nil` for a plain-origin/combined window. Drives the `PlatformSessionBadge`
 	/// row beneath the platform chip + animation badge.
 	private var currentSessionNumber: Int?
+	/// User-set rename label for this session (P15.06), or `nil` to fall back
+	/// to "Session N".
+	private var currentSessionLabel: String?
+	/// Last submitted prompt for this session, shown as a delayed hover
+	/// tooltip on the session badge.
+	private var currentSessionTooltip: String?
+	/// Fired with the trimmed/capped label the user commits via the
+	/// right-click rename affordance. Wired by the caller (`MenubarApp`) to
+	/// persist to `SessionLabelStore` — this panel never writes the sidecar.
+	var onRenameRequested: ((String) -> Void)?
 
 	// RPG HUD — shown on hover, and transiently revealed on animation moments
 	// (lose/gain a half-heart, level up) when not hovering.
@@ -761,6 +771,20 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	func applySessionNumber(_ number: Int?) {
 		guard currentSessionNumber != number else { return }
 		currentSessionNumber = number
+		(panel?.contentView as? FloatingPetInteractionView)?.hasActiveSessionBadge = number != nil
+		repositionAndShowAnimationBadge()
+	}
+
+	func applySessionLabel(_ label: String?) {
+		guard currentSessionLabel != label else { return }
+		currentSessionLabel = label
+		(panel?.contentView as? FloatingPetInteractionView)?.currentSessionLabel = label
+		repositionAndShowAnimationBadge()
+	}
+
+	func applySessionTooltip(_ summary: String?) {
+		guard currentSessionTooltip != summary else { return }
+		currentSessionTooltip = summary
 		repositionAndShowAnimationBadge()
 	}
 
@@ -1037,6 +1061,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
 			sessionNumber: currentSessionNumber,
+			sessionLabel: currentSessionLabel,
+			sessionTooltip: currentSessionTooltip,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
@@ -1144,6 +1170,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
 			sessionNumber: currentSessionNumber,
+			sessionLabel: currentSessionLabel,
+			sessionTooltip: currentSessionTooltip,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
@@ -1236,6 +1264,13 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		view.isForceIdleAvailable = FloatingPetHidePrompt.offersForceIdle(for: currentState)
 		view.forceIdleHandler = { [weak self] in
 			self?.onForceIdle?()
+		}
+		view.hasActiveSessionBadge = currentSessionNumber != nil
+		view.currentSessionLabel = currentSessionLabel
+		view.renameHandler = { [weak self] newLabel in
+			self?.currentSessionLabel = newLabel
+			self?.onRenameRequested?(newLabel)
+			self?.repositionAndShowAnimationBadge()
 		}
 		view.holdDeEscalationHandler = { [weak self] in
 			self?.scene?.decrementIdleEscalation()
@@ -1638,6 +1673,8 @@ final class AnimationBadgePanel: NSPanel {
 		platform: PlatformAttribution?,
 		inFlight: Bool,
 		sessionNumber: Int? = nil,
+		sessionLabel: String? = nil,
+		sessionTooltip: String? = nil,
 		relativeTo petFrame: CGRect,
 		visibleFrame: CGRect
 	) {
@@ -1647,7 +1684,7 @@ final class AnimationBadgePanel: NSPanel {
 			inFlight: inFlight,
 			metrics: AnimationBadgeLayout.metrics(for: petFrame)
 		)
-		badgeView.configureSessionNumber(sessionNumber)
+		badgeView.configureSessionNumber(sessionNumber, label: sessionLabel, tooltip: sessionTooltip)
 		let size = badgeView.preferredSize
 		let frame = AnimationBadgeLayout.frame(
 			relativeTo: petFrame,
@@ -2102,14 +2139,19 @@ final class PlatformSessionBadge: NSView {
 
 	/// Configures the badge for session `number` and returns whether it should
 	/// be visible at all — `nil` (no session assigned, e.g. session-pets off or
-	/// a plain-origin/combined window) hides the row entirely.
-	func configure(number: Int?, metrics: GateBadgeLayout.Metrics) {
+	/// a plain-origin/combined window) hides the row entirely. `label`, when
+	/// present, replaces the "Session N" text with the user's rename (P15.06).
+	/// `tooltip` — the session's last submitted prompt — is shown by AppKit's
+	/// native delayed hover tooltip; empty/`nil` clears it.
+	func configure(number: Int?, label: String? = nil, tooltip: String? = nil, metrics: GateBadgeLayout.Metrics) {
 		self.metrics = metrics
 		if let number {
-			label.stringValue = "Session \(number)"
+			self.label.stringValue = (label?.isEmpty == false) ? label! : "Session \(number)"
 			isHidden = false
+			toolTip = (tooltip?.isEmpty == false) ? tooltip : nil
 		} else {
 			isHidden = true
+			toolTip = nil
 		}
 		applyMetrics()
 		invalidateIntrinsicContentSize()
@@ -2147,6 +2189,8 @@ final class AnimationBadgeView: NSView {
 		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
 	)
 	private var currentSessionNumber: Int?
+	private var currentSessionLabel: String?
+	private var currentSessionTooltip: String?
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -2195,16 +2239,22 @@ final class AnimationBadgeView: NSView {
 			stackView.removeArrangedSubview(chipView)
 			chipView.removeFromSuperview()
 		}
-		sessionBadge.configure(number: currentSessionNumber, metrics: metrics)
+		sessionBadge.configure(
+			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,
+			metrics: metrics)
 		layoutSubtreeIfNeeded()
 	}
 
 	/// Shows/hides and labels the session badge row beneath the chip + pill
-	/// row. `nil` hides the row entirely (session-pets off, or a
-	/// plain-origin/combined window).
-	func configureSessionNumber(_ number: Int?) {
+	/// row. `nil` number hides the row entirely (session-pets off, or a
+	/// plain-origin/combined window). `label`/`tooltip` are the rename text
+	/// and last-prompt hover tooltip (P15.06); both are `nil` until the pool
+	/// applies them on the same tick.
+	func configureSessionNumber(_ number: Int?, label: String? = nil, tooltip: String? = nil) {
 		currentSessionNumber = number
-		sessionBadge.configure(number: number, metrics: metrics)
+		currentSessionLabel = label
+		currentSessionTooltip = tooltip
+		sessionBadge.configure(number: number, label: label, tooltip: tooltip, metrics: metrics)
 		layoutSubtreeIfNeeded()
 	}
 
@@ -2239,6 +2289,9 @@ enum FloatingPetHidePrompt {
 	/// pet is stuck in a non-idle animation (see `offersForceIdle(for:)`); resets
 	/// the pet to idle by rewriting its `state.d/` slice.
 	static let forceIdleTitle = "Force Idle"
+	/// Title for the right-click "Rename" affordance, offered only on a
+	/// session-keyed window (P15.06).
+	static let renameTitle = "Rename…"
 	static let font = NSFont.systemFont(ofSize: 13, weight: .medium)
 	static let horizontalPadding: CGFloat = 14
 	static let verticalPadding: CGFloat = 7
@@ -2547,6 +2600,18 @@ private final class FloatingPetInteractionView: NSView {
 	/// Whether the right-click prompt should offer "Force Idle". Kept in sync by
 	/// the controller from the latest applied `ActivityState`.
 	var isForceIdleAvailable = false
+	/// Whether this window currently holds a session number (P15.06). Gates
+	/// the right-click "Rename" affordance — only session-keyed windows can
+	/// be renamed. Kept in sync by the controller from the latest applied
+	/// session number.
+	var hasActiveSessionBadge = false
+	/// This session's current rename label, if any — prefills the rename
+	/// alert's text field.
+	var currentSessionLabel: String?
+	/// Fired with the trimmed/capped label the user commits via the
+	/// right-click "Rename" affordance. Not fired when the user cancels or
+	/// commits an empty/whitespace-only label.
+	var renameHandler: ((String) -> Void)?
 	/// Fired when the pointer enters or leaves the pet frame. `true` = entered.
 	var onHoverChange: ((Bool) -> Void)?
 	/// Fired on every pointer event while tracking (moved, entered, exited).
@@ -2895,6 +2960,15 @@ private final class FloatingPetInteractionView: NSView {
 					self?.forceIdleHandler?()
 				})
 		}
+		// Rename is only meaningful for a session-keyed window (one that
+		// currently carries a session number); sits above "Hide pet".
+		if hasActiveSessionBadge {
+			items.append(
+				FloatingPetPromptItem(title: FloatingPetHidePrompt.renameTitle) { [weak self] in
+					self?.dismissHidePrompt()
+					self?.presentRenameAlert()
+				})
+		}
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.title) { [weak self] in
 				self?.dismissHidePrompt()
@@ -2911,6 +2985,26 @@ private final class FloatingPetInteractionView: NSView {
 		panel.orderFrontRegardless()
 		hidePromptPanel = panel
 		installHidePromptDismissObservers()
+	}
+
+	/// Presents a modal text-entry alert for renaming this session. Trims and
+	/// caps the result at `SessionLabelStore.maxLength`; an empty/whitespace
+	/// result (or Cancel) is treated as "no rename" and `renameHandler` is not
+	/// fired.
+	private func presentRenameAlert() {
+		let alert = NSAlert()
+		alert.messageText = "Rename Session"
+		alert.informativeText = "Up to \(SessionLabelStore.maxLength) characters."
+		alert.addButton(withTitle: "Rename")
+		alert.addButton(withTitle: "Cancel")
+		let field = NSTextField(frame: CGRect(x: 0, y: 0, width: 240, height: 24))
+		field.stringValue = currentSessionLabel ?? ""
+		alert.accessoryView = field
+		alert.window.initialFirstResponder = field
+		guard alert.runModal() == .alertFirstButtonReturn else { return }
+		let normalized = SessionLabelStore.normalize(field.stringValue)
+		guard !normalized.isEmpty else { return }
+		renameHandler?(normalized)
 	}
 
 	func dismissHidePromptIfPresent() {

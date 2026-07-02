@@ -26,11 +26,18 @@ final class FloatingPetWindowPool {
 	typealias MinimalistWindowFactory = (String) -> FloatingPetWindowControlling
 	typealias CustomizationReader = () -> CustomizationSnapshot
 	typealias AssignmentsReader = () -> AssignmentsSnapshot
+	/// Reads a session's rename label given its window key
+	/// (`"origin:session_id"` — the same string `SessionLabelStore` keys on).
+	typealias SessionLabelReader = (String) -> String?
+	/// Reads a session's last submitted prompt given its window key.
+	typealias SessionPromptSummaryReader = (String) -> String?
 
 	private let assignmentsReader: AssignmentsReader
 	private let customizationReader: CustomizationReader
 	private let windowFactory: WindowFactory
 	private let minimalistWindowFactory: MinimalistWindowFactory?
+	private let sessionLabelReader: SessionLabelReader
+	private let sessionPromptSummaryReader: SessionPromptSummaryReader
 	private let now: () -> Date
 
 	/// Active windows keyed by window key (the resolved render key, or "combined").
@@ -120,12 +127,18 @@ final class FloatingPetWindowPool {
 		},
 		windowFactory: @escaping WindowFactory,
 		minimalistWindowFactory: MinimalistWindowFactory? = nil,
+		sessionLabelReader: @escaping SessionLabelReader = { SessionLabelStore.label(for: $0) },
+		sessionPromptSummaryReader: @escaping SessionPromptSummaryReader = {
+			PromptAttentionReader.summary(forSessionKey: $0)
+		},
 		now: @escaping () -> Date = { Date() }
 	) {
 		self.assignmentsReader = assignmentsReader
 		self.customizationReader = customizationReader
 		self.windowFactory = windowFactory
 		self.minimalistWindowFactory = minimalistWindowFactory
+		self.sessionLabelReader = sessionLabelReader
+		self.sessionPromptSummaryReader = sessionPromptSummaryReader
 		self.now = now
 	}
 
@@ -300,6 +313,8 @@ final class FloatingPetWindowPool {
 				windows[renderKey]?.applyPlatform(origin: sourceOrigin)
 			}
 			windows[renderKey]?.applySessionNumber(sessionNumber(forWindowKey: renderKey))
+			windows[renderKey]?.applySessionLabel(sessionLabel(forWindowKey: renderKey))
+			windows[renderKey]?.applySessionTooltip(sessionPromptSummary(forWindowKey: renderKey))
 		}
 
 		// Step 8: spawn / update combined window
@@ -434,6 +449,22 @@ final class FloatingPetWindowPool {
 	func sessionNumber(forWindowKey key: String) -> Int? {
 		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return nil }
 		return sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
+	}
+
+	/// Rename label for `windowKey`, or `nil` for a plain-origin/"combined"
+	/// window, or a session-keyed window with no sidecar label set. The
+	/// window key for a session-keyed window IS the `SessionLabelStore` key
+	/// (`"origin:session_id"`), so no identity lookup is needed here.
+	func sessionLabel(forWindowKey key: String) -> String? {
+		guard isSessionKeyed(key) else { return nil }
+		return sessionLabelReader(key)
+	}
+
+	/// Last submitted prompt for `windowKey`'s exact session, or `nil` for a
+	/// plain-origin/"combined" window.
+	func sessionPromptSummary(forWindowKey key: String) -> String? {
+		guard isSessionKeyed(key) else { return nil }
+		return sessionPromptSummaryReader(key)
 	}
 
 	// MARK: - Private helpers
