@@ -95,13 +95,16 @@ final class SpeechBubblePanel: NSPanel {
 		set { bubbleView.onAction = newValue }
 	}
 
-	/// Configures the session-cap conflict notice: a first-person line as if
-	/// the codogotchi itself is speaking, not a formal platform alert.
+	/// Configures the session-cap conflict notice. The title names what's
+	/// actually happening (the render cap, in Settings' own vocabulary); the
+	/// message names the two real user actions — raise the cap, or free a
+	/// slot via right-click "Prune Session" — rather than a "pick who stays"
+	/// framing Settings can't actually do.
 	func configureConflict(origin: String?) {
 		bubbleView.configure(
 			icon: NSImage(systemSymbolName: "bubble.left.fill", accessibilityDescription: nil),
-			title: "Codogotchi",
-			message: "Too many of us here — pick who stays in Settings.",
+			title: "Session Cap Reached",
+			message: "Right-click a panel to Prune a Session, or raise the cap in Settings.",
 			actionTitle: "Settings"
 		)
 	}
