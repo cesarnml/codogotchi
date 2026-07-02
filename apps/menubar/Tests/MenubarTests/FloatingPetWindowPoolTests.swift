@@ -14,6 +14,8 @@ private final class StubWindowController: FloatingPetWindowControlling {
     var appliedRPGStates: [(Int, Double, Int, Int, Bool)] = []
     var appliedGateBadges: [GateBadgeContent?] = []
     var appliedSessionNumbers: [Int?] = []
+    var appliedSessionLabels: [String?] = []
+    var appliedSessionTooltips: [String?] = []
 
     func setFloatingPetVisible(_ visible: Bool) { isFloatingPetVisible = visible }
     func apply(state: ActivityState, visualMode: VisualMode) { appliedStates.append((state, visualMode)) }
@@ -27,6 +29,8 @@ private final class StubWindowController: FloatingPetWindowControlling {
     func applyPlatform(origin: String?) { appliedPlatforms.append(origin) }
     func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) { replacePetsCallCount += 1 }
     func applySessionNumber(_ number: Int?) { appliedSessionNumbers.append(number) }
+    func applySessionLabel(_ label: String?) { appliedSessionLabels.append(label) }
+    func applySessionTooltip(_ summary: String?) { appliedSessionTooltips.append(summary) }
 }
 
 @MainActor
@@ -1268,6 +1272,71 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(pool.activeOrigins, ["combined"])
 		XCTAssertNil(pool.sessionNumber(forWindowKey: "combined"))
 	}
+
+	// MARK: - P15.06 Session label resolution
+
+	func testSessionKeyedWindowWithSidecarLabelDisplaysItInsteadOfSessionN() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { key in key == "codex:s1" ? "Refactor pass" : nil }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Refactor pass")
+	}
+
+	func testSessionKeyedWindowWithoutSidecarLabelAppliesNilLabel() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, nil)
+	}
+
+	func testPlainOriginWindowNeverAppliesASessionLabelEvenIfReaderHasOne() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": false])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in "should never surface" }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex"]?.appliedSessionLabels, [nil])
+	}
 }
 
 final class PromptAttentionReaderTests: XCTestCase {
@@ -1331,6 +1400,46 @@ final class PromptAttentionReaderTests: XCTestCase {
 		try json.write(to: url, atomically: true, encoding: .utf8)
 
 		XCTAssertEqual(PromptAttentionReader.latestSummary(origin: "codex", at: url.path), "")
+	}
+
+	// MARK: - P15.06 exact session-key lookup (not origin-collapsed)
+
+	func testSummaryForSessionKeyReadsOnlyThatExactKey() throws {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("PromptAttentionReaderTests-\(UUID().uuidString)", isDirectory: true)
+		try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let url = dir.appendingPathComponent("prompt-attention.json")
+		let json = """
+			{
+			  "by_session": {
+			    "codex:s1": {
+			      "updated_at": "2026-06-30T09:00:00.000Z",
+			      "summary": "s1 prompt"
+			    },
+			    "codex:s2": {
+			      "updated_at": "2026-06-30T11:00:00.000Z",
+			      "summary": "s2 prompt, newer than s1"
+			    }
+			  }
+			}
+			"""
+		try json.write(to: url, atomically: true, encoding: .utf8)
+
+		XCTAssertEqual(PromptAttentionReader.summary(forSessionKey: "codex:s1", at: url.path), "s1 prompt")
+		XCTAssertEqual(PromptAttentionReader.summary(forSessionKey: "codex:s2", at: url.path), "s2 prompt, newer than s1")
+	}
+
+	func testSummaryForSessionKeyAbsentOrMalformedFileReturnsEmpty() throws {
+		let missing = FileManager.default.temporaryDirectory
+			.appendingPathComponent("missing-prompt-attention-\(UUID().uuidString).json")
+		XCTAssertEqual(PromptAttentionReader.summary(forSessionKey: "codex:s1", at: missing.path), "")
+
+		let malformed = FileManager.default.temporaryDirectory
+			.appendingPathComponent("bad-prompt-attention-\(UUID().uuidString).json")
+		try "{".write(to: malformed, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: malformed) }
+		XCTAssertEqual(PromptAttentionReader.summary(forSessionKey: "codex:s1", at: malformed.path), "")
 	}
 }
 
