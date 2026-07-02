@@ -147,7 +147,7 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
 - **Status:** WAITING — 1 occurrence. Needs ≥1 more to confirm before promoting.
 
 ### `new-enum-case-skips-existing-transition-matrix`
-- **Seen:** 1× — `codogotchi-06` (P14). `FloatingPetWindowPool` already had
+- **Seen:** 2× — `codogotchi-06` (P14). `FloatingPetWindowPool` already had
   explicit per-tick teardown for `own->off` and `own->combined` mode
   transitions (each added when an earlier ticket needed that specific pair).
   P14.06 added a third `PlatformMode` case, `.minimalist`, routed through the
@@ -155,21 +155,42 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   matrix against the now-3-case enum, so `own<->minimalist` had zero teardown.
   Switching a platform's mode in Settings silently no-op'd (the stale window
   kept running) unless TTL or restart happened to clear it.
+  `codogotchi-28` (P15 QC, same file): P15.03's `resolveRenderKeys` moved
+  combined-mode folding upstream (pre-folding to the literal `"combined"` key
+  before the pool ever sees the snapshot), but Step 6a's `own/minimalist ->
+  combined` teardown still scanned the snapshot's own keys to find what to
+  collapse — a reactive, one-pair-at-a-time branch exactly like `codogotchi-06`'s.
+  With pre-folded input the origin's key never reappeared, so the branch never
+  ran. A second, distinct bug on the same transition matrix also surfaced:
+  `combined -> own/minimalist` teardown gated dismissal on last-active TTL
+  immunity even when zero origins were combined-mode anymore, which could
+  nondeterministically stick on a same-tick timestamp tie.
 - **Proposed clause:** *"When a ticket adds a new case to an enum that drives a
-  switch/factory dispatch inside a stateful pool or registry, enumerate the
-  full N x N transition matrix against the cases that already have explicit
-  teardown — do not assume the new case only needs a spawn path. Each existing
-  teardown branch (`if mode == X` cleanup) was added reactively for one pair;
-  a new case is invisible to all of them unless someone re-derives the matrix."*
-- **Caveat that blocks naive promotion:** this is a sibling of
-  `side-effect-call-dropped-or-mis-targeted-in-refactor` (both are
-  "old owner's behavior not re-established for the new path") but the trigger
-  here is enum-case *addition*, not a structural refactor — the diff adds new
-  code without touching the existing branches at all, so a diff-reading
-  reviewer has less to anchor on. May fold into that class on a second
-  occurrence rather than standing alone.
-- **Status:** WAITING — single instance. Needs ≥1 more occurrence (ideally a
-  non-Swift-pool example) to decide standalone vs. merge.
+  switch/factory dispatch inside a stateful pool or registry, OR refactors
+  where/how an existing case's data is shaped upstream, enumerate the full
+  N x N transition matrix against every reactive, one-pair-at-a-time teardown
+  branch already in the pool — do not assume an existing branch still fires
+  correctly just because its code is untouched. Each teardown branch
+  (`if mode == X` cleanup, `if renderKey in someSnapshotSet` cleanup) was added
+  reactively for one pair under one specific data shape; a new case OR a
+  changed upstream data shape can silently make an existing branch's condition
+  never match, without anyone touching that branch's code."*
+- **Relationship to `side-effect-call-dropped-or-mis-targeted-in-refactor`:**
+  still a close sibling ("old assumption not re-established for the new
+  shape/case"), but now confirmed on TWO distinct triggers — enum-case
+  addition (`codogotchi-06`) and an upstream data-shape refactor
+  (`codogotchi-28`) — both landing in the exact same pool file's reactive
+  per-pair teardown branches. That recurrence in the SAME file is itself a
+  signal: `FloatingPetWindowPool`'s teardown structure (N reactive branches,
+  one per historically-needed transition pair) is a standing liability that
+  will keep producing this class until the pool re-derives its full
+  transition matrix from mode + snapshot-shape invariants instead of
+  accreting one branch per past ticket.
+- **Status:** AT THRESHOLD (2×, same file, two different triggers). Strong
+  candidate to promote a review-prompt clause; also strong candidate for a
+  standalone follow-up ticket to refactor `FloatingPetWindowPool`'s teardown
+  into a single derived-matrix pass rather than N reactive branches. Route
+  both through planning/the review-template owner.
 
 ### `flagged-spec-divergence-dropped-without-escalation`
 - **Seen:** 1× — P14.06 (minimalist window). The subagent review prompt itself
