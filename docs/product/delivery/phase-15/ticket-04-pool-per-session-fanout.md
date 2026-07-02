@@ -38,8 +38,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [record any deviation from the ticket metadata contract here]
+Red first: `testSessionPetsOnFansOutOneWindowPerActiveSession` — with session keys the pool resolved the pet from the raw key (`resolve(origin: "claude_code:s1")` misses the platform override) and the own-path platform chip was applied to `windows[sourceEvent.origin]`, which does not exist in the session-keyed window space. `testCombinedModeWithTwoSessionsFoldsToSingleCombinedWindow` also failed red: the driver's pre-folded `"combined"` key fell down the own-mode path (mode lookup on the literal key), losing the idle ⭐ Default badge.
+Why this path: widened the existing key-typed dictionaries to resolved render keys (per the ticket's Refactor note) instead of adding a session map. `windowKey(for:)` is the sole branch site and accepts both input shapes: the driver's pre-folded `"combined"` and the unfolded per-origin maps the pre-existing tests feed, so the collapsed case stays byte-identical and the whole existing suite is the regression net. Pet identity, mode lookup, and the minimalist platform chip derive the owning origin from the key via one static helper (`origin(forWindowKey:)`), which MenubarApp reuses for winner-writer scoping and pet reload.
+Alternative considered: a parallel `[origin: [sessionId: Window]]` map — rejected (two keyed spaces to keep consistent; every invariant — TTL, immunity, hide-set, teardown — would need dual bookkeeping; the ticket names this anti-pattern explicitly).
+Deferred: per-session-precise Force Idle / attention dismiss — the winner-only writers still target the owning origin's freshest slice (a session window's right-click Force Idle may reset a fresher sibling session's slice); session-keyed writer scoping belongs with P15.07's session-keyed TTL/prune work. Session-window frame persistence keys off the raw render key, so saved positions are per opaque session id — disposable by design, like the in-memory auto-number (P15.05).
+Contract note: gate-badge lookup on the combined path moved from the winning origin to the winning entry's render key — byte-identical for unfolded input (key == origin) and required for pre-folded input, where the driver keys the badge under `"combined"`.

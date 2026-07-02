@@ -80,14 +80,35 @@ private func makeCustomization(
     ttlSeconds: Int = 300,
     monochrome: Bool = false,
     combinedMinimalistEnabled: Bool = false,
-    minimalistBadgeScale: Double = 1.0
+    minimalistBadgeScale: Double = 1.0,
+    sessionPetsEnabled: [String: Bool] = [:]
 ) -> CustomizationSnapshot {
     CustomizationSnapshot(
         platformModes: platformModes,
         idleDismissTtlSeconds: ttlSeconds,
         menubarIconMonochrome: monochrome,
         combinedMinimalistEnabled: combinedMinimalistEnabled,
-        minimalistBadgeScale: minimalistBadgeScale
+        minimalistBadgeScale: minimalistBadgeScale,
+        sessionPetsEnabled: sessionPetsEnabled
+    )
+}
+
+/// Builds the pool input exactly the way `LivePollingDriver` does: a raw
+/// per-session map (keyed `origin:session_id`) collapsed through
+/// `resolveRenderKeys` for the given customization, with the parallel
+/// identity map carried alongside. Fan-out tests must use this so they
+/// exercise the real resolver→pool seam rather than hand-built render keys.
+private func makeResolvedSnapshot(
+    perSession: [String: StateSnapshot],
+    customization: CustomizationSnapshot,
+    gateBadges: [String: GateBadgeContent] = [:]
+) -> PerPlatformSnapshot {
+    let resolution = resolveRenderKeys(perSession: perSession, customization: customization)
+    return PerPlatformSnapshot(
+        perPlatform: resolution.states,
+        gateBadges: gateBadges,
+        rpgSnapshot: .safeDefault,
+        renderKeyIdentities: resolution.identities
     )
 }
 
@@ -867,6 +888,232 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 
 		XCTAssertTrue(petFactoryCalls.isEmpty, "minimalist mode must not fall back to the pet/HUD window factory")
 		XCTAssertFalse(pool.activeOrigins.contains("codex"), "minimalist mode without a factory must fail closed")
+	}
+
+	// MARK: - P15.04 Per-session window fan-out
+
+	/// (1) Session-pets on: each active `origin:session_id` gets its own window,
+	/// every session window resolves the ORIGIN's assigned pet (the session id
+	/// must not leak into pet resolution), and the platform chip is applied to
+	/// the session window itself, not looked up under the bare origin key.
+	func testSessionPetsOnFansOutOneWindowPerActiveSession() {
+		var createdPetIds: [String: String] = [:]
+		var stubs: [String: StubWindowController] = [:]
+		let assignments = AssignmentsSnapshot(
+			default: DEFAULT_PET_NAME,
+			platformOverrides: ["claude_code": "mali"]
+		)
+		let customization = makeCustomization(sessionPetsEnabled: ["claude_code": true])
+		let pool = FloatingPetWindowPool(
+			assignmentsReader: { assignments },
+			customizationReader: { customization },
+			windowFactory: { key, petId in
+				createdPetIds[key] = petId
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+		let sourceEvent = SourceEvent(origin: "claude_code", kind: "hook", name: "Claude Code")
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z", sourceEvent: sourceEvent),
+				"claude_code:s2": makeSnapshot(updated: "2026-07-01T10:00:01.000Z", sourceEvent: sourceEvent),
+			],
+			customization: customization
+		))
+
+		XCTAssertEqual(
+			Set(pool.activeOrigins), Set(["claude_code:s1", "claude_code:s2"]),
+			"session-pets on must spawn one window per active session, keyed origin:session_id"
+		)
+		XCTAssertEqual(
+			createdPetIds["claude_code:s1"], "mali",
+			"session windows must resolve the pet by ORIGIN — the session id must not defeat the override"
+		)
+		XCTAssertEqual(createdPetIds["claude_code:s2"], "mali")
+		XCTAssertEqual(
+			stubs["claude_code:s1"]?.appliedPlatforms.last ?? nil, "claude_code",
+			"the platform chip must land on the session window itself"
+		)
+		XCTAssertEqual(stubs["claude_code:s2"]?.appliedPlatforms.last ?? nil, "claude_code")
+	}
+
+	/// (2) Session-pets off: two sessions for one origin collapse to a single
+	/// plain-origin window — byte-identical to pre-Phase-15 behavior.
+	func testSessionPetsOffCollapsesSessionsToOneOriginWindow() {
+		var created: [String] = []
+		let customization = makeCustomization()
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				created.append(key)
+				return StubWindowController()
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:s2": makeSnapshot(updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+
+		XCTAssertEqual(pool.activeOrigins, ["claude_code"], "session-pets off must fold sessions to the plain origin key")
+		XCTAssertEqual(created, ["claude_code"], "exactly one window must spawn for the collapsed origin")
+	}
+
+	/// (3) Per-session TTL: an idle session past the TTL is dismissed while a
+	/// still-working sibling session on the same origin survives — the TTL
+	/// clock and dismissal operate on the resolved key, not the origin.
+	func testIdleSessionAgesOutWhileActiveSiblingSessionSurvives() {
+		var currentTime = Date(timeIntervalSinceReferenceDate: 0)
+		let customization = makeCustomization(ttlSeconds: 60, sessionPetsEnabled: ["claude_code": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() },
+			now: { currentTime }
+		)
+		let perSession = [
+			"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+			"claude_code:busy-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+		]
+		pool.update(snapshot: makeResolvedSnapshot(perSession: perSession, customization: customization))
+		XCTAssertEqual(Set(pool.activeOrigins), Set(["claude_code:idle-one", "claude_code:busy-one"]))
+
+		currentTime = currentTime.addingTimeInterval(61)
+		pool.update(snapshot: makeResolvedSnapshot(perSession: perSession, customization: customization))
+
+		XCTAssertEqual(
+			pool.activeOrigins, ["claude_code:busy-one"],
+			"only the idle session past TTL is dismissed; the active sibling session must survive"
+		)
+	}
+
+	/// (4) Combined mode with two sessions still folds to one "combined" window,
+	/// even with session-pets enabled for the origin, and keeps the combined
+	/// window's idle ⭐ Default badge behavior (`applyPlatform("combined")`).
+	func testCombinedModeWithTwoSessionsFoldsToSingleCombinedWindow() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(
+			platformModes: ["claude_code": .combined],
+			sessionPetsEnabled: ["claude_code": true]
+		)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:s1": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:s2": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+
+		XCTAssertEqual(pool.activeOrigins, ["combined"], "combined mode must fold all sessions to the single shared window")
+		XCTAssertEqual(
+			stubs["combined"]?.appliedPlatforms.last ?? nil, "combined",
+			"the folded combined window must keep the idle ⭐ Default badge behavior"
+		)
+	}
+
+	/// (5) own→minimalist toggle tears down and respawns the correct controller
+	/// type for EACH of that platform's session windows without resetting other
+	/// platforms' windows.
+	func testOwnToMinimalistRespawnsEachSessionWindowWithoutResettingOthers() {
+		var petFactoryCalls: [String] = []
+		var minimalistFactoryCalls: [String] = []
+		var currentModes: [String: PlatformMode] = ["codex": .own]
+		var stubs: [String: StubWindowController] = [:]
+		let customization: () -> CustomizationSnapshot = {
+			makeCustomization(
+				platformModes: currentModes,
+				sessionPetsEnabled: ["codex": true]
+			)
+		}
+		let pool = FloatingPetWindowPool(
+			customizationReader: customization,
+			windowFactory: { key, _ in
+				petFactoryCalls.append(key)
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			minimalistWindowFactory: { key in
+				minimalistFactoryCalls.append(key)
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+		let perSession = [
+			"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			"codex:s2": makeSnapshot(updated: "2026-07-01T10:00:01.000Z"),
+			"cursor:main": makeSnapshot(updated: "2026-07-01T10:00:02.000Z"),
+		]
+		pool.update(snapshot: makeResolvedSnapshot(perSession: perSession, customization: customization()))
+		XCTAssertEqual(Set(petFactoryCalls), Set(["codex:s1", "codex:s2", "cursor"]))
+		XCTAssertTrue(minimalistFactoryCalls.isEmpty)
+		let cursorStubBeforeToggle = stubs["cursor"]
+
+		currentModes["codex"] = .minimalist
+		pool.update(snapshot: makeResolvedSnapshot(perSession: perSession, customization: customization()))
+
+		XCTAssertEqual(
+			Set(minimalistFactoryCalls), Set(["codex:s1", "codex:s2"]),
+			"each codex session window must respawn through the minimalist factory after the toggle"
+		)
+		XCTAssertEqual(
+			Set(petFactoryCalls), Set(["codex:s1", "codex:s2", "cursor"]),
+			"the pet factory must not run again for the toggled platform or for cursor"
+		)
+		XCTAssertTrue(
+			stubs["cursor"] === cursorStubBeforeToggle,
+			"toggling codex must not tear down or respawn cursor's window"
+		)
+		XCTAssertEqual(Set(pool.activeOrigins), Set(["codex:s1", "codex:s2", "cursor"]))
+	}
+
+	/// Review-focus guard: a pet reassignment for an origin live-swaps ALL of
+	/// that origin's session windows and leaves other platforms untouched.
+	func testReplacePetLiveSwapsAllSessionWindowsOfTheOrigin() throws {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+				"codex:s2": makeSnapshot(updated: "2026-07-01T10:00:01.000Z"),
+				"cursor:main": makeSnapshot(updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), Set(["codex:s1", "codex:s2", "cursor"]))
+
+		let pet = try CodexPet(petDirectory: maliFixtureDirectory())
+		pool.replacePet(origin: "codex", codexPet: pet, codogotchiPet: nil)
+
+		XCTAssertEqual(
+			stubs["codex:s1"]?.replacePetsCallCount, 1,
+			"replacePet must live-swap every session window of the target origin"
+		)
+		XCTAssertEqual(stubs["codex:s2"]?.replacePetsCallCount, 1)
+		XCTAssertEqual(
+			stubs["cursor"]?.replacePetsCallCount, 0,
+			"replacePet must not touch other platforms' windows"
+		)
 	}
 }
 
