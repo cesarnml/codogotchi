@@ -85,3 +85,18 @@ Contract note: none — implementation matches the ticket's Green/Refactor
 sections; `SessionLabelStore` and the session-key tooltip lookup are
 independently testable (no view coupling), and the rename UI/pool both
 consume them exactly as specified.
+
+Post-subagent-review patch: the review correctly flagged that
+`AnimationBadgePanel.ignoresMouseEvents = true` (click-through by default,
+set at panel init) blocked `NSView.toolTip` from ever firing — AppKit only
+delivers the mouse-entered notification the tooltip mechanism depends on when
+the window actually accepts mouse events, so the tooltip was wired end-to-end
+but silently never displayed. Fixed by toggling `ignoresMouseEvents` off only
+while `sessionTooltip` is non-empty (`AnimationBadgePanel.reposition`), so the
+badge stays click-through in every other case; the badge has no click handler
+of its own, so this never intercepts input meant for something else. Added
+`AnimationBadgePanelTests` covering the on/off/reverts-to-on transitions. The
+review also flagged a stale `PlatformSessionBadge` doc comment claiming
+"rename support is out of scope for this ticket (P15.06)" — a carry-over from
+the P15.05 stub that was never updated; corrected to describe the actual
+rename/tooltip behavior this ticket delivers.

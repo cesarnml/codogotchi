@@ -1685,6 +1685,15 @@ final class AnimationBadgePanel: NSPanel {
 			metrics: AnimationBadgeLayout.metrics(for: petFrame)
 		)
 		badgeView.configureSessionNumber(sessionNumber, label: sessionLabel, tooltip: sessionTooltip)
+		// `NSView.toolTip` only fires while its window actually receives mouse
+		// events — with `ignoresMouseEvents` true (the default, so the badge
+		// stays click-through when idle) AppKit never delivers the
+		// mouse-entered notification the tooltip mechanism depends on, so the
+		// string would be set but silently never shown. Accept mouse events
+		// only while there is a tooltip to display; the badge has no click
+		// handler of its own either way, so this never intercepts a click the
+		// user meant for something else.
+		ignoresMouseEvents = (sessionTooltip?.isEmpty ?? true)
 		let size = badgeView.preferredSize
 		let frame = AnimationBadgeLayout.frame(
 			relativeTo: petFrame,
@@ -2091,11 +2100,13 @@ final class AnimationLabelPillView: NSView {
 }
 
 /// Session-label pill shown as a second row beneath the platform chip +
-/// animation badge, centered horizontally. Renders "Session N" for the
-/// number assigned by `SessionNumberAllocator`; rename support is out of
-/// scope for this ticket (P15.06), so the label is always this fixed format.
-/// Reuses the same frosted chrome and `GateBadgeLayout.Metrics` scaling as
-/// the animation badge pill — single source of scaling truth.
+/// animation badge, centered horizontally. Renders the user's rename label
+/// (from `SessionLabelStore`, via `configure(number:label:tooltip:metrics:)`)
+/// when set, else falls back to "Session N" for the number assigned by
+/// `SessionNumberAllocator`. `tooltip` exposes the session's last submitted
+/// prompt as a native `NSView.toolTip` (P15.06). Reuses the same frosted
+/// chrome and `GateBadgeLayout.Metrics` scaling as the animation badge pill —
+/// single source of scaling truth.
 final class PlatformSessionBadge: NSView {
 	private let effectView = AnimationBadgeChrome.makeEffectView()
 	private let tintView = AnimationBadgeChrome.makeTintView()
