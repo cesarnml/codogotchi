@@ -235,27 +235,42 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						self?.updateAppNapOptOut()
 					}
 					// Persist the dismiss/focus so the next poll tick does not re-read
-					// the still-present `attention` and re-show the bubble. Scope the
-					// clear to this window's origin in multi-pet mode; the shared
-					// "combined" window has no single origin, so it clears all slices.
+					// the still-present `attention` and re-show the bubble. A
+					// session-keyed window targets exactly its own slice (P15.04
+					// session-precise fix, see StateJsonWriter); a plain-origin or
+					// combined window has no single session to name, so it clears the
+					// winner slice per origin.
 					let stateDir = config.pollingTarget.path
 					panel.onAttentionDismissed = { [weak self] in
-						StateJsonWriter.dismissAttention(
-							at: stateDir,
-							origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
-						)
+						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
+							StateJsonWriter.dismissAttention(
+								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
+						} else {
+							StateJsonWriter.dismissAttention(
+								at: stateDir,
+								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
+							)
+						}
 					}
 					// Right-click "Force Idle" escape hatch: rewrite this pet's displayed
 					// slice back to idle so a stuck (rate-limited / manually-stopped)
-					// animation clears. A combined window folds several origins into one
-					// pet, so it resets exactly that combined set; an own window resets
-					// just its origin. Never all slices — that idles unrelated pets and
-					// resurrects aged-out ones by refreshing their mtimes.
+					// animation clears. A session-keyed window targets exactly its own
+					// slice — never a sibling session's, which right-clicking Force Idle
+					// used to reset if that sibling happened to be the freshest slice for
+					// the origin. A combined window folds several origins into one pet, so
+					// it resets exactly that combined set; a plain own window resets just
+					// its origin's winner slice. Never all slices — that idles unrelated
+					// pets and resurrects aged-out ones by refreshing their mtimes.
 					panel.onForceIdle = { [weak self] in
-						StateJsonWriter.forceIdle(
-							at: stateDir,
-							origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
-						)
+						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
+							StateJsonWriter.forceIdle(
+								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
+						} else {
+							StateJsonWriter.forceIdle(
+								at: stateDir,
+								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
+							)
+						}
 					}
 					// Right-click "Rename…" (P15.06): `origin` here is the resolved
 					// render key, which for a session-keyed window IS already the
@@ -297,22 +312,35 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					panel.onOpenSettingsRequested = { [weak self] in
 						self?.settingsWindowController?.show(tab: .customization)
 					}
-					// The combined-minimalist window folds several origins into one badge;
-					// scope both writes to that combined set (or the single origin).
+					// A session-keyed minimalist badge targets exactly its own slice
+					// (P15.04 session-precise fix); the combined-minimalist window folds
+					// several origins into one badge, so it scopes both writes to that
+					// combined set (or the single plain origin).
 					panel.onAttentionDismissed = { [weak self] in
-						StateJsonWriter.dismissAttention(
-							at: stateDir,
-							origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
-						)
+						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
+							StateJsonWriter.dismissAttention(
+								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
+						} else {
+							StateJsonWriter.dismissAttention(
+								at: stateDir,
+								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
+							)
+						}
 					}
 					// Right-click "Force Idle" escape hatch on the minimalist badge,
-					// mirroring Own mode; resets the combined set for the combined
-					// window, or just this origin otherwise.
+					// mirroring Own mode: a session-keyed badge resets exactly its own
+					// slice, never a fresher sibling session's; otherwise resets the
+					// combined set for the combined window, or just this origin.
 					panel.onForceIdle = { [weak self] in
-						StateJsonWriter.forceIdle(
-							at: stateDir,
-							origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
-						)
+						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
+							StateJsonWriter.forceIdle(
+								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
+						} else {
+							StateJsonWriter.forceIdle(
+								at: stateDir,
+								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
+							)
+						}
 					}
 					let savedFrame = AppStateStore.loadFrame(
 						for: origin, visibleFrame: Self.visibleFloatingFrame())

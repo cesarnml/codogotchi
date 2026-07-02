@@ -121,6 +121,20 @@ final class FloatingPetWindowPool {
 		return String(key[key.startIndex..<colon])
 	}
 
+	/// Splits a session-keyed window key (`origin:session_id`) into its parts,
+	/// or `nil` for a plain origin or the literal `"combined"` key — mirroring
+	/// `origin(forWindowKey:)`'s colon-split contract. Used to target a
+	/// session-precise Force Idle / dismiss-attention write at exactly the
+	/// clicked session's `state.d/` slice instead of falling back to
+	/// origin-only resolution, which can't distinguish which sibling session
+	/// the user actually clicked.
+	static func sessionIdentity(forWindowKey key: String) -> (origin: String, sessionId: String)? {
+		guard key != "combined", let colon = key.firstIndex(of: ":") else { return nil }
+		let origin = String(key[key.startIndex..<colon])
+		let sessionId = String(key[key.index(after: colon)...])
+		return (origin, sessionId)
+	}
+
 	private var userHiddenWindowKeys: Set<String> = []
 
 	/// Mode that was active when each window (keyed by window key) was spawned.

@@ -34,6 +34,26 @@ enum StateJsonWriter {
 		}
 	}
 
+	/// Session-precise variant for a session-keyed window: rewrites exactly
+	/// `origin:sessionId.json`, never a sibling session's slice. See
+	/// `resetExactSliceToIdle` for why no winner-selection scan is needed here.
+	static func dismissAttention(
+		at dir: String,
+		origin: String,
+		sessionId: String,
+		now: Date = Date(),
+		staleTTL: TimeInterval = 2 * 60 * 60,
+		queue: DispatchQueue = DispatchQueue.global(qos: .userInitiated),
+		completion: (() -> Void)? = nil
+	) {
+		queue.async {
+			resetExactSliceToIdle(at: dir, origin: origin, sessionId: sessionId, now: now, staleTTL: staleTTL)
+			if let completion {
+				DispatchQueue.main.async(execute: completion)
+			}
+		}
+	}
+
 	/// Escape hatch for a pet stuck in a non-idle animation because a prompt
 	/// failed (rate limit) or was manually stopped, so the hook never emitted a
 	/// terminal event and `state.d/` still names the stale in-flight state.
@@ -64,6 +84,31 @@ enum StateJsonWriter {
 		}
 		queue.async {
 			resetWinnersToIdle(at: dir, origins: origins, now: now, staleTTL: staleTTL)
+			if let completion {
+				DispatchQueue.main.async(execute: completion)
+			}
+		}
+	}
+
+	/// Session-precise variant for a session-keyed window: rewrites exactly
+	/// `origin:sessionId.json`, never a sibling session's slice. Fixes the
+	/// P15.04 advisory observation where right-clicking Force Idle on one
+	/// session window could reset a fresher sibling session's animation for
+	/// up to one polling period, because the origin-scoped overload's
+	/// freshest-wins selection can't distinguish which session the user
+	/// actually clicked. See `resetExactSliceToIdle` for why no scan is
+	/// needed once the exact session id is known.
+	static func forceIdle(
+		at dir: String,
+		origin: String,
+		sessionId: String,
+		now: Date = Date(),
+		staleTTL: TimeInterval = 2 * 60 * 60,
+		queue: DispatchQueue = DispatchQueue.global(qos: .userInitiated),
+		completion: (() -> Void)? = nil
+	) {
+		queue.async {
+			resetExactSliceToIdle(at: dir, origin: origin, sessionId: sessionId, now: now, staleTTL: staleTTL)
 			if let completion {
 				DispatchQueue.main.async(execute: completion)
 			}
@@ -117,5 +162,41 @@ enum StateJsonWriter {
 			else { continue }
 			try? out.write(to: winner.url, options: .atomic)
 		}
+	}
+
+	/// Rewrites exactly the `origin:sessionId.json` slice back to idle. Unlike
+	/// `resetWinnersToIdle`'s freshest-wins scan — which exists because a
+	/// collapsed/combined window has no single session to name — a
+	/// session-keyed window's render key already IS the exact identity, so
+	/// there is no ambiguity to resolve: `state.d/` slice filenames are
+	/// `origin:session_id.json` (filename-authoritative, matching
+	/// `StateJsonReader.parseSliceFilename`'s colon-split convention), so this
+	/// reads/writes exactly one file with no directory scan.
+	private static func resetExactSliceToIdle(
+		at dir: String,
+		origin: String,
+		sessionId: String,
+		now: Date,
+		staleTTL: TimeInterval
+	) {
+		let fm = FileManager.default
+		let path = (dir as NSString).appendingPathComponent("\(origin):\(sessionId).json")
+		// Skip a slice the reader would already ignore as stale, so we never
+		// refresh a long-dead slice's mtime and resurrect an aged-out pet.
+		if let attrs = try? fm.attributesOfItem(atPath: path),
+			let mtime = attrs[.modificationDate] as? Date,
+			now.timeIntervalSince(mtime) > staleTTL
+		{
+			return
+		}
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+			var root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+		else { return }
+		root["activity_state"] = "idle"
+		root.removeValue(forKey: "attention")
+		guard let out = try? JSONSerialization.data(
+			withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
+		else { return }
+		try? out.write(to: URL(fileURLWithPath: path), options: .atomic)
 	}
 }

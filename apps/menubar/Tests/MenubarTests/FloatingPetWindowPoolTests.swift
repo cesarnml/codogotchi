@@ -1643,6 +1643,22 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		))
 		XCTAssertEqual(stubs["codex"]?.appliedSessionTooltips, [nil])
 	}
+
+	// MARK: - sessionIdentity(forWindowKey:)
+
+	func testSessionIdentitySplitsOriginAndSessionIdForASessionKeyedKey() {
+		let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: "claude_code:s1")
+		XCTAssertEqual(identity?.origin, "claude_code")
+		XCTAssertEqual(identity?.sessionId, "s1")
+	}
+
+	func testSessionIdentityIsNilForAPlainOrigin() {
+		XCTAssertNil(FloatingPetWindowPool.sessionIdentity(forWindowKey: "claude_code"))
+	}
+
+	func testSessionIdentityIsNilForTheCombinedKey() {
+		XCTAssertNil(FloatingPetWindowPool.sessionIdentity(forWindowKey: "combined"))
+	}
 }
 
 final class PromptAttentionReaderTests: XCTestCase {

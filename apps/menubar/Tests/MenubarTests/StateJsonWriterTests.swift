@@ -345,4 +345,116 @@ final class StateJsonWriterTests: XCTestCase {
 			readSlice("codex:session1.json", in: dir)!["activity_state"] as? String, "thinking",
 			"forceIdle with no target origins must change nothing")
 	}
+
+	// MARK: - Session-precise forceIdle / dismissAttention (P15.04 fix)
+
+	private func runForceIdle(dir: URL, origin: String, sessionId: String, now: Date = Date()) {
+		let done = expectation(description: "forceIdle-exact")
+		StateJsonWriter.forceIdle(at: dir.path, origin: origin, sessionId: sessionId, now: now) {
+			done.fulfill()
+		}
+		wait(for: [done], timeout: 5)
+	}
+
+	private func runDismissAttention(dir: URL, origin: String, sessionId: String, now: Date = Date()) {
+		let done = expectation(description: "dismissAttention-exact")
+		StateJsonWriter.dismissAttention(at: dir.path, origin: origin, sessionId: sessionId, now: now) {
+			done.fulfill()
+		}
+		wait(for: [done], timeout: 5)
+	}
+
+	func testForceIdleWithExactSessionTargetsOnlyThatSliceEvenWhenASiblingIsFresher() {
+		let dir = makeStateDir()
+		// Two concurrent claude_code sessions; "new" is fresher and would be the
+		// only one touched by the origin-scoped winner-selection overload. The
+		// user right-clicked "old" specifically — Force Idle must reset exactly
+		// that session, not the fresher sibling it happens to share an origin with.
+		writeSlice(
+			"claude_code:old.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "reading",
+				"updated_at": "2026-07-01T10:00:00Z",
+				"source_event": ["origin": "claude_code"],
+			])
+		writeSlice(
+			"claude_code:new.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "thinking",
+				"updated_at": "2026-07-01T11:00:00Z",
+				"source_event": ["origin": "claude_code"],
+			])
+
+		runForceIdle(dir: dir, origin: "claude_code", sessionId: "old")
+
+		XCTAssertEqual(
+			readSlice("claude_code:old.json", in: dir)!["activity_state"] as? String, "idle",
+			"the exact clicked session must be reset to idle")
+		XCTAssertEqual(
+			readSlice("claude_code:new.json", in: dir)!["activity_state"] as? String, "thinking",
+			"a fresher sibling session must survive untouched — this is the P15.04 bug fix")
+	}
+
+	func testDismissAttentionWithExactSessionTargetsOnlyThatSliceEvenWhenASiblingIsFresher() {
+		let dir = makeStateDir()
+		writeSlice(
+			"claude_code:old.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "waiting_for_input",
+				"updated_at": "2026-07-01T10:00:00Z",
+				"attention": ["kind": "needs_input"],
+				"source_event": ["origin": "claude_code"],
+			])
+		writeSlice(
+			"claude_code:new.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "waiting_for_input",
+				"updated_at": "2026-07-01T11:00:00Z",
+				"attention": ["kind": "needs_input"],
+				"source_event": ["origin": "claude_code"],
+			])
+
+		runDismissAttention(dir: dir, origin: "claude_code", sessionId: "old")
+
+		let old = readSlice("claude_code:old.json", in: dir)!
+		XCTAssertEqual(old["activity_state"] as? String, "idle")
+		XCTAssertNil(old["attention"], "the exact clicked session's attention must be cleared")
+
+		let new = readSlice("claude_code:new.json", in: dir)!
+		XCTAssertEqual(
+			new["activity_state"] as? String, "waiting_for_input",
+			"a fresher sibling session must survive untouched")
+		XCTAssertNotNil(new["attention"], "a fresher sibling session's attention must survive untouched")
+	}
+
+	func testForceIdleWithExactSessionSkipsStaleMTimeSlice() {
+		let dir = makeStateDir()
+		let filename = "codex:ancient.json"
+		writeSlice(
+			filename, in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "thinking",
+				"source_event": ["origin": "codex"],
+			])
+		let now = Date()
+		setMTime(filename, in: dir, to: now.addingTimeInterval(-3 * 60 * 60))
+
+		runForceIdle(dir: dir, origin: "codex", sessionId: "ancient", now: now)
+
+		XCTAssertEqual(
+			readSlice(filename, in: dir)!["activity_state"] as? String, "thinking",
+			"a stale-mtime slice must not be rewritten even when targeted exactly")
+	}
+
+	func testForceIdleWithExactSessionIsNoOpWhenSliceIsAbsent() {
+		let dir = makeStateDir()
+		// Must not throw or crash when the exact slice does not exist.
+		runForceIdle(dir: dir, origin: "claude_code", sessionId: "missing")
+		XCTAssertNil(readSlice("claude_code:missing.json", in: dir))
+	}
 }
