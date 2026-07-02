@@ -113,4 +113,28 @@ final class SlicePrunerTests: XCTestCase {
 		let missing = dir.appendingPathComponent("nope").path
 		XCTAssertEqual(SlicePruner.prune(at: missing), 0)
 	}
+
+	// MARK: - Orphan label hygiene (P15.07)
+
+	func testPruneOrphanLabelsRemovesKeyWhoseSliceIsGone() {
+		let labelsFile = dir.appendingPathComponent("session-labels.json")
+		writeSlice("claude_code:live.json", mtimeAgo: 0)
+		SessionLabelStore.setLabel("Live", for: "claude_code:live", at: labelsFile.path)
+		SessionLabelStore.setLabel("Ghost", for: "claude_code:ghost", at: labelsFile.path)
+
+		let removed = SlicePruner.pruneOrphanLabels(dir: dir.path, labelPath: labelsFile.path)
+
+		XCTAssertEqual(removed, 1)
+		XCTAssertEqual(
+			SessionLabelStore.label(for: "claude_code:live", at: labelsFile.path), "Live",
+			"a label whose slice still exists must survive")
+		XCTAssertNil(
+			SessionLabelStore.label(for: "claude_code:ghost", at: labelsFile.path),
+			"a label whose slice no longer exists must be removed")
+	}
+
+	func testPruneOrphanLabelsIsNoOpWhenLabelsFileMissing() {
+		let labelsFile = dir.appendingPathComponent("session-labels.json")
+		XCTAssertEqual(SlicePruner.pruneOrphanLabels(dir: dir.path, labelPath: labelsFile.path), 0)
+	}
 }

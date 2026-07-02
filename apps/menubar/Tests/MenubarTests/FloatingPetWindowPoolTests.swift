@@ -89,7 +89,8 @@ private func makeCustomization(
     monochrome: Bool = false,
     combinedMinimalistEnabled: Bool = false,
     minimalistBadgeScale: Double = 1.0,
-    sessionPetsEnabled: [String: Bool] = [:]
+    sessionPetsEnabled: [String: Bool] = [:],
+    sessionCap: [String: Int] = [:]
 ) -> CustomizationSnapshot {
     CustomizationSnapshot(
         platformModes: platformModes,
@@ -97,7 +98,8 @@ private func makeCustomization(
         menubarIconMonochrome: monochrome,
         combinedMinimalistEnabled: combinedMinimalistEnabled,
         minimalistBadgeScale: minimalistBadgeScale,
-        sessionPetsEnabled: sessionPetsEnabled
+        sessionPetsEnabled: sessionPetsEnabled,
+        sessionCap: sessionCap
     )
 }
 
@@ -998,9 +1000,206 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		)
 	}
 
-	/// (4) Combined mode with two sessions still folds to one "combined" window,
-	/// even with session-pets enabled for the origin, and keeps the combined
-	/// window's idle ⭐ Default badge behavior (`applyPlatform("combined")`).
+	// MARK: - P15.07 session-cap selection, promotion, prune
+
+	/// (7) Same as `testIdleSessionAgesOutWhileActiveSiblingSessionSurvives`
+	/// above, plus the P15.07 nuance: TTL-dismissing one session must release
+	/// only that session's free-list number, leaving its still-live sibling's
+	/// number untouched.
+	func testSessionKeyedTTLDismissesOneSessionWithoutRenumberingItsSibling() {
+		var currentTime = Date(timeIntervalSinceReferenceDate: 0)
+		let customization = makeCustomization(ttlSeconds: 60, sessionPetsEnabled: ["claude_code": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() },
+			now: { currentTime }
+		)
+		let perSession = [
+			"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+			"claude_code:busy-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+		]
+		pool.update(snapshot: makeResolvedSnapshot(perSession: perSession, customization: customization))
+		let survivorNumberBefore = pool.sessionNumber(forWindowKey: "claude_code:busy-one")
+
+		currentTime = currentTime.addingTimeInterval(61)
+		pool.update(snapshot: makeResolvedSnapshot(perSession: perSession, customization: customization))
+
+		XCTAssertEqual(
+			pool.activeOrigins, ["claude_code:busy-one"],
+			"only the idle session past TTL is dismissed; the active sibling session must survive")
+		XCTAssertEqual(
+			pool.sessionNumber(forWindowKey: "claude_code:busy-one"), survivorNumberBefore,
+			"dismissing the idle sibling must not renumber the still-live session")
+	}
+
+	/// (1) Cap pressure holds the idle session and renders both active ones.
+	func testSessionCapHoldsIdleSessionWhileTwoActiveSessionsRender() {
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+		let perSession = [
+			"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+			"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+			"claude_code:active-two": makeSnapshot(state: .thinking, updated: "2026-07-01T10:00:02.000Z"),
+		]
+
+		pool.update(snapshot: makeResolvedSnapshot(perSession: perSession, customization: customization))
+
+		XCTAssertEqual(
+			Set(pool.activeOrigins), ["claude_code:active-one", "claude_code:active-two"],
+			"cap 2 must render only the two active sessions, holding the idle one")
+	}
+
+	/// (3) A held idle session is promoted (spawns a real window) the instant a
+	/// rendered session is pruned — falls out of the pure partition being
+	/// recomputed against the shrunk session set, with no dedicated promotion
+	/// bookkeeping.
+	func testHeldIdleSessionIsPromotedWhenARenderedSessionIsPruned() {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("pool-prune-\(UUID().uuidString)", isDirectory: true)
+		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: dir) }
+		func writeSlice(_ name: String, state: String, updatedAt: String) {
+			try! """
+				{ "activity_state": "\(state)", "updated_at": "\(updatedAt)", "source_event": { "origin": "claude_code" } }
+				""".write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+		}
+		writeSlice("claude_code:idle-one.json", state: "idle", updatedAt: "2026-07-01T10:00:00.000Z")
+		writeSlice("claude_code:active-one.json", state: "implementing", updatedAt: "2026-07-01T10:00:01.000Z")
+		writeSlice("claude_code:active-two.json", state: "thinking", updatedAt: "2026-07-01T10:00:02.000Z")
+
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
+		func readSnapshot() -> PerPlatformSnapshot {
+			guard case .success(let perSession) = StateJsonReader.readPerSessionDirectory(at: dir.path)
+			else { fatalError("read must succeed") }
+			return makeResolvedSnapshot(perSession: perSession, customization: customization)
+		}
+
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+		pool.update(snapshot: readSnapshot())
+		XCTAssertEqual(
+			Set(pool.activeOrigins), ["claude_code:active-one", "claude_code:active-two"],
+			"idle-one must start held pending under cap 2")
+
+		pool.pruneSession(windowKey: "claude_code:active-one", stateDirectory: dir.path)
+		XCTAssertFalse(
+			FileManager.default.fileExists(atPath: dir.appendingPathComponent("claude_code:active-one.json").path))
+
+		pool.update(snapshot: readSnapshot())
+
+		XCTAssertEqual(
+			Set(pool.activeOrigins), ["claude_code:idle-one", "claude_code:active-two"],
+			"the held idle session must be promoted to a real window once a rendered slot frees")
+	}
+
+	/// (4 review focus) A blocked all-active origin must never evict a
+	/// currently-rendered active session — the rendered set stays exactly the
+	/// same across the tick that introduces the third active session.
+	func testAllActiveCapPressureNeverEvictsAnAlreadyRenderedSession() {
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+		let first = [
+			"claude_code:a": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:00.000Z"),
+			"claude_code:b": makeSnapshot(state: .thinking, updated: "2026-07-01T10:00:01.000Z"),
+		]
+		pool.update(snapshot: makeResolvedSnapshot(perSession: first, customization: customization))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:a", "claude_code:b"])
+
+		let second = first.merging([
+			"claude_code:c": makeSnapshot(state: .editing, updated: "2026-07-01T10:00:02.000Z")
+		]) { _, new in new }
+		pool.update(snapshot: makeResolvedSnapshot(perSession: second, customization: customization))
+
+		XCTAssertEqual(
+			Set(pool.activeOrigins), ["claude_code:a", "claude_code:b"],
+			"a blocked newcomer active session must never evict an already-rendered active session")
+	}
+
+	/// (4 review focus) Manual Prune atomicity: destroys the panel, deletes the
+	/// slice, releases the number, and removes the label key together.
+	func testPruneSessionDestroysPanelSliceNumberAndLabelTogether() {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("pool-prune-atomic-\(UUID().uuidString)", isDirectory: true)
+		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let labelsFile = dir.appendingPathComponent("session-labels.json")
+		SessionLabelStore.setLabel("Mine", for: "claude_code:s1", at: labelsFile.path)
+		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code:s1.json"))
+
+		var stub: StubWindowController?
+		let customization = makeCustomization(sessionPetsEnabled: ["claude_code": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in
+				let c = StubWindowController()
+				stub = c
+				return c
+			},
+			sessionLabelReader: { SessionLabelStore.label(for: $0, at: labelsFile.path) }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["claude_code:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization))
+		XCTAssertEqual(pool.sessionNumber(forWindowKey: "claude_code:s1"), 1)
+
+		pool.pruneSession(windowKey: "claude_code:s1", stateDirectory: dir.path, labelPath: labelsFile.path)
+
+		XCTAssertEqual(stub?.isFloatingPetVisible, false, "the panel must be torn down")
+		XCTAssertFalse(pool.isActive(for: "claude_code:s1"))
+		XCTAssertFalse(
+			FileManager.default.fileExists(atPath: dir.appendingPathComponent("claude_code:s1.json").path),
+			"the slice must be deleted")
+		XCTAssertNil(
+			SessionLabelStore.label(for: "claude_code:s1", at: labelsFile.path),
+			"the label key must be removed")
+
+		// A brand-new session on the same origin must reclaim the released number.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["claude_code:s2": makeSnapshot(updated: "2026-07-01T10:00:01.000Z")],
+			customization: customization))
+		XCTAssertEqual(
+			pool.sessionNumber(forWindowKey: "claude_code:s2"), 1,
+			"the pruned session's number must be released back to the free list")
+	}
+
+	/// (4 review focus) Prune is a no-op for a plain-origin (session-pets off)
+	/// or "combined" window — those are never session-keyed.
+	func testPruneSessionIsNoOpForNonSessionKeyedWindow() {
+		var stub: StubWindowController?
+		let customization = makeCustomization()
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in
+				let c = StubWindowController()
+				stub = c
+				return c
+			}
+		)
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")
+		]))
+
+		pool.pruneSession(windowKey: "claude_code", stateDirectory: "/tmp/does-not-matter")
+
+		XCTAssertTrue(pool.isActive(for: "claude_code"), "a plain-origin window must survive an attempted prune")
+		XCTAssertNotEqual(stub?.isFloatingPetVisible, false)
+	}
+
+	/// (4 combined coverage) Combined-mode sessions must never be cap-partitioned
+	/// — they always fold to the single shared window regardless of
+	/// `sessionCap`, and keep the combined window's idle ⭐ Default badge
+	/// behavior (`applyPlatform("combined")`).
 	func testCombinedModeWithTwoSessionsFoldsToSingleCombinedWindow() {
 		var stubs: [String: StubWindowController] = [:]
 		let customization = makeCustomization(
