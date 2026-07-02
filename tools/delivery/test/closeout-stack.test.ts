@@ -4,6 +4,7 @@ import type { DeliveryState, TicketState } from '../types';
 import {
   getCloseoutTicketChain,
   isEmptyCherryPickFailure,
+  isTicketAlreadyLanded,
   orderCommitsForCherryPick,
   parseCloseoutStackArgs,
 } from '../closeout-stack';
@@ -119,6 +120,30 @@ describe('closeout-stack', () => {
           { oid: 'a', authoredDate: '2026-01-01T00:00:00Z' },
         ]),
       ).toEqual(['z', 'a']);
+    });
+  });
+
+  describe('isTicketAlreadyLanded', () => {
+    it('treats a genuinely merged PR as already landed', () => {
+      expect(isTicketAlreadyLanded({ state: 'MERGED' }, true)).toBe(true);
+    });
+
+    it('treats a missing remote branch as already landed even if the PR is only closed', () => {
+      // closeout-stack lands a ticket via `gh pr close` (never a real GitHub
+      // merge), so a landed PR shows as CLOSED, not MERGED. The deleted
+      // branch is what actually proves it landed.
+      expect(isTicketAlreadyLanded({ state: 'CLOSED' }, false)).toBe(true);
+    });
+
+    it('does not skip a closed PR whose branch still exists', () => {
+      // Stacked PRs auto-close on GitHub when their base branch (the prior
+      // ticket) is deleted, even though this ticket's own content never
+      // landed. Its branch is still present, so it must be processed.
+      expect(isTicketAlreadyLanded({ state: 'CLOSED' }, true)).toBe(false);
+    });
+
+    it('does not skip an open PR with its branch intact', () => {
+      expect(isTicketAlreadyLanded({ state: 'OPEN' }, true)).toBe(false);
     });
   });
 

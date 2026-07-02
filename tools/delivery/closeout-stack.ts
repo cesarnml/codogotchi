@@ -244,6 +244,38 @@ function resolvePullRequestForTicket(
   return matched;
 }
 
+function remoteBranchExists(cwd: string, branch: string): boolean {
+  const result = runProcessResult(cwd, [
+    'git',
+    'ls-remote',
+    '--exit-code',
+    '--heads',
+    'origin',
+    branch,
+  ]);
+
+  return result.exitCode === 0;
+}
+
+/**
+ * closeout-stack lands a ticket by closing its PR with `gh pr close` (not a
+ * real GitHub merge) and then deleting its remote branch, so a landed
+ * ticket's PR state is `CLOSED`, never `MERGED`. On a resumed run, checking
+ * `pr.state === 'MERGED'` alone can't distinguish that from a PR that was
+ * merely auto-closed by GitHub when an *earlier* stacked ticket's branch
+ * (its base) was deleted — that cascade closes the next PR without landing
+ * its content. The branch's own remote existence is the reliable signal:
+ * this script deletes a ticket's branch only after that ticket's commits are
+ * pushed to the closeout branch, so a missing branch means the ticket is
+ * truly done regardless of what happened to its PR state.
+ */
+export function isTicketAlreadyLanded(
+  pr: Pick<PullRequestSnapshot, 'state'>,
+  branchExists: boolean,
+): boolean {
+  return pr.state === 'MERGED' || !branchExists;
+}
+
 function deleteRemoteBranch(cwd: string, repo: string, branch: string): void {
   const result = runProcessResult(cwd, [
     'gh',
@@ -354,7 +386,7 @@ export function formatCloseoutSummary(
 
   for (const skipped of summary.skippedMerged) {
     lines.push(
-      `- already merged ${skipped.ticketId}: PR #${skipped.prNumber} (${skipped.url})`,
+      `- already landed ${skipped.ticketId}: PR #${skipped.prNumber} (${skipped.url})`,
     );
   }
 
@@ -399,7 +431,7 @@ export async function runCloseoutStack(
       const ticket = tickets[index]!;
       const pr = prSnapshots[index]!;
 
-      if (pr.state === 'MERGED') {
+      if (isTicketAlreadyLanded(pr, remoteBranchExists(cwd, ticket.branch))) {
         summary.skippedMerged.push({
           prNumber: pr.number,
           ticketId: ticket.id,
