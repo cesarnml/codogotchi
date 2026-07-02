@@ -327,18 +327,38 @@ final class FloatingPetWindowPool {
 			pendingWindowKeys.formUnion(selection.pending)
 			guard selection.blocked else { continue }
 			computedBlockedOrigins.insert(origin)
+			let candidates = firstSeenAt.filter { currentlyRendered.contains($0.key) }
+			let freshTarget = ConflictBubbleTargetSelector.longestLivedKey(firstSeenAt: candidates)
+
+			// If the bubble's current host window died for a reason other than
+			// resolution (TTL expiry, mode switch, the pending path, manual
+			// prune) while this origin is still blocked, the bubble silently
+			// vanished with it — `windows[existingTarget]` is nil even though
+			// the conflict never went away. Re-home it onto the current
+			// longest-lived live window immediately: this is the same ongoing
+			// conflict continuing to display, not a new one, so it must not
+			// consume or extend the one-hour rate limit (see P15.08
+			// advisory-observation triage).
+			if let existingTarget = activeConflictBubbleTargets[origin], windows[existingTarget] == nil {
+				if let freshTarget {
+					activeConflictBubbleTargets[origin] = freshTarget
+					windows[freshTarget]?.applyConflictBubble(ConflictBubblePayload(origin: origin))
+				} else {
+					activeConflictBubbleTargets.removeValue(forKey: origin)
+				}
+				continue
+			}
+
 			// P15.08: fire the conflict bubble on the longest-lived
 			// currently-rendered session, subject to the per-platform rate
 			// limit — this signal is recomputed fresh every tick, so without
 			// the rate limiter a persisting conflict would re-front the
 			// bubble every tick.
 			guard conflictBubbleRateLimiter.shouldShow(origin: origin, now: currentTime) else { continue }
-			let candidates = firstSeenAt.filter { currentlyRendered.contains($0.key) }
-			guard let target = ConflictBubbleTargetSelector.longestLivedKey(firstSeenAt: candidates)
-			else { continue }
+			guard let freshTarget else { continue }
 			conflictBubbleRateLimiter.recordShown(origin: origin, now: currentTime)
-			activeConflictBubbleTargets[origin] = target
-			windows[target]?.applyConflictBubble(ConflictBubblePayload(origin: origin))
+			activeConflictBubbleTargets[origin] = freshTarget
+			windows[freshTarget]?.applyConflictBubble(ConflictBubblePayload(origin: origin))
 		}
 		blockedOrigins = computedBlockedOrigins
 		// Clear the conflict bubble for any origin that resolved this tick —

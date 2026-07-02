@@ -16,6 +16,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     var appliedSessionNumbers: [Int?] = []
     var appliedSessionLabels: [String?] = []
     var appliedSessionTooltips: [String?] = []
+    var appliedConflictBubbles: [ConflictBubblePayload?] = []
 
     func setFloatingPetVisible(_ visible: Bool) { isFloatingPetVisible = visible }
     func apply(state: ActivityState, visualMode: VisualMode) { appliedStates.append((state, visualMode)) }
@@ -31,6 +32,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     func applySessionNumber(_ number: Int?) { appliedSessionNumbers.append(number) }
     func applySessionLabel(_ label: String?) { appliedSessionLabels.append(label) }
     func applySessionTooltip(_ summary: String?) { appliedSessionTooltips.append(summary) }
+    func applyConflictBubble(_ payload: ConflictBubblePayload?) { appliedConflictBubbles.append(payload) }
 }
 
 @MainActor
@@ -1152,6 +1154,86 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(
 			pool.blockedOrigins, ["claude_code"],
 			"an all-active origin over cap must report itself in blockedOrigins")
+	}
+
+	/// P15.08 advisory-observation fix: if the conflict bubble's host window
+	/// dies for a reason other than resolution (here: a manual Prune) while
+	/// the origin is still blocked, the bubble must re-home onto the next
+	/// longest-lived live session immediately — not wait up to an hour for
+	/// the rate limiter to naturally allow a re-fire.
+	func testConflictBubbleRehomesToFreshTargetWhenItsHostWindowIsPrunedWhileStillBlocked() {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("pool-bubble-rehome-\(UUID().uuidString)", isDirectory: true)
+		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: dir) }
+		func writeSlice(_ name: String, updatedAt: String) {
+			try! """
+				{ "activity_state": "implementing", "updated_at": "\(updatedAt)", "source_event": { "origin": "claude_code" } }
+				""".write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+		}
+
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
+		var stubs: [String: StubWindowController] = [:]
+		var currentTime = Date(timeIntervalSinceReferenceDate: 0)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			now: { currentTime }
+		)
+		func readSnapshot() -> PerPlatformSnapshot {
+			guard case .success(let perSession) = StateJsonReader.readPerSessionDirectory(at: dir.path)
+			else { fatalError("read must succeed") }
+			return makeResolvedSnapshot(perSession: perSession, customization: customization)
+		}
+
+		// Tick 1: "b" alone renders.
+		writeSlice("claude_code:b.json", updatedAt: "2026-07-01T10:00:00.000Z")
+		pool.update(snapshot: readSnapshot())
+
+		// Tick 2: "c" joins; both fit under cap 2, so both render.
+		currentTime = currentTime.addingTimeInterval(1)
+		writeSlice("claude_code:c.json", updatedAt: "2026-07-01T10:00:01.000Z")
+		pool.update(snapshot: readSnapshot())
+
+		// Tick 3: "a" joins as a third session — now over cap. "b" and "c" are
+		// incumbents and stay rendered; "a" is pending. "b" is the
+		// longest-lived (first-seen) of the two rendered sessions, so it
+		// becomes the conflict-bubble host.
+		currentTime = currentTime.addingTimeInterval(1)
+		writeSlice("claude_code:a.json", updatedAt: "2026-07-01T10:00:02.000Z")
+		pool.update(snapshot: readSnapshot())
+		XCTAssertEqual(pool.blockedOrigins, ["claude_code"])
+		XCTAssertEqual(
+			stubs["claude_code:b"]?.appliedConflictBubbles.last ?? nil,
+			ConflictBubblePayload(origin: "claude_code"),
+			"the longest-lived rendered session must host the initial conflict bubble")
+
+		// Tick 4: "d" joins too — a second pending session, so the origin
+		// stays over cap even after "b" (one of the two rendered incumbents)
+		// is pruned below.
+		currentTime = currentTime.addingTimeInterval(1)
+		writeSlice("claude_code:d.json", updatedAt: "2026-07-01T10:00:03.000Z")
+		pool.update(snapshot: readSnapshot())
+
+		// Manually prune "b" — the bubble's host window — while "a" and "d"
+		// (pending) and "c" (rendered) keep the origin over cap. Well within
+		// the rate limiter's one-hour window, so a naive re-fire check would
+		// suppress any new bubble.
+		currentTime = currentTime.addingTimeInterval(1)
+		pool.pruneSession(windowKey: "claude_code:b", stateDirectory: dir.path)
+		pool.update(snapshot: readSnapshot())
+
+		XCTAssertEqual(pool.blockedOrigins, ["claude_code"], "the origin must still be blocked after the prune")
+		XCTAssertEqual(
+			stubs["claude_code:c"]?.appliedConflictBubbles.last ?? nil,
+			ConflictBubblePayload(origin: "claude_code"),
+			"the bubble must re-home onto the next longest-lived live session immediately, "
+				+ "bypassing the one-hour rate limit — this is the same ongoing conflict, not a new one")
 	}
 
 	/// A negative persisted `session_cap` must resolve to the shared default
