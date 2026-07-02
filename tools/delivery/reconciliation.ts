@@ -100,10 +100,19 @@ const CANONICAL_REPORT_SECTION_HEADINGS = [
 export function parseActionableFindings(markdown: string): boolean {
   const body = extractReportSection(markdown, 'Actionable findings');
   if (body === undefined) return false;
-  const normalized = normalizeSectionBody(body);
+  // Strip horizontal rules — agents sometimes append `---` as a cosmetic
+  // divider right after "None." despite prompt instructions not to. Left
+  // unstripped, the divider makes the section look non-empty and produces a
+  // false-positive Condition B block.
+  const strippedBody = stripHorizontalRules(body);
+  const normalized = normalizeSectionBody(strippedBody);
   if (normalized === '') return false;
   if (/^none\.?$/i.test(normalized)) return false;
   return true;
+}
+
+function stripHorizontalRules(body: string): string {
+  return body.replace(/^---+\s*$/gm, '');
 }
 
 export function parseAdvisoryObservations(markdown: string): string[] {
@@ -111,7 +120,7 @@ export function parseAdvisoryObservations(markdown: string): string[] {
   if (body === undefined) return [];
   // Strip horizontal rules — agents use `---` as cosmetic section dividers but
   // they are not observations and their presence breaks the all-bullets check.
-  const strippedBody = body.replace(/^---+\s*$/gm, '');
+  const strippedBody = stripHorizontalRules(body);
   const normalized = normalizeSectionBody(strippedBody);
   if (normalized === '') return [];
   if (/^none\.?$/i.test(normalized)) return [];
@@ -233,7 +242,11 @@ function isCanonicalSectionHeadingLine(
   );
 }
 
-type ArtifactRow = { outcome: string; reviewedHeadSha?: string };
+type ArtifactRow = {
+  outcome: string;
+  reviewedHeadSha?: string;
+  acknowledgment?: string;
+};
 
 export function reconcileReview(input: {
   artifactRows: ArtifactRow[];
@@ -268,6 +281,20 @@ export function reconcileReview(input: {
       row.reviewedHeadSha === input.reviewedHeadSha,
   );
 
+  // `--ack-reconciliation clean` records an operator-confirmed-clean row via
+  // recordAcknowledgment(). It must unblock reconciliation the same way a
+  // `deferred` row does — otherwise the documented escape valve is a no-op
+  // and `record-deferred` becomes the only working path even when the honest
+  // answer is "no patch needed."
+  const hasCleanAckRowForSha = input.artifactRows.some(
+    (row) =>
+      row.outcome === 'clean' &&
+      row.acknowledgment === 'operator-confirmed-clean' &&
+      row.reviewedHeadSha === input.reviewedHeadSha,
+  );
+
+  const isAcknowledged = hasDeferredRowForSha || hasCleanAckRowForSha;
+
   const changedInRange =
     input.reviewedHeadSha === input.headSha
       ? []
@@ -275,7 +302,7 @@ export function reconcileReview(input: {
   const reviewedSet = new Set(input.reviewedPaths);
   const reviewedPathTouched = changedInRange.some((p) => reviewedSet.has(p));
 
-  if (reviewedPathTouched && !hasDeferredRowForSha) {
+  if (reviewedPathTouched && !isAcknowledged) {
     return {
       kind: 'blocked',
       condition: 'A',
@@ -284,7 +311,7 @@ export function reconcileReview(input: {
   }
 
   const findingsExist = parseActionableFindings(input.reportMarkdown);
-  if (findingsExist && !hasDeferredRowForSha) {
+  if (findingsExist && !isAcknowledged) {
     return {
       kind: 'blocked',
       condition: 'B',
