@@ -71,6 +71,12 @@ final class FloatingPetWindowPool {
 	/// render key) — plain-origin windows (session-pets off) and the literal
 	/// "combined" window never carry a session number.
 	private let sessionNumberAllocator = SessionNumberAllocator()
+	/// Origins where `SessionSelectionPolicy` blocked an in-flight session from
+	/// rendering on the most recent tick — every rendered slot for that origin
+	/// is itself in-flight, so cap pressure has no evictable target (P15.07).
+	/// Recomputed fresh every `update()` tick; consumed by P15.08's conflict
+	/// bubble, never rendered here.
+	private(set) var blockedOrigins: Set<String> = []
 
 	/// Window keys that currently have visible windows.
 	var activeOrigins: [String] { Array(windows.keys).sorted() }
@@ -265,12 +271,54 @@ final class FloatingPetWindowPool {
 			}
 		}
 
+		// Step 6c: per-origin session-cap selection (P15.07). Only applies to
+		// session-keyed render keys — a plain-origin key (session-pets off) is
+		// already the sole entry for its origin, so cap partitioning is
+		// meaningless for it. Recomputed fresh every tick from the currently
+		// visible session set; "promotion" needs no dedicated bookkeeping
+		// because a session that drops out of `pending` (its rival was pruned,
+		// aged out, or dropped to an evictable state) simply becomes rendered
+		// again the next time this runs.
+		var pendingWindowKeys: Set<String> = []
+		var computedBlockedOrigins: Set<String> = []
+		let sessionKeyedDirectKeys = directKeys.filter { isSessionKeyed($0) }
+		let sessionKeyedByOrigin = Dictionary(
+			grouping: sessionKeyedDirectKeys, by: Self.origin(forWindowKey:))
+		for (origin, keys) in sessionKeyedByOrigin {
+			let states: [String: ActivityState] = keys.reduce(into: [:]) { acc, key in
+				acc[key] = visibleEntries[key]?.activityState
+			}
+			let cap = currentCustomization.sessionCap[origin] ?? 3
+			let currentlyRendered = Set(keys.filter { windows[$0] != nil })
+			let selection = SessionSelectionPolicy.select(
+				sessions: states, cap: cap, currentlyRendered: currentlyRendered)
+			pendingWindowKeys.formUnion(selection.pending)
+			if selection.blocked { computedBlockedOrigins.insert(origin) }
+		}
+		blockedOrigins = computedBlockedOrigins
+
 		// Step 7: spawn / update directly-keyed windows
 		for renderKey in directKeys {
 			guard let state = visibleEntries[renderKey] else { continue }
 			// Idle past TTL: leave it dismissed and do not re-spawn from the lingering
 			// idle slice (Step 5b already removed any window for it).
 			if isTTLExpired(windowKey: renderKey) {
+				if windows[renderKey] != nil {
+					windows[renderKey]?.setFloatingPetVisible(false)
+					windows.removeValue(forKey: renderKey)
+					windowSpawnedModes.removeValue(forKey: renderKey)
+					releaseSessionNumber(forWindowKey: renderKey)
+				}
+				continue
+			}
+			// Cap-held (pending): a reversible de-render, not a delete — the
+			// slice stays on disk untouched so this key can be promoted back the
+			// instant it wins a later tick's partition. The session number is
+			// released on de-render, matching every other window-teardown site
+			// in this method; a promoted session may pick up a different number
+			// than it held before, since only the currently-rendered set is ever
+			// numbered.
+			if pendingWindowKeys.contains(renderKey) {
 				if windows[renderKey] != nil {
 					windows[renderKey]?.setFloatingPetVisible(false)
 					windows.removeValue(forKey: renderKey)
@@ -427,6 +475,37 @@ final class FloatingPetWindowPool {
 	/// Returns the controller for the given window key. Used by MenubarApp to wire
 	/// per-window callbacks (attention dismiss, app-nap opt-out).
 	func controller(for key: String) -> FloatingPetWindowControlling? { windows[key] }
+
+	/// Manual "Prune Session" (P15.07, right-click on a session-keyed window):
+	/// tears down the panel and destroys its state.d slice, free-list number,
+	/// and session-labels.json key — the same end-state as automatic TTL
+	/// expiry plus the orphan-label sweep. No-op for a plain-origin/"combined"
+	/// window, since those are never session-keyed. `stateDirectory` is the
+	/// live `state.d/` path (`config.pollingTarget.path`), passed by the
+	/// caller so this pool never hardcodes a filesystem location. `labelPath`
+	/// defaults to the real `session-labels.json` location and exists as a
+	/// parameter purely so tests can redirect it, mirroring `sessionLabelReader`.
+	func pruneSession(
+		windowKey: String,
+		stateDirectory: String,
+		labelPath: String = SessionLabelStore.path()
+	) {
+		guard isSessionKeyed(windowKey),
+			let identity = windowSessionIdentities[windowKey] ?? currentRenderKeyIdentities[windowKey]
+		else { return }
+		windows[windowKey]?.setFloatingPetVisible(false)
+		windows.removeValue(forKey: windowKey)
+		windowSpawnedModes.removeValue(forKey: windowKey)
+		windowSessionIdentities.removeValue(forKey: windowKey)
+		SessionPruner.pruneSession(
+			windowKey: windowKey,
+			origin: identity.origin,
+			sessionId: identity.sessionId,
+			stateDirectory: stateDirectory,
+			allocator: sessionNumberAllocator,
+			labelPath: labelPath
+		)
+	}
 
 	/// Live-swap the rendered pet for one origin's windows. Called when the user
 	/// reassigns a platform badge in Settings > Pet so only that platform's windows

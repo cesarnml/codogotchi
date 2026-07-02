@@ -40,10 +40,8 @@ Red: required
 
 ## Rationale
 
-> Append here (do not edit above) when behavior or trade-offs change during implementation.
-
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [record any deviation from the ticket metadata contract here]
+Red first: `SessionSelectionPolicyTests`, `SessionPrunerTests`, `SlicePrunerTests.testPruneOrphanLabelsRemovesKeyWhoseSliceIsGone`, and the new `FloatingPetWindowPoolTests` cases failed to compile (referencing `SessionSelectionPolicy`, `SessionPruner`, `FloatingPetWindowPool.pruneSession`/`blockedOrigins`, `SlicePruner.pruneOrphanLabels`, none of which existed yet).
+Why this path: `SessionSelectionPolicy.select(sessions:cap:currentlyRendered:)` is a pure per-origin partition recomputed every pool tick — "promotion" needed no dedicated bookkeeping because a session dropping out of `pending` (rival pruned/TTL'd/idled) simply wins the next partition. The pool wires it into a new Step 6c ahead of the existing Step 7 spawn loop, gating spawn/de-render per key; manual Prune (`FloatingPetWindowPool.pruneSession`) reuses the existing `windowSessionIdentities`/`releaseSessionNumber` machinery and delegates slice+number+label teardown to a new `SessionPruner.pruneSession`, mirroring the already-existing TTL-dismiss pattern used at every other window-teardown site in the file.
+Alternative considered: keeping cap-held sessions' free-list numbers reserved across a de-render/promote cycle (instead of releasing on demotion like every other teardown) was rejected — the ticket only requires the *slice* to survive a hold, not number stability, and preserving numbers would have required new bookkeeping distinct from the rest of the file's teardown pattern for no tested requirement.
+Deferred: rendering the "blocked (all-active)" signal is explicitly P15.08's scope — this ticket only computes and exposes `FloatingPetWindowPool.blockedOrigins`. The "Prune Session" right-click affordance is Own-mode only, matching the existing Rename affordance's scope (P15.06 never added Rename to the Minimalist strip either).
+Contract note: none — implementation matches the ticket's Green/Refactor sections as written.

@@ -259,6 +259,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					panel.onRenameRequested = { newLabel in
 						SessionLabelStore.setLabel(newLabel, for: origin)
 					}
+					// Right-click "Prune Session" (P15.07): destroys the panel's
+					// backing state (slice, free-list number, rename label) via the
+					// pool, which owns the allocator and knows the (origin, session_id)
+					// identity behind this window key.
+					panel.onPruneRequested = { [weak self] in
+						self?.floatingPetWindowPool?.pruneSession(
+							windowKey: origin, stateDirectory: stateDir)
+					}
 					panel.onHideFloatingPet = { [weak self, weak controller] in
 						guard let self, let controller else { return }
 						// Find this controller's origin in the pool and dismiss
