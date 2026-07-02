@@ -35,6 +35,23 @@ import {
   recordPromptAttention,
 } from "./prompt-attention.js";
 
+// Every real session id observed in production across origins (claude_code,
+// codex, cursor) is UUID-shaped (8-4-4-4-12 hex), even though version/variant
+// nibbles differ by generator (e.g. codex's are UUIDv7-like, not v4). A
+// hand-authored slug like "ses-codex-keep" fails this shape trivially.
+// .soa/active-session.json is a single shared last-write-wins pointer that
+// SoA's delivery gate routing trusts as "this repo's current session" — an
+// unroutable id (missing, or not this shape) must never be allowed to steal
+// that pointer from a real session.
+const SESSION_ID_SHAPE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isRoutableSessionId(
+  sessionId: string | undefined,
+): sessionId is string {
+  return sessionId !== undefined && SESSION_ID_SHAPE.test(sessionId);
+}
+
 export type HookInput = {
   origin?: SourceEventOrigin;
   kind?: SourceEventKind;
@@ -1317,22 +1334,27 @@ export async function runHook(
     // writeGateEvent canonicalizes linked worktrees to the main checkout before
     // reading this file, so canonicalize here too (source_event.repo_root below
     // stays the raw cwd — the renderer normalizes both sides at compare time).
+    // Only ever write a routable (UUID-shaped) session id — an event with no
+    // id, or a malformed one, must leave whatever pointer is already there
+    // alone rather than clobbering it with an unroutable "default".
     try {
-      const soaDir = join(await canonicalRepoRoot(repoRoot), ".soa");
-      await mkdir(soaDir, { recursive: true });
-      await writeFile(
-        join(soaDir, "active-session.json"),
-        `${JSON.stringify(
-          {
-            origin,
-            session_id: sessionId ?? "default",
-            updated_at: opts.now.toISOString(),
-          },
-          null,
-          2,
-        )}\n`,
-        "utf8",
-      );
+      if (isRoutableSessionId(sessionId)) {
+        const soaDir = join(await canonicalRepoRoot(repoRoot), ".soa");
+        await mkdir(soaDir, { recursive: true });
+        await writeFile(
+          join(soaDir, "active-session.json"),
+          `${JSON.stringify(
+            {
+              origin,
+              session_id: sessionId,
+              updated_at: opts.now.toISOString(),
+            },
+            null,
+            2,
+          )}\n`,
+          "utf8",
+        );
+      }
     } catch {
       // Best-effort: failures should never crash the hook
     }
