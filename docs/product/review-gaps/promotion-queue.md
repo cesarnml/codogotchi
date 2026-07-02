@@ -147,7 +147,7 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
 - **Status:** WAITING — 1 occurrence. Needs ≥1 more to confirm before promoting.
 
 ### `new-enum-case-skips-existing-transition-matrix`
-- **Seen:** 2× — `codogotchi-06` (P14). `FloatingPetWindowPool` already had
+- **Seen:** 3× — `codogotchi-06` (P14). `FloatingPetWindowPool` already had
   explicit per-tick teardown for `own->off` and `own->combined` mode
   transitions (each added when an earlier ticket needed that specific pair).
   P14.06 added a third `PlatformMode` case, `.minimalist`, routed through the
@@ -165,6 +165,14 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   `combined -> own/minimalist` teardown gated dismissal on last-active TTL
   immunity even when zero origins were combined-mode anymore, which could
   nondeterministically stick on a same-tick timestamp tie.
+  `codogotchi-29` (P15 QC, same file, same round): a THIRD trigger — toggling
+  `sessionPetsEnabled` for an origin changes render-key SHAPE (plain `origin`
+  vs `origin:session_id`) independent of `PlatformMode` entirely. Neither
+  direction (enabling or disabling) was covered by any existing branch,
+  including the two just-added by `codogotchi-28`: the mode-mismatch collapse
+  only re-checks a key still present under the SAME string this tick, and the
+  combined-collapse only fires for keys resolving to `"combined"`. A toggle
+  that changes key shape without touching mode falls through every branch.
 - **Proposed clause:** *"When a ticket adds a new case to an enum that drives a
   switch/factory dispatch inside a stateful pool or registry, OR refactors
   where/how an existing case's data is shaped upstream, enumerate the full
@@ -177,20 +185,28 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   never match, without anyone touching that branch's code."*
 - **Relationship to `side-effect-call-dropped-or-mis-targeted-in-refactor`:**
   still a close sibling ("old assumption not re-established for the new
-  shape/case"), but now confirmed on TWO distinct triggers — enum-case
-  addition (`codogotchi-06`) and an upstream data-shape refactor
-  (`codogotchi-28`) — both landing in the exact same pool file's reactive
-  per-pair teardown branches. That recurrence in the SAME file is itself a
-  signal: `FloatingPetWindowPool`'s teardown structure (N reactive branches,
-  one per historically-needed transition pair) is a standing liability that
-  will keep producing this class until the pool re-derives its full
-  transition matrix from mode + snapshot-shape invariants instead of
-  accreting one branch per past ticket.
-- **Status:** AT THRESHOLD (2×, same file, two different triggers). Strong
-  candidate to promote a review-prompt clause; also strong candidate for a
-  standalone follow-up ticket to refactor `FloatingPetWindowPool`'s teardown
-  into a single derived-matrix pass rather than N reactive branches. Route
-  both through planning/the review-template owner.
+  shape/case"), but now confirmed on THREE distinct triggers, all in the exact
+  same pool file's reactive per-pair teardown branches: enum-case addition
+  (`codogotchi-06`), an upstream data-shape refactor (`codogotchi-28`), and a
+  settings toggle that reshapes render keys independent of mode
+  (`codogotchi-29`). Each new fix in this same P15 QC round patched the
+  specific case just found without re-deriving the matrix, and each time a
+  DIFFERENT uncovered transition surfaced immediately after — this is no
+  longer a coincidence, it is the structure of the file producing gaps on a
+  predictable cadence.
+- **Explicit developer decision (2026-07-03):** discussed promoting to a full
+  derived-transition-matrix rewrite (Option B) vs. continuing ad-hoc per-case
+  patches. Developer chose to continue ad-hoc patching for now to avoid
+  delaying the v2 release, with the refactor deferred as a known, accepted
+  cost — not an oversight. Route the refactor decision through `/soa plan`
+  when there is room in the roadmap; do not re-litigate the ad-hoc-vs-refactor
+  call inside a future QC round without new information.
+- **Status:** AT THRESHOLD (3×, same file, three different triggers, explicit
+  developer sign-off to keep patching ad hoc for now). Promote the review-prompt
+  clause regardless of the refactor timeline — it costs nothing to add and
+  would have flagged `codogotchi-29` before it shipped. The standalone
+  refactor ticket remains available whenever the developer wants to schedule
+  it; this is not a call to make unilaterally from the QC lane.
 
 ### `flagged-spec-divergence-dropped-without-escalation`
 - **Seen:** 1× — P14.06 (minimalist window). The subagent review prompt itself
