@@ -127,10 +127,17 @@ final class CustomizationTabViewModel {
 
 	/// Effective per-origin session cap for UI display: the persisted value, or
 	/// the shared default (`CustomizationSnapshot.defaultSessionCap`) when the
-	/// origin has never had an explicit cap written. Read-only resolution —
-	/// does not itself persist anything.
+	/// origin has never had an explicit cap written, or the value is negative
+	/// (matching `CustomizationSnapshot.sessionCap`'s documented "absent or
+	/// negative" contract — a negative value can only reach the file via manual
+	/// edit, since this VM never writes one). `0` (Unlimited) is a real value
+	/// and passes through unchanged. Read-only resolution — does not itself
+	/// persist anything.
 	func effectiveSessionCap(for origin: String) -> Int {
-		sessionCap[origin] ?? CustomizationSnapshot.defaultSessionCap
+		guard let cap = sessionCap[origin], cap >= 0 else {
+			return CustomizationSnapshot.defaultSessionCap
+		}
+		return cap
 	}
 
 	func setSessionPetsEnabled(_ enabled: Bool, for origin: String) {

@@ -90,5 +90,43 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		XCTAssertEqual(
 			vm.effectiveSessionCap(for: "claude_code"), 7,
 			"the in-memory cap must also survive the mode change")
+
+		let sessionPets = payload["session_pets_enabled"] as? [String: Bool]
+		XCTAssertEqual(
+			sessionPets?["claude_code"], true,
+			"switching mode to Combined must not erase a previously stored session-pets enable flag")
+	}
+
+	// MARK: - effectiveSessionCap resolves a negative persisted cap to the default
+
+	func testEffectiveSessionCapResolvesNegativeCapToDefault() throws {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		// A negative session_cap can only reach disk via manual edit — the VM
+		// itself never writes one — but CustomizationSnapshot's contract says
+		// "absent or negative" resolves to the default at the read point.
+		let json = """
+			{ "session_cap": { "claude_code": -1 } }
+			"""
+		try json.write(toFile: path, atomically: true, encoding: .utf8)
+		let vm = CustomizationTabViewModel(filePath: path)
+
+		XCTAssertEqual(
+			vm.effectiveSessionCap(for: "claude_code"), 3,
+			"a negative persisted cap must resolve to the default cap of 3, not pass through verbatim")
+	}
+
+	// MARK: - effectiveSessionCap passes the Unlimited sentinel (0) through unchanged
+
+	func testEffectiveSessionCapPassesUnlimitedSentinelThrough() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let vm = CustomizationTabViewModel(filePath: path)
+
+		vm.setSessionCap(0, for: "claude_code")
+
+		XCTAssertEqual(
+			vm.effectiveSessionCap(for: "claude_code"), 0,
+			"0 is the real Unlimited value and must not be treated as absent/negative")
 	}
 }
