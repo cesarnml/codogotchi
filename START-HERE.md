@@ -22,18 +22,21 @@ Each active AI platform writes its own slice file to `~/.codogotchi/state.d/`. T
         ▼
   ~/.codogotchi/state.d/<origin>:<session_id>.json   ←── activity-signal slice (v8)
   ~/.codogotchi/rpg-state.json                       ←── global RPG values (level, HP, hearts)
-  ~/.codogotchi/customization.json                   ←── per-platform display mode + TTL
+  ~/.codogotchi/customization.json                   ←── per-platform display mode + TTL + session pets (opt-in) + cap
   ~/.codogotchi/assignments.json                     ←── per-platform pet assignment (schema_version: 1)
+  ~/.codogotchi/session-labels.json                  ←── per-session rename labels (Swift-owned, app-side only)
         │
         │  watched by
         ▼
-  Codogotchi.app (Swift + AppKit/SpriteKit) — v2.1.0
+  Codogotchi.app (Swift + AppKit/SpriteKit) — v2.2.0
   ├─ menu bar icon (static app icon — no animation)
-  ├─ one floating desktop pet window per active platform (fully animated)
+  ├─ one floating desktop pet window per active platform (fully animated); with Session Pets on,
+  │  one panel per concurrent agent session on that platform instead of one shared panel
   └─ Settings — the ONLY surface that installs/updates/removes hooks
         │   ├─ General: hooks, monochrome icon toggle
         │   ├─ Pet: per-platform pet assignment (Default slot + 5 platform overrides)
-        │   ├─ Customization: per-platform mode (own/combined/minimalist/off) + idle-dismiss TTL
+        │   ├─ Platform Settings: per-platform mode (own/combined/minimalist/off) + idle-dismiss TTL +
+        │   │     Session Pets (opt-in, Own/Minimalist only) + Session Cap (2–10 or Unlimited, default 3)
         │   └─ RPG: HUD toggle
         ├─ XP / Health / Loot engine (TypeScript, runs locally by default)
         └─ opt-in cloud sync ───►  Convex (profiles, loot, pet gallery)
@@ -45,7 +48,7 @@ Each active AI platform writes its own slice file to `~/.codogotchi/state.d/`. T
 Two invariants make the whole system legible:
 
 1. **The app owns all writes.** Hook install/update/remove, onboarding, and pet assignment happen in the app's Settings. The `codogotchi` CLI is a read/diagnostic surface (`status`, `hooks status`, `loot`, `config`, `vacation`) plus internal subprocesses the app spawns. End users never need a terminal. **Breaking change in v2.1.0:** `codogotchi config set pet <id>` is removed — use Settings → Pet to assign pets.
-2. **`state.d/` is a closed contract.** The hook binary writes a fixed 19-state activity vocabulary into per-platform slice files; the Swift app reads the directory and routes each origin to its floating window. The TypeScript and Swift sides each pin `schema_version: 8` and must move in lockstep (see [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md) and [`docs/contracts/customization-json.md`](docs/contracts/customization-json.md)). Per-platform pet identity is stored separately in `assignments.json` (schema_version: 1) — it does not flow through state slices and has no lockstep dependency.
+2. **`state.d/` is a closed contract.** The hook binary writes a fixed 19-state activity vocabulary into per-platform slice files; the Swift app reads the directory and routes each origin (with Session Pets on, each `origin:session_id`) to its floating window. The TypeScript and Swift sides each pin `schema_version: 8` and must move in lockstep (see [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md) and [`docs/contracts/customization-json.md`](docs/contracts/customization-json.md)). Per-platform pet identity (`assignments.json`, schema_version: 1) and per-session rename labels (`session-labels.json`, Swift-owned) are both stored separately from state slices and have no lockstep dependency; the session number itself is an in-memory free-list, not persisted.
 
 ## The five pieces
 
