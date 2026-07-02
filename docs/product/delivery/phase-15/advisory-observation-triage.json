@@ -1,0 +1,351 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-07-02T14:06:59.447Z",
+  "summary": {
+    "total": 34,
+    "patched": 5,
+    "rejected": 15,
+    "already-covered": 9,
+    "requires-human-review": 5
+  },
+  "dispositions": [
+    {
+      "disposition": "already-covered",
+      "rationale": "Current CustomizationJsonReaderTests.swift already has testNegativeSessionCapPassesThroughVerbatim asserting snapshot.sessionCap[\"claude_code\"] == -1, introduced in the same P15.01 delivery commit (65f5c55a) this report reviewed.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.01-subagent-review.report.md",
+        "ticketId": "P15.01"
+      },
+      "observation": "No test covers a negative `session_cap` value (e.g. `{\"session_cap\": {\"claude_code\": -1}}`). The ticket spec says negative values pass through verbatim to consumers, and the code performs no coercion, so this is correct. But because a future developer might look at the neighboring `rawTtl < 0 ? 300 : rawTtl` guard and cargo-cult a similar clamp for `sessionCap`, a brief test asserting `snapshot.sessionCap[\"claude_code\"] == -1` would prevent that regression at low cost and make the \"no clamping here\" contract explicit and testable."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Speculative future-enhancement note (\"noting for P15.09 consideration\"), not a concrete bug. P15.09 (Settings UI) shipped without a diagnostic surface for malformed customization.json, and the silent try? swallow is documented pre-existing reader posture, not a regression. No user-facing harm identified beyond the acknowledged confusing-UX risk; a diagnostic signal is a genuine future nice-to-have, not a prudent quick patch during this triage pass.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.01-subagent-review.report.md",
+        "ticketId": "P15.01"
+      },
+      "observation": "Silent failure on malformed JSON is the pre-existing posture of the reader and is documented, but there is no observable diagnostic surface — no log line, no metric, no `.failure` state on the returned snapshot — to distinguish \"file absent\" from \"file malformed but present.\" This was a pre-existing limitation not introduced by this diff. For a system where `customization.json` is human-edited, silent safeDefault on malformed input may cause confusing UX (settings appear to silently revert to defaults). Noting this for P15.09 (Settings UI) consideration, where a \"settings file invalid\" signal might be surfaced to the user."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Current CustomizationJsonReaderTests.swift already asserts snapshot.sessionCap == [:] in testMalformedSessionPetsEnabledDegradesToSafeDefault (lines 213-215), added in the same P15.01 delivery commit (65f5c55a) that this report reviewed. Verified via `git log -S` on the assertion text: only 65f5c55a touches it.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.01-subagent-review.report.md",
+        "ticketId": "P15.01"
+      },
+      "observation": "The malformed-value test (`testMalformedSessionPetsEnabledDegradesToSafeDefault`) only asserts `sessionPetsEnabled == [:]` but does not also assert `sessionCap == [:]`. When the whole `CustomizationPayload` decode fails, `safeDefault` is returned and `sessionCap` is also `[:]`. A future refactor that accidentally introduces partial recovery could leave `sessionCap` retaining decoded values while `sessionPetsEnabled` falls to default, and this test would not catch it. Adding `XCTAssertEqual(snapshot.sessionCap, [:])` to that test case would close the gap at zero cost."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "StateDirectoryListingTests.swift already has testListingBranchMatchesSelfScanForReadPerPlatformDirectory (line 57). ticket-02-consolidate-state-scans.md Rationale (line 43) records this as already applied during the ticket's own subagent-review follow-up.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.02-subagent-review.report.md",
+        "ticketId": "P15.02"
+      },
+      "observation": "**No test exercises the listing-injection branch of any consumer.** `StateDirectoryListingTests` proves `scan` is correct, and the existing suite covers the self-scan path. But if the listing-branch code in `readPerPlatformDirectoryImpl`, `PerPlatformGateReader.readImpl`, or `newestFile` had a filter inversion or wrong condition, the test suite would not catch it. The ticket's \"Red: skip\" stance accepts this; a follow-up test that constructs a mock listing and passes it to each consumer would close the gap for P15.03 (which extends the listing seam further)."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Extreme edge case (state.d/ deleted mid-tick between listing and read) that the old multi-scan code had the identical race for; neither path guarantees atomicity and the report itself states \"No patch is warranted under the invariants as stated.\" The ticket-02 Rationale (line 43) already explicitly left this specific observation advisory for this /soa tao pass; disposing of it here as a confirmed non-actionable edge case rather than a real regression.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.02-subagent-review.report.md",
+        "ticketId": "P15.02"
+      },
+      "observation": "**Race-condition behavioral divergence (attack surface #2 / #7).** If `state.d/` exists at tick start (scan returns non-nil listing) but is deleted before `readPerPlatformDirectory` runs, the listing branch returns `.success([:])` rather than `.failure(.fileNotFound)`. The consequence is that `applyPerPlatform` IS called with an empty `PerPlatformSnapshot` (clearing the floating-window pool) instead of being suppressed (pool retains last state). This is a 1-tick flicker in an extreme edge case (directory deleted during a running tick), and the old multi-scan code had its own analogous race; neither path guarantees atomicity. No patch is warranted under the invariants as stated, but the behavior divergence is real and worth noting if teardown/reset scenarios are ever tested."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "ticket-02-consolidate-state-scans.md Rationale (line 42) already reads \"that overload was intentionally NOT created this ticket (no readDirectory(at:listing:) exists)\" — the imprecise wording flagged by this observation was already corrected during the ticket's own subagent-review follow-up (recorded at line 43).",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.02-subagent-review.report.md",
+        "ticketId": "P15.02"
+      },
+      "observation": "**Rationale doc minor imprecision.** The Rationale states \"a listing-aware `readDirectory` overload already exists structurally but is intentionally not wired through the injected seam this ticket.\" No `readDirectory(at:listing:)` overload exists in `StateJsonReader.swift` — only `readPerPlatformDirectory` received listing overloads. The sentence likely intends \"the two-overload pattern demonstrated by `readPerPlatformDirectory` could be applied,\" but as written it implies an extant overload. No code change needed; doc-only imprecision."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Same pre-existing `.tmp-` substring filter is shared by all three readers (readDirectoryImpl, readPerPlatformDirectoryImpl, readPerSessionDirectoryImpl); not introduced or worsened by P15.03. Session IDs are agent-generated but no agent integration today generates IDs containing the literal substring `.tmp-`. Low risk, no regression, and fixing it would require a broader decision about the session-id format contract across all three readers — out of scope for a quick triage patch.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.03-subagent-review.report.md",
+        "ticketId": "P15.03"
+      },
+      "observation": "**A1 — `.tmp-` filter could silently skip a session whose `session_id` contains the literal substring `.tmp-`.** An agent that generates a session ID like `mytmp-abc` would write `claude_code:mytmp-abc.json` and the `contains(\".tmp-\")` check would skip it. This is the same filter used across all three readers (`readDirectoryImpl`, `readPerPlatformDirectoryImpl`, `readPerSessionDirectoryImpl`), so the risk is not new to P15.03 — but the per-session path makes it more reachable because session IDs are agent-generated strings rather than fixed origin enum values. The ticket does not name this as a skip rule in Invariant 2. Outside the three finding-discipline clauses (session ID format is not specified as guaranteed `.tmp-`-free, so this is a latent interface assumption, not a code break)."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "Confirmed still open in current code: LivePollingDriver.swift resolveRenderedPlatforms (lines 301-308) still applies the flat legacy gate/context to ALL sessions of the single active origin when session-pets is ON and exactly one origin is active — the P15.03 report's expectation that this would be \"fully reconciled in P15.04\" did not hold; P15.04's pool refactor addressed window fan-out, not this specific gate/context fallback-merge logic. This only activates with legacy (pre-Phase-17) flat gate.json/delivery-context.json files under session-pets-on, a narrowing scenario, but the correct target semantics (apply to first-seen session only? none? all?) is a product decision, not a mechanical fix. Recommend the developer decide the intended behavior before a follow-up ticket.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.03-subagent-review.report.md",
+        "ticketId": "P15.03"
+      },
+      "observation": "**A2 — Legacy gate/context applied to all sessions when session-pets is ON and exactly one origin is active.** With `sessionPetsEnabled[\"claude_code\"] = true` and three active sessions, `resolveRenderedPlatforms` sees `distinctOrigins == {\"claude_code\"}` → `singleOrigin == \"claude_code\"` → the flat `gate.json`/`delivery-context.json` (written by a pre-Phase-17 hook with no per-origin context) is applied as the fallback gate for all three session windows. Pre-P15.03, one window per origin meant the fallback was applied to one window. This is a behavior change from the prior semantics, but it only activates when session-pets is ON, which requires explicit configuration. It is acknowledged under \"Deferred\" in the Rationale and will be fully reconciled in P15.04. Surfacing here for P15.04 author awareness."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Test gap for an intentional, already-documented design choice (per-session reader is filename-authoritative; per-origin reader is content-authoritative — explicitly called out in the ticket Rationale's \"Alternative considered\" section). No bug; the current fixture helper (writeSlice) always writes matching content/filename origins by construction, so the divergence case is simply uncovered, not broken. Optional coverage-hardening, not urgent enough to patch in this pass.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.03-subagent-review.report.md",
+        "ticketId": "P15.03"
+      },
+      "observation": "**A3 — `testAllDefaultCollapseEqualsPerOriginMap` does not cover filename-origin / content-origin divergence.** The per-session reader is filename-authoritative; the per-origin reader is content-authoritative. For a slice whose `source_event.origin` differs from its filename prefix, the two readers produce different map keys. The test fixture uses `writeSlice` which always writes matching content and filename origins, so this case is not covered. This is the intentional design documented in the Rationale's \"Alternative considered\" section, but a dedicated negative-case test (asserting that per-session and per-origin keys deliberately diverge when origins mismatch) would make the design decision explicit and prevent a future refactor from accidentally \"fixing\" the divergence in the wrong direction."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Self-correcting one-tick transient inherent to non-atomic multi-file polling at 1Hz; the report itself states there is no data loss or persisted inconsistency. Not a bug.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.03-subagent-review.report.md",
+        "ticketId": "P15.03"
+      },
+      "observation": "**A4 — One-tick torn render set during Settings writes.** The shared listing is captured before `customizationReader()` is called in the same tick. A user toggling session-pets ON in Settings between those two operations gets one tick where old session data is collapsed using the new customization. Self-corrects on the next poll. No data loss or persisted inconsistency. Inherent to non-atomic multi-file polling at 1 Hz."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "Confirmed still open: StateJsonWriter.forceIdle (StateJsonWriter.swift:53) and its MenubarApp.swift call sites still operate at origin granularity, not session-precise. Checked ticket-07's Rationale/Deferred section (the ticket the P15.04 report expected to close this) — it defers a different item (the \"blocked (all-active)\" render signal to P15.08) and does not mention Force Idle writer scoping at all, so P15.07 did not close this gap as anticipated. Right-clicking Force Idle on one session window can reset a fresher sibling session's state.d slice for up to one polling period. Self-corrects on the sibling's next hook event (no persistent data loss), but it is a real, user-visible one-tick animation reset on an unrelated session. Fixing it requires session-keyed writer scoping (a StateJsonWriter API change plus MenubarApp call-site updates) — a deliberate design change, not a quick patch. Recommend a follow-up ticket if the developer judges the UX cost worth addressing now.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.04-subagent-review.report.md",
+        "ticketId": "P15.04"
+      },
+      "observation": "**A1 — Spec-permitted transient confusion: Force Idle from a session window resets sibling sessions' in-progress state.** When a user right-clicks a session window (e.g., \"claude_code:s1\") and selects Force Idle, `resolveWindowOrigins` returns `[\"claude_code\"]`, and `StateJsonWriter.forceIdle` rewrites the owning origin's state.d slice. If a sibling session \"claude_code:s2\" is currently the winner (most-recent `updated_at`), its `.implementing` state is reset to idle for up to one polling period. The next hook event from s2 regenerates its state, so there is no persistent data loss. The ticket explicitly defers per-session-precise writer scoping to P15.07. This observation names the clause: the spec-deferral clause (Spec-permits-real-bug) permits the behavior, but the user experience is a visible one-tick animation reset on an unrelated active session. No patch needed before P15.07, but the P15.07 ticket scope should confirm it closes this gap."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "No bug: the report itself states \"the pool code path for this is identical to the single-window testLastActiveWindowNeverDismissedRegardlessOfTTL case, so the invariant holds by shared code.\" Missing explicit per-session mirror coverage is a nice-to-have, not warranted as a patch in this pass.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.04-subagent-review.report.md",
+        "ticketId": "P15.04"
+      },
+      "observation": "**A2 — Test coverage asymmetry for per-session last-active immunity.** Test (3) (`testIdleSessionAgesOutWhileActiveSiblingSessionSurvives`) covers the case where the idle session has the earlier `updated_at` and is correctly dismissed. The symmetric case — idle session with the later `updated_at`, which would be elected `lastActiveRenderKey` and receive TTL immunity — is not covered by any new test. The pool code path for this is identical to the single-window `testLastActiveWindowNeverDismissedRegardlessOfTTL` case, so the invariant holds by shared code, but an explicit per-session test would make the guarantee visible and catch any future regression that adds a session-specific code branch to last-active election."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Report itself frames this as sub-perceptual (1x) / single-pixel (2x Retina) with no visual overlap, \"noting here for completeness per the Review Focus mandate\" — not a defect requiring a fix.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.05-subagent-review.report.md",
+        "ticketId": "P15.05"
+      },
+      "observation": "**`sessionRowExtraHeight = 26` vs. 27 pt at achievable max scale**: At `achievableMaxScale ≈ 1.164`, `badgeHeight = 23 pt` and `MinimalistBadgeView.rowSpacing = 4 pt`, giving an actual session row cost of 27 pt vs. the 26 pt reserved. The `centerYAnchor` constraint keeps content vertically centered in the 84 pt panel, so the bubble anchors ~17 pt below the session badge's visible bottom and no visual overlap occurs. The shortfall is sub-perceptual at 1x and single-pixel at 2x Retina; noting it here for completeness per the Review Focus mandate."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Cheap, low-risk test-coverage addition. Added an assertion in testCombinedWindowNeverGetsASessionNumber that stubs[\"combined\"]?.appliedSessionNumbers == [], confirming applySessionNumber is never dispatched to the combined controller at all (not just that the public accessor returns nil).",
+      "patch": {
+        "commitSha": "372e0d84f7a4fd1dd31673552f8f05fe242bbd0c",
+        "files": [
+          "apps/menubar/Tests/MenubarTests/FloatingPetWindowPoolTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.05-subagent-review.report.md",
+        "ticketId": "P15.05"
+      },
+      "observation": "**`testCombinedWindowNeverGetsASessionNumber` missing controller-side assertion**: The test confirms `sessionNumber(forWindowKey: \"combined\")` returns nil (pool side) but does not verify that `stubs[\"combined\"]?.appliedSessionNumbers == []` (i.e., that `applySessionNumber` was never dispatched to the combined controller at all). The absence is benign because Step 8 has no `applySessionNumber` call, but adding the array assertion would give precise behavioral coverage rather than only the public-method guard."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "ticket-05-session-badge-numbering.md Rationale (lines 89-98, \"Subagent-review follow-up\") already documents the post-verify dae59b5a fix and explicitly states \"This should have been listed above at the time; recorded now per the subagent's doc-drift observation.\" Already closed during the ticket's own delivery.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.05-subagent-review.report.md",
+        "ticketId": "P15.05"
+      },
+      "observation": "**Doc drift — post-verify `isSessionKeyed` gate on `sessionNumber(forWindowKey:)` not documented**: `ticket-05-session-badge-numbering.md` Rationale lines 62–64 describe the pool's `isSessionKeyed` gate as covering only `assignSessionNumber`/`releaseSessionNumber`. The \"Contract note: none\" at line 82 implies the implementation matches the ticket spec without deviation. The post-verify commit `dae59b5a` added the same gate to the public `sessionNumber(forWindowKey:)` method — a substantive behavioral fix (not cleanup) that the Rationale should record. A \"Contract note\" amendment naming the gap (ungated public method would wrongly assign numbers to plain-origin keys whose `RenderKeyIdentity` has `sessionId = \"default\"`) and the post-verify fix would close this drift."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Real behavioral gap: FloatingPetWindowPool.swift's session-cap enforcement (feeding SessionSelectionPolicy.select, which treats any cap <= 0 as Unlimited) resolved only absent caps to the default, not negative ones — contradicting CustomizationSnapshot.sessionCap's documented \"absent or negative values resolve to the default cap of 3\" contract. This is the same underlying gap independently flagged by P15.09's report (see that entry) but at the actual enforcement layer rather than the Settings-UI display layer P15.09's own prior fix (commit 4fd2b739) covered. Added a shared resolvedSessionCap(for:) helper used at both FloatingPetWindowPool call sites (session-cap partition and isUnlimited), plus a regression test (testNegativeSessionCapResolvesToDefaultCapNotUnlimited) confirming a negative cap now blocks the 4th session under the resolved default of 3 rather than rendering all sessions unbounded.",
+      "patch": {
+        "commitSha": "372e0d84f7a4fd1dd31673552f8f05fe242bbd0c",
+        "files": [
+          "apps/menubar/Sources/FloatingPetWindowPool.swift",
+          "apps/menubar/Tests/MenubarTests/FloatingPetWindowPoolTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.05-subagent-review.report.md",
+        "ticketId": "P15.05"
+      },
+      "observation": "**Negative `sessionCap` not normalized to default**: `(currentCustomization.sessionCap[identity.origin] ?? 3) == 0` only normalizes ABSENT keys to 3; a stored value of `-1` is passed through as bounded (correctly not unlimited) but is not clamped to 3. The Rationale says \"absent or negative values resolve to the default cap of 3 at the point of use.\" Since `sessionCap` is read-only until P15.09, no Settings UI can produce a negative value today. Worth a one-line guard (`max(0, ...)`) at P15.09 when the write path lands to avoid a later surprise."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Real, confirmed test gap: grep against FloatingPetWindowPoolTests.swift showed appliedSessionTooltips was referenced only in the StubWindowController mock definition, never asserted by any test, while the symmetric applySessionLabel path had full pool-level coverage. Added testSessionKeyedWindowWithPromptSummaryAppliesItAsTooltip and testPlainOriginWindowNeverAppliesASessionTooltipEvenIfReaderHasOne, mirroring the existing session-label test pair exactly.",
+      "patch": {
+        "commitSha": "372e0d84f7a4fd1dd31673552f8f05fe242bbd0c",
+        "files": [
+          "apps/menubar/Tests/MenubarTests/FloatingPetWindowPoolTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.06-subagent-review.report.md",
+        "ticketId": "P15.06"
+      },
+      "observation": "**A1 — Pool-level tooltip test coverage is asymmetric with label coverage.** Three tests cover the session-label path at the pool level (`testSessionKeyedWindowWithSidecarLabel*`, `testPlainOriginWindowNeverAppliesASessionLabelEvenIfReaderHasOne`). No symmetric tests exist for `sessionPromptSummary` / `applySessionTooltip` at the pool level. Given that Finding 1 (tooltip silently non-functional) exists, a pool-level test asserting `appliedSessionTooltips` values would also have failed to catch the issue — but adding the coverage would still be valuable once the underlying delivery mechanism is fixed."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Meets the current spec as written (\"the CLI is untouched; app is sole writer\"); the report itself concludes \"No change is required to satisfy the current spec, but a future ticket could propagate write errors back to the rename alert.\" A UX improvement for a rare disk-full/permissions failure case, not a prudent quick patch.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.06-subagent-review.report.md",
+        "ticketId": "P15.06"
+      },
+      "observation": "**A2 — Silent rename write failure leaves in-memory and on-disk state permanently diverged.** `SessionLabelStore.write` swallows all errors via `try?`, following the codebase's existing sidecar-reader convention (`PromptAttentionReader`, `CustomizationJsonReader`). For those sidecars (written by hooks, not the user), silent failure is acceptable. For a user-initiated rename, a disk-full or permissions error causes the badge to display the new label for the current session, but after an app restart or TTL-respawn the badge reverts to \"Session N\" with no error presented. The spec clause that permits this (\"the CLI is untouched; app is sole writer\") does not address write failure. This meets the spec, but the UX regression on failure is qualitatively different from the hook-sidecar case. No change is required to satisfy the current spec, but a future ticket could propagate write errors back to the rename alert."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Low risk given current origin naming (all origins are fixed enum-like strings controlled by hook integrations, never user input); the report frames this as \"worth tracking,\" not a live bug. Adding runtime validation for an assumption with no current violation risks introducing a new failure mode for no observed benefit.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.06-subagent-review.report.md",
+        "ticketId": "P15.06"
+      },
+      "observation": "**A3 — Plain-origin colon assumption is documented but not validated at the boundary.** `isSessionKeyed`'s correctness depends on no origin identifier ever containing a colon. The pool comment documents this invariant (\"plain origins never contain a colon\") but there is no validation in `RenderKeyResolver`, `resolveRenderKeys`, or anywhere upstream that would reject a colon-containing origin string. A future hook configuration that used a colon in an origin name would silently misclassify the plain origin as session-keyed. Low risk given current origin naming, but the assumption is load-bearing and its absence from the validation boundary is worth tracking."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Ticket's own scope explicitly accepts this: \"acceptable gap for a 2-point ticket with NSAlert-modal UI\" per the report. The VM-layer invariants (SessionLabelStore, sessionLabelReader) already have full coverage; only the AppKit wiring chain (which is runtime-visible on any regression) is untested.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.06-subagent-review.report.md",
+        "ticketId": "P15.06"
+      },
+      "observation": "**A4 — The `FloatingPetPanelController`/`FloatingPetInteractionView`/`MenubarApp` rename-UI wiring chain is completely untested.** The only tested path is the pool-level injection (`sessionLabelReader`/`appliedSessionLabels`). The `presentRenameAlert → renameHandler → onRenameRequested → SessionLabelStore.setLabel` chain in `MenubarApp.swift` and `FloatingPetPanel.swift` has no unit test. The only evidence this wiring is correct is a code review, not a test assertion. This is an acceptable gap for a 2-point ticket with `NSAlert`-modal UI, but it means regressions in the rename-callback chain would not be caught by CI."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Pre-existing behavior (not introduced by P15.07), low risk: the report confirms the pool's own call sites are safe (gated behind windows[renderKey] != nil), and no external caller passing a pending session key exists today. Speculative hardening against a hypothetical caller, not a live bug.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.07-subagent-review.report.md",
+        "ticketId": "P15.07"
+      },
+      "observation": "`sessionNumber(forWindowKey:)` (`FloatingPetWindowPool.swift:529`) calls `sessionNumberAllocator.assign()` as a side effect inside a getter. The pool's own call sites are safe (gated behind the `windows[renderKey] != nil` check in Step 7, so pending sessions never reach it from within the pool). However, an external caller passing a pending session key would silently create an allocator entry for a non-rendered session, consuming a free-list slot until the next teardown. This is pre-existing behavior (not introduced by P15.07) and is low risk given the pool's tight wiring in `MenubarApp`."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "No behavioral bug — report explicitly states rename labels survive the hold/promote cycle correctly and only the auto-numbered badge can change. \"Noting for UX review on the badge label spec\" is a product-design note, not an actionable defect.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.07-subagent-review.report.md",
+        "ticketId": "P15.07"
+      },
+      "observation": "The design releases a cap-held session's free-list number on de-render and lets a promoted session receive a new (potentially different) number. The Rationale documents this as intentional (\"the ticket only requires the slice to survive a hold, not number stability\"). A session the user has been watching as \"Session 1\" that is de-rendered and later promoted could reappear as \"Session 3\" if other sessions consumed numbers in between. No behavioral bug — Rename labels are session-keyed and survive the hold correctly — but the visible badge number can change across a hold/promote cycle, which may surprise users. Noting for UX review on the badge label spec."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Confirmed real gap via grep: no existing test asserted on pool.blockedOrigins directly, only on the policy layer's `blocked` emission. Added testAllActiveCapPressureIsExposedThroughBlockedOrigins, mirroring the existing testAllActiveCapPressureNeverEvictsAnAlreadyRenderedSession scenario and additionally asserting blockedOrigins == [\"claude_code\"] once a third active session exceeds the cap-2 origin.",
+      "patch": {
+        "commitSha": "372e0d84f7a4fd1dd31673552f8f05fe242bbd0c",
+        "files": [
+          "apps/menubar/Tests/MenubarTests/FloatingPetWindowPoolTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.07-subagent-review.report.md",
+        "ticketId": "P15.07"
+      },
+      "observation": "The pool-level `blockedOrigins` wiring (Step 6c accumulating `computedBlockedOrigins` into `blockedOrigins`) has no pool-level test asserting on that property. The policy-layer test covers `blocked` emission, and the ticket explicitly defers `blockedOrigins` consumption to P15.08. If P15.08 assumes `blockedOrigins` is correctly set per tick, the connecting contract (Step 6c → pool property) is only implicitly covered. A single pool test asserting `pool.blockedOrigins.contains(\"claude_code\")` after the all-active scenario would close this seam. This is in-scope for P15.08's test setup."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "Confirmed still open in current code (FloatingPetWindowPool.swift): activeConflictBubbleTargets is cleared only on resolution (origin leaves blockedOrigins, lines ~331-336), not on non-resolution window teardown (TTL expiry, mode switch, pending transition). ticket-08-conflict-bubble.md Rationale (line 47) already names this as one of three observations \"deliberately deferred... none are reachable through the pool's actual lifecycle today and are lower-value than a dedicated cleanup ticket.\" A correct fix requires auditing every window-teardown call site across Step 5b/6/7/8 of the tick() function to add matching cleanup without missing a site or double-clearing — a deliberate scoped change, not a same-pass patch. Recommend the developer decide whether to open the dedicated cleanup ticket the ticket author already flagged.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.08-subagent-review.report.md",
+        "ticketId": "P15.08"
+      },
+      "observation": "**A1 — `activeConflictBubbleTargets` not cleared on non-resolution window teardown.** If the conflict bubble's target window is torn down by TTL expiry, mode switch, or the pending path while the origin is still in `blockedOrigins`, `activeConflictBubbleTargets[origin]` continues pointing to the now-dead key. The rate limiter suppresses re-fire for up to one hour. After the window expires, the pool would pick a new longest-lived target and fire correctly once the rate limit clears. This is per the deferred note in the Rationale (\"the bubble simply disappears with that window until the next allowed fire\") but is worth flagging for a subsequent cleanup pass: `activeConflictBubbleTargets.removeValue(forKey: …)` at each non-resolution window teardown site would reset the rate limiter's effective \"orphaned\" window to zero without affecting the timebased lockout."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "Confirmed via code read: firstSeenAt (FloatingPetWindowPool.swift:47) is set once per render key and never evicted — growth is real. Correcting the observation's own suggested fix reference: there is no existing \"lastSeenAt eviction pattern\" to mirror — lastSeenAt (line 46) is also never pruned from the dictionary itself (only read through a non-mutating .filter at line 208-209). This is a systemic pattern affecting multiple pool tracking dictionaries (firstSeenAt, lastSeenAt, lastUpdatedAt), not something unique to firstSeenAt or introduced by P15.08. ticket-08's Rationale (line 47) already named this as deliberately deferred to a dedicated cleanup ticket, same as the other two P15.08 advisory items. A proper fix needs a general eviction/cleanup strategy design decision for the pool actor's tracking state, not a one-line patch. Recommend the developer scope a cleanup ticket covering all three dictionaries together, given the corrected scope.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.08-subagent-review.report.md",
+        "ticketId": "P15.08"
+      },
+      "observation": "**A2 — `firstSeenAt` grows unboundedly.** The dictionary is set on first sight and never compacted. For a long-running app with high session churn, this will accumulate one entry per ever-seen render key indefinitely. The `filter { currentlyRendered.contains($0.key) }` call on every tick iterates the full uncompacted dictionary. In normal use the set is small, but a cleanup sweep (e.g., mirror the `lastSeenAt` eviction pattern) would keep this bounded."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "ticket-08-conflict-bubble.md Rationale (line 47) already names this as deliberately deferred: \"no guard against the real-attention and conflict bubbles overlapping if simultaneously active... not reachable through the pool's actual lifecycle today.\" A safe fix requires a layout-priority design decision (which bubble wins, or how they should stack) rather than a mechanical patch. Recommend the developer decide the intended visual behavior before scoping a fix.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.08-subagent-review.report.md",
+        "ticketId": "P15.08"
+      },
+      "observation": "**A3 — Both bubbles stack at the same screen position when simultaneously active.** If a session is both in `blockedOrigins` (conflict bubble shown) and carrying an active `AttentionPayload` (real attention bubble shown), `BubbleLayout.frame(relativeTo: lastPanelFrame, visibleFrame:)` produces the same CGRect for both. The bubbles overlap exactly. The code's own comment acknowledges this is unlikely in practice, but there is no guard preventing the simultaneous case from reaching the screen."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "ticket-08-conflict-bubble.md Rationale (line 47) already documents the two-layer forwarding chain fix: \"Fixed by adding applyConflictBubble to FloatingPetPanelManaging/MinimalistPanelManaging and forwarding it from both adapters to their owned panel controllers.\"",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.08-subagent-review.report.md",
+        "ticketId": "P15.08"
+      },
+      "observation": "**A4 — Doc-vs-code drift in ticket Rationale.** The Rationale describes the conflict bubble being delivered via the `applyConflictBubble(_:)` protocol method and received by `FloatingPetPanelController` / `MinimalistPanelController`. The documentation does not mention that `FloatingPetController` and `MinimalistWindowController` must also forward the call, nor does it note they are the types actually stored in `windows`. The missing forwarding is undocumented as an implementation requirement. If Finding 1 is patched, the Rationale should be updated to describe the two-layer forwarding chain explicitly."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "ConflictBubbleRateLimiterTests.swift already has testExactlyOneHourStillSuppresses (line 43) asserting the at-exactly-3600-seconds case suppresses, alongside the existing t0+3601 re-fire test. ticket-08's Rationale (line 47) confirms this was \"added... per the review's advisory note\" during the ticket's own delivery.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.08-subagent-review.report.md",
+        "ticketId": "P15.08"
+      },
+      "observation": "**A5 — Exact 3600-second boundary not covered by tests.** `ConflictBubbleRateLimiterTests.testBlockAfterTheHourElapsesFiresAgain` uses `3600 + 1` seconds to verify re-fire. The at-exactly-3600 case (which the implementation suppresses via `> Self.window`) is not tested. The behavior is unambiguous from the code, but a boundary test at `t0 + 3600` (expect false) alongside the existing `t0 + 3601` (expect true) would fully close the boundary invariant stated in the ticket's attack surface description."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Same underlying contract gap as P15.05's negative-sessionCap observation (see that entry) — this report identified it via CustomizationTabViewModel.effectiveSessionCap (the Settings-UI display layer, already correctly fixed by commit 4fd2b739 per this repo's git history) but noted the deeper enforcement-layer gap in FloatingPetWindowPool/SessionSelectionPolicy remained: a negative cap fell through to SessionSelectionPolicy.select's `cap > 0` guard and was silently treated as Unlimited rather than the documented default-3 fallback. Fixed at the FloatingPetWindowPool call sites in the same commit as the P15.05 fix.",
+      "patch": {
+        "commitSha": "372e0d84f7a4fd1dd31673552f8f05fe242bbd0c",
+        "files": [
+          "apps/menubar/Sources/FloatingPetWindowPool.swift",
+          "apps/menubar/Tests/MenubarTests/FloatingPetWindowPoolTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.09-subagent-review.report.md",
+        "ticketId": "P15.09"
+      },
+      "observation": "`effectiveSessionCap(for:)` does not implement the full contract described in `CustomizationSnapshot`'s doc comment. The comment says \"absent **or negative** values resolve to the default cap of 3 at the point of use (P15.04/P15.07/P15.09).\" The implementation is `sessionCap[origin] ?? CustomizationSnapshot.defaultSessionCap`, which resolves only the absent case. A manually-injected negative value (e.g. `-1`) is present in the map, bypasses the `??` default, and is returned as-is. In `SettingsWindowController`, `SessionCapOption.matching(-1)` falls back to `.three` so the dropdown visually shows \"3\" — the UI is harmless. In `FloatingPetWindowPool.isUnlimited`, `-1 == 0` is false, so the origin is not flagged as unlimited to `SessionNumberAllocator`. However, `SessionSelectionPolicy.select` has `guard cap > 0` on line 62 and treats any `cap ≤ 0` as the unlimited-render path, so no actual sessions are blocked or lost. The practical impact is confined to manual JSON editing and is behaviorally safe, but the contract comment overpromises what P15.09 delivers. The fix (if desired) would be to add `<= 0 ? CustomizationSnapshot.defaultSessionCap : sessionCap[origin]` logic, or to narrow the doc comment to \"absent values.\""
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "CustomizationTabViewModelTests.swift's testTogglingModeToCombinedDoesNotEraseStoredCap (lines 74-98) already asserts payload[\"session_pets_enabled\"][\"claude_code\"] == true survives the mode change (lines 94-97), in addition to the session_cap assertion.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.09-subagent-review.report.md",
+        "ticketId": "P15.09"
+      },
+      "observation": "Test 4 (`testTogglingModeToCombinedDoesNotEraseStoredCap`) verifies the cap survives a mode change but does not assert that `session_pets_enabled[origin]` also survives the same mode change. The implementation is correct (`setMode` merges only `platform_modes`), but if a future refactor accidentally added a `session_pets_enabled` clear inside `setMode`, this test would not catch it. A one-line assertion — `XCTAssertEqual(payload[\"session_pets_enabled\"] as? [String: Bool])?[\"claude_code\"], true)` — would close the gap."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Ticket Rationale explicitly defers this: the VM-layer invariants are fully covered by unit tests and AppKit layout wiring failures are runtime-visible. Report frames it as \"a coverage gap, not a blocking finding.\"",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.09-subagent-review.report.md",
+        "ticketId": "P15.09"
+      },
+      "observation": "There is no unit test for any `SettingsWindowController` UI-layer wiring: specifically the three-condition chain where mode change → checkbox `isEnabled` → cap picker `isEnabled`. The ticket Rationale explicitly defers visual verification; this is recorded here as a coverage gap, not a blocking finding, since the VM-layer invariants are fully covered and AppKit layout failures are runtime-visible."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Report itself frames this as intentional pre-existing design (the isRoutableSessionId guard protects only the routing-pointer write, not slice deletion), best-effort and silently swallowed with no user-visible effect, and \"not introduced by the cherry-pick; noted for completeness.\"",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.10-subagent-review.report.md",
+        "ticketId": "P15.10"
+      },
+      "observation": "The `session_end` branch at line 1324 still calls `deleteSliceBestEffort(opts.home, origin, sessionId ?? \"default\")` with the pre-existing `?? \"default\"` fallback, which is outside the new `isRoutableSessionId` guard. This is intentional pre-existing design (the guard protects only the routing-pointer write, not slice deletion), but a `session_end` event with no session id will attempt to delete `origin:default.json`, a file that almost certainly does not exist on disk (the successful-write path now requires a UUID-shaped id). The call is best-effort and the failure is silently swallowed — no user-visible effect. Not introduced by the cherry-pick; noted for completeness."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Current README.md (line 34) already reads \"Right-click a session panel and choose Rename… (sticks for that session...)\" — the \"Rename Session\" wording this observation flagged is no longer present. Already corrected, likely during P15.10's own docs-sweep delivery.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.10-subagent-review.report.md",
+        "ticketId": "P15.10"
+      },
+      "observation": "The README's v2.2.0 paragraph says \"right-click a session panel to **Rename Session**\" — but the actual right-click context menu item in `FloatingPetPanel.swift` (line 2409) is `static let renameTitle = \"Rename…\"` (the string \"Rename…\" with an ellipsis, not \"Rename Session\"). The dialog that appears after clicking is titled \"Rename Session\" (`alert.messageText` at line 3127), which does match. By contrast, \"Prune Session\" is verbatim-consistent: `static let pruneTitle = \"Prune Session\"` at line 2414 and the alert title at line 3146 both read \"Prune Session.\" Invariant 3 enumerates \"dialog titles\" rather than context menu item labels, so this does not break the enumerated invariant — but a user searching the right-click menu for the text \"Rename Session\" will find \"Rename…\" instead. Worth correcting the README to say `right-click → **Rename…**` (matching the menu item) in a future doc pass; the alert title \"Rename Session\" appears immediately after and makes the action self-explanatory."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The report explicitly frames this as \"an upstream son-of-anton workflow issue as noted, not actionable here.\" Confirmed via .agents/delivery/phase-15/state.json: P15.05/06/08 do record subagentReviewOutcome: \"clean\" despite each having a landed [subagent-review] patch commit — a real data-quality gap, but it is in the delivery orchestrator's outcome-recording logic (son-of-anton upstream), not something to silently hand-edit in this repo's local, gitignored state file without risking masking the real tooling bug that needs fixing at the source.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-15/reviews/P15.10-subagent-review.report.md",
+        "ticketId": "P15.10"
+      },
+      "observation": "The retrospective's \"What we'd do differently\" section recommends correcting the canonical `subagentReviewOutcome` field in `state.json` to `\"patched\"` for P15.05/06/08 as a process improvement. This is an upstream `son-of-anton` workflow issue as noted, not actionable here — but any future quality-control or `soa update` pass that revisits the P15.x delivery records should update those three fields for historical accuracy."
+    }
+  ]
+}
