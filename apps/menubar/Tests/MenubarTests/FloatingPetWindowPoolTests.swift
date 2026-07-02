@@ -57,6 +57,7 @@ private final class StubMinimalistPanel: MinimalistPanelManaging {
 	func applyGateBadge(content: GateBadgeContent?) { gateBadge = content }
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) { frameChangeHandler = handler }
 	func applySessionNumber(_ number: Int?) { sessionNumber = number }
+	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
 }
 
 // MARK: - Helpers
