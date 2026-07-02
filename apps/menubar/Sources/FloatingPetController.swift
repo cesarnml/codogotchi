@@ -29,12 +29,19 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	/// Last submitted prompt for this exact session, shown as a delayed hover
 	/// tooltip on the session badge. `nil`/empty clears the tooltip.
 	func applySessionTooltip(_ summary: String?)
+	/// Reversible P15.08 conflict-bubble presentation: `payload` shown on the
+	/// longest-lived active session's panel while this window's origin is in
+	/// `FloatingPetWindowPool.blockedOrigins`; `nil` hides it. Distinct from
+	/// `applyAttention` — the conflict signal is pool-level, not per-session
+	/// `state.json` state.
+	func applyConflictBubble(_ payload: ConflictBubblePayload?)
 }
 
 extension FloatingPetWindowControlling {
 	func applySessionNumber(_ number: Int?) {}
 	func applySessionLabel(_ label: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
+	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
 }
 
 @MainActor

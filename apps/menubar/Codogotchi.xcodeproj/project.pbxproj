@@ -12,6 +12,7 @@
 		00F9608A6921A6D7A6FD6454 /* PetTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC685626D14E1B7F1A468CC /* PetTabViewModel.swift */; };
 		025D10BD2A8B47BD0991A05D /* MenubarRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */; };
 		04E4BF3ECD02EFD4B252E27C /* FloatingInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97D90D6AFBAC5EB23BBC4A8 /* FloatingInteraction.swift */; };
+		097D494BAAC63F8F867FCE68 /* ConflictBubblePayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = D26316163CA92D43D5ACE278 /* ConflictBubblePayload.swift */; };
 		0A2908CC07910B983DD32326 /* CustomizationJsonReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A6437113DF92D5CB7E925C /* CustomizationJsonReader.swift */; };
 		0F18B94E6BE7C17F0F4C1593 /* RpgStateReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61DFF543B14E3A888D094385 /* RpgStateReader.swift */; };
 		121F58B33BBB5B89020FD3A7 /* FloatingPetSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57120C267C3617C32AC0430F /* FloatingPetSceneTests.swift */; };
@@ -63,6 +64,7 @@
 		6A78A39CED185B02C213FE62 /* MenuItemsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */; };
 		708062CE5FDA296BC26AF17C /* PetTabLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 777877051ED12A63B5FD6ACB /* PetTabLayoutTests.swift */; };
 		71AFF145FBC55826CFD98324 /* SettingsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73B325A85B9C3A8AFB02C5BA /* SettingsController.swift */; };
+		74CEB3A09039FE96929BEEE9 /* ConflictBubbleTargetSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 437F9BD375E702C0D1EB8290 /* ConflictBubbleTargetSelector.swift */; };
 		766A1353C309F8F7551B6A3C /* FloatingPetWindowPoolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A977437677E31BB6CF62E58C /* FloatingPetWindowPoolTests.swift */; };
 		7A7D6AF5F7CAC9C273EDC5FF /* SettingsWindowOpenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14570954EC4AB5F26AFE2173 /* SettingsWindowOpenTests.swift */; };
 		7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A9EA8AA7530DED8536C384 /* PetTabViewModelTests.swift */; };
@@ -101,6 +103,7 @@
 		D0D4F8896EC0F30182472D1C /* LivePollingDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03267BF299C29EE9DC11590 /* LivePollingDriver.swift */; };
 		D4B25DD9B2E2825856181DBC /* DeveloperTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B9E962BBA7B8B1B05F9F77 /* DeveloperTabViewModelTests.swift */; };
 		D6CCD2A3A92C90A80C5FA82D /* LivePollingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA2D403DBB111D997748F847 /* LivePollingTests.swift */; };
+		D74469F14C1CAD357F7C4618 /* ConflictBubbleRateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A1DBC9519F197404895246B /* ConflictBubbleRateLimiter.swift */; };
 		D82CE832ED27D2C047026D62 /* DemoConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09112F189EA04FABD5D4833E /* DemoConfig.swift */; };
 		D948D761587BF98DB22640EB /* RpgStateReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BCAD41ECE980A5E83D5AE20 /* RpgStateReaderTests.swift */; };
 		DB71B313809B37E9F1F2EA32 /* StateJsonReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BC14DBFFFD8DF9F8C3DDA8F /* StateJsonReader.swift */; };
@@ -163,6 +166,7 @@
 		37BBC3DE729053A5A25EFCF7 /* SessionSelectionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSelectionPolicyTests.swift; sourceTree = "<group>"; };
 		3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonWriterTests.swift; sourceTree = "<group>"; };
 		435A8FD674326013FF142B52 /* HooksStatusSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HooksStatusSnapshot.swift; sourceTree = "<group>"; };
+		437F9BD375E702C0D1EB8290 /* ConflictBubbleTargetSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubbleTargetSelector.swift; sourceTree = "<group>"; };
 		4412C28CB80A89E0E021EC03 /* state-json */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "state-json"; path = "Fixtures/state-json"; sourceTree = SOURCE_ROOT; };
 		4610C19ADA41987592CEE748 /* CodexPetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPetTests.swift; sourceTree = "<group>"; };
 		489C5364D39974B530891975 /* DemoModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeTests.swift; sourceTree = "<group>"; };
@@ -176,6 +180,7 @@
 		5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrapTests.swift; sourceTree = "<group>"; };
 		61DFF543B14E3A888D094385 /* RpgStateReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RpgStateReader.swift; sourceTree = "<group>"; };
 		63448DB1F4F0A42702BBD634 /* RPGHUDPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDPanel.swift; sourceTree = "<group>"; };
+		6A1DBC9519F197404895246B /* ConflictBubbleRateLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubbleRateLimiter.swift; sourceTree = "<group>"; };
 		6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetImportHelperTests.swift; sourceTree = "<group>"; };
 		6C36708DADAAEA372DF03A2A /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		712A24CF66C43196AE34459D /* OnboardingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingController.swift; sourceTree = "<group>"; };
@@ -223,6 +228,7 @@
 		C473FDED57B163FBBB6F3CF1 /* FloatingPetPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetPanel.swift; sourceTree = "<group>"; };
 		D03267BF299C29EE9DC11590 /* LivePollingDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePollingDriver.swift; sourceTree = "<group>"; };
 		D1679B814BC300DCA60C6A97 /* Codogotchi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Codogotchi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D26316163CA92D43D5ACE278 /* ConflictBubblePayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubblePayload.swift; sourceTree = "<group>"; };
 		D5A6437113DF92D5CB7E925C /* CustomizationJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationJsonReader.swift; sourceTree = "<group>"; };
 		D616896585DB8B3DEB4C954D /* SessionLabelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLabelStore.swift; sourceTree = "<group>"; };
 		D97B6CBA3971EF14695D74F9 /* GateJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateJsonReaderTests.swift; sourceTree = "<group>"; };
@@ -336,6 +342,9 @@
 				31DA139C1DC07DF2DC2417E3 /* CodogotchiPet.swift */,
 				BFDA2FD41708D0AEB3230327 /* ConfigBootstrap.swift */,
 				08997AE6D58DB7C54EC4DAC1 /* ConfigFileWriter.swift */,
+				D26316163CA92D43D5ACE278 /* ConflictBubblePayload.swift */,
+				6A1DBC9519F197404895246B /* ConflictBubbleRateLimiter.swift */,
+				437F9BD375E702C0D1EB8290 /* ConflictBubbleTargetSelector.swift */,
 				D5A6437113DF92D5CB7E925C /* CustomizationJsonReader.swift */,
 				585425FAA416914A5706D550 /* CustomizationTabViewModel.swift */,
 				09112F189EA04FABD5D4833E /* DemoConfig.swift */,
@@ -545,6 +554,9 @@
 				A28BAB9D5F23FFBE6C429720 /* CodogotchiPet.swift in Sources */,
 				17A4A67B836C574013DB2CDA /* ConfigBootstrap.swift in Sources */,
 				E3A1358DA3174EF2C96F1B01 /* ConfigFileWriter.swift in Sources */,
+				097D494BAAC63F8F867FCE68 /* ConflictBubblePayload.swift in Sources */,
+				D74469F14C1CAD357F7C4618 /* ConflictBubbleRateLimiter.swift in Sources */,
+				74CEB3A09039FE96929BEEE9 /* ConflictBubbleTargetSelector.swift in Sources */,
 				0A2908CC07910B983DD32326 /* CustomizationJsonReader.swift in Sources */,
 				213E87C60B33B6698F9EAE7D /* CustomizationTabViewModel.swift in Sources */,
 				D82CE832ED27D2C047026D62 /* DemoConfig.swift in Sources */,

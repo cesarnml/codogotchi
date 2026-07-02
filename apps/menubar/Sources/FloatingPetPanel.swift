@@ -38,6 +38,10 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// Separate attention-bubble panel — the same component Own mode uses,
 	/// created lazily on first attention event.
 	private var bubblePanel: AttentionBubblePanel?
+	/// P15.08 conflict-bubble panel — distinct from `bubblePanel` (real
+	/// attention) so the two never contend for the same field.
+	private var conflictBubblePanel: AttentionBubblePanel?
+	private var currentConflictPayload: ConflictBubblePayload?
 	/// Ticket/gate badge panel, stacked above the strip (ticket over gate,
 	/// centered on the strip's midX) — the same `GateBadgePanel` Own mode uses,
 	/// created lazily on the first non-nil gate badge.
@@ -72,6 +76,9 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// affordance (only offered while non-idle). The app wires this to rewrite
 	/// this origin's `state.d/` slice back to idle.
 	var onForceIdle: (() -> Void)?
+	/// Called when the user clicks the P15.08 conflict bubble's action button.
+	/// Wired by the caller to open Settings > Customization.
+	var onOpenSettingsRequested: (() -> Void)?
 
 	init(
 		visibleFrameProvider: @escaping () -> CGRect = {
@@ -88,6 +95,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		// Keep the bubble and gate badge anchored to the badge while it is dragged.
 		badgeView.onDragMoved = { [weak self] frame in
 			self?.repositionBubble(badgeFrame: frame)
+			self?.repositionConflictBubble(badgeFrame: frame)
 			self?.applyGateBadgePanel(badgeFrame: frame)
 		}
 		// Persist the badge frame when the drag ends.
@@ -111,6 +119,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		applyBadge(anchorOrigin: frame.origin)
 		panel.orderFrontRegardless()
 		applyBubble()
+		applyConflictBubblePresentation()
 	}
 
 	func hide() {
@@ -118,7 +127,13 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		badgeView.dismissHidePromptIfPresent()
 		badgePanel?.orderOut(nil)
 		bubblePanel?.orderOut(nil)
+		conflictBubblePanel?.orderOut(nil)
 		gateBadgePanel?.orderOut(nil)
+	}
+
+	func applyConflictBubble(_ payload: ConflictBubblePayload?) {
+		currentConflictPayload = payload
+		applyConflictBubblePresentation()
 	}
 
 	func applyPlatform(origin: String?) {
@@ -213,6 +228,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 			panel.setFrame(newFrame, display: true)
 		}
 		repositionBubble(badgeFrame: newFrame)
+		repositionConflictBubble(badgeFrame: newFrame)
 		applyGateBadgePanel(badgeFrame: newFrame)
 	}
 
@@ -266,6 +282,34 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 	private func repositionBubble(badgeFrame: CGRect) {
 		guard currentAttention != nil, let bubble = bubblePanel else { return }
+		bubble.reposition(relativeTo: badgeFrame, visibleFrame: visibleFrameProvider())
+	}
+
+	// MARK: - Conflict bubble panel (P15.08, independent window)
+
+	/// Order the P15.08 conflict-bubble panel in or out based on the current
+	/// conflict payload. Distinct from `applyBubble` (real attention) — the two
+	/// bubbles never share a field or a panel instance.
+	private func applyConflictBubblePresentation() {
+		guard isShown else { return }
+		guard let payload = currentConflictPayload else {
+			conflictBubblePanel?.orderOut(nil)
+			return
+		}
+		let bubble = conflictBubblePanel ?? {
+			let b = AttentionBubblePanel()
+			b.onOpenSettings = { [weak self] in self?.onOpenSettingsRequested?() }
+			b.showsPlatformChip = false
+			conflictBubblePanel = b
+			return b
+		}()
+		bubble.updateConflict(origin: payload.origin)
+		repositionConflictBubble(badgeFrame: badgePanel?.frame ?? .zero)
+		bubble.orderFrontRegardless()
+	}
+
+	private func repositionConflictBubble(badgeFrame: CGRect) {
+		guard currentConflictPayload != nil, let bubble = conflictBubblePanel else { return }
 		bubble.reposition(relativeTo: badgeFrame, visibleFrame: visibleFrameProvider())
 	}
 
@@ -551,9 +595,18 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// Intended for the caller to persist the idle state back to state.json so a
 	/// relaunch does not re-show the bubble.
 	var onAttentionDismissed: (() -> Void)?
+	/// Called when the user clicks the P15.08 conflict bubble's action button.
+	/// Wired by the caller to open Settings > Customization.
+	var onOpenSettingsRequested: (() -> Void)?
 
 	// Attention bubble — shown below the pet when a non-expired attention payload is active.
 	private var attentionBubble: AttentionBubblePanel?
+	/// Separate bubble panel for P15.08's conflict notice — distinct from
+	/// `attentionBubble` so the two presentations never contend for the same
+	/// field (a blocked origin's rendered sessions are, by definition, active
+	/// and unlikely to also carry a real attention payload, but keeping them
+	/// independent avoids relying on that).
+	private var conflictBubble: AttentionBubblePanel?
 	private var gateBadgePanel: GateBadgePanel?
 	// Animation badge — always shown while the pet is visible; labels the current
 	// activity-state animation, anchored bottom-left inside the pet frame.
@@ -561,6 +614,11 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var lastPanelFrame: CGRect = .zero
 	private var isPanelShown = false
 	private var attentionActive = false
+	/// Mirrors `attentionActive` for the P15.08 conflict bubble: true while
+	/// `applyConflictBubble` last received a non-nil payload, so drag/resize
+	/// re-anchoring (`reanchorChrome`) keeps the conflict bubble glued to the
+	/// panel the same way it does the real attention bubble.
+	private var conflictActive = false
 	private var gateBadgeContent: GateBadgeContent?
 	/// Mirror of the scene's idle-escalation level, used for the badge label.
 	private var currentEscalation: IdleEscalation = .none
@@ -692,6 +750,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		if attentionActive {
 			repositionAndShowBubble()
 		}
+		if conflictActive {
+			repositionAndShowConflictBubble()
+		}
 		if gateBadgeContent != nil {
 			repositionAndShowGateBadge()
 		}
@@ -706,6 +767,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		panel?.orderOut(nil)
 		isPanelShown = false
 		attentionBubble?.orderOut(nil)
+		conflictBubble?.orderOut(nil)
 		gateBadgePanel?.orderOut(nil)
 		animationBadgePanel?.orderOut(nil)
 		tombstonePanel?.orderOut(nil)
@@ -721,6 +783,25 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		self.codogotchiPet = codogotchiPet
 		// Rebuild the scene with new pets when it's already visible.
 		scene?.replacePets(codexPet: codexPet, codogotchiPet: codogotchiPet)
+	}
+
+	func applyConflictBubble(_ payload: ConflictBubblePayload?) {
+		guard let payload else {
+			conflictActive = false
+			conflictBubble?.orderOut(nil)
+			return
+		}
+		conflictActive = true
+		let bubble = conflictBubble ?? {
+			let b = AttentionBubblePanel()
+			b.onOpenSettings = { [weak self] in self?.onOpenSettingsRequested?() }
+			conflictBubble = b
+			return b
+		}()
+		bubble.updateConflict(origin: payload.origin)
+		if isPanelShown {
+			repositionAndShowConflictBubble()
+		}
 	}
 
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
@@ -875,6 +956,15 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		attentionActive = false
 		apply(state: .idle, visualMode: currentMode)
 		onAttentionDismissed?()
+	}
+
+	private func repositionAndShowConflictBubble() {
+		guard let bubble = conflictBubble else { return }
+		bubble.reposition(
+			relativeTo: lastPanelFrame,
+			visibleFrame: visibleFrameProvider()
+		)
+		bubble.orderFrontRegardless()
 	}
 
 	private func repositionAndShowBubble() {
@@ -1159,6 +1249,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		guard isPanelShown else { return }
 		if attentionActive {
 			attentionBubble?.reposition(
+				relativeTo: lastPanelFrame,
+				visibleFrame: visibleFrameProvider()
+			)
+		}
+		if conflictActive {
+			conflictBubble?.reposition(
 				relativeTo: lastPanelFrame,
 				visibleFrame: visibleFrameProvider()
 			)
