@@ -138,6 +138,11 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			NSLog("MenubarApp: ConfigBootstrap.ensureLiteConfig failed — \(error)")
 		}
 
+		// Clean up pre-state.d/ legacy artifacts (gate.json, delivery-context.json,
+		// and state.json once its RPG data has migrated to rpg-state.json). See
+		// LegacyStateFileCleanup for the phase-15 advisory-observation rationale.
+		LegacyStateFileCleanup.run()
+
 		// Seed Maew from the app bundle when Maew's canonical store is absent or
 		// incomplete. Runs before pet loading so a clean machine has assets
 		// available at first launch.
