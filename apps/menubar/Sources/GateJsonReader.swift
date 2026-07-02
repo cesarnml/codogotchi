@@ -119,23 +119,32 @@ enum PerPlatformGateReader {
 		let context: DeliveryContextSnapshot?
 	}
 
-	static func read(at dirPath: String) -> [String: Entry] {
-		readImpl(at: dirPath)
+	/// `listing`, when supplied, is a `state.d/` enumeration already produced once
+	/// for this poll tick — the reader consumes it instead of issuing its own
+	/// `contentsOfDirectory`. When omitted (direct callers, tests) it self-scans
+	/// exactly as before. Only the enumeration is shared; each gate/context file
+	/// is still opened and decoded here.
+	static func read(at dirPath: String, listing: StateDirectoryListing? = nil) -> [String: Entry] {
+		readImpl(at: dirPath, listing: listing)
 	}
 
-	private static func readImpl(at dirPath: String) -> [String: Entry] {
-		let fm = FileManager.default
-		guard let names = try? fm.contentsOfDirectory(atPath: dirPath) else { return [:] }
+	private static func readImpl(at dirPath: String, listing: StateDirectoryListing?) -> [String: Entry] {
+		let entries: [StateDirectoryListing.Entry]
+		if let listing {
+			entries = listing.entries
+		} else {
+			guard let scanned = StateDirectoryListing.scan(at: dirPath) else { return [:] }
+			entries = scanned.entries
+		}
 
 		var gates: [String: (mtime: Date, snapshot: GateSnapshot)] = [:]
 		var contexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)] = [:]
 
-		for name in names {
+		for entry in entries {
+			let name = entry.name
 			guard !name.contains(".tmp-") else { continue }
 			let filePath = (dirPath as NSString).appendingPathComponent(name)
-			guard let attrs = try? fm.attributesOfItem(atPath: filePath),
-				let mtime = attrs[.modificationDate] as? Date
-			else { continue }
+			guard let mtime = entry.mtime else { continue }
 
 			if name.hasSuffix(".gate.json"),
 				let origin = originPrefix(of: name, suffix: ".gate.json"),

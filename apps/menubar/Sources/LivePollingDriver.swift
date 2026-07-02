@@ -210,6 +210,14 @@ final class LivePollingDriver {
 		let previewState = previewStatePath.flatMap { PreviewOverrideReader.readState(at: $0) }
 		let previewGate = previewGatePath.flatMap { PreviewOverrideReader.readGate(at: $0) }
 		let previewActive = previewState != nil || previewGate != nil
+		// One shared `state.d/` enumeration per tick: the per-origin state read,
+		// per-origin gate read, and newest gate/context resolution below all
+		// consume this instead of each re-scanning the directory at 1 Hz. Skipped
+		// in preview mode, which reads no `state.d/` files. `nil` (directory
+		// absent) lets each consumer fall back to its own missing-directory
+		// branch. The injected `reader` seam keeps its own read and the off-thread
+		// `SlicePruneScheduler` is not on this path — see the P15.02 ticket.
+		let sharedListing = previewActive ? nil : StateDirectoryListing.scan(at: pollingTargetPath)
 		let result = reader(pollingTargetPath)
 		let rpgSnapshot = rpgStatePath.map { RpgStateReader.read(at: $0) } ?? .safeDefault
 		if !previewActive, case .success(let snapshot) = result {
@@ -224,13 +232,15 @@ final class LivePollingDriver {
 		}
 		let outcome = decide(
 			from: result, rpgSnapshot: rpgSnapshot, previewState: previewState,
-			previewGate: previewGate)
+			previewGate: previewGate, listing: sharedListing)
 		emit(outcome)
 		// Emit per-platform snapshot to pool when not in preview mode and read succeeded.
 		if !previewActive, let sink = applyPerPlatform {
-			let perPlatformResult = StateJsonReader.readPerPlatformDirectory(at: pollingTargetPath)
+			let perPlatformResult = StateJsonReader.readPerPlatformDirectory(
+				at: pollingTargetPath, listing: sharedListing)
 			if case .success(let perOriginMap) = perPlatformResult {
-				let perOriginGate = PerPlatformGateReader.read(at: pollingTargetPath)
+				let perOriginGate = PerPlatformGateReader.read(
+					at: pollingTargetPath, listing: sharedListing)
 				let legacyGate = gatePath.flatMap { gateReader($0) }
 				let legacyContext = deliveryContextPath.flatMap { deliveryContextReader($0) }
 				let (mergedStates, gateBadges) = resolvePerPlatform(
@@ -323,20 +333,25 @@ final class LivePollingDriver {
 	/// Scans `state.d/` for `*.<suffix>` files and returns the path of the
 	/// most recently modified one. Returns `nil` when the directory is absent
 	/// or contains no matching files.
-	private func newestFile(suffix: String) -> String? {
-		let fm = FileManager.default
-		guard let names = try? fm.contentsOfDirectory(atPath: pollingTargetPath) else {
-			return nil
+	/// `listing`, when supplied, is the shared per-tick `state.d/` enumeration —
+	/// `newestFile` filters it instead of issuing its own `contentsOfDirectory`.
+	/// When omitted it self-scans, preserving the original behavior for any caller
+	/// without a shared listing.
+	private func newestFile(suffix: String, listing: StateDirectoryListing?) -> String? {
+		let entries: [StateDirectoryListing.Entry]
+		if let listing {
+			entries = listing.entries
+		} else {
+			guard let scanned = StateDirectoryListing.scan(at: pollingTargetPath) else {
+				return nil
+			}
+			entries = scanned.entries
 		}
-		let matches = names.filter { $0.hasSuffix(suffix) }
-		guard !matches.isEmpty else { return nil }
-		return matches
-			.compactMap { name -> (path: String, mtime: Date)? in
-				let fullPath = (pollingTargetPath as NSString).appendingPathComponent(name)
-				guard
-					let attrs = try? fm.attributesOfItem(atPath: fullPath),
-					let mtime = attrs[.modificationDate] as? Date
-				else { return nil }
+		return entries
+			.filter { $0.name.hasSuffix(suffix) }
+			.compactMap { entry -> (path: String, mtime: Date)? in
+				guard let mtime = entry.mtime else { return nil }
+				let fullPath = (pollingTargetPath as NSString).appendingPathComponent(entry.name)
 				return (fullPath, mtime)
 			}
 			.sorted { $0.mtime > $1.mtime }
@@ -347,7 +362,8 @@ final class LivePollingDriver {
 		from result: Result<StateSnapshot, StateReadError>,
 		rpgSnapshot: RpgSnapshot,
 		previewState: PreviewStateOverride?,
-		previewGate: PreviewGateOverride?
+		previewGate: PreviewGateOverride?,
+		listing: StateDirectoryListing?
 	) -> Outcome {
 		if let previewOutcome = previewOutcome(
 			from: result, previewState: previewState, previewGate: previewGate)
@@ -355,8 +371,8 @@ final class LivePollingDriver {
 			return previewOutcome
 		}
 		// Prefer per-platform+session files in state.d/; fall back to legacy flat files.
-		let resolvedGatePath = newestFile(suffix: ".gate.json") ?? gatePath
-		let resolvedContextPath = newestFile(suffix: ".context.json") ?? deliveryContextPath
+		let resolvedGatePath = newestFile(suffix: ".gate.json", listing: listing) ?? gatePath
+		let resolvedContextPath = newestFile(suffix: ".context.json", listing: listing) ?? deliveryContextPath
 		let gate = resolvedGatePath.flatMap { gateReader($0) }
 		let deliveryContext = resolvedContextPath.flatMap { deliveryContextReader($0) }
 		switch result {

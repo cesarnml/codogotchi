@@ -259,35 +259,47 @@ enum StateJsonReader {
 	/// Returns `.failure(.fileNotFound)` when the directory does not exist.
 	/// Returns `.success([:])` when the directory is empty or all slices are stale.
 	static func readPerPlatformDirectory(
-		at dirPath: String
+		at dirPath: String,
+		listing: StateDirectoryListing? = nil
 	) -> Result<[String: StateSnapshot], StateReadError> {
-		readPerPlatformDirectoryImpl(at: dirPath, now: Date(), staleTTL: 2 * 60 * 60)
+		readPerPlatformDirectoryImpl(at: dirPath, now: Date(), staleTTL: 2 * 60 * 60, listing: listing)
 	}
 
 	static func readPerPlatformDirectory(
 		at dirPath: String,
 		now: Date,
-		staleTTL: TimeInterval = 2 * 60 * 60
+		staleTTL: TimeInterval = 2 * 60 * 60,
+		listing: StateDirectoryListing? = nil
 	) -> Result<[String: StateSnapshot], StateReadError> {
-		readPerPlatformDirectoryImpl(at: dirPath, now: now, staleTTL: staleTTL)
+		readPerPlatformDirectoryImpl(at: dirPath, now: now, staleTTL: staleTTL, listing: listing)
 	}
 
+	/// `listing`, when supplied, is a `state.d/` enumeration already produced once
+	/// for this poll tick — the reader consumes it instead of re-scanning. When
+	/// omitted (direct callers, tests), the reader self-scans exactly as before,
+	/// preserving the `.fileNotFound` (missing dir) vs `.malformed` (unreadable
+	/// dir) distinction. Only the raw enumeration is shared; each slice's contents
+	/// and the stale-TTL filter are still applied here.
 	private static func readPerPlatformDirectoryImpl(
 		at dirPath: String,
 		now: Date,
-		staleTTL: TimeInterval
+		staleTTL: TimeInterval,
+		listing: StateDirectoryListing?
 	) -> Result<[String: StateSnapshot], StateReadError> {
 		let fm = FileManager.default
-		var isDir: ObjCBool = false
-		guard fm.fileExists(atPath: dirPath, isDirectory: &isDir), isDir.boolValue else {
-			return .failure(.fileNotFound)
-		}
 
-		let names: [String]
-		do {
-			names = try fm.contentsOfDirectory(atPath: dirPath)
-		} catch {
-			return .failure(.malformed)
+		let entries: [StateDirectoryListing.Entry]
+		if let listing {
+			entries = listing.entries
+		} else {
+			var isDir: ObjCBool = false
+			guard fm.fileExists(atPath: dirPath, isDirectory: &isDir), isDir.boolValue else {
+				return .failure(.fileNotFound)
+			}
+			guard let scanned = StateDirectoryListing.scan(at: dirPath) else {
+				return .failure(.malformed)
+			}
+			entries = scanned.entries
 		}
 
 		let decoder = JSONDecoder()
@@ -295,14 +307,12 @@ enum StateJsonReader {
 
 		var winners: [String: (date: Date, slice: SlicePayload)] = [:]
 
-		for name in names {
+		for entry in entries {
+			let name = entry.name
 			guard name.hasSuffix(".json"), !name.contains(".tmp-") else { continue }
 			let filePath = (dirPath as NSString).appendingPathComponent(name)
 
-			if let attrs = try? fm.attributesOfItem(atPath: filePath),
-				let mtime = attrs[.modificationDate] as? Date,
-				now.timeIntervalSince(mtime) > staleTTL
-			{
+			if let mtime = entry.mtime, now.timeIntervalSince(mtime) > staleTTL {
 				continue
 			}
 
