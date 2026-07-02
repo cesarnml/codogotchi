@@ -347,6 +347,127 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         )
     }
 
+    /// Phase-15 QC regression: app starts already in Combined mode for the
+    /// origin, then the user switches to Own — with the SAME `updated_at` on
+    /// both ticks (no new agent activity between the settings toggle, the
+    /// common case when a developer just flips the mode picker). Before this
+    /// fix, Step 8's else-branch gated the "combined" dismissal on
+    /// last-active immunity even when no origin was combined-mode anymore:
+    /// the freshly-added "claude_code" render key and the stale "combined"
+    /// entry tie in `lastUpdatedAt`, and Swift's `max(by:)` tie-break is
+    /// Dictionary-iteration-order dependent, so "combined" could
+    /// nondeterministically win last-active and never be dismissed —
+    /// verified flaky (2/3 runs) against the pre-fix code.
+    func testCombinedToOwnDismissesCombinedEvenOnTimestampTie() {
+        var customization = makeCustomization(platformModes: ["claude_code": .combined])
+        let pool = FloatingPetWindowPool(
+            customizationReader: { customization },
+            windowFactory: { _, _ in StubWindowController() }
+        )
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
+            customization: customization
+        ))
+        XCTAssertEqual(pool.activeOrigins, ["combined"])
+
+        customization = makeCustomization(platformModes: ["claude_code": .own])
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
+            customization: customization
+        ))
+        XCTAssertEqual(
+            pool.activeOrigins, ["claude_code"],
+            "combined window must be dismissed when its only origin switches to own, even on a timestamp tie"
+        )
+    }
+
+    /// Same regression as above, for Combined → Minimalist.
+    func testCombinedToMinimalistDismissesCombinedEvenOnTimestampTie() {
+        var customization = makeCustomization(platformModes: ["claude_code": .combined])
+        let pool = FloatingPetWindowPool(
+            customizationReader: { customization },
+            windowFactory: { _, _ in StubWindowController() },
+            minimalistWindowFactory: { _ in StubWindowController() }
+        )
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
+            customization: customization
+        ))
+        XCTAssertEqual(pool.activeOrigins, ["combined"])
+
+        customization = makeCustomization(platformModes: ["claude_code": .minimalist])
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
+            customization: customization
+        ))
+        XCTAssertEqual(
+            pool.activeOrigins, ["claude_code"],
+            "combined window must be dismissed when its only origin switches to minimalist, even on a timestamp tie"
+        )
+    }
+
+    /// Phase-15 QC regression: same transition as
+    /// `testOwnToCombinedCollapsesPreviousWindowImmediately` above, but fed
+    /// the PRE-FOLDED shape the production driver actually emits since
+    /// P15.03 — `resolveRenderKeys` folds a combined-mode origin to the
+    /// literal "combined" key BEFORE the pool sees the snapshot, so the
+    /// origin's own key never reappears and teardown must be driven by the
+    /// pool's own window bookkeeping, not snapshot keys.
+    func testOwnToCombinedCollapsesPreviousWindowWithPreFoldedSnapshot() {
+        var customization = makeCustomization()
+        let pool = FloatingPetWindowPool(
+            customizationReader: { customization },
+            windowFactory: { _, _ in StubWindowController() }
+        )
+        // Tick 1: own mode, session-pets off → resolver folds to plain "claude_code"
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
+            customization: customization
+        ))
+        XCTAssertEqual(pool.activeOrigins, ["claude_code"])
+
+        // Tick 2: switch to combined → resolver pre-folds to the literal "combined"
+        // key; the plain "claude_code" key never appears in the snapshot again.
+        customization = makeCustomization(platformModes: ["claude_code": .combined])
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:01.000Z")],
+            customization: customization
+        ))
+        XCTAssertFalse(
+            pool.activeOrigins.contains("claude_code"),
+            "stale own window must be dismissed immediately even though its key is absent from the pre-folded snapshot"
+        )
+        XCTAssertEqual(pool.activeOrigins, ["combined"])
+    }
+
+    /// Phase-15 QC regression: minimalist→combined with the pre-folded shape.
+    /// Steps 5a/6b only inspect snapshot keys, so the stale minimalist window
+    /// must be caught by the same window-keyed collapse as own→combined.
+    func testMinimalistToCombinedCollapsesPreviousWindowWithPreFoldedSnapshot() {
+        var customization = makeCustomization(platformModes: ["claude_code": .minimalist])
+        let pool = FloatingPetWindowPool(
+            customizationReader: { customization },
+            windowFactory: { _, _ in StubWindowController() },
+            minimalistWindowFactory: { _ in StubWindowController() }
+        )
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
+            customization: customization
+        ))
+        XCTAssertEqual(pool.activeOrigins, ["claude_code"])
+
+        customization = makeCustomization(platformModes: ["claude_code": .combined])
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["claude_code:sess-1": makeSnapshot(updated: "2026-06-28T10:00:01.000Z")],
+            customization: customization
+        ))
+        XCTAssertFalse(
+            pool.activeOrigins.contains("claude_code"),
+            "stale minimalist window must be dismissed immediately when its origin switches to combined"
+        )
+        XCTAssertEqual(pool.activeOrigins, ["combined"])
+    }
+
     func testOwnToOffRemovesWindowBypassingLastActiveImmunity() {
         var customization = makeCustomization()
         let pool = FloatingPetWindowPool(

@@ -292,15 +292,20 @@ final class FloatingPetWindowPool {
 		let directKeys = visibleEntries.keys.filter { windowKey(for: $0) != "combined" }.sorted()
 		let combinedKeys = visibleEntries.keys.filter { windowKey(for: $0) == "combined" }
 
-		// Step 6a: collapse directly-keyed windows for keys that switched to combined
-		// mode. A key moving own→combined must lose its own window immediately so it
-		// doesn't render a second window alongside the shared combined one. The
+		// Step 6a: collapse directly-keyed windows whose owning origin switched to
+		// combined mode. A key moving own/minimalist→combined must lose its own
+		// window immediately so it doesn't render a second window alongside the
+		// shared combined one. Iterates the pool's OWN window keys, not the
+		// snapshot's: since P15.03 the driver pre-folds combined origins to the
+		// literal "combined" key, so the stale window's key never appears in the
+		// snapshot again and only the current customization can identify it. The
 		// literal "combined" key IS the shared window, so it is never torn down here.
-		for renderKey in combinedKeys where renderKey != "combined" && windows[renderKey] != nil {
-			windows[renderKey]?.setFloatingPetVisible(false)
-			windows.removeValue(forKey: renderKey)
-			windowSpawnedModes.removeValue(forKey: renderKey)
-			releaseSessionNumber(forWindowKey: renderKey)
+		let collapsedKeys = windows.keys.filter { $0 != "combined" && windowKey(for: $0) == "combined" }
+		for key in collapsedKeys {
+			windows[key]?.setFloatingPetVisible(false)
+			windows.removeValue(forKey: key)
+			windowSpawnedModes.removeValue(forKey: key)
+			releaseSessionNumber(forWindowKey: key)
 		}
 
 		// Step 6b: collapse windows whose controller type no longer matches the current
@@ -519,9 +524,27 @@ final class FloatingPetWindowPool {
 					}
 				}
 			}
+		} else if combinedModeOrigins().isEmpty {
+			// No origin is assigned to combined mode anymore — the shared window is
+			// unconditionally obsolete, exactly like Step 5a's off-mode dismissal, and
+			// must exit regardless of TTL or last-active status. Gating this on
+			// last-active (as the transient-gap branch below does) let a genuine
+			// mode-switch-away lose to a same-tick timestamp tie in the last-active
+			// election: when the user flips combined→own/minimalist without any new
+			// agent activity in between, the freshly-added directly-keyed render key
+			// can carry the exact same updated_at as the stale "combined" entry
+			// already in lastUpdatedAt, and Swift's max(by:) tie-break is
+			// Dictionary-iteration-order dependent — so "combined" could keep
+			// last-active immunity and never be dismissed.
+			if windows["combined"] != nil {
+				windows["combined"]?.setFloatingPetVisible(false)
+				windows.removeValue(forKey: "combined")
+			}
 		} else {
-			// No combined-folded keys → dismiss combined window if present,
-			// but only when it is not the last-active window (same immunity as own-mode).
+			// At least one origin is still assigned to combined mode; this tick's
+			// snapshot simply has no combined-folded session present (a transient
+			// polling gap), so the usual TTL/last-active immunity still applies —
+			// dismissing here would flash the window off on any single gapped tick.
 			if windows["combined"] != nil && "combined" != lastActiveWindowKey {
 				windows["combined"]?.setFloatingPetVisible(false)
 				windows.removeValue(forKey: "combined")
