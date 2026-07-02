@@ -40,8 +40,9 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [record any deviation from the ticket metadata contract here]
+Red first: The four new `CustomizationJsonReaderTests` cases failed to compile because `CustomizationSnapshot` had no `sessionPetsEnabled` / `sessionCap` members — a compile-level red for a contract-only ticket.
+Why this path: Added the two maps as plain `[String: Bool]` / `[String: Int]` optionals on `CustomizationPayload`, defaulting to `[:]` in `read`. This reuses the reader's existing "top-level decode failure ⇒ `safeDefault`" posture for malformed input (a malformed `session_pets_enabled` throws the whole decode and yields empty maps) rather than adding bespoke per-field lenient decoding the consumers don't need yet.
+Alternative considered: Lenient per-field decoding (decode each map entry independently so one bad value doesn't drop the whole file). Rejected as premature — it adds surface area and diverges from the established whole-file `safeDefault` behavior; no consumer requires partial survival of a corrupt file this phase.
+Deferred: Default-3 resolution and the Unlimited (`0`) interpretation stay with consumers (P15.04/P15.07/P15.09); the reader only preserves `0` verbatim.
+Contract note: The ticket's Refactor section names "`PerPlatformSnapshot.swift`'s `CustomizationSnapshot`", but `CustomizationSnapshot` actually lives in `CustomizationJsonReader.swift` (no reference in `PerPlatformSnapshot.swift`). Only `CustomizationJsonReader.swift` and the test file were touched, plus the phase CI-baseline record in `implementation-plan.md`.
+Subagent review: Advisory pass (claude-cli) returned no actionable findings. Two low-cost advisory test-hardening observations were applied to lock this contract before downstream tickets build on it — the malformed test now also asserts `sessionCap == [:]`, and a new case asserts a negative `session_cap` passes through verbatim (no reader clamp). A third advisory observation — surfacing a "settings file invalid" signal for human-edited `customization.json` — is genuinely P15.09 (Settings UI) scope and stays advisory for `/soa tao`.

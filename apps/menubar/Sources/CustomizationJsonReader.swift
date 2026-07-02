@@ -24,13 +24,45 @@ struct CustomizationSnapshot {
 	/// Scale factor (0.75…1.5) applied to the Minimalist PlatformChip and
 	/// AnimationBadge, set by the Settings > Customization size slider.
 	let minimalistBadgeScale: Double
+	/// Per-origin opt-in for per-session pet panels. Absent origins are treated
+	/// as disabled by consumers; this reader preserves the map as written.
+	let sessionPetsEnabled: [String: Bool]
+	/// Per-origin session-panel cap. `0` is the Unlimited sentinel; absent or
+	/// negative values resolve to the default cap of 3 at the point of use
+	/// (P15.04/P15.07/P15.09), never in this reader.
+	let sessionCap: [String: Int]
+
+	/// Explicit initializer (not the synthesized memberwise init) so the two new
+	/// session-pets maps carry `[:]` defaults. This keeps existing
+	/// `CustomizationSnapshot(...)` call sites in the pool/UI tests compiling
+	/// unchanged — no pool wiring belongs in this contract-only ticket — while
+	/// `read` and `safeDefault` still pass them explicitly.
+	init(
+		platformModes: [String: PlatformMode],
+		idleDismissTtlSeconds: Int,
+		menubarIconMonochrome: Bool,
+		combinedMinimalistEnabled: Bool,
+		minimalistBadgeScale: Double,
+		sessionPetsEnabled: [String: Bool] = [:],
+		sessionCap: [String: Int] = [:]
+	) {
+		self.platformModes = platformModes
+		self.idleDismissTtlSeconds = idleDismissTtlSeconds
+		self.menubarIconMonochrome = menubarIconMonochrome
+		self.combinedMinimalistEnabled = combinedMinimalistEnabled
+		self.minimalistBadgeScale = minimalistBadgeScale
+		self.sessionPetsEnabled = sessionPetsEnabled
+		self.sessionCap = sessionCap
+	}
 
 	static let safeDefault = CustomizationSnapshot(
 		platformModes: [:],
 		idleDismissTtlSeconds: 300,
 		menubarIconMonochrome: false,
 		combinedMinimalistEnabled: false,
-		minimalistBadgeScale: 1.0
+		minimalistBadgeScale: 1.0,
+		sessionPetsEnabled: [:],
+		sessionCap: [:]
 	)
 }
 
@@ -61,7 +93,9 @@ enum CustomizationJsonReader {
 			combinedMinimalistEnabled: payload.combinedMinimalistEnabled ?? false,
 			minimalistBadgeScale: max(
 				Double(GateBadgeLayout.achievableMinScale), min(Double(GateBadgeLayout.achievableMaxScale), rawScale)
-			)
+			),
+			sessionPetsEnabled: payload.sessionPetsEnabled ?? [:],
+			sessionCap: payload.sessionCap ?? [:]
 		)
 	}
 }
@@ -72,4 +106,6 @@ private struct CustomizationPayload: Decodable {
 	let menubarIconMonochrome: Bool?
 	let combinedMinimalistEnabled: Bool?
 	let minimalistBadgeScale: Double?
+	let sessionPetsEnabled: [String: Bool]?
+	let sessionCap: [String: Int]?
 }

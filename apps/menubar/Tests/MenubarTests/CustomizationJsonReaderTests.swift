@@ -127,4 +127,114 @@ final class CustomizationJsonReaderTests: XCTestCase {
 		let snapshot = CustomizationJsonReader.read(at: tmp.path)
 		XCTAssertEqual(snapshot.idleDismissTtlSeconds, 0, "ttl=0 must be accepted as a valid 'never dismiss' value")
 	}
+
+	// MARK: - Session pets: populated maps decode correctly
+
+	func testSessionPetsFieldsDecodePopulatedMaps() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-session-pets-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "platform_modes": { "claude_code": "own" },
+			  "session_pets_enabled": { "claude_code": true, "cursor": false },
+			  "session_cap": { "claude_code": 3, "cursor": 5 }
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		XCTAssertEqual(snapshot.sessionPetsEnabled["claude_code"], true)
+		XCTAssertEqual(snapshot.sessionPetsEnabled["cursor"], false)
+		XCTAssertEqual(snapshot.sessionCap["claude_code"], 3)
+		XCTAssertEqual(snapshot.sessionCap["cursor"], 5)
+	}
+
+	// MARK: - Session pets: absent → empty maps
+
+	func testSessionPetsFieldsAbsentYieldEmptyMaps() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-no-session-pets-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "platform_modes": { "claude_code": "own" },
+			  "idle_dismiss_ttl_seconds": 300
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		XCTAssertEqual(snapshot.sessionPetsEnabled, [:], "absent session_pets_enabled must decode to an empty map")
+		XCTAssertEqual(snapshot.sessionCap, [:], "absent session_cap must decode to an empty map")
+	}
+
+	// MARK: - Session cap: 0 preserved as Unlimited sentinel
+
+	func testSessionCapZeroIsPreservedAsUnlimitedSentinel() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-session-cap-zero-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "session_pets_enabled": { "claude_code": true },
+			  "session_cap": { "claude_code": 0 }
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		XCTAssertEqual(
+			snapshot.sessionCap["claude_code"], 0,
+			"session_cap=0 must be preserved as the Unlimited sentinel, not clamped by the reader")
+	}
+
+	// MARK: - Session pets: malformed value degrades to safe default without throwing
+
+	func testMalformedSessionPetsEnabledDegradesToSafeDefault() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-bad-session-pets-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "session_pets_enabled": { "claude_code": "not_a_bool" }
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		XCTAssertEqual(
+			snapshot.sessionPetsEnabled, [:],
+			"a malformed session_pets_enabled value must degrade to the empty-map safe default without throwing")
+		// A malformed value throws the whole payload decode, so sessionCap must
+		// also fall to the empty-map default. Asserting both closes the gap where
+		// a future partial-recovery refactor could keep one map while dropping the
+		// other and still pass this test.
+		XCTAssertEqual(
+			snapshot.sessionCap, [:],
+			"a malformed session_pets_enabled must also degrade session_cap to the empty-map safe default")
+	}
+
+	// MARK: - Session cap: negative value passes through verbatim (no reader clamp)
+
+	func testNegativeSessionCapPassesThroughVerbatim() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-neg-session-cap-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "session_pets_enabled": { "claude_code": true },
+			  "session_cap": { "claude_code": -1 }
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		// Consumers (P15.04/P15.07/P15.09) own default-3 resolution; the reader
+		// must not clamp negatives (unlike the neighboring idle_dismiss_ttl guard)
+		// and must not conflate -1 with the 0 Unlimited sentinel.
+		XCTAssertEqual(
+			snapshot.sessionCap["claude_code"], -1,
+			"negative session_cap must pass through verbatim; the reader applies no clamp")
+	}
 }

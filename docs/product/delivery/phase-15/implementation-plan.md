@@ -54,7 +54,7 @@ A developer opens Settings > Platform Settings, enables session pets for a platf
 
 ## CI Baseline
 
-> To be recorded at phase start: run `bun run ci:quiet` on the SHA where P15.01 branches from main. Record the result and pre-existing failure count here before the first ticket commit.
+> Recorded at phase start (`445ccb36`, the SHA where P15.01 branches from main): `bun run ci:quiet` **PASSED** — 704 tests, 0 failures. Pre-existing failure count: **0**. Any CI failure introduced by a Phase 15 ticket is therefore newly introduced and blocks that ticket.
 
 ## Review Rules
 
