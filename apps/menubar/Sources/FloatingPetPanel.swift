@@ -582,6 +582,11 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// right-click rename affordance. Wired by the caller (`MenubarApp`) to
 	/// persist to `SessionLabelStore` — this panel never writes the sidecar.
 	var onRenameRequested: ((String) -> Void)?
+	/// Fired when the user confirms the right-click "Prune Session" affordance
+	/// (P15.07). Wired by the caller (`MenubarApp`) to destroy the session's
+	/// slice, free-list number, and label — this panel never touches those
+	/// stores directly, it only reports the user's confirmed intent.
+	var onPruneRequested: (() -> Void)?
 
 	// RPG HUD — shown on hover, and transiently revealed on animation moments
 	// (lose/gain a half-heart, level up) when not hovering.
@@ -1271,6 +1276,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			self?.currentSessionLabel = newLabel
 			self?.onRenameRequested?(newLabel)
 			self?.repositionAndShowAnimationBadge()
+		}
+		view.pruneHandler = { [weak self] in
+			self?.onPruneRequested?()
 		}
 		view.holdDeEscalationHandler = { [weak self] in
 			self?.scene?.decrementIdleEscalation()
@@ -2303,6 +2311,11 @@ enum FloatingPetHidePrompt {
 	/// Title for the right-click "Rename" affordance, offered only on a
 	/// session-keyed window (P15.06).
 	static let renameTitle = "Rename…"
+	/// Title for the right-click "Prune Session" affordance, offered only on a
+	/// session-keyed window (P15.07). Destroys the panel and its backing state
+	/// (slice, free-list number, rename label) — the same end-state as
+	/// automatic TTL expiry.
+	static let pruneTitle = "Prune Session"
 	static let font = NSFont.systemFont(ofSize: 13, weight: .medium)
 	static let horizontalPadding: CGFloat = 14
 	static let verticalPadding: CGFloat = 7
@@ -2623,6 +2636,10 @@ private final class FloatingPetInteractionView: NSView {
 	/// right-click "Rename" affordance. Not fired when the user cancels or
 	/// commits an empty/whitespace-only label.
 	var renameHandler: ((String) -> Void)?
+	/// Fired when the user confirms the right-click "Prune Session" affordance
+	/// (P15.07). Not fired if the user cancels the confirmation alert. Only
+	/// offered while `hasActiveSessionBadge`, same gate as Rename.
+	var pruneHandler: (() -> Void)?
 	/// Fired when the pointer enters or leaves the pet frame. `true` = entered.
 	var onHoverChange: ((Bool) -> Void)?
 	/// Fired on every pointer event while tracking (moved, entered, exited).
@@ -2979,6 +2996,13 @@ private final class FloatingPetInteractionView: NSView {
 					self?.dismissHidePrompt()
 					self?.presentRenameAlert()
 				})
+			// Destructive, so it sits above "Hide pet" but requires a confirmation
+			// alert rather than firing immediately on click.
+			items.append(
+				FloatingPetPromptItem(title: FloatingPetHidePrompt.pruneTitle) { [weak self] in
+					self?.dismissHidePrompt()
+					self?.presentPruneConfirmation()
+				})
 		}
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.title) { [weak self] in
@@ -3016,6 +3040,21 @@ private final class FloatingPetInteractionView: NSView {
 		let normalized = SessionLabelStore.normalize(field.stringValue)
 		guard !normalized.isEmpty else { return }
 		renameHandler?(normalized)
+	}
+
+	/// Presents a destructive-action confirmation alert for pruning this
+	/// session. `pruneHandler` fires only when the user confirms; Cancel is a
+	/// no-op, matching the rename alert's "no commit on cancel" contract.
+	private func presentPruneConfirmation() {
+		let alert = NSAlert()
+		alert.messageText = "Prune Session"
+		alert.informativeText =
+			"This destroys the panel and its session data. This cannot be undone."
+		alert.addButton(withTitle: "Prune")
+		alert.addButton(withTitle: "Cancel")
+		alert.buttons.first?.hasDestructiveAction = true
+		guard alert.runModal() == .alertFirstButtonReturn else { return }
+		pruneHandler?()
 	}
 
 	func dismissHidePromptIfPresent() {

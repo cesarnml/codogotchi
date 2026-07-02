@@ -46,6 +46,34 @@ enum SlicePruner {
 		}
 		return deleted
 	}
+
+	/// Removes `session-labels.json` keys whose `origin:session_id` slice no
+	/// longer exists in `dir` — the orphan-hygiene half of P15.07's manual-prune
+	/// contract, run automatically alongside age-based pruning so a label never
+	/// outlives every trace of the session it named. Reads slice filenames via
+	/// `StateJsonReader.parseSliceFilename` so the same origin/session-id parsing
+	/// (colon-split, `.tmp-`/`.gate.json`/`.context.json` exclusion) governs both
+	/// the slice sweep and the label sweep. Best-effort: a missing or unreadable
+	/// labels file is a no-op, not an error. Returns the number of keys removed.
+	@discardableResult
+	static func pruneOrphanLabels(dir: String, labelPath: String = SessionLabelStore.path()) -> Int {
+		let fm = FileManager.default
+		let names = (try? fm.contentsOfDirectory(atPath: dir)) ?? []
+		let liveKeys = Set(
+			names.compactMap { name -> String? in
+				guard let (origin, sessionId) = StateJsonReader.parseSliceFilename(name) else { return nil }
+				return "\(origin):\(sessionId)"
+			})
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: labelPath)),
+			let labels = try? JSONDecoder().decode([String: String].self, from: data)
+		else { return 0 }
+		var removed = 0
+		for key in labels.keys where !liveKeys.contains(key) {
+			SessionLabelStore.removeLabel(for: key, at: labelPath)
+			removed += 1
+		}
+		return removed
+	}
 }
 
 /// Runs `SlicePruner.prune` shortly after launch and then on a fixed interval
@@ -104,6 +132,10 @@ final class SlicePruneScheduler {
 			let count = SlicePruner.prune(at: dir, maxAge: maxAge)
 			if count > 0 {
 				NSLog("SlicePruneScheduler: pruned %d stale state.d slice(s)", count)
+			}
+			let removedLabels = SlicePruner.pruneOrphanLabels(dir: dir)
+			if removedLabels > 0 {
+				NSLog("SlicePruneScheduler: removed %d orphan session-labels.json key(s)", removedLabels)
 			}
 		}
 	}
