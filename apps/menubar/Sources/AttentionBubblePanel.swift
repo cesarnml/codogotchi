@@ -100,13 +100,6 @@ final class AttentionBubblePanel: NSPanel {
 		set { bubbleView.onDismiss = newValue }
 	}
 
-	/// Fired by P15.08's conflict-bubble action button. Unused by the real
-	/// attention presentation, whose action button focuses another app.
-	var onOpenSettings: (() -> Void)? {
-		get { bubbleView.onOpenSettings }
-		set { bubbleView.onOpenSettings = newValue }
-	}
-
 	/// Forwards to the bubble view; minimalist mode sets this false to avoid a
 	/// platform chip that duplicates the one already on the badge.
 	var showsPlatformChip: Bool {
@@ -120,14 +113,6 @@ final class AttentionBubblePanel: NSPanel {
 			reasonKind: payload.reasonKind ?? "",
 			sourceEvent: sourceEvent
 		)
-	}
-
-	/// Configures this bubble for P15.08's session-conflict notice — distinct
-	/// from `update(payload:sourceEvent:)`, which mirrors real `state.json`
-	/// attention. The conflict bubble has no `SourceEvent`/Focus action; its
-	/// action opens Settings instead.
-	func updateConflict(origin: String?) {
-		bubbleView.configureConflict(origin: origin)
 	}
 
 	func reposition(relativeTo petFrame: CGRect, visibleFrame: CGRect) {
@@ -266,9 +251,6 @@ private final class AttentionBubbleView: NSView {
 	)
 
 	var onDismiss: (() -> Void)?
-	/// Fired by the action button when `reasonKind == "session_conflict"`
-	/// (P15.08) instead of the Focus behavior below.
-	var onOpenSettings: (() -> Void)?
 	/// When false, the in-bubble platform chip is never shown. Minimalist mode
 	/// already renders a platform chip on the badge directly above the bubble, so
 	/// repeating it here is redundant. Defaults true for Own/combined mode.
@@ -400,10 +382,7 @@ private final class AttentionBubbleView: NSView {
 		let platform = showsPlatformChip ? PlatformAttribution(origin: sourceEvent?.origin) : nil
 		platformChip.configure(platform: platform)
 		if let platform {
-			platformChip.toolTip =
-				reasonKind == "session_conflict"
-				? platform.displayName
-				: "Focus opens \(platform.displayName)"
+			platformChip.toolTip = "Focus opens \(platform.displayName)"
 			platformChipWidthConstraint?.constant = BubbleLayout.iconSize
 			platformChip.isHidden = false
 		} else {
@@ -479,22 +458,6 @@ private final class AttentionBubbleView: NSView {
 		setHovered(false)
 	}
 
-	/// Configures this bubble for P15.08's session-conflict notice: every
-	/// rendered session for `origin` is active, so a newcomer session is
-	/// blocked. The action button opens Settings > Customization rather than
-	/// focusing an app.
-	func configureConflict(origin: String?) {
-		sourceEvent = SourceEvent(origin: origin, kind: nil, name: nil)
-		reasonKind = "session_conflict"
-		promptExcerpt = ""
-		summaryLabel.stringValue = "All sessions active"
-		subtitleLabel.stringValue = "Raise the cap in Settings"
-		applyPlatformChip()
-		actionButton.title = "Settings"
-		actionButton.isHidden = false
-		setHovered(false)
-	}
-
 	// MARK: - Hover
 
 	override func updateTrackingAreas() {
@@ -565,11 +528,6 @@ private final class AttentionBubbleView: NSView {
 	}
 
 	@objc private func performAction() {
-		if reasonKind == "session_conflict" {
-			defer { window?.orderOut(nil) }
-			onOpenSettings?()
-			return
-		}
 		let bundleId = AttentionFocusTarget.bundleId(for: sourceEvent)
 		defer {
 			onDismiss?()

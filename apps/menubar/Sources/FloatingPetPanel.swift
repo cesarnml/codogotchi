@@ -40,7 +40,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private var bubblePanel: AttentionBubblePanel?
 	/// P15.08 conflict-bubble panel — distinct from `bubblePanel` (real
 	/// attention) so the two never contend for the same field.
-	private var conflictBubblePanel: AttentionBubblePanel?
+	private var conflictBubblePanel: SpeechBubblePanel?
 	private var currentConflictPayload: ConflictBubblePayload?
 	/// Ticket/gate badge panel, stacked above the strip (ticket over gate,
 	/// centered on the strip's midX) — the same `GateBadgePanel` Own mode uses,
@@ -297,13 +297,12 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 			return
 		}
 		let bubble = conflictBubblePanel ?? {
-			let b = AttentionBubblePanel()
-			b.onOpenSettings = { [weak self] in self?.onOpenSettingsRequested?() }
-			b.showsPlatformChip = false
+			let b = SpeechBubblePanel()
+			b.onAction = { [weak self] in self?.onOpenSettingsRequested?() }
 			conflictBubblePanel = b
 			return b
 		}()
-		bubble.updateConflict(origin: payload.origin)
+		bubble.configureConflict(origin: payload.origin)
 		repositionConflictBubble(badgeFrame: badgePanel?.frame ?? .zero)
 		bubble.orderFrontRegardless()
 	}
@@ -606,7 +605,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// field (a blocked origin's rendered sessions are, by definition, active
 	/// and unlikely to also carry a real attention payload, but keeping them
 	/// independent avoids relying on that).
-	private var conflictBubble: AttentionBubblePanel?
+	private var conflictBubble: SpeechBubblePanel?
 	private var gateBadgePanel: GateBadgePanel?
 	// Animation badge — always shown while the pet is visible; labels the current
 	// activity-state animation, anchored bottom-left inside the pet frame.
@@ -793,12 +792,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 		conflictActive = true
 		let bubble = conflictBubble ?? {
-			let b = AttentionBubblePanel()
-			b.onOpenSettings = { [weak self] in self?.onOpenSettingsRequested?() }
+			let b = SpeechBubblePanel()
+			b.onAction = { [weak self] in self?.onOpenSettingsRequested?() }
 			conflictBubble = b
 			return b
 		}()
-		bubble.updateConflict(origin: payload.origin)
+		bubble.configureConflict(origin: payload.origin)
 		if isPanelShown {
 			repositionAndShowConflictBubble()
 		}
