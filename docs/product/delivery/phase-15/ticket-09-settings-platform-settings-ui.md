@@ -38,8 +38,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: [record any deviation from the ticket metadata contract here]
+Red first: `CustomizationTabViewModelTests` failed to compile — `setSessionPetsEnabled`, `setSessionCap`, and `effectiveSessionCap` did not exist on `CustomizationTabViewModel` yet.
+Why this path: reused the existing `setMode`/`setTTL` read-merge-write pattern for the two new VM methods, and added `effectiveSessionCap(for:)` as a pure read-time resolver (no disk write) so "defaults to 3 on first enable" is a UI display concern, not a surprise persisted write. Renamed the "Platform Display Mode" card to "Platform Settings" and widened it to full width (stacking "Minimalist Panel Options" below it instead of beside it) because four columns (Platform, Mode, Enable Session Pets, Session Cap) did not fit in the previous half-window card width.
+Alternative considered: auto-persisting `session_cap = 3` the moment the checkbox is first checked. Rejected — the ticket's Red test (3) says the default resolves "at the read point," and auto-writing on enable would silently create a `session_cap` entry the user never explicitly chose, which is surprising behavior to reverse later.
+Deferred: no visual/screenshot verification was performed — this is a native AppKit UI with no browser-preview path available in this environment; verification relied on `bun run ci:quiet` (785 Swift tests, including the four new red→green VM tests) plus a manual diff self-audit.
+Contract note: extended the `CustomizationSnapshot` sentinel (`defaultSessionCap = 3`, `unlimitedSessionCap = 0`) to `FloatingPetWindowPool`'s three previously-inline `?? 3` / `== 0` call sites per the ticket's Refactor note ("single source of truth for the sentinel") — same values, no behavior change, confirmed by the unchanged pool test suite.
