@@ -1612,6 +1612,18 @@ private final class CustomizationTabView: NSView {
 	private var combinedMinimalistCheckbox = NSButton()
 	private var badgeScaleSlider = NSSlider()
 
+	/// Wide enough to fit "Minimalist", the longest `PlatformMode` label, without truncation.
+	private static let modeColumnWidth: CGFloat = 170
+	/// Width of the centered "Enable Session Pets" column (header text + checkbox).
+	private static let sessionPetsColumnWidth: CGFloat = 150
+	/// Fixed content width for the Platform Settings card: label(110) + mode
+	/// picker + session-pets column + cap picker(110), plus row/column gaps
+	/// and the 16pt card margins on each side. Sized from content rather than
+	/// stretched full-width now that Minimalist Panel Options sits beside it
+	/// as a second column.
+	private static let platformCardWidth: CGFloat =
+		16 + 110 + 8 + modeColumnWidth + 24 + sessionPetsColumnWidth + 24 + 110 + 16
+
 	init(viewModel: CustomizationTabViewModel) {
 		self.viewModel = viewModel
 		super.init(frame: .zero)
@@ -1647,7 +1659,7 @@ private final class CustomizationTabView: NSView {
 		)
 		addSubview(note)
 
-		// MARK: Platform Settings card (full width)
+		// MARK: Platform Settings card (left column)
 
 		let platformCard = makeSettingsCard()
 		addSubview(platformCard)
@@ -1658,6 +1670,7 @@ private final class CustomizationTabView: NSView {
 		let modeHeader = settingsColumnHeader("Mode")
 		platformCard.addSubview(modeHeader)
 		let sessionPetsHeader = settingsColumnHeader("Enable Session Pets")
+		sessionPetsHeader.alignment = .center
 		platformCard.addSubview(sessionPetsHeader)
 		let sessionCapHeader = settingsColumnHeader("Session Cap")
 		platformCard.addSubview(sessionCapHeader)
@@ -1720,10 +1733,10 @@ private final class CustomizationTabView: NSView {
 
 				picker.centerYAnchor.constraint(equalTo: label.centerYAnchor),
 				picker.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
-				picker.widthAnchor.constraint(equalToConstant: 140),
+				picker.widthAnchor.constraint(equalToConstant: Self.modeColumnWidth),
 
 				sessionPetsCheckbox.centerYAnchor.constraint(equalTo: label.centerYAnchor),
-				sessionPetsCheckbox.leadingAnchor.constraint(equalTo: picker.trailingAnchor, constant: 24),
+				sessionPetsCheckbox.centerXAnchor.constraint(equalTo: sessionPetsHeader.centerXAnchor),
 
 				sessionCapPicker.centerYAnchor.constraint(equalTo: label.centerYAnchor),
 				sessionCapPicker.trailingAnchor.constraint(equalTo: platformCard.trailingAnchor, constant: -16),
@@ -1733,7 +1746,7 @@ private final class CustomizationTabView: NSView {
 			previousConstant = 10
 		}
 
-		// MARK: Minimalist Panel Options card (full width, below Platform Settings)
+		// MARK: Minimalist Panel Options card (right column, beside Platform Settings)
 
 		let minimalistCard = makeSettingsCard()
 		addSubview(minimalistCard)
@@ -1819,6 +1832,17 @@ private final class CustomizationTabView: NSView {
 
 		let rowsTop = note.bottomAnchor
 
+		// Idle Dismiss sits below whichever of the two side-by-side cards is
+		// taller (Platform Settings, with one row per origin, is expected to
+		// usually be the taller one, but this must not assume that).
+		let ttlBelowPlatform = ttlTitle.topAnchor.constraint(
+			greaterThanOrEqualTo: platformCard.bottomAnchor, constant: 24)
+		let ttlBelowMinimalist = ttlTitle.topAnchor.constraint(
+			greaterThanOrEqualTo: minimalistCard.bottomAnchor, constant: 24)
+		let ttlPrefersBelowPlatform = ttlTitle.topAnchor.constraint(
+			equalTo: platformCard.bottomAnchor, constant: 24)
+		ttlPrefersBelowPlatform.priority = .defaultHigh
+
 		NSLayoutConstraint.activate([
 			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
 			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
@@ -1828,11 +1852,11 @@ private final class CustomizationTabView: NSView {
 			note.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			note.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			// Platform Settings, Minimalist Panel Options, and Idle Dismiss stack
-			// full-width so the four-column Platform Settings table has room.
+			// Platform Settings (left column) and Minimalist Panel Options (right
+			// column) sit side by side; Idle Dismiss stacks full-width below both.
 			platformCard.topAnchor.constraint(equalTo: rowsTop, constant: 20),
 			platformCard.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			platformCard.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			platformCard.widthAnchor.constraint(equalToConstant: Self.platformCardWidth),
 
 			platformTitle.topAnchor.constraint(equalTo: platformCard.topAnchor, constant: 16),
 			platformTitle.leadingAnchor.constraint(equalTo: platformCard.leadingAnchor, constant: 16),
@@ -1840,10 +1864,11 @@ private final class CustomizationTabView: NSView {
 
 			modeHeader.topAnchor.constraint(equalTo: platformTitle.bottomAnchor, constant: 14),
 			modeHeader.leadingAnchor.constraint(equalTo: platformCard.leadingAnchor, constant: 16 + 110 + 8),
-			modeHeader.widthAnchor.constraint(equalToConstant: 140),
+			modeHeader.widthAnchor.constraint(equalToConstant: Self.modeColumnWidth),
 
 			sessionPetsHeader.centerYAnchor.constraint(equalTo: modeHeader.centerYAnchor),
 			sessionPetsHeader.leadingAnchor.constraint(equalTo: modeHeader.trailingAnchor, constant: 24),
+			sessionPetsHeader.widthAnchor.constraint(equalToConstant: Self.sessionPetsColumnWidth),
 
 			sessionCapHeader.centerYAnchor.constraint(equalTo: modeHeader.centerYAnchor),
 			sessionCapHeader.trailingAnchor.constraint(equalTo: platformCard.trailingAnchor, constant: -16),
@@ -1851,9 +1876,9 @@ private final class CustomizationTabView: NSView {
 
 			previousAnchor.constraint(equalTo: platformCard.bottomAnchor, constant: -16),
 
-			// Minimalist Panel Options (full width, below Platform Settings).
-			minimalistCard.topAnchor.constraint(equalTo: platformCard.bottomAnchor, constant: 20),
-			minimalistCard.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			// Minimalist Panel Options (right column, same top as Platform Settings).
+			minimalistCard.topAnchor.constraint(equalTo: rowsTop, constant: 20),
+			minimalistCard.leadingAnchor.constraint(equalTo: platformCard.trailingAnchor, constant: 20),
 			minimalistCard.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
 			minimalistTitle.topAnchor.constraint(equalTo: minimalistCard.topAnchor, constant: 16),
@@ -1891,7 +1916,7 @@ private final class CustomizationTabView: NSView {
 
 			scaleNote.bottomAnchor.constraint(equalTo: minimalistCard.bottomAnchor, constant: -16),
 
-			ttlTitle.topAnchor.constraint(equalTo: minimalistCard.bottomAnchor, constant: 24),
+			ttlBelowPlatform, ttlBelowMinimalist, ttlPrefersBelowPlatform,
 			ttlTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			ttlTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
