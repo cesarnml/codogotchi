@@ -112,3 +112,12 @@ private func splitSessionKey(_ key: String) -> (origin: String, sessionId: Strin
 	let session = String(key[key.index(after: colon)...])
 	return (origin, session)
 }
+
+/// Joins `(origin, sessionId)` into the `"<origin>:<session_id>"` key shape
+/// consumed throughout `state.d/` — the inverse of `splitSessionKey`. Single
+/// source of truth for building this key so a future change to its format
+/// (e.g. escaping a literal colon in an origin or session id) only needs one
+/// call site updated.
+func makeSessionKey(origin: String, sessionId: String) -> String {
+	"\(origin):\(sessionId)"
+}

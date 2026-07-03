@@ -979,4 +979,70 @@ final class LivePollingTests: XCTestCase {
 			"the badge must describe the session actually shown (s2), not s1")
 		XCTAssertEqual(snapshot.gateBadges["claude_code"]?.gate, "red_tdd")
 	}
+
+	/// Same scenario as `testAggregateModeGateMatchesTheSessionThatWonTheRenderKey`,
+	/// but through the `"combined"` fold instead of a plain-origin fold:
+	/// `claude_code` and `cursor` are both set to `.combined`, so `resolveRenderKeys`
+	/// collapses both origins' sessions onto the single `"combined"` render key.
+	/// `cursor`'s state is the freshest and must win that key, and the folded pet
+	/// must badge/animate from `cursor`'s own gate — never `claude_code`'s, even
+	/// though `claude_code`'s gate/context sidecar has a newer mtime.
+	func testCombinedModeGateMatchesTheOriginThatWonTheRenderKey() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+
+		// claude_code: stale state, but its gate/context is written LAST (newest mtime).
+		try """
+			{"schema_version":8,"origin":"claude_code","session_id":"s1","activity_state":"idle","updated_at":"2026-06-28T09:00:00.000Z","source_event":{"origin":"claude_code","kind":"tool_use","name":"Bash"}}
+			""".write(to: target.appendingPathComponent("claude_code:s1.json"), atomically: true, encoding: .utf8)
+
+		// cursor: fresh state — this origin should win the combined render key.
+		try """
+			{"schema_version":8,"origin":"cursor","session_id":"s1","activity_state":"implementing","updated_at":"2026-06-28T10:00:00.000Z","source_event":{"origin":"cursor","kind":"tool_use","name":"Edit"}}
+			""".write(to: target.appendingPathComponent("cursor:s1.json"), atomically: true, encoding: .utf8)
+
+		// cursor's gate/context written first (older mtime).
+		try """
+			{"gate":"red_tdd","since":"2026-06-28T08:10:00.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"CURSOR-TICKET"}
+			""".write(to: target.appendingPathComponent("cursor:s1.gate.json"), atomically: true, encoding: .utf8)
+		try """
+			{"owner":"soa","status":"active","plan_key":"phase-15","ticket_id":"CURSOR-TICKET","last_gate":"red_tdd","updated_at":"2026-06-28T08:10:00.000Z","lease_expires_at":"2099-01-01T00:00:00.000Z"}
+			""".write(to: target.appendingPathComponent("cursor:s1.context.json"), atomically: true, encoding: .utf8)
+
+		// claude_code's gate/context written last (newer mtime) — must NOT win the
+		// badge for the folded "combined" key, since claude_code lost the contest.
+		try """
+			{"gate":"open_pr","since":"2026-06-28T09:05:00.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"CLAUDE-TICKET"}
+			""".write(to: target.appendingPathComponent("claude_code:s1.gate.json"), atomically: true, encoding: .utf8)
+		try """
+			{"owner":"soa","status":"active","plan_key":"phase-15","ticket_id":"CLAUDE-TICKET","last_gate":"open_pr","updated_at":"2026-06-28T09:05:00.000Z","lease_expires_at":"2099-01-01T00:00:00.000Z"}
+			""".write(to: target.appendingPathComponent("claude_code:s1.context.json"), atomically: true, encoding: .utf8)
+
+		let customization = CustomizationSnapshot(
+			platformModes: ["claude_code": .combined, "cursor": .combined],
+			idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false,
+			minimalistBadgeScale: 1.0
+		)
+		var perPlatformSnapshots: [PerPlatformSnapshot] = []
+		let driver = makeDriver(target: target, recorder: recorder, customization: customization)
+		driver.applyPerPlatform = { snap in perPlatformSnapshots.append(snap) }
+
+		driver.tickForTesting()
+
+		let snapshot = try XCTUnwrap(perPlatformSnapshots.first)
+
+		XCTAssertEqual(
+			snapshot.renderKeyIdentities["combined"]?.origin, "cursor",
+			"cursor must win the combined render key on freshest state")
+		XCTAssertEqual(
+			snapshot.perPlatform["combined"]?.activityState, .redTdd,
+			"the combined pet must animate cursor's OWN gate, not claude_code's merely-newer-mtime gate")
+		XCTAssertEqual(
+			snapshot.gateBadges["combined"]?.ticketId, "CURSOR-TICKET",
+			"the badge must describe the origin actually shown (cursor), not claude_code")
+		XCTAssertEqual(snapshot.gateBadges["combined"]?.gate, "red_tdd")
+	}
 }

@@ -62,7 +62,7 @@ enum SlicePruner {
 		let liveKeys = Set(
 			names.compactMap { name -> String? in
 				guard let (origin, sessionId) = StateJsonReader.parseSliceFilename(name) else { return nil }
-				return "\(origin):\(sessionId)"
+				return makeSessionKey(origin: origin, sessionId: sessionId)
 			})
 		guard let data = try? Data(contentsOf: URL(fileURLWithPath: labelPath)),
 			let labels = try? JSONDecoder().decode([String: String].self, from: data)

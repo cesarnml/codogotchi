@@ -141,22 +141,19 @@ enum PerPlatformGateReader {
 	static func read(
 		at dirPath: String, listing: StateDirectoryListing? = nil
 	) -> [String: Entry] {
-		let scan = scanEntries(at: dirPath, listing: listing)
-		return merge(gates: scan.sessionGates, contexts: scan.sessionContexts)
+		let (sessionGates, sessionContexts) = scanEntries(at: dirPath, listing: listing)
+		return merge(gates: sessionGates, contexts: sessionContexts)
 	}
 
-	private struct Scan {
-		let sessionGates: [String: (mtime: Date, snapshot: GateSnapshot)]
-		let sessionContexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)]
-	}
-
-	private static func scanEntries(at dirPath: String, listing: StateDirectoryListing?) -> Scan {
-		let empty = Scan(sessionGates: [:], sessionContexts: [:])
+	private static func scanEntries(at dirPath: String, listing: StateDirectoryListing?) -> (
+		gates: [String: (mtime: Date, snapshot: GateSnapshot)],
+		contexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)]
+	) {
 		let entries: [StateDirectoryListing.Entry]
 		if let listing {
 			entries = listing.entries
 		} else {
-			guard let scanned = StateDirectoryListing.scan(at: dirPath) else { return empty }
+			guard let scanned = StateDirectoryListing.scan(at: dirPath) else { return ([:], [:]) }
 			entries = scanned.entries
 		}
 
@@ -173,7 +170,7 @@ enum PerPlatformGateReader {
 				let (origin, sessionId) = originAndSession(of: name, suffix: ".gate.json"),
 				let snapshot = GateJsonReader.read(at: filePath)
 			{
-				let sessionKey = "\(origin):\(sessionId)"
+				let sessionKey = makeSessionKey(origin: origin, sessionId: sessionId)
 				if sessionGates[sessionKey] == nil || mtime > sessionGates[sessionKey]!.mtime {
 					sessionGates[sessionKey] = (mtime, snapshot)
 				}
@@ -181,14 +178,14 @@ enum PerPlatformGateReader {
 				let (origin, sessionId) = originAndSession(of: name, suffix: ".context.json"),
 				let snapshot = DeliveryContextReader.read(at: filePath)
 			{
-				let sessionKey = "\(origin):\(sessionId)"
+				let sessionKey = makeSessionKey(origin: origin, sessionId: sessionId)
 				if sessionContexts[sessionKey] == nil || mtime > sessionContexts[sessionKey]!.mtime {
 					sessionContexts[sessionKey] = (mtime, snapshot)
 				}
 			}
 		}
 
-		return Scan(sessionGates: sessionGates, sessionContexts: sessionContexts)
+		return (sessionGates, sessionContexts)
 	}
 
 	private static func merge(

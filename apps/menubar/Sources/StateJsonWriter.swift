@@ -202,7 +202,8 @@ enum StateJsonWriter {
 		staleTTL: TimeInterval
 	) {
 		let fm = FileManager.default
-		let path = (dir as NSString).appendingPathComponent("\(origin):\(sessionId).json")
+		let path = (dir as NSString).appendingPathComponent(
+			"\(makeSessionKey(origin: origin, sessionId: sessionId)).json")
 		// Skip a slice the reader would already ignore as stale, so we never
 		// refresh a long-dead slice's mtime and resurrect an aged-out pet.
 		if let attrs = try? fm.attributesOfItem(atPath: path),

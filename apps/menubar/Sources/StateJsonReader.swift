@@ -452,7 +452,7 @@ enum StateJsonReader {
 				let slice = try? decoder.decode(SlicePayload.self, from: data)
 			else { continue }
 
-			let key = "\(origin):\(sessionId)"
+			let key = makeSessionKey(origin: origin, sessionId: sessionId)
 			let candidateDate = parseISO8601Date(slice.updatedAt) ?? Date.distantPast
 			if winners[key] == nil || candidateDate > winners[key]!.date {
 				winners[key] = (candidateDate, slice)

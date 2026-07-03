@@ -322,7 +322,7 @@ final class LivePollingDriver {
 
 		for (renderKey, snapshot) in renderStates {
 			let identity = identities[renderKey]
-			let sessionKey = identity.map { "\($0.origin):\($0.sessionId)" }
+			let sessionKey = identity.map { makeSessionKey(origin: $0.origin, sessionId: $0.sessionId) }
 			let entry = sessionKey.flatMap { perSessionGate[$0] }
 			let gate = entry?.gate ?? (renderKey == singleRenderKey ? legacyGate : nil)
 			let context = entry?.context ?? (renderKey == singleRenderKey ? legacyContext : nil)
