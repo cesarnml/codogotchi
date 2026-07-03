@@ -274,7 +274,7 @@ final class MenuItemsTests: XCTestCase {
 		let menu = builder.build()
 
 		let titles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
-		XCTAssertTrue(titles.contains("Hide Claude Code:Session 1 Pet"), "session-keyed item must show the raw origin's platform name and an ordinal, never the raw UUID; got \(titles)")
+		XCTAssertTrue(titles.contains("Hide Claude Code - Session 1 Pet"), "session-keyed item must show the raw origin's platform name and an ordinal, never the raw UUID; got \(titles)")
 		_ = pool  // keep alive
 	}
 
@@ -291,7 +291,7 @@ final class MenuItemsTests: XCTestCase {
 		let menu = builder.build()
 
 		let titles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
-		XCTAssertTrue(titles.contains("Hide Claude Code:Refactor Sprint Pet"), "got \(titles)")
+		XCTAssertTrue(titles.contains("Hide Claude Code - Refactor Sprint Pet"), "got \(titles)")
 		_ = pool  // keep alive
 	}
 }

@@ -309,10 +309,10 @@ final class MenubarMenu: NSObject {
 		let platformName = platformDisplayName(for: origin)
 		guard let pool = floatingPetPool else { return platformName }
 		if let label = pool.sessionLabel(forWindowKey: key), !label.isEmpty {
-			return "\(platformName):\(label)"
+			return "\(platformName) - \(label)"
 		}
 		if let number = pool.sessionNumber(forWindowKey: key) {
-			return "\(platformName):Session \(number)"
+			return "\(platformName) - Session \(number)"
 		}
 		return platformName
 	}
