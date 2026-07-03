@@ -375,7 +375,8 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   the session-fanout family above or promote as its own class.
 
 ### `hide-toggle-conflated-with-pool-slot-release`
-- **Seen:** 1× — `codogotchi-38` (phase-15 QC). `FloatingPetWindowPool`'s cap
+- **Seen:** 2× — `codogotchi-38` and `codogotchi-39` (both phase-15 QC, same
+  dogfooding session, same file). `codogotchi-38`: `FloatingPetWindowPool`'s cap
   incumbency (`SessionSelectionPolicy.select`'s `currentlyRendered` input) was
   derived from `windows[$0] != nil` — a reasonable local implementation when
   P15.07 (cap selection) shipped, since at the time every window teardown really
@@ -383,7 +384,16 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   later added a second, independent reason a window can disappear (`setVisible`
   concealing it on user request) without revisiting that assumption, so hiding
   an incumbent silently read as a freed cap slot and a pending idle sibling
-  backfilled it in the hidden pet's place.
+  backfilled it in the hidden pet's place. `codogotchi-39`: fixing `-38`
+  exposed the very next layer of the same shared-state problem — once hide
+  stopped forfeiting a slot on conceal, nothing was defined for what happens
+  to the hidden flag when the session is later GENUINELY evicted (a real
+  in-flight newcomer, not a bogus backfill). `MenubarMenu` enumerates only
+  `activeOrigins union hiddenWindowKeys`, with no third "hidden, but now just
+  cap-pending" state, so a genuinely-evicted hidden session left a dead "Show"
+  menu entry and then vanished from both sets entirely once clicked — found
+  by the developer walking the `-38` fix one scenario further, live, in the
+  running production app.
 - **Proposed clause:** *"When a pool/registry derives ANY policy decision
   (eviction, incumbency, promotion, numbering) from whether an item currently
   has a live resource (a window, a connection, a handle), enumerate every
@@ -403,20 +413,33 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   state assumptions breaking under a pool refactor) and the
   `new-enum-case-skips-existing-transition-matrix` family (an old assumption
   not re-derived after a later feature added a second way to trigger it).
-- **Caveat that blocks naive promotion:** only 1 occurrence of this exact
-  manifestation (incumbency, not visibility). `FloatingPetWindowPool` is
-  clearly a hotspot for this general shape of bug (4 prior related ledger
-  rows), so the file itself may warrant a standing "re-audit every `windows[$0]
-  != nil` / `windows.keys` read whenever a new window-teardown trigger is
-  added" checklist item rather than waiting for a generic cross-repo instance.
-- **Status:** WAITING — 1 occurrence of this specific manifestation, but the
-  broader "two independently-correct features silently share pool state" shape
-  is now recurring often enough in this one file to flag for a
-  file-scoped integration-checklist item even before a cross-repo instance
-  lands. A related, not-yet-fixed second gap in the same dogfooding pass
-  (`codogotchi-39`, hide-then-show losing track of a legitimately-evicted
-  session — "lost in the ether") is a strong candidate to confirm this class
-  at 2× once its ledger row lands.
+- **Caveat that blocks naive promotion:** both occurrences are in the same
+  file, same feature (hide/show), same dogfooding session, and the second was
+  found by directly extending the first's fix rather than an independent
+  discovery — so this is closer to "one bug fixed in two passes" than two
+  unrelated recurrences. `FloatingPetWindowPool` is clearly a hotspot for this
+  general shape of bug regardless (5 related ledger rows total across phases),
+  so the file itself may warrant a standing "re-audit every `windows[$0] !=
+  nil` / `windows.keys` read, and every menu-enumeration set, whenever a new
+  window-teardown or visibility-toggle trigger is added" checklist item.
+- **Status:** AT 2× WITHIN ONE FILE — strong signal the *file* needs a
+  standing integration checklist (enumerate every consumer of `windows`,
+  `slotOccupants`, and `userHiddenWindowKeys` together whenever any one of
+  them gains a new writer), but still wants ≥1 cross-file or cross-repo
+  instance before promoting a generic review-prompt clause — both instances so
+  far were only reachable by live dogfooding, not diff review, since each
+  fix's own diff was locally correct and the gap was in the *unstated*
+  interaction between fixes.
+- **Unrelated finding, not part of this class:** while dogfooding `-39` live,
+  the developer also hit a `CODOGOTCHI_HOME`-vs-`HOME` inconsistency in
+  `DemoConfig.from` (`apps/menubar/Sources/DemoConfig.swift`) — it only checks
+  the plain `HOME` env var for `pollingTarget`, while every other config path
+  (`CodogotchiFolders`, `AppState`, `PetConfig`) checks `CODOGOTCHI_HOME`
+  first. This made a supposedly-isolated dev sandbox instance silently poll
+  the developer's real `state.d/`. No ledger row filed for this (dev-tooling
+  gap, not a shipped-behavior defect — production always runs with a single
+  `HOME`), but worth a small standalone fix if sandboxed manual testing of
+  this app becomes routine.
 
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
