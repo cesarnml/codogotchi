@@ -1740,6 +1740,60 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			"un-hiding a still-occupant session must respawn immediately without competing for a slot")
 	}
 
+	/// (P15.07-QC) A hidden session that genuinely loses the cap fight (a real
+	/// in-flight newcomer takes its slot, not a bogus backfill) must drop out
+	/// of `hiddenWindowKeys` the moment it's evicted — otherwise the menu keeps
+	/// offering a "Show" entry that does nothing when clicked, and the session
+	/// vanishes from both `activeOrigins` and `hiddenWindowKeys` with no way to
+	/// retry ("lost in the ether").
+	func testHiddenSessionThatLosesTheCapFightIsRemovedFromHiddenList() {
+		var savedCalls: [Set<String>] = []
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() },
+			hiddenKeysSaver: { savedCalls.append($0) }
+		)
+
+		// Tick 1: idle-a and active-b fill both slots under cap 2.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-a": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-b": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:idle-a", "claude_code:active-b"])
+
+		// User hides idle-a.
+		pool.setVisible(false, for: "claude_code:idle-a")
+		XCTAssertTrue(pool.hiddenWindowKeys.contains("claude_code:idle-a"))
+
+		// A genuine in-flight newcomer arrives — both slots correctly go to
+		// the two in-flight sessions, legitimately evicting idle-a.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-a": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-b": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:active-c": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:active-b", "claude_code:active-c"])
+		XCTAssertFalse(
+			pool.hiddenWindowKeys.contains("claude_code:idle-a"),
+			"a hidden session that loses the cap fight must be dropped from hiddenWindowKeys, not left as a dead 'Show' entry")
+		XCTAssertFalse(
+			Set(pool.activeOrigins).union(pool.hiddenWindowKeys).contains("claude_code:idle-a"),
+			"the evicted session must not linger in either menu-visible set")
+		XCTAssertEqual(
+			savedCalls.last, [],
+			"the write-through save must reflect the purge"
+		)
+	}
+
 	/// (4 review focus) A blocked all-active origin must never evict a
 	/// currently-rendered active session — the rendered set stays exactly the
 	/// same across the tick that introduces the third active session.

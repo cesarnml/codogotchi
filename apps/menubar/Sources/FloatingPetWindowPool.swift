@@ -439,6 +439,10 @@ final class FloatingPetWindowPool {
 		// so hide/show never has to touch it directly.
 		var pendingWindowKeys: Set<String> = []
 		var computedBlockedOrigins: Set<String> = []
+		// Keys that genuinely lose the cap fight this tick (were an occupant,
+		// no longer are) get their hidden flag cleared below — see the
+		// `userHiddenWindowKeys.subtract` call after this loop.
+		var genuinelyEvictedKeys: Set<String> = []
 		let sessionKeyedDirectKeys = directKeys.filter { isSessionKeyed($0) }
 		let sessionKeyedByOrigin = Dictionary(
 			grouping: sessionKeyedDirectKeys, by: Self.origin(forWindowKey:))
@@ -453,6 +457,7 @@ final class FloatingPetWindowPool {
 				restrictNewPromotionsToInFlight: prunedOrigins.contains(origin))
 			slotOccupants.subtract(keys)
 			slotOccupants.formUnion(selection.rendered)
+			genuinelyEvictedKeys.formUnion(currentlyRendered.subtracting(selection.rendered))
 			pendingWindowKeys.formUnion(selection.pending)
 			// Capture each evicted ("non-active") session's on-screen frame right
 			// before Step 7 tears its window down, so the next session window(s)
@@ -502,6 +507,20 @@ final class FloatingPetWindowPool {
 			conflictBubbleRateLimiter.recordShown(origin: origin, now: currentTime)
 			activeConflictBubbleTargets[origin] = freshTarget
 			windows[freshTarget]?.applyConflictBubble(ConflictBubblePayload(origin: origin))
+		}
+		// A hidden key that genuinely loses the cap fight (P15.07-QC) must not
+		// linger in `userHiddenWindowKeys` — otherwise the menu keeps offering
+		// "Show <pet>" for a session that no longer holds a slot, and clicking
+		// it clears the hidden flag without spawning a window (nor leaving any
+		// trace in `activeOrigins` either), silently vanishing from the menu
+		// entirely. Dropping the flag here reverts the key to plain
+		// cap-pending — invisible in the menu, exactly like any other session
+		// that was never hidden and is merely held by cap pressure, and it
+		// re-appears on its own the moment it legitimately wins a slot back.
+		let hiddenKeysBeforePurge = userHiddenWindowKeys
+		userHiddenWindowKeys.subtract(genuinelyEvictedKeys)
+		if userHiddenWindowKeys != hiddenKeysBeforePurge {
+			hiddenKeysSaver(userHiddenWindowKeys)
 		}
 		blockedOrigins = computedBlockedOrigins
 		// Clear the conflict bubble for any origin that resolved this tick —
