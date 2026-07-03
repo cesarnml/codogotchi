@@ -110,23 +110,38 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   proxy-condition test gap.
 
 ### `user-hide-overwritten-by-periodic-respawn`
-- **Seen:** 1× — `codogotchi-21` (P13). Hiding a floating pet removed the window
-  but left no record of user intent. The pool's next `update()` tick found
-  `windows[origin] == nil` and the origin still present in the snapshot, so it
-  re-spawned the window immediately (~1 second later). Also: the menu's "Show Pet"
-  item was always `action = nil`, so there was no interactive path to un-hide.
-- **Proposed clause:** *"When a user-facing action removes an item from a pool or
-  registry that is fed by a continuously-present backing source (a live snapshot,
-  a poll result, a stream), removing the item from the in-memory collection is not
-  enough — the pool's next refresh will re-add it from the source. A persistent
-  user-intent flag (an explicit hide/pin/exclude set) is the correct guard.
-  Attack surface: for any periodic `update()` or refresh that spawns windows/rows
-  from a live source, ask 'if setVisible(false) or remove() fires but the source
-  is still present, what does the next refresh do?'"*
-- **Status:** WAITING — single instance. Needs ≥1 more occurrence to confirm
-  the class before promoting. The related spawn-position issue (pets always
-  spawning at the same bottom-left coordinate) was fixed in `codogotchi-22`
-  (per-origin position persistence, schema v3).
+- **Seen:** 2× — `codogotchi-21` (P13) and `codogotchi-36` (phase-15,
+  recurrence of `codogotchi-21`). `codogotchi-21`: hiding a floating pet
+  removed the window but left no record of user intent, so the pool's next
+  `update()` tick found the origin still present in the snapshot and
+  re-spawned it (~1 second later) — fixed by adding the in-memory
+  `userHiddenWindowKeys` set as the user-intent guard. `codogotchi-36`: that
+  guard was real but scoped to process lifetime only — it was never wired to
+  any on-disk persistence, so a full app quit/relaunch was itself a "periodic
+  respawn" event from the guard's perspective, and a hidden pet whose
+  session-pet TTL slice was still alive would silently reappear. Same
+  underlying class, one layer up: the durable-guard fix from the first
+  occurrence didn't generalize to every refresh boundary that can re-observe
+  the backing source, only the in-tick one.
+- **Proposed clause:** *"When a user-facing action removes an item from a pool
+  or registry that is fed by a continuously-present backing source (a live
+  snapshot, a poll result, a stream, or a re-read of on-disk state at process
+  start), removing the item from the in-memory collection is not enough — ANY
+  refresh boundary that re-observes the source will re-add it. A persistent
+  user-intent flag (an explicit hide/pin/exclude set) is the correct guard,
+  but the flag itself must survive every refresh boundary the source can
+  cross, not just the most obvious one (a poll tick) — explicitly check
+  process restart, too, if the source persists independently of the running
+  process (e.g. a TTL'd on-disk slice)."*
+- **Status:** CANDIDATE FOR PROMOTION — 2 occurrences, same class, escalating
+  durability boundary (in-tick → cross-process). Recommend folding into the
+  adversarial-review template as a dedicated check: "for any user-hide/pin/
+  exclude guard, does it survive every way the backing source can resurface
+  the same item, including an app/process restart?" The related spawn-position
+  issue (pets always spawning at the same bottom-left coordinate) was fixed in
+  `codogotchi-22` (per-origin position persistence, schema v3) — the same
+  session established `AppStateStore` as the durable-guard mechanism that
+  `codogotchi-36` extended to hidden-state.
 
 ### `pool-spawn-position-not-per-origin`
 - **Seen:** 1× — `codogotchi-22` (P13). The pool factory passed `saveState: { _ in }` to
