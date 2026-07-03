@@ -54,12 +54,26 @@ enum SessionSelectionPolicy {
 	/// two active sessions competing for the same slot would resolve by
 	/// arbitrary key order, letting a newcomer evict a working incumbent —
 	/// exactly what "never de-rendered for a newcomer" forbids.
+	///
+	/// `restrictNewPromotionsToInFlight` is the P15.07-QC prune-armed gate: once
+	/// an origin has had a manual Prune this app session, a session that was
+	/// NOT already rendered may only newly promote into a freed slot while it
+	/// is in-flight. An incumbent (`currentlyRendered`) is never re-evaluated
+	/// by this gate — only fresh promotions are. When the gate rejects every
+	/// remaining candidate for a slot, that slot is simply left empty rather
+	/// than backfilled with a non-in-flight session, matching "empty is fine
+	/// while nothing is actually running" from the P15.07-QC decision. Without
+	/// this, pruning one rendered session immediately hands its slot to
+	/// whichever idle/standby session was merely being held by cap pressure —
+	/// a session the user never asked to see, indistinguishable in the UI from
+	/// the pruned one reappearing.
 	static func select(
 		sessions: [String: ActivityState],
 		cap: Int,
-		currentlyRendered: Set<String> = []
+		currentlyRendered: Set<String> = [],
+		restrictNewPromotionsToInFlight: Bool = false
 	) -> Selection {
-		guard cap > 0, sessions.count > cap else {
+		guard cap > 0 else {
 			return Selection(rendered: Set(sessions.keys), pending: [], blocked: false)
 		}
 
@@ -76,8 +90,20 @@ enum SessionSelectionPolicy {
 			if incumbentA != incumbentB { return incumbentB }
 			return a < b
 		}
-		let pending = Set(ordered.prefix(ordered.count - cap))
-		let rendered = Set(ordered.suffix(cap))
+		// When sessions.count <= cap this renders every session, matching the
+		// pre-QC guard clause's unconditional "render all" — unless the
+		// prune-armed gate below trims a fresh, non-in-flight promotion out of it.
+		let renderCount = min(cap, ordered.count)
+		let rankedRendered = Set(ordered.suffix(renderCount))
+		let rendered: Set<String>
+		if restrictNewPromotionsToInFlight {
+			rendered = rankedRendered.filter {
+				currentlyRendered.contains($0) || (sessions[$0]?.isInFlight ?? false)
+			}
+		} else {
+			rendered = rankedRendered
+		}
+		let pending = Set(sessions.keys).subtracting(rendered)
 		// Blocked only when a genuinely in-flight session is the one held back —
 		// an idle/errored/waiting session held by cap pressure is ordinary
 		// eviction, not a conflict worth signaling.

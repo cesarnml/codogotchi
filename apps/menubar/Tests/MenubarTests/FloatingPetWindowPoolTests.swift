@@ -1566,11 +1566,12 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 				+ "\(String(describing: newTwoFrame))) — not lose one to the single-slot overwrite bug")
 	}
 
-	/// (3) A held idle session is promoted (spawns a real window) the instant a
-	/// rendered session is pruned — falls out of the pure partition being
-	/// recomputed against the shrunk session set, with no dedicated promotion
-	/// bookkeeping.
-	func testHeldIdleSessionIsPromotedWhenARenderedSessionIsPruned() {
+	/// (3, revised by P15.07-QC) A held idle session must NOT be promoted when
+	/// a manual Prune frees its slot: pruning arms the origin so only an
+	/// in-flight newcomer may claim the freed slot going forward this app
+	/// session — a standby/idle session merely held by cap pressure is not
+	/// what the user asked to see appear in the pruned pet's place.
+	func testHeldIdleSessionIsNotPromotedWhenAManualPruneFreesItsSlot() {
 		let dir = FileManager.default.temporaryDirectory
 			.appendingPathComponent("pool-prune-\(UUID().uuidString)", isDirectory: true)
 		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -1608,8 +1609,16 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		pool.update(snapshot: readSnapshot())
 
 		XCTAssertEqual(
+			Set(pool.activeOrigins), ["claude_code:active-two"],
+			"the held idle session must stay pending — a manual prune only admits an in-flight newcomer into its freed slot")
+
+		// Once idle-one goes in-flight, it is eligible to claim the still-free slot.
+		writeSlice("claude_code:idle-one.json", state: "implementing", updatedAt: "2026-07-01T10:00:03.000Z")
+		pool.update(snapshot: readSnapshot())
+
+		XCTAssertEqual(
 			Set(pool.activeOrigins), ["claude_code:idle-one", "claude_code:active-two"],
-			"the held idle session must be promoted to a real window once a rendered slot frees")
+			"an in-flight session must still be able to claim a slot freed by a manual prune")
 	}
 
 	/// (4 review focus) A blocked all-active origin must never evict a

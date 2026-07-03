@@ -81,6 +81,15 @@ final class FloatingPetWindowPool {
 	/// Recomputed fresh every `update()` tick; consumed by P15.08's conflict
 	/// bubble, never rendered here.
 	private(set) var blockedOrigins: Set<String> = []
+	/// Origins that have had a manual "Prune Session" (P15.07) at least once
+	/// this app session (P15.07-QC). Once armed, `SessionSelectionPolicy.select`
+	/// only lets a non-rendered session newly promote into a freed slot while
+	/// it is in-flight — a manual prune is a deliberate curation action, and a
+	/// standby/idle session merely held by cap pressure must not silently take
+	/// the pruned session's place. Never cleared during the process lifetime;
+	/// deliberately in-memory only so a restart returns the origin to the
+	/// passive TTL/cap contract.
+	private var prunedOrigins: Set<String> = []
 	/// Rate-limits P15.08 conflict-bubble presentation to at most one fire per
 	/// platform per hour — `blockedOrigins` is recomputed fresh every tick, so
 	/// without this gate a persisting conflict would re-front the bubble on
@@ -417,7 +426,8 @@ final class FloatingPetWindowPool {
 			let cap = resolvedSessionCap(for: origin)
 			let currentlyRendered = Set(keys.filter { windows[$0] != nil })
 			let selection = SessionSelectionPolicy.select(
-				sessions: states, cap: cap, currentlyRendered: currentlyRendered)
+				sessions: states, cap: cap, currentlyRendered: currentlyRendered,
+				restrictNewPromotionsToInFlight: prunedOrigins.contains(origin))
 			pendingWindowKeys.formUnion(selection.pending)
 			// Capture each evicted ("non-active") session's on-screen frame right
 			// before Step 7 tears its window down, so the next session window(s)
@@ -713,6 +723,7 @@ final class FloatingPetWindowPool {
 		windows.removeValue(forKey: windowKey)
 		windowSpawnedModes.removeValue(forKey: windowKey)
 		windowSessionIdentities.removeValue(forKey: windowKey)
+		prunedOrigins.insert(identity.origin)
 		SessionPruner.pruneSession(
 			windowKey: windowKey,
 			origin: identity.origin,

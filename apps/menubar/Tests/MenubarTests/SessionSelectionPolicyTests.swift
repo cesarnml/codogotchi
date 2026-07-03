@@ -130,6 +130,67 @@ final class SessionSelectionPolicyTests: XCTestCase {
 		XCTAssertEqual(selection.pending, ["claude_code:newcomer"])
 	}
 
+	// MARK: - Prune-armed gate (P15.07-QC)
+
+	func testArmedGateKeepsAFreedSlotEmptyWhenOnlyStandbyCandidateRemains() {
+		// Pruning the active session drops the count to <= cap, so the
+		// pre-QC guard clause would have auto-rendered the standby session.
+		let sessions: [String: ActivityState] = [
+			"claude_code:standby-one": .standby,
+		]
+
+		let selection = SessionSelectionPolicy.select(
+			sessions: sessions, cap: 1, currentlyRendered: [],
+			restrictNewPromotionsToInFlight: true)
+
+		XCTAssertTrue(
+			selection.rendered.isEmpty,
+			"a non-in-flight session must not newly promote into a slot freed by a manual prune")
+		XCTAssertEqual(selection.pending, ["claude_code:standby-one"])
+	}
+
+	func testArmedGatePromotesAnInFlightCandidateIntoAFreedSlot() {
+		let sessions: [String: ActivityState] = [
+			"claude_code:active-one": .implementing,
+		]
+
+		let selection = SessionSelectionPolicy.select(
+			sessions: sessions, cap: 1, currentlyRendered: [],
+			restrictNewPromotionsToInFlight: true)
+
+		XCTAssertEqual(
+			selection.rendered, ["claude_code:active-one"],
+			"an in-flight candidate must still promote into a freed slot under the armed gate")
+	}
+
+	func testArmedGateNeverDemotesAnAlreadyRenderedIncumbent() {
+		// An incumbent that later idles must stay rendered under the armed
+		// gate — the gate only restricts NEW promotions, not incumbents.
+		let sessions: [String: ActivityState] = [
+			"claude_code:incumbent": .idle,
+		]
+
+		let selection = SessionSelectionPolicy.select(
+			sessions: sessions, cap: 1, currentlyRendered: ["claude_code:incumbent"],
+			restrictNewPromotionsToInFlight: true)
+
+		XCTAssertEqual(
+			selection.rendered, ["claude_code:incumbent"],
+			"the armed gate must never evict an incumbent — only cap-pressure ranking does that")
+	}
+
+	func testArmedGateDefaultsToUnarmedPreservingPreQCBehavior() {
+		let sessions: [String: ActivityState] = [
+			"claude_code:standby-one": .standby,
+		]
+
+		let selection = SessionSelectionPolicy.select(sessions: sessions, cap: 1)
+
+		XCTAssertEqual(
+			selection.rendered, ["claude_code:standby-one"],
+			"without an armed prune, a freed slot still auto-renders the sole remaining session")
+	}
+
 	// MARK: - Determinism
 
 	func testEqualRankTiesBreakDeterministicallyByWindowKey() {
