@@ -54,6 +54,28 @@ enum StateJsonWriter {
 		}
 	}
 
+	/// Session-pets variant: clears `attention` and idles every session slice
+	/// belonging to `origin` — not just the winner or the one session the user
+	/// clicked. Focus/dismiss on a session-keyed bubble can only act on the
+	/// platform app as a whole (no window-level API names a specific agent
+	/// thread), so once the user has acted on any one session's bubble, every
+	/// sibling session's bubble for that origin is treated as handled too.
+	static func dismissAllSessionsAttention(
+		at dir: String,
+		origin: String,
+		now: Date = Date(),
+		staleTTL: TimeInterval = 2 * 60 * 60,
+		queue: DispatchQueue = DispatchQueue.global(qos: .userInitiated),
+		completion: (() -> Void)? = nil
+	) {
+		queue.async {
+			resetAllSessionSlicesToIdle(at: dir, origin: origin, now: now, staleTTL: staleTTL)
+			if let completion {
+				DispatchQueue.main.async(execute: completion)
+			}
+		}
+	}
+
 	/// Escape hatch for a pet stuck in a non-idle animation because a prompt
 	/// failed (rate limit) or was manually stopped, so the hook never emitted a
 	/// terminal event and `state.d/` still names the stale in-flight state.
@@ -198,5 +220,43 @@ enum StateJsonWriter {
 			withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
 		else { return }
 		try? out.write(to: URL(fileURLWithPath: path), options: .atomic)
+	}
+
+	/// Rewrites every `state.d/` slice belonging to `origin` back to idle —
+	/// every session, not just the freshest winner. Filters by filename via
+	/// `StateJsonReader.parseSliceFilename` (the same origin/session split the
+	/// reader and `resetExactSliceToIdle` use) so it matches both a plain
+	/// `origin.json` slice and every `origin:session_id.json` sibling.
+	private static func resetAllSessionSlicesToIdle(
+		at dir: String,
+		origin: String,
+		now: Date,
+		staleTTL: TimeInterval
+	) {
+		let fm = FileManager.default
+		guard let names = try? fm.contentsOfDirectory(atPath: dir) else { return }
+
+		for name in names {
+			guard let parsed = StateJsonReader.parseSliceFilename(name), parsed.origin == origin
+			else { continue }
+			let path = (dir as NSString).appendingPathComponent(name)
+			// Skip a slice the reader would already ignore as stale, so we never
+			// refresh a long-dead slice's mtime and resurrect an aged-out pet.
+			if let attrs = try? fm.attributesOfItem(atPath: path),
+				let mtime = attrs[.modificationDate] as? Date,
+				now.timeIntervalSince(mtime) > staleTTL
+			{
+				continue
+			}
+			guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+				var root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+			else { continue }
+			root["activity_state"] = "idle"
+			root.removeValue(forKey: "attention")
+			guard let out = try? JSONSerialization.data(
+				withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
+			else { continue }
+			try? out.write(to: URL(fileURLWithPath: path), options: .atomic)
+		}
 	}
 }

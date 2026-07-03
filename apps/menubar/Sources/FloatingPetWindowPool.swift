@@ -660,6 +660,21 @@ final class FloatingPetWindowPool {
 		}
 	}
 
+	/// Hides the visible attention bubble on every currently active window that
+	/// shares `windowKey`'s owning platform. With session pets on, Focus can
+	/// only foreground the platform app as a whole — there is no way to raise
+	/// one specific agent thread — so a Focus or dismiss click on any one
+	/// session's bubble must clear every sibling session's bubble too, not
+	/// just the one clicked. Callers pair this with a `StateJsonWriter` write
+	/// that idles every sibling's `state.d/` slice so the bubbles do not
+	/// reappear on the next poll tick.
+	func clearAttentionBubbles(sharingOriginWith windowKey: String) {
+		let owningOrigin = Self.origin(forWindowKey: windowKey)
+		for key in windows.keys where Self.origin(forWindowKey: key) == owningOrigin {
+			windows[key]?.applyAttention(payload: nil, sourceEvent: nil)
+		}
+	}
+
 	/// Session number assigned to `windowKey`, or `nil` for a plain-origin or
 	/// "combined" window (session numbering only applies to session-keyed
 	/// windows). Consumers (e.g. `MenubarApp` wiring the session badge) call

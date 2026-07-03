@@ -235,16 +235,18 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						self?.updateAppNapOptOut()
 					}
 					// Persist the dismiss/focus so the next poll tick does not re-read
-					// the still-present `attention` and re-show the bubble. A
-					// session-keyed window targets exactly its own slice (P15.04
-					// session-precise fix, see StateJsonWriter); a plain-origin or
-					// combined window has no single session to name, so it clears the
-					// winner slice per origin.
+					// the still-present `attention` and re-show the bubble. Focus/dismiss
+					// on a session-keyed window can only act on the platform app as a
+					// whole (no window-level API names a specific agent thread), so it
+					// idles every sibling session's slice for that origin, not just the
+					// clicked one, and clears their bubbles immediately rather than
+					// waiting a poll tick. A plain-origin or combined window has no
+					// single session to name, so it clears the winner slice per origin.
 					let stateDir = config.pollingTarget.path
 					panel.onAttentionDismissed = { [weak self] in
 						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
-							StateJsonWriter.dismissAttention(
-								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
+							StateJsonWriter.dismissAllSessionsAttention(at: stateDir, origin: identity.origin)
+							self?.floatingPetWindowPool?.clearAttentionBubbles(sharingOriginWith: origin)
 						} else {
 							StateJsonWriter.dismissAttention(
 								at: stateDir,
@@ -318,14 +320,16 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					panel.onRenameRequested = { newLabel in
 						SessionLabelStore.setLabel(newLabel, for: origin)
 					}
-					// A session-keyed minimalist badge targets exactly its own slice
-					// (P15.04 session-precise fix); the combined-minimalist window folds
-					// several origins into one badge, so it scopes both writes to that
-					// combined set (or the single plain origin).
+					// Focus/dismiss on a session-keyed minimalist badge can only act on
+					// the platform app as a whole, so it idles every sibling session's
+					// slice for that origin (not just the clicked one) and clears their
+					// bubbles immediately; the combined-minimalist window folds several
+					// origins into one badge, so it scopes both writes to that combined
+					// set (or the single plain origin).
 					panel.onAttentionDismissed = { [weak self] in
 						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
-							StateJsonWriter.dismissAttention(
-								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
+							StateJsonWriter.dismissAllSessionsAttention(at: stateDir, origin: identity.origin)
+							self?.floatingPetWindowPool?.clearAttentionBubbles(sharingOriginWith: origin)
 						} else {
 							StateJsonWriter.dismissAttention(
 								at: stateDir,

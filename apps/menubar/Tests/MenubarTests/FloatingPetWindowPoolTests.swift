@@ -1746,6 +1746,47 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		)
 	}
 
+	// MARK: - Session-pets attention fan-out (dismiss/Focus clears every sibling bubble)
+
+	func testClearAttentionBubblesHidesEverySessionWindowSharingTheOrigin() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+				"codex:s2": makeSnapshot(updated: "2026-07-01T10:00:01.000Z"),
+				"cursor:main": makeSnapshot(updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), Set(["codex:s1", "codex:s2", "cursor"]))
+		let cursorCallCountBefore = stubs["cursor"]?.appliedAttention.count ?? 0
+
+		pool.clearAttentionBubbles(sharingOriginWith: "codex:s1")
+
+		XCTAssertEqual(
+			stubs["codex:s1"]?.appliedAttention.last?.0, nil,
+			"the clicked session's own bubble must clear"
+		)
+		XCTAssertEqual(
+			stubs["codex:s2"]?.appliedAttention.last?.0, nil,
+			"a sibling session sharing the same origin must also clear — Focus can only "
+				+ "raise the codex app as a whole, not one specific thread"
+		)
+		XCTAssertEqual(
+			stubs["cursor"]?.appliedAttention.count, cursorCallCountBefore,
+			"a different platform's window must not be touched"
+		)
+	}
+
 	// MARK: - P15.05 Session number gating
 
 	func testSessionKeyedWindowsGetSessionNumbersStartingAtOne() {

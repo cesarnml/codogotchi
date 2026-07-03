@@ -457,4 +457,99 @@ final class StateJsonWriterTests: XCTestCase {
 		runForceIdle(dir: dir, origin: "claude_code", sessionId: "missing")
 		XCTAssertNil(readSlice("claude_code:missing.json", in: dir))
 	}
+
+	// MARK: - dismissAllSessionsAttention (Focus/dismiss fan-out for session-pets bubbles)
+
+	private func runDismissAllSessionsAttention(dir: URL, origin: String, now: Date = Date()) {
+		let done = expectation(description: "dismissAllSessionsAttention")
+		StateJsonWriter.dismissAllSessionsAttention(at: dir.path, origin: origin, now: now) {
+			done.fulfill()
+		}
+		wait(for: [done], timeout: 5)
+	}
+
+	func testDismissAllSessionsAttentionClearsEverySessionOfTheOriginNotJustTheWinner() {
+		let dir = makeStateDir()
+		// Two live claude_code sessions, both carrying attention; a session-pets
+		// Focus/dismiss can only raise the platform as a whole, so both must clear —
+		// unlike the winner-only origin-scoped overload used by non-session-keyed windows.
+		writeSlice(
+			"claude_code:old.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "waiting_for_input",
+				"updated_at": "2026-07-01T10:00:00Z",
+				"attention": ["kind": "needs_input"],
+				"source_event": ["origin": "claude_code"],
+			])
+		writeSlice(
+			"claude_code:new.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "waiting_for_input",
+				"updated_at": "2026-07-01T11:00:00Z",
+				"attention": ["kind": "needs_input"],
+				"source_event": ["origin": "claude_code"],
+			])
+
+		runDismissAllSessionsAttention(dir: dir, origin: "claude_code")
+
+		let old = readSlice("claude_code:old.json", in: dir)!
+		XCTAssertEqual(old["activity_state"] as? String, "idle")
+		XCTAssertNil(old["attention"], "the older sibling session must also clear")
+
+		let new = readSlice("claude_code:new.json", in: dir)!
+		XCTAssertEqual(new["activity_state"] as? String, "idle")
+		XCTAssertNil(new["attention"], "the freshest session must clear")
+	}
+
+	func testDismissAllSessionsAttentionLeavesOtherOriginsUntouched() {
+		let dir = makeStateDir()
+		writeSlice(
+			"claude_code:s1.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "waiting_for_input",
+				"attention": ["kind": "needs_input"],
+				"source_event": ["origin": "claude_code"],
+			])
+		writeSlice(
+			"cursor:s1.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "waiting_for_input",
+				"attention": ["kind": "needs_input"],
+				"source_event": ["origin": "cursor"],
+			])
+
+		runDismissAllSessionsAttention(dir: dir, origin: "claude_code")
+
+		XCTAssertEqual(readSlice("claude_code:s1.json", in: dir)!["activity_state"] as? String, "idle")
+		let untouched = readSlice("cursor:s1.json", in: dir)!
+		XCTAssertEqual(
+			untouched["activity_state"] as? String, "waiting_for_input",
+			"a different origin must not be touched")
+		XCTAssertNotNil(untouched["attention"])
+	}
+
+	func testDismissAllSessionsAttentionSkipsStaleMTimeSlices() {
+		let dir = makeStateDir()
+		let filename = "claude_code:ancient.json"
+		writeSlice(
+			filename, in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "waiting_for_input",
+				"attention": ["kind": "needs_input"],
+				"source_event": ["origin": "claude_code"],
+			])
+		let now = Date()
+		setMTime(filename, in: dir, to: now.addingTimeInterval(-3 * 60 * 60))
+
+		runDismissAllSessionsAttention(dir: dir, origin: "claude_code", now: now)
+
+		XCTAssertEqual(
+			readSlice(filename, in: dir)!["activity_state"] as? String, "waiting_for_input",
+			"a stale-mtime slice must not be rewritten (would resurrect an aged-out pet)")
+	}
 }
