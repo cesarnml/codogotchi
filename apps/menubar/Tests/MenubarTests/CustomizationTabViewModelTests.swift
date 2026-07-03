@@ -144,6 +144,70 @@ final class CustomizationTabViewModelTests: XCTestCase {
 			"the plain-origin custom label must carry over to the grandfathered session's new key")
 	}
 
+	func testLabelCarryoverDoesNotClobberAPreExistingLabelAtTheGrandfatherKey() throws {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let stateDir = makeTmpStateDir()
+		defer { try? FileManager.default.removeItem(atPath: stateDir) }
+		let labelPath = FileManager.default.temporaryDirectory
+			.appendingPathComponent("session-labels-\(UUID().uuidString).json").path
+		defer { try? FileManager.default.removeItem(atPath: labelPath) }
+		writeSlice(stateDir, filename: "claude_code:winner.json", origin: "claude_code", updatedAt: "2026-07-03T09:00:00.000Z")
+		SessionLabelStore.setLabel("Plain Origin Label", for: "claude_code", at: labelPath)
+		// The grandfathered session already has its OWN, more specific label —
+		// e.g. from a direct rename during an earlier activation cycle.
+		SessionLabelStore.setLabel("My Specific Rename", for: "claude_code:winner", at: labelPath)
+		let vm = CustomizationTabViewModel(
+			filePath: path, stateDirectoryPath: stateDir, sessionLabelPath: labelPath)
+
+		vm.setSessionPetsEnabled(true, for: "claude_code")
+
+		XCTAssertEqual(
+			SessionLabelStore.label(for: "claude_code:winner", at: labelPath), "My Specific Rename",
+			"a pre-existing label already set at the grandfathered session's own key must survive, "
+				+ "not be clobbered by the plain-origin label")
+	}
+
+	func testActivationTimestampPreservesSubSecondPrecision() throws {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let stateDir = makeTmpStateDir()
+		defer { try? FileManager.default.removeItem(atPath: stateDir) }
+		let preciseNow = Date(timeIntervalSinceReferenceDate: 1_000_000.75)
+		let vm = CustomizationTabViewModel(
+			filePath: path, stateDirectoryPath: stateDir, now: { preciseNow })
+
+		vm.setSessionPetsEnabled(true, for: "claude_code")
+
+		let stamped = try XCTUnwrap(vm.sessionPetsActivatedAt["claude_code"])
+		let parsed = try XCTUnwrap(StateJsonReader.parseISO8601Date(stamped))
+		XCTAssertEqual(
+			parsed.timeIntervalSinceReferenceDate, preciseNow.timeIntervalSinceReferenceDate,
+			accuracy: 0.01,
+			"the activation timestamp must preserve sub-second precision — a whole-seconds-only "
+				+ "stamp truncates toward the past and can wrongly admit a sibling session that "
+				+ "wrote just before the real toggle instant but within the same wall-clock second")
+	}
+
+	func testGrandfatherTieBreaksDeterministicallyOnEqualTimestamps() throws {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let stateDir = makeTmpStateDir()
+		defer { try? FileManager.default.removeItem(atPath: stateDir) }
+		let tied = "2026-07-03T09:00:00.000Z"
+		writeSlice(stateDir, filename: "claude_code:zzz-session.json", origin: "claude_code", updatedAt: tied)
+		writeSlice(stateDir, filename: "claude_code:aaa-session.json", origin: "claude_code", updatedAt: tied)
+		let vm = CustomizationTabViewModel(filePath: path, stateDirectoryPath: stateDir)
+
+		vm.setSessionPetsEnabled(true, for: "claude_code")
+
+		XCTAssertEqual(
+			vm.sessionPetsGrandfatheredSessionId["claude_code"], "aaa-session",
+			"an exact updated_at tie must resolve deterministically to the lexicographically "
+				+ "smallest session id, matching RenderKeyResolver's own tie-break convention — "
+				+ "not an arbitrary Dictionary-iteration-order-dependent winner")
+	}
+
 	// MARK: - setSessionCap writes the int; Unlimited persists as 0
 
 	func testSetSessionCapWritesIntAndUnlimitedPersistsAsZero() throws {

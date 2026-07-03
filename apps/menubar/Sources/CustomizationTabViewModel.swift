@@ -178,7 +178,14 @@ final class CustomizationTabViewModel {
 		// "resets every time a user goes from off to on" — a stale grandfather
 		// from a much earlier toggle must never linger into this one.
 		if enabled, !wasEnabled {
-			proposedActivatedAt[origin] = ISO8601DateFormatter().string(from: now())
+			// Fractional seconds matter here: a whole-seconds-only timestamp
+			// truncates toward the past, so a sibling session's write from just
+			// before the real toggle instant (but within the same wall-clock
+			// second) would wrongly parse as strictly after the truncated
+			// activation and slip past the gate below.
+			let formatter = ISO8601DateFormatter()
+			formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+			proposedActivatedAt[origin] = formatter.string(from: now())
 			if let winnerSessionId = Self.currentWinnerSessionId(
 				for: origin, stateDirectoryPath: stateDirectoryPath
 			) {
@@ -205,12 +212,19 @@ final class CustomizationTabViewModel {
 
 		// Carry over the plain-origin window's existing custom label (if any)
 		// to the grandfathered session's new key, so a rename survives the
-		// toggle. Runs only after the customization write above succeeds, and
-		// only when a grandfather was actually identified.
+		// toggle. Runs only after the customization write above succeeds, only
+		// when a grandfather was actually identified, and only when that exact
+		// session doesn't already have its own label — a session-pets-on rename
+		// made directly to the grandfathered key (from an earlier activation
+		// cycle) is more specific than the collapsed plain-origin label and
+		// must not be clobbered by it.
 		if enabled, !wasEnabled, let winnerSessionId = proposedGrandfather[origin],
 			let existingLabel = SessionLabelStore.label(for: origin, at: sessionLabelPath)
 		{
-			SessionLabelStore.setLabel(existingLabel, for: "\(origin):\(winnerSessionId)", at: sessionLabelPath)
+			let grandfatherKey = "\(origin):\(winnerSessionId)"
+			if SessionLabelStore.label(for: grandfatherKey, at: sessionLabelPath) == nil {
+				SessionLabelStore.setLabel(existingLabel, for: grandfatherKey, at: sessionLabelPath)
+			}
 		}
 	}
 
@@ -228,14 +242,21 @@ final class CustomizationTabViewModel {
 				at: stateDirectoryPath)
 		else { return nil }
 		let prefix = "\(origin):"
-		let winner = perSession
-			.filter { $0.key.hasPrefix(prefix) }
-			.max { a, b in
-				let dateA = StateJsonReader.parseISO8601Date(a.value.updatedAt) ?? .distantPast
-				let dateB = StateJsonReader.parseISO8601Date(b.value.updatedAt) ?? .distantPast
-				return dateA < dateB
-			}
-		guard let winnerKey = winner?.key else { return nil }
+		// Sorted iteration + strict `>` (not `max(by:)` over the raw Dictionary)
+		// mirrors resolveRenderKeys's tie-break exactly: an unsorted Dictionary's
+		// iteration order is unspecified, so two sessions sharing an identical
+		// `updated_at` would otherwise resolve to an arbitrary, run-to-run
+		// nondeterministic winner instead of the lexicographically first key.
+		var winnerKey: String?
+		var winnerDate = Date.distantPast
+		for key in perSession.keys.sorted() where key.hasPrefix(prefix) {
+			guard let snapshot = perSession[key] else { continue }
+			let date = StateJsonReader.parseISO8601Date(snapshot.updatedAt) ?? .distantPast
+			guard date > winnerDate else { continue }
+			winnerDate = date
+			winnerKey = key
+		}
+		guard let winnerKey else { return nil }
 		return String(winnerKey.dropFirst(prefix.count))
 	}
 

@@ -90,13 +90,15 @@ final class FloatingPetWindowPool {
 	/// blocked origin, so an origin that clears from `blockedOrigins` can be
 	/// told to hide its bubble.
 	private var activeConflictBubbleTargets: [String: String] = [:]
-	/// Frame of the most recently session-cap-evicted (P15.07) window per
-	/// origin, captured the instant a rendered session drops to `pending` and
-	/// consumed the next time a new session window spawns for that origin —
-	/// so the incoming ("active") session inherits the evicted ("non-active")
-	/// session's on-screen slot instead of defaulting. One-shot per origin:
-	/// consuming removes the entry so a later, unrelated spawn does not reuse it.
-	private var evictedSessionFrames: [String: CGRect] = [:]
+	/// Frames of session-cap-evicted (P15.07) windows per origin, captured the
+	/// instant a rendered session drops to `pending` and consumed FIFO the next
+	/// time(s) a new session window spawns for that origin — so an incoming
+	/// ("active") session inherits an evicted ("non-active") session's
+	/// on-screen slot instead of defaulting. A queue, not a single slot: a
+	/// single tick can evict more than one sibling at once (e.g. lowering a
+	/// session cap by more than 1), and every evicted frame must survive to be
+	/// claimed by a later spawn, not just the last one captured.
+	private var evictedSessionFrames: [String: [CGRect]] = [:]
 
 	/// Window keys that currently have visible windows.
 	var activeOrigins: [String] { Array(windows.keys).sorted() }
@@ -380,15 +382,19 @@ final class FloatingPetWindowPool {
 			let selection = SessionSelectionPolicy.select(
 				sessions: states, cap: cap, currentlyRendered: currentlyRendered)
 			pendingWindowKeys.formUnion(selection.pending)
-			// Capture the evicted ("non-active") session's on-screen frame right
-			// before Step 7 tears its window down, so the next session window
-			// spawned for this origin (the "active" incomer that won the slot)
-			// can inherit it. Only fires on the tick a rendered key actually
+			// Capture each evicted ("non-active") session's on-screen frame right
+			// before Step 7 tears its window down, so the next session window(s)
+			// spawned for this origin (the "active" incomer(s) that won the slot)
+			// can inherit them. Only fires on the tick a rendered key actually
 			// transitions to pending — `windows[key]` is already nil on later
 			// ticks once Step 7 has removed it, so this never re-captures a
-			// window that no longer exists.
+			// window that no longer exists. Appended, not overwritten: lowering
+			// a session cap by more than 1 can evict several siblings in the
+			// same tick, and every one of their frames must survive to be
+			// claimed, not just the last one iterated from `selection.pending`
+			// (a Set, with no defined iteration order).
 			for key in selection.pending where windows[key] != nil {
-				evictedSessionFrames[origin] = windows[key]!.currentFrame
+				evictedSessionFrames[origin, default: []].append(windows[key]!.currentFrame)
 			}
 			guard selection.blocked else { continue }
 			computedBlockedOrigins.insert(origin)
@@ -489,7 +495,15 @@ final class FloatingPetWindowPool {
 				// P15.07 slot inheritance: if a sibling session of this origin was
 				// just session-cap-evicted, this newly-spawned session takes over
 				// its exact on-screen location and size instead of the default spot.
-				if let inheritedFrame = evictedSessionFrames.removeValue(forKey: origin) {
+				// FIFO: several evictions can queue up in one tick, and each
+				// subsequent spawn for this origin claims the next one in line.
+				if var queued = evictedSessionFrames[origin], !queued.isEmpty {
+					let inheritedFrame = queued.removeFirst()
+					if queued.isEmpty {
+						evictedSessionFrames.removeValue(forKey: origin)
+					} else {
+						evictedSessionFrames[origin] = queued
+					}
 					controller.adoptFrame(inheritedFrame)
 				}
 			}

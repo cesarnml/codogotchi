@@ -1343,6 +1343,78 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			"an unrelated origin's newcomer must not inherit another origin's evicted frame")
 	}
 
+	func testEvictedSessionFramesQueueAcrossMultipleEvictionsInTheSameTick() {
+		var stubs: [String: StubWindowController] = [:]
+		var customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 3])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+
+		// Tick 1: three idle sessions render under cap 3.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-a": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:idle-b": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:idle-c": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(
+			Set(pool.activeOrigins),
+			["claude_code:idle-a", "claude_code:idle-b", "claude_code:idle-c"])
+		let frameA = CGRect(x: 10, y: 10, width: 140, height: 140)
+		let frameB = CGRect(x: 20, y: 20, width: 140, height: 140)
+		stubs["claude_code:idle-a"]?.currentFrame = frameA
+		stubs["claude_code:idle-b"]?.currentFrame = frameB
+
+		// Tick 2: cap drops to 1 in one settings change — evicts idle-a and
+		// idle-b simultaneously (idle-c, the lexicographically greatest key,
+		// wins the tie-break and stays rendered). Both evicted frames must
+		// survive, not just the last one captured by the pending-set loop.
+		customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 1])
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-a": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:idle-b": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:idle-c": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:idle-c"])
+
+		// Tick 3: cap is raised back up and two new active sessions arrive at
+		// once — each must inherit a DISTINCT evicted frame, not the same one
+		// twice and not the default spot.
+		customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 3])
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-c": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:02.000Z"),
+				"claude_code:new-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:05:00.000Z"),
+				"claude_code:new-two": makeSnapshot(state: .implementing, updated: "2026-07-01T10:05:01.000Z"),
+			],
+			customization: customization
+		))
+
+		let newOneFrame = stubs["claude_code:new-one"]?.adoptedFrames.first
+		let newTwoFrame = stubs["claude_code:new-two"]?.adoptedFrames.first
+		let gotBothFramesInEitherOrder =
+			(newOneFrame == frameA && newTwoFrame == frameB)
+			|| (newOneFrame == frameB && newTwoFrame == frameA)
+		XCTAssertTrue(
+			gotBothFramesInEitherOrder,
+			"both newly-spawned sessions must inherit the two previously-evicted frames between "
+				+ "them (got \(String(describing: newOneFrame)) and "
+				+ "\(String(describing: newTwoFrame))) — not lose one to the single-slot overwrite bug")
+	}
+
 	/// (3) A held idle session is promoted (spawns a real window) the instant a
 	/// rendered session is pruned — falls out of the pure partition being
 	/// recomputed against the shrunk session set, with no dedicated promotion
