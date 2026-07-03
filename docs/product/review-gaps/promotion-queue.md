@@ -279,7 +279,7 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   a proxy-condition family.
 
 ### `adjacent-consumer-of-changed-key-shape-missed-across-file-boundary`
-- **Seen:** 1× — `codogotchi-30` (P15 QC). Phase 15 introduced session-keyed
+- **Seen:** 2× — `codogotchi-30` (P15 QC). Phase 15 introduced session-keyed
   window keys (`origin:session_id`) and shipped the plumbing to render them as
   a friendly label (`SessionLabelStore` custom rename, `SessionNumberAllocator`
   ordinal) wired into the per-window session badge/tooltip
@@ -289,6 +289,20 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   `activeOrigins`/`hiddenWindowKeys`) but was never updated to recognize the
   new session-keyed shape, so it fell through to its default case and
   title-cased the raw session UUID straight into the "Hide X Pet" menu item.
+  `codogotchi-31` (P15 QC, same round): a second, distinct consumer of the same
+  session-fanout dimension — `AttentionBubbleView`'s Focus and X affordances,
+  which predate session-pets (phase-06, ticket-02) and live in
+  `AttentionBubblePanel.swift`/`MenubarApp.swift` — were never revisited when
+  ticket-04 (phase-15) started spawning one window per active session for the
+  same origin. Both actions funneled into the P15.04 session-precise
+  `dismissAttention(origin:sessionId:)` write, which is correct for Force Idle
+  but wrong for Focus: `NSWorkspace.activate()` can only foreground the
+  platform app as a whole, never one specific thread, so every sibling
+  session's bubble for that origin should have been treated as handled too.
+  Same failure shape as `codogotchi-30` — an old, unrelated file's assumption
+  ("one window per origin" / "acting on this key only affects this key") never
+  re-derived after phase-15 multiplied windows per origin — but the consumer
+  here is a user action/callback wiring, not a display formatter.
 - **Proposed clause:** *"When a ticket changes the SHAPE of a shared key or
   identifier (adds a delimiter, a new segment, a new encoded dimension),
   grep the whole codebase for every consumer of that key — not just the
@@ -303,18 +317,21 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   assumption not re-derived after a dimension changed) but a different
   manifestation and a different lever. That family is reactive *teardown
   branches inside the same pool file* (review-reachable once you know to look
-  at that file's transition matrix); this one is a *display/formatting
-  consumer in a completely different file* with no shared diff — no reviewer
-  looking at the phase-15 session-labeling tickets would have had
-  `MenubarMenu.swift` in view. This is why it classifies `qa-gap`, not
-  `review-reachable`: the fix requires enumerating consumers codebase-wide,
-  not re-reading one file's branches.
-- **Status:** WAITING — single instance. Needs ≥1 more occurrence (ideally a
-  non-menubar or non-session-key surface) to confirm the class and settle
-  whether the clause belongs in the review prompt (as a "grep all consumers"
-  step) or a phase-integration/dogfood checklist item, mirroring the same
-  review-prompt-vs-integration-pass split left open for
-  `compound-widget-cohesion-under-transform` and
+  at that file's transition matrix); this class is *a consumer in a
+  completely different file, with no shared diff, that predates the
+  key-shape/plurality change* — `codogotchi-30`'s was a display formatter,
+  `codogotchi-31`'s was a user-action callback (Focus/dismiss), so the class
+  is not limited to rendering. No reviewer looking at the phase-15
+  session-fanout tickets would have had either file in view. This is why it
+  classifies `qa-gap`, not `review-reachable`: the fix requires enumerating
+  consumers codebase-wide, not re-reading one file's branches.
+- **Status:** WAITING — 2 occurrences, both in the menubar app and both
+  triggered by the same phase-15 session-fanout dimension. Needs ≥1 more
+  occurrence (ideally a non-menubar or non-session-key surface) to confirm the
+  class generalizes and settle whether the clause belongs in the review prompt
+  (as a "grep all consumers" step) or a phase-integration/dogfood checklist
+  item, mirroring the same review-prompt-vs-integration-pass split left open
+  for `compound-widget-cohesion-under-transform` and
   `control-signal-starved-by-change-gated-callback`.
 
 ## Open meta-question (for the eventual `/soa quality-control` skill)
