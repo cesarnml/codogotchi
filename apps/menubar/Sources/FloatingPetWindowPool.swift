@@ -90,14 +90,19 @@ final class FloatingPetWindowPool {
 	/// blocked origin, so an origin that clears from `blockedOrigins` can be
 	/// told to hide its bubble.
 	private var activeConflictBubbleTargets: [String: String] = [:]
-	/// Frames of session-cap-evicted (P15.07) windows per origin, captured the
-	/// instant a rendered session drops to `pending` and consumed FIFO the next
-	/// time(s) a new session window spawns for that origin — so an incoming
-	/// ("active") session inherits an evicted ("non-active") session's
-	/// on-screen slot instead of defaulting. A queue, not a single slot: a
-	/// single tick can evict more than one sibling at once (e.g. lowering a
-	/// session cap by more than 1), and every evicted frame must survive to be
-	/// claimed by a later spawn, not just the last one captured.
+	/// Frames of windows torn down per origin for reasons a later spawn for
+	/// that same origin should inherit from, captured the instant the old
+	/// window goes down and consumed FIFO the next time(s) a new window
+	/// spawns for that origin — so the incoming window takes over the exact
+	/// on-screen slot instead of defaulting. Two capture sites feed this: (1)
+	/// session-cap eviction (P15.07) — a rendered session dropping to
+	/// `pending` so the promoted session takes its slot; (2) the plain-origin
+	/// window torn down when session-pets is enabled for its origin (Step
+	/// 6a2) — so the grandfathered session inherits the collapsed pet's exact
+	/// slot instead of the default spawn position. A queue, not a single
+	/// slot: a single tick can evict more than one sibling at once (e.g.
+	/// lowering a session cap by more than 1), and every evicted frame must
+	/// survive to be claimed by a later spawn, not just the last one captured.
 	private var evictedSessionFrames: [String: [CGRect]] = [:]
 
 	/// Window keys that currently have visible windows.
@@ -339,6 +344,22 @@ final class FloatingPetWindowPool {
 			return isSessionKeyed(key) != sessionsOn
 		}
 		for key in sessionShapeMismatchKeys {
+			// Grandfather-frame inheritance: when THIS key is the plain-origin
+			// window being torn down because session-pets was just enabled for
+			// its origin, capture its frame into the same evictedSessionFrames
+			// queue Step 7 already drains on spawn — so the incoming
+			// grandfathered session window inherits the exact slot the user was
+			// already looking at, instead of defaulting. Only the enabling
+			// direction is captured here: on the disabling direction (several
+			// session-keyed windows collapsing to one new plain window), there
+			// is no single unambiguous frame to inherit from, so that case is
+			// left to spawn at the default position as before.
+			if !isSessionKeyed(key) {
+				let origin = Self.origin(forWindowKey: key)
+				if currentCustomization.sessionPetsEnabled[origin] ?? false {
+					evictedSessionFrames[origin, default: []].append(windows[key]!.currentFrame)
+				}
+			}
 			windows[key]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: key)
 			windowSpawnedModes.removeValue(forKey: key)

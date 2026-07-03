@@ -1158,6 +1158,90 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(stubs["claude_code:s2"]?.appliedPlatforms.last ?? nil, "claude_code")
 	}
 
+	func testEnablingSessionPetsGrandfathersThePreviousPlainWindowsFrame() {
+		var stubs: [String: StubWindowController] = [:]
+		var customization = makeCustomization()
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+
+		// Tick 1: session-pets off — a single plain-origin window renders.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:winner": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z")
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code"])
+		let previousFrame = CGRect(x: 42, y: 84, width: 160, height: 160)
+		stubs["claude_code"]?.currentFrame = previousFrame
+
+		// Tick 2: session-pets toggles on for claude_code — the plain window
+		// collapses (Step 6a2) and the grandfathered session window spawns in
+		// its place (Step 7); it must inherit the collapsed window's exact
+		// slot instead of the default spawn position.
+		customization = makeCustomization(sessionPetsEnabled: ["claude_code": true])
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:winner": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z")
+			],
+			customization: customization
+		))
+
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:winner"])
+		XCTAssertEqual(
+			stubs["claude_code:winner"]?.adoptedFrames, [previousFrame],
+			"the grandfathered session window must inherit the collapsed plain window's exact frame")
+	}
+
+	func testDisablingSessionPetsDoesNotInheritAnySessionWindowsFrame() {
+		var stubs: [String: StubWindowController] = [:]
+		var customization = makeCustomization(sessionPetsEnabled: ["claude_code": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+
+		// Tick 1: session-pets on — two session windows render.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:s2": makeSnapshot(updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:s1", "claude_code:s2"])
+		stubs["claude_code:s1"]?.currentFrame = CGRect(x: 10, y: 10, width: 160, height: 160)
+		stubs["claude_code:s2"]?.currentFrame = CGRect(x: 20, y: 20, width: 160, height: 160)
+
+		// Tick 2: session-pets toggles off — both collapse into one new plain
+		// window, which is deliberately left at the default spawn position:
+		// there is no single unambiguous sibling frame to inherit from.
+		customization = makeCustomization()
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:s2": makeSnapshot(updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code"])
+		XCTAssertTrue(
+			stubs["claude_code"]?.adoptedFrames.isEmpty ?? true,
+			"disabling session-pets must not inherit either sibling session's frame — only the "
+				+ "enabling direction inherits from a single unambiguous predecessor window")
+	}
+
 	/// (2) Session-pets off: two sessions for one origin collapse to a single
 	/// plain-origin window — byte-identical to pre-Phase-15 behavior.
 	func testSessionPetsOffCollapsesSessionsToOneOriginWindow() {
