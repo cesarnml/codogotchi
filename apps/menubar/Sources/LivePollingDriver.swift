@@ -253,10 +253,10 @@ final class LivePollingDriver {
 				// default) this reproduces today's per-origin map byte-for-byte.
 				let resolution = resolveRenderKeys(
 					perSession: perSessionMap, customization: customizationReader())
-				let perOriginGate = PerPlatformGateReader.read(
+				let gateViews = PerPlatformGateReader.readBoth(
 					at: pollingTargetPath, listing: sharedListing)
-				let perSessionGate = PerPlatformGateReader.readPerSession(
-					at: pollingTargetPath, listing: sharedListing)
+				let perOriginGate = gateViews.perOrigin
+				let perSessionGate = gateViews.perSession
 				let legacyGate = gatePath.flatMap { gateReader($0) }
 				let legacyContext = deliveryContextPath.flatMap { deliveryContextReader($0) }
 				let (mergedStates, gateBadges) = resolveRenderedPlatforms(

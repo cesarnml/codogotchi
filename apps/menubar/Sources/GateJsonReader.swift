@@ -133,6 +133,11 @@ enum PerPlatformGateReader {
 	/// `contentsOfDirectory`. When omitted (direct callers, tests) it self-scans
 	/// exactly as before. Only the enumeration is shared; each gate/context file
 	/// is still opened and decoded here.
+	///
+	/// Callers that need both this and `readPerSession`'s view for the same
+	/// directory in one poll tick should call `readBoth` instead — calling this
+	/// and `readPerSession` back to back re-opens and re-decodes every
+	/// gate/context file on disk a second time.
 	static func read(at dirPath: String, listing: StateDirectoryListing? = nil) -> [String: Entry] {
 		let scan = scanEntries(at: dirPath, listing: listing)
 		return merge(gates: scan.originGates, contexts: scan.originContexts)
@@ -144,9 +149,28 @@ enum PerPlatformGateReader {
 	/// sidecar instead of whichever sibling session on the same origin happened
 	/// to write most recently — the collapse `read()`'s origin-only keying has
 	/// when several sessions on one origin are mid-delivery concurrently.
+	///
+	/// See `read`'s doc comment: prefer `readBoth` over calling both readers.
 	static func readPerSession(at dirPath: String, listing: StateDirectoryListing? = nil) -> [String: Entry] {
 		let scan = scanEntries(at: dirPath, listing: listing)
 		return merge(gates: scan.sessionGates, contexts: scan.sessionContexts)
+	}
+
+	/// Both `read`'s origin-aggregate view and `readPerSession`'s per-session
+	/// view from a single directory scan. `LivePollingDriver` needs both every
+	/// poll tick (origin-aggregate for session-pets-off/combined render keys,
+	/// per-session for session-pets-on ones) — calling `read` and
+	/// `readPerSession` independently would scan and JSON-decode every
+	/// gate/context file on disk twice per tick for no benefit, since both views
+	/// are derived from the same underlying file set.
+	static func readBoth(
+		at dirPath: String, listing: StateDirectoryListing? = nil
+	) -> (perOrigin: [String: Entry], perSession: [String: Entry]) {
+		let scan = scanEntries(at: dirPath, listing: listing)
+		return (
+			perOrigin: merge(gates: scan.originGates, contexts: scan.originContexts),
+			perSession: merge(gates: scan.sessionGates, contexts: scan.sessionContexts)
+		)
 	}
 
 	private struct Scan {
