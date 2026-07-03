@@ -838,4 +838,80 @@ final class LivePollingTests: XCTestCase {
 		XCTAssertEqual(snapshot.gateBadges["claude_code:s2"]?.ticketId, "P15.11")
 		XCTAssertEqual(snapshot.gateBadges["claude_code:s2"]?.gate, "open_pr")
 	}
+
+	/// A session with no gate/context sidecar of its own must NOT inherit the
+	/// legacy flat `gate.json`/`delivery-context.json` just because it shares
+	/// an origin with another active session. The legacy-fallback guard used
+	/// to key on "exactly one origin is active" (`singleOrigin`), which broke
+	/// once session-pets let one origin host several concurrently rendered
+	/// sessions — `origin == singleOrigin` was true for every sibling session
+	/// on that origin, so an ungated sibling would badge off a stale/unrelated
+	/// legacy file instead of showing no badge at all.
+	func testSessionWithoutOwnGateDoesNotInheritLegacyFlatGateFromSiblingSession() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+
+		// claude_code session s1: mid red_tdd ticket, has its own gate/context.
+		try """
+			{"schema_version":8,"origin":"claude_code","session_id":"s1","activity_state":"implementing","updated_at":"2026-06-28T10:00:00.000Z","source_event":{"origin":"claude_code","kind":"tool_use","name":"Bash"}}
+			""".write(to: target.appendingPathComponent("claude_code:s1.json"), atomically: true, encoding: .utf8)
+		try """
+			{"gate":"red_tdd","since":"2026-06-28T09:59:00.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"P15.12"}
+			""".write(to: target.appendingPathComponent("claude_code:s1.gate.json"), atomically: true, encoding: .utf8)
+		try """
+			{"owner":"soa","status":"active","plan_key":"phase-15","ticket_id":"P15.12","last_gate":"red_tdd","updated_at":"2026-06-28T09:59:00.000Z","lease_expires_at":"2099-01-01T00:00:00.000Z"}
+			""".write(to: target.appendingPathComponent("claude_code:s1.context.json"), atomically: true, encoding: .utf8)
+
+		// claude_code session s2: active in state.d/, but SoA has not gated it
+		// yet this tick — no claude_code:s2.gate.json / .context.json.
+		try """
+			{"schema_version":8,"origin":"claude_code","session_id":"s2","activity_state":"implementing","updated_at":"2026-06-28T10:00:01.000Z","source_event":{"origin":"claude_code","kind":"tool_use","name":"Edit"}}
+			""".write(to: target.appendingPathComponent("claude_code:s2.json"), atomically: true, encoding: .utf8)
+
+		// A legacy flat gate.json/delivery-context.json sitting alongside — a
+		// pre-Phase-17 hook, or a stale leftover from before this origin ever
+		// wrote per-session sidecars.
+		let gatePath = makeSiblingGatePath(for: target)
+		let contextPath = makeSiblingDeliveryContextPath(for: target)
+		try """
+			{"gate":"poll_review","since":"2026-06-28T09:58:00.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-14","ticket_id":"P14.03"}
+			""".write(to: gatePath, atomically: true, encoding: .utf8)
+		try """
+			{"owner":"soa","status":"active","plan_key":"phase-14","ticket_id":"P14.03","last_gate":"poll_review","updated_at":"2026-06-28T09:58:00.000Z","lease_expires_at":"2099-01-01T00:00:00.000Z"}
+			""".write(to: contextPath, atomically: true, encoding: .utf8)
+
+		var perPlatformSnapshots: [PerPlatformSnapshot] = []
+		let customization = CustomizationSnapshot(
+			platformModes: ["claude_code": .own],
+			idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false,
+			minimalistBadgeScale: 1.0,
+			sessionPetsEnabled: ["claude_code": true]
+		)
+		let driver = makeDriver(
+			target: target, recorder: recorder, gatePath: gatePath, deliveryContextPath: contextPath,
+			customization: customization)
+		driver.applyPerPlatform = { snap in perPlatformSnapshots.append(snap) }
+
+		driver.tickForTesting()
+
+		let snapshot = try XCTUnwrap(perPlatformSnapshots.first)
+
+		// s1 keeps its own real gate, unaffected by the legacy file.
+		XCTAssertEqual(snapshot.gateBadges["claude_code:s1"]?.ticketId, "P15.12")
+		XCTAssertEqual(snapshot.gateBadges["claude_code:s1"]?.gate, "red_tdd")
+
+		// s2 has no gate/context sidecar of its own and must NOT inherit the
+		// legacy flat file just because it shares an origin with s1 — the
+		// legacy fallback only applies when exactly one render key is active
+		// overall, and here there are two (s1 and s2).
+		XCTAssertNil(
+			snapshot.gateBadges["claude_code:s2"],
+			"a sibling session with no gate of its own must not inherit the legacy flat gate/context")
+		XCTAssertEqual(
+			snapshot.perPlatform["claude_code:s2"]?.activityState, .implementing,
+			"s2 must fall through to its own hook state, not the legacy poll_review gate")
+	}
 }

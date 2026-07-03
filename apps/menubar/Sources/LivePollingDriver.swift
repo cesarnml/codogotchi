@@ -294,9 +294,18 @@ final class LivePollingDriver {
 	/// left to key on, so both keep resolving through `perOriginGate` — the
 	/// newest gate/context across every session on that origin. Falls back to
 	/// the legacy flat `gate.json`/`delivery-context.json` only when exactly
-	/// one origin is active (a pre-Phase-17 hook writes those with no origin at
-	/// all, so attributing them while several are active would risk badging
-	/// the wrong window).
+	/// one render key is active (a pre-Phase-17 hook writes those with no
+	/// origin or session at all, so attributing them while several render keys
+	/// are active would risk badging the wrong window).
+	///
+	/// The legacy fallback is gated on render keys, not origins: with
+	/// session-pets on, one origin can host several concurrently rendered
+	/// sessions, so "exactly one origin is active" no longer implies "exactly
+	/// one thing is on screen" the way it did before session-pets existed. A
+	/// session missing its own gate/context sidecar (e.g. it hasn't gated yet
+	/// this tick) must never inherit the legacy file merely because it shares
+	/// an origin with another active session — that reintroduces the
+	/// cross-session badge collapse this per-session lookup exists to fix.
 	///
 	/// With session-pets off everywhere (render key == origin, identity origin
 	/// == that origin) this is identical to the pre-P15.03 per-origin merge.
@@ -310,8 +319,7 @@ final class LivePollingDriver {
 	) -> (states: [String: StateSnapshot], gateBadges: [String: GateBadgeContent]) {
 		var states: [String: StateSnapshot] = [:]
 		var badges: [String: GateBadgeContent] = [:]
-		let distinctOrigins = Set(identities.values.map(\.origin))
-		let singleOrigin = distinctOrigins.count == 1 ? distinctOrigins.first : nil
+		let singleRenderKey = renderStates.count == 1 ? renderStates.keys.first : nil
 
 		for (renderKey, snapshot) in renderStates {
 			let identity = identities[renderKey]
@@ -322,8 +330,8 @@ final class LivePollingDriver {
 			} else {
 				entry = perOriginGate[origin]
 			}
-			let gate = entry?.gate ?? (origin == singleOrigin ? legacyGate : nil)
-			let context = entry?.context ?? (origin == singleOrigin ? legacyContext : nil)
+			let gate = entry?.gate ?? (renderKey == singleRenderKey ? legacyGate : nil)
+			let context = entry?.context ?? (renderKey == singleRenderKey ? legacyContext : nil)
 
 			let mergedActivity = resolveActivityState(
 				gate: gate, hookState: snapshot.activityState, codogotchiPet: codogotchiPet
