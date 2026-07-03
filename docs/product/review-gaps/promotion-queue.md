@@ -374,6 +374,50 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   non-Force-Idle, non-menubar surface) before deciding whether to fold into
   the session-fanout family above or promote as its own class.
 
+### `hide-toggle-conflated-with-pool-slot-release`
+- **Seen:** 1× — `codogotchi-38` (phase-15 QC). `FloatingPetWindowPool`'s cap
+  incumbency (`SessionSelectionPolicy.select`'s `currentlyRendered` input) was
+  derived from `windows[$0] != nil` — a reasonable local implementation when
+  P15.07 (cap selection) shipped, since at the time every window teardown really
+  did mean "this session lost its place." The phase-15-QC hide/show feature
+  later added a second, independent reason a window can disappear (`setVisible`
+  concealing it on user request) without revisiting that assumption, so hiding
+  an incumbent silently read as a freed cap slot and a pending idle sibling
+  backfilled it in the hidden pet's place.
+- **Proposed clause:** *"When a pool/registry derives ANY policy decision
+  (eviction, incumbency, promotion, numbering) from whether an item currently
+  has a live resource (a window, a connection, a handle), enumerate every
+  action that can tear down that resource for a reason OTHER than the policy's
+  own decision (a user-visibility toggle, a mode switch, an unrelated teardown
+  branch) and confirm the policy either ignores those or is explicitly told
+  about them. Resource-existence is not intent — a second feature added later
+  that manipulates the same resource for an unrelated reason will silently
+  corrupt the policy's assumption without touching the policy's own code."*
+- **Relationship to `user-hide-overwritten-by-periodic-respawn`:** same family
+  (hide/pool-state interaction bugs recurring in this exact file across
+  phases: `codogotchi-21`, `codogotchi-36`, now `codogotchi-38`), but a
+  different manifestation — that class is about the hide flag not surviving a
+  refresh boundary; this one is about a DIFFERENT piece of pool state (cap
+  incumbency, not visibility) silently reading window-teardown as a policy
+  signal. Also a cousin of `pool-spawn-position-not-per-origin` (per-owner
+  state assumptions breaking under a pool refactor) and the
+  `new-enum-case-skips-existing-transition-matrix` family (an old assumption
+  not re-derived after a later feature added a second way to trigger it).
+- **Caveat that blocks naive promotion:** only 1 occurrence of this exact
+  manifestation (incumbency, not visibility). `FloatingPetWindowPool` is
+  clearly a hotspot for this general shape of bug (4 prior related ledger
+  rows), so the file itself may warrant a standing "re-audit every `windows[$0]
+  != nil` / `windows.keys` read whenever a new window-teardown trigger is
+  added" checklist item rather than waiting for a generic cross-repo instance.
+- **Status:** WAITING — 1 occurrence of this specific manifestation, but the
+  broader "two independently-correct features silently share pool state" shape
+  is now recurring often enough in this one file to flag for a
+  file-scoped integration-checklist item even before a cross-repo instance
+  lands. A related, not-yet-fixed second gap in the same dogfooding pass
+  (`codogotchi-39`, hide-then-show losing track of a legitimately-evicted
+  session — "lost in the ether") is a strong candidate to confirm this class
+  at 2× once its ledger row lands.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
