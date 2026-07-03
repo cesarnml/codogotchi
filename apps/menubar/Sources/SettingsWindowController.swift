@@ -124,8 +124,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 
 	private func openWindow() {
 		// Width sized so the Pet tab grid shows three columns by default
-		// (each card needs ~300pt; see PetTabView.minCardWidth/maxColumns).
-		let frame = CGRect(x: 0, y: 0, width: 1020, height: 680)
+		// (each card needs ~300pt; see PetTabView.minCardWidth/maxColumns) with
+		// headroom for the Customization tab's two-column layout.
+		let frame = CGRect(x: 0, y: 0, width: 1120, height: 680)
 		let w = NSWindow(
 			contentRect: frame,
 			styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -360,6 +361,11 @@ private func settingsColumnHeader(_ text: String) -> NSTextField {
 	label.font = .systemFont(ofSize: 11, weight: .semibold)
 	label.textColor = .secondaryLabelColor
 	label.translatesAutoresizingMaskIntoConstraints = false
+	// Callers that pass an embedded "\n" (e.g. a two-line "Enable\nSessions"
+	// header squeezed into a narrow column) need actual line breaks, not a
+	// single-line label that ignores them.
+	label.maximumNumberOfLines = 0
+	label.lineBreakMode = .byWordWrapping
 	return label
 }
 
@@ -1613,9 +1619,9 @@ private final class CustomizationTabView: NSView {
 	private var badgeScaleSlider = NSSlider()
 
 	/// Wide enough to fit "Minimalist", the longest `PlatformMode` label, without truncation.
-	private static let modeColumnWidth: CGFloat = 170
-	/// Width of the centered "Enable Session Pets" column (header text + checkbox).
-	private static let sessionPetsColumnWidth: CGFloat = 150
+	private static let modeColumnWidth: CGFloat = 120
+	/// Width of the centered "Enable\nSessions" column (two-line header + checkbox).
+	private static let sessionPetsColumnWidth: CGFloat = 90
 	/// Fixed content width for the Platform Settings card: label(110) + mode
 	/// picker + session-pets column + cap picker(110), plus row/column gaps
 	/// and the 16pt card margins on each side. Sized from content rather than
@@ -1669,7 +1675,7 @@ private final class CustomizationTabView: NSView {
 
 		let modeHeader = settingsColumnHeader("Mode")
 		platformCard.addSubview(modeHeader)
-		let sessionPetsHeader = settingsColumnHeader("Enable Session Pets")
+		let sessionPetsHeader = settingsColumnHeader("Enable\nSessions")
 		sessionPetsHeader.alignment = .center
 		platformCard.addSubview(sessionPetsHeader)
 		let sessionCapHeader = settingsColumnHeader("Session Cap")
