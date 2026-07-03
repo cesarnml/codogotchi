@@ -334,6 +334,31 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   for `compound-widget-cohesion-under-transform` and
   `control-signal-starved-by-change-gated-callback`.
 
+### `existing-escape-hatch-action-not-extended-to-newer-adjacent-ui-state`
+- **Seen:** 1× — `codogotchi-33` (Force Idle predates the SOA ticket/gate
+  badge and the P15.08 conflict `SpeechBubblePanel`; its right-click handler
+  only ever rewrote the `state.d/` activity slice, and neither newer
+  stuck-state indicator was revisited to fold into the "clear this stuck pet"
+  affordance when it was added).
+- **Relationship to `codogotchi-30`/`codogotchi-31`'s session-fanout family:**
+  same root shape — an old action/consumer, written before a later feature
+  landed, never re-derived against the new state — but a different trigger.
+  The session-fanout family is triggered by a *key-shape/plurality* change
+  (one window per origin becoming many). This one is triggered by *new
+  parallel UI state being layered onto an existing pet* (a badge, a bubble)
+  with no shared diff against the original escape-hatch action, so a reviewer
+  of the newer feature's ticket would have had no reason to open
+  `MenubarApp.swift`'s Force Idle wiring.
+- **Proposed clause (tentative):** *"When adding a new persistent per-pet UI
+  indicator (badge, bubble, overlay) driven by state outside the pet's core
+  activity slice, grep for every existing 'reset/clear/dismiss' affordance on
+  that pet and confirm whether the new indicator should be folded into it. An
+  escape hatch's users assume it clears everything visibly wrong with the
+  pet, not just the specific field it was originally scoped to."*
+- **Status:** WAITING — only 1 occurrence so far. Needs ≥1 more (ideally a
+  non-Force-Idle, non-menubar surface) before deciding whether to fold into
+  the session-fanout family above or promote as its own class.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
