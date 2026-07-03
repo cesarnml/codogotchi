@@ -17,8 +17,16 @@ private final class StubWindowController: FloatingPetWindowControlling {
     var appliedSessionLabels: [String?] = []
     var appliedSessionTooltips: [String?] = []
     var appliedConflictBubbles: [ConflictBubblePayload?] = []
+    /// Settable so a test can simulate "this window is currently at frame X"
+    /// before the pool reads it via `currentFrame` at eviction time.
+    var currentFrame: CGRect = .zero
+    var adoptedFrames: [CGRect] = []
 
     func setFloatingPetVisible(_ visible: Bool) { isFloatingPetVisible = visible }
+    func adoptFrame(_ frame: CGRect) {
+        adoptedFrames.append(frame)
+        currentFrame = frame
+    }
     func apply(state: ActivityState, visualMode: VisualMode) { appliedStates.append((state, visualMode)) }
     func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {
         appliedRPGStates.append((halfHearts, levelFraction, level, activeMinutes, hudEnabled))
@@ -1252,6 +1260,87 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(
 			Set(pool.activeOrigins), ["claude_code:active-one", "claude_code:active-two"],
 			"cap 2 must render only the two active sessions, holding the idle one")
+	}
+
+	// MARK: - P15.07 evicted-session frame inheritance
+
+	func testEvictedSessionFrameIsInheritedByTheIncomingActiveSession() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 1])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+
+		// Tick 1: a single idle session renders (cap 1, only one session exists).
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z")
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:idle-one"])
+		let evictedFrame = CGRect(x: 111, y: 222, width: 140, height: 140)
+		stubs["claude_code:idle-one"]?.currentFrame = evictedFrame
+
+		// Tick 2: a new in-flight session arrives; cap 1 evicts the idle one and
+		// promotes the active newcomer into its slot.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+
+		XCTAssertEqual(
+			Set(pool.activeOrigins), ["claude_code:active-one"],
+			"cap 1 must evict the idle session and render only the new active one")
+		XCTAssertEqual(
+			stubs["claude_code:active-one"]?.adoptedFrames, [evictedFrame],
+			"the incoming active session must inherit the evicted session's exact frame and size")
+	}
+
+	func testInheritedFrameDoesNotLeakToAnUnrelatedOrigin() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 1])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z")
+			],
+			customization: customization
+		))
+		stubs["claude_code:idle-one"]?.currentFrame = CGRect(x: 50, y: 50, width: 140, height: 140)
+
+		// A brand-new session for a DIFFERENT, session-pets-off origin (folds to the
+		// plain "cursor" key) appears in the same tick that evicts claude_code's idle
+		// session — cursor must not inherit claude_code's freed frame.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+				"cursor:new": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+
+		XCTAssertTrue(
+			stubs["cursor"]?.adoptedFrames.isEmpty ?? true,
+			"an unrelated origin's newcomer must not inherit another origin's evicted frame")
 	}
 
 	/// (3) A held idle session is promoted (spawns a real window) the instant a

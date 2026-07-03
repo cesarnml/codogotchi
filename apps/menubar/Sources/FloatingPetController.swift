@@ -35,6 +35,16 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	/// `applyAttention` — the conflict signal is pool-level, not per-session
 	/// `state.json` state.
 	func applyConflictBubble(_ payload: ConflictBubblePayload?)
+	/// This window's current on-screen frame (location + size), regardless of
+	/// visibility. Read by the pool right before a session-cap eviction (P15.07)
+	/// tears this window down, so a newly-spawned session window replacing it
+	/// can inherit the same slot instead of defaulting.
+	var currentFrame: CGRect { get }
+	/// Moves this window to `frame` (clamped to the visible frame) and persists
+	/// it as this window's saved position, so a later relaunch keeps the
+	/// inherited location too. Used only right after a session window spawns
+	/// into a slot freed by an evicted sibling session of the same origin.
+	func adoptFrame(_ frame: CGRect)
 }
 
 extension FloatingPetWindowControlling {
@@ -42,6 +52,8 @@ extension FloatingPetWindowControlling {
 	func applySessionLabel(_ label: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
+	var currentFrame: CGRect { .zero }
+	func adoptFrame(_ frame: CGRect) {}
 }
 
 @MainActor
@@ -214,6 +226,12 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 
 	func setHUDPinned(_ pinned: Bool) {
 		panel.setHUDPinned(pinned)
+	}
+
+	var currentFrame: CGRect { state.frame }
+
+	func adoptFrame(_ frame: CGRect) {
+		saveClampedFrame(frame, visibleFrame: visibleFrameProvider(), logLabel: "session-slot inheritance")
 	}
 
 	func persistFrameChange(_ frame: CGRect) {
@@ -415,6 +433,12 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	}
 
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
+
+	var currentFrame: CGRect { state.frame }
+
+	func adoptFrame(_ frame: CGRect) {
+		saveClampedFrame(frame, visibleFrame: visibleFrameProvider(), logLabel: "session-slot inheritance")
+	}
 
 	func persistFrameChange(_ frame: CGRect) {
 		saveClampedFrame(frame, visibleFrame: visibleFrameProvider(), logLabel: "frame change")

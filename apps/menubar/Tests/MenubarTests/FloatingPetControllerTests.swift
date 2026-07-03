@@ -376,6 +376,30 @@ final class FloatingPetControllerTests: XCTestCase {
 		}
 	}
 
+	func testAdoptFrameMovesPanelAndPersistsTheInheritedFrame() throws {
+		try withTempHome { _ in
+			let initial = FloatingAppState(
+				isFloatingPetVisible: true,
+				frame: CGRect(x: 20, y: 20, width: 160, height: 160)
+			)
+			let inheritedFrame = CGRect(x: 300, y: 250, width: 200, height: 180)
+			let clampedFrame = FloatingFramePolicy.clamp(inheritedFrame, to: visibleFrame)
+			try AppStateStore.save(initial)
+			let panel = FloatingPetPanelSpy()
+			let controller = FloatingPetController(panel: panel, visibleFrameProvider: { self.visibleFrame })
+
+			controller.adoptFrame(inheritedFrame)
+
+			XCTAssertEqual(
+				panel.shownFrames.last, clampedFrame,
+				"adoptFrame must move the panel to the inherited slot immediately")
+			XCTAssertEqual(
+				AppStateStore.load(visibleFrame: visibleFrame).frame, clampedFrame,
+				"adoptFrame must persist the inherited frame so a relaunch keeps the same slot")
+			XCTAssertEqual(controller.currentFrame, clampedFrame)
+		}
+	}
+
 	func testDisplayChangeReclampsVisiblePanelAndPersistsSafeFrame() throws {
 		try withTempHome { _ in
 			var currentVisibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
