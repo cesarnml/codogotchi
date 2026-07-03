@@ -263,7 +263,12 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// it resets exactly that combined set; a plain own window resets just
 					// its origin's winner slice. Never all slices — that idles unrelated
 					// pets and resurrects aged-out ones by refreshing their mtimes.
-					panel.onForceIdle = { [weak self] in
+					// Also clears this window's own SOA badges (ticket/gate) and
+					// conflict speech bubble — they're driven by separate
+					// .gate.json/.context.json polling state that the state.d/
+					// idle rewrite above never touches, so without this the stuck
+					// badge/bubble would survive the "escape hatch" click.
+					panel.onForceIdle = { [weak self, weak panel] in
 						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
 							StateJsonWriter.forceIdle(
 								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
@@ -273,6 +278,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
 							)
 						}
+						panel?.applyGateBadge(content: nil)
+						panel?.applyConflictBubble(nil)
 					}
 					// Right-click "Rename…" (P15.06): `origin` here is the resolved
 					// render key, which for a session-keyed window IS already the
@@ -341,7 +348,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// mirroring Own mode: a session-keyed badge resets exactly its own
 					// slice, never a fresher sibling session's; otherwise resets the
 					// combined set for the combined window, or just this origin.
-					panel.onForceIdle = { [weak self] in
+					// Also clears this window's own SOA badges (ticket/gate) and
+					// conflict speech bubble — see the matching Own-mode comment
+					// above for why the state.d/ idle rewrite alone can't do this.
+					panel.onForceIdle = { [weak self, weak panel] in
 						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
 							StateJsonWriter.forceIdle(
 								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
@@ -351,6 +361,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
 							)
 						}
+						panel?.applyGateBadge(content: nil)
+						panel?.applyConflictBubble(nil)
 					}
 					let savedFrame = AppStateStore.loadFrame(
 						for: origin, visibleFrame: Self.visibleFloatingFrame())
