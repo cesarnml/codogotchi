@@ -4,7 +4,8 @@ import AppKit
 ///
 /// Layout: a disabled "Codogotchi" header, a separator, "Default Pet: …" (jumps
 /// to Settings > Pet), the dynamic pet section, "Show/Hide All Pets",
-/// "Settings…", and "Quit Codogotchi".
+/// "Customization…" (jumps to Settings > Customization), "Settings…", and
+/// "Quit Codogotchi".
 ///
 /// The pet section is dynamic: when `FloatingPetWindowPool` has a single active
 /// origin it collapses to a single "Show/Hide Pet" toggle; with two or more
@@ -21,6 +22,7 @@ final class MenubarMenu: NSObject {
 	static let hideFloatingPetTitle = "Hide Pet"
 	static let showAllPetsTitle = "Show All Pets"
 	static let hideAllPetsTitle = "Hide All Pets"
+	static let customizationTitle = "Customization…"
 	static let settingsTitle = "Settings…"
 	static let quitTitle = "Quit Codogotchi"
 	static let hooksNotActiveTitle = "⚠ Hooks not active — Retry install"
@@ -94,6 +96,15 @@ final class MenubarMenu: NSObject {
 
 		menu.addItem(.separator())
 
+		let customizationItem = NSMenuItem(
+			title: Self.customizationTitle,
+			action: #selector(openCustomizationSettingsAction(_:)),
+			keyEquivalent: ""
+		)
+		customizationItem.target = self
+		customizationItem.isEnabled = openSettings != nil
+		menu.addItem(customizationItem)
+
 		let settingsItem = NSMenuItem(
 			title: Self.settingsTitle,
 			action: #selector(openSettingsAction(_:)),
@@ -161,6 +172,10 @@ final class MenubarMenu: NSObject {
 
 	@objc func openPetSettingsAction(_ sender: Any?) {
 		openSettings?(.pet)
+	}
+
+	@objc func openCustomizationSettingsAction(_ sender: Any?) {
+		openSettings?(.customization)
 	}
 
 	@MainActor
