@@ -18,6 +18,8 @@ targets:
     platform: macOS
     sources:
       - path: Sources
+        excludes:
+          - ".soa/**"
       - path: Fixtures/state-json
         type: folder
         buildPhase: resources

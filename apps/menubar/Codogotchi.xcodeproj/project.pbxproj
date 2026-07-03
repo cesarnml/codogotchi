@@ -407,7 +407,6 @@
 				8BC14DBFFFD8DF9F8C3DDA8F /* StateJsonReader.swift */,
 				929D7ABA7E1617690CAFA85E /* StateJsonWriter.swift */,
 				DABEF68EEC70787763CE3E3D /* TransitionLog.swift */,
-				772E07285437DF98404731D2 /* .soa */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -419,13 +418,6 @@
 				4412C28CB80A89E0E021EC03 /* state-json */,
 			);
 			path = Fixtures;
-			sourceTree = "<group>";
-		};
-		772E07285437DF98404731D2 /* .soa */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = .soa;
 			sourceTree = "<group>";
 		};
 		AB6C050F38AC4B30F4768543 = {
