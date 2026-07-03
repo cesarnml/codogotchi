@@ -1525,9 +1525,9 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		stubs["claude_code:idle-b"]?.currentFrame = frameB
 
 		// Tick 2: cap drops to 1 in one settings change — evicts idle-a and
-		// idle-b simultaneously (idle-c, the lexicographically greatest key,
-		// wins the tie-break and stays rendered). Both evicted frames must
-		// survive, not just the last one captured by the pending-set loop.
+		// idle-b simultaneously (idle-c, the most recently updated, wins the
+		// tie-break and stays rendered). Both evicted frames must survive,
+		// not just the last one captured by the pending-set loop.
 		customization = makeCustomization(
 			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 1])
 		pool.update(snapshot: makeResolvedSnapshot(
@@ -1981,7 +1981,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		// we actually want to test: whether "a"'s firstSeenAt was correctly
 		// reset to this tick (the fix) or still carries its tick-1 value (the
 		// bug) — `SessionSelectionPolicy.select`'s eviction sort never looks
-		// at firstSeenAt itself, only rank/incumbency/lex, so this can only be
+		// at firstSeenAt itself, only rank/incumbency/recency/lex, so this can only be
 		// observed via which incumbent conflict-bubble target selection picks
 		// once both are incumbents.
 		currentTime = currentTime.addingTimeInterval(1)

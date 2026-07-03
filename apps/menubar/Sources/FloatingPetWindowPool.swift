@@ -450,10 +450,14 @@ final class FloatingPetWindowPool {
 			let states: [String: ActivityState] = keys.reduce(into: [:]) { acc, key in
 				acc[key] = visibleEntries[key]?.activityState
 			}
+			let updatedAt: [String: String] = keys.reduce(into: [:]) { acc, key in
+				acc[key] = visibleEntries[key]?.updatedAt
+			}
 			let cap = resolvedSessionCap(for: origin)
 			let currentlyRendered = slotOccupants.intersection(keys)
 			let selection = SessionSelectionPolicy.select(
 				sessions: states, cap: cap, currentlyRendered: currentlyRendered,
+				updatedAt: updatedAt,
 				restrictNewPromotionsToInFlight: prunedOrigins.contains(origin))
 			slotOccupants.subtract(keys)
 			slotOccupants.formUnion(selection.rendered)

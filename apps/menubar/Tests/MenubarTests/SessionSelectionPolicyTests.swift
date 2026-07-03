@@ -203,7 +203,70 @@ final class SessionSelectionPolicyTests: XCTestCase {
 
 		XCTAssertEqual(
 			selection.rendered, ["claude_code:zzz"],
-			"equal-rank ties must deterministically hold the lexicographically smallest key")
+			"with no updatedAt data, equal-rank ties must deterministically hold the lexicographically smallest key")
 		XCTAssertEqual(selection.pending, ["claude_code:aaa"])
+	}
+
+	// MARK: - Recency tie-break
+
+	func testEqualRankTieBreaksByMostRecentUpdatedAtOverKeyOrder() {
+		// "aaa" sorts first lexicographically, but "zzz" was updated more
+		// recently — recency must win regardless of session-id ordering, e.g.
+		// on a cold app relaunch where nothing is yet incumbent.
+		let sessions: [String: ActivityState] = [
+			"claude_code:aaa": .idle,
+			"claude_code:zzz": .idle,
+		]
+		let updatedAt = [
+			"claude_code:aaa": "2026-07-03T12:15:24.932Z",
+			"claude_code:zzz": "2026-07-03T12:53:20.319Z",
+		]
+
+		let selection = SessionSelectionPolicy.select(sessions: sessions, cap: 1, updatedAt: updatedAt)
+
+		XCTAssertEqual(
+			selection.rendered, ["claude_code:zzz"],
+			"the more recently updated session must win the slot even though its key sorts later")
+		XCTAssertEqual(selection.pending, ["claude_code:aaa"])
+	}
+
+	func testMissingOrUnparseableUpdatedAtSortsAsMostEvictable() {
+		let sessions: [String: ActivityState] = [
+			"claude_code:known": .idle,
+			"claude_code:unknown": .idle,
+		]
+		let updatedAt = [
+			"claude_code:known": "2026-07-03T12:15:24.932Z"
+			// "claude_code:unknown" intentionally absent.
+		]
+
+		let selection = SessionSelectionPolicy.select(sessions: sessions, cap: 1, updatedAt: updatedAt)
+
+		XCTAssertEqual(
+			selection.rendered, ["claude_code:known"],
+			"a session with no updatedAt data must not out-rank one with a real timestamp")
+		XCTAssertEqual(selection.pending, ["claude_code:unknown"])
+	}
+
+	func testRecencyTieBreakYieldsToIncumbency() {
+		// The newcomer has a fresher timestamp, but the incumbent-protection
+		// rule (checked first) must still win — recency only breaks ties among
+		// equally-incumbent (or equally-newcomer) candidates.
+		let sessions: [String: ActivityState] = [
+			"claude_code:incumbent": .idle,
+			"claude_code:newcomer": .idle,
+		]
+		let updatedAt = [
+			"claude_code:incumbent": "2026-07-03T12:00:00.000Z",
+			"claude_code:newcomer": "2026-07-03T12:59:00.000Z",
+		]
+
+		let selection = SessionSelectionPolicy.select(
+			sessions: sessions, cap: 1, currentlyRendered: ["claude_code:incumbent"],
+			updatedAt: updatedAt)
+
+		XCTAssertEqual(
+			selection.rendered, ["claude_code:incumbent"],
+			"incumbency must still be checked before recency")
 	}
 }

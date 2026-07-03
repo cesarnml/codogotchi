@@ -55,6 +55,20 @@ enum SessionSelectionPolicy {
 	/// arbitrary key order, letting a newcomer evict a working incumbent —
 	/// exactly what "never de-rendered for a newcomer" forbids.
 	///
+	/// `updatedAt` (window key → ISO 8601 `updated_at`) breaks a same-rank,
+	/// same-incumbency tie in favor of the more recently updated session —
+	/// e.g. on a cold app relaunch, where nothing is yet incumbent, this is
+	/// what makes the session you were last actually using win a slot over
+	/// other idle/ended sessions instead of an arbitrary session-id sort. A
+	/// missing or unparseable entry sorts as `.distantPast` (most evictable).
+	/// Every other winner-selection path in this codebase (render-key
+	/// election, the grandfather-on-toggle winner, the combined-window
+	/// winner) already uses recency as its primary rule; this is the one
+	/// spot that didn't, and a raw session-id string carries no user-facing
+	/// meaning as a tie-break. Only sessions sharing the exact same
+	/// (or absent) timestamp fall through to the lexicographic key
+	/// tie-break below, purely for full determinism.
+	///
 	/// `restrictNewPromotionsToInFlight` is the P15.07-QC prune-armed gate: once
 	/// an origin has had a manual Prune this app session, a session that was
 	/// NOT already rendered may only newly promote into a freed slot while it
@@ -71,16 +85,22 @@ enum SessionSelectionPolicy {
 		sessions: [String: ActivityState],
 		cap: Int,
 		currentlyRendered: Set<String> = [],
+		updatedAt: [String: String] = [:],
 		restrictNewPromotionsToInFlight: Bool = false
 	) -> Selection {
 		guard cap > 0 else {
 			return Selection(rendered: Set(sessions.keys), pending: [], blocked: false)
 		}
 
-		// Sort least-evictable-last (ascending rank, incumbents-last within a
-		// rank) with a deterministic key tie-break so equal-rank, equal-incumbency
-		// sessions always partition the same way — unspecified Dictionary
-		// iteration order must never decide which session is held.
+		func recency(_ key: String) -> Date {
+			updatedAt[key].flatMap(StateJsonReader.parseISO8601Date) ?? .distantPast
+		}
+
+		// Sort least-evictable-last (ascending rank, incumbents-last, most-recent
+		// last within a rank) with a deterministic key tie-break so equal-rank,
+		// equal-incumbency, equal-recency sessions always partition the same way
+		// — unspecified Dictionary iteration order must never decide which
+		// session is held.
 		let ordered = sessions.keys.sorted { a, b in
 			let rankA = evictionRank(for: sessions[a]!)
 			let rankB = evictionRank(for: sessions[b]!)
@@ -88,6 +108,9 @@ enum SessionSelectionPolicy {
 			let incumbentA = currentlyRendered.contains(a)
 			let incumbentB = currentlyRendered.contains(b)
 			if incumbentA != incumbentB { return incumbentB }
+			let dateA = recency(a)
+			let dateB = recency(b)
+			if dateA != dateB { return dateA < dateB }
 			return a < b
 		}
 		// When sessions.count <= cap this renders every session, matching the
