@@ -255,12 +255,15 @@ final class LivePollingDriver {
 					perSession: perSessionMap, customization: customizationReader())
 				let perOriginGate = PerPlatformGateReader.read(
 					at: pollingTargetPath, listing: sharedListing)
+				let perSessionGate = PerPlatformGateReader.readPerSession(
+					at: pollingTargetPath, listing: sharedListing)
 				let legacyGate = gatePath.flatMap { gateReader($0) }
 				let legacyContext = deliveryContextPath.flatMap { deliveryContextReader($0) }
 				let (mergedStates, gateBadges) = resolveRenderedPlatforms(
 					renderStates: resolution.states,
 					identities: resolution.identities,
 					perOriginGate: perOriginGate,
+					perSessionGate: perSessionGate,
 					legacyGate: legacyGate,
 					legacyContext: legacyContext
 				)
@@ -274,25 +277,34 @@ final class LivePollingDriver {
 		}
 	}
 
-	/// Merges each render key's owning-origin SoA gate into its activity state
-	/// (so the gate's 30s animation plays on the platform that actually drove it,
-	/// not just the legacy single-window status item) and resolves each render
-	/// key's persistent ticket/gate badge content.
+	/// Merges each render key's own SoA gate into its activity state (so the
+	/// gate's 30s animation plays on the platform — or, with session-pets on,
+	/// the specific session — that actually drove it, not just the legacy
+	/// single-window status item) and resolves each render key's persistent
+	/// ticket/gate badge content.
 	///
-	/// The gate/context lookup is keyed by the winning slice's **origin** (from
-	/// `identities`), because gate/context files are per-origin — a plain-origin
-	/// key, an `origin:session_id` key, and a folded `"combined"` key all resolve
-	/// to their owning origin's gate. Falls back to the legacy flat
-	/// `gate.json`/`delivery-context.json` only when exactly one origin is active
-	/// (a pre-Phase-17 hook writes those with no origin at all, so attributing
-	/// them while several are active would risk badging the wrong window).
+	/// A genuine per-session render key (session-pets on:
+	/// `renderKey == "<origin>:<session_id>"`) looks up `perSessionGate` by that
+	/// exact key, so each session badges from its own gate/context sidecar and
+	/// never a sibling session's — falling back to `perOriginGate` here would
+	/// silently re-collapse concurrent sessions on one origin to a single
+	/// badge, which is the bug this per-session lookup exists to fix. A
+	/// plain-origin key (session-pets off) or the folded `"combined"` key has
+	/// already collapsed multiple sessions with no single session identity
+	/// left to key on, so both keep resolving through `perOriginGate` — the
+	/// newest gate/context across every session on that origin. Falls back to
+	/// the legacy flat `gate.json`/`delivery-context.json` only when exactly
+	/// one origin is active (a pre-Phase-17 hook writes those with no origin at
+	/// all, so attributing them while several are active would risk badging
+	/// the wrong window).
 	///
-	/// With session-pets off (render key == origin, identity origin == that
-	/// origin) this is identical to the pre-P15.03 per-origin merge.
+	/// With session-pets off everywhere (render key == origin, identity origin
+	/// == that origin) this is identical to the pre-P15.03 per-origin merge.
 	private func resolveRenderedPlatforms(
 		renderStates: [String: StateSnapshot],
 		identities: [String: RenderKeyIdentity],
 		perOriginGate: [String: PerPlatformGateReader.Entry],
+		perSessionGate: [String: PerPlatformGateReader.Entry],
 		legacyGate: GateSnapshot?,
 		legacyContext: DeliveryContextSnapshot?
 	) -> (states: [String: StateSnapshot], gateBadges: [String: GateBadgeContent]) {
@@ -302,8 +314,14 @@ final class LivePollingDriver {
 		let singleOrigin = distinctOrigins.count == 1 ? distinctOrigins.first : nil
 
 		for (renderKey, snapshot) in renderStates {
-			let origin = identities[renderKey]?.origin ?? renderKey
-			let entry = perOriginGate[origin]
+			let identity = identities[renderKey]
+			let origin = identity?.origin ?? renderKey
+			let entry: PerPlatformGateReader.Entry?
+			if let identity, renderKey == "\(identity.origin):\(identity.sessionId)" {
+				entry = perSessionGate[renderKey]
+			} else {
+				entry = perOriginGate[origin]
+			}
 			let gate = entry?.gate ?? (origin == singleOrigin ? legacyGate : nil)
 			let context = entry?.context ?? (origin == singleOrigin ? legacyContext : nil)
 

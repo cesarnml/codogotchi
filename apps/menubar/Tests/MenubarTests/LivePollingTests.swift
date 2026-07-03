@@ -772,4 +772,70 @@ final class LivePollingTests: XCTestCase {
 		XCTAssertEqual(snapshot.perPlatform["claude_code"]?.activityState, .pollReview)
 		XCTAssertEqual(snapshot.gateBadges["claude_code"]?.ticketId, "P15.09")
 	}
+
+	// MARK: - Per-session SoA gate/context (Phase 15 session-pets)
+
+	/// Same-origin concurrent sessions with session-pets enabled: two SoA
+	/// phases running on the *same* platform, each in its own session, must
+	/// each keep their own gate/badge — not collapse to whichever sibling
+	/// session's gate.json was written most recently, which is what
+	/// `PerPlatformGateReader.read`'s origin-only keying did before
+	/// `readPerSession` existed.
+	func testConcurrentSessionsOnSameOriginEachGetTheirOwnGateAnimationAndBadge() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+
+		// claude_code session s1: mid red_tdd ticket P15.10, gate written first.
+		try """
+			{"schema_version":8,"origin":"claude_code","session_id":"s1","activity_state":"implementing","updated_at":"2026-06-28T10:00:00.000Z","source_event":{"origin":"claude_code","kind":"tool_use","name":"Bash"}}
+			""".write(to: target.appendingPathComponent("claude_code:s1.json"), atomically: true, encoding: .utf8)
+		try """
+			{"gate":"red_tdd","since":"2026-06-28T09:59:00.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"P15.10"}
+			""".write(to: target.appendingPathComponent("claude_code:s1.gate.json"), atomically: true, encoding: .utf8)
+		try """
+			{"owner":"soa","status":"active","plan_key":"phase-15","ticket_id":"P15.10","last_gate":"red_tdd","updated_at":"2026-06-28T09:59:00.000Z","lease_expires_at":"2099-01-01T00:00:00.000Z"}
+			""".write(to: target.appendingPathComponent("claude_code:s1.context.json"), atomically: true, encoding: .utf8)
+
+		// claude_code session s2: mid open_pr ticket P15.11, gate written later —
+		// must NOT clobber s1's badge/animation despite sharing an origin.
+		try """
+			{"schema_version":8,"origin":"claude_code","session_id":"s2","activity_state":"implementing","updated_at":"2026-06-28T10:00:01.000Z","source_event":{"origin":"claude_code","kind":"tool_use","name":"Edit"}}
+			""".write(to: target.appendingPathComponent("claude_code:s2.json"), atomically: true, encoding: .utf8)
+		try """
+			{"gate":"open_pr","since":"2026-06-28T10:00:01.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"P15.11"}
+			""".write(to: target.appendingPathComponent("claude_code:s2.gate.json"), atomically: true, encoding: .utf8)
+		try """
+			{"owner":"soa","status":"active","plan_key":"phase-15","ticket_id":"P15.11","last_gate":"open_pr","updated_at":"2026-06-28T10:00:01.000Z","lease_expires_at":"2099-01-01T00:00:00.000Z"}
+			""".write(to: target.appendingPathComponent("claude_code:s2.context.json"), atomically: true, encoding: .utf8)
+
+		var perPlatformSnapshots: [PerPlatformSnapshot] = []
+		let customization = CustomizationSnapshot(
+			platformModes: ["claude_code": .own],
+			idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false,
+			minimalistBadgeScale: 1.0,
+			sessionPetsEnabled: ["claude_code": true]
+		)
+		let driver = makeDriver(target: target, recorder: recorder, customization: customization)
+		driver.applyPerPlatform = { snap in perPlatformSnapshots.append(snap) }
+
+		driver.tickForTesting()
+
+		XCTAssertEqual(perPlatformSnapshots.count, 1)
+		let snapshot = try XCTUnwrap(perPlatformSnapshots.first)
+
+		XCTAssertEqual(
+			snapshot.perPlatform["claude_code:s1"]?.activityState, .redTdd,
+			"session s1 must animate its own red_tdd gate")
+		XCTAssertEqual(
+			snapshot.perPlatform["claude_code:s2"]?.activityState, .openPr,
+			"session s2 must animate its own open_pr gate, unaffected by s1's sibling gate on the same origin")
+
+		XCTAssertEqual(snapshot.gateBadges["claude_code:s1"]?.ticketId, "P15.10")
+		XCTAssertEqual(snapshot.gateBadges["claude_code:s1"]?.gate, "red_tdd")
+		XCTAssertEqual(snapshot.gateBadges["claude_code:s2"]?.ticketId, "P15.11")
+		XCTAssertEqual(snapshot.gateBadges["claude_code:s2"]?.gate, "open_pr")
+	}
 }

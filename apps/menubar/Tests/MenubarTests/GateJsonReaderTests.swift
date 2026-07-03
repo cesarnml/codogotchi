@@ -330,6 +330,43 @@ final class GateJsonReaderTests: XCTestCase {
 			"a worktree of repo A must not match an unrelated repo B")
 	}
 
+	// MARK: - PerPlatformGateReader (Phase 15 session-pets)
+
+	/// `read()` (origin-aggregate) intentionally collapses same-origin sessions
+	/// to one entry; `readPerSession()` must keep them distinct so a
+	/// session-pets render key can badge from its own session's gate.
+	func testPerSessionGateReaderKeepsSameOriginSessionsDistinct() throws {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("codogotchi-gate-reader-\(UUID().uuidString)")
+		try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: dir) }
+
+		try """
+			{"gate":"red_tdd","since":"2026-06-28T09:59:00.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"P15.10"}
+			""".write(
+				to: dir.appendingPathComponent("claude_code:s1.gate.json"), atomically: true,
+				encoding: .utf8)
+		try """
+			{"gate":"open_pr","since":"2026-06-28T10:00:01.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"P15.11"}
+			""".write(
+				to: dir.appendingPathComponent("claude_code:s2.gate.json"), atomically: true,
+				encoding: .utf8)
+
+		let perSession = PerPlatformGateReader.readPerSession(at: dir.path)
+		XCTAssertEqual(
+			perSession["claude_code:s1"]?.gate?.ticketId, "P15.10",
+			"session s1's own gate must survive independent of s2")
+		XCTAssertEqual(
+			perSession["claude_code:s2"]?.gate?.ticketId, "P15.11",
+			"session s2's own gate must survive independent of s1")
+
+		let perOrigin = PerPlatformGateReader.read(at: dir.path)
+		XCTAssertEqual(
+			perOrigin.count, 1,
+			"origin-aggregate view still folds every session on an origin into one entry")
+		XCTAssertNotNil(perOrigin["claude_code"], "origin-aggregate entry keys by plain origin")
+	}
+
 	// MARK: - Helpers
 
 	/// Creates a primary-checkout directory (with a `.git` *directory*) and a

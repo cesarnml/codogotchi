@@ -107,38 +107,69 @@ enum DeliveryContextReader {
 	}
 }
 
-/// Reads per-origin gate/context slices out of `state.d/`, keyed by the origin
-/// encoded in `<origin>:<session_id>.gate.json` / `.context.json` filenames
+/// Reads gate/context slices out of `state.d/`, keyed either by origin or by
+/// the full `<origin>:<session_id>` identity encoded in
+/// `<origin>:<session_id>.gate.json` / `.context.json` filenames
 /// (son-of-anton Phase 17's direct-gate-write). Mirrors
-/// `StateJsonReader.readPerPlatformDirectory`'s directory-scan shape so the
-/// per-platform window pool can badge each origin's own gate independently
-/// instead of the single most-recently-written file across every platform.
+/// `StateJsonReader.readPerPlatformDirectory` / `readPerSessionDirectory`'s
+/// directory-scan shapes so the per-platform window pool can badge each
+/// origin's — or, with session-pets on, each session's — own gate
+/// independently instead of the single most-recently-written file across
+/// every platform (or every sibling session on one platform).
 enum PerPlatformGateReader {
 	struct Entry {
 		let gate: GateSnapshot?
 		let context: DeliveryContextSnapshot?
 	}
 
+	/// Origin-aggregate view: one `Entry` per origin, the newest gate/context
+	/// slice across every session on that origin. This is what session-pets-off
+	/// and `"combined"` render keys use — both have already folded multiple
+	/// sessions into one window, so there is no single session identity left to
+	/// key on and "newest across the origin" is the correct badge.
+	///
 	/// `listing`, when supplied, is a `state.d/` enumeration already produced once
 	/// for this poll tick — the reader consumes it instead of issuing its own
 	/// `contentsOfDirectory`. When omitted (direct callers, tests) it self-scans
 	/// exactly as before. Only the enumeration is shared; each gate/context file
 	/// is still opened and decoded here.
 	static func read(at dirPath: String, listing: StateDirectoryListing? = nil) -> [String: Entry] {
-		readImpl(at: dirPath, listing: listing)
+		let scan = scanEntries(at: dirPath, listing: listing)
+		return merge(gates: scan.originGates, contexts: scan.originContexts)
 	}
 
-	private static func readImpl(at dirPath: String, listing: StateDirectoryListing?) -> [String: Entry] {
+	/// Per-session view: one `Entry` per `"<origin>:<session_id>"` key, matching
+	/// the render-key shape `resolveRenderKeys` emits when session-pets is on for
+	/// an origin. Each session-pet panel badges from exactly its own gate/context
+	/// sidecar instead of whichever sibling session on the same origin happened
+	/// to write most recently — the collapse `read()`'s origin-only keying has
+	/// when several sessions on one origin are mid-delivery concurrently.
+	static func readPerSession(at dirPath: String, listing: StateDirectoryListing? = nil) -> [String: Entry] {
+		let scan = scanEntries(at: dirPath, listing: listing)
+		return merge(gates: scan.sessionGates, contexts: scan.sessionContexts)
+	}
+
+	private struct Scan {
+		let originGates: [String: (mtime: Date, snapshot: GateSnapshot)]
+		let originContexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)]
+		let sessionGates: [String: (mtime: Date, snapshot: GateSnapshot)]
+		let sessionContexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)]
+	}
+
+	private static func scanEntries(at dirPath: String, listing: StateDirectoryListing?) -> Scan {
+		let empty = Scan(originGates: [:], originContexts: [:], sessionGates: [:], sessionContexts: [:])
 		let entries: [StateDirectoryListing.Entry]
 		if let listing {
 			entries = listing.entries
 		} else {
-			guard let scanned = StateDirectoryListing.scan(at: dirPath) else { return [:] }
+			guard let scanned = StateDirectoryListing.scan(at: dirPath) else { return empty }
 			entries = scanned.entries
 		}
 
-		var gates: [String: (mtime: Date, snapshot: GateSnapshot)] = [:]
-		var contexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)] = [:]
+		var originGates: [String: (mtime: Date, snapshot: GateSnapshot)] = [:]
+		var originContexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)] = [:]
+		var sessionGates: [String: (mtime: Date, snapshot: GateSnapshot)] = [:]
+		var sessionContexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)] = [:]
 
 		for entry in entries {
 			let name = entry.name
@@ -147,39 +178,61 @@ enum PerPlatformGateReader {
 			guard let mtime = entry.mtime else { continue }
 
 			if name.hasSuffix(".gate.json"),
-				let origin = originPrefix(of: name, suffix: ".gate.json"),
+				let (origin, sessionId) = originAndSession(of: name, suffix: ".gate.json"),
 				let snapshot = GateJsonReader.read(at: filePath)
 			{
-				if gates[origin] == nil || mtime > gates[origin]!.mtime {
-					gates[origin] = (mtime, snapshot)
+				if originGates[origin] == nil || mtime > originGates[origin]!.mtime {
+					originGates[origin] = (mtime, snapshot)
+				}
+				let sessionKey = "\(origin):\(sessionId)"
+				if sessionGates[sessionKey] == nil || mtime > sessionGates[sessionKey]!.mtime {
+					sessionGates[sessionKey] = (mtime, snapshot)
 				}
 			} else if name.hasSuffix(".context.json"),
-				let origin = originPrefix(of: name, suffix: ".context.json"),
+				let (origin, sessionId) = originAndSession(of: name, suffix: ".context.json"),
 				let snapshot = DeliveryContextReader.read(at: filePath)
 			{
-				if contexts[origin] == nil || mtime > contexts[origin]!.mtime {
-					contexts[origin] = (mtime, snapshot)
+				if originContexts[origin] == nil || mtime > originContexts[origin]!.mtime {
+					originContexts[origin] = (mtime, snapshot)
+				}
+				let sessionKey = "\(origin):\(sessionId)"
+				if sessionContexts[sessionKey] == nil || mtime > sessionContexts[sessionKey]!.mtime {
+					sessionContexts[sessionKey] = (mtime, snapshot)
 				}
 			}
 		}
 
+		return Scan(
+			originGates: originGates, originContexts: originContexts,
+			sessionGates: sessionGates, sessionContexts: sessionContexts)
+	}
+
+	private static func merge(
+		gates: [String: (mtime: Date, snapshot: GateSnapshot)],
+		contexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)]
+	) -> [String: Entry] {
 		var result: [String: Entry] = [:]
-		for origin in Set(gates.keys).union(contexts.keys) {
-			result[origin] = Entry(gate: gates[origin]?.snapshot, context: contexts[origin]?.snapshot)
+		for key in Set(gates.keys).union(contexts.keys) {
+			result[key] = Entry(gate: gates[key]?.snapshot, context: contexts[key]?.snapshot)
 		}
 		return result
 	}
 
-	/// Extracts the origin from a `<origin>:<session_id>.<suffix>` filename.
-	/// Returns nil when the name has no `:` separator — a legacy flat file or a
-	/// malformed slice — so the caller skips it rather than mis-keying on the
-	/// whole filename.
-	private static func originPrefix(of name: String, suffix: String) -> String? {
+	/// Extracts `(origin, session_id)` from a `<origin>:<session_id>.<suffix>`
+	/// filename. Returns nil when the name has no `:` separator — a legacy flat
+	/// file or a malformed slice — so the caller skips it rather than mis-keying
+	/// on the whole filename.
+	private static func originAndSession(
+		of name: String, suffix: String
+	) -> (origin: String, sessionId: String)? {
 		let base = String(name.dropLast(suffix.count))
 		guard let colonIndex = base.firstIndex(of: ":") else { return nil }
 		let origin = String(base[base.startIndex..<colonIndex])
 			.trimmingCharacters(in: .whitespaces)
-		return origin.isEmpty ? nil : origin
+		let session = String(base[base.index(after: colonIndex)...])
+			.trimmingCharacters(in: .whitespaces)
+		guard !origin.isEmpty, !session.isEmpty else { return nil }
+		return (origin, session)
 	}
 }
 
