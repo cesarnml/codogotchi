@@ -1989,11 +1989,13 @@ private final class AboutTabView: NSView {
 		addSubview(hookVersionLabel)
 
 		let links = NSStackView(views: [
+			linkButton(title: "Website", urlString: "https://codogotchi.app"),
 			linkButton(title: "GitHub", urlString: "https://github.com/cesarnml/codogotchi"),
 			linkButton(
 				title: "Documentation",
 				urlString: "https://github.com/cesarnml/codogotchi#readme"
 			),
+			linkButton(title: "Dev Guide", urlString: "https://codogotchifordummies.vercel.app/"),
 		])
 		links.orientation = .horizontal
 		links.spacing = 12

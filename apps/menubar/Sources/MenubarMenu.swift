@@ -3,7 +3,7 @@ import AppKit
 /// Constructs the menu attached to the menu-bar `NSStatusItem`.
 ///
 /// Layout: a disabled "Codogotchi" header, a separator, "Default Pet: …" (jumps
-/// to Settings > Pet), the dynamic pet section, "Show/Hide All Pets", "Website…",
+/// to Settings > Pet), the dynamic pet section, "Show/Hide All Pets",
 /// "Settings…", and "Quit Codogotchi".
 ///
 /// The pet section is dynamic: when `FloatingPetWindowPool` has a single active
@@ -21,17 +21,14 @@ final class MenubarMenu: NSObject {
 	static let hideFloatingPetTitle = "Hide Pet"
 	static let showAllPetsTitle = "Show All Pets"
 	static let hideAllPetsTitle = "Hide All Pets"
-	static let websiteTitle = "Website…"
 	static let settingsTitle = "Settings…"
 	static let quitTitle = "Quit Codogotchi"
 	static let hooksNotActiveTitle = "⚠ Hooks not active — Retry install"
-	static let websiteURL = URL(string: "https://codogotchi.app")!
 
 	private let terminate: () -> Void
 	private weak var floatingPetPool: FloatingPetWindowPool?
 	private let retryHooksInstall: (() -> Void)?
 	private let openSettings: ((SettingsTab?) -> Void)?
-	private let openURL: (URL) -> Void
 	private weak var builtMenu: NSMenu?
 	private weak var hooksNotActiveItem: NSMenuItem?
 	private weak var defaultPetItem: NSMenuItem?
@@ -45,14 +42,12 @@ final class MenubarMenu: NSObject {
 		terminate: @escaping () -> Void = { NSApplication.shared.terminate(nil) },
 		floatingPetPool: FloatingPetWindowPool? = nil,
 		retryHooksInstall: (() -> Void)? = nil,
-		openSettings: ((SettingsTab?) -> Void)? = nil,
-		openURL: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) }
+		openSettings: ((SettingsTab?) -> Void)? = nil
 	) {
 		self.terminate = terminate
 		self.floatingPetPool = floatingPetPool
 		self.retryHooksInstall = retryHooksInstall
 		self.openSettings = openSettings
-		self.openURL = openURL
 		super.init()
 	}
 
@@ -98,14 +93,6 @@ final class MenubarMenu: NSObject {
 		menu.addItem(hideAllItem)
 
 		menu.addItem(.separator())
-
-		let websiteItem = NSMenuItem(
-			title: Self.websiteTitle,
-			action: #selector(openWebsiteAction(_:)),
-			keyEquivalent: ""
-		)
-		websiteItem.target = self
-		menu.addItem(websiteItem)
 
 		let settingsItem = NSMenuItem(
 			title: Self.settingsTitle,
@@ -174,10 +161,6 @@ final class MenubarMenu: NSObject {
 
 	@objc func openPetSettingsAction(_ sender: Any?) {
 		openSettings?(.pet)
-	}
-
-	@objc func openWebsiteAction(_ sender: Any?) {
-		openURL(Self.websiteURL)
 	}
 
 	@MainActor
