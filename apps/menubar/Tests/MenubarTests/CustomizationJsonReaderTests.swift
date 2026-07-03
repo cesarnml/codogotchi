@@ -215,6 +215,46 @@ final class CustomizationJsonReaderTests: XCTestCase {
 			"a malformed session_pets_enabled must also degrade session_cap to the empty-map safe default")
 	}
 
+	// MARK: - Grandfather/activity gate fields: populated maps decode correctly
+
+	func testSessionPetsGateFieldsDecodePopulatedMaps() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-gate-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "session_pets_enabled": { "claude_code": true },
+			  "session_pets_activated_at": { "claude_code": "2026-07-03T10:00:00.000Z" },
+			  "session_pets_grandfathered_session_id": { "claude_code": "abc-123" }
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		XCTAssertEqual(snapshot.sessionPetsActivatedAt["claude_code"], "2026-07-03T10:00:00.000Z")
+		XCTAssertEqual(snapshot.sessionPetsGrandfatheredSessionId["claude_code"], "abc-123")
+	}
+
+	// MARK: - Grandfather/activity gate fields: absent → empty maps (pre-gate data)
+
+	func testSessionPetsGateFieldsAbsentYieldEmptyMaps() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-no-gate-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "session_pets_enabled": { "claude_code": true }
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		XCTAssertEqual(
+			snapshot.sessionPetsActivatedAt, [:],
+			"absent session_pets_activated_at must decode to an empty map — pre-gate data admits everything")
+		XCTAssertEqual(snapshot.sessionPetsGrandfatheredSessionId, [:])
+	}
+
 	// MARK: - Session cap: negative value passes through verbatim (no reader clamp)
 
 	func testNegativeSessionCapPassesThroughVerbatim() throws {

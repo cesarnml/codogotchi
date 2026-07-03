@@ -43,7 +43,9 @@ final class PerSessionReaderTests: XCTestCase {
 
 	private func customization(
 		modes: [String: PlatformMode] = [:],
-		sessionPets: [String: Bool] = [:]
+		sessionPets: [String: Bool] = [:],
+		activatedAt: [String: String] = [:],
+		grandfathered: [String: String] = [:]
 	) -> CustomizationSnapshot {
 		CustomizationSnapshot(
 			platformModes: modes,
@@ -52,7 +54,9 @@ final class PerSessionReaderTests: XCTestCase {
 			combinedMinimalistEnabled: false,
 			minimalistBadgeScale: 1.0,
 			sessionPetsEnabled: sessionPets,
-			sessionCap: [:]
+			sessionCap: [:],
+			sessionPetsActivatedAt: activatedAt,
+			sessionPetsGrandfatheredSessionId: grandfathered
 		)
 	}
 
@@ -216,6 +220,111 @@ final class PerSessionReaderTests: XCTestCase {
 		XCTAssertEqual(
 			Set(resolution.states.keys), ["claude_code:s1", "claude_code:s2"],
 			"session-pets on must keep every origin:session_id key")
+	}
+
+	// MARK: - Grandfather/activity gate (P15-QC)
+
+	func testGrandfatheredSessionRendersEvenWithNoActivitySinceActivation() throws {
+		let dir = makeTempDir()
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let activation = Date(timeIntervalSinceReferenceDate: 1000)
+		// The grandfather's slice predates activation and has had zero activity
+		// since — it must still render because it is the grandfather.
+		try writeSlice(
+			dir, filename: "claude_code:grandfather.json", origin: "claude_code", state: "idle",
+			updatedAt: ISO8601DateFormatter().string(from: activation.addingTimeInterval(-500)))
+
+		guard case .success(let perSession) = StateJsonReader.readPerSessionDirectory(at: dir.path)
+		else { return XCTFail("read must succeed") }
+
+		let resolution = resolveRenderKeys(
+			perSession: perSession,
+			customization: customization(
+				sessionPets: ["claude_code": true],
+				activatedAt: ["claude_code": ISO8601DateFormatter().string(from: activation)],
+				grandfathered: ["claude_code": "grandfather"]
+			))
+
+		XCTAssertEqual(
+			Set(resolution.states.keys), ["claude_code:grandfather"],
+			"the grandfathered session must render even though it predates activation and is idle")
+	}
+
+	func testSiblingSessionPredatingActivationIsExcludedUntilNewActivity() throws {
+		let dir = makeTempDir()
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let activation = Date(timeIntervalSinceReferenceDate: 1000)
+		// A non-grandfather sibling whose last write predates activation and
+		// nothing has touched it since — must be excluded entirely, not merely
+		// held back.
+		try writeSlice(
+			dir, filename: "claude_code:stale-sibling.json", origin: "claude_code", state: "idle",
+			updatedAt: ISO8601DateFormatter().string(from: activation.addingTimeInterval(-500)))
+
+		guard case .success(let perSession) = StateJsonReader.readPerSessionDirectory(at: dir.path)
+		else { return XCTFail("read must succeed") }
+
+		let resolution = resolveRenderKeys(
+			perSession: perSession,
+			customization: customization(
+				sessionPets: ["claude_code": true],
+				activatedAt: ["claude_code": ISO8601DateFormatter().string(from: activation)],
+				grandfathered: ["claude_code": "some-other-session"]
+			))
+
+		XCTAssertTrue(
+			resolution.states.isEmpty,
+			"a sibling session with no activity after the activation timestamp must be excluded entirely")
+	}
+
+	func testSiblingSessionWithActivityAfterActivationIsAdmitted() throws {
+		let dir = makeTempDir()
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let activation = Date(timeIntervalSinceReferenceDate: 1000)
+		try writeSlice(
+			dir, filename: "claude_code:fresh-sibling.json", origin: "claude_code", state: "implementing",
+			updatedAt: ISO8601DateFormatter().string(from: activation.addingTimeInterval(500)))
+
+		guard case .success(let perSession) = StateJsonReader.readPerSessionDirectory(at: dir.path)
+		else { return XCTFail("read must succeed") }
+
+		let resolution = resolveRenderKeys(
+			perSession: perSession,
+			customization: customization(
+				sessionPets: ["claude_code": true],
+				activatedAt: ["claude_code": ISO8601DateFormatter().string(from: activation)],
+				grandfathered: ["claude_code": "some-other-session"]
+			))
+
+		XCTAssertEqual(
+			Set(resolution.states.keys), ["claude_code:fresh-sibling"],
+			"a sibling session with activity strictly after activation must be admitted")
+	}
+
+	func testOriginWithNoRecordedActivationAdmitsEverySessionUnconditionally() throws {
+		let dir = makeTempDir()
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let now = Date()
+		let iso = ISO8601DateFormatter().string(from: now)
+		try writeSlice(
+			dir, filename: "claude_code:s1.json", origin: "claude_code", state: "idle", updatedAt: iso)
+		try writeSlice(
+			dir, filename: "claude_code:s2.json", origin: "claude_code", state: "idle", updatedAt: iso)
+
+		guard case .success(let perSession) = StateJsonReader.readPerSessionDirectory(
+			at: dir.path, now: now)
+		else { return XCTFail("read must succeed") }
+
+		// session-pets on, but no activation ever recorded for this origin
+		// (pre-existing data from before this gate existed) — must behave
+		// exactly like the ungated testSessionPetsOnKeepsEachSessionKey case.
+		let resolution = resolveRenderKeys(
+			perSession: perSession,
+			customization: customization(sessionPets: ["claude_code": true]))
+
+		XCTAssertEqual(
+			Set(resolution.states.keys), ["claude_code:s1", "claude_code:s2"],
+			"an origin with no recorded activation must admit every session, matching pre-gate behavior")
 	}
 
 	func testCombinedOriginsFoldToCombinedRegardlessOfSessionPets() throws {

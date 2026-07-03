@@ -30,7 +30,10 @@ struct RenderKeyResolution: Equatable {
 /// - **Own / Minimalist** (and any other non-combined mode) with session-pets
 ///   **off** fold each origin's sessions to a single plain-`origin` key.
 /// - **Own / Minimalist** with session-pets **on** keep each `origin:session_id`
-///   key.
+///   key, subject to the grandfather/activity gate: only the origin's
+///   grandfathered session (recorded at the most recent off->on toggle) and
+///   sessions with activity strictly after that toggle's timestamp are
+///   admitted — see the gate's inline comment below.
 ///
 /// Within every render key the winner is the session with the newest
 /// `updated_at` (strict `>`), matching `readPerPlatformDirectoryImpl`'s
@@ -67,7 +70,31 @@ func resolveRenderKeys(
 			renderKey = "combined"
 		} else {
 			let sessionPetsOn = customization.sessionPetsEnabled[origin] ?? false
-			renderKey = sessionPetsOn ? key : origin
+			if sessionPetsOn {
+				// Grandfather/activity gate (P15-QC): on this origin's most recent
+				// off->on toggle, `CustomizationTabViewModel` grandfathers in
+				// whichever session was the collapsed single pet at that instant —
+				// that session is exempt below and renders unconditionally. Every
+				// OTHER sibling session must show activity strictly after the
+				// activation timestamp; a sibling that predates the toggle (or has
+				// gone untouched since) is excluded entirely, not just held back,
+				// so it never appears until it does something new. An origin with
+				// no recorded activation (never been through this toggle — e.g.
+				// data from before this gate existed) admits every session
+				// unconditionally, matching pre-gate behavior exactly.
+				if let activatedAtRaw = customization.sessionPetsActivatedAt[origin],
+					let activatedAt = StateJsonReader.parseISO8601Date(activatedAtRaw)
+				{
+					let isGrandfather = customization.sessionPetsGrandfatheredSessionId[origin] == sessionId
+					if !isGrandfather {
+						let updatedAt = StateJsonReader.parseISO8601Date(snapshot.updatedAt) ?? .distantPast
+						guard updatedAt > activatedAt else { continue }
+					}
+				}
+				renderKey = key
+			} else {
+				renderKey = origin
+			}
 		}
 		consider(renderKey: renderKey, origin: origin, sessionId: sessionId, snapshot: snapshot)
 	}

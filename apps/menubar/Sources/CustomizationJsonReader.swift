@@ -38,6 +38,19 @@ struct CustomizationSnapshot {
 	/// negative values resolve to the default cap of 3 at the point of use
 	/// (P15.04/P15.07/P15.09), never in this reader.
 	let sessionCap: [String: Int]
+	/// Per-origin timestamp (ISO 8601) of the most recent session-pets off→on
+	/// toggle, written by `CustomizationTabViewModel.setSessionPetsEnabled`.
+	/// Absent for an origin that has never gone through that toggle (including
+	/// data written before this field existed) — `resolveRenderKeys` treats a
+	/// missing entry as "no gate", admitting every session exactly like before
+	/// this grandfather/activity gate existed.
+	let sessionPetsActivatedAt: [String: String]
+	/// Per-origin `session_id` grandfathered as "Session 1" at the instant of
+	/// the most recent off→on toggle recorded in `sessionPetsActivatedAt` — the
+	/// session that was already the collapsed single pet before the toggle.
+	/// Exempt from the activity gate above; every other sibling session must
+	/// show activity strictly after the activation timestamp to render.
+	let sessionPetsGrandfatheredSessionId: [String: String]
 
 	/// Sentinel written to `session_cap` for the Unlimited option — every
 	/// session-keyed panel renders, nothing is evicted (see `SessionSelectionPolicy`).
@@ -60,7 +73,9 @@ struct CustomizationSnapshot {
 		combinedMinimalistEnabled: Bool,
 		minimalistBadgeScale: Double,
 		sessionPetsEnabled: [String: Bool] = [:],
-		sessionCap: [String: Int] = [:]
+		sessionCap: [String: Int] = [:],
+		sessionPetsActivatedAt: [String: String] = [:],
+		sessionPetsGrandfatheredSessionId: [String: String] = [:]
 	) {
 		self.platformModes = platformModes
 		self.idleDismissTtlSeconds = idleDismissTtlSeconds
@@ -69,6 +84,8 @@ struct CustomizationSnapshot {
 		self.minimalistBadgeScale = minimalistBadgeScale
 		self.sessionPetsEnabled = sessionPetsEnabled
 		self.sessionCap = sessionCap
+		self.sessionPetsActivatedAt = sessionPetsActivatedAt
+		self.sessionPetsGrandfatheredSessionId = sessionPetsGrandfatheredSessionId
 	}
 
 	static let safeDefault = CustomizationSnapshot(
@@ -78,7 +95,9 @@ struct CustomizationSnapshot {
 		combinedMinimalistEnabled: false,
 		minimalistBadgeScale: 1.0,
 		sessionPetsEnabled: [:],
-		sessionCap: [:]
+		sessionCap: [:],
+		sessionPetsActivatedAt: [:],
+		sessionPetsGrandfatheredSessionId: [:]
 	)
 }
 
@@ -111,7 +130,9 @@ enum CustomizationJsonReader {
 				Double(GateBadgeLayout.achievableMinScale), min(Double(GateBadgeLayout.achievableMaxScale), rawScale)
 			),
 			sessionPetsEnabled: payload.sessionPetsEnabled ?? [:],
-			sessionCap: payload.sessionCap ?? [:]
+			sessionCap: payload.sessionCap ?? [:],
+			sessionPetsActivatedAt: payload.sessionPetsActivatedAt ?? [:],
+			sessionPetsGrandfatheredSessionId: payload.sessionPetsGrandfatheredSessionId ?? [:]
 		)
 	}
 }
@@ -124,4 +145,6 @@ private struct CustomizationPayload: Decodable {
 	let minimalistBadgeScale: Double?
 	let sessionPetsEnabled: [String: Bool]?
 	let sessionCap: [String: Int]?
+	let sessionPetsActivatedAt: [String: String]?
+	let sessionPetsGrandfatheredSessionId: [String: String]?
 }

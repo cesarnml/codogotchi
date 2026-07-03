@@ -62,10 +62,32 @@ final class CustomizationTabViewModel {
 	private(set) var minimalistBadgeScale: Double
 	private(set) var sessionPetsEnabled: [String: Bool]
 	private(set) var sessionCap: [String: Int]
+	private(set) var sessionPetsActivatedAt: [String: String]
+	private(set) var sessionPetsGrandfatheredSessionId: [String: String]
 	private let filePath: String
+	/// Live `state.d/` directory read at the instant session-pets is toggled
+	/// on for an origin, to identify the session to grandfather in as
+	/// "Session 1". Overridable so tests can point at a fixture directory.
+	private let stateDirectoryPath: String
+	/// `session-labels.json` path, read/written to carry the plain-origin
+	/// custom label over to the grandfathered session on an off->on toggle.
+	/// Overridable so tests do not touch the real file.
+	private let sessionLabelPath: String
+	/// Clock used to stamp `sessionPetsActivatedAt` on an off->on toggle.
+	/// Overridable so tests can assert exact, non-flaky timestamps instead of
+	/// racing the wall clock's 1-second ISO 8601 string resolution.
+	private let now: () -> Date
 
-	init(filePath: String = CodogotchiFolders.customizationPath()) {
+	init(
+		filePath: String = CodogotchiFolders.customizationPath(),
+		stateDirectoryPath: String = CodogotchiFolders.stateDirectoryPath(),
+		sessionLabelPath: String = SessionLabelStore.path(),
+		now: @escaping () -> Date = Date.init
+	) {
 		self.filePath = filePath
+		self.stateDirectoryPath = stateDirectoryPath
+		self.sessionLabelPath = sessionLabelPath
+		self.now = now
 		let snapshot = CustomizationJsonReader.read(at: filePath)
 		self.platformModes = snapshot.platformModes
 		self.idleDismissTtlSeconds = snapshot.idleDismissTtlSeconds
@@ -73,6 +95,8 @@ final class CustomizationTabViewModel {
 		self.minimalistBadgeScale = snapshot.minimalistBadgeScale
 		self.sessionPetsEnabled = snapshot.sessionPetsEnabled
 		self.sessionCap = snapshot.sessionCap
+		self.sessionPetsActivatedAt = snapshot.sessionPetsActivatedAt
+		self.sessionPetsGrandfatheredSessionId = snapshot.sessionPetsGrandfatheredSessionId
 	}
 
 	func mode(for origin: String) -> PlatformMode {
@@ -141,17 +165,78 @@ final class CustomizationTabViewModel {
 	}
 
 	func setSessionPetsEnabled(_ enabled: Bool, for origin: String) {
+		let wasEnabled = sessionPetsEnabled[origin] ?? false
 		var proposed = sessionPetsEnabled
 		proposed[origin] = enabled
+
+		var updates: [String: Any] = ["session_pets_enabled": proposed]
+		var proposedActivatedAt = sessionPetsActivatedAt
+		var proposedGrandfather = sessionPetsGrandfatheredSessionId
+
+		// Off->on transition: re-arm the grandfather/activity gate for this
+		// origin. Every prior toggle's activation state is overwritten, matching
+		// "resets every time a user goes from off to on" — a stale grandfather
+		// from a much earlier toggle must never linger into this one.
+		if enabled, !wasEnabled {
+			proposedActivatedAt[origin] = ISO8601DateFormatter().string(from: now())
+			if let winnerSessionId = Self.currentWinnerSessionId(
+				for: origin, stateDirectoryPath: stateDirectoryPath
+			) {
+				proposedGrandfather[origin] = winnerSessionId
+			} else {
+				// No live session for this origin right now — nothing to
+				// grandfather; the first session with activity after `now`
+				// becomes Session 1 naturally under the activity gate.
+				proposedGrandfather.removeValue(forKey: origin)
+			}
+			updates["session_pets_activated_at"] = proposedActivatedAt
+			updates["session_pets_grandfathered_session_id"] = proposedGrandfather
+		}
+
 		do {
-			try ConfigFileWriter.merge(
-				["session_pets_enabled": proposed],
-				into: URL(fileURLWithPath: filePath)
-			)
+			try ConfigFileWriter.merge(updates, into: URL(fileURLWithPath: filePath))
 			sessionPetsEnabled = proposed
+			sessionPetsActivatedAt = proposedActivatedAt
+			sessionPetsGrandfatheredSessionId = proposedGrandfather
 		} catch {
 			NSLog("CustomizationTabViewModel: session-pets-enabled write failed — \(error)")
+			return
 		}
+
+		// Carry over the plain-origin window's existing custom label (if any)
+		// to the grandfathered session's new key, so a rename survives the
+		// toggle. Runs only after the customization write above succeeds, and
+		// only when a grandfather was actually identified.
+		if enabled, !wasEnabled, let winnerSessionId = proposedGrandfather[origin],
+			let existingLabel = SessionLabelStore.label(for: origin, at: sessionLabelPath)
+		{
+			SessionLabelStore.setLabel(existingLabel, for: "\(origin):\(winnerSessionId)", at: sessionLabelPath)
+		}
+	}
+
+	/// Resolves the `session_id` currently winning render selection for
+	/// `origin` — the freshest non-stale-mtime slice in `state.d/`, matching
+	/// `StateJsonReader`'s winner semantics — or `nil` when no live session
+	/// exists for it. Used at the instant session-pets is toggled on so that
+	/// session can be grandfathered in as "Session 1" instead of every live
+	/// sibling appearing at once.
+	private static func currentWinnerSessionId(
+		for origin: String, stateDirectoryPath: String
+	) -> String? {
+		guard
+			case .success(let perSession) = StateJsonReader.readPerSessionDirectory(
+				at: stateDirectoryPath)
+		else { return nil }
+		let prefix = "\(origin):"
+		let winner = perSession
+			.filter { $0.key.hasPrefix(prefix) }
+			.max { a, b in
+				let dateA = StateJsonReader.parseISO8601Date(a.value.updatedAt) ?? .distantPast
+				let dateB = StateJsonReader.parseISO8601Date(b.value.updatedAt) ?? .distantPast
+				return dateA < dateB
+			}
+		guard let winnerKey = winner?.key else { return nil }
+		return String(winnerKey.dropFirst(prefix.count))
 	}
 
 	/// Persists the per-origin session cap. Callers pass

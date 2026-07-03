@@ -43,6 +43,13 @@ enum CodogotchiFolders {
 		dataFolderURL().appendingPathComponent("prompt-attention.json").path
 	}
 
+	/// `~/.codogotchi/state.d/` — live per-session hook state slices. Live mode
+	/// only; demo mode's sandboxed polling target (`DemoConfig`) is a separate,
+	/// intentionally distinct directory this helper never resolves to.
+	static func stateDirectoryPath() -> String {
+		dataFolderURL().appendingPathComponent("state.d", isDirectory: true).path
+	}
+
 	/// Create the folder if missing, then reveal it in Finder. Creating first
 	/// keeps a first-launch open (folder not yet written) from silently no-oping.
 	/// `createDirectory(withIntermediateDirectories:)` is idempotent.
