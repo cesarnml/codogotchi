@@ -90,6 +90,19 @@ final class FloatingPetWindowPool {
 	/// deliberately in-memory only so a restart returns the origin to the
 	/// passive TTL/cap contract.
 	private var prunedOrigins: Set<String> = []
+	/// Session-keyed window keys that hold a cap slot (P15.07-QC), independent
+	/// of whether their window is actually spawned. Diverges from
+	/// `windows.keys` exactly when a slot's window is user-hidden: hide/show
+	/// (`setVisible`) only ever toggles `windows`/`userHiddenWindowKeys` and
+	/// must never write to this set, so a hidden incumbent keeps its slot and
+	/// showing it again respawns immediately with no fresh cap contention —
+	/// matching a manually-Pruned session's "gone" versus a hidden session's
+	/// "still here, just concealed." The sole writer is Step 6c: each origin's
+	/// `SessionSelectionPolicy.select` result replaces that origin's slice of
+	/// this set every tick, so a key leaves it only via genuine eviction (rank
+	/// loss), Prune, or TTL — never via hide. Bounded by the same
+	/// `eligibleKeys` filter as `firstSeenAt`/`lastSeenAt`/`lastUpdatedAt`.
+	private var slotOccupants: Set<String> = []
 	/// Rate-limits P15.08 conflict-bubble presentation to at most one fire per
 	/// platform per hour — `blockedOrigins` is recomputed fresh every tick, so
 	/// without this gate a persisting conflict would re-front the bubble on
@@ -281,6 +294,7 @@ final class FloatingPetWindowPool {
 		firstSeenAt = firstSeenAt.filter { eligibleKeys.contains($0.key) }
 		lastSeenAt = lastSeenAt.filter { eligibleKeys.contains($0.key) }
 		lastUpdatedAt = lastUpdatedAt.filter { eligibleKeys.contains($0.key) }
+		slotOccupants = slotOccupants.filter { eligibleKeys.contains($0) }
 
 		// Step 4: compute the key of the window that must not be dismissed
 		let lastActiveWindowKey: String? = lastActiveRenderKey.map { windowKey(for: $0) }
@@ -414,6 +428,15 @@ final class FloatingPetWindowPool {
 		// because a session that drops out of `pending` (its rival was pruned,
 		// aged out, or dropped to an evictable state) simply becomes rendered
 		// again the next time this runs.
+		//
+		// `currentlyRendered` is read from `slotOccupants`, NOT `windows[$0] !=
+		// nil` (P15.07-QC): a user-hidden incumbent's window is torn down while
+		// it still holds its slot, and deriving incumbency from window
+		// existence would strip that slot the instant it's hidden, letting an
+		// unrelated standby session backfill it — indistinguishable in the UI
+		// from the hidden pet reappearing as something else. `slotOccupants` is
+		// resynced to exactly `selection.rendered` for this origin every tick,
+		// so hide/show never has to touch it directly.
 		var pendingWindowKeys: Set<String> = []
 		var computedBlockedOrigins: Set<String> = []
 		let sessionKeyedDirectKeys = directKeys.filter { isSessionKeyed($0) }
@@ -424,10 +447,12 @@ final class FloatingPetWindowPool {
 				acc[key] = visibleEntries[key]?.activityState
 			}
 			let cap = resolvedSessionCap(for: origin)
-			let currentlyRendered = Set(keys.filter { windows[$0] != nil })
+			let currentlyRendered = slotOccupants.intersection(keys)
 			let selection = SessionSelectionPolicy.select(
 				sessions: states, cap: cap, currentlyRendered: currentlyRendered,
 				restrictNewPromotionsToInFlight: prunedOrigins.contains(origin))
+			slotOccupants.subtract(keys)
+			slotOccupants.formUnion(selection.rendered)
 			pendingWindowKeys.formUnion(selection.pending)
 			// Capture each evicted ("non-active") session's on-screen frame right
 			// before Step 7 tears its window down, so the next session window(s)
@@ -682,6 +707,10 @@ final class FloatingPetWindowPool {
 
 	/// Hides or shows the window for the given key.
 	/// Hiding persists across update() ticks until setVisible(true) is called.
+	/// Deliberately never touches `slotOccupants` (P15.07-QC): hide/show is a
+	/// pure visibility toggle on an otherwise-unchanged session, not a cap
+	/// release, so a hidden session keeps its slot reserved and un-hiding it
+	/// respawns on the very next tick without competing for a new one.
 	func setVisible(_ visible: Bool, for key: String) {
 		if visible {
 			userHiddenWindowKeys.remove(key)

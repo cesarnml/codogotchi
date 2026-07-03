@@ -1621,6 +1621,125 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			"an in-flight session must still be able to claim a slot freed by a manual prune")
 	}
 
+	/// (P15.07-QC) Hiding an idle incumbent must not free its cap slot for a
+	/// pending idle sibling to backfill — hide is a pure visibility toggle, not
+	/// a cap release, so the sibling stays held exactly as before the hide.
+	func testHidingAnIdleIncumbentDoesNotBackfillAPendingIdleSibling() {
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+
+		// Tick 1: idle-one and active-one fill both slots under cap 2.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:idle-one", "claude_code:active-one"])
+
+		// Tick 2: idle-two arrives and is held pending by cap pressure —
+		// idle-one keeps its slot as the incumbent.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:idle-two": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:idle-one", "claude_code:active-one"])
+
+		// User hides idle-one — its window is torn down immediately.
+		pool.setVisible(false, for: "claude_code:idle-one")
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:active-one"])
+
+		// Tick 3: the same three sessions are still present. idle-two must NOT
+		// be promoted into idle-one's slot — only active-one should be visible.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:idle-two": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(
+			Set(pool.activeOrigins), ["claude_code:active-one"],
+			"hiding an idle incumbent must not let a pending idle sibling backfill its slot")
+	}
+
+	/// (P15.07-QC) Hiding an in-flight incumbent must not free its cap slot for
+	/// a pending idle sibling to backfill. In-flight sessions are never
+	/// rank-evicted, so the slot stays reserved for the hidden session even
+	/// though its window is torn down.
+	func testHidingAnInFlightIncumbentDoesNotBackfillAPendingIdleSibling() {
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+
+		// Tick 1: active-one and idle-one fill both slots under cap 2.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:active-one", "claude_code:idle-one"])
+
+		// Tick 2: idle-two arrives and is held pending by cap pressure.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:idle-two": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:active-one", "claude_code:idle-one"])
+
+		// User hides the running (in-flight) pet — its window is torn down.
+		pool.setVisible(false, for: "claude_code:active-one")
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:idle-one"])
+
+		// Tick 3: idle-two must still not be promoted — active-one's slot stays
+		// reserved even though it's concealed, and idle-one is unaffected.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:idle-two": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(
+			Set(pool.activeOrigins), ["claude_code:idle-one"],
+			"hiding an in-flight incumbent must not let a pending idle sibling backfill its slot")
+
+		// Showing it again must respawn on the very next tick with no fresh cap
+		// contention — the slot was reserved the whole time it was hidden.
+		pool.setVisible(true, for: "claude_code:active-one")
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:idle-two": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(
+			Set(pool.activeOrigins), ["claude_code:active-one", "claude_code:idle-one"],
+			"un-hiding a still-occupant session must respawn immediately without competing for a slot")
+	}
+
 	/// (4 review focus) A blocked all-active origin must never evict a
 	/// currently-rendered active session — the rendered set stays exactly the
 	/// same across the tick that introduces the third active session.
