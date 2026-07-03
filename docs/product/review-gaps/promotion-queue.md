@@ -278,6 +278,45 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   non-menubar surface) to confirm the class and settle standalone vs. merge into
   a proxy-condition family.
 
+### `adjacent-consumer-of-changed-key-shape-missed-across-file-boundary`
+- **Seen:** 1× — `codogotchi-30` (P15 QC). Phase 15 introduced session-keyed
+  window keys (`origin:session_id`) and shipped the plumbing to render them as
+  a friendly label (`SessionLabelStore` custom rename, `SessionNumberAllocator`
+  ordinal) wired into the per-window session badge/tooltip
+  (`FloatingPetController`, commit `d99a7e19`). `MenubarMenu.displayName(for:)`
+  — a pre-existing, untouched platform-name switch in a completely different
+  file — already consumed the same window-key strings (via
+  `activeOrigins`/`hiddenWindowKeys`) but was never updated to recognize the
+  new session-keyed shape, so it fell through to its default case and
+  title-cased the raw session UUID straight into the "Hide X Pet" menu item.
+- **Proposed clause:** *"When a ticket changes the SHAPE of a shared key or
+  identifier (adds a delimiter, a new segment, a new encoded dimension),
+  grep the whole codebase for every consumer of that key — not just the
+  consumers touched by this ticket's diff or visible in the same subsystem —
+  and confirm each either handles the new shape correctly or is explicitly
+  out of scope. A consumer in an unrelated file that predates the key-shape
+  change is invisible to a same-diff review and will silently mis-render the
+  new shape (title-casing a UUID, mis-parsing a delimiter, truncating a new
+  segment) until someone dogfoods that specific surface."*
+- **Relationship to `new-enum-case-skips-existing-transition-matrix`:** same
+  root failure mode as the `codogotchi-06`/`-28`/`-29` family (an old
+  assumption not re-derived after a dimension changed) but a different
+  manifestation and a different lever. That family is reactive *teardown
+  branches inside the same pool file* (review-reachable once you know to look
+  at that file's transition matrix); this one is a *display/formatting
+  consumer in a completely different file* with no shared diff — no reviewer
+  looking at the phase-15 session-labeling tickets would have had
+  `MenubarMenu.swift` in view. This is why it classifies `qa-gap`, not
+  `review-reachable`: the fix requires enumerating consumers codebase-wide,
+  not re-reading one file's branches.
+- **Status:** WAITING — single instance. Needs ≥1 more occurrence (ideally a
+  non-menubar or non-session-key surface) to confirm the class and settle
+  whether the clause belongs in the review prompt (as a "grep all consumers"
+  step) or a phase-integration/dogfood checklist item, mirroring the same
+  review-prompt-vs-integration-pass split left open for
+  `compound-widget-cohesion-under-transform` and
+  `control-signal-starved-by-change-gated-callback`.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
