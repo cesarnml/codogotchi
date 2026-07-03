@@ -778,9 +778,7 @@ final class LivePollingTests: XCTestCase {
 	/// Same-origin concurrent sessions with session-pets enabled: two SoA
 	/// phases running on the *same* platform, each in its own session, must
 	/// each keep their own gate/badge — not collapse to whichever sibling
-	/// session's gate.json was written most recently, which is what
-	/// `PerPlatformGateReader.readBoth`'s `perOrigin` view's origin-only
-	/// keying would do on its own, absent the `perSession` view.
+	/// session's gate.json was written most recently.
 	func testConcurrentSessionsOnSameOriginEachGetTheirOwnGateAnimationAndBadge() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
@@ -913,5 +911,72 @@ final class LivePollingTests: XCTestCase {
 		XCTAssertEqual(
 			snapshot.perPlatform["claude_code:s2"]?.activityState, .implementing,
 			"s2 must fall through to its own hook state, not the legacy poll_review gate")
+	}
+
+	/// Session-pets OFF (platform/aggregate mode), two sessions on one origin —
+	/// e.g. two repo checkouts on the same platform. s2's state.json is the
+	/// freshest (it wins the `"claude_code"` render key via `resolveRenderKeys`),
+	/// but s1's gate/context sidecar has a newer mtime than s2's. The folded
+	/// `"claude_code"` key must badge/animate from s2's OWN gate — the session
+	/// whose state actually won the key — never from s1's merely because s1's
+	/// gate file happened to be written more recently.
+	func testAggregateModeGateMatchesTheSessionThatWonTheRenderKey() throws {
+		let recorder = Recorder()
+		let target = makeSandboxPath()
+		try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+
+		// s1: stale state, but its gate/context is written LAST (newest mtime).
+		try """
+			{"schema_version":8,"origin":"claude_code","session_id":"s1","activity_state":"idle","updated_at":"2026-06-28T09:00:00.000Z","source_event":{"origin":"claude_code","kind":"tool_use","name":"Bash"}}
+			""".write(to: target.appendingPathComponent("claude_code:s1.json"), atomically: true, encoding: .utf8)
+
+		// s2: fresh state — this is the session that should win the render key.
+		try """
+			{"schema_version":8,"origin":"claude_code","session_id":"s2","activity_state":"implementing","updated_at":"2026-06-28T10:00:00.000Z","source_event":{"origin":"claude_code","kind":"tool_use","name":"Edit"}}
+			""".write(to: target.appendingPathComponent("claude_code:s2.json"), atomically: true, encoding: .utf8)
+
+		// s2's gate/context written first (older mtime).
+		try """
+			{"gate":"red_tdd","since":"2026-06-28T08:10:00.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"S2-TICKET"}
+			""".write(to: target.appendingPathComponent("claude_code:s2.gate.json"), atomically: true, encoding: .utf8)
+		try """
+			{"owner":"soa","status":"active","plan_key":"phase-15","ticket_id":"S2-TICKET","last_gate":"red_tdd","updated_at":"2026-06-28T08:10:00.000Z","lease_expires_at":"2099-01-01T00:00:00.000Z"}
+			""".write(to: target.appendingPathComponent("claude_code:s2.context.json"), atomically: true, encoding: .utf8)
+
+		// s1's gate/context written last (newer mtime) — must NOT win the badge
+		// for the folded "claude_code" key, since s1 lost the render-key contest.
+		try """
+			{"gate":"open_pr","since":"2026-06-28T09:05:00.000Z","expires_at":"2099-01-01T00:00:00.000Z","plan_key":"phase-15","ticket_id":"S1-TICKET"}
+			""".write(to: target.appendingPathComponent("claude_code:s1.gate.json"), atomically: true, encoding: .utf8)
+		try """
+			{"owner":"soa","status":"active","plan_key":"phase-15","ticket_id":"S1-TICKET","last_gate":"open_pr","updated_at":"2026-06-28T09:05:00.000Z","lease_expires_at":"2099-01-01T00:00:00.000Z"}
+			""".write(to: target.appendingPathComponent("claude_code:s1.context.json"), atomically: true, encoding: .utf8)
+
+		// session-pets OFF (not set) => single folded "claude_code" render key.
+		let customization = CustomizationSnapshot(
+			platformModes: ["claude_code": .own],
+			idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false,
+			minimalistBadgeScale: 1.0
+		)
+		var perPlatformSnapshots: [PerPlatformSnapshot] = []
+		let driver = makeDriver(target: target, recorder: recorder, customization: customization)
+		driver.applyPerPlatform = { snap in perPlatformSnapshots.append(snap) }
+
+		driver.tickForTesting()
+
+		let snapshot = try XCTUnwrap(perPlatformSnapshots.first)
+
+		XCTAssertEqual(
+			snapshot.renderKeyIdentities["claude_code"]?.sessionId, "s2",
+			"s2 must win the folded render key on freshest state")
+		XCTAssertEqual(
+			snapshot.perPlatform["claude_code"]?.activityState, .redTdd,
+			"the folded pet must animate s2's OWN gate, not s1's merely-newer-mtime gate")
+		XCTAssertEqual(
+			snapshot.gateBadges["claude_code"]?.ticketId, "S2-TICKET",
+			"the badge must describe the session actually shown (s2), not s1")
+		XCTAssertEqual(snapshot.gateBadges["claude_code"]?.gate, "red_tdd")
 	}
 }

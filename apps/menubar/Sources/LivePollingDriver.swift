@@ -253,16 +253,13 @@ final class LivePollingDriver {
 				// default) this reproduces today's per-origin map byte-for-byte.
 				let resolution = resolveRenderKeys(
 					perSession: perSessionMap, customization: customizationReader())
-				let gateViews = PerPlatformGateReader.readBoth(
+				let perSessionGate = PerPlatformGateReader.read(
 					at: pollingTargetPath, listing: sharedListing)
-				let perOriginGate = gateViews.perOrigin
-				let perSessionGate = gateViews.perSession
 				let legacyGate = gatePath.flatMap { gateReader($0) }
 				let legacyContext = deliveryContextPath.flatMap { deliveryContextReader($0) }
 				let (mergedStates, gateBadges) = resolveRenderedPlatforms(
 					renderStates: resolution.states,
 					identities: resolution.identities,
-					perOriginGate: perOriginGate,
 					perSessionGate: perSessionGate,
 					legacyGate: legacyGate,
 					legacyContext: legacyContext
@@ -283,36 +280,38 @@ final class LivePollingDriver {
 	/// single-window status item) and resolves each render key's persistent
 	/// ticket/gate badge content.
 	///
-	/// A genuine per-session render key (session-pets on:
-	/// `renderKey == "<origin>:<session_id>"`) looks up `perSessionGate` by that
-	/// exact key, so each session badges from its own gate/context sidecar and
-	/// never a sibling session's — falling back to `perOriginGate` here would
-	/// silently re-collapse concurrent sessions on one origin to a single
-	/// badge, which is the bug this per-session lookup exists to fix. A
-	/// plain-origin key (session-pets off) or the folded `"combined"` key has
-	/// already collapsed multiple sessions with no single session identity
-	/// left to key on, so both keep resolving through `perOriginGate` — the
-	/// newest gate/context across every session on that origin. Falls back to
-	/// the legacy flat `gate.json`/`delivery-context.json` only when exactly
-	/// one render key is active (a pre-Phase-17 hook writes those with no
-	/// origin or session at all, so attributing them while several render keys
-	/// are active would risk badging the wrong window).
+	/// Every render key — a genuine per-session key (`"<origin>:<session_id>"`),
+	/// a plain-origin key (session-pets off), or the folded `"combined"` key —
+	/// has a `RenderKeyIdentity(origin, sessionId)` behind it: `resolveRenderKeys`
+	/// always records which single session's state won that key, regardless of
+	/// how the key is displayed. This looks up `perSessionGate` by that winning
+	/// identity's own `"<origin>:<session_id>"` key for every render key
+	/// uniformly, so the gate/badge shown always belongs to the exact session
+	/// whose state is on screen.
 	///
-	/// The legacy fallback is gated on render keys, not origins: with
-	/// session-pets on, one origin can host several concurrently rendered
-	/// sessions, so "exactly one origin is active" no longer implies "exactly
-	/// one thing is on screen" the way it did before session-pets existed. A
-	/// session missing its own gate/context sidecar (e.g. it hasn't gated yet
-	/// this tick) must never inherit the legacy file merely because it shares
-	/// an origin with another active session — that reintroduces the
-	/// cross-session badge collapse this per-session lookup exists to fix.
+	/// This function used to also fall back to an origin-wide "newest
+	/// gate/context write across every sibling session on this origin" view for
+	/// plain-origin/combined keys, reasoning that folding multiple sessions into
+	/// one window left no single session identity to key on. That reasoning was
+	/// wrong — the identity was always available — and the origin-wide fallback
+	/// could badge a render key with a *different* session's gate than the one
+	/// whose state actually won it (e.g. two sessions on one origin with
+	/// session-pets off: the freshest-state session renders, but the origin-wide
+	/// view could still pick a stale sibling's gate merely because its gate file
+	/// had a newer mtime). Keying strictly off the winning identity removes that
+	/// cross-session misattribution.
 	///
-	/// With session-pets off everywhere (render key == origin, identity origin
-	/// == that origin) this is identical to the pre-P15.03 per-origin merge.
+	/// Falls back to the legacy flat `gate.json`/`delivery-context.json` only
+	/// when exactly one render key is active (a pre-Phase-17 hook writes those
+	/// with no origin or session at all, so attributing them while several
+	/// render keys are active would risk badging the wrong window). A session
+	/// missing its own gate/context sidecar (e.g. it hasn't gated yet this tick)
+	/// must never inherit the legacy file merely because it shares an origin
+	/// with another active session — that reintroduces the cross-session badge
+	/// collapse this per-session lookup exists to fix.
 	private func resolveRenderedPlatforms(
 		renderStates: [String: StateSnapshot],
 		identities: [String: RenderKeyIdentity],
-		perOriginGate: [String: PerPlatformGateReader.Entry],
 		perSessionGate: [String: PerPlatformGateReader.Entry],
 		legacyGate: GateSnapshot?,
 		legacyContext: DeliveryContextSnapshot?
@@ -323,13 +322,8 @@ final class LivePollingDriver {
 
 		for (renderKey, snapshot) in renderStates {
 			let identity = identities[renderKey]
-			let origin = identity?.origin ?? renderKey
-			let entry: PerPlatformGateReader.Entry?
-			if let identity, renderKey == "\(identity.origin):\(identity.sessionId)" {
-				entry = perSessionGate[renderKey]
-			} else {
-				entry = perOriginGate[origin]
-			}
+			let sessionKey = identity.map { "\($0.origin):\($0.sessionId)" }
+			let entry = sessionKey.flatMap { perSessionGate[$0] }
 			let gate = entry?.gate ?? (renderKey == singleRenderKey ? legacyGate : nil)
 			let context = entry?.context ?? (renderKey == singleRenderKey ? legacyContext : nil)
 

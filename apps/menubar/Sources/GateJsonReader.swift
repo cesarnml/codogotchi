@@ -107,67 +107,51 @@ enum DeliveryContextReader {
 	}
 }
 
-/// Reads gate/context slices out of `state.d/`, keyed either by origin or by
-/// the full `<origin>:<session_id>` identity encoded in
-/// `<origin>:<session_id>.gate.json` / `.context.json` filenames
-/// (son-of-anton Phase 17's direct-gate-write). Mirrors
-/// `StateJsonReader.readPerPlatformDirectory` / `readPerSessionDirectory`'s
-/// directory-scan shapes so the per-platform window pool can badge each
-/// origin's — or, with session-pets on, each session's — own gate
+/// Reads gate/context slices out of `state.d/`, keyed by the full
+/// `<origin>:<session_id>` identity encoded in `<origin>:<session_id>.gate.json`
+/// / `.context.json` filenames (son-of-anton Phase 17's direct-gate-write).
+/// Mirrors `StateJsonReader.readPerSessionDirectory`'s directory-scan shape so
+/// the per-platform window pool can badge each session's own gate
 /// independently instead of the single most-recently-written file across
-/// every platform (or every sibling session on one platform).
+/// every sibling session on one platform.
+///
+/// There is no origin-aggregate ("newest gate anywhere on this origin") view:
+/// `resolveRenderKeys` always resolves a `RenderKeyIdentity(origin, sessionId)`
+/// for every render key — plain-origin and `"combined"` keys included, not
+/// just session-pet-on keys — so `LivePollingDriver.resolveRenderedPlatforms`
+/// can key directly off that winning identity's own session slice regardless
+/// of how the key is displayed. An origin-wide "newest gate write" fallback
+/// used to exist here and fed a render key with a *different* session's gate
+/// than the one whose state actually won that key — see
+/// `resolveRenderedPlatforms`'s doc comment.
 enum PerPlatformGateReader {
 	struct Entry {
 		let gate: GateSnapshot?
 		let context: DeliveryContextSnapshot?
 	}
 
-	/// Both an origin-aggregate view and a per-session view from a single
-	/// directory scan:
-	///
-	/// - `perOrigin`: one `Entry` per origin, the newest gate/context slice
-	///   across every session on that origin. This is what session-pets-off
-	///   and `"combined"` render keys use — both have already folded multiple
-	///   sessions into one window, so there is no single session identity left
-	///   to key on and "newest across the origin" is the correct badge.
-	/// - `perSession`: one `Entry` per `"<origin>:<session_id>"` key, matching
-	///   the render-key shape `resolveRenderKeys` emits when session-pets is on
-	///   for an origin. Each session-pet panel badges from exactly its own
-	///   gate/context sidecar instead of whichever sibling session on the same
-	///   origin happened to write most recently — the collapse the
-	///   origin-aggregate view has when several sessions on one origin are
-	///   mid-delivery concurrently.
-	///
-	/// `LivePollingDriver` needs both every poll tick, so both are computed
-	/// from one scan here rather than as two independent reader entry points —
-	/// calling separate origin/session readers back to back would scan and
-	/// JSON-decode every gate/context file on disk twice per tick for no
-	/// benefit, since both views are derived from the same underlying file set.
+	/// One `Entry` per `"<origin>:<session_id>"` key, matching the identity
+	/// shape `resolveRenderKeys` emits for every render key.
 	///
 	/// `listing`, when supplied, is a `state.d/` enumeration already produced
 	/// once for this poll tick — the reader consumes it instead of issuing its
 	/// own `contentsOfDirectory`. When omitted (direct callers, tests) it
 	/// self-scans exactly as before. Only the enumeration is shared; each
 	/// gate/context file is still opened and decoded here.
-	static func readBoth(
+	static func read(
 		at dirPath: String, listing: StateDirectoryListing? = nil
-	) -> (perOrigin: [String: Entry], perSession: [String: Entry]) {
+	) -> [String: Entry] {
 		let scan = scanEntries(at: dirPath, listing: listing)
-		return (
-			perOrigin: merge(gates: scan.originGates, contexts: scan.originContexts),
-			perSession: merge(gates: scan.sessionGates, contexts: scan.sessionContexts)
-		)
+		return merge(gates: scan.sessionGates, contexts: scan.sessionContexts)
 	}
 
 	private struct Scan {
-		let originGates: [String: (mtime: Date, snapshot: GateSnapshot)]
-		let originContexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)]
 		let sessionGates: [String: (mtime: Date, snapshot: GateSnapshot)]
 		let sessionContexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)]
 	}
 
 	private static func scanEntries(at dirPath: String, listing: StateDirectoryListing?) -> Scan {
-		let empty = Scan(originGates: [:], originContexts: [:], sessionGates: [:], sessionContexts: [:])
+		let empty = Scan(sessionGates: [:], sessionContexts: [:])
 		let entries: [StateDirectoryListing.Entry]
 		if let listing {
 			entries = listing.entries
@@ -176,8 +160,6 @@ enum PerPlatformGateReader {
 			entries = scanned.entries
 		}
 
-		var originGates: [String: (mtime: Date, snapshot: GateSnapshot)] = [:]
-		var originContexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)] = [:]
 		var sessionGates: [String: (mtime: Date, snapshot: GateSnapshot)] = [:]
 		var sessionContexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)] = [:]
 
@@ -191,9 +173,6 @@ enum PerPlatformGateReader {
 				let (origin, sessionId) = originAndSession(of: name, suffix: ".gate.json"),
 				let snapshot = GateJsonReader.read(at: filePath)
 			{
-				if originGates[origin] == nil || mtime > originGates[origin]!.mtime {
-					originGates[origin] = (mtime, snapshot)
-				}
 				let sessionKey = "\(origin):\(sessionId)"
 				if sessionGates[sessionKey] == nil || mtime > sessionGates[sessionKey]!.mtime {
 					sessionGates[sessionKey] = (mtime, snapshot)
@@ -202,9 +181,6 @@ enum PerPlatformGateReader {
 				let (origin, sessionId) = originAndSession(of: name, suffix: ".context.json"),
 				let snapshot = DeliveryContextReader.read(at: filePath)
 			{
-				if originContexts[origin] == nil || mtime > originContexts[origin]!.mtime {
-					originContexts[origin] = (mtime, snapshot)
-				}
 				let sessionKey = "\(origin):\(sessionId)"
 				if sessionContexts[sessionKey] == nil || mtime > sessionContexts[sessionKey]!.mtime {
 					sessionContexts[sessionKey] = (mtime, snapshot)
@@ -212,9 +188,7 @@ enum PerPlatformGateReader {
 			}
 		}
 
-		return Scan(
-			originGates: originGates, originContexts: originContexts,
-			sessionGates: sessionGates, sessionContexts: sessionContexts)
+		return Scan(sessionGates: sessionGates, sessionContexts: sessionContexts)
 	}
 
 	private static func merge(
