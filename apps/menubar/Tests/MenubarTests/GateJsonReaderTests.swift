@@ -332,9 +332,10 @@ final class GateJsonReaderTests: XCTestCase {
 
 	// MARK: - PerPlatformGateReader (Phase 15 session-pets)
 
-	/// `read()` (origin-aggregate) intentionally collapses same-origin sessions
-	/// to one entry; `readPerSession()` must keep them distinct so a
-	/// session-pets render key can badge from its own session's gate.
+	/// `readBoth()`'s `perOrigin` view (origin-aggregate) intentionally
+	/// collapses same-origin sessions to one entry; its `perSession` view must
+	/// keep them distinct so a session-pets render key can badge from its own
+	/// session's gate.
 	func testPerSessionGateReaderKeepsSameOriginSessionsDistinct() throws {
 		let dir = FileManager.default.temporaryDirectory
 			.appendingPathComponent("codogotchi-gate-reader-\(UUID().uuidString)")
@@ -352,19 +353,20 @@ final class GateJsonReaderTests: XCTestCase {
 				to: dir.appendingPathComponent("claude_code:s2.gate.json"), atomically: true,
 				encoding: .utf8)
 
-		let perSession = PerPlatformGateReader.readPerSession(at: dir.path)
+		let views = PerPlatformGateReader.readBoth(at: dir.path)
+
 		XCTAssertEqual(
-			perSession["claude_code:s1"]?.gate?.ticketId, "P15.10",
+			views.perSession["claude_code:s1"]?.gate?.ticketId, "P15.10",
 			"session s1's own gate must survive independent of s2")
 		XCTAssertEqual(
-			perSession["claude_code:s2"]?.gate?.ticketId, "P15.11",
+			views.perSession["claude_code:s2"]?.gate?.ticketId, "P15.11",
 			"session s2's own gate must survive independent of s1")
 
-		let perOrigin = PerPlatformGateReader.read(at: dir.path)
 		XCTAssertEqual(
-			perOrigin.count, 1,
+			views.perOrigin.count, 1,
 			"origin-aggregate view still folds every session on an origin into one entry")
-		XCTAssertNotNil(perOrigin["claude_code"], "origin-aggregate entry keys by plain origin")
+		XCTAssertNotNil(
+			views.perOrigin["claude_code"], "origin-aggregate entry keys by plain origin")
 	}
 
 	// MARK: - Helpers

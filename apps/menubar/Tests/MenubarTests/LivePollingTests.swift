@@ -779,8 +779,8 @@ final class LivePollingTests: XCTestCase {
 	/// phases running on the *same* platform, each in its own session, must
 	/// each keep their own gate/badge — not collapse to whichever sibling
 	/// session's gate.json was written most recently, which is what
-	/// `PerPlatformGateReader.read`'s origin-only keying did before
-	/// `readPerSession` existed.
+	/// `PerPlatformGateReader.readBoth`'s `perOrigin` view's origin-only
+	/// keying would do on its own, absent the `perSession` view.
 	func testConcurrentSessionsOnSameOriginEachGetTheirOwnGateAnimationAndBadge() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()

@@ -122,47 +122,33 @@ enum PerPlatformGateReader {
 		let context: DeliveryContextSnapshot?
 	}
 
-	/// Origin-aggregate view: one `Entry` per origin, the newest gate/context
-	/// slice across every session on that origin. This is what session-pets-off
-	/// and `"combined"` render keys use — both have already folded multiple
-	/// sessions into one window, so there is no single session identity left to
-	/// key on and "newest across the origin" is the correct badge.
+	/// Both an origin-aggregate view and a per-session view from a single
+	/// directory scan:
 	///
-	/// `listing`, when supplied, is a `state.d/` enumeration already produced once
-	/// for this poll tick — the reader consumes it instead of issuing its own
-	/// `contentsOfDirectory`. When omitted (direct callers, tests) it self-scans
-	/// exactly as before. Only the enumeration is shared; each gate/context file
-	/// is still opened and decoded here.
+	/// - `perOrigin`: one `Entry` per origin, the newest gate/context slice
+	///   across every session on that origin. This is what session-pets-off
+	///   and `"combined"` render keys use — both have already folded multiple
+	///   sessions into one window, so there is no single session identity left
+	///   to key on and "newest across the origin" is the correct badge.
+	/// - `perSession`: one `Entry` per `"<origin>:<session_id>"` key, matching
+	///   the render-key shape `resolveRenderKeys` emits when session-pets is on
+	///   for an origin. Each session-pet panel badges from exactly its own
+	///   gate/context sidecar instead of whichever sibling session on the same
+	///   origin happened to write most recently — the collapse the
+	///   origin-aggregate view has when several sessions on one origin are
+	///   mid-delivery concurrently.
 	///
-	/// Callers that need both this and `readPerSession`'s view for the same
-	/// directory in one poll tick should call `readBoth` instead — calling this
-	/// and `readPerSession` back to back re-opens and re-decodes every
-	/// gate/context file on disk a second time.
-	static func read(at dirPath: String, listing: StateDirectoryListing? = nil) -> [String: Entry] {
-		let scan = scanEntries(at: dirPath, listing: listing)
-		return merge(gates: scan.originGates, contexts: scan.originContexts)
-	}
-
-	/// Per-session view: one `Entry` per `"<origin>:<session_id>"` key, matching
-	/// the render-key shape `resolveRenderKeys` emits when session-pets is on for
-	/// an origin. Each session-pet panel badges from exactly its own gate/context
-	/// sidecar instead of whichever sibling session on the same origin happened
-	/// to write most recently — the collapse `read()`'s origin-only keying has
-	/// when several sessions on one origin are mid-delivery concurrently.
+	/// `LivePollingDriver` needs both every poll tick, so both are computed
+	/// from one scan here rather than as two independent reader entry points —
+	/// calling separate origin/session readers back to back would scan and
+	/// JSON-decode every gate/context file on disk twice per tick for no
+	/// benefit, since both views are derived from the same underlying file set.
 	///
-	/// See `read`'s doc comment: prefer `readBoth` over calling both readers.
-	static func readPerSession(at dirPath: String, listing: StateDirectoryListing? = nil) -> [String: Entry] {
-		let scan = scanEntries(at: dirPath, listing: listing)
-		return merge(gates: scan.sessionGates, contexts: scan.sessionContexts)
-	}
-
-	/// Both `read`'s origin-aggregate view and `readPerSession`'s per-session
-	/// view from a single directory scan. `LivePollingDriver` needs both every
-	/// poll tick (origin-aggregate for session-pets-off/combined render keys,
-	/// per-session for session-pets-on ones) — calling `read` and
-	/// `readPerSession` independently would scan and JSON-decode every
-	/// gate/context file on disk twice per tick for no benefit, since both views
-	/// are derived from the same underlying file set.
+	/// `listing`, when supplied, is a `state.d/` enumeration already produced
+	/// once for this poll tick — the reader consumes it instead of issuing its
+	/// own `contentsOfDirectory`. When omitted (direct callers, tests) it
+	/// self-scans exactly as before. Only the enumeration is shared; each
+	/// gate/context file is still opened and decoded here.
 	static func readBoth(
 		at dirPath: String, listing: StateDirectoryListing? = nil
 	) -> (perOrigin: [String: Entry], perSession: [String: Entry]) {
