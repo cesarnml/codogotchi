@@ -391,7 +391,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						self.menuBuilder?.refreshFloatingPetMenuItemTitle()
 					}
 					return controller
-				}
+				},
+				hiddenKeysLoader: { AppStateStore.loadHiddenWindowKeys() },
+				hiddenKeysSaver: { try? AppStateStore.saveHiddenWindowKeys($0) }
 			)
 			pool.onMonochromeChanged = { [weak item] isMonochrome in
 				if let button = item?.button { Self.applyMenubarIcon(to: button, monochrome: isMonochrome) }

@@ -119,9 +119,9 @@ enum AppStateStore {
 			withIntermediateDirectories: true
 		)
 
-		// Preserve per-origin positions written by pool windows so a single-controller
-		// save (e.g. hook-status refresh) doesn't clobber them.
-		let existingPositions = loadRawPayload(url: url)?.floatingPetPositions
+		// Preserve per-origin positions and hidden-state written by pool windows so a
+		// single-controller save (e.g. hook-status refresh) doesn't clobber them.
+		let existingRaw = loadRawPayload(url: url)
 
 		let payload = AppStatePayload(
 			schemaVersion: APP_STATE_SCHEMA_VERSION,
@@ -129,7 +129,8 @@ enum AppStateStore {
 				visible: state.isFloatingPetVisible,
 				frame: FloatingFramePayload(state.frame)
 			),
-			floatingPetPositions: existingPositions,
+			floatingPetPositions: existingRaw?.floatingPetPositions,
+			floatingPetHidden: existingRaw?.floatingPetHidden,
 			onboardingCompletedAt: state.onboardingCompletedAt,
 			lastHookActivityAt: state.lastHookActivityAt,
 			hooksStatus: state.hooksStatus,
@@ -155,6 +156,47 @@ enum AppStateStore {
 		return FloatingFramePolicy.defaultFrame(in: visibleFrame)
 	}
 
+	/// Returns the set of window keys the user explicitly hid, keyed the same way as
+	/// `floatingPetPositions` (plain origin or `origin:session_id`). Keys absent from
+	/// this set are unseen or previously-visible and default to visible.
+	static func loadHiddenWindowKeys() -> Set<String> {
+		guard let payload = loadRawPayload(url: appStateURL()),
+			payload.schemaVersion <= APP_STATE_SCHEMA_VERSION
+		else {
+			return []
+		}
+		let hidden = payload.floatingPetHidden ?? [:]
+		return Set(hidden.filter { $0.value }.keys)
+	}
+
+	/// Persists the full set of user-hidden window keys, leaving all other fields in
+	/// the file untouched. Called write-through whenever visibility is toggled.
+	static func saveHiddenWindowKeys(_ hiddenKeys: Set<String>) throws {
+		let url = appStateURL()
+		try FileManager.default.createDirectory(
+			at: url.deletingLastPathComponent(),
+			withIntermediateDirectories: true
+		)
+		let existing = loadRawPayload(url: url)
+		let hidden = Dictionary(uniqueKeysWithValues: hiddenKeys.map { ($0, true) })
+		let payload = AppStatePayload(
+			schemaVersion: APP_STATE_SCHEMA_VERSION,
+			floatingPet: existing?.floatingPet
+				?? FloatingPetPayload(visible: true, frame: FloatingFramePayload(FloatingFramePolicy.defaultFrame(in: .zero))),
+			floatingPetPositions: existing?.floatingPetPositions,
+			floatingPetHidden: hidden,
+			onboardingCompletedAt: existing?.onboardingCompletedAt,
+			lastHookActivityAt: existing?.lastHookActivityAt,
+			hooksStatus: existing?.hooksStatus,
+			installedHookVersion: existing?.installedHookVersion
+		)
+		let encoder = JSONEncoder()
+		encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+		encoder.keyEncodingStrategy = .convertToSnakeCase
+		let data = try encoder.encode(payload)
+		try data.write(to: url, options: .atomic)
+	}
+
 	/// Persists `frame` for `origin` in the `floating_pet_positions` map, leaving all
 	/// other fields in the file untouched.
 	static func saveFrame(_ frame: CGRect, for origin: String) throws {
@@ -171,6 +213,7 @@ enum AppStateStore {
 			floatingPet: existing?.floatingPet
 				?? FloatingPetPayload(visible: true, frame: FloatingFramePayload(FloatingFramePolicy.defaultFrame(in: .zero))),
 			floatingPetPositions: positions,
+			floatingPetHidden: existing?.floatingPetHidden,
 			onboardingCompletedAt: existing?.onboardingCompletedAt,
 			lastHookActivityAt: existing?.lastHookActivityAt,
 			hooksStatus: existing?.hooksStatus,
@@ -203,6 +246,9 @@ private struct AppStatePayload: Codable {
 	let floatingPet: FloatingPetPayload
 	/// Per-origin last-known frame, keyed by window key ("claude_code", "cursor", "combined", …).
 	let floatingPetPositions: [String: FloatingFramePayload]?
+	/// User-hidden window keys (same keying as `floatingPetPositions`). A key present
+	/// with value `true` is hidden; absent keys default to visible.
+	let floatingPetHidden: [String: Bool]?
 	let onboardingCompletedAt: String?
 	let lastHookActivityAt: String?
 	let hooksStatus: HooksStatusSnapshot?

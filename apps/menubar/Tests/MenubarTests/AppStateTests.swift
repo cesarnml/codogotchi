@@ -320,4 +320,46 @@ final class AppStateTests: XCTestCase {
 			XCTAssertTrue(visibleFrame.contains(loaded))
 		}
 	}
+
+	func testLoadHiddenWindowKeysWithNoFileReturnsEmpty() {
+		withTempHome { _ in
+			XCTAssertEqual(AppStateStore.loadHiddenWindowKeys(), [])
+		}
+	}
+
+	func testSaveAndLoadHiddenWindowKeysRoundTrip() throws {
+		try withTempHome { _ in
+			try AppStateStore.saveHiddenWindowKeys(["claude_code:s1", "cursor"])
+
+			XCTAssertEqual(
+				AppStateStore.loadHiddenWindowKeys(), ["claude_code:s1", "cursor"])
+		}
+	}
+
+	func testSaveHiddenWindowKeysPreservesFramesAndViceVersa() throws {
+		try withTempHome { _ in
+			let frame = CGRect(x: 100, y: 200, width: 160, height: 160)
+			try AppStateStore.saveFrame(frame, for: "cursor")
+			try AppStateStore.saveHiddenWindowKeys(["claude_code:s1"])
+
+			XCTAssertEqual(AppStateStore.loadFrame(for: "cursor", visibleFrame: visibleFrame), frame)
+			XCTAssertEqual(AppStateStore.loadHiddenWindowKeys(), ["claude_code:s1"])
+
+			try AppStateStore.saveFrame(
+				CGRect(x: 300, y: 400, width: 140, height: 140), for: "codex")
+
+			XCTAssertEqual(
+				AppStateStore.loadHiddenWindowKeys(), ["claude_code:s1"],
+				"saveFrame(_:for:) must not clobber previously-persisted hidden keys")
+		}
+	}
+
+	func testSaveHiddenWindowKeysCanClearToEmpty() throws {
+		try withTempHome { _ in
+			try AppStateStore.saveHiddenWindowKeys(["cursor"])
+			try AppStateStore.saveHiddenWindowKeys([])
+
+			XCTAssertEqual(AppStateStore.loadHiddenWindowKeys(), [])
+		}
+	}
 }

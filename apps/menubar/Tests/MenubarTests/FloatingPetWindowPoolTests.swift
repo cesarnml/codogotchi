@@ -715,6 +715,73 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         XCTAssertEqual(spawnCount, 1)
     }
 
+    func testSetVisibleWritesThroughToInjectedSaver() {
+        var savedCalls: [Set<String>] = []
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in StubWindowController() },
+            hiddenKeysSaver: { savedCalls.append($0) }
+        )
+        let snap = makePerPlatformSnapshot([
+            "cursor": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+        ])
+        pool.update(snapshot: snap)
+
+        pool.setVisible(false, for: "cursor")
+        XCTAssertEqual(savedCalls.last, ["cursor"], "hiding must write-through the full hidden set")
+
+        pool.setVisible(true, for: "cursor")
+        XCTAssertEqual(savedCalls.last, [], "showing must write-through the cleared hidden set")
+    }
+
+    func testInitRestoresHiddenKeysFromInjectedLoader() {
+        var spawnCount = 0
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in
+                spawnCount += 1
+                return StubWindowController()
+            },
+            hiddenKeysLoader: { ["cursor"] }
+        )
+
+        XCTAssertTrue(pool.hiddenWindowKeys.contains("cursor"), "persisted hidden key must be restored at init")
+
+        let snap = makePerPlatformSnapshot([
+            "cursor": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+        ])
+        pool.update(snapshot: snap)
+
+        XCTAssertFalse(
+            pool.activeOrigins.contains("cursor"),
+            "a pet restored as hidden must not spawn on the first tick after relaunch"
+        )
+        XCTAssertEqual(spawnCount, 0)
+    }
+
+    func testInitRestoredHiddenKeyForExpiredSessionIsHarmlessAndUnseenSiblingDefaultsVisible() {
+        var spawnedKeys: [String] = []
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization(ttlSeconds: 60, sessionPetsEnabled: ["claude_code": true]) },
+            windowFactory: { key, _ in
+                spawnedKeys.append(key)
+                return StubWindowController()
+            },
+            // "claude_code:stale" was hidden in a previous run and has since
+            // TTL-expired out of state.d/ entirely — it must never reappear or
+            // otherwise affect the render queue. "claude_code:s2" is a brand
+            // new session never seen before restart and must default visible.
+            hiddenKeysLoader: { ["claude_code:stale"] }
+        )
+        let snap = makePerPlatformSnapshot([
+            "claude_code:s2": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+        ])
+        pool.update(snapshot: snap)
+
+        XCTAssertTrue(pool.activeOrigins.contains("claude_code:s2"), "unseen session must default visible")
+        XCTAssertEqual(spawnedKeys, ["claude_code:s2"], "expired persisted-hidden key must not be spawned or interfered with")
+    }
+
     // MARK: - P14.05 Per-platform pet routing + combined idle Default badge
 
     func testTwoOwnOriginsWithDifferentAssignmentsResolveCorrectPetIds() {

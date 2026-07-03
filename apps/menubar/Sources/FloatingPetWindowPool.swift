@@ -150,6 +150,7 @@ final class FloatingPetWindowPool {
 	}
 
 	private var userHiddenWindowKeys: Set<String> = []
+	private let hiddenKeysSaver: (Set<String>) -> Void
 
 	/// Mode that was active when each window (keyed by window key) was spawned.
 	/// Used to detect own↔minimalist transitions so the stale window is torn
@@ -178,6 +179,14 @@ final class FloatingPetWindowPool {
 		sessionPromptSummaryReader: @escaping SessionPromptSummaryReader = {
 			PromptAttentionReader.summary(forSessionKey: $0)
 		},
+		// No production-disk defaults: unlike assignmentsReader/customizationReader
+		// (read-only, idempotent), a hidden-keys default that wrote through to
+		// AppStateStore would make every setVisible() call in the test suite — which
+		// does not sandbox CODOGOTCHI_HOME — silently overwrite the developer's real
+		// ~/.codogotchi/app-state.json. Production wiring happens explicitly in
+		// MenubarApp.
+		hiddenKeysLoader: @escaping () -> Set<String> = { [] },
+		hiddenKeysSaver: @escaping (Set<String>) -> Void = { _ in },
 		now: @escaping () -> Date = { Date() }
 	) {
 		self.assignmentsReader = assignmentsReader
@@ -186,7 +195,14 @@ final class FloatingPetWindowPool {
 		self.minimalistWindowFactory = minimalistWindowFactory
 		self.sessionLabelReader = sessionLabelReader
 		self.sessionPromptSummaryReader = sessionPromptSummaryReader
+		self.hiddenKeysSaver = hiddenKeysSaver
 		self.now = now
+		// Restore user-hidden window keys across app restarts. Keys for pets that
+		// have since TTL-expired are harmless here: the spawn gate at Step 7 only
+		// ever consults this set for keys already surviving this tick's TTL/mode
+		// filtering, so restoration is implicitly "prune (by the tick's own
+		// eligibility filtering), then restore" with no extra bookkeeping needed.
+		self.userHiddenWindowKeys = hiddenKeysLoader()
 	}
 
 	func update(snapshot: PerPlatformSnapshot) {
@@ -667,6 +683,9 @@ final class FloatingPetWindowPool {
 			releaseSessionNumber(forWindowKey: key)
 			userHiddenWindowKeys.insert(key)
 		}
+		// Write-through on every toggle rather than only on app exit: a force-quit
+		// or crash skips exit hooks entirely, which is a normal way this app dies.
+		hiddenKeysSaver(userHiddenWindowKeys)
 	}
 
 	/// Returns the controller for the given window key. Used by MenubarApp to wire
