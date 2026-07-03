@@ -34,10 +34,15 @@ final class MenuItemsTests: XCTestCase {
 		func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
 	}
 
-	private func makePool(origins: [String]) -> FloatingPetWindowPool {
+	private func makePool(
+		origins: [String],
+		renderKeyIdentities: [String: RenderKeyIdentity] = [:],
+		sessionLabelReader: @escaping FloatingPetWindowPool.SessionLabelReader = { _ in nil }
+	) -> FloatingPetWindowPool {
 		let pool = FloatingPetWindowPool(
 			customizationReader: { .safeDefault },
-			windowFactory: { _, _ in StubWindow() }
+			windowFactory: { _, _ in StubWindow() },
+			sessionLabelReader: sessionLabelReader
 		)
 		if !origins.isEmpty {
 			let perPlatform = Dictionary(
@@ -54,7 +59,8 @@ final class MenuItemsTests: XCTestCase {
 			pool.update(snapshot: PerPlatformSnapshot(
 				perPlatform: perPlatform,
 				gateBadges: [:],
-				rpgSnapshot: .safeDefault
+				rpgSnapshot: .safeDefault,
+				renderKeyIdentities: renderKeyIdentities
 			))
 		}
 		return pool
@@ -254,5 +260,38 @@ final class MenuItemsTests: XCTestCase {
 		let petTitles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
 		XCTAssertTrue(petTitles.contains("Hide Claude Code Pet"), "active origin must have a Hide item")
 		XCTAssertTrue(petTitles.contains("Show Cursor Pet"), "hidden origin must have a Show item")
+	}
+
+	func testSessionKeyedOriginFallsBackToSessionNumberWhenNoLabelIsSet() {
+		let sessionKey = "claude_code:B116CB55-356F-47CB-B61E-DA8F25636A54"
+		let pool = makePool(
+			origins: ["cursor", sessionKey],
+			renderKeyIdentities: [
+				sessionKey: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
+			]
+		)
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		let menu = builder.build()
+
+		let titles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
+		XCTAssertTrue(titles.contains("Hide Claude Code:Session 1 Pet"), "session-keyed item must show the raw origin's platform name and an ordinal, never the raw UUID; got \(titles)")
+		_ = pool  // keep alive
+	}
+
+	func testSessionKeyedOriginPrefersCustomSessionLabelOverSessionNumber() {
+		let sessionKey = "claude_code:B116CB55-356F-47CB-B61E-DA8F25636A54"
+		let pool = makePool(
+			origins: ["cursor", sessionKey],
+			renderKeyIdentities: [
+				sessionKey: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
+			],
+			sessionLabelReader: { key in key == sessionKey ? "Refactor Sprint" : nil }
+		)
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		let menu = builder.build()
+
+		let titles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
+		XCTAssertTrue(titles.contains("Hide Claude Code:Refactor Sprint Pet"), "got \(titles)")
+		_ = pool  // keep alive
 	}
 }

@@ -298,7 +298,26 @@ final class MenubarMenu: NSObject {
 		(floatingPetPool?.defaultPetId ?? DEFAULT_PET_NAME).capitalized
 	}
 
-	private func displayName(for origin: String) -> String {
+	/// Display name for a pet-section window key. Session-keyed keys
+	/// (`origin:session_id`) keep the platform prefix but replace the raw
+	/// session UUID with the user's custom `SessionLabelStore` rename, or
+	/// "Session N" from `SessionNumberAllocator` when no rename is set.
+	/// Plain-origin keys (session pets off for that platform) are unaffected.
+	@MainActor
+	private func displayName(for key: String) -> String {
+		let origin = FloatingPetWindowPool.origin(forWindowKey: key)
+		let platformName = platformDisplayName(for: origin)
+		guard let pool = floatingPetPool else { return platformName }
+		if let label = pool.sessionLabel(forWindowKey: key), !label.isEmpty {
+			return "\(platformName):\(label)"
+		}
+		if let number = pool.sessionNumber(forWindowKey: key) {
+			return "\(platformName):Session \(number)"
+		}
+		return platformName
+	}
+
+	private func platformDisplayName(for origin: String) -> String {
 		switch origin {
 		case "claude_code": return "Claude Code"
 		case "cursor": return "Cursor"
