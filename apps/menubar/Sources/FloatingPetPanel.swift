@@ -275,6 +275,13 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		}
 		let badge = gateBadgePanel ?? {
 			let panel = GateBadgePanel()
+			// Route a right-click on the ticket/gate stack into the same
+			// hide/rename/force-idle prompt a click on the badge strip itself
+			// presents (P?? unification: right-click works from any chrome
+			// piece, not just the strip's own view).
+			panel.onRightClickRequested = { [weak self] anchor in
+				self?.badgeView.presentHidePrompt(anchorInScreen: anchor)
+			}
 			gateBadgePanel = panel
 			return panel
 		}()
@@ -485,25 +492,27 @@ private final class MinimalistBadgeView: NSView {
 	/// the same frosted "Hide" pill Own mode uses, retitled "Hide panel" since it
 	/// hides the whole minimalist strip.
 	override func rightMouseDown(with event: NSEvent) {
-		guard window != nil else { return }
+		guard let window else { return }
 		if hidePromptPanel != nil {
 			dismissHidePrompt()
 		}
-		presentHidePrompt(for: event)
+		presentHidePrompt(anchorInScreen: window.convertPoint(toScreen: event.locationInWindow))
 	}
 
 	func dismissHidePromptIfPresent() {
 		dismissHidePrompt()
 	}
 
-	private func presentHidePrompt(for event: NSEvent) {
+	/// `fileprivate` (not `private`) so `GateBadgePanel` can route a right-click
+	/// on the SOA ticket/gate badge — a separate floating window stacked above
+	/// this strip — into the same prompt a click on the strip itself presents.
+	fileprivate func presentHidePrompt(anchorInScreen: CGPoint) {
 		guard let window else { return }
 		dismissHidePrompt()
 		let offersForceIdle = FloatingPetHidePrompt.offersForceIdle(for: currentActivity)
 		FloatingPetPromptCoordinator.shared.willPresent(owner: self) { [weak self] in
 			self?.dismissHidePrompt()
 		}
-		let anchorInScreen = window.convertPoint(toScreen: event.locationInWindow)
 		var items: [FloatingPetPromptItem] = []
 		// Escape hatch when the pet is stuck mid-animation (rate-limited or
 		// manually-stopped prompt): sits above "Hide panel" as the primary action.
@@ -915,6 +924,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 		let badge = gateBadgePanel ?? {
 			let panel = GateBadgePanel()
+			panel.onRightClickRequested = { [weak self] anchor in
+				self?.presentChromeHidePrompt(anchorInScreen: anchor)
+			}
 			gateBadgePanel = panel
 			return panel
 		}()
@@ -922,6 +934,15 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		if isPanelShown {
 			repositionAndShowGateBadge()
 		}
+	}
+
+	/// Routes a right-click on chrome that lives in its own floating window
+	/// (the SOA gate badge, the platform-chip/activity/session animation
+	/// badge) into the same hide/rename/force-idle prompt a click on the pet
+	/// sprite itself presents.
+	private func presentChromeHidePrompt(anchorInScreen: CGPoint) {
+		(panel?.contentView as? FloatingPetInteractionView)?.presentHidePrompt(
+			anchorInScreen: anchorInScreen, localPoint: .zero)
 	}
 
 	func applyPlatform(origin: String?) {
@@ -1060,6 +1081,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		guard let content = gateBadgeContent else { return }
 		let badge = gateBadgePanel ?? {
 			let panel = GateBadgePanel()
+			panel.onRightClickRequested = { [weak self] anchor in
+				self?.presentChromeHidePrompt(anchorInScreen: anchor)
+			}
 			gateBadgePanel = panel
 			return panel
 		}()
@@ -1228,6 +1252,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 		let badge = animationBadgePanel ?? {
 			let panel = AnimationBadgePanel()
+			panel.onRightClickRequested = { [weak self] anchor in
+				self?.presentChromeHidePrompt(anchorInScreen: anchor)
+			}
 			animationBadgePanel = panel
 			return panel
 		}()
@@ -1551,6 +1578,13 @@ enum GateBadgeLayout {
 final class GateBadgePanel: NSPanel {
 	private let badgeView = GateBadgeView(frame: .zero)
 
+	/// Fired with the screen-space anchor when the user right-clicks the
+	/// ticket/gate token stack. Wired by whichever controller owns this panel
+	/// (Own or Minimalist mode) to present the same hide/rename/force-idle
+	/// prompt a click on the pet/strip itself presents — this badge is its own
+	/// floating window, so it never received that click otherwise.
+	var onRightClickRequested: ((CGPoint) -> Void)?
+
 	init() {
 		super.init(
 			contentRect: .zero,
@@ -1565,8 +1599,14 @@ final class GateBadgePanel: NSPanel {
 		collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 		hidesOnDeactivate = false
 		isReleasedWhenClosed = false
-		ignoresMouseEvents = true
+		// Was click-through (true); now interactive so a right-click on the
+		// badge can surface the hide prompt like the rest of the chrome.
+		ignoresMouseEvents = false
 		contentView = badgeView
+		badgeView.onRightMouseDown = { [weak self] event in
+			guard let self else { return }
+			self.onRightClickRequested?(self.convertPoint(toScreen: event.locationInWindow))
+		}
 	}
 
 	override var canBecomeKey: Bool { false }
@@ -1613,6 +1653,14 @@ final class GateBadgeView: NSView {
 	/// Dark-navy tint for the ticket token — keeps a blue hue but much darker
 	/// than the old bright blue, layered over the frosted material.
 	private static let ticketTint = NSColor(calibratedRed: 0.10, green: 0.18, blue: 0.33, alpha: 0.90)
+
+	/// Forwards a right-click anywhere on the ticket/gate stack up to
+	/// `GateBadgePanel`, which converts it to a screen anchor.
+	var onRightMouseDown: ((NSEvent) -> Void)?
+
+	override func rightMouseDown(with event: NSEvent) {
+		onRightMouseDown?(event)
+	}
 
 	private let stackView = NSStackView()
 	private let ticketBadge = GateBadgeTokenView(
@@ -1833,6 +1881,13 @@ enum AnimationBadgeLayout {
 final class AnimationBadgePanel: NSPanel {
 	private let badgeView = AnimationBadgeView(frame: .zero)
 
+	/// Fired with the screen-space anchor when the user right-clicks the
+	/// platform chip, activity pill, or session badge. Wired by
+	/// `FloatingPetPanelController` to present the same hide/rename/force-idle
+	/// prompt a click on the pet sprite itself presents — this badge is its
+	/// own floating window, so it never received that click otherwise.
+	var onRightClickRequested: ((CGPoint) -> Void)?
+
 	init() {
 		super.init(
 			contentRect: .zero,
@@ -1847,8 +1902,15 @@ final class AnimationBadgePanel: NSPanel {
 		collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 		hidesOnDeactivate = false
 		isReleasedWhenClosed = false
-		ignoresMouseEvents = true
+		// Was click-through except while a tooltip was live (see `reposition`);
+		// now always interactive so a right-click reaches the badge regardless
+		// of tooltip/session state.
+		ignoresMouseEvents = false
 		contentView = badgeView
+		badgeView.onRightMouseDown = { [weak self] event in
+			guard let self else { return }
+			self.onRightClickRequested?(self.convertPoint(toScreen: event.locationInWindow))
+		}
 	}
 
 	override var canBecomeKey: Bool { false }
@@ -1871,15 +1933,6 @@ final class AnimationBadgePanel: NSPanel {
 			metrics: AnimationBadgeLayout.metrics(for: petFrame)
 		)
 		badgeView.configureSessionNumber(sessionNumber, label: sessionLabel, tooltip: sessionTooltip)
-		// `NSView.toolTip` only fires while its window actually receives mouse
-		// events — with `ignoresMouseEvents` true (the default, so the badge
-		// stays click-through when idle) AppKit never delivers the
-		// mouse-entered notification the tooltip mechanism depends on, so the
-		// string would be set but silently never shown. Accept mouse events
-		// only while there is a tooltip to display; the badge has no click
-		// handler of its own either way, so this never intercepts a click the
-		// user meant for something else.
-		ignoresMouseEvents = (sessionTooltip?.isEmpty ?? true)
 		let size = badgeView.preferredSize
 		let frame = AnimationBadgeLayout.frame(
 			relativeTo: petFrame,
@@ -2388,6 +2441,22 @@ final class AnimationBadgeView: NSView {
 	private var currentSessionNumber: Int?
 	private var currentSessionLabel: String?
 	private var currentSessionTooltip: String?
+
+	/// Forwards a right-click anywhere on the chip/pill/session-badge stack up
+	/// to `AnimationBadgePanel`, which converts it to a screen anchor. `nil`
+	/// when this view is embedded directly in `MinimalistBadgeView` (no
+	/// owning `AnimationBadgePanel`) — falls back to `super` there so the
+	/// event keeps bubbling up to `MinimalistBadgeView`'s own handler, exactly
+	/// as it did before this override existed.
+	var onRightMouseDown: ((NSEvent) -> Void)?
+
+	override func rightMouseDown(with event: NSEvent) {
+		guard let onRightMouseDown else {
+			super.rightMouseDown(with: event)
+			return
+		}
+		onRightMouseDown(event)
+	}
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -3156,7 +3225,11 @@ private final class FloatingPetInteractionView: NSView {
 		}
 	}
 
-	private func presentHidePrompt(anchorInScreen: CGPoint, localPoint: CGPoint) {
+	/// `fileprivate` (not `private`) so `GateBadgePanel`/`AnimationBadgePanel`
+	/// can route a right-click on the chip/pill/session-badge/SOA-badge chrome
+	/// into the same prompt the pet sprite itself presents — see
+	/// `FloatingPetPanelController`'s badge-panel wiring.
+	fileprivate func presentHidePrompt(anchorInScreen: CGPoint, localPoint: CGPoint) {
 		dismissHidePrompt()
 		guard let window else { return }
 		FloatingPetPromptCoordinator.shared.willPresent(owner: self) { [weak self] in
