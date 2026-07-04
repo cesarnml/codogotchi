@@ -1612,7 +1612,7 @@ private final class DeveloperTabView: NSView {
 private final class CustomizationTabView: NSView {
 	private var viewModel: CustomizationTabViewModel
 	private var modePickers: [String: NSPopUpButton] = [:]
-	private var sessionPetsCheckboxes: [String: NSButton] = [:]
+	private var sessionsPickers: [String: NSPopUpButton] = [:]
 	private var sessionCapPickers: [String: NSPopUpButton] = [:]
 	private var ttlPicker: NSPopUpButton = NSPopUpButton()
 	private var combinedMinimalistCheckbox = NSButton()
@@ -1620,15 +1620,15 @@ private final class CustomizationTabView: NSView {
 
 	/// Wide enough to fit "Minimalist", the longest `PlatformMode` label, without truncation.
 	private static let modeColumnWidth: CGFloat = 120
-	/// Width of the centered "Enable\nSessions" column (two-line header + checkbox).
-	private static let sessionPetsColumnWidth: CGFloat = 90
+	/// Width of the centered "Sessions" column (dropdown with "Enabled"/"Disabled").
+	private static let sessionsColumnWidth: CGFloat = 110
 	/// Fixed content width for the Platform Settings card: label(110) + mode
-	/// picker + session-pets column + cap picker(110), plus row/column gaps
+	/// picker + sessions column + cap picker(110), plus row/column gaps
 	/// and the 16pt card margins on each side. Sized from content rather than
 	/// stretched full-width now that Minimalist Panel Options sits beside it
 	/// as a second column.
 	private static let platformCardWidth: CGFloat =
-		16 + 110 + 8 + modeColumnWidth + 24 + sessionPetsColumnWidth + 24 + 110 + 16
+		16 + 110 + 8 + modeColumnWidth + 24 + sessionsColumnWidth + 24 + 110 + 16
 
 	init(viewModel: CustomizationTabViewModel) {
 		self.viewModel = viewModel
@@ -1657,7 +1657,7 @@ private final class CustomizationTabView: NSView {
 		addSubview(title)
 
 		let note = settingsBodyLabel(
-			"Choose how each coding platform displays your pet. "
+			"Choose how each coding platform displays your pet.\n"
 				+ "Own = dedicated floating window per tool. "
 				+ "Combined = all active tools share one window. "
 				+ "Minimalist = compact badge strip. "
@@ -1675,13 +1675,13 @@ private final class CustomizationTabView: NSView {
 
 		let modeHeader = settingsColumnHeader("Mode")
 		platformCard.addSubview(modeHeader)
-		let sessionPetsHeader = settingsColumnHeader("Enable\nSessions")
-		sessionPetsHeader.alignment = .center
-		platformCard.addSubview(sessionPetsHeader)
+		let sessionsHeader = settingsColumnHeader("Sessions")
+		sessionsHeader.alignment = .center
+		platformCard.addSubview(sessionsHeader)
 		let sessionCapHeader = settingsColumnHeader("Session Cap")
 		platformCard.addSubview(sessionCapHeader)
 
-		var previousAnchor: NSLayoutYAxisAnchor = sessionPetsHeader.bottomAnchor
+		var previousAnchor: NSLayoutYAxisAnchor = sessionsHeader.bottomAnchor
 		var previousConstant: CGFloat = 10
 
 		for origin in CustomizationTabViewModel.origins {
@@ -1704,17 +1704,20 @@ private final class CustomizationTabView: NSView {
 			platformCard.addSubview(picker)
 			modePickers[origin] = picker
 
-			let sessionPetsCheckbox = NSButton(
-				checkboxWithTitle: "",
-				target: self,
-				action: #selector(sessionPetsCheckboxChanged(_:))
-			)
-			sessionPetsCheckbox.state = viewModel.sessionPetsEnabled[origin] == true ? .on : .off
-			sessionPetsCheckbox.isEnabled = mode.supportsSessionPets
-			sessionPetsCheckbox.identifier = NSUserInterfaceItemIdentifier(origin)
-			sessionPetsCheckbox.translatesAutoresizingMaskIntoConstraints = false
-			platformCard.addSubview(sessionPetsCheckbox)
-			sessionPetsCheckboxes[origin] = sessionPetsCheckbox
+			let sessionsPicker = NSPopUpButton()
+			sessionsPicker.translatesAutoresizingMaskIntoConstraints = false
+			for enabled in [true, false] {
+				sessionsPicker.addItem(withTitle: enabled ? "Enabled" : "Disabled")
+				sessionsPicker.lastItem?.representedObject = enabled
+			}
+			let sessionsEnabled = viewModel.sessionPetsEnabled[origin] == true
+			sessionsPicker.selectItem(withTitle: sessionsEnabled ? "Enabled" : "Disabled")
+			sessionsPicker.isEnabled = mode.supportsSessionPets
+			sessionsPicker.identifier = NSUserInterfaceItemIdentifier(origin)
+			sessionsPicker.target = self
+			sessionsPicker.action = #selector(sessionsPickerChanged(_:))
+			platformCard.addSubview(sessionsPicker)
+			sessionsPickers[origin] = sessionsPicker
 
 			let sessionCapPicker = NSPopUpButton()
 			sessionCapPicker.translatesAutoresizingMaskIntoConstraints = false
@@ -1725,7 +1728,7 @@ private final class CustomizationTabView: NSView {
 			let effectiveCap = viewModel.effectiveSessionCap(for: origin)
 			let currentCapOption = SessionCapOption.matching(effectiveCap) ?? .three
 			sessionCapPicker.selectItem(withTitle: currentCapOption.label)
-			sessionCapPicker.isEnabled = mode.supportsSessionPets && sessionPetsCheckbox.state == .on
+			sessionCapPicker.isEnabled = mode.supportsSessionPets && sessionsEnabled
 			sessionCapPicker.target = self
 			sessionCapPicker.action = #selector(sessionCapPickerChanged(_:))
 			sessionCapPicker.identifier = NSUserInterfaceItemIdentifier(origin)
@@ -1741,8 +1744,9 @@ private final class CustomizationTabView: NSView {
 				picker.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
 				picker.widthAnchor.constraint(equalToConstant: Self.modeColumnWidth),
 
-				sessionPetsCheckbox.centerYAnchor.constraint(equalTo: label.centerYAnchor),
-				sessionPetsCheckbox.centerXAnchor.constraint(equalTo: sessionPetsHeader.centerXAnchor),
+				sessionsPicker.centerYAnchor.constraint(equalTo: label.centerYAnchor),
+				sessionsPicker.centerXAnchor.constraint(equalTo: sessionsHeader.centerXAnchor),
+				sessionsPicker.widthAnchor.constraint(equalToConstant: Self.sessionsColumnWidth),
 
 				sessionCapPicker.centerYAnchor.constraint(equalTo: label.centerYAnchor),
 				sessionCapPicker.trailingAnchor.constraint(equalTo: platformCard.trailingAnchor, constant: -16),
@@ -1872,9 +1876,9 @@ private final class CustomizationTabView: NSView {
 			modeHeader.leadingAnchor.constraint(equalTo: platformCard.leadingAnchor, constant: 16 + 110 + 8),
 			modeHeader.widthAnchor.constraint(equalToConstant: Self.modeColumnWidth),
 
-			sessionPetsHeader.centerYAnchor.constraint(equalTo: modeHeader.centerYAnchor),
-			sessionPetsHeader.leadingAnchor.constraint(equalTo: modeHeader.trailingAnchor, constant: 24),
-			sessionPetsHeader.widthAnchor.constraint(equalToConstant: Self.sessionPetsColumnWidth),
+			sessionsHeader.centerYAnchor.constraint(equalTo: modeHeader.centerYAnchor),
+			sessionsHeader.leadingAnchor.constraint(equalTo: modeHeader.trailingAnchor, constant: 24),
+			sessionsHeader.widthAnchor.constraint(equalToConstant: Self.sessionsColumnWidth),
 
 			sessionCapHeader.centerYAnchor.constraint(equalTo: modeHeader.centerYAnchor),
 			sessionCapHeader.trailingAnchor.constraint(equalTo: platformCard.trailingAnchor, constant: -16),
@@ -1920,7 +1924,12 @@ private final class CustomizationTabView: NSView {
 			scaleNote.leadingAnchor.constraint(equalTo: minimalistCard.leadingAnchor, constant: 16),
 			scaleNote.trailingAnchor.constraint(equalTo: minimalistCard.trailingAnchor, constant: -16),
 
-			scaleNote.bottomAnchor.constraint(equalTo: minimalistCard.bottomAnchor, constant: -16),
+			scaleNote.bottomAnchor.constraint(
+				lessThanOrEqualTo: minimalistCard.bottomAnchor, constant: -16),
+
+			// Match the Platform Settings card's height for visual symmetry, since
+			// both cards share the same top anchor (rowsTop + 20).
+			minimalistCard.bottomAnchor.constraint(equalTo: platformCard.bottomAnchor),
 
 			ttlBelowPlatform, ttlBelowMinimalist, ttlPrefersBelowPlatform,
 			ttlTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
@@ -1958,16 +1967,19 @@ private final class CustomizationTabView: NSView {
 		else { return }
 		viewModel.setMode(mode, for: origin)
 		// Mode gates interactivity only — it never touches a stored session-pets
-		// checkbox or cap value, so Combined/Off can be toggled back to
+		// picker or cap value, so Combined/Off can be toggled back to
 		// Own/Minimalist without losing anything.
-		let checkbox = sessionPetsCheckboxes[origin]
-		checkbox?.isEnabled = mode.supportsSessionPets
-		sessionCapPickers[origin]?.isEnabled = mode.supportsSessionPets && checkbox?.state == .on
+		let picker = sessionsPickers[origin]
+		picker?.isEnabled = mode.supportsSessionPets
+		let enabled = picker?.selectedItem?.representedObject as? Bool ?? false
+		sessionCapPickers[origin]?.isEnabled = mode.supportsSessionPets && enabled
 	}
 
-	@objc private func sessionPetsCheckboxChanged(_ sender: NSButton) {
-		guard let origin = sender.identifier?.rawValue else { return }
-		let enabled = sender.state == .on
+	@objc private func sessionsPickerChanged(_ sender: NSPopUpButton) {
+		guard
+			let origin = sender.identifier?.rawValue,
+			let enabled = sender.selectedItem?.representedObject as? Bool
+		else { return }
 		viewModel.setSessionPetsEnabled(enabled, for: origin)
 		sessionCapPickers[origin]?.isEnabled = enabled && viewModel.mode(for: origin).supportsSessionPets
 	}
