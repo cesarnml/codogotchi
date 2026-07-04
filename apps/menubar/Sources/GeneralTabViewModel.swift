@@ -9,6 +9,11 @@ final class GeneralTabViewModel {
 	/// A single platform row as the tab renders it.
 	struct PlatformRow: Equatable {
 		let name: String
+		/// Origin key (`"codex"`, `"claude_code"`, …) used to look up the
+		/// platform's icon via `PlatformAttribution`. Distinct from `name`
+		/// (the human-readable label) so the view doesn't have to re-derive
+		/// one from the other.
+		let originKey: String
 		let installed: Bool
 		let partiallyInstalled: Bool
 		let firingRecently: Bool
@@ -21,6 +26,51 @@ final class GeneralTabViewModel {
 		/// `false` means genuine registration drift (missing event slots or a stale
 		/// command path) that re-running Update actually fixes.
 		let registrationCurrent: Bool
+
+		/// Which status pill to show and the descriptor line beneath it in the
+		/// Hooks table. Purely a display-layer grouping of the fields above —
+		/// no new data, just named buckets instead of ad hoc string assembly
+		/// (see the old `platformLine()` this replaces).
+		enum StatusPill: Equatable {
+			case installed
+			case updateAvailable
+			case detectedNotInstalled
+			case notInstalled
+			case notSupported
+		}
+
+		struct StatusPresentation: Equatable {
+			let pill: StatusPill
+			let pillTitle: String
+			let descriptor: String
+		}
+
+		var statusPresentation: StatusPresentation {
+			guard installable else {
+				return StatusPresentation(
+					pill: .notSupported, pillTitle: "Not supported yet", descriptor: "Coming soon")
+			}
+			if installed && registrationCurrent {
+				return StatusPresentation(
+					pill: .installed, pillTitle: "Installed", descriptor: "Registration current")
+			}
+			// Covers both a fully-installed-but-stale registration and a partial
+			// install (present, missing a newly added event slot) — both are
+			// fixed the same way: re-run Update.
+			if installed || partiallyInstalled {
+				return StatusPresentation(
+					pill: .updateAvailable, pillTitle: "Update available",
+					descriptor: "Registration out of date")
+			}
+			if detected {
+				return StatusPresentation(
+					pill: .detectedNotInstalled, pillTitle: "Detected — not installed",
+					descriptor: "Present on this machine, no hooks yet")
+			}
+			return StatusPresentation(
+				pill: .notInstalled, pillTitle: "Not installed",
+				descriptor: "Run Install hooks to add this tool")
+		}
 	}
 
 	/// Current per-platform rows. Updated by `applySnapshot(_:)` and `refresh()`.
@@ -134,11 +184,11 @@ final class GeneralTabViewModel {
 	func applySnapshot(_ snapshot: HooksStatusSnapshot) {
 		lastSnapshot = snapshot
 		rows = [
-			row("Codex", snapshot.codex),
-			row("Claude Code", snapshot.claudeCode),
-			row("Cursor", snapshot.cursor),
-			row("VS Code", snapshot.vscode),
-			row("Antigravity", snapshot.antigravity),
+			row("Codex", "codex", snapshot.codex),
+			row("Claude Code", "claude_code", snapshot.claudeCode),
+			row("Cursor", "cursor", snapshot.cursor),
+			row("VS Code", "vscode", snapshot.vscode),
+			row("Antigravity", "antigravity", snapshot.antigravity),
 		]
 	}
 
@@ -196,9 +246,10 @@ final class GeneralTabViewModel {
 		]
 	}
 
-	private func row(_ name: String, _ p: HooksStatusSnapshot.Platform) -> PlatformRow {
+	private func row(_ name: String, _ originKey: String, _ p: HooksStatusSnapshot.Platform) -> PlatformRow {
 		PlatformRow(
 			name: name,
+			originKey: originKey,
 			installed: p.installed,
 			partiallyInstalled: p.partiallyInstalled,
 			firingRecently: p.firingRecently,

@@ -20,6 +20,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private var generalTab: GeneralTabView?
 	private var petTab: PetTabView?
 	private weak var tabView: NSTabView?
+	private weak var tabStripView: TabStripView?
 	private let tabModel = SettingsTabModel()
 	private let generalViewModel: GeneralTabViewModel
 	private let petTabViewModel: PetTabViewModel
@@ -104,6 +105,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		generalTab = nil
 		petTab = nil
 		tabView = nil
+		tabStripView = nil
 		// Drop back to a menu-bar-only presence — no Dock icon, no Cmd+Tab entry —
 		// now that Settings is gone. Any other visible window (onboarding, floating
 		// pet panels) does not require `.regular`, so this always reverts cleanly.
@@ -118,6 +120,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			let tab = SettingsTab(rawValue: identifier)
 		else { return }
 		tabModel.select(tab)
+		tabStripView?.setSelected(tab)
 	}
 
 	// MARK: - Private
@@ -136,6 +139,15 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			defer: false
 		)
 		w.title = Self.windowTitle
+		// The Settings design is a fixed dark-navy theme (mockup-approved), not a
+		// light/dark adaptive one — force dark appearance so semantic colors
+		// resolve correctly on the navy background in either system mode.
+		w.appearance = NSAppearance(named: .darkAqua)
+		w.backgroundColor = SettingsTheme.windowBackground
+		// Blend the title bar into the navy theme: a transparent titlebar draws
+		// the window background color behind the traffic lights and title text
+		// instead of the system's opaque gray chrome.
+		w.titlebarAppearsTransparent = true
 		w.isReleasedWhenClosed = false
 		w.minSize = CGSize(width: 1024, height: 480)
 		w.delegate = self
@@ -182,7 +194,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		let about = AboutTabView(viewModel: aboutViewModel)
 
 		let tabView = NSTabView()
-		tabView.tabViewType = .topTabsBezelBorder
+		// Native tab chrome is replaced by `TabStripView` below — `.topTabsBezelBorder`
+		// only offers plain-label tabs (`NSTabViewItem.image` doesn't render in that
+		// style), so the mockup's icon + colored-pill tab strip needs a custom control
+		// driving `NSTabView` selection programmatically instead.
+		tabView.tabViewType = .noTabsNoBorder
 		tabView.translatesAutoresizingMaskIntoConstraints = false
 
 		for (tab, view): (SettingsTab, NSView) in [
@@ -199,10 +215,25 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			tabView.addTabViewItem(item)
 		}
 
+		let tabStrip = TabStripView(tabs: SettingsTab.allCases)
+		tabStrip.translatesAutoresizingMaskIntoConstraints = false
+		tabStrip.onSelect = { [weak tabView] tab in
+			tabView?.selectTabViewItem(at: tab.rawValue)
+		}
+
 		let container = NSView(frame: frame)
+		container.wantsLayer = true
+		container.layer?.backgroundColor = SettingsTheme.windowBackground.cgColor
+		container.addSubview(tabStrip)
 		container.addSubview(tabView)
 		NSLayoutConstraint.activate([
-			tabView.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
+			tabStrip.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
+			tabStrip.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+			tabStrip.leadingAnchor.constraint(
+				greaterThanOrEqualTo: container.leadingAnchor, constant: 12),
+			tabStrip.trailingAnchor.constraint(
+				lessThanOrEqualTo: container.trailingAnchor, constant: -12),
+			tabView.topAnchor.constraint(equalTo: tabStrip.bottomAnchor, constant: 12),
 			tabView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
 			tabView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
 			tabView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12),
@@ -213,6 +244,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		// delegate were already wired. Select the real target, then attach the
 		// delegate so subsequent user-driven tab clicks are tracked correctly.
 		tabView.selectTabViewItem(at: tabModel.selected.rawValue)
+		tabStrip.setSelected(tabModel.selected)
 		tabView.delegate = self
 
 		w.makeKeyAndOrderFront(nil)
@@ -221,6 +253,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		self.generalTab = general
 		self.petTab = pet
 		self.tabView = tabView
+		self.tabStripView = tabStrip
 	}
 
 	private func handleInstallHooks() {
@@ -335,6 +368,99 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	}
 }
 
+// MARK: - SettingsTheme
+
+/// Fixed dark-navy palette for the Settings window, matching the approved
+/// mockup. Applied window-wide (all six tabs) via the window's forced
+/// `.darkAqua` appearance + these background layers; system semantic colors
+/// (`labelColor` etc.) resolve against the dark appearance on top of it.
+private enum SettingsTheme {
+	static let windowBackground = NSColor(srgbRed: 0.043, green: 0.063, blue: 0.102, alpha: 1)  // #0B101A
+	static let cardBackground = NSColor(srgbRed: 0.071, green: 0.098, blue: 0.153, alpha: 1)  // #121927
+	static let tableBackground = NSColor(srgbRed: 0.055, green: 0.078, blue: 0.125, alpha: 1)  // #0E1420
+	static let buttonBackground = NSColor(srgbRed: 0.098, green: 0.133, blue: 0.204, alpha: 1)  // #192234
+	static let cardBorder = NSColor.white.withAlphaComponent(0.08)
+	static let rowDivider = NSColor.white.withAlphaComponent(0.06)
+}
+
+// MARK: - TabStripView
+
+/// Custom icon + label tab strip replacing native `NSTabViewItem` tabs, which
+/// only render plain labels in `.topTabsBezelBorder` style (`.image` is a
+/// segmented/toolbar-tab-only behavior). Drives `NSTabView` selection via
+/// `onSelect`; the owning controller keeps `setSelected` in sync with
+/// programmatic and delegate-driven selection changes.
+private final class TabStripView: NSView {
+	private var buttons: [SettingsTab: NSButton] = [:]
+	private var pills: [SettingsTab: NSView] = [:]
+	var onSelect: ((SettingsTab) -> Void)?
+
+	init(tabs: [SettingsTab]) {
+		super.init(frame: .zero)
+		translatesAutoresizingMaskIntoConstraints = false
+
+		let stack = NSStackView()
+		stack.orientation = .horizontal
+		stack.spacing = 4
+		stack.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(stack)
+		NSLayoutConstraint.activate([
+			stack.topAnchor.constraint(equalTo: topAnchor),
+			stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+			stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+			stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+		])
+
+		for tab in tabs {
+			let button = NSButton(
+				title: tab.title, target: self, action: #selector(tabTapped(_:)))
+			button.tag = tab.rawValue
+			button.image = NSImage(systemSymbolName: tab.symbolName, accessibilityDescription: nil)
+			button.imagePosition = .imageLeading
+			button.isBordered = false
+			button.font = .systemFont(ofSize: 13, weight: .medium)
+
+			// The pill background lives on a wrapper view, not the button itself,
+			// so horizontal padding is real layout (leading/trailing constraints)
+			// rather than literal spaces baked into the title string.
+			let pill = NSView()
+			pill.translatesAutoresizingMaskIntoConstraints = false
+			pill.wantsLayer = true
+			pill.layer?.cornerRadius = 6
+			button.translatesAutoresizingMaskIntoConstraints = false
+			pill.addSubview(button)
+			NSLayoutConstraint.activate([
+				pill.heightAnchor.constraint(equalToConstant: 32),
+				button.topAnchor.constraint(equalTo: pill.topAnchor, constant: 6),
+				button.bottomAnchor.constraint(equalTo: pill.bottomAnchor, constant: -6),
+				button.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 16),
+				button.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -16),
+			])
+			stack.addArrangedSubview(pill)
+			buttons[tab] = button
+			pills[tab] = pill
+		}
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	@objc private func tabTapped(_ sender: NSButton) {
+		guard let tab = SettingsTab(rawValue: sender.tag) else { return }
+		onSelect?(tab)
+		setSelected(tab)
+	}
+
+	func setSelected(_ tab: SettingsTab) {
+		for (t, pill) in pills {
+			let isSelected = t == tab
+			pill.layer?.backgroundColor =
+				isSelected ? NSColor.systemBlue.cgColor : NSColor.clear.cgColor
+			buttons[t]?.contentTintColor = isSelected ? .white : .secondaryLabelColor
+		}
+	}
+}
+
 // MARK: - Shared helpers
 
 private func settingsSectionTitle(_ text: String) -> NSTextField {
@@ -356,6 +482,49 @@ private func settingsBodyLabel(_ text: String) -> NSTextField {
 	return label
 }
 
+/// Rounded square icon badge used in section headers (the Hooks card treatment,
+/// reused by every tab's wrapper card and inner panels to unify the design
+/// language). `side` 32 for tab-level headers, 24 for inner panel titles.
+private func settingsHeaderIconBadge(
+	symbolName: String, color: NSColor, side: CGFloat = 32
+) -> NSView {
+	let badge = NSView()
+	badge.translatesAutoresizingMaskIntoConstraints = false
+	badge.wantsLayer = true
+	badge.layer?.cornerRadius = side / 4
+	badge.layer?.backgroundColor = color.cgColor
+
+	let glyph = NSImageView()
+	glyph.translatesAutoresizingMaskIntoConstraints = false
+	glyph.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+	glyph.contentTintColor = .white
+	glyph.imageScaling = .scaleProportionallyUpOrDown
+	badge.addSubview(glyph)
+
+	NSLayoutConstraint.activate([
+		badge.widthAnchor.constraint(equalToConstant: side),
+		badge.heightAnchor.constraint(equalToConstant: side),
+		glyph.centerXAnchor.constraint(equalTo: badge.centerXAnchor),
+		glyph.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
+		glyph.widthAnchor.constraint(equalToConstant: side / 2),
+		glyph.heightAnchor.constraint(equalToConstant: side / 2),
+	])
+	return badge
+}
+
+/// Themed card container matching the General tab's Hooks card, so every
+/// tab's content sits in the same navy panel treatment.
+private func settingsThemedCard() -> NSView {
+	let card = NSView()
+	card.translatesAutoresizingMaskIntoConstraints = false
+	card.wantsLayer = true
+	card.layer?.cornerRadius = 10
+	card.layer?.backgroundColor = SettingsTheme.cardBackground.cgColor
+	card.layer?.borderWidth = 1
+	card.layer?.borderColor = SettingsTheme.cardBorder.cgColor
+	return card
+}
+
 /// Small caps-style column header, used above per-platform table rows
 /// (Platform Settings card).
 private func settingsColumnHeader(_ text: String) -> NSTextField {
@@ -373,19 +542,22 @@ private func settingsColumnHeader(_ text: String) -> NSTextField {
 
 // MARK: - GeneralTabView (Hooks)
 
-/// General tab — Install / Update / Remove hooks + per-platform status + Copy diagnostics.
+/// General tab — per-platform hook status table, Install/Update/Remove/Copy
+/// diagnostics strip directly beneath it, then a single dynamic status panel
+/// (idle/stale/new-tool-detected, or in-flight action feedback), then the
+/// menu-bar-icon toggle row, all inside one themed card.
 private final class GeneralTabView: NSView {
-	private let hooksStatusLabel = NSTextField(wrappingLabelWithString: "")
+	private var hookRows: [HookRowView] = []
+	private let hookRowsStack = NSStackView()
 	private let installButton = NSButton(title: "Install hooks", target: nil, action: nil)
 	private let updateButton = NSButton(title: "Update hooks", target: nil, action: nil)
 	private let removeButton = NSButton(title: "Remove hooks", target: nil, action: nil)
 	private let copyDiagnosticsButton = NSButton(
 		title: "Copy diagnostics", target: nil, action: nil
 	)
-	private let hooksFeedbackLabel = NSTextField(wrappingLabelWithString: "")
-	private let bannerView = UpdateBannerView()
-	private let monochromeToggle = NSButton(
-		checkboxWithTitle: "Monochrome menu bar icon", target: nil, action: nil)
+	private let statusPanel = DynamicStatusPanelView()
+	private let hookTableContainer = NSView()
+	private let monochromeSwitch = NSSwitch()
 
 	private let onInstallHooks: () -> Void
 	private let onUpdateHooks: () -> Void
@@ -405,7 +577,6 @@ private final class GeneralTabView: NSView {
 		self.onUninstallHooks = onUninstallHooks
 		super.init(frame: .zero)
 		setupViews()
-		bannerView.onUpdate = onUpdateHooks
 		applyViewModel(viewModel)
 	}
 
@@ -414,52 +585,120 @@ private final class GeneralTabView: NSView {
 
 	func applyViewModel(_ vm: GeneralTabViewModel) {
 		viewModel = vm
-		hooksStatusLabel.stringValue = vm.rows.map { platformLine($0) }.joined(separator: "\n")
-		bannerView.message = vm.updateBannerMessage
-		bannerView.isHidden = !vm.shouldShowUpdateBanner
-		monochromeToggle.state = vm.menubarIconMonochrome ? .on : .off
+		rebuildHookRows(vm.rows)
+		statusPanel.state = vm.shouldShowUpdateBanner
+			? .attention(vm.updateBannerMessage)
+			: .upToDate
+		monochromeSwitch.state = vm.menubarIconMonochrome ? .on : .off
 	}
 
 	func setHooksWorking(message: String) {
 		[installButton, updateButton, removeButton].forEach { $0.isEnabled = false }
-		hooksFeedbackLabel.stringValue = message
-		hooksFeedbackLabel.textColor = .secondaryLabelColor
+		statusPanel.state = .working(message)
 	}
 
 	func setHooksSuccess(message: String) {
 		[installButton, updateButton, removeButton].forEach { $0.isEnabled = true }
-		hooksFeedbackLabel.stringValue = message
-		hooksFeedbackLabel.textColor = .systemGreen
+		statusPanel.state = .success(message)
 	}
 
 	func setHooksError(_ message: String) {
 		[installButton, updateButton, removeButton].forEach { $0.isEnabled = true }
-		hooksFeedbackLabel.stringValue = message
-		hooksFeedbackLabel.textColor = .systemRed
+		statusPanel.state = .error(message)
 	}
 
 	private func setupViews() {
 		// Prevent unsatisfiable-constraint log when the view is constructed at
 		// .zero before joining the window hierarchy. The real window min-width
-		// (460pt) wins once the view is in the superview chain.
+		// (1024pt) wins once the view is in the superview chain.
 		let floor = widthAnchor.constraint(greaterThanOrEqualToConstant: 460)
 		floor.priority = .defaultHigh
 		floor.isActive = true
 
+		// Card groups the Hooks section as one unit on the navy window background
+		// (see `SettingsTheme` for the mockup palette).
+		let card = NSView()
+		card.translatesAutoresizingMaskIntoConstraints = false
+		card.wantsLayer = true
+		card.layer?.cornerRadius = 10
+		card.layer?.backgroundColor = SettingsTheme.cardBackground.cgColor
+		card.layer?.borderWidth = 1
+		card.layer?.borderColor = SettingsTheme.cardBorder.cgColor
+		addSubview(card)
+
+		let iconBadge = NSView()
+		iconBadge.translatesAutoresizingMaskIntoConstraints = false
+		iconBadge.wantsLayer = true
+		iconBadge.layer?.cornerRadius = 8
+		iconBadge.layer?.backgroundColor = NSColor.systemIndigo.cgColor
+		card.addSubview(iconBadge)
+
+		let iconGlyph = NSImageView()
+		iconGlyph.translatesAutoresizingMaskIntoConstraints = false
+		iconGlyph.image = NSImage(
+			systemSymbolName: "puzzlepiece.fill", accessibilityDescription: nil)
+		iconGlyph.contentTintColor = .white
+		iconGlyph.imageScaling = .scaleProportionallyUpOrDown
+		iconBadge.addSubview(iconGlyph)
+
 		let title = settingsSectionTitle("Hooks")
-		addSubview(title)
+		title.font = .systemFont(ofSize: 15, weight: .semibold)
+		card.addSubview(title)
 
-		hooksStatusLabel.isEditable = false
-		hooksStatusLabel.isBordered = false
-		hooksStatusLabel.backgroundColor = .clear
-		hooksStatusLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-		hooksStatusLabel.textColor = .secondaryLabelColor
-		hooksStatusLabel.stringValue = "Loading…"
-		hooksStatusLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(hooksStatusLabel)
+		let subtitleNote = settingsBodyLabel(
+			"Connects Codogotchi to your coding tools so it can react to what you're doing."
+		)
+		card.addSubview(subtitleNote)
 
-		for btn in [installButton, updateButton, removeButton, copyDiagnosticsButton] {
-			btn.bezelStyle = .rounded
+		// Rows live in a shaded, bordered strip (mockup's table treatment);
+		// hairline dividers are drawn per-row in `HookRowView`.
+		hookTableContainer.translatesAutoresizingMaskIntoConstraints = false
+		hookTableContainer.wantsLayer = true
+		hookTableContainer.layer?.cornerRadius = 8
+		hookTableContainer.layer?.backgroundColor = SettingsTheme.tableBackground.cgColor
+		hookTableContainer.layer?.borderWidth = 1
+		hookTableContainer.layer?.borderColor = SettingsTheme.cardBorder.cgColor
+		card.addSubview(hookTableContainer)
+
+		hookRowsStack.orientation = .vertical
+		hookRowsStack.spacing = 0
+		// NSStackView has no `.fill` alignment for a vertical stack — `.leading`
+		// plus an explicit width constraint per arranged row (in
+		// `rebuildHookRows`) is what actually stretches each row to the stack's
+		// width.
+		hookRowsStack.alignment = .leading
+		hookRowsStack.translatesAutoresizingMaskIntoConstraints = false
+		hookTableContainer.addSubview(hookRowsStack)
+
+		let buttonSpecs: [(NSButton, String, String, NSColor)] = [
+			(installButton, "Install hooks", "square.and.arrow.down", .systemBlue),
+			(updateButton, "Update hooks", "arrow.triangle.2.circlepath", .systemBlue),
+			(removeButton, "Remove hooks", "trash", .systemRed),
+			(copyDiagnosticsButton, "Copy diagnostics", "doc.on.clipboard", .systemPurple),
+		]
+		for (btn, buttonTitle, symbol, tint) in buttonSpecs {
+			// Borderless custom-drawn buttons: the standard `.rounded` bezel caps
+			// out visually short and can't take the mockup's dark fill. Content
+			// (icon + label) centers within each equal-width button.
+			btn.isBordered = false
+			btn.wantsLayer = true
+			btn.layer?.backgroundColor = SettingsTheme.buttonBackground.cgColor
+			btn.layer?.cornerRadius = 8
+			btn.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+				.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 15, weight: .medium))
+			btn.imagePosition = .imageLeading
+			// Without this, a wide borderless button pins the image to its leading
+			// edge and centers only the title; hugging keeps icon+label together
+			// as one centered cluster.
+			btn.imageHugsTitle = true
+			btn.contentTintColor = tint
+			btn.attributedTitle = NSAttributedString(
+				string: " " + buttonTitle,
+				attributes: [
+					.foregroundColor: NSColor.labelColor,
+					.font: NSFont.systemFont(ofSize: 13, weight: .medium),
+				])
+			btn.heightAnchor.constraint(equalToConstant: 40).isActive = true
 		}
 		installButton.target = self
 		installButton.action = #selector(installTapped)
@@ -470,139 +709,329 @@ private final class GeneralTabView: NSView {
 		copyDiagnosticsButton.target = self
 		copyDiagnosticsButton.action = #selector(copyDiagnosticsTapped)
 
-		let actionRow = NSStackView(views: [installButton, updateButton, removeButton])
+		// Single strip: Install / Update / Remove / Copy diagnostics together,
+		// directly beneath the table — the controls that act on it live right
+		// next to what they act on, instead of below a wall of text.
+		let actionRow = NSStackView(views: [
+			installButton, updateButton, removeButton, copyDiagnosticsButton,
+		])
 		actionRow.orientation = .horizontal
 		actionRow.spacing = 8
+		actionRow.distribution = .fillEqually
 		actionRow.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(actionRow)
+		card.addSubview(actionRow)
 
-		let diagRow = NSStackView(views: [copyDiagnosticsButton])
-		diagRow.orientation = .horizontal
-		diagRow.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(diagRow)
+		statusPanel.translatesAutoresizingMaskIntoConstraints = false
+		card.addSubview(statusPanel)
 
-		hooksFeedbackLabel.isEditable = false
-		hooksFeedbackLabel.isBordered = false
-		hooksFeedbackLabel.backgroundColor = .clear
-		hooksFeedbackLabel.font = .systemFont(ofSize: 11)
-		hooksFeedbackLabel.textColor = .secondaryLabelColor
-		hooksFeedbackLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(hooksFeedbackLabel)
+		monochromeSwitch.target = self
+		monochromeSwitch.action = #selector(monochromeToggleChanged)
+		monochromeSwitch.translatesAutoresizingMaskIntoConstraints = false
 
-		let cursorNote = settingsBodyLabel(
-			"Install hooks wires every coding tool detected on this machine — Codex, "
-				+ "Claude Code, Cursor, VS Code, and Antigravity — re-run any time to "
-				+ "update or pick up a newly installed tool. Cursor only reads hooks at "
-				+ "launch, so restart it after installing."
-		)
-		addSubview(cursorNote)
+		// Monochrome row per the mockup: icon badge + title/subtitle on the left,
+		// a switch on the right, in its own shaded strip at the card's bottom.
+		let monoRow = NSView()
+		monoRow.translatesAutoresizingMaskIntoConstraints = false
+		monoRow.wantsLayer = true
+		monoRow.layer?.cornerRadius = 8
+		monoRow.layer?.backgroundColor = SettingsTheme.tableBackground.cgColor
+		card.addSubview(monoRow)
 
-		bannerView.translatesAutoresizingMaskIntoConstraints = false
-		bannerView.isHidden = true
-		addSubview(bannerView)
+		let monoBadge = NSView()
+		monoBadge.translatesAutoresizingMaskIntoConstraints = false
+		monoBadge.wantsLayer = true
+		monoBadge.layer?.cornerRadius = 6
+		monoBadge.layer?.backgroundColor = SettingsTheme.buttonBackground.cgColor
+		monoRow.addSubview(monoBadge)
 
-		monochromeToggle.target = self
-		monochromeToggle.action = #selector(monochromeToggleChanged)
-		monochromeToggle.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(monochromeToggle)
+		let monoGlyph = NSImageView()
+		monoGlyph.translatesAutoresizingMaskIntoConstraints = false
+		monoGlyph.image = NSImage(systemSymbolName: "list.bullet", accessibilityDescription: nil)
+		monoGlyph.contentTintColor = .secondaryLabelColor
+		monoGlyph.imageScaling = .scaleProportionallyUpOrDown
+		monoBadge.addSubview(monoGlyph)
+
+		let monoTitle = NSTextField(labelWithString: "Monochrome menu bar icon")
+		monoTitle.font = .systemFont(ofSize: 13, weight: .medium)
+		monoTitle.translatesAutoresizingMaskIntoConstraints = false
+		monoRow.addSubview(monoTitle)
+
+		let monoSubtitle = NSTextField(
+			labelWithString: "Use a monochrome icon in the macOS menu bar.")
+		monoSubtitle.font = .systemFont(ofSize: 11)
+		monoSubtitle.textColor = .secondaryLabelColor
+		monoSubtitle.translatesAutoresizingMaskIntoConstraints = false
+		monoRow.addSubview(monoSubtitle)
+
+		monoRow.addSubview(monochromeSwitch)
 
 		NSLayoutConstraint.activate([
-			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
-			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			monoBadge.leadingAnchor.constraint(equalTo: monoRow.leadingAnchor, constant: 14),
+			monoBadge.centerYAnchor.constraint(equalTo: monoRow.centerYAnchor),
+			monoBadge.widthAnchor.constraint(equalToConstant: 28),
+			monoBadge.heightAnchor.constraint(equalToConstant: 28),
 
-			hooksStatusLabel.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 10),
-			hooksStatusLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			hooksStatusLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			monoGlyph.centerXAnchor.constraint(equalTo: monoBadge.centerXAnchor),
+			monoGlyph.centerYAnchor.constraint(equalTo: monoBadge.centerYAnchor),
+			monoGlyph.widthAnchor.constraint(equalToConstant: 14),
+			monoGlyph.heightAnchor.constraint(equalToConstant: 14),
 
-			actionRow.topAnchor.constraint(equalTo: hooksStatusLabel.bottomAnchor, constant: 12),
-			actionRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			monoTitle.leadingAnchor.constraint(equalTo: monoBadge.trailingAnchor, constant: 12),
+			monoTitle.topAnchor.constraint(equalTo: monoRow.topAnchor, constant: 10),
 
-			diagRow.topAnchor.constraint(equalTo: actionRow.bottomAnchor, constant: 8),
-			diagRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			monoSubtitle.leadingAnchor.constraint(equalTo: monoTitle.leadingAnchor),
+			monoSubtitle.topAnchor.constraint(equalTo: monoTitle.bottomAnchor, constant: 2),
 
-			hooksFeedbackLabel.topAnchor.constraint(equalTo: diagRow.bottomAnchor, constant: 8),
-			hooksFeedbackLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			hooksFeedbackLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			monochromeSwitch.trailingAnchor.constraint(
+				equalTo: monoRow.trailingAnchor, constant: -14),
+			monochromeSwitch.centerYAnchor.constraint(equalTo: monoRow.centerYAnchor),
+		])
 
-			cursorNote.topAnchor.constraint(equalTo: hooksFeedbackLabel.bottomAnchor, constant: 8),
-			cursorNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			cursorNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+		NSLayoutConstraint.activate([
+			card.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+			card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			bannerView.topAnchor.constraint(equalTo: cursorNote.bottomAnchor, constant: 12),
-			bannerView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			bannerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			iconBadge.topAnchor.constraint(equalTo: card.topAnchor, constant: 20),
+			iconBadge.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			iconBadge.widthAnchor.constraint(equalToConstant: 32),
+			iconBadge.heightAnchor.constraint(equalToConstant: 32),
 
-			monochromeToggle.topAnchor.constraint(equalTo: bannerView.bottomAnchor, constant: 16),
-			monochromeToggle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			iconGlyph.centerXAnchor.constraint(equalTo: iconBadge.centerXAnchor),
+			iconGlyph.centerYAnchor.constraint(equalTo: iconBadge.centerYAnchor),
+			iconGlyph.widthAnchor.constraint(equalToConstant: 16),
+			iconGlyph.heightAnchor.constraint(equalToConstant: 16),
+
+			// Title + subtitle stack to the right of the icon badge (mockup header).
+			title.leadingAnchor.constraint(equalTo: iconBadge.trailingAnchor, constant: 12),
+			title.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+			title.topAnchor.constraint(equalTo: card.topAnchor, constant: 18),
+
+			subtitleNote.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
+			subtitleNote.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+			subtitleNote.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+
+			hookTableContainer.topAnchor.constraint(
+				equalTo: subtitleNote.bottomAnchor, constant: 16),
+			hookTableContainer.leadingAnchor.constraint(
+				equalTo: card.leadingAnchor, constant: 20),
+			hookTableContainer.trailingAnchor.constraint(
+				equalTo: card.trailingAnchor, constant: -20),
+
+			hookRowsStack.topAnchor.constraint(equalTo: hookTableContainer.topAnchor),
+			hookRowsStack.leadingAnchor.constraint(equalTo: hookTableContainer.leadingAnchor),
+			hookRowsStack.trailingAnchor.constraint(equalTo: hookTableContainer.trailingAnchor),
+			hookRowsStack.bottomAnchor.constraint(equalTo: hookTableContainer.bottomAnchor),
+
+			actionRow.topAnchor.constraint(
+				equalTo: hookTableContainer.bottomAnchor, constant: 14),
+			actionRow.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			actionRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+
+			statusPanel.topAnchor.constraint(equalTo: actionRow.bottomAnchor, constant: 14),
+			statusPanel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			statusPanel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+
+			monoRow.topAnchor.constraint(equalTo: statusPanel.bottomAnchor, constant: 14),
+			monoRow.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			monoRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+			monoRow.heightAnchor.constraint(equalToConstant: 56),
+			monoRow.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
 		])
 	}
 
-	private func platformLine(_ row: GeneralTabViewModel.PlatformRow) -> String {
-		var parts: [String] = [row.name]
-		if row.installable {
-			if row.installed {
-				parts.append("installed")
-			} else if row.partiallyInstalled {
-				// Present and firing, just missing a newly-added event. Don't
-				// read as "not installed" — nudge a re-install to complete it.
-				parts.append("installed (update available — re-run Install hooks)")
-			} else if row.detected {
-				// Tool is present on this machine but has no hooks yet — the
-				// actionable case. Re-running Install/Update wires it.
-				parts.append("detected — run Install hooks to wire")
-			} else {
-				parts.append("not installed")
-			}
-			if row.firingRecently { parts.append("firing") }
-			if let t = row.lastEventAt { parts.append("last: \(t)") }
-		} else {
-			parts.append("not yet supported")
+	private func rebuildHookRows(_ rows: [GeneralTabViewModel.PlatformRow]) {
+		hookRows.forEach { $0.removeFromSuperview() }
+		hookRows = rows.enumerated().map { index, row in
+			HookRowView(row: row, showsDivider: index < rows.count - 1)
 		}
-		return parts.joined(separator: " · ")
+		hookRows.forEach {
+			hookRowsStack.addArrangedSubview($0)
+			$0.widthAnchor.constraint(equalTo: hookRowsStack.widthAnchor).isActive = true
+		}
 	}
 
 	@objc private func installTapped() { onInstallHooks() }
 	@objc private func updateTapped() { onUpdateHooks() }
 	@objc private func removeTapped() { onUninstallHooks() }
 	@objc private func monochromeToggleChanged() {
-		onMonochromeToggled?(monochromeToggle.state == .on)
+		onMonochromeToggled?(monochromeSwitch.state == .on)
 	}
 
 	@objc private func copyDiagnosticsTapped() {
 		let json = viewModel.diagnosticsJSON()
 		NSPasteboard.general.clearContents()
 		NSPasteboard.general.setString(json, forType: .string)
-		hooksFeedbackLabel.stringValue = "Diagnostics copied to clipboard."
-		hooksFeedbackLabel.textColor = .secondaryLabelColor
+		statusPanel.state = .success("Diagnostics copied to clipboard.")
 	}
 }
 
-// MARK: - UpdateBannerView
+// MARK: - HookRowView
 
-/// Persistent non-blocking banner shown when the installed hook registration
-/// drifted from what the current binary would write (missing event slots or a
-/// stale command path), or a newly detected tool has no hooks yet. A pure
-/// binary-version bump with an unchanged registration shows nothing. Cleared
-/// after a successful update.
-private final class UpdateBannerView: NSView {
-	var onUpdate: (() -> Void)?
-
-	/// The banner copy. Set per-reason by the controller (binary out of date vs
-	/// incomplete wiring) so a single banner serves both update prompts.
-	var message: String {
-		get { messageLabel.stringValue }
-		set { messageLabel.stringValue = newValue }
+/// One row in the Hooks table: platform icon + name, a colored status pill,
+/// and a short descriptor. Replaces the old single monospaced status-line
+/// blob with a per-row rendering of `PlatformRow.statusPresentation` — no new
+/// data, just a richer display of the same fields.
+private final class HookRowView: NSView {
+	init(row: GeneralTabViewModel.PlatformRow, showsDivider: Bool) {
+		super.init(frame: .zero)
+		translatesAutoresizingMaskIntoConstraints = false
+		setupViews(row: row, showsDivider: showsDivider)
 	}
 
-	private let messageLabel = NSTextField(
-		labelWithString: "Hooks are out of date — click Update to apply the bundled version."
-	)
-	private let updateButton = NSButton(title: "Update Hooks", target: nil, action: nil)
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	private func setupViews(row: GeneralTabViewModel.PlatformRow, showsDivider: Bool) {
+		let presentation = row.statusPresentation
+
+		let iconView = NSImageView()
+		iconView.translatesAutoresizingMaskIntoConstraints = false
+		iconView.imageScaling = .scaleProportionallyUpOrDown
+		if let attribution = platformAttribution(forBadgeKey: row.originKey) {
+			iconView.image = NSImage(named: attribution.assetName)
+		}
+		iconView.contentTintColor = Self.iconTint(forOriginKey: row.originKey)
+
+		let nameLabel = NSTextField(labelWithString: row.name)
+		nameLabel.font = .systemFont(ofSize: 13, weight: .medium)
+		nameLabel.translatesAutoresizingMaskIntoConstraints = false
+
+		let pill = makeStatusPill(presentation)
+
+		let descriptorLabel = NSTextField(labelWithString: presentation.descriptor)
+		descriptorLabel.font = .systemFont(ofSize: 11)
+		descriptorLabel.textColor = .secondaryLabelColor
+		descriptorLabel.lineBreakMode = .byTruncatingTail
+		descriptorLabel.translatesAutoresizingMaskIntoConstraints = false
+
+		addSubview(iconView)
+		addSubview(nameLabel)
+		addSubview(pill)
+		addSubview(descriptorLabel)
+
+		NSLayoutConstraint.activate([
+			heightAnchor.constraint(equalToConstant: 40),
+
+			iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+			iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+			iconView.widthAnchor.constraint(equalToConstant: 26),
+			iconView.heightAnchor.constraint(equalToConstant: 26),
+
+			nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 14),
+			nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+			nameLabel.widthAnchor.constraint(equalToConstant: 130),
+
+			pill.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 330),
+			pill.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+			// Column 3 sits at a fixed offset from the row's leading edge — not
+			// `pill.trailingAnchor` — so it lines up across rows regardless of how
+			// wide any one row's pill text ("Update available" vs "Installed") is.
+			descriptorLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 640),
+			descriptorLabel.trailingAnchor.constraint(
+				lessThanOrEqualTo: trailingAnchor, constant: -14),
+			descriptorLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+		])
+
+		if showsDivider {
+			let divider = NSView()
+			divider.translatesAutoresizingMaskIntoConstraints = false
+			divider.wantsLayer = true
+			divider.layer?.backgroundColor = SettingsTheme.rowDivider.cgColor
+			addSubview(divider)
+			NSLayoutConstraint.activate([
+				divider.leadingAnchor.constraint(equalTo: leadingAnchor),
+				divider.trailingAnchor.constraint(equalTo: trailingAnchor),
+				divider.bottomAnchor.constraint(equalTo: bottomAnchor),
+				divider.heightAnchor.constraint(equalToConstant: 1),
+			])
+		}
+	}
+
+	/// Brand-ish tint per platform so the template logo assets read distinctly
+	/// (mockup treatment) instead of a uniform monochrome column.
+	private static func iconTint(forOriginKey key: String) -> NSColor {
+		switch key {
+		case "claude_code":
+			return NSColor(srgbRed: 0.85, green: 0.47, blue: 0.34, alpha: 1)  // Anthropic clay
+		case "codex":
+			return NSColor(srgbRed: 0.06, green: 0.64, blue: 0.50, alpha: 1)  // OpenAI green
+		case "vscode":
+			return NSColor(srgbRed: 0.00, green: 0.48, blue: 0.80, alpha: 1)  // VS Code blue
+		case "cursor":
+			return NSColor(calibratedWhite: 0.78, alpha: 1)  // Cursor slate
+		default:
+			return .labelColor
+		}
+	}
+
+	private func makeStatusPill(
+		_ presentation: GeneralTabViewModel.PlatformRow.StatusPresentation
+	) -> NSView {
+		let tint: NSColor
+		switch presentation.pill {
+		case .installed: tint = .systemGreen
+		case .updateAvailable: tint = .systemYellow
+		case .detectedNotInstalled: tint = .secondaryLabelColor
+		case .notInstalled, .notSupported: tint = .tertiaryLabelColor
+		}
+
+		let container = NSView()
+		container.wantsLayer = true
+		container.layer?.cornerRadius = 5
+		container.layer?.backgroundColor = tint.withAlphaComponent(0.16).cgColor
+		container.translatesAutoresizingMaskIntoConstraints = false
+
+		let label = NSTextField(labelWithString: presentation.pillTitle)
+		label.font = .systemFont(ofSize: 11, weight: .semibold)
+		label.textColor = tint
+		label.translatesAutoresizingMaskIntoConstraints = false
+		container.addSubview(label)
+
+		NSLayoutConstraint.activate([
+			label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+			label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+			label.topAnchor.constraint(equalTo: container.topAnchor, constant: 3),
+			label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -3),
+		])
+		return container
+	}
+}
+
+// MARK: - DynamicStatusPanelView
+
+/// Single status/feedback panel for the Hooks section. Shows the current
+/// registration state by default (up to date, or an attention message when
+/// stale/a new tool was detected) and temporarily reflects the result of an
+/// install/update/remove action while one is in flight or just completed.
+/// Replaces the old always-hidden-unless-stale `UpdateBannerView` plus a
+/// separate plain-text feedback label with one view, one state.
+private final class DynamicStatusPanelView: NSView {
+	enum State: Equatable {
+		case upToDate
+		case attention(String)
+		case working(String)
+		case success(String)
+		case error(String)
+	}
+
+	var state: State = .upToDate {
+		didSet {
+			guard state != oldValue else { return }
+			render()
+		}
+	}
+
+	private let iconView = NSImageView()
+	private let spinner = NSProgressIndicator()
+	private let headlineLabel = NSTextField(labelWithString: "")
+	private let subtextLabel = NSTextField(labelWithString: "")
 
 	init() {
 		super.init(frame: .zero)
 		setupViews()
+		render()
 	}
 
 	@available(*, unavailable)
@@ -610,36 +1039,104 @@ private final class UpdateBannerView: NSView {
 
 	private func setupViews() {
 		wantsLayer = true
-		layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.15).cgColor
 		layer?.cornerRadius = 6
 
-		messageLabel.font = .systemFont(ofSize: 12)
-		messageLabel.textColor = .labelColor
-		messageLabel.lineBreakMode = .byWordWrapping
-		messageLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(messageLabel)
+		iconView.translatesAutoresizingMaskIntoConstraints = false
+		iconView.imageScaling = .scaleProportionallyUpOrDown
+		addSubview(iconView)
 
-		updateButton.bezelStyle = .rounded
-		updateButton.target = self
-		updateButton.action = #selector(updateTapped)
-		updateButton.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(updateButton)
+		spinner.style = .spinning
+		spinner.controlSize = .small
+		spinner.isDisplayedWhenStopped = false
+		spinner.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(spinner)
+
+		headlineLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+		headlineLabel.lineBreakMode = .byWordWrapping
+
+		subtextLabel.font = .systemFont(ofSize: 11)
+		subtextLabel.textColor = .secondaryLabelColor
+		subtextLabel.lineBreakMode = .byWordWrapping
+
+		// Headline + optional subtext live in one stack centered on the panel's
+		// vertical axis, so single-line states (attention/success/error, which
+		// hide the subtext) align with the icon instead of hugging the top edge.
+		let textStack = NSStackView(views: [headlineLabel, subtextLabel])
+		textStack.orientation = .vertical
+		textStack.alignment = .leading
+		textStack.spacing = 2
+		textStack.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(textStack)
 
 		NSLayoutConstraint.activate([
-			messageLabel.topAnchor.constraint(equalTo: topAnchor, constant: 10),
-			messageLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-			messageLabel.trailingAnchor.constraint(
-				equalTo: updateButton.leadingAnchor, constant: -8
-			),
+			heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
 
-			updateButton.centerYAnchor.constraint(equalTo: messageLabel.centerYAnchor),
-			updateButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+			iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+			iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+			iconView.widthAnchor.constraint(equalToConstant: 26),
+			iconView.heightAnchor.constraint(equalToConstant: 26),
 
-			bottomAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 10),
+			spinner.centerXAnchor.constraint(equalTo: iconView.centerXAnchor),
+			spinner.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
+
+			textStack.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
+			textStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+			textStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+			textStack.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 10),
+			textStack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -10),
 		])
 	}
 
-	@objc private func updateTapped() { onUpdate?() }
+	private func render() {
+		let symbolName: String?
+		let tint: NSColor
+		let headline: String
+		let subtext: String?
+
+		switch state {
+		case .upToDate:
+			symbolName = "checkmark.circle"
+			tint = .secondaryLabelColor
+			headline = "Hooks are up to date"
+			subtext = "All supported tools are registered and ready."
+		case .attention(let message):
+			symbolName = "exclamationmark.triangle.fill"
+			tint = .systemYellow
+			headline = message
+			subtext = nil
+		case .working(let message):
+			symbolName = nil
+			tint = .secondaryLabelColor
+			headline = message
+			subtext = "This may take a few moments."
+		case .success(let message):
+			symbolName = "checkmark.circle.fill"
+			tint = .systemGreen
+			headline = message
+			subtext = nil
+		case .error(let message):
+			symbolName = "exclamationmark.triangle.fill"
+			tint = .systemRed
+			headline = message
+			subtext = nil
+		}
+
+		layer?.backgroundColor = tint.withAlphaComponent(0.14).cgColor
+		headlineLabel.textColor = .labelColor
+		headlineLabel.stringValue = headline
+		subtextLabel.stringValue = subtext ?? ""
+		subtextLabel.isHidden = subtext == nil
+
+		if let symbolName {
+			iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+			iconView.contentTintColor = tint
+			iconView.isHidden = false
+			spinner.stopAnimation(nil)
+		} else {
+			iconView.isHidden = true
+			spinner.startAnimation(nil)
+		}
+	}
 }
 
 // MARK: - PetTabView
@@ -716,14 +1213,31 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 	}
 
 	private func setupViews() {
+		// Lighter wrapper card with an icon-badge header, matching the Hooks
+		// card on General (and the Customization wrapper) so all tabs share one
+		// design language.
+		let wrapper = NSView()
+		wrapper.translatesAutoresizingMaskIntoConstraints = false
+		wrapper.wantsLayer = true
+		wrapper.layer?.cornerRadius = 10
+		wrapper.layer?.backgroundColor = SettingsTheme.cardBackground.cgColor
+		wrapper.layer?.borderWidth = 1
+		wrapper.layer?.borderColor = SettingsTheme.cardBorder.cgColor
+		addSubview(wrapper)
+
+		let headerBadge = settingsHeaderIconBadge(
+			symbolName: "pawprint.fill", color: .systemPink)
+		wrapper.addSubview(headerBadge)
+
 		let title = settingsSectionTitle("Pet")
-		addSubview(title)
+		title.font = .systemFont(ofSize: 15, weight: .semibold)
+		wrapper.addSubview(title)
 
 		let storeNote = settingsBodyLabel(
 			"Installed pets live in ~/.codogotchi/pets/. "
 				+ "Pets in ~/.codex/pets/ show an Import action."
 		)
-		addSubview(storeNote)
+		wrapper.addSubview(storeNote)
 
 		searchField.placeholderString = "Search pets…"
 		searchField.delegate = self
@@ -731,14 +1245,14 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		searchField.sendsSearchStringImmediately = true
 		searchField.translatesAutoresizingMaskIntoConstraints = false
 		searchField.setContentHuggingPriority(.defaultLow, for: .horizontal)
-		addSubview(searchField)
+		wrapper.addSubview(searchField)
 
 		openFolderButton.bezelStyle = .rounded
 		openFolderButton.target = self
 		openFolderButton.action = #selector(openPetFolder)
 		openFolderButton.translatesAutoresizingMaskIntoConstraints = false
 		openFolderButton.setContentHuggingPriority(.required, for: .horizontal)
-		addSubview(openFolderButton)
+		wrapper.addSubview(openFolderButton)
 
 		gridStack.orientation = .vertical
 		gridStack.alignment = .leading
@@ -752,7 +1266,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		gridScrollView.drawsBackground = false
 		gridScrollView.translatesAutoresizingMaskIntoConstraints = false
 		gridScrollView.documentView = gridStack
-		addSubview(gridScrollView)
+		wrapper.addSubview(gridScrollView)
 
 		NSLayoutConstraint.activate([
 			gridStack.widthAnchor.constraint(equalTo: gridScrollView.contentView.widthAnchor),
@@ -763,13 +1277,13 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		emptyLabel.alignment = .center
 		emptyLabel.isHidden = true
 		emptyLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(emptyLabel)
+		wrapper.addSubview(emptyLabel)
 
 		footerLabel.font = .systemFont(ofSize: 11)
 		footerLabel.textColor = .tertiaryLabelColor
 		footerLabel.alignment = .center
 		footerLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(footerLabel)
+		wrapper.addSubview(footerLabel)
 
 		feedbackLabel.isEditable = false
 		feedbackLabel.isBordered = false
@@ -779,16 +1293,24 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		feedbackLabel.isHidden = true
 		feedbackLabel.identifier = NSUserInterfaceItemIdentifier("petTabFeedback")
 		feedbackLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(feedbackLabel)
+		wrapper.addSubview(feedbackLabel)
 		feedbackHeightConstraint = feedbackLabel.heightAnchor.constraint(equalToConstant: 0)
 		feedbackHeightConstraint?.isActive = true
 
 		NSLayoutConstraint.activate([
-			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
-			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			wrapper.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+			wrapper.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			wrapper.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			wrapper.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -20),
+
+			headerBadge.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 20),
+			headerBadge.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 20),
+
+			title.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 18),
+			title.leadingAnchor.constraint(equalTo: headerBadge.trailingAnchor, constant: 12),
 
 			searchField.centerYAnchor.constraint(equalTo: title.centerYAnchor),
-			searchField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			searchField.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -20),
 			searchField.widthAnchor.constraint(equalToConstant: 200),
 
 			openFolderButton.centerYAnchor.constraint(equalTo: title.centerYAnchor),
@@ -797,30 +1319,45 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 			openFolderButton.leadingAnchor.constraint(
 				greaterThanOrEqualTo: title.trailingAnchor, constant: 16),
 
-			storeNote.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
-			storeNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			storeNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			storeNote.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
+			storeNote.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+			storeNote.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -20),
 
 			feedbackLabel.topAnchor.constraint(equalTo: storeNote.bottomAnchor, constant: 8),
-			feedbackLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			feedbackLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			feedbackLabel.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 20),
+			feedbackLabel.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -20),
 
 			gridScrollView.topAnchor.constraint(equalTo: feedbackLabel.bottomAnchor, constant: 8),
-			gridScrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			gridScrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			gridScrollView.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 20),
+			gridScrollView.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -20),
 
 			emptyLabel.centerXAnchor.constraint(equalTo: gridScrollView.centerXAnchor),
 			emptyLabel.centerYAnchor.constraint(equalTo: gridScrollView.centerYAnchor),
 
 			footerLabel.topAnchor.constraint(equalTo: gridScrollView.bottomAnchor, constant: 8),
-			footerLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			footerLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
-			footerLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14),
+			footerLabel.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 20),
+			footerLabel.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -20),
+			footerLabel.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -14),
 		])
+	}
+
+	/// NSTabView sizes its selected item view by frame-setting, which does not
+	/// reliably schedule a constraint layout pass on this view. Without this,
+	/// the first (and only) `layout()` can run while the view is still zero-
+	/// sized: the grid stays in its initial 1-column build and descriptions
+	/// render single-line at full width.
+	override func setFrameSize(_ newSize: NSSize) {
+		super.setFrameSize(newSize)
+		needsLayout = true
 	}
 
 	override func layout() {
 		super.layout()
+		// `super.layout()` positions only direct subviews; the scroll view is
+		// nested inside the wrapper card, so on a one-shot pass its frame can
+		// still be zero here. Resolve the wrapper's subtree before sampling the
+		// width the column count depends on.
+		gridScrollView.superview?.layoutSubtreeIfNeeded()
 		// Rebuild only when the responsive column count actually changes, so
 		// resize drags don't thrash the grid.
 		let columns = columnCount(forWidth: gridScrollView.contentView.bounds.width)
@@ -936,10 +1473,10 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 		card.translatesAutoresizingMaskIntoConstraints = false
 		card.wantsLayer = true
 		card.layer?.cornerRadius = 10
-		card.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.5).cgColor
+		card.layer?.backgroundColor = SettingsTheme.tableBackground.cgColor
 		card.layer?.borderWidth = entry.isDefault ? 2 : 1
 		card.layer?.borderColor =
-			(entry.isDefault ? NSColor.controlAccentColor : NSColor.separatorColor).cgColor
+			(entry.isDefault ? NSColor.controlAccentColor : SettingsTheme.cardBorder).cgColor
 		card.identifier = PetTabView.cardIdentifier
 		card.heightAnchor.constraint(greaterThanOrEqualToConstant: 90).isActive = true
 
@@ -1423,32 +1960,40 @@ private final class RPGTabView: NSView {
 	required init?(coder: NSCoder) { nil }
 
 	private func setupViews() {
+		let card = settingsThemedCard()
+		addSubview(card)
+
 		let title = settingsSectionTitle("RPG")
-		addSubview(title)
+		card.addSubview(title)
 
 		let note = settingsBodyLabel(
 			"When enabled, a floating HUD shows hearts, level, and XP ring while "
 				+ "you code. Toggle off to hide it completely — the RPG engine keeps "
 				+ "running in the background."
 		)
-		addSubview(note)
+		card.addSubview(note)
 
 		toggleButton.target = self
 		toggleButton.action = #selector(toggleChanged)
 		toggleButton.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(toggleButton)
+		card.addSubview(toggleButton)
 
 		NSLayoutConstraint.activate([
-			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
-			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			card.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+			card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			title.topAnchor.constraint(equalTo: card.topAnchor, constant: 20),
+			title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			title.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
 			note.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
-			note.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			note.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			note.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			note.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
 			toggleButton.topAnchor.constraint(equalTo: note.bottomAnchor, constant: 16),
-			toggleButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			toggleButton.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			toggleButton.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
 		])
 	}
 
@@ -1479,47 +2024,59 @@ private final class DeveloperTabView: NSView {
 	required init?(coder: NSCoder) { nil }
 
 	private func setupViews() {
+		let card = settingsThemedCard()
+		addSubview(card)
+
 		let title = settingsSectionTitle("Developer")
-		addSubview(title)
+		card.addSubview(title)
 
 		refreshButton.bezelStyle = .rounded
 		refreshButton.target = self
 		refreshButton.action = #selector(refresh)
 		refreshButton.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(refreshButton)
+		card.addSubview(refreshButton)
 
 		openDataButton.bezelStyle = .rounded
 		openDataButton.target = self
 		openDataButton.action = #selector(openDataFolder)
 		openDataButton.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(openDataButton)
+		card.addSubview(openDataButton)
 
 		textView.isEditable = false
 		textView.isSelectable = true
 		textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-		textView.backgroundColor = NSColor.textBackgroundColor
+		textView.backgroundColor = SettingsTheme.tableBackground
 		textView.textContainerInset = NSSize(width: 8, height: 8)
 		scrollView.documentView = textView
 		scrollView.hasVerticalScroller = true
-		scrollView.borderType = .bezelBorder
+		scrollView.borderType = .noBorder
+		scrollView.wantsLayer = true
+		scrollView.layer?.cornerRadius = 8
+		scrollView.layer?.borderWidth = 1
+		scrollView.layer?.borderColor = SettingsTheme.cardBorder.cgColor
 		scrollView.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(scrollView)
+		card.addSubview(scrollView)
 
 		NSLayoutConstraint.activate([
-			title.topAnchor.constraint(equalTo: topAnchor, constant: 16),
-			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			card.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+			card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			card.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -20),
+
+			title.topAnchor.constraint(equalTo: card.topAnchor, constant: 16),
+			title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
 
 			refreshButton.centerYAnchor.constraint(equalTo: title.centerYAnchor),
-			refreshButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			refreshButton.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
 			openDataButton.centerYAnchor.constraint(equalTo: title.centerYAnchor),
 			openDataButton.trailingAnchor.constraint(
 				equalTo: refreshButton.leadingAnchor, constant: -8),
 
 			scrollView.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 10),
-			scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			scrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
-			scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -20),
+			scrollView.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			scrollView.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+			scrollView.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
 		])
 	}
 
@@ -1644,22 +2201,41 @@ private final class CustomizationTabView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	/// Styled container used for the "Platform Display Mode" and "Minimalist Panel
-	/// Options" columns, matching the pet-card look elsewhere in Settings.
+	/// Styled inner panel used for the "Platform Settings", "Minimalist Panel
+	/// Options", and idle/eviction sections. Uses the darker table shade (the
+	/// Hooks table / monochrome-row treatment) so panels read as strips nested
+	/// inside the tab's lighter wrapper card.
 	private func makeSettingsCard() -> NSView {
 		let card = NSView()
 		card.translatesAutoresizingMaskIntoConstraints = false
 		card.wantsLayer = true
-		card.layer?.cornerRadius = 10
-		card.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.5).cgColor
+		card.layer?.cornerRadius = 8
+		card.layer?.backgroundColor = SettingsTheme.tableBackground.cgColor
 		card.layer?.borderWidth = 1
-		card.layer?.borderColor = NSColor.separatorColor.cgColor
+		card.layer?.borderColor = SettingsTheme.cardBorder.cgColor
 		return card
 	}
 
 	private func setupViews() {
+		// Lighter wrapper card grouping the whole tab, mirroring the Hooks card
+		// on General so every tab shares one design language: icon badge +
+		// title + subtitle header, darker nested panels below.
+		let wrapper = NSView()
+		wrapper.translatesAutoresizingMaskIntoConstraints = false
+		wrapper.wantsLayer = true
+		wrapper.layer?.cornerRadius = 10
+		wrapper.layer?.backgroundColor = SettingsTheme.cardBackground.cgColor
+		wrapper.layer?.borderWidth = 1
+		wrapper.layer?.borderColor = SettingsTheme.cardBorder.cgColor
+		addSubview(wrapper)
+
+		let headerBadge = settingsHeaderIconBadge(
+			symbolName: SettingsTab.customization.symbolName, color: .systemPurple)
+		wrapper.addSubview(headerBadge)
+
 		let title = settingsSectionTitle("Customization")
-		addSubview(title)
+		title.font = .systemFont(ofSize: 15, weight: .semibold)
+		wrapper.addSubview(title)
 
 		let note = settingsBodyLabel(
 			"Choose how each coding platform displays your pet.\n"
@@ -1668,12 +2244,16 @@ private final class CustomizationTabView: NSView {
 				+ "Minimalist = compact badge strip. "
 				+ "Off = no window for that tool."
 		)
-		addSubview(note)
+		wrapper.addSubview(note)
 
 		// MARK: Platform Settings card (left column)
 
 		let platformCard = makeSettingsCard()
-		addSubview(platformCard)
+		wrapper.addSubview(platformCard)
+
+		let platformBadge = settingsHeaderIconBadge(
+			symbolName: "macwindow.on.rectangle", color: .systemBlue, side: 24)
+		platformCard.addSubview(platformBadge)
 
 		let platformTitle = settingsSectionTitle("Platform Settings")
 		platformCard.addSubview(platformTitle)
@@ -1764,7 +2344,11 @@ private final class CustomizationTabView: NSView {
 		// MARK: Minimalist Panel Options card (right column, beside Platform Settings)
 
 		let minimalistCard = makeSettingsCard()
-		addSubview(minimalistCard)
+		wrapper.addSubview(minimalistCard)
+
+		let minimalistBadge = settingsHeaderIconBadge(
+			symbolName: "slider.horizontal.3", color: .systemTeal, side: 24)
+		minimalistCard.addSubview(minimalistBadge)
 
 		let minimalistTitle = settingsSectionTitle("Minimalist Panel Options")
 		minimalistCard.addSubview(minimalistTitle)
@@ -1814,10 +2398,23 @@ private final class CustomizationTabView: NSView {
 		)
 		minimalistCard.addSubview(scaleNote)
 
+		// The card is stretched to match Platform Settings' height, so its content
+		// is shorter than the card. Equal-height spacer guides above and below the
+		// content block center it vertically instead of leaving all the slack as
+		// bottom padding.
+		let minimalistTopSpacer = NSLayoutGuide()
+		let minimalistBottomSpacer = NSLayoutGuide()
+		minimalistCard.addLayoutGuide(minimalistTopSpacer)
+		minimalistCard.addLayoutGuide(minimalistBottomSpacer)
+
 		// MARK: Pet Idle and Eviction Preferences (full-width card, below both cards)
 
 		let ttlCard = makeSettingsCard()
-		addSubview(ttlCard)
+		wrapper.addSubview(ttlCard)
+
+		let ttlBadge = settingsHeaderIconBadge(
+			symbolName: "moon.zzz.fill", color: .systemIndigo, side: 24)
+		ttlCard.addSubview(ttlBadge)
 
 		let ttlTitle = settingsSectionTitle("Pet Idle and Eviction Preferences")
 		ttlCard.addSubview(ttlTitle)
@@ -1939,22 +2536,33 @@ private final class CustomizationTabView: NSView {
 		ttlPrefersBelowPlatform.priority = .defaultHigh
 
 		NSLayoutConstraint.activate([
-			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
-			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			wrapper.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+			wrapper.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			wrapper.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			wrapper.bottomAnchor.constraint(equalTo: ttlCard.bottomAnchor, constant: 20),
 
-			note.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
-			note.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			note.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			headerBadge.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 20),
+			headerBadge.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 20),
+
+			title.leadingAnchor.constraint(equalTo: headerBadge.trailingAnchor, constant: 12),
+			title.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 18),
+			title.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -20),
+
+			note.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
+			note.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+			note.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -20),
 
 			// Platform Settings (left column) and Minimalist Panel Options (right
 			// column) sit side by side; Idle Dismiss stacks full-width below both.
-			platformCard.topAnchor.constraint(equalTo: rowsTop, constant: 20),
-			platformCard.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			platformCard.topAnchor.constraint(equalTo: rowsTop, constant: 16),
+			platformCard.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 20),
 			platformCard.widthAnchor.constraint(equalToConstant: Self.platformCardWidth),
 
+			platformBadge.centerYAnchor.constraint(equalTo: platformTitle.centerYAnchor),
+			platformBadge.leadingAnchor.constraint(equalTo: platformCard.leadingAnchor, constant: 16),
+
 			platformTitle.topAnchor.constraint(equalTo: platformCard.topAnchor, constant: 16),
-			platformTitle.leadingAnchor.constraint(equalTo: platformCard.leadingAnchor, constant: 16),
+			platformTitle.leadingAnchor.constraint(equalTo: platformBadge.trailingAnchor, constant: 10),
 			platformTitle.trailingAnchor.constraint(equalTo: platformCard.trailingAnchor, constant: -16),
 
 			modeHeader.topAnchor.constraint(equalTo: platformTitle.bottomAnchor, constant: 14),
@@ -1972,16 +2580,27 @@ private final class CustomizationTabView: NSView {
 			previousAnchor.constraint(equalTo: platformCard.bottomAnchor, constant: -16),
 
 			// Minimalist Panel Options (right column, same top as Platform Settings).
-			minimalistCard.topAnchor.constraint(equalTo: rowsTop, constant: 20),
+			minimalistCard.topAnchor.constraint(equalTo: rowsTop, constant: 16),
 			minimalistCard.leadingAnchor.constraint(equalTo: platformCard.trailingAnchor, constant: 20),
-			minimalistCard.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			minimalistCard.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -20),
+
+			minimalistBadge.centerYAnchor.constraint(equalTo: minimalistTitle.centerYAnchor),
+			minimalistBadge.leadingAnchor.constraint(equalTo: minimalistCard.leadingAnchor, constant: 16),
 
 			minimalistTitle.topAnchor.constraint(equalTo: minimalistCard.topAnchor, constant: 16),
-			minimalistTitle.leadingAnchor.constraint(equalTo: minimalistCard.leadingAnchor, constant: 16),
+			minimalistTitle.leadingAnchor.constraint(equalTo: minimalistBadge.trailingAnchor, constant: 10),
 			minimalistTitle.trailingAnchor.constraint(equalTo: minimalistCard.trailingAnchor, constant: -16),
 
-			combinedMinimalistCheckbox.topAnchor.constraint(
-				equalTo: minimalistTitle.bottomAnchor, constant: 10),
+			minimalistTopSpacer.topAnchor.constraint(equalTo: minimalistTitle.bottomAnchor),
+			minimalistTopSpacer.bottomAnchor.constraint(
+				equalTo: combinedMinimalistCheckbox.topAnchor),
+			minimalistTopSpacer.heightAnchor.constraint(greaterThanOrEqualToConstant: 10),
+
+			minimalistBottomSpacer.topAnchor.constraint(equalTo: scaleNote.bottomAnchor),
+			minimalistBottomSpacer.bottomAnchor.constraint(equalTo: minimalistCard.bottomAnchor),
+			minimalistBottomSpacer.heightAnchor.constraint(
+				equalTo: minimalistTopSpacer.heightAnchor),
+
 			combinedMinimalistCheckbox.leadingAnchor.constraint(
 				equalTo: minimalistCard.leadingAnchor, constant: 16),
 
@@ -2009,19 +2628,19 @@ private final class CustomizationTabView: NSView {
 			scaleNote.leadingAnchor.constraint(equalTo: minimalistCard.leadingAnchor, constant: 16),
 			scaleNote.trailingAnchor.constraint(equalTo: minimalistCard.trailingAnchor, constant: -16),
 
-			scaleNote.bottomAnchor.constraint(
-				lessThanOrEqualTo: minimalistCard.bottomAnchor, constant: -16),
-
 			// Match the Platform Settings card's height for visual symmetry, since
 			// both cards share the same top anchor (rowsTop + 20).
 			minimalistCard.bottomAnchor.constraint(equalTo: platformCard.bottomAnchor),
 
 			ttlBelowPlatform, ttlBelowMinimalist, ttlPrefersBelowPlatform,
-			ttlCard.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			ttlCard.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			ttlCard.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 20),
+			ttlCard.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -20),
+
+			ttlBadge.centerYAnchor.constraint(equalTo: ttlTitle.centerYAnchor),
+			ttlBadge.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
 
 			ttlTitle.topAnchor.constraint(equalTo: ttlCard.topAnchor, constant: 16),
-			ttlTitle.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
+			ttlTitle.leadingAnchor.constraint(equalTo: ttlBadge.trailingAnchor, constant: 10),
 			ttlTitle.trailingAnchor.constraint(equalTo: ttlCard.trailingAnchor, constant: -16),
 
 			ttlLabel.topAnchor.constraint(equalTo: ttlTitle.bottomAnchor, constant: 14),
@@ -2175,14 +2794,17 @@ private final class AboutTabView: NSView {
 	required init?(coder: NSCoder) { nil }
 
 	private func setupViews() {
+		let card = settingsThemedCard()
+		addSubview(card)
+
 		let title = settingsSectionTitle("About")
-		addSubview(title)
+		card.addSubview(title)
 
 		let appVersionLabel = settingsBodyLabel("Codogotchi \(viewModel.appVersion)")
-		addSubview(appVersionLabel)
+		card.addSubview(appVersionLabel)
 
 		let hookVersionLabel = settingsBodyLabel("Bundled hook binary: \(viewModel.hookVersion)")
-		addSubview(hookVersionLabel)
+		card.addSubview(hookVersionLabel)
 
 		let links = NSStackView(views: [
 			linkButton(title: "Website", urlString: "https://codogotchi.app"),
@@ -2196,23 +2818,28 @@ private final class AboutTabView: NSView {
 		links.orientation = .horizontal
 		links.spacing = 12
 		links.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(links)
+		card.addSubview(links)
 
 		NSLayoutConstraint.activate([
-			title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
-			title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			card.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+			card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			title.topAnchor.constraint(equalTo: card.topAnchor, constant: 20),
+			title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			title.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
 			appVersionLabel.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
-			appVersionLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			appVersionLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			appVersionLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			appVersionLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
 			hookVersionLabel.topAnchor.constraint(equalTo: appVersionLabel.bottomAnchor, constant: 6),
-			hookVersionLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			hookVersionLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			hookVersionLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			hookVersionLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
 			links.topAnchor.constraint(equalTo: hookVersionLabel.bottomAnchor, constant: 16),
-			links.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			links.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			links.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
 		])
 	}
 
