@@ -83,3 +83,58 @@ All 12 advisory-observation gaps from phase-15 closeout (codogotchi-28 through c
 ## Suggested commit subject
 
 `docs: capture post-phase-15 mainline sweep and QC landing`
+
+---
+
+# Addendum — post-sweep direct-to-main work (2026-07-03 → 2026-07-04)
+
+> **Status (2026-07-04): the mainline window stayed open past the sweep above.** 24 more commits landed directly on `main` after the sweep-capture commit `9e9975cf`, closing out the v2 dogfood cycle. This addendum brings the ledger current through `85b90d5b`, the commit tagged for the **v2.5.0** release.
+
+**Sweep command:** `git log --reverse --date=short --pretty=format:'%h %ad %s' 9e9975cf..85b90d5b`
+
+**Date range:** 2026-07-03 → 2026-07-04 (24 commits).
+
+**Stance:** With phase-15's per-session pets functionally complete, this window was a UX-consolidation pass across the surfaces users actually touch: the Settings window got a full redesign, the menubar dropdown was polished, badge/chrome interaction gaps (right-click, drag, alignment) were closed, and the Session Cap conflict bubble got its own layout contract and user-driven dismissal. A handful of session-key/gate-reader correctness fixes rode along.
+
+## Change buckets
+
+| Bucket | Commits | What changed | Why it matters |
+| --- | --- | --- | --- |
+| Settings window redesign | `d7010ebe`, `d0b62f9a`, `11ca71ea`, `ac4cf5b6`, `ba6cec15`, `775714ac`, `5bfe18c8`, `267ba9f1`, `f5e8b3dc` | Customization tab went two-column with tightened widths; Sessions checkbox became an Enabled/Disabled dropdown with symmetric card heights; new Pet Idle Escalation Timing (Impatient/Frustrated) and Evict Session Pets settings; whole window redesigned with a themed tab strip and hooks table, fixed at 1120×770 (min 1024); idle/eviction panel consolidated then split into two side-by-side cards. | The Settings window is the control surface for all of phase-15's new per-platform/per-session levers; the old single-column layout could not carry the Platform Settings matrix plus the new eviction/idle policies legibly. |
+| Menubar/menu polish | `798a614f`, `ebb4a13f`, `bad90594`, `e7a74c5d` | Dash separator in session pet menu labels; Website link moved to About tab with a Dev Guide link added; new "Customization…" menu item deep-links to Settings > Customization; "Default Pet" item replaced with "Pets", ellipses dropped. | Dropdown is the primary navigation surface for multi-pet management; labels and entry points needed to match the v2 vocabulary. |
+| Session-key / gate-reader correctness | `ba8a25a0`, `34cab152`, `53cfd8c4`, `7121ca3d` | Aggregate-mode gate/badge now keys off the render key's winning session (not newest-write-anywhere); session-key builder shared and Scan flattened with combined-mode coverage; same-rank eviction ties break by recency instead of session-id; `canonicalRepoRoot` walks up ancestors to find the repo root so worktree/subdirectory paths stop suppressing SOA badges. | Follow-through on the sweep's gate-reader session-awareness: each fix removes a way a badge or eviction decision could bind to the wrong session. |
+| Badge/chrome interaction + layout | `bbfc1a0c`, `cb456e22`, `bae90797`, `2460796a`, `1cf50a28`, `6fd8b904` | Badge family scaled net +14% across the range; chip+pill stay anchored when session-label alignment changes; right-click works on chip/pill/SOA badges in all modes; SOA gate badge left-aligns to the platform chip; left-click-drag works from any chrome panel; SessionLabel rendered for non-session platforms and AttentionBubble chrome unified. | Phase-15 multiplied the number of chrome panels per pet; this pass makes them behave as one coherent surface (consistent hit targets, alignment, and drag behavior) instead of a stack of independent windows. |
+| Conflict bubble (Session Cap Reached) UX | `85b90d5b` | Mode-specific anchors — Own/Combined dips the tail tip inside the pet frame, Minimalist dips inside the strip frame — replacing the shared gate-badge-clearance placement; always-visible X dismissal added on the title row; dismissal clears host conflict state so reposition passes don't re-front the panel. | The P15.08 conflict bubble is the loudest surface in the app; it needed a placement contract per display mode and a user-controlled exit (it never auto-dismisses short of genuine resolution). |
+
+## Commit index
+
+| Date | Commit | Summary |
+| --- | --- | --- |
+| 2026-07-03 | `798a614f` | Use dash separator in session pet menu labels. |
+| 2026-07-03 | `ebb4a13f` | Move Website link to About tab, add Dev Guide link. |
+| 2026-07-03 | `ba8a25a0` | Key aggregate-mode gate/badge off the render key's winning session. |
+| 2026-07-03 | `34cab152` | Share session-key builder, flatten Scan, cover combined mode. |
+| 2026-07-03 | `53cfd8c4` | Break same-rank eviction ties by recency, not session-id. |
+| 2026-07-03 | `d7010ebe` | Two-column Customization tab layout. |
+| 2026-07-03 | `d0b62f9a` | Tighten Customization tab column widths, widen window. |
+| 2026-07-03 | `bad90594` | Add Customization… item to menu, jumps to Settings > Customization. |
+| 2026-07-04 | `11ca71ea` | Sessions dropdown replaces checkbox, symmetric card heights. |
+| 2026-07-04 | `e7a74c5d` | Replace Default Pet item with Pets, drop ellipses. |
+| 2026-07-04 | `7121ca3d` | Walk up ancestors to find repo root in canonicalRepoRoot. |
+| 2026-07-04 | `ac4cf5b6` | Rename Idle Dismiss to Pet Idle and Eviction Preferences. |
+| 2026-07-04 | `ba6cec15` | Enforce 1024px minimum width on Settings window. |
+| 2026-07-04 | `775714ac` | Add Pet Idle Escalation Timing and Evict Session Pets settings. |
+| 2026-07-04 | `bbfc1a0c` | Scale badge sizing net +14% (platform chip, animation/session/ticket/gate). |
+| 2026-07-04 | `5bfe18c8` | Redesign Settings window with themed tab strip and hooks table. |
+| 2026-07-04 | `267ba9f1` | Fix window at 1120x770 and consolidate idle/eviction panel. |
+| 2026-07-04 | `cb456e22` | Keep chip+pill anchored when session label alignment changes. |
+| 2026-07-04 | `bae90797` | Make right-click on chip/pill/SOA badges work in all modes. |
+| 2026-07-04 | `2460796a` | Left-align SOA gate badge to platform chip, not pet center. |
+| 2026-07-04 | `1cf50a28` | Make left-click-drag work from any chrome panel, not just the pet/strip. |
+| 2026-07-04 | `6fd8b904` | SessionLabel for non-session platforms + unify AttentionBubble chrome. |
+| 2026-07-04 | `f5e8b3dc` | Split idle/eviction panel into two side-by-side cards. |
+| 2026-07-04 | `85b90d5b` | Mode-specific conflict bubble anchors + user dismissal. |
+
+## Release marker
+
+`85b90d5b` ships as **v2.5.0** — the first GitHub release since v1.1.2, bundling phases 12–15 (schema v8, per-platform customization, Minimalist/Combined modes, pet assignment, per-session pets) plus both direct-to-main QC windows documented in this file.
