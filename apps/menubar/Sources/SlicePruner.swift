@@ -55,6 +55,13 @@ enum SlicePruner {
 	/// (colon-split, `.tmp-`/`.gate.json`/`.context.json` exclusion) governs both
 	/// the slice sweep and the label sweep. Best-effort: a missing or unreadable
 	/// labels file is a no-op, not an error. Returns the number of keys removed.
+	///
+	/// Only ever considers `origin:session_id` keys for orphaning. A plain-origin
+	/// key (e.g. `"vscode"`) or the literal `"combined"` key names a persistent
+	/// per-platform rename, not an ephemeral session — it never corresponds to a
+	/// slice filename, so treating it the same way would delete it on every
+	/// sweep. It has no natural expiry; it lives until the user renames or
+	/// clears it.
 	@discardableResult
 	static func pruneOrphanLabels(dir: String, labelPath: String = SessionLabelStore.path()) -> Int {
 		let fm = FileManager.default
@@ -68,7 +75,7 @@ enum SlicePruner {
 			let labels = try? JSONDecoder().decode([String: String].self, from: data)
 		else { return 0 }
 		var removed = 0
-		for key in labels.keys where !liveKeys.contains(key) {
+		for key in labels.keys where key.contains(":") && !liveKeys.contains(key) {
 			SessionLabelStore.removeLabel(for: key, at: labelPath)
 			removed += 1
 		}

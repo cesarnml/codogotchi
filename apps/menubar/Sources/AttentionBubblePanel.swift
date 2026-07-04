@@ -11,16 +11,36 @@ private enum BubbleLayout {
 	static let hPad: CGFloat = 10
 	static let vPad: CGFloat = 9
 	static let cornerRadius: CGFloat = 10
-	static let iconSize: CGFloat = 18
 	static let closeButtonSize: CGFloat = 13
 	static let actionButtonHeight: CGFloat = 18
 	static let actionButtonWidth: CGFloat = 54
 
-	static func frame(relativeTo petFrame: CGRect, visibleFrame: CGRect) -> CGRect {
+	/// Left-aligned to `leadingX` (screen-space x of the platform chip's
+	/// leading edge — the animation badge panel's own `minX` in Own/Combined
+	/// mode, or the Minimalist strip's `minX + hPad`) rather than centered on
+	/// `petFrame.midX`, mirroring the `SessionLabel`/SOA-badge leading-
+	/// alignment fix: the chip lives off-center (Own mode) or the strip's
+	/// width varies with its session-label content (Minimalist mode), so
+	/// centering on the anchor frame never reliably lined up with the chip.
+	///
+	/// Sits below `bottomAnchorY` (screen space) rather than below `petFrame`
+	/// itself: in Own/Combined mode that's the animation badge panel's own
+	/// `minY` — which now always includes the session-label row underneath
+	/// the chip+pill (P?? unification: the badge is never hidden while the
+	/// bubble shows) — not the pet sprite's `minY`, or the bubble would land
+	/// on top of the badge instead of below it. In Minimalist mode it's the
+	/// strip's own `minY`, same as `petFrame.minY` was before this became a
+	/// separate parameter — the strip already includes its own session-label
+	/// row in its own frame, so nothing changes there.
+	static func frame(
+		relativeTo petFrame: CGRect,
+		leadingX: CGFloat,
+		bottomAnchorY: CGFloat,
+		visibleFrame: CGRect
+	) -> CGRect {
 		let width = AttentionBubbleLayoutMetrics.bubbleWidth(forPetWidth: petFrame.width)
-		let x = petFrame.midX - width / 2
-		let y = petFrame.minY - gapBelowPet - height
-		let rect = CGRect(x: x, y: y, width: width, height: height)
+		let y = bottomAnchorY - gapBelowPet - height
+		let rect = CGRect(x: leadingX, y: y, width: width, height: height)
 		return clamped(rect, to: visibleFrame)
 	}
 
@@ -100,13 +120,6 @@ final class AttentionBubblePanel: NSPanel {
 		set { bubbleView.onDismiss = newValue }
 	}
 
-	/// Forwards to the bubble view; minimalist mode sets this false to avoid a
-	/// platform chip that duplicates the one already on the badge.
-	var showsPlatformChip: Bool {
-		get { bubbleView.showsPlatformChip }
-		set { bubbleView.showsPlatformChip = newValue }
-	}
-
 	func update(payload: AttentionPayload, sourceEvent: SourceEvent?) {
 		bubbleView.configure(
 			summary: payload.summary ?? "",
@@ -115,8 +128,11 @@ final class AttentionBubblePanel: NSPanel {
 		)
 	}
 
-	func reposition(relativeTo petFrame: CGRect, visibleFrame: CGRect) {
-		let f = BubbleLayout.frame(relativeTo: petFrame, visibleFrame: visibleFrame)
+	func reposition(
+		relativeTo petFrame: CGRect, leadingX: CGFloat, bottomAnchorY: CGFloat, visibleFrame: CGRect
+	) {
+		let f = BubbleLayout.frame(
+			relativeTo: petFrame, leadingX: leadingX, bottomAnchorY: bottomAnchorY, visibleFrame: visibleFrame)
 		setFrame(f, display: true)
 		bubbleView.frame = NSRect(origin: .zero, size: f.size)
 		// Pet drag/resize moves this panel under the cursor without a matching
@@ -226,10 +242,6 @@ private final class AttentionBubbleView: NSView {
 	private let summaryLabel = NSTextField(labelWithString: "")
 	private let subtitleLabel = NSTextField(labelWithString: "")
 
-	// Always visible when `source_event.origin` maps to a platform logo.
-	private let platformChip = AttentionBubblePlatformChip(frame: .zero)
-	private var platformChipWidthConstraint: NSLayoutConstraint?
-
 	// Hover-revealed
 	private let dismissButton = HoverButton(
 		shape: .circle,
@@ -251,14 +263,6 @@ private final class AttentionBubbleView: NSView {
 	)
 
 	var onDismiss: (() -> Void)?
-	/// When false, the in-bubble platform chip is never shown. Minimalist mode
-	/// already renders a platform chip on the badge directly above the bubble, so
-	/// repeating it here is redundant. Defaults true for Own/combined mode.
-	var showsPlatformChip: Bool = true {
-		didSet { guard oldValue != showsPlatformChip else { return }
-			applyPlatformChip()
-		}
-	}
 
 	private var trackingArea: NSTrackingArea?
 	private var isHovered = false
@@ -300,9 +304,6 @@ private final class AttentionBubbleView: NSView {
 		subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(subtitleLabel)
 
-		platformChip.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(platformChip)
-
 		configureButton(
 			dismissButton,
 			symbol: "xmark",
@@ -331,7 +332,6 @@ private final class AttentionBubbleView: NSView {
 
 		let hPad = BubbleLayout.hPad
 		let vPad = BubbleLayout.vPad
-		let icon = BubbleLayout.iconSize
 
 		NSLayoutConstraint.activate([
 			// background
@@ -340,15 +340,13 @@ private final class AttentionBubbleView: NSView {
 			effectView.topAnchor.constraint(equalTo: topAnchor),
 			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
-			// platform chip — right edge, top row (same slot as the old info icon)
-			platformChip.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -(hPad - 2)),
-			platformChip.topAnchor.constraint(equalTo: topAnchor, constant: vPad),
-			platformChip.heightAnchor.constraint(equalToConstant: icon),
-
-			// summary — uses the full left side; hover controls float above it.
+			// summary — uses the full width; hover controls float above it. No
+			// longer reserves room for an in-bubble platform chip (P??
+			// unification): the chip/pill/session badge is always visible now
+			// (in every mode, not just Minimalist), so repeating the platform
+			// logo here would just duplicate it.
 			summaryLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: hPad + 2),
-			summaryLabel.trailingAnchor.constraint(
-				equalTo: platformChip.leadingAnchor, constant: -4),
+			summaryLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -hPad),
 			summaryLabel.topAnchor.constraint(equalTo: topAnchor, constant: vPad),
 
 			// subtitle — full-width by default; Focus overlays on hover.
@@ -362,34 +360,14 @@ private final class AttentionBubbleView: NSView {
 			dismissButton.widthAnchor.constraint(equalToConstant: BubbleLayout.closeButtonSize),
 			dismissButton.heightAnchor.constraint(equalTo: dismissButton.widthAnchor),
 
-			// action button — hover-only pill right-aligned with the platform chip.
-			actionButton.trailingAnchor.constraint(equalTo: platformChip.trailingAnchor),
+			// action button — hover-only pill, right-aligned with the bubble body.
+			actionButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -hPad),
 			actionButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -vPad),
 			actionButton.widthAnchor.constraint(equalToConstant: BubbleLayout.actionButtonWidth),
 			actionButton.heightAnchor.constraint(equalToConstant: BubbleLayout.actionButtonHeight),
 		])
-		let chipWidth = platformChip.widthAnchor.constraint(equalToConstant: icon)
-		platformChipWidthConstraint = chipWidth
-		chipWidth.isActive = true
 
 		applyChromeStyle()
-	}
-
-	/// Resolve the in-bubble platform chip from the current `sourceEvent`,
-	/// honoring `showsPlatformChip`. Collapses to zero width and hides when there
-	/// is no platform or when the chip is suppressed (minimalist mode).
-	private func applyPlatformChip() {
-		let platform = showsPlatformChip ? PlatformAttribution(origin: sourceEvent?.origin) : nil
-		platformChip.configure(platform: platform)
-		if let platform {
-			platformChip.toolTip = "Focus opens \(platform.displayName)"
-			platformChipWidthConstraint?.constant = BubbleLayout.iconSize
-			platformChip.isHidden = false
-		} else {
-			platformChip.toolTip = nil
-			platformChipWidthConstraint?.constant = 0
-			platformChip.isHidden = true
-		}
 	}
 
 	private func applyPromptSubtitle() {
@@ -438,8 +416,6 @@ private final class AttentionBubbleView: NSView {
 		}
 
 		applyPromptSubtitle()
-
-		applyPlatformChip()
 
 		// Action button always does the same thing: focus the source app
 		// (`performAction`). Both standby (input_requested) and error (error_blocked)
@@ -556,74 +532,4 @@ private final class AttentionBubbleView: NSView {
 		NSWorkspace.shared.openApplication(at: url, configuration: configuration)
 	}
 
-}
-
-// MARK: - Platform chip
-
-/// Small frosted square showing which app Focus will foreground — mirrors the
-/// animation badge's platform chip so the logo survives when the badge is hidden.
-private final class AttentionBubblePlatformChip: NSView {
-	private static let glyphColor = NSColor(calibratedWhite: 0.95, alpha: 1.0)
-
-	private let effectView: NSVisualEffectView
-	private let imageView = NSImageView()
-
-	override init(frame frameRect: NSRect) {
-		effectView = NSVisualEffectView(frame: .zero)
-		effectView.material = .hudWindow
-		effectView.blendingMode = .behindWindow
-		effectView.state = .active
-		effectView.appearance = NSAppearance(named: .darkAqua)
-		effectView.wantsLayer = true
-		super.init(frame: frameRect)
-		wantsLayer = true
-		layer?.masksToBounds = false
-
-		effectView.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(effectView)
-
-		imageView.imageScaling = .scaleProportionallyUpOrDown
-		imageView.contentTintColor = Self.glyphColor
-		imageView.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(imageView)
-
-		let inset: CGFloat = 3
-		NSLayoutConstraint.activate([
-			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
-			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
-			effectView.topAnchor.constraint(equalTo: topAnchor),
-			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
-			imageView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: inset),
-			imageView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -inset),
-			imageView.topAnchor.constraint(equalTo: topAnchor, constant: inset),
-			imageView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -inset),
-		])
-	}
-
-	@available(*, unavailable)
-	required init?(coder: NSCoder) { nil }
-
-	func configure(platform: PlatformAttribution?) {
-		if let platform {
-			let image = NSImage(named: platform.assetName)
-			image?.isTemplate = true
-			imageView.image = image
-		} else {
-			imageView.image = nil
-		}
-	}
-
-	override func layout() {
-		super.layout()
-		let radius = min(bounds.width, bounds.height) * 0.22
-		effectView.layer?.cornerRadius = radius
-		effectView.layer?.masksToBounds = true
-		layer?.cornerRadius = radius
-		layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
-		layer?.borderWidth = 1
-		layer?.shadowColor = NSColor.black.cgColor
-		layer?.shadowOpacity = 0.32
-		layer?.shadowRadius = 8
-		layer?.shadowOffset = CGSize(width: 0, height: -2)
-	}
 }

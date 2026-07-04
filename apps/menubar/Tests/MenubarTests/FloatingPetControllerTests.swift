@@ -549,13 +549,6 @@ final class FloatingPetControllerTests: XCTestCase {
 		XCTAssertLessThan(frame.midX, petFrame.midX)
 	}
 
-	func testAnimationBadgeHiddenWhileAttentionBubbleActive() {
-		// Suppressed when the bubble is up (standby/errored) — 1:1 redundant and
-		// collides with the same below-pet slot.
-		XCTAssertFalse(AnimationBadgeLayout.isVisible(attentionActive: true))
-		XCTAssertTrue(AnimationBadgeLayout.isVisible(attentionActive: false))
-	}
-
 	func testIdleEscalationConfigThresholds() {
 		let config = IdleEscalationConfig(impatientAfter: 60, frustratedAfter: 120)
 		XCTAssertEqual(config.escalation(forElapsed: 0), .none)

@@ -311,8 +311,6 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		let bubble = bubblePanel ?? {
 			let b = AttentionBubblePanel()
 			b.onDismiss = { [weak self] in self?.handleBubbleDismiss() }
-			// The badge already shows the platform chip directly above the bubble.
-			b.showsPlatformChip = false
 			bubblePanel = b
 			return b
 		}()
@@ -323,7 +321,12 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 	private func repositionBubble(badgeFrame: CGRect) {
 		guard currentAttention != nil, let bubble = bubblePanel else { return }
-		bubble.reposition(relativeTo: badgeFrame, visibleFrame: visibleFrameProvider())
+		bubble.reposition(
+			relativeTo: badgeFrame,
+			leadingX: badgeFrame.minX + MinimalistBadgeView.hPad,
+			bottomAnchorY: badgeFrame.minY,
+			visibleFrame: visibleFrameProvider()
+		)
 	}
 
 	// MARK: - Conflict bubble panel (P15.08, independent window)
@@ -442,10 +445,11 @@ private final class MinimalistBadgeView: NSView {
 	private var currentSessionLabel: String?
 	private var currentSessionTooltip: String?
 
-	/// Shows/hides and labels the session badge row. `nil` number hides the row
-	/// entirely (session-pets off, or a plain-origin/combined window). `label`,
-	/// when present, replaces "Session N" with the user's rename; `tooltip` is
-	/// the delayed hover tooltip showing the session's last submitted prompt.
+	/// Shows/hides and labels the session badge row. A session-keyed window
+	/// (`number` non-`nil`) shows "Session N" unless renamed; a plain-origin/
+	/// combined window (`number` `nil`) now also shows a badge — the pool's
+	/// platform-name default, or the user's rename — via `label` (P??
+	/// unification). The row hides only when both are `nil`.
 	func configureSessionNumber(_ number: Int?, label: String? = nil, tooltip: String? = nil) {
 		currentSessionNumber = number
 		currentSessionLabel = label
@@ -569,10 +573,12 @@ private final class MinimalistBadgeView: NSView {
 					self?.onForceIdleRequested?()
 				})
 		}
-		// Rename is only meaningful for a session-keyed strip (one that
-		// currently carries a session number); sits above "Hide panel",
-		// mirroring Own mode's placement.
-		if currentSessionNumber != nil {
+		// Offered whenever the strip is showing a session-label badge at all —
+		// a session-keyed strip's own "Session N" default, or a plain-origin/
+		// combined strip's platform-name default (P?? unification) — not just
+		// a session-keyed one. Sits above "Hide panel", mirroring Own mode's
+		// placement.
+		if currentSessionLabel != nil {
 			items.append(
 				FloatingPetPromptItem(title: FloatingPetHidePrompt.renameTitle) { [weak self] in
 					self?.dismissHidePrompt()
@@ -877,17 +883,17 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 		isPanelShown = true
 		lastPanelFrame = frame
+		// Animation badge first: the bubble's and gate badge's leading edge are
+		// anchored off the animation badge panel's own frame (the platform
+		// chip's leading edge), so it must already be positioned this tick
+		// before either reads `chipLeadingX`.
+		repositionAndShowAnimationBadge()
 		if attentionActive {
 			repositionAndShowBubble()
 		}
 		if conflictActive {
 			repositionAndShowConflictBubble()
 		}
-		// Animation badge first: the gate badge's leading edge is anchored off
-		// the animation badge panel's own frame (the platform chip's leading
-		// edge), so it must already be positioned this tick before the gate
-		// badge reads `chipLeadingX`.
-		repositionAndShowAnimationBadge()
 		if gateBadgeContent != nil {
 			repositionAndShowGateBadge()
 		}
@@ -947,12 +953,14 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		guard let payload, !payload.isExpired() else {
 			attentionActive = false
 			attentionBubble?.orderOut(nil)
-			// Bubble cleared — the animation badge can take the below-pet slot again.
 			repositionAndShowAnimationBadge()
 			return
 		}
 		attentionActive = true
-		// Bubble is taking over the below-pet slot — hide the redundant badge.
+		// Refresh the chip/pill/session badge first — the bubble no longer
+		// hides it (P?? unification: the badge is always visible now, the same
+		// way it always was in Minimalist mode), and the bubble's `chipLeadingX`
+		// anchor below needs this panel's current frame.
 		repositionAndShowAnimationBadge()
 		let bubble = attentionBubble ?? {
 			let b = AttentionBubblePanel()
@@ -997,6 +1005,17 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// after `show`, ordering permitting) rather than crashing/centering.
 	private var chipLeadingX: CGFloat {
 		animationBadgePanel?.frame.minX ?? lastPanelFrame.minX
+	}
+
+	/// Screen-space y of the animation badge panel's own bottom edge —
+	/// includes the session-label row underneath the chip+pill now that it is
+	/// never hidden while the attention bubble shows (P?? unification), unlike
+	/// the pet sprite's own `minY`. The attention bubble anchors below this,
+	/// not below the pet, or it would land on top of the badge instead of
+	/// beneath it. Falls back to the pet frame's own bottom edge before the
+	/// animation badge panel exists, same reasoning as `chipLeadingX`.
+	private var chromeBottomY: CGFloat {
+		animationBadgePanel?.frame.minY ?? lastPanelFrame.minY
 	}
 
 	/// Routes a right-click on chrome that lives in its own floating window
@@ -1151,6 +1170,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		guard let bubble = attentionBubble else { return }
 		bubble.reposition(
 			relativeTo: lastPanelFrame,
+			leadingX: chipLeadingX,
+			bottomAnchorY: chromeBottomY,
 			visibleFrame: visibleFrameProvider()
 		)
 		bubble.orderFrontRegardless()
@@ -1329,10 +1350,6 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	private func repositionAndShowAnimationBadge() {
 		guard isPanelShown else { return }
-		guard AnimationBadgeLayout.isVisible(attentionActive: attentionActive) else {
-			animationBadgePanel?.orderOut(nil)
-			return
-		}
 		let badge = animationBadgePanel ?? {
 			let panel = AnimationBadgePanel()
 			panel.onRightClickRequested = { [weak self] anchor in
@@ -1440,20 +1457,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private func reanchorChrome(to frame: CGRect) {
 		lastPanelFrame = frame
 		guard isPanelShown else { return }
-		if attentionActive {
-			attentionBubble?.reposition(
-				relativeTo: lastPanelFrame,
-				visibleFrame: visibleFrameProvider()
-			)
-		}
-		if conflictActive {
-			conflictBubble?.reposition(
-				relativeTo: lastPanelFrame,
-				visibleFrame: visibleFrameProvider()
-			)
-		}
-		// Animation badge first — the gate badge's `chipLeadingX` anchor reads
-		// this panel's just-updated frame (see the ordering note in `show`).
+		// Animation badge first — the bubble's and gate badge's `chipLeadingX`
+		// anchor reads this panel's just-updated frame (see the ordering note
+		// in `show`).
 		animationBadgePanel?.reposition(
 			label: animationBadgeLabel,
 			platform: currentPlatform,
@@ -1464,6 +1470,20 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
+		if attentionActive {
+			attentionBubble?.reposition(
+				relativeTo: lastPanelFrame,
+				leadingX: chipLeadingX,
+				bottomAnchorY: chromeBottomY,
+				visibleFrame: visibleFrameProvider()
+			)
+		}
+		if conflictActive {
+			conflictBubble?.reposition(
+				relativeTo: lastPanelFrame,
+				visibleFrame: visibleFrameProvider()
+			)
+		}
 		if let content = gateBadgeContent {
 			gateBadgePanel?.reposition(
 				content: content,
@@ -2075,14 +2095,6 @@ enum AnimationBadgeLayout {
 		let y = max(safe.minY, min(safe.maxY - rect.height, rect.minY))
 		return CGRect(x: x, y: y, width: rect.width, height: rect.height)
 	}
-
-	/// The animation badge is suppressed while the attention bubble is visible:
-	/// the bubble is the 1:1 signal for standby/errored and occupies the same
-	/// below-pet region the badge anchors to, so showing both is redundant and
-	/// would collide.
-	static func isVisible(attentionActive: Bool) -> Bool {
-		!attentionActive
-	}
 }
 
 @MainActor
@@ -2608,16 +2620,26 @@ final class PlatformSessionBadge: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	/// Configures the badge for session `number` and returns whether it should
-	/// be visible at all — `nil` (no session assigned, e.g. session-pets off or
-	/// a plain-origin/combined window) hides the row entirely. `label`, when
-	/// present, replaces the "Session N" text with the user's rename (P15.06).
-	/// `tooltip` — the session's last submitted prompt — is shown by AppKit's
-	/// native delayed hover tooltip; empty/`nil` clears it.
+	/// Configures the badge for session `number` and decides whether it should
+	/// be visible at all. `label`, when present, replaces the "Session N" text
+	/// with the user's rename (P15.06) — or, for a plain-origin/"combined"
+	/// window (`number` `nil`), the pool's platform-name default or the user's
+	/// rename (P?? unification: these windows now get a badge too, where
+	/// previously `number == nil` hid the row unconditionally regardless of
+	/// `label`). The row hides only when there is truly nothing to show
+	/// (`number` and `label` both `nil` — a plain-origin window whose origin
+	/// didn't resolve to a known platform). `tooltip` — the session's last
+	/// submitted prompt — is shown by AppKit's native delayed hover tooltip;
+	/// empty/`nil` clears it.
 	func configure(number: Int?, label: String? = nil, tooltip: String? = nil, metrics: GateBadgeLayout.Metrics) {
 		self.metrics = metrics
+		let resolvedLabel = (label?.isEmpty == false) ? label : nil
 		if let number {
-			self.label.stringValue = (label?.isEmpty == false) ? label! : "Session \(number)"
+			self.label.stringValue = resolvedLabel ?? "Session \(number)"
+			isHidden = false
+			toolTip = (tooltip?.isEmpty == false) ? tooltip : nil
+		} else if let resolvedLabel {
+			self.label.stringValue = resolvedLabel
 			isHidden = false
 			toolTip = (tooltip?.isEmpty == false) ? tooltip : nil
 		} else {
@@ -2773,10 +2795,11 @@ final class AnimationBadgeView: NSView {
 	}
 
 	/// Shows/hides and labels the session badge row beneath the chip + pill
-	/// row. `nil` number hides the row entirely (session-pets off, or a
-	/// plain-origin/combined window). `label`/`tooltip` are the rename text
-	/// and last-prompt hover tooltip (P15.06); both are `nil` until the pool
-	/// applies them on the same tick.
+	/// row. A session-keyed window (`number` non-`nil`) shows "Session N"
+	/// unless renamed; a plain-origin/combined window (`number` `nil`) now
+	/// also shows a badge — the pool's platform-name default, or the user's
+	/// rename — via `label` (P?? unification). The row hides only when both
+	/// are `nil`.
 	func configureSessionNumber(_ number: Int?, label: String? = nil, tooltip: String? = nil) {
 		currentSessionNumber = number
 		currentSessionLabel = label
@@ -3133,12 +3156,18 @@ private final class FloatingPetInteractionView: NSView {
 	/// the controller from the latest applied `ActivityState`.
 	var isForceIdleAvailable = false
 	/// Whether this window currently holds a session number (P15.06). Gates
-	/// the right-click "Rename" affordance — only session-keyed windows can
-	/// be renamed. Kept in sync by the controller from the latest applied
-	/// session number.
+	/// only the right-click "Prune Session" affordance — pruning destroys
+	/// backing session state, so it stays restricted to an actual
+	/// session-keyed window. Rename is gated separately, on
+	/// `currentSessionLabel` (see below), now that a plain-origin/combined
+	/// window shows a label (and can be renamed) too. Kept in sync by the
+	/// controller from the latest applied session number.
 	var hasActiveSessionBadge = false
-	/// This session's current rename label, if any — prefills the rename
-	/// alert's text field.
+	/// This window's current session-label badge text, if any — a
+	/// session-keyed window's own "Session N" default or rename, or a
+	/// plain-origin/combined window's platform-name default or rename (P??
+	/// unification). `nil` only when the badge is hidden entirely. Prefills
+	/// the rename alert's text field and gates whether "Rename…" is offered.
 	var currentSessionLabel: String?
 	/// Fired with the trimmed/capped label the user commits via the
 	/// right-click "Rename" affordance. Not fired when the user cancels or
@@ -3146,7 +3175,8 @@ private final class FloatingPetInteractionView: NSView {
 	var renameHandler: ((String) -> Void)?
 	/// Fired when the user confirms the right-click "Prune Session" affordance
 	/// (P15.07). Not fired if the user cancels the confirmation alert. Only
-	/// offered while `hasActiveSessionBadge`, same gate as Rename.
+	/// offered while `hasActiveSessionBadge` — see that property's doc for why
+	/// this gate differs from Rename's.
 	var pruneHandler: (() -> Void)?
 	/// Fired when the pointer enters or leaves the pet frame. `true` = entered.
 	var onHoverChange: ((Bool) -> Void)?
@@ -3544,16 +3574,23 @@ private final class FloatingPetInteractionView: NSView {
 					self?.forceIdleHandler?()
 				})
 		}
-		// Rename is only meaningful for a session-keyed window (one that
-		// currently carries a session number); sits above "Hide pet".
-		if hasActiveSessionBadge {
+		// Offered whenever the window is showing a session-label badge at all —
+		// a session-keyed window's own "Session N" default, or a plain-origin/
+		// combined window's platform-name default (P?? unification) — not
+		// just a session-keyed one. Sits above "Hide pet".
+		if currentSessionLabel != nil {
 			items.append(
 				FloatingPetPromptItem(title: FloatingPetHidePrompt.renameTitle) { [weak self] in
 					self?.dismissHidePrompt()
 					self?.presentRenameAlert()
 				})
-			// Destructive, so it sits above "Hide pet" but requires a confirmation
-			// alert rather than firing immediately on click.
+		}
+		// Destroys backing session state (slice, free-list number), so unlike
+		// Rename this stays restricted to an actual session-keyed window —
+		// a plain-origin/combined window has no session to prune. Destructive,
+		// so it sits above "Hide pet" but requires a confirmation alert rather
+		// than firing immediately on click.
+		if hasActiveSessionBadge {
 			items.append(
 				FloatingPetPromptItem(title: FloatingPetHidePrompt.pruneTitle) { [weak self] in
 					self?.dismissHidePrompt()

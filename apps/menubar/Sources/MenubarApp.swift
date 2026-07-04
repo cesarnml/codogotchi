@@ -289,9 +289,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						panel?.applyConflictBubble(nil)
 					}
 					// Right-click "Rename…" (P15.06): `origin` here is the resolved
-					// render key, which for a session-keyed window IS already the
-					// "origin:session_id" SessionLabelStore key — no identity lookup
-					// needed.
+					// render key, which IS already the SessionLabelStore key regardless
+					// of shape — "origin:session_id" for a session-keyed window, or the
+					// plain origin/"combined" itself (P?? unification: those now offer
+					// Rename too) — so no identity lookup is needed.
 					panel.onRenameRequested = { newLabel in
 						SessionLabelStore.setLabel(newLabel, for: origin)
 					}
@@ -329,8 +330,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						self?.settingsWindowController?.show(tab: .customization)
 					}
 					// Right-click "Rename…", mirroring Own mode: `origin` here is
-					// the resolved render key, which for a session-keyed window IS
-					// already the "origin:session_id" SessionLabelStore key.
+					// the resolved render key, which IS already the SessionLabelStore
+					// key regardless of shape (P?? unification — see Own mode's wiring
+					// above for the full rationale).
 					panel.onRenameRequested = { newLabel in
 						SessionLabelStore.setLabel(newLabel, for: origin)
 					}

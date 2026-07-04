@@ -2586,7 +2586,10 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, nil)
 	}
 
-	func testPlainOriginWindowNeverAppliesASessionLabelEvenIfReaderHasOne() {
+	// A plain-origin window (session-pets off) now gets a session-label badge
+	// too (P?? unification): the user's rename, if the sidecar has one for
+	// this exact plain-origin key ("codex", not "codex:s1").
+	func testPlainOriginWindowAppliesItsOwnSidecarLabelWhenReaderHasOne() {
 		var stubs: [String: StubWindowController] = [:]
 		let customization = makeCustomization(sessionPetsEnabled: ["codex": false])
 		let pool = FloatingPetWindowPool(
@@ -2596,7 +2599,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 				stubs[key] = c
 				return c
 			},
-			sessionLabelReader: { _ in "should never surface" }
+			sessionLabelReader: { key in key == "codex" ? "My Codex" : nil }
 		)
 		pool.update(snapshot: makeResolvedSnapshot(
 			perSession: [
@@ -2604,7 +2607,31 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			],
 			customization: customization
 		))
-		XCTAssertEqual(stubs["codex"]?.appliedSessionLabels, [nil])
+		XCTAssertEqual(stubs["codex"]?.appliedSessionLabels.last ?? nil, "My Codex")
+	}
+
+	// Without a sidecar rename, a plain-origin window falls back to the
+	// platform's own display name — it has no "Session N" of its own to fall
+	// back to the way a session-keyed window does.
+	func testPlainOriginWindowWithoutSidecarLabelFallsBackToPlatformDisplayName() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": false])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex"]?.appliedSessionLabels.last ?? nil, "Codex")
 	}
 
 	/// Mirrors `testSessionKeyedWindowWithSidecarLabelDisplaysItInsteadOfSessionN`

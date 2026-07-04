@@ -648,7 +648,14 @@ final class FloatingPetWindowPool {
 				windows[renderKey]?.applyPlatform(origin: sourceOrigin)
 			}
 			windows[renderKey]?.applySessionNumber(sessionNumber(forWindowKey: renderKey))
-			windows[renderKey]?.applySessionLabel(sessionLabel(forWindowKey: renderKey))
+			// A session-keyed window's own badge already synthesizes "Session N"
+			// when unrenamed (`sessionLabel` nil is the right signal there); a
+			// plain-origin window has no such built-in default, so it falls back
+			// to the platform's display name here instead.
+			let userLabel = sessionLabel(forWindowKey: renderKey)
+			let resolvedLabel =
+				isSessionKeyed(renderKey) ? userLabel : (userLabel ?? Self.defaultSessionLabel(forOrigin: origin))
+			windows[renderKey]?.applySessionLabel(resolvedLabel)
 			windows[renderKey]?.applySessionTooltip(sessionPromptSummary(forWindowKey: renderKey))
 		}
 
@@ -711,11 +718,25 @@ final class FloatingPetWindowPool {
 					// While idle the combined window shows the persistent ⭐ Default badge;
 					// when active it badges with whichever platform triggered the winning
 					// state, matching the pre-phase-13 single-pet behavior.
+					let combinedDefaultOrigin: String
 					if winner.activityState == .idle {
 						windows["combined"]?.applyPlatform(origin: "combined")
+						combinedDefaultOrigin = "combined"
 					} else if let sourceOrigin = winner.sourceEvent?.origin {
 						windows["combined"]?.applyPlatform(origin: sourceOrigin)
+						combinedDefaultOrigin = sourceOrigin
+					} else {
+						combinedDefaultOrigin = "combined"
 					}
+					// The combined window is never session-keyed (no session number —
+					// `sessionNumber(forWindowKey:)` already guards that; nothing to
+					// apply here), but it now gets a session-label badge too (P??
+					// unification): the user's rename if set, else whichever platform
+					// is currently driving the shared pet ("Default" while idle).
+					windows["combined"]?.applySessionLabel(
+						sessionLabel(forWindowKey: "combined")
+							?? Self.defaultSessionLabel(forOrigin: combinedDefaultOrigin))
+					windows["combined"]?.applySessionTooltip(nil)
 				}
 			}
 		} else if combinedModeOrigins().isEmpty {
@@ -858,13 +879,29 @@ final class FloatingPetWindowPool {
 		return sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
 	}
 
-	/// Rename label for `windowKey`, or `nil` for a plain-origin/"combined"
-	/// window, or a session-keyed window with no sidecar label set. The
-	/// window key for a session-keyed window IS the `SessionLabelStore` key
-	/// (`"origin:session_id"`), so no identity lookup is needed here.
+	/// The user's rename override for `windowKey`, or `nil` if never renamed.
+	/// `windowKey` doubles as the `SessionLabelStore` key regardless of shape
+	/// (`"origin:session_id"`, a plain origin, or the literal `"combined"`),
+	/// so no identity lookup is needed here. Unlike `sessionNumber`, this is
+	/// not restricted to session-keyed windows — a plain-origin/"combined"
+	/// window can be renamed too (P?? unification); see
+	/// `defaultSessionLabel(forOrigin:)` for what a plain-origin/"combined"
+	/// window shows when it has never been renamed.
 	func sessionLabel(forWindowKey key: String) -> String? {
-		guard isSessionKeyed(key) else { return nil }
-		return sessionLabelReader(key)
+		sessionLabelReader(key)
+	}
+
+	/// Fallback session-label text for a plain-origin/"combined" window that
+	/// has never been renamed — the platform's own display name (e.g.
+	/// "Claude Code", "VS Code"), so every platform now shows *some* label
+	/// even with session-pets off, mirroring the "Session N" default a
+	/// session-keyed window's badge already synthesizes on its own. Passing
+	/// the literal `"combined"` origin (the folded window while idle, before
+	/// any platform has driven it this tick) resolves to `PlatformAttribution
+	/// .default.displayName`, "Default" — the same label already shown on
+	/// its ⭐ platform chip.
+	static func defaultSessionLabel(forOrigin origin: String) -> String? {
+		PlatformAttribution(origin: origin)?.displayName
 	}
 
 	/// Last submitted prompt for `windowKey`'s exact session, or `nil` for a
