@@ -1513,16 +1513,18 @@ enum GateBadgeLayout {
 
 	static func metrics(scale rawScale: CGFloat) -> Metrics {
 		let scale = max(minScale, min(maxScale, rawScale))
-		// Base 8.7 → max font 13.05 at the 1.5 cap, i.e. just a hair above the
-		// attention bubble's 12pt summary. Padding/height reduced to match the
-		// smaller type.
+		// Base values net +14% over the original 8/4/5/7/20/8.7 set (+20% then
+		// -5%) so the whole badge family (platform chip, animation/session
+		// badges, ticket and gate tokens — all single-sourced from this
+		// function) reads larger across the entire scale range, not just at
+		// one end.
 		return Metrics(
-			horizontalPadding: round(8 * scale),
-			verticalPadding: round(4 * scale),
-			interBadgeSpacing: round(5 * scale),
-			cornerRadius: round(7 * scale),
-			badgeHeight: round(20 * scale),
-			fontSize: round(8.7 * scale * 10) / 10
+			horizontalPadding: round(9.12 * scale),
+			verticalPadding: round(4.56 * scale),
+			interBadgeSpacing: round(5.7 * scale),
+			cornerRadius: round(7.98 * scale),
+			badgeHeight: round(22.8 * scale),
+			fontSize: round(9.918 * scale * 10) / 10
 		)
 	}
 
