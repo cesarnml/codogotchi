@@ -15,6 +15,66 @@ final class CustomizationJsonReaderTests: XCTestCase {
 		XCTAssertEqual(snapshot.platformModes, [:])
 		XCTAssertEqual(snapshot.idleDismissTtlSeconds, 300)
 		XCTAssertEqual(snapshot.menubarIconMonochrome, false)
+		XCTAssertEqual(snapshot.idleImpatientSeconds, 300)
+		XCTAssertEqual(snapshot.idleFrustratedSeconds, 600)
+		XCTAssertEqual(
+			snapshot.evictSessionPetsEnabled, true,
+			"Evict Session Pets defaults enabled — a kill-switch on existing behavior, not an opt-in")
+	}
+
+	// MARK: - Idle escalation timing + evict-session-pets: round-trip and defaults
+
+	func testIdleEscalationAndEvictionFieldsDecodePopulatedValues() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-escalation-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "idle_impatient_seconds": 1800,
+			  "idle_frustrated_seconds": 3600,
+			  "evict_session_pets_enabled": false
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		XCTAssertEqual(snapshot.idleImpatientSeconds, 1800)
+		XCTAssertEqual(snapshot.idleFrustratedSeconds, 3600)
+		XCTAssertEqual(snapshot.evictSessionPetsEnabled, false)
+	}
+
+	func testNegativeIdleEscalationSecondsClampToDefaults() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-escalation-neg-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "idle_impatient_seconds": -5,
+			  "idle_frustrated_seconds": -5
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		XCTAssertEqual(snapshot.idleImpatientSeconds, 300, "negative impatient seconds must clamp to the 300s default")
+		XCTAssertEqual(snapshot.idleFrustratedSeconds, 600, "negative frustrated seconds must clamp to the 600s default")
+	}
+
+	func testIdleEscalationZeroIsValidNeverSentinel() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-escalation-zero-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "idle_impatient_seconds": 0,
+			  "idle_frustrated_seconds": 0
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let snapshot = CustomizationJsonReader.read(at: tmp.path)
+		XCTAssertEqual(snapshot.idleImpatientSeconds, 0, "0 must be accepted as the 'Never' sentinel, not clamped")
+		XCTAssertEqual(snapshot.idleFrustratedSeconds, 0)
 	}
 
 	// MARK: - Valid file → correct parse of modes, TTL, monochrome flag

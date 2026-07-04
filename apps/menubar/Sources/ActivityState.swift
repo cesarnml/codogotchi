@@ -247,14 +247,27 @@ struct IdleEscalationConfig: Equatable {
 	var frustratedAfter: TimeInterval
 
 	static let production = IdleEscalationConfig(
-		impatientAfter: 10 * 60,
-		frustratedAfter: 30 * 60
+		impatientAfter: 5 * 60,
+		frustratedAfter: 10 * 60
 	)
 
+	/// Resolves the effective config: `customization` (Settings > Customization's
+	/// persisted `idle_impatient_seconds`/`idle_frustrated_seconds`, `0` treated
+	/// as "Never") seeds the base, then the environment variables below are
+	/// still honored on top for fast manual/demo testing — this keeps `tcib`
+	/// and similar tooling working unchanged even once the thresholds are
+	/// user-configurable.
 	static func resolve(
+		customization: CustomizationSnapshot? = nil,
 		environment: [String: String] = ProcessInfo.processInfo.environment
 	) -> IdleEscalationConfig {
 		var config = production
+		if let customization {
+			config.impatientAfter = customization.idleImpatientSeconds == 0
+				? .infinity : TimeInterval(customization.idleImpatientSeconds)
+			config.frustratedAfter = customization.idleFrustratedSeconds == 0
+				? .infinity : TimeInterval(customization.idleFrustratedSeconds)
+		}
 		if let seconds = positiveSeconds(environment["CODOGOTCHI_IDLE_IMPATIENT_MS"]) {
 			config.impatientAfter = seconds
 		}

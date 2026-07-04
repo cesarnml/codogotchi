@@ -130,6 +130,83 @@ final class SessionSelectionPolicyTests: XCTestCase {
 		XCTAssertEqual(selection.pending, ["claude_code:newcomer"])
 	}
 
+	// MARK: - "Evict Session Pets" kill-switch (incumbentsProtected)
+
+	func testIncumbentsProtectedKeepsAnIdleIncumbentAliveAgainstAnInFlightNewcomer() {
+		// The user's reported scenario: cap 2, one idle + one in-flight
+		// incumbent, a 3rd in-flight thread starts. With incumbentsProtected,
+		// the idle incumbent must NOT be evicted — the newcomer stays pending.
+		let sessions: [String: ActivityState] = [
+			"claude_code:idle-incumbent": .idle,
+			"claude_code:active-incumbent": .implementing,
+			"claude_code:newcomer": .thinking,
+		]
+
+		let selection = SessionSelectionPolicy.select(
+			sessions: sessions, cap: 2,
+			currentlyRendered: ["claude_code:idle-incumbent", "claude_code:active-incumbent"],
+			incumbentsProtected: true)
+
+		XCTAssertEqual(
+			selection.rendered, ["claude_code:idle-incumbent", "claude_code:active-incumbent"],
+			"both incumbents must survive regardless of rank when incumbentsProtected is true")
+		XCTAssertEqual(selection.pending, ["claude_code:newcomer"])
+	}
+
+	func testIncumbentsProtectedFillsAGenuinelyFreeSlotWithANewcomer() {
+		let sessions: [String: ActivityState] = [
+			"claude_code:idle-incumbent": .idle,
+			"claude_code:newcomer": .implementing,
+		]
+
+		let selection = SessionSelectionPolicy.select(
+			sessions: sessions, cap: 2,
+			currentlyRendered: ["claude_code:idle-incumbent"],
+			incumbentsProtected: true)
+
+		XCTAssertEqual(
+			selection.rendered, Set(sessions.keys),
+			"a newcomer must still fill a slot that isn't already held by an incumbent")
+		XCTAssertTrue(selection.pending.isEmpty)
+	}
+
+	func testIncumbentsProtectedDefaultsToFalsePreservingTodaysBehavior() {
+		let sessions: [String: ActivityState] = [
+			"claude_code:idle-incumbent": .idle,
+			"claude_code:active-incumbent": .implementing,
+			"claude_code:newcomer": .thinking,
+		]
+
+		let selection = SessionSelectionPolicy.select(
+			sessions: sessions, cap: 2,
+			currentlyRendered: ["claude_code:idle-incumbent", "claude_code:active-incumbent"])
+
+		XCTAssertEqual(
+			selection.rendered, ["claude_code:active-incumbent", "claude_code:newcomer"],
+			"without incumbentsProtected, the idle incumbent is still evicted by the in-flight newcomer")
+		XCTAssertEqual(selection.pending, ["claude_code:idle-incumbent"])
+	}
+
+	func testIncumbentsProtectedComposesWithArmedPruneGate() {
+		// A freed slot (cap 1, no incumbents left) with incumbentsProtected on:
+		// the armed gate still restricts a fresh non-in-flight promotion, since
+		// incumbentsProtected only ever protects existing incumbents — it has
+		// nothing to say about a slot with no incumbent at all.
+		let sessions: [String: ActivityState] = [
+			"claude_code:standby-one": .standby,
+		]
+
+		let selection = SessionSelectionPolicy.select(
+			sessions: sessions, cap: 1, currentlyRendered: [],
+			incumbentsProtected: true,
+			restrictNewPromotionsToInFlight: true)
+
+		XCTAssertTrue(
+			selection.rendered.isEmpty,
+			"incumbentsProtected must not bypass the prune-armed gate for a non-incumbent candidate")
+		XCTAssertEqual(selection.pending, ["claude_code:standby-one"])
+	}
+
 	// MARK: - Prune-armed gate (P15.07-QC)
 
 	func testArmedGateKeepsAFreedSlotEmptyWhenOnlyStandbyCandidateRemains() {

@@ -43,6 +43,12 @@ final class FloatingPetControllerTests: XCTestCase {
 		}
 
 		var appliedInteractions: [FloatingInteraction?] = []
+
+		var appliedIdleEscalationConfigs: [IdleEscalationConfig] = []
+
+		func updateIdleEscalationConfig(_ config: IdleEscalationConfig) {
+			appliedIdleEscalationConfigs.append(config)
+		}
 	}
 
 	struct SaveFailure: Error {}
@@ -425,6 +431,23 @@ final class FloatingPetControllerTests: XCTestCase {
 		}
 	}
 
+	func testUpdateIdleEscalationConfigForwardsToPanel() throws {
+		try withTempHome { _ in
+			let panel = FloatingPetPanelSpy()
+			let controller = FloatingPetController(
+				panel: panel,
+				visibleFrameProvider: { CGRect(x: 0, y: 0, width: 500, height: 400) }
+			)
+			let config = IdleEscalationConfig(impatientAfter: 300, frustratedAfter: 600)
+
+			controller.updateIdleEscalationConfig(config)
+
+			XCTAssertEqual(
+				panel.appliedIdleEscalationConfigs, [config],
+				"FloatingPetController must forward idle-escalation config updates to its panel")
+		}
+	}
+
 	func testGateBadgeLayoutCentersAbovePetFrame() {
 		let petFrame = CGRect(x: 120, y: 160, width: 220, height: 180)
 		let badgeSize = CGSize(width: 180, height: 24)
@@ -543,9 +566,9 @@ final class FloatingPetControllerTests: XCTestCase {
 		XCTAssertEqual(config.escalation(forElapsed: 100_000), .frustrated)
 	}
 
-	func testIdleEscalationConfigProductionDefaultsAreTenAndThirtyMinutes() {
-		XCTAssertEqual(IdleEscalationConfig.production.impatientAfter, 10 * 60, accuracy: 0.001)
-		XCTAssertEqual(IdleEscalationConfig.production.frustratedAfter, 30 * 60, accuracy: 0.001)
+	func testIdleEscalationConfigProductionDefaultsAreFiveAndTenMinutes() {
+		XCTAssertEqual(IdleEscalationConfig.production.impatientAfter, 5 * 60, accuracy: 0.001)
+		XCTAssertEqual(IdleEscalationConfig.production.frustratedAfter, 10 * 60, accuracy: 0.001)
 	}
 
 	func testIdleEscalationConfigResolvesEnvOverridesInMilliseconds() {
@@ -563,6 +586,43 @@ final class FloatingPetControllerTests: XCTestCase {
 			"CODOGOTCHI_IDLE_FRUSTRATED_MS": "not-a-number",
 		])
 		XCTAssertEqual(config, .production)
+	}
+
+	private func customization(impatientSeconds: Int, frustratedSeconds: Int) -> CustomizationSnapshot {
+		CustomizationSnapshot(
+			platformModes: [:],
+			idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false,
+			minimalistBadgeScale: 1.0,
+			idleImpatientSeconds: impatientSeconds,
+			idleFrustratedSeconds: frustratedSeconds
+		)
+	}
+
+	func testIdleEscalationConfigResolvesFromCustomizationSnapshot() {
+		let config = IdleEscalationConfig.resolve(
+			customization: customization(impatientSeconds: 1800, frustratedSeconds: 3600),
+			environment: [:])
+		XCTAssertEqual(config.impatientAfter, 1800, accuracy: 0.001)
+		XCTAssertEqual(config.frustratedAfter, 3600, accuracy: 0.001)
+	}
+
+	func testIdleEscalationConfigCustomizationNeverSentinelResolvesToInfinity() {
+		let config = IdleEscalationConfig.resolve(
+			customization: customization(impatientSeconds: 0, frustratedSeconds: 0),
+			environment: [:])
+		XCTAssertEqual(config.impatientAfter, .infinity)
+		XCTAssertEqual(config.frustratedAfter, .infinity)
+	}
+
+	func testIdleEscalationConfigEnvOverridesCustomization() {
+		let config = IdleEscalationConfig.resolve(
+			customization: customization(impatientSeconds: 1800, frustratedSeconds: 3600),
+			environment: ["CODOGOTCHI_IDLE_IMPATIENT_MS": "60000"])
+		XCTAssertEqual(config.impatientAfter, 60, accuracy: 0.001)
+		// Frustrated wasn't overridden — still comes from customization.
+		XCTAssertEqual(config.frustratedAfter, 3600, accuracy: 0.001)
 	}
 
 	func testIdleEscalationBadgeLabels() {

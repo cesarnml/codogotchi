@@ -213,11 +213,18 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					} else {
 						fatalError("FloatingPetWindowPool factory: no pet assets available")
 					}
+					// Reuses the config the pool already resolved this same tick
+					// (Step 7 spawns happen after the pool's own resolve, well
+					// before this factory could ever run) instead of
+					// independently re-reading and re-decoding
+					// customization.json from disk — avoiding both the
+					// redundant I/O and the risk of disagreeing with the value
+					// just pushed to every other open window.
 					let panel = FloatingPetPanelController(
 						codexPet: resolvedCodexPet,
 						codogotchiPet: resolvedCodogotchiPet,
 						demoFrameInterval: nil,
-						idleEscalationConfig: IdleEscalationConfig.resolve(),
+						idleEscalationConfig: self.floatingPetWindowPool?.resolvedIdleEscalationConfig ?? .production,
 						initialIdleAge: IdleEscalationConfig.backdateSeconds()
 					)
 					let savedFrame = AppStateStore.loadFrame(

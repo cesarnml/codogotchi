@@ -1,7 +1,23 @@
 import Foundation
 
+/// Shared shape for an `Int`-backed Settings picker preset: `rawValue` is the
+/// persisted value, `label` is the picker's display text, and `matching(_:)`
+/// resolves a persisted value back to its case. `IdleDismissTTL`,
+/// `IdleEscalationTiming`, and `SessionCapOption` all conform instead of each
+/// hand-rolling the identical `matching(_:)` lookup.
+protocol LabeledIntPreset: RawRepresentable, CaseIterable where RawValue == Int {
+	var label: String { get }
+}
+
+extension LabeledIntPreset {
+	/// Returns the case whose rawValue matches `value`, or nil if no match.
+	static func matching(_ value: Int) -> Self? {
+		allCases.first { $0.rawValue == value }
+	}
+}
+
 /// TTL presets for the idle-dismiss picker, in display order.
-enum IdleDismissTTL: Int, CaseIterable {
+enum IdleDismissTTL: Int, LabeledIntPreset {
 	case oneMinute = 60
 	case fiveMinutes = 300
 	case fifteenMinutes = 900
@@ -19,27 +35,42 @@ enum IdleDismissTTL: Int, CaseIterable {
 		case .never: return "Never"
 		}
 	}
+}
 
-	/// Returns the preset whose rawValue matches `seconds`, or nil if no match.
-	static func matching(_ seconds: Int) -> IdleDismissTTL? {
-		allCases.first { $0.rawValue == seconds }
+/// Timing presets for the Pet Idle Escalation Timing pickers ("Impatient
+/// After:"/"Frustrated After:"), in display order. `allCases` order doubles
+/// as the "next step up" ordering `CustomizationTabViewModel` uses to keep
+/// Frustrated above Impatient — every non-`.never` case's `rawValue` is its
+/// seconds count, already ascending in declaration order.
+enum IdleEscalationTiming: Int, LabeledIntPreset {
+	case fiveMinutes = 300
+	case tenMinutes = 600
+	case thirtyMinutes = 1800
+	case sixtyMinutes = 3600
+	case oneTwentyMinutes = 7200
+	case never = 0
+
+	var label: String {
+		switch self {
+		case .fiveMinutes: return "5 minutes"
+		case .tenMinutes: return "10 minutes"
+		case .thirtyMinutes: return "30 minutes"
+		case .sixtyMinutes: return "60 minutes"
+		case .oneTwentyMinutes: return "120 minutes"
+		case .never: return "Never"
+		}
 	}
 }
 
 /// Session Cap dropdown options for the Platform Settings card: 2–10 (no 1,
 /// since a cap of 1 defeats the point of session-keyed panels) plus Unlimited,
 /// which persists as `CustomizationSnapshot.unlimitedSessionCap` (`0`).
-enum SessionCapOption: Int, CaseIterable {
+enum SessionCapOption: Int, LabeledIntPreset {
 	case two = 2, three = 3, four = 4, five = 5, six = 6, seven = 7, eight = 8, nine = 9, ten = 10
 	case unlimited = 0
 
 	var label: String {
 		self == .unlimited ? "Unlimited" : "\(rawValue)"
-	}
-
-	/// Returns the option whose rawValue matches `cap`, or nil if no match.
-	static func matching(_ cap: Int) -> SessionCapOption? {
-		allCases.first { $0.rawValue == cap }
 	}
 }
 
@@ -64,6 +95,9 @@ final class CustomizationTabViewModel {
 	private(set) var sessionCap: [String: Int]
 	private(set) var sessionPetsActivatedAt: [String: String]
 	private(set) var sessionPetsGrandfatheredSessionId: [String: String]
+	private(set) var idleImpatientSeconds: Int
+	private(set) var idleFrustratedSeconds: Int
+	private(set) var evictSessionPetsEnabled: Bool
 	private let filePath: String
 	/// Live `state.d/` directory read at the instant session-pets is toggled
 	/// on for an origin, to identify the session to grandfather in as
@@ -97,6 +131,9 @@ final class CustomizationTabViewModel {
 		self.sessionCap = snapshot.sessionCap
 		self.sessionPetsActivatedAt = snapshot.sessionPetsActivatedAt
 		self.sessionPetsGrandfatheredSessionId = snapshot.sessionPetsGrandfatheredSessionId
+		self.idleImpatientSeconds = snapshot.idleImpatientSeconds
+		self.idleFrustratedSeconds = snapshot.idleFrustratedSeconds
+		self.evictSessionPetsEnabled = snapshot.evictSessionPetsEnabled
 	}
 
 	func mode(for origin: String) -> PlatformMode {
@@ -134,6 +171,77 @@ final class CustomizationTabViewModel {
 			idleDismissTtlSeconds = seconds
 		} catch {
 			NSLog("CustomizationTabViewModel: TTL write failed — \(error)")
+		}
+	}
+
+	/// Persists the Impatient threshold. Also bumps the Frustrated threshold to
+	/// the next timed option above the new Impatient value (wrapping to
+	/// `.never` past the last option) when Frustrated would no longer sit
+	/// strictly above it — this is the "Frustrated defaults to one step above
+	/// Impatient" coupling. `IdleEscalationTiming`'s rawValue IS its seconds
+	/// count and every non-`.never` case is already declared in ascending
+	/// order, so "next option above" is a plain rawValue comparison rather
+	/// than an index lookup.
+	///
+	/// Setting Impatient to "Never" also forces Frustrated to "Never": with
+	/// Impatient disabled there is nothing left for Frustrated to sit above,
+	/// and `escalation(forElapsed:)` checks the Frustrated threshold first —
+	/// leaving a stale finite Frustrated value would let the pet escalate
+	/// straight to "Frustrated" even though the user asked to disable
+	/// escalation. Only reacts to Impatient changes; `setIdleFrustratedSeconds`
+	/// never adjusts Impatient back.
+	func setIdleImpatientSeconds(_ seconds: Int) {
+		let timedOptions = IdleEscalationTiming.allCases.filter { $0 != .never }
+		let newFrustrated: Int
+		if seconds == IdleEscalationTiming.never.rawValue {
+			newFrustrated = IdleEscalationTiming.never.rawValue
+		} else if idleFrustratedSeconds != IdleEscalationTiming.never.rawValue,
+			idleFrustratedSeconds > seconds
+		{
+			newFrustrated = idleFrustratedSeconds
+		} else {
+			newFrustrated = (timedOptions.first { $0.rawValue > seconds } ?? .never).rawValue
+		}
+		do {
+			try ConfigFileWriter.merge(
+				[
+					"idle_impatient_seconds": seconds,
+					"idle_frustrated_seconds": newFrustrated,
+				],
+				into: URL(fileURLWithPath: filePath)
+			)
+			idleImpatientSeconds = seconds
+			idleFrustratedSeconds = newFrustrated
+		} catch {
+			NSLog("CustomizationTabViewModel: idle-impatient write failed — \(error)")
+		}
+	}
+
+	/// Persists the Frustrated threshold directly — never adjusts Impatient.
+	func setIdleFrustratedSeconds(_ seconds: Int) {
+		do {
+			try ConfigFileWriter.merge(
+				["idle_frustrated_seconds": seconds],
+				into: URL(fileURLWithPath: filePath)
+			)
+			idleFrustratedSeconds = seconds
+		} catch {
+			NSLog("CustomizationTabViewModel: idle-frustrated write failed — \(error)")
+		}
+	}
+
+	/// Persists the "Evict Session Pets" kill-switch. `true` (default)
+	/// preserves today's rank-based session-cap eviction; `false` protects
+	/// every incumbent session from eviction regardless of rank.
+	func setEvictSessionPetsEnabled(_ enabled: Bool) {
+		do {
+			try ConfigFileWriter.merge(
+				["evict_session_pets_enabled": enabled],
+				into: URL(fileURLWithPath: filePath)
+			)
+			evictSessionPetsEnabled = enabled
+		} catch {
+			NSLog("CustomizationTabViewModel: evict-session-pets write failed — \(error)")
 		}
 	}
 

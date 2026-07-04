@@ -45,6 +45,11 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	/// inherited location too. Used only right after a session window spawns
 	/// into a slot freed by an evicted sibling session of the same origin.
 	func adoptFrame(_ frame: CGRect)
+	/// Live-updates the idle-escalation thresholds (Settings > Customization's
+	/// "Pet Idle Escalation Timing") for an already-open window, so a change
+	/// takes effect without waiting for this window to respawn. No-op for
+	/// controllers with no idle-escalation concept (e.g. Minimalist).
+	func updateIdleEscalationConfig(_ config: IdleEscalationConfig)
 }
 
 extension FloatingPetWindowControlling {
@@ -54,6 +59,7 @@ extension FloatingPetWindowControlling {
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
 	var currentFrame: CGRect { .zero }
 	func adoptFrame(_ frame: CGRect) {}
+	func updateIdleEscalationConfig(_ config: IdleEscalationConfig) {}
 }
 
 @MainActor
@@ -79,6 +85,8 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func applySessionTooltip(_ summary: String?)
 	/// Reversible P15.08 conflict-bubble presentation; `nil` hides it.
 	func applyConflictBubble(_ payload: ConflictBubblePayload?)
+	/// Live-updates the idle-escalation thresholds for this panel's scene.
+	func updateIdleEscalationConfig(_ config: IdleEscalationConfig)
 }
 
 extension FloatingPetPanelManaging {
@@ -94,6 +102,7 @@ extension FloatingPetPanelManaging {
 	func applySessionLabel(_ label: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
+	func updateIdleEscalationConfig(_ config: IdleEscalationConfig) {}
 }
 
 @MainActor
@@ -204,6 +213,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {
 		panel.applyConflictBubble(payload)
+	}
+
+	func updateIdleEscalationConfig(_ config: IdleEscalationConfig) {
+		panel.updateIdleEscalationConfig(config)
 	}
 
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {

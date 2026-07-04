@@ -125,8 +125,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private func openWindow() {
 		// Width sized so the Pet tab grid shows three columns by default
 		// (each card needs ~300pt; see PetTabView.minCardWidth/maxColumns) with
-		// headroom for the Customization tab's two-column layout.
-		let frame = CGRect(x: 0, y: 0, width: 1120, height: 680)
+		// headroom for the Customization tab's two-column layout. Height grown
+		// from 680 to fit the Customization tab's Idle Escalation Timing and
+		// Session Pet Eviction Timing sections stacked below Idle Dismiss.
+		let frame = CGRect(x: 0, y: 0, width: 1120, height: 900)
 		let w = NSWindow(
 			contentRect: frame,
 			styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -1615,6 +1617,9 @@ private final class CustomizationTabView: NSView {
 	private var sessionsPickers: [String: NSPopUpButton] = [:]
 	private var sessionCapPickers: [String: NSPopUpButton] = [:]
 	private var ttlPicker: NSPopUpButton = NSPopUpButton()
+	private var impatientPicker: NSPopUpButton = NSPopUpButton()
+	private var frustratedPicker: NSPopUpButton = NSPopUpButton()
+	private var evictSessionPetsPicker: NSPopUpButton = NSPopUpButton()
 	private var combinedMinimalistCheckbox = NSButton()
 	private var badgeScaleSlider = NSSlider()
 
@@ -1843,6 +1848,83 @@ private final class CustomizationTabView: NSView {
 		)
 		ttlCard.addSubview(ttlNote)
 
+		// MARK: Pet Idle Escalation Timing (full width, below Idle Dismiss)
+
+		let escalationTitle = settingsSectionTitle("Pet Idle Escalation Timing")
+		addSubview(escalationTitle)
+
+		let impatientLabel = NSTextField(labelWithString: "Pet Idle Impatient After:")
+		impatientLabel.font = .systemFont(ofSize: 13)
+		impatientLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(impatientLabel)
+
+		impatientPicker.translatesAutoresizingMaskIntoConstraints = false
+		for preset in IdleEscalationTiming.allCases {
+			impatientPicker.addItem(withTitle: preset.label)
+			impatientPicker.lastItem?.representedObject = preset
+		}
+		if let preset = IdleEscalationTiming.matching(viewModel.idleImpatientSeconds) {
+			impatientPicker.selectItem(withTitle: preset.label)
+		} else {
+			impatientPicker.selectItem(withTitle: IdleEscalationTiming.fiveMinutes.label)
+		}
+		impatientPicker.target = self
+		impatientPicker.action = #selector(impatientPickerChanged(_:))
+		addSubview(impatientPicker)
+
+		let frustratedLabel = NSTextField(labelWithString: "Pet Idle Frustrated After:")
+		frustratedLabel.font = .systemFont(ofSize: 13)
+		frustratedLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(frustratedLabel)
+
+		frustratedPicker.translatesAutoresizingMaskIntoConstraints = false
+		for preset in IdleEscalationTiming.allCases {
+			frustratedPicker.addItem(withTitle: preset.label)
+			frustratedPicker.lastItem?.representedObject = preset
+		}
+		if let preset = IdleEscalationTiming.matching(viewModel.idleFrustratedSeconds) {
+			frustratedPicker.selectItem(withTitle: preset.label)
+		} else {
+			frustratedPicker.selectItem(withTitle: IdleEscalationTiming.tenMinutes.label)
+		}
+		frustratedPicker.target = self
+		frustratedPicker.action = #selector(frustratedPickerChanged(_:))
+		addSubview(frustratedPicker)
+
+		let escalationNote = settingsBodyLabel(
+			"Controls when an idle pet's badge reads \"Impatient\" then \"Frustrated\". "
+				+ "Frustrated After automatically stays one step above Impatient After."
+		)
+		addSubview(escalationNote)
+
+		// MARK: Session Pet Eviction Timing (full width, below Idle Escalation Timing)
+
+		let evictionTitle = settingsSectionTitle("Session Pet Eviction Timing")
+		addSubview(evictionTitle)
+
+		let evictionLabel = NSTextField(labelWithString: "Evict Session Pets:")
+		evictionLabel.font = .systemFont(ofSize: 13)
+		evictionLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(evictionLabel)
+
+		evictSessionPetsPicker.translatesAutoresizingMaskIntoConstraints = false
+		evictSessionPetsPicker.addItem(withTitle: "Enabled")
+		evictSessionPetsPicker.lastItem?.representedObject = true
+		evictSessionPetsPicker.addItem(withTitle: "Disabled")
+		evictSessionPetsPicker.lastItem?.representedObject = false
+		evictSessionPetsPicker.selectItem(withTitle: viewModel.evictSessionPetsEnabled ? "Enabled" : "Disabled")
+		evictSessionPetsPicker.target = self
+		evictSessionPetsPicker.action = #selector(evictSessionPetsPickerChanged(_:))
+		addSubview(evictSessionPetsPicker)
+
+		let evictionNote = settingsBodyLabel(
+			"When Enabled, a new session can evict an idle sibling session once its "
+				+ "platform's Session Cap is full (today's default behavior). "
+				+ "Disabled protects every existing session from eviction — a new "
+				+ "session waits for a slot to open on its own."
+		)
+		addSubview(evictionNote)
+
 		let rowsTop = note.bottomAnchor
 
 		// The card sits below whichever of the two side-by-side cards is
@@ -1955,6 +2037,47 @@ private final class CustomizationTabView: NSView {
 			ttlNote.trailingAnchor.constraint(equalTo: ttlCard.trailingAnchor, constant: -16),
 
 			ttlNote.bottomAnchor.constraint(equalTo: ttlCard.bottomAnchor, constant: -16),
+
+			escalationTitle.topAnchor.constraint(equalTo: ttlCard.bottomAnchor, constant: 20),
+			escalationTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			escalationTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			impatientLabel.topAnchor.constraint(equalTo: escalationTitle.bottomAnchor, constant: 10),
+			impatientLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			impatientLabel.widthAnchor.constraint(equalToConstant: 190),
+
+			impatientPicker.centerYAnchor.constraint(equalTo: impatientLabel.centerYAnchor),
+			impatientPicker.leadingAnchor.constraint(equalTo: impatientLabel.trailingAnchor, constant: 8),
+			impatientPicker.widthAnchor.constraint(equalToConstant: 130),
+
+			frustratedLabel.topAnchor.constraint(equalTo: impatientLabel.bottomAnchor, constant: 10),
+			frustratedLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			frustratedLabel.widthAnchor.constraint(equalToConstant: 190),
+
+			frustratedPicker.centerYAnchor.constraint(equalTo: frustratedLabel.centerYAnchor),
+			frustratedPicker.leadingAnchor.constraint(equalTo: frustratedLabel.trailingAnchor, constant: 8),
+			frustratedPicker.widthAnchor.constraint(equalToConstant: 130),
+
+			escalationNote.topAnchor.constraint(equalTo: frustratedLabel.bottomAnchor, constant: 8),
+			escalationNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			escalationNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			evictionTitle.topAnchor.constraint(equalTo: escalationNote.bottomAnchor, constant: 20),
+			evictionTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			evictionTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+			evictionLabel.topAnchor.constraint(equalTo: evictionTitle.bottomAnchor, constant: 10),
+			evictionLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			evictionLabel.widthAnchor.constraint(equalToConstant: 140),
+
+			evictSessionPetsPicker.centerYAnchor.constraint(equalTo: evictionLabel.centerYAnchor),
+			evictSessionPetsPicker.leadingAnchor.constraint(equalTo: evictionLabel.trailingAnchor, constant: 8),
+			evictSessionPetsPicker.widthAnchor.constraint(equalToConstant: 130),
+
+			evictionNote.topAnchor.constraint(equalTo: evictionLabel.bottomAnchor, constant: 8),
+			evictionNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			evictionNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			evictionNote.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -20),
 		])
 	}
 
@@ -2004,6 +2127,27 @@ private final class CustomizationTabView: NSView {
 	@objc private func ttlPickerChanged(_ sender: NSPopUpButton) {
 		guard let preset = sender.selectedItem?.representedObject as? IdleDismissTTL else { return }
 		viewModel.setTTL(preset.rawValue)
+	}
+
+	@objc private func impatientPickerChanged(_ sender: NSPopUpButton) {
+		guard let preset = sender.selectedItem?.representedObject as? IdleEscalationTiming else { return }
+		viewModel.setIdleImpatientSeconds(preset.rawValue)
+		// setIdleImpatientSeconds may silently bump Frustrated to keep it one
+		// step above Impatient — re-sync the Frustrated picker so the UI never
+		// shows a stale selection.
+		if let frustratedPreset = IdleEscalationTiming.matching(viewModel.idleFrustratedSeconds) {
+			frustratedPicker.selectItem(withTitle: frustratedPreset.label)
+		}
+	}
+
+	@objc private func frustratedPickerChanged(_ sender: NSPopUpButton) {
+		guard let preset = sender.selectedItem?.representedObject as? IdleEscalationTiming else { return }
+		viewModel.setIdleFrustratedSeconds(preset.rawValue)
+	}
+
+	@objc private func evictSessionPetsPickerChanged(_ sender: NSPopUpButton) {
+		guard let enabled = sender.selectedItem?.representedObject as? Bool else { return }
+		viewModel.setEvictSessionPetsEnabled(enabled)
 	}
 
 	@objc private func combinedMinimalistChanged(_ sender: NSButton) {

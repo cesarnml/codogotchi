@@ -54,6 +54,22 @@ final class FloatingPetWindowPool {
 	private var lastActiveRenderKey: String? = nil
 	/// Most-recently read customization — updated at the start of each tick.
 	private var currentCustomization: CustomizationSnapshot = .safeDefault
+	/// The `IdleEscalationConfig` last pushed to every open window, so a tick
+	/// that resolves an unchanged config (the common case) skips re-pushing it
+	/// to every controller. `nil` until the first tick actually applies one.
+	private var lastAppliedIdleEscalationConfig: IdleEscalationConfig?
+	/// This tick's resolved `IdleEscalationConfig`, read by `windowFactory`
+	/// (via the pool the caller holds) so a window spawned later in THIS same
+	/// tick starts with the exact value already computed here, instead of the
+	/// factory independently re-reading and re-decoding `customization.json`
+	/// from disk — which would also risk disagreeing with `currentCustomization`
+	/// if the file changed between the two reads.
+	private(set) var resolvedIdleEscalationConfig: IdleEscalationConfig = .production
+	/// Snapshotted once at init rather than re-read from `ProcessInfo` on
+	/// every tick — the `CODOGOTCHI_IDLE_*_MS` overrides it carries are fixed
+	/// for the life of the process, so there is nothing to gain from copying
+	/// the whole environment dictionary again every ~1s tick.
+	private let idleEscalationEnvironment: [String: String]
 	/// Most-recently read assignments — updated at the start of each tick.
 	private var currentAssignments: AssignmentsSnapshot = .safeDefault
 	/// The `(origin, session_id)` identity behind each render key, from the
@@ -209,7 +225,8 @@ final class FloatingPetWindowPool {
 		// MenubarApp.
 		hiddenKeysLoader: @escaping () -> Set<String> = { [] },
 		hiddenKeysSaver: @escaping (Set<String>) -> Void = { _ in },
-		now: @escaping () -> Date = { Date() }
+		now: @escaping () -> Date = { Date() },
+		idleEscalationEnvironment: [String: String] = ProcessInfo.processInfo.environment
 	) {
 		self.assignmentsReader = assignmentsReader
 		self.customizationReader = customizationReader
@@ -219,6 +236,7 @@ final class FloatingPetWindowPool {
 		self.sessionPromptSummaryReader = sessionPromptSummaryReader
 		self.hiddenKeysSaver = hiddenKeysSaver
 		self.now = now
+		self.idleEscalationEnvironment = idleEscalationEnvironment
 		// Restore user-hidden window keys across app restarts. Keys for pets that
 		// have since TTL-expired are harmless here: the spawn gate at Step 7 only
 		// ever consults this set for keys already surviving this tick's TTL/mode
@@ -240,6 +258,21 @@ final class FloatingPetWindowPool {
 			? .infinity
 			: TimeInterval(currentCustomization.idleDismissTtlSeconds)
 		let currentTime = now()
+
+		// Live-propagate a changed Idle Escalation Timing setting into every
+		// already-open window: the config is otherwise only read once, at
+		// window-spawn time, and would never notice a Settings change
+		// mid-session without this. Stored on `self` (not just a local) so
+		// `windowFactory` — called later in this same tick by Step 7 — can
+		// read the exact value just resolved here instead of re-reading disk.
+		resolvedIdleEscalationConfig = IdleEscalationConfig.resolve(
+			customization: currentCustomization, environment: idleEscalationEnvironment)
+		if resolvedIdleEscalationConfig != lastAppliedIdleEscalationConfig {
+			for controller in windows.values {
+				controller.updateIdleEscalationConfig(resolvedIdleEscalationConfig)
+			}
+			lastAppliedIdleEscalationConfig = resolvedIdleEscalationConfig
+		}
 
 		// Step 1: filter render keys whose owning origin's mode is off
 		let visibleEntries = snapshot.perPlatform.filter { mode(forWindowKey: $0.key) != .off }
@@ -458,6 +491,7 @@ final class FloatingPetWindowPool {
 			let selection = SessionSelectionPolicy.select(
 				sessions: states, cap: cap, currentlyRendered: currentlyRendered,
 				updatedAt: updatedAt,
+				incumbentsProtected: !currentCustomization.evictSessionPetsEnabled,
 				restrictNewPromotionsToInFlight: prunedOrigins.contains(origin))
 			slotOccupants.subtract(keys)
 			slotOccupants.formUnion(selection.rendered)

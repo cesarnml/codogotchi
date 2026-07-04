@@ -51,6 +51,19 @@ struct CustomizationSnapshot {
 	/// Exempt from the activity gate above; every other sibling session must
 	/// show activity strictly after the activation timestamp to render.
 	let sessionPetsGrandfatheredSessionId: [String: String]
+	/// Elapsed-idle seconds before a pet's badge escalates to "Impatient".
+	/// `0` is the Never sentinel (mirrors `idleDismissTtlSeconds`). Feeds
+	/// `IdleEscalationConfig.resolve(customization:)`.
+	let idleImpatientSeconds: Int
+	/// Elapsed-idle seconds before a pet's badge escalates to "Frustrated".
+	/// `0` is the Never sentinel. Feeds `IdleEscalationConfig.resolve(customization:)`.
+	let idleFrustratedSeconds: Int
+	/// Global kill-switch for `SessionSelectionPolicy`'s rank-based session-cap
+	/// eviction. `true` (default) preserves today's behavior — a newcomer
+	/// session can evict a lower-ranked incumbent when the cap is full. `false`
+	/// protects every incumbent from eviction regardless of rank; a newcomer
+	/// only fills a slot that isn't already held.
+	let evictSessionPetsEnabled: Bool
 
 	/// Sentinel written to `session_cap` for the Unlimited option — every
 	/// session-keyed panel renders, nothing is evicted (see `SessionSelectionPolicy`).
@@ -75,7 +88,10 @@ struct CustomizationSnapshot {
 		sessionPetsEnabled: [String: Bool] = [:],
 		sessionCap: [String: Int] = [:],
 		sessionPetsActivatedAt: [String: String] = [:],
-		sessionPetsGrandfatheredSessionId: [String: String] = [:]
+		sessionPetsGrandfatheredSessionId: [String: String] = [:],
+		idleImpatientSeconds: Int = 300,
+		idleFrustratedSeconds: Int = 600,
+		evictSessionPetsEnabled: Bool = true
 	) {
 		self.platformModes = platformModes
 		self.idleDismissTtlSeconds = idleDismissTtlSeconds
@@ -86,6 +102,9 @@ struct CustomizationSnapshot {
 		self.sessionCap = sessionCap
 		self.sessionPetsActivatedAt = sessionPetsActivatedAt
 		self.sessionPetsGrandfatheredSessionId = sessionPetsGrandfatheredSessionId
+		self.idleImpatientSeconds = idleImpatientSeconds
+		self.idleFrustratedSeconds = idleFrustratedSeconds
+		self.evictSessionPetsEnabled = evictSessionPetsEnabled
 	}
 
 	static let safeDefault = CustomizationSnapshot(
@@ -97,7 +116,10 @@ struct CustomizationSnapshot {
 		sessionPetsEnabled: [:],
 		sessionCap: [:],
 		sessionPetsActivatedAt: [:],
-		sessionPetsGrandfatheredSessionId: [:]
+		sessionPetsGrandfatheredSessionId: [:],
+		idleImpatientSeconds: 300,
+		idleFrustratedSeconds: 600,
+		evictSessionPetsEnabled: true
 	)
 }
 
@@ -121,6 +143,8 @@ enum CustomizationJsonReader {
 			.mapValues { PlatformMode(rawValue: $0) ?? .own }
 		let rawTtl = payload.idleDismissTtlSeconds ?? 300
 		let rawScale = payload.minimalistBadgeScale ?? 1.0
+		let rawImpatient = payload.idleImpatientSeconds ?? 300
+		let rawFrustrated = payload.idleFrustratedSeconds ?? 600
 		return CustomizationSnapshot(
 			platformModes: modes,
 			idleDismissTtlSeconds: rawTtl < 0 ? 300 : rawTtl,
@@ -132,7 +156,10 @@ enum CustomizationJsonReader {
 			sessionPetsEnabled: payload.sessionPetsEnabled ?? [:],
 			sessionCap: payload.sessionCap ?? [:],
 			sessionPetsActivatedAt: payload.sessionPetsActivatedAt ?? [:],
-			sessionPetsGrandfatheredSessionId: payload.sessionPetsGrandfatheredSessionId ?? [:]
+			sessionPetsGrandfatheredSessionId: payload.sessionPetsGrandfatheredSessionId ?? [:],
+			idleImpatientSeconds: rawImpatient < 0 ? 300 : rawImpatient,
+			idleFrustratedSeconds: rawFrustrated < 0 ? 600 : rawFrustrated,
+			evictSessionPetsEnabled: payload.evictSessionPetsEnabled ?? true
 		)
 	}
 }
@@ -147,4 +174,7 @@ private struct CustomizationPayload: Decodable {
 	let sessionCap: [String: Int]?
 	let sessionPetsActivatedAt: [String: String]?
 	let sessionPetsGrandfatheredSessionId: [String: String]?
+	let idleImpatientSeconds: Int?
+	let idleFrustratedSeconds: Int?
+	let evictSessionPetsEnabled: Bool?
 }

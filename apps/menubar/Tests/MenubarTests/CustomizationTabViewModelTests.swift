@@ -301,4 +301,94 @@ final class CustomizationTabViewModelTests: XCTestCase {
 			vm.effectiveSessionCap(for: "claude_code"), 0,
 			"0 is the real Unlimited value and must not be treated as absent/negative")
 	}
+
+	// MARK: - setIdleImpatientSeconds bumps Frustrated when it would become invalid
+
+	func testSetIdleImpatientSecondsBumpsFrustratedWhenNoLongerAbove() throws {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let vm = CustomizationTabViewModel(filePath: path)
+
+		// Defaults: impatient=300 (5m), frustrated=600 (10m). Raising impatient
+		// to 30m (1800) leaves frustrated (600) no longer strictly above it.
+		vm.setIdleImpatientSeconds(1800)
+
+		XCTAssertEqual(vm.idleImpatientSeconds, 1800)
+		XCTAssertEqual(vm.idleFrustratedSeconds, 3600, "frustrated must bump to the next option (60m) above the new impatient")
+
+		let payload = try readPayload(at: path)
+		XCTAssertEqual(payload["idle_impatient_seconds"] as? Int, 1800)
+		XCTAssertEqual(payload["idle_frustrated_seconds"] as? Int, 3600)
+	}
+
+	func testSetIdleImpatientSecondsToNeverAlsoForcesFrustratedToNever() throws {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let vm = CustomizationTabViewModel(filePath: path)
+
+		vm.setIdleFrustratedSeconds(3600)
+		vm.setIdleImpatientSeconds(0)  // "Never"
+
+		XCTAssertEqual(vm.idleImpatientSeconds, 0)
+		XCTAssertEqual(
+			vm.idleFrustratedSeconds, 0,
+			"disabling Impatient must also disable Frustrated — otherwise escalation(forElapsed:) still fires .frustrated"
+			+ " straight from idle since it's checked before impatientAfter")
+
+		let payload = try readPayload(at: path)
+		XCTAssertEqual(payload["idle_frustrated_seconds"] as? Int, 0)
+	}
+
+	func testSetIdleImpatientSecondsLeavesFrustratedAloneWhenAlreadyValid() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let vm = CustomizationTabViewModel(filePath: path)
+
+		vm.setIdleFrustratedSeconds(7200)
+		vm.setIdleImpatientSeconds(600)
+
+		XCTAssertEqual(vm.idleImpatientSeconds, 600)
+		XCTAssertEqual(vm.idleFrustratedSeconds, 7200, "frustrated already sits above the new impatient — must not be touched")
+	}
+
+	func testSetIdleImpatientSecondsWrapsFrustratedToNeverPastLastOption() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let vm = CustomizationTabViewModel(filePath: path)
+
+		vm.setIdleImpatientSeconds(7200)  // 120 minutes — the last non-Never option
+
+		XCTAssertEqual(vm.idleImpatientSeconds, 7200)
+		XCTAssertEqual(vm.idleFrustratedSeconds, 0, "bumping past the last timed option must wrap frustrated to Never")
+	}
+
+	func testSetIdleFrustratedSecondsNeverAdjustsImpatient() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let vm = CustomizationTabViewModel(filePath: path)
+
+		vm.setIdleFrustratedSeconds(60)  // deliberately below the default impatient (300)
+
+		XCTAssertEqual(vm.idleFrustratedSeconds, 60)
+		XCTAssertEqual(vm.idleImpatientSeconds, 300, "setIdleFrustratedSeconds must never adjust impatient")
+	}
+
+	// MARK: - setEvictSessionPetsEnabled persists and round-trips
+
+	func testSetEvictSessionPetsEnabledPersistsAndRoundTrips() throws {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let vm = CustomizationTabViewModel(filePath: path)
+
+		XCTAssertTrue(vm.evictSessionPetsEnabled, "defaults enabled — a kill-switch on existing behavior")
+
+		vm.setEvictSessionPetsEnabled(false)
+
+		XCTAssertFalse(vm.evictSessionPetsEnabled)
+		let payload = try readPayload(at: path)
+		XCTAssertEqual(payload["evict_session_pets_enabled"] as? Bool, false)
+
+		let reloaded = CustomizationTabViewModel(filePath: path)
+		XCTAssertFalse(reloaded.evictSessionPetsEnabled, "value must round-trip through a fresh read")
+	}
 }

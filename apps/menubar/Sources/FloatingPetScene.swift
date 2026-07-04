@@ -122,7 +122,7 @@ final class FloatingPetScene: SKScene {
 
 	// Idle escalation: while the agent stays continuously idle, the sprite walks
 	// idle → impatient → frustrated by elapsed time. Resets on any transition.
-	private let idleEscalationConfig: IdleEscalationConfig
+	private var idleEscalationConfig: IdleEscalationConfig
 	private let clock: () -> Date
 	private var idleSince: Date?
 	private var currentEscalation: IdleEscalation = .none
@@ -472,6 +472,14 @@ final class FloatingPetScene: SKScene {
 	/// Idle escalation is available only when the Lite-Enhanced sheet is installed.
 	private var supportsIdleEscalation: Bool {
 		codogotchiPet?.hasLiteEnhancedSheet == true
+	}
+
+	/// Live-updates the idle-escalation thresholds (Settings > Customization).
+	/// Takes effect on the next `maybeEscalateIdle()` tick — no re-anchoring of
+	/// `idleSince` is needed since that tracks continuous-idle start, not any
+	/// particular threshold.
+	func updateIdleEscalationConfig(_ config: IdleEscalationConfig) {
+		idleEscalationConfig = config
 	}
 
 	/// Recompute idle escalation from elapsed time. Runs on the frame timer

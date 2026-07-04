@@ -648,7 +648,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private var codexPet: CodexPet
 	private var codogotchiPet: CodogotchiPet?
 	private let demoFrameInterval: TimeInterval?
-	private let idleEscalationConfig: IdleEscalationConfig
+	private var idleEscalationConfig: IdleEscalationConfig
 	private let initialIdleAge: TimeInterval
 	private let clock: () -> Date
 	private let visibleFrameProvider: () -> CGRect
@@ -874,6 +874,11 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		if isPanelShown {
 			repositionAndShowConflictBubble()
 		}
+	}
+
+	func updateIdleEscalationConfig(_ config: IdleEscalationConfig) {
+		idleEscalationConfig = config
+		scene?.updateIdleEscalationConfig(config)
 	}
 
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {

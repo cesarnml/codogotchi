@@ -69,6 +69,16 @@ enum SessionSelectionPolicy {
 	/// (or absent) timestamp fall through to the lexicographic key
 	/// tie-break below, purely for full determinism.
 	///
+	/// `incumbentsProtected` is the Settings > Customization "Evict Session
+	/// Pets" kill-switch (P15.10): `false` (default) preserves today's
+	/// behavior — an incumbent is only protected as a same-rank tie-break, so
+	/// a higher-ranked newcomer (e.g. in-flight) can still evict a
+	/// lower-ranked incumbent (e.g. idle) when the cap is full. `true` checks
+	/// incumbency BEFORE rank, so every incumbent sorts as least-evictable
+	/// regardless of its rank — no incumbent is ever evicted for a newcomer.
+	/// A newcomer can still fill any slot that isn't already held by an
+	/// incumbent; only eviction of an existing occupant is suppressed.
+	///
 	/// `restrictNewPromotionsToInFlight` is the P15.07-QC prune-armed gate: once
 	/// an origin has had a manual Prune this app session, a session that was
 	/// NOT already rendered may only newly promote into a freed slot while it
@@ -86,6 +96,7 @@ enum SessionSelectionPolicy {
 		cap: Int,
 		currentlyRendered: Set<String> = [],
 		updatedAt: [String: String] = [:],
+		incumbentsProtected: Bool = false,
 		restrictNewPromotionsToInFlight: Bool = false
 	) -> Selection {
 		guard cap > 0 else {
@@ -102,11 +113,12 @@ enum SessionSelectionPolicy {
 		// — unspecified Dictionary iteration order must never decide which
 		// session is held.
 		let ordered = sessions.keys.sorted { a, b in
+			let incumbentA = currentlyRendered.contains(a)
+			let incumbentB = currentlyRendered.contains(b)
+			if incumbentsProtected, incumbentA != incumbentB { return incumbentB }
 			let rankA = evictionRank(for: sessions[a]!)
 			let rankB = evictionRank(for: sessions[b]!)
 			if rankA != rankB { return rankA < rankB }
-			let incumbentA = currentlyRendered.contains(a)
-			let incumbentB = currentlyRendered.contains(b)
 			if incumbentA != incumbentB { return incumbentB }
 			let dateA = recency(a)
 			let dateB = recency(b)

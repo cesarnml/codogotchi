@@ -21,6 +21,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     /// before the pool reads it via `currentFrame` at eviction time.
     var currentFrame: CGRect = .zero
     var adoptedFrames: [CGRect] = []
+    var appliedIdleEscalationConfigs: [IdleEscalationConfig] = []
 
     func setFloatingPetVisible(_ visible: Bool) { isFloatingPetVisible = visible }
     func adoptFrame(_ frame: CGRect) {
@@ -41,6 +42,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     func applySessionLabel(_ label: String?) { appliedSessionLabels.append(label) }
     func applySessionTooltip(_ summary: String?) { appliedSessionTooltips.append(summary) }
     func applyConflictBubble(_ payload: ConflictBubblePayload?) { appliedConflictBubbles.append(payload) }
+    func updateIdleEscalationConfig(_ config: IdleEscalationConfig) { appliedIdleEscalationConfigs.append(config) }
 }
 
 @MainActor
@@ -105,7 +107,10 @@ private func makeCustomization(
     combinedMinimalistEnabled: Bool = false,
     minimalistBadgeScale: Double = 1.0,
     sessionPetsEnabled: [String: Bool] = [:],
-    sessionCap: [String: Int] = [:]
+    sessionCap: [String: Int] = [:],
+    idleImpatientSeconds: Int = 300,
+    idleFrustratedSeconds: Int = 600,
+    evictSessionPetsEnabled: Bool = true
 ) -> CustomizationSnapshot {
     CustomizationSnapshot(
         platformModes: platformModes,
@@ -114,7 +119,10 @@ private func makeCustomization(
         combinedMinimalistEnabled: combinedMinimalistEnabled,
         minimalistBadgeScale: minimalistBadgeScale,
         sessionPetsEnabled: sessionPetsEnabled,
-        sessionCap: sessionCap
+        sessionCap: sessionCap,
+        idleImpatientSeconds: idleImpatientSeconds,
+        idleFrustratedSeconds: idleFrustratedSeconds,
+        evictSessionPetsEnabled: evictSessionPetsEnabled
     )
 }
 
@@ -1411,6 +1419,107 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(
 			Set(pool.activeOrigins), ["claude_code:active-one", "claude_code:active-two"],
 			"cap 2 must render only the two active sessions, holding the idle one")
+	}
+
+	// MARK: - "Evict Session Pets" kill-switch
+
+	func testEvictSessionPetsDisabledProtectsAnIdleIncumbentFromANewcomer() {
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2],
+			evictSessionPetsEnabled: false)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+
+		// Tick 1: one idle + one active session both render (cap 2, exactly full).
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:idle-one", "claude_code:active-one"])
+
+		// Tick 2: a 3rd (in-flight) session arrives — with eviction disabled the
+		// idle incumbent must survive; the newcomer stays pending instead.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-one": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:newcomer": makeSnapshot(state: .thinking, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+
+		XCTAssertEqual(
+			Set(pool.activeOrigins), ["claude_code:idle-one", "claude_code:active-one"],
+			"Evict Session Pets disabled must protect the idle incumbent — the newcomer stays pending")
+	}
+
+	// MARK: - Live Idle Escalation Timing propagation
+
+	// Note: `windowFactory` (in production, `MenubarApp`) resolves the current
+	// customization directly at construction time, so a freshly-spawned real
+	// window always starts current. The pool's diff-push mechanism exercised
+	// here only needs to reach windows that were ALREADY open before a
+	// Settings change — `StubWindowController` (unlike the real controller)
+	// takes no config at construction, so these tests only assert the push
+	// that happens on ticks after the window already exists.
+	func testIdleEscalationConfigChangeIsPushedToAlreadyOpenWindows() {
+		var stubs: [String: StubWindowController] = [:]
+		var customization = makeCustomization(idleImpatientSeconds: 300, idleFrustratedSeconds: 600)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+
+		// Tick 1: spawns the window under the initial config.
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"claude_code": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:00.000Z")
+		]))
+		let stub = stubs["claude_code"]!
+
+		// Tick 2: Settings change — bump both thresholds while the window stays open.
+		customization = makeCustomization(idleImpatientSeconds: 1800, idleFrustratedSeconds: 3600)
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"claude_code": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z")
+		]))
+
+		XCTAssertEqual(
+			stub.appliedIdleEscalationConfigs.last,
+			IdleEscalationConfig(impatientAfter: 1800, frustratedAfter: 3600),
+			"a changed customization must be pushed to the already-open window")
+	}
+
+	func testUnchangedIdleEscalationConfigIsNotRePushedEveryTick() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(idleImpatientSeconds: 300, idleFrustratedSeconds: 600)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			}
+		)
+
+		// Tick 1 spawns the window; tick 2 keeps the same (unchanged) config.
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"claude_code": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:00.000Z")
+		]))
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"claude_code": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z")
+		]))
+
+		XCTAssertEqual(
+			stubs["claude_code"]?.appliedIdleEscalationConfigs.count, 0,
+			"an unchanged config must never be pushed to a window that already started current")
 	}
 
 	// MARK: - P15.07 evicted-session frame inheritance
