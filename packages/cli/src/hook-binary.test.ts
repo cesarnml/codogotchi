@@ -2604,6 +2604,39 @@ describe("slice-directory writer (P12.02 red)", () => {
     }
   });
 
+  it("writes active-session.json to the repo root when cwd is a nested subdirectory", async () => {
+    // A hook event can report a nested subdirectory as cwd (e.g. a session
+    // working several levels deep) rather than the true top of the repo.
+    // canonicalRepoRoot must walk up to find the .git root instead of
+    // planting .soa/ inside that subdirectory.
+    const repoRoot = mkdtempSync(join(tmpdir(), "codogotchi-nested-"));
+    try {
+      mkdirSync(join(repoRoot, ".git"), { recursive: true });
+      const nested = join(repoRoot, "apps", "menubar", "Sources");
+      mkdirSync(nested, { recursive: true });
+
+      await runHook(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Edit",
+          session_id: "dddddddd-eeee-4fff-8000-111111111111",
+          cwd: nested,
+        },
+        { home, now: FIXED_NOW },
+      );
+
+      const rootActiveSession = join(repoRoot, ".soa", "active-session.json");
+      const nestedActiveSession = join(nested, ".soa", "active-session.json");
+      expect(existsSync(rootActiveSession)).toBe(true);
+      expect(existsSync(nestedActiveSession)).toBe(false);
+      const content = JSON.parse(readFileSync(rootActiveSession, "utf8"));
+      expect(content.session_id).toBe("dddddddd-eeee-4fff-8000-111111111111");
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true });
+    }
+  });
+
   it("writes active-session.json to the raw cwd when it is not a git checkout", async () => {
     // No `.git` present → canonicalRepoRoot degrades to the input path, so the
     // file lands directly under the detected repo root.

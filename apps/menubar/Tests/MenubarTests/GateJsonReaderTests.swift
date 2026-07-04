@@ -301,6 +301,21 @@ final class GateJsonReaderTests: XCTestCase {
 			"a primary checkout must resolve to itself")
 	}
 
+	func testCanonicalRepoRootWalksUpFromNestedSubdirectoryToMainRoot() throws {
+		// A hook event can report a nested subdirectory as cwd/workspace root
+		// (e.g. a session working several levels deep) rather than the true
+		// top of the checkout. canonicalRepoRoot must walk up to find it
+		// instead of treating the subdirectory itself as the repo root.
+		let (mainRoot, _) = makeWorktreePair()
+		defer { try? FileManager.default.removeItem(atPath: mainRoot) }
+		let nested = (mainRoot as NSString).appendingPathComponent("apps/menubar/Sources")
+		try FileManager.default.createDirectory(
+			atPath: nested, withIntermediateDirectories: true)
+		XCTAssertEqual(
+			canonicalRepoRoot(nested), mainRoot,
+			"a nested subdirectory must resolve up to its checkout root")
+	}
+
 	func testCanonicalRepoRootLeavesUnknownPathsUnchanged() {
 		let bogus = "/tmp/codogotchi-not-a-repo-\(UUID().uuidString)"
 		XCTAssertEqual(

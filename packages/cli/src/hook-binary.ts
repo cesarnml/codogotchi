@@ -8,7 +8,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import {
   type ActivityState,
@@ -305,38 +305,62 @@ function detectRepoRoot(input: HookInput, env: NodeJS.ProcessEnv): string {
  * would miss the reader during cook-mode delivery; resolving to the main root
  * here makes writer and reader meet.
  *
- * - A primary checkout has a `.git` *directory*; the path is returned unchanged.
+ * The input path is often a subdirectory of the checkout, not its root — hook
+ * events report whatever `cwd`/`workspace_roots` the calling tool happens to
+ * report, which is sometimes a nested directory (e.g. a session working
+ * several levels deep) rather than the true top of the repo. Walking up
+ * parent directories looking for the first `.git` avoids planting a stray
+ * `.soa/` inside that subdirectory instead of at the real root.
+ *
+ * - A primary checkout has a `.git` *directory* at some ancestor; that
+ *   ancestor is returned.
  * - A linked worktree has a `.git` *file* containing
  *   `gitdir: <main>/.git/worktrees/<name>`; the main root is the prefix before
  *   `/.git/worktrees/`.
- * - Any unrecognized shape (missing `.git`, pruned worktree, unexpected
- *   contents) returns the input unchanged so the write degrades to the raw cwd
- *   rather than guessing.
+ * - If no ancestor (up to the filesystem root) has a `.git`, the input is
+ *   returned unchanged so the write degrades to the raw cwd rather than
+ *   guessing.
  */
 export async function canonicalRepoRoot(path: string): Promise<string> {
-  const normalized =
+  const original =
     path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
-  const dotGit = `${normalized}/.git`;
+  let dir = original;
+  for (;;) {
+    const found = await resolveDotGit(dir);
+    if (found !== undefined) return found;
+    const parent = dirname(dir);
+    if (parent === dir) return original;
+    dir = parent;
+  }
+}
+
+/**
+ * Resolves the `.git` entry at exactly `dir`, if any. Returns the repo root
+ * for that entry, or `undefined` if `dir` has no `.git` (caller should check
+ * the parent directory next).
+ */
+async function resolveDotGit(dir: string): Promise<string | undefined> {
+  const dotGit = `${dir}/.git`;
   let info: Awaited<ReturnType<typeof stat>>;
   try {
     info = await stat(dotGit);
   } catch {
-    return normalized;
+    return undefined;
   }
-  if (info.isDirectory()) return normalized;
+  if (info.isDirectory()) return dir;
   let contents: string;
   try {
     contents = await readFile(dotGit, "utf8");
   } catch {
-    return normalized;
+    return dir;
   }
   const trimmed = contents.trim();
   const prefix = "gitdir:";
-  if (!trimmed.startsWith(prefix)) return normalized;
+  if (!trimmed.startsWith(prefix)) return dir;
   const gitdir = trimmed.slice(prefix.length).trim();
   const marker = "/.git/worktrees/";
   const idx = gitdir.indexOf(marker);
-  if (idx === -1) return normalized;
+  if (idx === -1) return dir;
   return gitdir.slice(0, idx);
 }
 

@@ -316,32 +316,53 @@ func resolveGateBadgeContent(
 /// sides to the shared main root makes the guard mean what it says: "is this the
 /// same repository?" rather than "is this the same on-disk directory?".
 ///
-/// - A primary checkout has a `.git` *directory*; the path is returned unchanged.
+/// `path` is often a subdirectory of the checkout, not its root — the hook
+/// that writes `source_event.repo_root` reports whatever `cwd`/`workspace_roots`
+/// the calling tool happens to report, which is sometimes several levels deep.
+/// Walking up parent directories looking for the first `.git` mirrors the TS
+/// `canonicalRepoRoot` in `hook-binary.ts` so both sides land on the same root
+/// even when the raw path isn't the top of the repo.
+///
+/// - A primary checkout has a `.git` *directory* at some ancestor; that
+///   ancestor is returned.
 /// - A linked worktree has a `.git` *file* containing
 ///   `gitdir: <main>/.git/worktrees/<name>`; the main root is the prefix before
 ///   `/.git/worktrees/`.
-/// - Any unrecognized shape (missing `.git`, pruned worktree, unexpected
-///   contents) returns the input unchanged so the guard degrades to its prior
-///   exact-match behavior rather than guessing.
+/// - If no ancestor (up to the filesystem root) has a `.git`, the input is
+///   returned unchanged so the guard degrades to its prior exact-match
+///   behavior rather than guessing.
 func canonicalRepoRoot(_ path: String) -> String {
-	let normalized =
+	let original =
 		path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path
-	let dotGit = normalized + "/.git"
+	var dir = original
+	while true {
+		if let found = resolveDotGit(dir) { return found }
+		let parent = (dir as NSString).deletingLastPathComponent
+		if parent.isEmpty || parent == dir { return original }
+		dir = parent
+	}
+}
+
+/// Resolves the `.git` entry at exactly `dir`, if any. Returns the repo root
+/// for that entry, or `nil` if `dir` has no `.git` (caller should check the
+/// parent directory next).
+private func resolveDotGit(_ dir: String) -> String? {
+	let dotGit = dir + "/.git"
 	var isDirectory: ObjCBool = false
 	guard FileManager.default.fileExists(atPath: dotGit, isDirectory: &isDirectory)
 	else {
-		return normalized
+		return nil
 	}
-	if isDirectory.boolValue { return normalized }
+	if isDirectory.boolValue { return dir }
 	guard let contents = try? String(contentsOfFile: dotGit, encoding: .utf8) else {
-		return normalized
+		return dir
 	}
 	let trimmed = contents.trimmingCharacters(in: .whitespacesAndNewlines)
 	let prefix = "gitdir:"
-	guard trimmed.hasPrefix(prefix) else { return normalized }
+	guard trimmed.hasPrefix(prefix) else { return dir }
 	let gitdir = String(trimmed.dropFirst(prefix.count))
 		.trimmingCharacters(in: .whitespaces)
-	guard let range = gitdir.range(of: "/.git/worktrees/") else { return normalized }
+	guard let range = gitdir.range(of: "/.git/worktrees/") else { return dir }
 	return String(gitdir[gitdir.startIndex..<range.lowerBound])
 }
 
