@@ -70,7 +70,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	}
 
 	/// Opens (or brings to front) the settings window. Pass `tab` to land on a
-	/// specific tab (e.g. the menu-bar "Default Pet" item jumps to `.pet`).
+	/// specific tab (e.g. the menu-bar "Pets" item jumps to `.pet`).
 	func show(tab: SettingsTab? = nil) {
 		// Mirror Tailscale's Settings window: the app runs as `.accessory` (no
 		// Dock icon, absent from Cmd+Tab) while only the menu-bar item is up,

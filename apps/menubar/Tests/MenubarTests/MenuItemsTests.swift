@@ -5,9 +5,9 @@ import XCTest
 
 /// Behavior tests for the menu-bar `NSStatusItem` menu.
 ///
-/// Layout: header (disabled "Codogotchi"), separator, "Default Pet: …", the
-/// dynamic pet section, separator, "Show All Pets", "Hide All Pets",
-/// separator, "Customization…", "Settings…", separator, "Quit Codogotchi", and a
+/// Layout: header (disabled "Codogotchi"), separator, the dynamic pet
+/// section, separator, "Show All Pets", "Hide All Pets", separator, "Pets",
+/// "Customization", "Settings", separator, "Quit Codogotchi", and a
 /// hidden "Hooks not active" item.
 ///
 /// Tests inject `FloatingPetWindowPool` (with stub windows) in place of the
@@ -17,9 +17,9 @@ import XCTest
 @MainActor
 final class MenuItemsTests: XCTestCase {
 	// Fixed item count surrounding the variable-length pet section:
-	// header, separator, defaultPet, [pet section], separator, showAll,
-	// hideAll, separator, customization, settings, separator, quit, hooksItem.
-	private static let petSectionStartIndex = 3
+	// header, separator, [pet section], separator, showAll, hideAll,
+	// separator, pets, customization, settings, separator, quit, hooksItem.
+	private static let petSectionStartIndex = 2
 	private static let fixedItemCount = 12
 
 	// Minimal stub that conforms to FloatingPetWindowControlling for test injection.
@@ -80,7 +80,6 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(menu.items[0].title, MenubarMenu.headerTitle)
 		XCTAssertFalse(menu.items[0].isEnabled, "Header item should be a non-actionable label")
 		XCTAssertTrue(menu.items[1].isSeparatorItem)
-		XCTAssertEqual(menu.items[2].title, "\(MenubarMenu.defaultPetPrefix)Maew")
 
 		let petIndex = Self.petSectionStartIndex
 		XCTAssertEqual(menu.items[petIndex].title, MenubarMenu.showFloatingPetTitle)
@@ -90,12 +89,13 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(menu.items[trailingIndex(1, petItemCount: 1)].title, MenubarMenu.showAllPetsTitle)
 		XCTAssertEqual(menu.items[trailingIndex(2, petItemCount: 1)].title, MenubarMenu.hideAllPetsTitle)
 		XCTAssertTrue(menu.items[trailingIndex(3, petItemCount: 1)].isSeparatorItem)
-		XCTAssertEqual(menu.items[trailingIndex(4, petItemCount: 1)].title, MenubarMenu.customizationTitle)
-		XCTAssertEqual(menu.items[trailingIndex(5, petItemCount: 1)].title, MenubarMenu.settingsTitle)
-		XCTAssertTrue(menu.items[trailingIndex(6, petItemCount: 1)].isSeparatorItem)
-		XCTAssertEqual(menu.items[trailingIndex(7, petItemCount: 1)].title, MenubarMenu.quitTitle)
-		XCTAssertEqual(menu.items[trailingIndex(8, petItemCount: 1)].title, MenubarMenu.hooksNotActiveTitle)
-		XCTAssertTrue(menu.items[trailingIndex(8, petItemCount: 1)].isHidden, "Hooks not active item should start hidden")
+		XCTAssertEqual(menu.items[trailingIndex(4, petItemCount: 1)].title, MenubarMenu.petsTitle)
+		XCTAssertEqual(menu.items[trailingIndex(5, petItemCount: 1)].title, MenubarMenu.customizationTitle)
+		XCTAssertEqual(menu.items[trailingIndex(6, petItemCount: 1)].title, MenubarMenu.settingsTitle)
+		XCTAssertTrue(menu.items[trailingIndex(7, petItemCount: 1)].isSeparatorItem)
+		XCTAssertEqual(menu.items[trailingIndex(8, petItemCount: 1)].title, MenubarMenu.quitTitle)
+		XCTAssertEqual(menu.items[trailingIndex(9, petItemCount: 1)].title, MenubarMenu.hooksNotActiveTitle)
+		XCTAssertTrue(menu.items[trailingIndex(9, petItemCount: 1)].isHidden, "Hooks not active item should start hidden")
 	}
 
 	func testFloatingPetToggleTitleReflectsVisibleState() {
@@ -146,26 +146,32 @@ final class MenuItemsTests: XCTestCase {
 		_ = pool  // keep alive
 	}
 
-	func testDefaultPetItemInvokesOpenSettingsWithPetTab() {
+	func testPetsItemInvokesOpenSettingsWithPetTab() {
 		var openedTab: SettingsTab??
 		let builder = MenubarMenu(terminate: {}, openSettings: { openedTab = $0 })
 		let menu = builder.build()
-		let defaultPetItem = menu.items[2]
-		XCTAssertEqual(defaultPetItem.title, "\(MenubarMenu.defaultPetPrefix)Maew")
-		XCTAssertTrue(defaultPetItem.isEnabled)
+		let petsItem = menu.items[trailingIndex(4, petItemCount: 1)]
+		XCTAssertEqual(petsItem.title, MenubarMenu.petsTitle)
+		XCTAssertTrue(petsItem.isEnabled)
 
-		guard let action = defaultPetItem.action, let target = defaultPetItem.target else {
-			return XCTFail("Default Pet menu item must have an action and target")
+		guard let action = petsItem.action, let target = petsItem.target else {
+			return XCTFail("Pets menu item must have an action and target")
 		}
-		_ = target.perform(action, with: defaultPetItem)
+		_ = target.perform(action, with: petsItem)
 		XCTAssertEqual(openedTab, .pet)
+	}
+
+	func testPetsItemIsDisabledWhenCallbackIsNil() {
+		let builder = MenubarMenu(terminate: {})
+		let menu = builder.build()
+		XCTAssertFalse(menu.items[trailingIndex(4, petItemCount: 1)].isEnabled)
 	}
 
 	func testCustomizationItemInvokesOpenSettingsWithCustomizationTab() {
 		var openedTab: SettingsTab??
 		let builder = MenubarMenu(terminate: {}, openSettings: { openedTab = $0 })
 		let menu = builder.build()
-		let customizationIndex = trailingIndex(4, petItemCount: 1)
+		let customizationIndex = trailingIndex(5, petItemCount: 1)
 		let customizationItem = menu.items[customizationIndex]
 		XCTAssertEqual(customizationItem.title, MenubarMenu.customizationTitle)
 		XCTAssertTrue(customizationItem.isEnabled)
@@ -180,14 +186,14 @@ final class MenuItemsTests: XCTestCase {
 	func testCustomizationItemIsDisabledWhenCallbackIsNil() {
 		let builder = MenubarMenu(terminate: {})
 		let menu = builder.build()
-		XCTAssertFalse(menu.items[trailingIndex(4, petItemCount: 1)].isEnabled)
+		XCTAssertFalse(menu.items[trailingIndex(5, petItemCount: 1)].isEnabled)
 	}
 
 	func testSettingsItemInvokesOpenSettingsCallback() {
 		var settingsOpenCount = 0
 		let builder = MenubarMenu(terminate: {}, openSettings: { _ in settingsOpenCount += 1 })
 		let menu = builder.build()
-		let settingsIndex = trailingIndex(5, petItemCount: 1)
+		let settingsIndex = trailingIndex(6, petItemCount: 1)
 		let settingsItem = menu.items[settingsIndex]
 		XCTAssertEqual(settingsItem.title, MenubarMenu.settingsTitle)
 		XCTAssertTrue(settingsItem.isEnabled)
@@ -202,14 +208,14 @@ final class MenuItemsTests: XCTestCase {
 	func testSettingsItemIsDisabledWhenCallbackIsNil() {
 		let builder = MenubarMenu(terminate: {})
 		let menu = builder.build()
-		XCTAssertFalse(menu.items[trailingIndex(5, petItemCount: 1)].isEnabled)
+		XCTAssertFalse(menu.items[trailingIndex(6, petItemCount: 1)].isEnabled)
 	}
 
 	func testQuitCodogotchiActionInvokesTerminationSpy() {
 		var terminationCount = 0
 		let builder = MenubarMenu(terminate: { terminationCount += 1 })
 		let menu = builder.build()
-		let quitItem = menu.items[trailingIndex(7, petItemCount: 1)]
+		let quitItem = menu.items[trailingIndex(8, petItemCount: 1)]
 
 		guard let action = quitItem.action, let target = quitItem.target else {
 			return XCTFail("Quit Codogotchi menu item must have an action and target")

@@ -2,9 +2,9 @@ import AppKit
 
 /// Constructs the menu attached to the menu-bar `NSStatusItem`.
 ///
-/// Layout: a disabled "Codogotchi" header, a separator, "Default Pet: …" (jumps
-/// to Settings > Pet), the dynamic pet section, "Show/Hide All Pets",
-/// "Customization…" (jumps to Settings > Customization), "Settings…", and
+/// Layout: a disabled "Codogotchi" header, a separator, the dynamic pet
+/// section, "Show/Hide All Pets", "Pets" (jumps to Settings > Pet),
+/// "Customization" (jumps to Settings > Customization), "Settings", and
 /// "Quit Codogotchi".
 ///
 /// The pet section is dynamic: when `FloatingPetWindowPool` has a single active
@@ -17,13 +17,13 @@ import AppKit
 /// items "do nothing"), so `MenubarApp` holds a strong reference.
 final class MenubarMenu: NSObject {
 	static let headerTitle = "Codogotchi"
-	static let defaultPetPrefix = "Default Pet: "
 	static let showFloatingPetTitle = "Show Pet"
 	static let hideFloatingPetTitle = "Hide Pet"
 	static let showAllPetsTitle = "Show All Pets"
 	static let hideAllPetsTitle = "Hide All Pets"
-	static let customizationTitle = "Customization…"
-	static let settingsTitle = "Settings…"
+	static let petsTitle = "Pets"
+	static let customizationTitle = "Customization"
+	static let settingsTitle = "Settings"
 	static let quitTitle = "Quit Codogotchi"
 	static let hooksNotActiveTitle = "⚠ Hooks not active — Retry install"
 
@@ -33,9 +33,8 @@ final class MenubarMenu: NSObject {
 	private let openSettings: ((SettingsTab?) -> Void)?
 	private weak var builtMenu: NSMenu?
 	private weak var hooksNotActiveItem: NSMenuItem?
-	private weak var defaultPetItem: NSMenuItem?
-	/// Index of the first pet-section item within `builtMenu` (after the header,
-	/// separator, and Default Pet items).
+	/// Index of the first pet-section item within `builtMenu` (after the header
+	/// and separator).
 	private var petSectionStartIndex: Int = 0
 	/// Number of pet-section items currently at `petSectionStartIndex`.
 	private var petItemCount: Int = 0
@@ -63,16 +62,6 @@ final class MenubarMenu: NSObject {
 		menu.addItem(header)
 		menu.addItem(.separator())
 
-		let defaultPetItem = NSMenuItem(
-			title: "\(Self.defaultPetPrefix)\(defaultPetDisplayName())",
-			action: #selector(openPetSettingsAction(_:)),
-			keyEquivalent: ""
-		)
-		defaultPetItem.target = self
-		defaultPetItem.isEnabled = openSettings != nil
-		menu.addItem(defaultPetItem)
-		self.defaultPetItem = defaultPetItem
-
 		petSectionStartIndex = menu.numberOfItems
 		buildPetSection(in: menu)
 
@@ -95,6 +84,15 @@ final class MenubarMenu: NSObject {
 		menu.addItem(hideAllItem)
 
 		menu.addItem(.separator())
+
+		let petsItem = NSMenuItem(
+			title: Self.petsTitle,
+			action: #selector(openPetSettingsAction(_:)),
+			keyEquivalent: ""
+		)
+		petsItem.target = self
+		petsItem.isEnabled = openSettings != nil
+		menu.addItem(petsItem)
 
 		let customizationItem = NSMenuItem(
 			title: Self.customizationTitle,
@@ -144,9 +142,9 @@ final class MenubarMenu: NSObject {
 		hooksNotActiveItem?.isHidden = isActive
 	}
 
-	/// Rebuilds the pet section to reflect the current pool state, and refreshes
-	/// the "Default Pet: …" label. Called after any visibility change (panel hide
-	/// button, menu action, pool TTL) or pet reassignment.
+	/// Rebuilds the pet section to reflect the current pool state. Called after
+	/// any visibility change (panel hide button, menu action, pool TTL) or pet
+	/// reassignment.
 	@MainActor
 	func refreshFloatingPetMenuItemTitle() {
 		guard let menu = builtMenu else { return }
@@ -155,7 +153,6 @@ final class MenubarMenu: NSObject {
 		}
 		petItemCount = 0
 		buildPetSection(in: menu, insertAt: petSectionStartIndex)
-		defaultPetItem?.title = "\(Self.defaultPetPrefix)\(defaultPetDisplayName())"
 	}
 
 	@objc func quitMenubar(_ sender: Any?) {
@@ -289,11 +286,6 @@ final class MenubarMenu: NSObject {
 		else { return }
 		pool.setVisible(true, for: key)
 		refreshFloatingPetMenuItemTitle()
-	}
-
-	@MainActor
-	private func defaultPetDisplayName() -> String {
-		(floatingPetPool?.defaultPetId ?? DEFAULT_PET_NAME).capitalized
 	}
 
 	/// Display name for a pet-section window key. Session-keyed keys
