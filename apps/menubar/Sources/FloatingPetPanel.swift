@@ -361,7 +361,10 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 /// and owns the panel drag. Deliberately knows nothing about the attention
 /// bubble — that lives in its own panel.
 private final class MinimalistBadgeView: NSView {
-	private static let hPad: CGFloat = 10
+	/// `fileprivate` (not `private`) so `GateBadgePanel`'s Minimalist-mode
+	/// entry point can left-align the ticket/gate badge to the same leading
+	/// edge the chip+pill row sits at, rather than centering it on the strip.
+	fileprivate static let hPad: CGFloat = 10
 	private static let rowSpacing: CGFloat = 4
 
 	private let animationBadge = AnimationBadgeView(frame: .zero)
@@ -837,10 +840,14 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		if conflictActive {
 			repositionAndShowConflictBubble()
 		}
+		// Animation badge first: the gate badge's leading edge is anchored off
+		// the animation badge panel's own frame (the platform chip's leading
+		// edge), so it must already be positioned this tick before the gate
+		// badge reads `chipLeadingX`.
+		repositionAndShowAnimationBadge()
 		if gateBadgeContent != nil {
 			repositionAndShowGateBadge()
 		}
-		repositionAndShowAnimationBadge()
 		updateGhostPresentation()
 	}
 
@@ -934,6 +941,16 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		if isPanelShown {
 			repositionAndShowGateBadge()
 		}
+	}
+
+	/// Screen-space x of the platform chip's leading edge: the animation
+	/// badge panel's own `minX` (its `outerStack` is leading-aligned and fills
+	/// the panel's full width — see the `AnimationBadgeView` alignment note),
+	/// not the pet sprite's `minX`. Falls back to the pet frame's own leading
+	/// edge before the animation badge panel exists (e.g. the very first tick
+	/// after `show`, ordering permitting) rather than crashing/centering.
+	private var chipLeadingX: CGFloat {
+		animationBadgePanel?.frame.minX ?? lastPanelFrame.minX
 	}
 
 	/// Routes a right-click on chrome that lives in its own floating window
@@ -1090,6 +1107,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		badge.reposition(
 			content: content,
 			relativeTo: lastPanelFrame,
+			chipLeadingX: chipLeadingX,
 			visibleFrame: visibleFrameProvider()
 		)
 		badge.orderFrontRegardless()
@@ -1366,13 +1384,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 				visibleFrame: visibleFrameProvider()
 			)
 		}
-		if let content = gateBadgeContent {
-			gateBadgePanel?.reposition(
-				content: content,
-				relativeTo: lastPanelFrame,
-				visibleFrame: visibleFrameProvider()
-			)
-		}
+		// Animation badge first — the gate badge's `chipLeadingX` anchor reads
+		// this panel's just-updated frame (see the ordering note in `show`).
 		animationBadgePanel?.reposition(
 			label: animationBadgeLabel,
 			platform: currentPlatform,
@@ -1383,6 +1396,14 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
+		if let content = gateBadgeContent {
+			gateBadgePanel?.reposition(
+				content: content,
+				relativeTo: lastPanelFrame,
+				chipLeadingX: chipLeadingX,
+				visibleFrame: visibleFrameProvider()
+			)
+		}
 		// While dragging the pet, the HUD + ghost chrome are ordered out for perf
 		// (see `isDraggingPet`); skip re-anchoring them entirely until mouse-up.
 		guard !isDraggingPet else { return }
@@ -1572,6 +1593,55 @@ enum GateBadgeLayout {
 		let y = max(safe.minY, min(safe.maxY - rect.height, rect.minY))
 		return CGRect(x: x, y: y, width: rect.width, height: rect.height)
 	}
+
+	/// Minimalist-mode variant: left-aligned to the strip's leading edge
+	/// (`anchorFrame.minX + leadingInset`) instead of centered on
+	/// `anchorFrame.midX`. Centering looked awkward stacked above a
+	/// left-anchored chip+pill row that itself no longer centers (see the
+	/// `SessionLabel`/`PlatformChip` leading-alignment fix); this mirrors that
+	/// same left-aligned treatment for the ticket/gate stack.
+	static func frame(
+		relativeTo anchorFrame: CGRect,
+		badgeSize: CGSize,
+		leadingInset: CGFloat,
+		visibleFrame: CGRect
+	) -> CGRect {
+		let rect = CGRect(
+			x: anchorFrame.minX + leadingInset,
+			y: anchorFrame.maxY,
+			width: badgeSize.width,
+			height: badgeSize.height
+		)
+		let safe = visibleFrame.insetBy(dx: margin, dy: margin)
+		let x = max(safe.minX, min(safe.maxX - rect.width, rect.minX))
+		let y = max(safe.minY, min(safe.maxY - rect.height, rect.minY))
+		return CGRect(x: x, y: y, width: rect.width, height: rect.height)
+	}
+
+	/// Own-mode variant: left-aligned to `leadingX` — the platform chip's
+	/// leading edge in screen space (the animation badge panel's own `minX`,
+	/// *not* the pet sprite's `minX`; the chip sits well inside the pet frame,
+	/// anchored off `pillCenterX`) — with the top sitting `petFrame.maxY`,
+	/// same as the centered variant. Replaces centering on `petFrame.midX`,
+	/// which put the ticket/gate stack over the pet's horizontal center while
+	/// the chip below it sits off to the left, so the two never lined up.
+	static func frame(
+		aboveTopOf petFrame: CGRect,
+		badgeSize: CGSize,
+		leadingX: CGFloat,
+		visibleFrame: CGRect
+	) -> CGRect {
+		let rect = CGRect(
+			x: leadingX,
+			y: petFrame.maxY,
+			width: badgeSize.width,
+			height: badgeSize.height
+		)
+		let safe = visibleFrame.insetBy(dx: margin, dy: margin)
+		let x = max(safe.minX, min(safe.maxX - rect.width, rect.minX))
+		let y = max(safe.minY, min(safe.maxY - rect.height, rect.minY))
+		return CGRect(x: x, y: y, width: rect.width, height: rect.height)
+	}
 }
 
 @MainActor
@@ -1613,17 +1683,38 @@ final class GateBadgePanel: NSPanel {
 	override var canBecomeMain: Bool { false }
 
 	func update(content: GateBadgeContent, relativeTo petFrame: CGRect) {
-		badgeView.configure(content: content, metrics: GateBadgeLayout.metrics(for: petFrame))
+		badgeView.configure(
+			content: content, metrics: GateBadgeLayout.metrics(for: petFrame), tokenAlignment: .leading)
 	}
 
-	/// Own-mode entry point: metrics scale off the pet frame's own width.
-	func reposition(content: GateBadgeContent, relativeTo petFrame: CGRect, visibleFrame: CGRect) {
-		reposition(
-			content: content,
-			metrics: GateBadgeLayout.metrics(for: petFrame),
-			relativeTo: petFrame,
+	/// Own-mode entry point: metrics scale off the pet frame's own width, but
+	/// the stack is positioned by `chipLeadingX` (screen space) — the platform
+	/// chip's leading edge — not centered on the pet. This is its own
+	/// implementation rather than delegating to the Minimalist-mode
+	/// `reposition(content:metrics:relativeTo:visibleFrame:)` below: that one
+	/// treats its `anchorFrame` as *both* the metrics source and the
+	/// left-edge-plus-inset anchor, which is correct when the anchor is the
+	/// Minimalist strip itself (chip leading edge = strip leading edge +
+	/// `hPad`) but wrong here, where `petFrame` (for metrics) and the chip's
+	/// screen position (a separate floating panel below-left of the pet,
+	/// anchored off `pillCenterX`) are unrelated.
+	func reposition(
+		content: GateBadgeContent,
+		relativeTo petFrame: CGRect,
+		chipLeadingX: CGFloat,
+		visibleFrame: CGRect
+	) {
+		let metrics = GateBadgeLayout.metrics(for: petFrame)
+		badgeView.configure(content: content, metrics: metrics, tokenAlignment: .leading)
+		let size = badgeView.preferredSize
+		let frame = GateBadgeLayout.frame(
+			aboveTopOf: petFrame,
+			badgeSize: size,
+			leadingX: chipLeadingX,
 			visibleFrame: visibleFrame
 		)
+		setFrame(frame, display: true)
+		badgeView.frame = NSRect(origin: .zero, size: frame.size)
 	}
 
 	/// Minimalist-mode entry point: the anchor frame is a chromeless badge strip,
@@ -1636,12 +1727,13 @@ final class GateBadgePanel: NSPanel {
 		relativeTo anchorFrame: CGRect,
 		visibleFrame: CGRect
 	) {
-		badgeView.configure(content: content, metrics: metrics)
+		badgeView.configure(content: content, metrics: metrics, tokenAlignment: .leading)
 		// Hug the stacked tokens (ticket over gate, both left-aligned).
 		let size = badgeView.preferredSize
 		let frame = GateBadgeLayout.frame(
 			relativeTo: anchorFrame,
 			badgeSize: size,
+			leadingInset: MinimalistBadgeView.hPad,
 			visibleFrame: visibleFrame
 		)
 		setFrame(frame, display: true)
@@ -1676,8 +1768,9 @@ final class GateBadgeView: NSView {
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
-		// Vertical, centered: ticket token on top, gate token below, each centered
-		// on the stack's midline (and the stack is centered on the pet).
+		// Vertical: ticket token on top, gate token below. `configure(...)`
+		// sets the real alignment per mode; `.centerX` here is just the
+		// pre-`configure` initial value.
 		stackView.orientation = .vertical
 		stackView.alignment = .centerX
 		stackView.translatesAutoresizingMaskIntoConstraints = false
@@ -1695,7 +1788,18 @@ final class GateBadgeView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	func configure(content: GateBadgeContent, metrics: GateBadgeLayout.Metrics) {
+	/// `tokenAlignment` picks how the ticket token stacks over the gate token:
+	/// `.centerX` (the default, Own mode) centers each on the stack's midline,
+	/// symmetric with the badge itself being centered on the pet sprite.
+	/// `.leading` (Minimalist mode) instead lines up both tokens' left edges —
+	/// matching `GateBadgePanel`'s Minimalist-mode panel placement, which
+	/// left-aligns the whole badge to the platform chip rather than centering
+	/// it on the strip.
+	func configure(
+		content: GateBadgeContent, metrics: GateBadgeLayout.Metrics,
+		tokenAlignment: NSLayoutConstraint.Attribute = .centerX
+	) {
+		stackView.alignment = tokenAlignment
 		stackView.spacing = metrics.interBadgeSpacing
 		ticketBadge.configure(text: content.ticketId, metrics: metrics)
 		gateBadge.configure(text: GateBadgeView.gateLabel(content.gate), metrics: metrics)
