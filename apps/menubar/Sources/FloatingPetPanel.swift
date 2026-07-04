@@ -282,6 +282,11 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 			panel.onRightClickRequested = { [weak self] anchor in
 				self?.badgeView.presentHidePrompt(anchorInScreen: anchor)
 			}
+			// Route a left-click-drag on the ticket/gate stack into moving
+			// this strip, same as grabbing the strip itself would.
+			panel.onDragBegan = { [weak self] in self?.badgeView.beginExternalDrag() }
+			panel.onDragChanged = { [weak self] in self?.badgeView.continueExternalDrag() }
+			panel.onDragEnded = { [weak self] in self?.badgeView.endExternalDrag() }
 			gateBadgePanel = panel
 			return panel
 		}()
@@ -483,6 +488,44 @@ private final class MinimalistBadgeView: NSView {
 	}
 
 	override func mouseUp(with event: NSEvent) {
+		dragOffsetInScreen = nil
+		if let frame = window?.frame {
+			frameChangeHandler?(frame)
+		}
+	}
+
+	// MARK: - External drag (chrome living in its own floating window)
+
+	/// `fileprivate` (not `private`) so `GateBadgePanel` — the SOA ticket/gate
+	/// badge, its own floating window stacked above this strip — can route a
+	/// left-click-drag on itself into moving this strip, exactly as if the
+	/// user had grabbed the strip directly. Mirrors `mouseDown`/`mouseDragged`/
+	/// `mouseUp` above verbatim, reading `NSEvent.mouseLocation` (screen space,
+	/// window-independent) the same way those do, rather than a point handed
+	/// in from the other window's own event.
+	fileprivate func beginExternalDrag() {
+		guard let window else { return }
+		dismissHidePrompt()
+		let point = NSEvent.mouseLocation
+		dragOffsetInScreen = CGPoint(
+			x: point.x - window.frame.origin.x,
+			y: point.y - window.frame.origin.y
+		)
+	}
+
+	fileprivate func continueExternalDrag() {
+		guard let window, let dragOffsetInScreen else { return }
+		let point = NSEvent.mouseLocation
+		let origin = CGPoint(
+			x: point.x - dragOffsetInScreen.x,
+			y: point.y - dragOffsetInScreen.y
+		)
+		let frame = clampedFrameProvider?(origin) ?? CGRect(origin: origin, size: window.frame.size)
+		window.setFrame(frame, display: true)
+		onDragMoved?(frame)
+	}
+
+	fileprivate func endExternalDrag() {
 		dragOffsetInScreen = nil
 		if let frame = window?.frame {
 			frameChangeHandler?(frame)
@@ -934,6 +977,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			panel.onRightClickRequested = { [weak self] anchor in
 				self?.presentChromeHidePrompt(anchorInScreen: anchor)
 			}
+			panel.onDragBegan = { [weak self] in self?.beginChromeDrag() }
+			panel.onDragChanged = { [weak self] in self?.continueChromeDrag() }
+			panel.onDragEnded = { [weak self] in self?.endChromeDrag() }
 			gateBadgePanel = panel
 			return panel
 		}()
@@ -960,6 +1006,22 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private func presentChromeHidePrompt(anchorInScreen: CGPoint) {
 		(panel?.contentView as? FloatingPetInteractionView)?.presentHidePrompt(
 			anchorInScreen: anchorInScreen, localPoint: .zero)
+	}
+
+	/// Routes a left-click-drag on chrome that lives in its own floating
+	/// window (the SOA gate badge, the platform-chip/activity/session
+	/// animation badge) into moving the pet panel, exactly as if the user had
+	/// grabbed the pet body directly.
+	private func beginChromeDrag() {
+		(panel?.contentView as? FloatingPetInteractionView)?.beginExternalDrag()
+	}
+
+	private func continueChromeDrag() {
+		(panel?.contentView as? FloatingPetInteractionView)?.continueExternalDrag()
+	}
+
+	private func endChromeDrag() {
+		(panel?.contentView as? FloatingPetInteractionView)?.endExternalDrag()
 	}
 
 	func applyPlatform(origin: String?) {
@@ -1101,6 +1163,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			panel.onRightClickRequested = { [weak self] anchor in
 				self?.presentChromeHidePrompt(anchorInScreen: anchor)
 			}
+			panel.onDragBegan = { [weak self] in self?.beginChromeDrag() }
+			panel.onDragChanged = { [weak self] in self?.continueChromeDrag() }
+			panel.onDragEnded = { [weak self] in self?.endChromeDrag() }
 			gateBadgePanel = panel
 			return panel
 		}()
@@ -1273,6 +1338,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			panel.onRightClickRequested = { [weak self] anchor in
 				self?.presentChromeHidePrompt(anchorInScreen: anchor)
 			}
+			panel.onDragBegan = { [weak self] in self?.beginChromeDrag() }
+			panel.onDragChanged = { [weak self] in self?.continueChromeDrag() }
+			panel.onDragEnded = { [weak self] in self?.endChromeDrag() }
 			animationBadgePanel = panel
 			return panel
 		}()
@@ -1655,6 +1723,16 @@ final class GateBadgePanel: NSPanel {
 	/// floating window, so it never received that click otherwise.
 	var onRightClickRequested: ((CGPoint) -> Void)?
 
+	/// Fired when the user starts/continues/ends a left-click-drag on the
+	/// ticket/gate token stack. Wired by whichever controller owns this panel
+	/// to move the panel the badge is anchored to (the pet panel in Own/
+	/// Combined mode, the badge strip in Minimalist mode) — mirrors
+	/// `onRightClickRequested`'s reasoning: this badge is its own floating
+	/// window, so a drag on it never reached the owning panel otherwise.
+	var onDragBegan: (() -> Void)?
+	var onDragChanged: (() -> Void)?
+	var onDragEnded: (() -> Void)?
+
 	init() {
 		super.init(
 			contentRect: .zero,
@@ -1669,14 +1747,18 @@ final class GateBadgePanel: NSPanel {
 		collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 		hidesOnDeactivate = false
 		isReleasedWhenClosed = false
-		// Was click-through (true); now interactive so a right-click on the
-		// badge can surface the hide prompt like the rest of the chrome.
+		// Was click-through (true); now interactive so a right-click/drag on
+		// the badge can surface the hide prompt / move the panel like the
+		// rest of the chrome.
 		ignoresMouseEvents = false
 		contentView = badgeView
 		badgeView.onRightMouseDown = { [weak self] event in
 			guard let self else { return }
 			self.onRightClickRequested?(self.convertPoint(toScreen: event.locationInWindow))
 		}
+		badgeView.onDragBegan = { [weak self] in self?.onDragBegan?() }
+		badgeView.onDragChanged = { [weak self] in self?.onDragChanged?() }
+		badgeView.onDragEnded = { [weak self] in self?.onDragEnded?() }
 	}
 
 	override var canBecomeKey: Bool { false }
@@ -1752,6 +1834,28 @@ final class GateBadgeView: NSView {
 
 	override func rightMouseDown(with event: NSEvent) {
 		onRightMouseDown?(event)
+	}
+
+	/// Forwards a left-click-drag anywhere on the ticket/gate stack up to
+	/// `GateBadgePanel`, which routes it into moving whichever panel owns the
+	/// badge (the pet panel in Own/Combined mode, the badge strip in
+	/// Minimalist mode) — this badge is always wrapped in its own floating
+	/// `GateBadgePanel`, so unlike `AnimationBadgeView` there is no bubbling
+	/// fallback case to preserve.
+	var onDragBegan: (() -> Void)?
+	var onDragChanged: (() -> Void)?
+	var onDragEnded: (() -> Void)?
+
+	override func mouseDown(with event: NSEvent) {
+		onDragBegan?()
+	}
+
+	override func mouseDragged(with event: NSEvent) {
+		onDragChanged?()
+	}
+
+	override func mouseUp(with event: NSEvent) {
+		onDragEnded?()
 	}
 
 	private let stackView = NSStackView()
@@ -1992,6 +2096,16 @@ final class AnimationBadgePanel: NSPanel {
 	/// own floating window, so it never received that click otherwise.
 	var onRightClickRequested: ((CGPoint) -> Void)?
 
+	/// Fired when the user starts/continues/ends a left-click-drag on the
+	/// platform chip, activity pill, or session badge. Wired by
+	/// `FloatingPetPanelController` to move the pet panel this badge is
+	/// anchored to — mirrors `onRightClickRequested`'s reasoning: this badge
+	/// is its own floating window, so a drag on it never reached the pet
+	/// panel otherwise.
+	var onDragBegan: (() -> Void)?
+	var onDragChanged: (() -> Void)?
+	var onDragEnded: (() -> Void)?
+
 	init() {
 		super.init(
 			contentRect: .zero,
@@ -2007,14 +2121,17 @@ final class AnimationBadgePanel: NSPanel {
 		hidesOnDeactivate = false
 		isReleasedWhenClosed = false
 		// Was click-through except while a tooltip was live (see `reposition`);
-		// now always interactive so a right-click reaches the badge regardless
-		// of tooltip/session state.
+		// now always interactive so a right-click/drag reaches the badge
+		// regardless of tooltip/session state.
 		ignoresMouseEvents = false
 		contentView = badgeView
 		badgeView.onRightMouseDown = { [weak self] event in
 			guard let self else { return }
 			self.onRightClickRequested?(self.convertPoint(toScreen: event.locationInWindow))
 		}
+		badgeView.onDragBegan = { [weak self] in self?.onDragBegan?() }
+		badgeView.onDragChanged = { [weak self] in self?.onDragChanged?() }
+		badgeView.onDragEnded = { [weak self] in self?.onDragEnded?() }
 	}
 
 	override var canBecomeKey: Bool { false }
@@ -2560,6 +2677,40 @@ final class AnimationBadgeView: NSView {
 			return
 		}
 		onRightMouseDown(event)
+	}
+
+	/// Forwards a left-click-drag anywhere on the chip/pill/session-badge
+	/// stack up to `AnimationBadgePanel`, which routes it into moving the pet
+	/// panel. `nil` when embedded directly in `MinimalistBadgeView` — falls
+	/// back to `super` there for the same reason `onRightMouseDown` does: the
+	/// event keeps bubbling up to `MinimalistBadgeView`'s own drag handling,
+	/// unchanged from before this override existed.
+	var onDragBegan: (() -> Void)?
+	var onDragChanged: (() -> Void)?
+	var onDragEnded: (() -> Void)?
+
+	override func mouseDown(with event: NSEvent) {
+		guard let onDragBegan else {
+			super.mouseDown(with: event)
+			return
+		}
+		onDragBegan()
+	}
+
+	override func mouseDragged(with event: NSEvent) {
+		guard let onDragChanged else {
+			super.mouseDragged(with: event)
+			return
+		}
+		onDragChanged()
+	}
+
+	override func mouseUp(with event: NSEvent) {
+		guard let onDragEnded else {
+			super.mouseUp(with: event)
+			return
+		}
+		onDragEnded()
 	}
 
 	override init(frame frameRect: NSRect) {
@@ -3239,6 +3390,50 @@ private final class FloatingPetInteractionView: NSView {
 
 	override func cursorUpdate(with event: NSEvent) {
 		applyAffordanceCursor(for: convert(event.locationInWindow, from: nil))
+	}
+
+	// MARK: - External drag (chrome living in its own floating window)
+
+	/// `fileprivate` (not `private`) so `GateBadgePanel`/`AnimationBadgePanel`
+	/// — the SOA badge and chip/pill/session badge, each its own floating
+	/// window — can route a left-click-drag on themselves into moving this
+	/// panel, exactly as if the user had grabbed the pet body directly.
+	/// Deliberately skips the sprite-interaction feedback (`emitInteraction`,
+	/// the hold-to-de-escalate timer, resize-affordance hiding) `mouseDown`/
+	/// `mouseDragged`/`mouseUp` drive for a direct pet-body drag — those are
+	/// specific to touching the sprite itself, not its surrounding chrome.
+	fileprivate func beginExternalDrag() {
+		guard let window else { return }
+		dismissHidePrompt()
+		let screenPoint = NSEvent.mouseLocation
+		let grabOffset = CGPoint(
+			x: screenPoint.x - window.frame.origin.x,
+			y: screenPoint.y - window.frame.origin.y
+		)
+		activeInteraction = .drag(grabOffsetInScreen: grabOffset)
+		overlayView.showsResizeAffordance = false
+		onDragStateChange?(true)
+	}
+
+	fileprivate func continueExternalDrag() {
+		guard let window, case let .drag(grabOffsetInScreen)? = activeInteraction else { return }
+		let nextFrame = FloatingInteractionPolicy.draggedFrame(
+			mouseLocationInScreen: NSEvent.mouseLocation,
+			grabOffsetInScreen: grabOffsetInScreen,
+			windowSize: window.frame.size,
+			visibleFrame: visibleFrameProvider()
+		)
+		applyPanelFrame(nextFrame, isTranslate: true)
+	}
+
+	fileprivate func endExternalDrag() {
+		guard isTranslating else { return }
+		window?.displayIfNeeded()
+		activeInteraction = nil
+		onDragStateChange?(false)
+		if let frame = window?.frame {
+			frameChangeHandler?(frame)
+		}
 	}
 
 	private var isResizing: Bool {
