@@ -343,6 +343,14 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		let bubble = conflictBubblePanel ?? {
 			let b = SpeechBubblePanel()
 			b.onAction = { [weak self] in self?.onOpenSettingsRequested?() }
+			// Clearing the payload (not just ordering out) is what makes the
+			// dismissal stick: `applyConflictBubblePresentation` re-fronts the
+			// panel on every badge pass while a payload is set. The pool's
+			// hourly rate limiter may legitimately re-show it later.
+			b.onDismiss = { [weak self] in
+				self?.currentConflictPayload = nil
+				self?.conflictBubblePanel?.orderOut(nil)
+			}
 			conflictBubblePanel = b
 			return b
 		}()
@@ -353,7 +361,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 	private func repositionConflictBubble(badgeFrame: CGRect) {
 		guard currentConflictPayload != nil, let bubble = conflictBubblePanel else { return }
-		bubble.reposition(relativeTo: badgeFrame, visibleFrame: visibleFrameProvider())
+		bubble.reposition(aboveMinimalistStrip: badgeFrame, visibleFrame: visibleFrameProvider())
 	}
 
 	private func handleBubbleDismiss() {
@@ -935,6 +943,14 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		let bubble = conflictBubble ?? {
 			let b = SpeechBubblePanel()
 			b.onAction = { [weak self] in self?.onOpenSettingsRequested?() }
+			// Clearing `conflictActive` (not just ordering out) is what makes
+			// the dismissal stick: live-move repositions re-front the panel
+			// while the flag is set. The pool's hourly rate limiter may
+			// legitimately re-show it later via `applyConflictBubble`.
+			b.onDismiss = { [weak self] in
+				self?.conflictActive = false
+				self?.conflictBubble?.orderOut(nil)
+			}
 			conflictBubble = b
 			return b
 		}()
@@ -1160,7 +1176,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private func repositionAndShowConflictBubble() {
 		guard let bubble = conflictBubble else { return }
 		bubble.reposition(
-			relativeTo: lastPanelFrame,
+			aboveFloatingPetFrame: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
 		bubble.orderFrontRegardless()
@@ -1480,7 +1496,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 		if conflictActive {
 			conflictBubble?.reposition(
-				relativeTo: lastPanelFrame,
+				aboveFloatingPetFrame: lastPanelFrame,
 				visibleFrame: visibleFrameProvider()
 			)
 		}

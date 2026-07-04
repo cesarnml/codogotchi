@@ -12,11 +12,18 @@ import Foundation
 // MARK: - Layout
 
 enum SpeechBubbleLayout {
-	static let bodyHeight: CGFloat = 72
+	/// Must fit the header row, rule, a *two-line* wrapped message, and the
+	/// action link at `minBubbleWidth` — any shorter and the vertical chain is
+	/// unsatisfiable at narrow widths, so the solver breaks a constraint and
+	/// the action link draws on top of the message's last line.
+	static let bodyHeight: CGFloat = 86
 	static let hPad: CGFloat = 12
 	static let vPad: CGFloat = 8
 	static let cornerRadius: CGFloat = 10
 	static let iconSize: CGFloat = 14
+	/// Matches `AttentionBubblePanel`'s `closeButtonSize` so the two bubbles'
+	/// dismiss affordances read as the same control.
+	static let dismissButtonSize: CGFloat = 13
 	/// Gap between the header row's bottom and the rule line, and between the
 	/// rule line and the message row.
 	static let rowGap: CGFloat = 6
@@ -24,26 +31,52 @@ enum SpeechBubbleLayout {
 	/// the upper half sits behind the body's bottom edge, in the reserved
 	/// `tailVisibleHeight` strip below the body.
 	static let tailSize: CGFloat = 14
-	static var tailVisibleHeight: CGFloat { tailSize / 2 }
+	/// Half the *rotated* diamond's height — its half-diagonal, not half its
+	/// side. Reserving only `tailSize / 2` clipped ~3pt off the tail's point
+	/// at the window's bottom edge, blunting it.
+	static var tailVisibleHeight: CGFloat { tailSize / 2 * 2.0.squareRoot() }
 	/// Full panel height: the body plus the strip reserved for the tail's
 	/// protruding lower half.
 	static var height: CGFloat { bodyHeight + tailVisibleHeight }
-	/// Vertical distance from the pet frame's top edge down to the tail's
-	/// point — sprite cells carry empty headroom above the character, so this
-	/// roughly lines the tail up with the character's actual head rather than
-	/// the top of the transparent cell.
-	static let topGapToCharacter: CGFloat = 8
+	/// Own/Combined mode: how far the tail's point dips *inside* the pet
+	/// window's top edge. Sprite cells carry empty headroom above the
+	/// character, so a tip exactly at `maxY` would float over transparent
+	/// pixels — dipping inside lines it up closer to the character's head.
+	static let tipInsetIntoPetFrame: CGFloat = 8
 
-	/// Horizontally centered on `petFrame`; anchored so the tail's point sits
-	/// `topGapToCharacter` above `petFrame`'s top edge — the bubble reads as
-	/// floating just above the character's head with its tail pointing down
-	/// at it, a thought bubble, not a status card anchored below the pet like
-	/// `AttentionBubblePanel`.
-	static func frame(relativeTo petFrame: CGRect, visibleFrame: CGRect) -> CGRect {
-		let width = AttentionBubbleLayoutMetrics.bubbleWidth(forPetWidth: petFrame.width)
-		let x = petFrame.midX - width / 2
-		let y = petFrame.maxY - topGapToCharacter
-		let rect = CGRect(x: x, y: y, width: width, height: height)
+	/// Minimalist mode: how far the tail's point dips inside the strip
+	/// panel's top edge. The strip panel's frame carries padding above its
+	/// drawn chip row, so a tip hovering at the frame's `maxY` visually
+	/// floated well above the chrome — dipping inside brings it down to just
+	/// above the visible chip.
+	static let tipInsetIntoStrip: CGFloat = 8
+
+	/// Own/Combined mode: horizontally centered on the pet window, tail point
+	/// dipping `tipInsetIntoPetFrame` inside its top edge — a thought bubble
+	/// pointing at the character's head, not a status card anchored below the
+	/// pet like `AttentionBubblePanel`.
+	static func frame(aboveFloatingPetFrame petFrame: CGRect, visibleFrame: CGRect) -> CGRect {
+		frame(
+			centeredOn: petFrame,
+			tipY: petFrame.maxY - tipInsetIntoPetFrame,
+			visibleFrame: visibleFrame)
+	}
+
+	/// Minimalist mode: horizontally centered on the strip, tail point
+	/// dipping `tipInsetIntoStrip` inside its top edge.
+	static func frame(aboveMinimalistStrip stripFrame: CGRect, visibleFrame: CGRect) -> CGRect {
+		frame(
+			centeredOn: stripFrame,
+			tipY: stripFrame.maxY - tipInsetIntoStrip,
+			visibleFrame: visibleFrame)
+	}
+
+	private static func frame(centeredOn anchorFrame: CGRect, tipY: CGFloat, visibleFrame: CGRect)
+		-> CGRect
+	{
+		let width = AttentionBubbleLayoutMetrics.bubbleWidth(forPetWidth: anchorFrame.width)
+		let x = anchorFrame.midX - width / 2
+		let rect = CGRect(x: x, y: tipY, width: width, height: height)
 		return clamped(rect, to: visibleFrame)
 	}
 
@@ -54,6 +87,19 @@ enum SpeechBubbleLayout {
 		let y = max(safe.minY, min(safe.maxY - rect.height, rect.minY))
 		return CGRect(x: x, y: y, width: rect.width, height: rect.height)
 	}
+}
+
+// MARK: - Copy
+
+/// The session-cap conflict notice's strings, hoisted out of
+/// `configureConflict` so tests can assert the message wraps within the
+/// two-line budget at `minBubbleWidth`. The message deliberately does NOT end
+/// with the word "Settings" — the Settings action link renders directly below
+/// it, and a trailing "…in Settings." read as a doubled link.
+enum SpeechBubbleConflictCopy {
+	static let title = "Session Cap Reached"
+	static let message = "Right-click a panel to Prune a Session, or raise the cap."
+	static let actionTitle = "Settings"
 }
 
 // MARK: - Panel
@@ -77,7 +123,11 @@ final class SpeechBubblePanel: NSPanel {
 		backgroundColor = .clear
 		isOpaque = false
 		hasShadow = false
-		level = .floating
+		// One tick above `.floating` (which the gate badge, animation badge,
+		// and pet panel all use) so this notice always draws in front of them
+		// regardless of order-front call sequencing, instead of z-order being
+		// whichever one happened to be shown/reordered most recently.
+		level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
 		collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 		hidesOnDeactivate = false
 		isReleasedWhenClosed = false
@@ -95,6 +145,14 @@ final class SpeechBubblePanel: NSPanel {
 		set { bubbleView.onAction = newValue }
 	}
 
+	/// Fired when the user clicks the X. This bubble never dismisses on its
+	/// own (short of the conflict genuinely resolving) — the host must clear
+	/// its own conflict state here or its next reposition re-fronts the panel.
+	var onDismiss: (() -> Void)? {
+		get { bubbleView.onDismiss }
+		set { bubbleView.onDismiss = newValue }
+	}
+
 	/// Configures the session-cap conflict notice. The title names what's
 	/// actually happening (the render cap, in Settings' own vocabulary); the
 	/// message names the two real user actions — raise the cap, or free a
@@ -103,14 +161,21 @@ final class SpeechBubblePanel: NSPanel {
 	func configureConflict(origin: String?) {
 		bubbleView.configure(
 			icon: NSImage(systemSymbolName: "bubble.left.fill", accessibilityDescription: nil),
-			title: "Session Cap Reached",
-			message: "Right-click a panel to Prune a Session, or raise the cap in Settings.",
-			actionTitle: "Settings"
+			title: SpeechBubbleConflictCopy.title,
+			message: SpeechBubbleConflictCopy.message,
+			actionTitle: SpeechBubbleConflictCopy.actionTitle
 		)
 	}
 
-	func reposition(relativeTo petFrame: CGRect, visibleFrame: CGRect) {
-		let f = SpeechBubbleLayout.frame(relativeTo: petFrame, visibleFrame: visibleFrame)
+	func reposition(aboveFloatingPetFrame petFrame: CGRect, visibleFrame: CGRect) {
+		apply(SpeechBubbleLayout.frame(aboveFloatingPetFrame: petFrame, visibleFrame: visibleFrame))
+	}
+
+	func reposition(aboveMinimalistStrip stripFrame: CGRect, visibleFrame: CGRect) {
+		apply(SpeechBubbleLayout.frame(aboveMinimalistStrip: stripFrame, visibleFrame: visibleFrame))
+	}
+
+	private func apply(_ f: CGRect) {
 		setFrame(f, display: true)
 		bubbleView.frame = NSRect(origin: .zero, size: f.size)
 	}
@@ -120,6 +185,11 @@ final class SpeechBubblePanel: NSPanel {
 
 private final class SpeechBubbleView: NSView {
 	private let effectView = NSVisualEffectView(frame: .zero)
+	/// Dark overlay layered above the frosted material so nothing behind the
+	/// window (desktop, other chrome) shows through — same recipe as
+	/// `AnimationBadgeChrome.badgeTint`, reused here so this notice reads with
+	/// the same guaranteed-readable dark floor the rest of the chrome has.
+	private let tintView = AnimationBadgeChrome.makeTintView()
 	private let tailView = NSView(frame: .zero)
 
 	private let iconView = NSImageView()
@@ -127,12 +197,14 @@ private final class SpeechBubbleView: NSView {
 	private let ruleView = NSBox(frame: .zero)
 	private let messageLabel = NSTextField(wrappingLabelWithString: "")
 	private let actionButton = NSButton(title: "", target: nil, action: nil)
+	private let dismissButton = NSButton(title: "", target: nil, action: nil)
 
 	/// Body content is pinned to this fixed-height region at the top of the
 	/// view; the strip below it is reserved for the tail's protruding tip.
 	private var bodyBottomConstraint: NSLayoutConstraint!
 
 	var onAction: (() -> Void)?
+	var onDismiss: (() -> Void)?
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -157,6 +229,7 @@ private final class SpeechBubbleView: NSView {
 		effectView.wantsLayer = true
 		effectView.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(effectView)
+		addSubview(tintView)
 
 		iconView.contentTintColor = .white
 		iconView.translatesAutoresizingMaskIntoConstraints = false
@@ -190,6 +263,23 @@ private final class SpeechBubbleView: NSView {
 		actionButton.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(actionButton)
 
+		// Always visible (unlike `AttentionBubblePanel`'s hover-revealed X):
+		// this notice never dismisses on its own, so its only exit must be
+		// discoverable without hovering.
+		let xImage = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Dismiss")?
+			.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 8, weight: .bold))
+		dismissButton.image = xImage
+		dismissButton.imagePosition = .imageOnly
+		dismissButton.bezelStyle = .regularSquare
+		dismissButton.isBordered = false
+		dismissButton.focusRingType = .none
+		dismissButton.contentTintColor = NSColor.white.withAlphaComponent(0.75)
+		dismissButton.wantsLayer = true
+		dismissButton.target = self
+		dismissButton.action = #selector(performDismiss)
+		dismissButton.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(dismissButton)
+
 		let hPad = SpeechBubbleLayout.hPad
 		let vPad = SpeechBubbleLayout.vPad
 		let icon = SpeechBubbleLayout.iconSize
@@ -205,14 +295,26 @@ private final class SpeechBubbleView: NSView {
 			effectView.topAnchor.constraint(equalTo: topAnchor),
 			bodyBottom,
 
+			tintView.leadingAnchor.constraint(equalTo: effectView.leadingAnchor),
+			tintView.trailingAnchor.constraint(equalTo: effectView.trailingAnchor),
+			tintView.topAnchor.constraint(equalTo: effectView.topAnchor),
+			tintView.bottomAnchor.constraint(equalTo: effectView.bottomAnchor),
+
 			iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: hPad),
 			iconView.topAnchor.constraint(equalTo: topAnchor, constant: vPad),
 			iconView.widthAnchor.constraint(equalToConstant: icon),
 			iconView.heightAnchor.constraint(equalToConstant: icon),
 
 			titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
-			titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -hPad),
+			titleLabel.trailingAnchor.constraint(
+				lessThanOrEqualTo: dismissButton.leadingAnchor, constant: -6),
 			titleLabel.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
+
+			dismissButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -hPad),
+			dismissButton.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
+			dismissButton.widthAnchor.constraint(
+				equalToConstant: SpeechBubbleLayout.dismissButtonSize),
+			dismissButton.heightAnchor.constraint(equalTo: dismissButton.widthAnchor),
 
 			ruleView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: hPad),
 			ruleView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -hPad),
@@ -221,10 +323,17 @@ private final class SpeechBubbleView: NSView {
 			messageLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: hPad),
 			messageLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -hPad),
 			messageLabel.topAnchor.constraint(equalTo: ruleView.bottomAnchor, constant: gap),
+			messageLabel.bottomAnchor.constraint(lessThanOrEqualTo: actionButton.topAnchor, constant: -2),
 
+			// The link is pinned to the body's bottom edge, and the message is
+			// only allowed to grow down to it — not the other way around
+			// (`button.top = message.bottom` chained off a fixed body height),
+			// where an over-wrapped message makes the chain unsatisfiable and
+			// the solver drops a constraint, drawing the link on top of the
+			// message's last line. This way an over-long message compresses at
+			// its two-line max instead.
 			actionButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: hPad),
-			actionButton.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 2),
-			actionButton.bottomAnchor.constraint(lessThanOrEqualTo: effectView.bottomAnchor, constant: -4),
+			actionButton.bottomAnchor.constraint(equalTo: effectView.bottomAnchor, constant: -4),
 		])
 
 		applyChromeStyle()
@@ -254,7 +363,23 @@ private final class SpeechBubbleView: NSView {
 		effectView.layer?.shadowRadius = 8
 		effectView.layer?.shadowOffset = CGSize(width: 0, height: -2)
 
-		tailView.layer?.backgroundColor = NSColor(calibratedWhite: 0.16, alpha: 0.9).cgColor
+		tintView.layer?.cornerRadius = SpeechBubbleLayout.cornerRadius
+		tintView.layer?.masksToBounds = true
+
+		// Same circle chrome as `AttentionBubblePanel`'s dismiss button
+		// (`BubblePalette.dismissFill`/`dismissBorder`).
+		dismissButton.layer?.cornerRadius = SpeechBubbleLayout.dismissButtonSize / 2
+		dismissButton.layer?.masksToBounds = true
+		dismissButton.layer?.borderWidth = 1
+		dismissButton.layer?.borderColor =
+			NSColor(calibratedRed: 0.34, green: 0.37, blue: 0.46, alpha: 1.0).cgColor
+		dismissButton.layer?.backgroundColor =
+			NSColor(calibratedRed: 0.16, green: 0.17, blue: 0.22, alpha: 1.0).cgColor
+
+		// Fully opaque (not the frosted body's translucent border alpha) so
+		// nothing behind the window shows through the tail's protruding tip —
+		// matches the opaque dark floor `tintView` now guarantees for the body.
+		tailView.layer?.backgroundColor = NSColor(calibratedWhite: 0.16, alpha: 1.0).cgColor
 		tailView.layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
 		tailView.layer?.borderWidth = 1
 	}
@@ -266,13 +391,19 @@ private final class SpeechBubbleView: NSView {
 	private func layoutTail() {
 		let size = SpeechBubbleLayout.tailSize
 		let seamY = SpeechBubbleLayout.tailVisibleHeight
+		// Rotate via the view-level `frameCenterRotation`, NOT by setting
+		// `layer?.transform`: AppKit owns a layer-backed view's layer geometry
+		// and clobbers a hand-set transform on its next sync — which is exactly
+		// how the tail rendered as an unrotated square in Own mode. Reset to 0
+		// first so the frame is assigned in unrotated coordinates.
+		tailView.frameCenterRotation = 0
 		tailView.frame = NSRect(
 			x: bounds.midX - size / 2,
 			y: seamY - size / 2,
 			width: size,
 			height: size
 		)
-		tailView.layer?.transform = CATransform3DMakeRotation(.pi / 4, 0, 0, 1)
+		tailView.frameCenterRotation = 45
 	}
 
 	override func hitTest(_ point: NSPoint) -> NSView? {
@@ -281,5 +412,9 @@ private final class SpeechBubbleView: NSView {
 
 	@objc private func performAction() {
 		onAction?()
+	}
+
+	@objc private func performDismiss() {
+		onDismiss?()
 	}
 }
