@@ -629,7 +629,10 @@ private final class MinimalistBadgeView: NSView {
 		sessionBadge.isHidden = true
 
 		outerStack.orientation = .vertical
-		outerStack.alignment = .centerX
+		// `.leading` (not `.centerX`) keeps the chip+pill row pinned at `hPad` from
+		// the panel's left edge regardless of the session badge row's width — see
+		// the matching note on `AnimationBadgeView.outerStack`.
+		outerStack.alignment = .leading
 		outerStack.spacing = Self.rowSpacing
 		outerStack.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(outerStack)
@@ -2398,7 +2401,13 @@ final class AnimationBadgeView: NSView {
 		sessionBadge.isHidden = true
 
 		outerStack.orientation = .vertical
-		outerStack.alignment = .centerX
+		// `.leading` (not `.centerX`) pins the session badge row's leading edge to
+		// the chip+pill row's leading edge (the platform chip, when present)
+		// regardless of which row is wider. `.centerX` would let a wide session
+		// label re-center the narrower chip+pill row within the view, shifting it
+		// off the `pillCenterX` anchor the panel uses to keep the pill centered
+		// on the pet — see `AnimationBadgeLayout.frame`.
+		outerStack.alignment = .leading
 		outerStack.spacing = 4
 		outerStack.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(outerStack)
