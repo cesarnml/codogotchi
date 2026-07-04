@@ -126,15 +126,15 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	// MARK: - Private
 
 	private func openWindow() {
-		// Width sized so the Pet tab grid shows three columns by default
+		// Fixed window size: width shows three Pet-grid columns by default
 		// (each card needs ~300pt; see PetTabView.minCardWidth/maxColumns) with
-		// headroom for the Customization tab's two-column layout. Height grown
-		// from 680 to fit the Customization tab's Idle Escalation Timing and
-		// Session Pet Eviction Timing sections stacked below Idle Dismiss.
-		let frame = CGRect(x: 0, y: 0, width: 1120, height: 900)
+		// headroom for the Customization tab's two-column layout; height fits
+		// the Customization tab's Pet Idle and Eviction Preferences panel. The
+		// window is not resizable — every tab is designed against this size.
+		let frame = CGRect(x: 0, y: 0, width: 1120, height: 770)
 		let w = NSWindow(
 			contentRect: frame,
-			styleMask: [.titled, .closable, .miniaturizable, .resizable],
+			styleMask: [.titled, .closable, .miniaturizable],
 			backing: .buffered,
 			defer: false
 		)
@@ -149,7 +149,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		// instead of the system's opaque gray chrome.
 		w.titlebarAppearsTransparent = true
 		w.isReleasedWhenClosed = false
-		w.minSize = CGSize(width: 1024, height: 480)
 		w.delegate = self
 		w.center()
 
@@ -609,8 +608,8 @@ private final class GeneralTabView: NSView {
 
 	private func setupViews() {
 		// Prevent unsatisfiable-constraint log when the view is constructed at
-		// .zero before joining the window hierarchy. The real window min-width
-		// (1024pt) wins once the view is in the superview chain.
+		// .zero before joining the window hierarchy. The real fixed window width
+		// (1120pt) wins once the view is in the superview chain.
 		let floor = widthAnchor.constraint(greaterThanOrEqualToConstant: 460)
 		floor.priority = .defaultHigh
 		floor.isActive = true
@@ -1963,7 +1962,12 @@ private final class RPGTabView: NSView {
 		let card = settingsThemedCard()
 		addSubview(card)
 
+		let headerBadge = settingsHeaderIconBadge(
+			symbolName: SettingsTab.rpg.symbolName, color: .systemGreen)
+		card.addSubview(headerBadge)
+
 		let title = settingsSectionTitle("RPG")
+		title.font = .systemFont(ofSize: 15, weight: .semibold)
 		card.addSubview(title)
 
 		let note = settingsBodyLabel(
@@ -1983,12 +1987,15 @@ private final class RPGTabView: NSView {
 			card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			title.topAnchor.constraint(equalTo: card.topAnchor, constant: 20),
-			title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			headerBadge.topAnchor.constraint(equalTo: card.topAnchor, constant: 20),
+			headerBadge.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+
+			title.topAnchor.constraint(equalTo: card.topAnchor, constant: 18),
+			title.leadingAnchor.constraint(equalTo: headerBadge.trailingAnchor, constant: 12),
 			title.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
-			note.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
-			note.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			note.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
+			note.leadingAnchor.constraint(equalTo: title.leadingAnchor),
 			note.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
 			toggleButton.topAnchor.constraint(equalTo: note.bottomAnchor, constant: 16),
@@ -2027,7 +2034,12 @@ private final class DeveloperTabView: NSView {
 		let card = settingsThemedCard()
 		addSubview(card)
 
+		let headerBadge = settingsHeaderIconBadge(
+			symbolName: SettingsTab.developer.symbolName, color: .systemOrange)
+		card.addSubview(headerBadge)
+
 		let title = settingsSectionTitle("Developer")
+		title.font = .systemFont(ofSize: 15, weight: .semibold)
 		card.addSubview(title)
 
 		refreshButton.bezelStyle = .rounded
@@ -2063,8 +2075,11 @@ private final class DeveloperTabView: NSView {
 			card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 			card.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -20),
 
-			title.topAnchor.constraint(equalTo: card.topAnchor, constant: 16),
-			title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			headerBadge.topAnchor.constraint(equalTo: card.topAnchor, constant: 16),
+			headerBadge.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+
+			title.centerYAnchor.constraint(equalTo: headerBadge.centerYAnchor),
+			title.leadingAnchor.constraint(equalTo: headerBadge.trailingAnchor, constant: 12),
 
 			refreshButton.centerYAnchor.constraint(equalTo: title.centerYAnchor),
 			refreshButton.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
@@ -2073,7 +2088,7 @@ private final class DeveloperTabView: NSView {
 			openDataButton.trailingAnchor.constraint(
 				equalTo: refreshButton.leadingAnchor, constant: -8),
 
-			scrollView.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 10),
+			scrollView.topAnchor.constraint(equalTo: headerBadge.bottomAnchor, constant: 10),
 			scrollView.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
 			scrollView.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 			scrollView.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
@@ -2445,15 +2460,15 @@ private final class CustomizationTabView: NSView {
 		)
 		ttlCard.addSubview(ttlNote)
 
-		// MARK: Pet Idle Escalation Timing (full width, below Idle Dismiss)
+		// MARK: Pet Idle Escalation Timing (inside the Idle/Eviction card, below Idle Dismiss)
 
 		let escalationTitle = settingsSectionTitle("Pet Idle Escalation Timing")
-		addSubview(escalationTitle)
+		ttlCard.addSubview(escalationTitle)
 
 		let impatientLabel = NSTextField(labelWithString: "Pet Idle Impatient After:")
 		impatientLabel.font = .systemFont(ofSize: 13)
 		impatientLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(impatientLabel)
+		ttlCard.addSubview(impatientLabel)
 
 		impatientPicker.translatesAutoresizingMaskIntoConstraints = false
 		for preset in IdleEscalationTiming.allCases {
@@ -2467,12 +2482,12 @@ private final class CustomizationTabView: NSView {
 		}
 		impatientPicker.target = self
 		impatientPicker.action = #selector(impatientPickerChanged(_:))
-		addSubview(impatientPicker)
+		ttlCard.addSubview(impatientPicker)
 
 		let frustratedLabel = NSTextField(labelWithString: "Pet Idle Frustrated After:")
 		frustratedLabel.font = .systemFont(ofSize: 13)
 		frustratedLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(frustratedLabel)
+		ttlCard.addSubview(frustratedLabel)
 
 		frustratedPicker.translatesAutoresizingMaskIntoConstraints = false
 		for preset in IdleEscalationTiming.allCases {
@@ -2486,23 +2501,23 @@ private final class CustomizationTabView: NSView {
 		}
 		frustratedPicker.target = self
 		frustratedPicker.action = #selector(frustratedPickerChanged(_:))
-		addSubview(frustratedPicker)
+		ttlCard.addSubview(frustratedPicker)
 
 		let escalationNote = settingsBodyLabel(
 			"Controls when an idle pet's badge reads \"Impatient\" then \"Frustrated\". "
 				+ "Frustrated After automatically stays one step above Impatient After."
 		)
-		addSubview(escalationNote)
+		ttlCard.addSubview(escalationNote)
 
-		// MARK: Session Pet Eviction Timing (full width, below Idle Escalation Timing)
+		// MARK: Pet Session Eviction Policy (inside the Idle/Eviction card, below Escalation Timing)
 
-		let evictionTitle = settingsSectionTitle("Session Pet Eviction Timing")
-		addSubview(evictionTitle)
+		let evictionTitle = settingsSectionTitle("Pet Session Eviction Policy")
+		ttlCard.addSubview(evictionTitle)
 
 		let evictionLabel = NSTextField(labelWithString: "Evict Session Pets:")
 		evictionLabel.font = .systemFont(ofSize: 13)
 		evictionLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(evictionLabel)
+		ttlCard.addSubview(evictionLabel)
 
 		evictSessionPetsPicker.translatesAutoresizingMaskIntoConstraints = false
 		evictSessionPetsPicker.addItem(withTitle: "Enabled")
@@ -2512,7 +2527,7 @@ private final class CustomizationTabView: NSView {
 		evictSessionPetsPicker.selectItem(withTitle: viewModel.evictSessionPetsEnabled ? "Enabled" : "Disabled")
 		evictSessionPetsPicker.target = self
 		evictSessionPetsPicker.action = #selector(evictSessionPetsPickerChanged(_:))
-		addSubview(evictSessionPetsPicker)
+		ttlCard.addSubview(evictSessionPetsPicker)
 
 		let evictionNote = settingsBodyLabel(
 			"When Enabled, a new session can evict an idle sibling session once its "
@@ -2520,7 +2535,7 @@ private final class CustomizationTabView: NSView {
 				+ "Disabled protects every existing session from eviction — a new "
 				+ "session waits for a slot to open on its own."
 		)
-		addSubview(evictionNote)
+		ttlCard.addSubview(evictionNote)
 
 		let rowsTop = note.bottomAnchor
 
@@ -2655,14 +2670,12 @@ private final class CustomizationTabView: NSView {
 			ttlNote.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
 			ttlNote.trailingAnchor.constraint(equalTo: ttlCard.trailingAnchor, constant: -16),
 
-			ttlNote.bottomAnchor.constraint(equalTo: ttlCard.bottomAnchor, constant: -16),
-
-			escalationTitle.topAnchor.constraint(equalTo: ttlCard.bottomAnchor, constant: 20),
-			escalationTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			escalationTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			escalationTitle.topAnchor.constraint(equalTo: ttlNote.bottomAnchor, constant: 20),
+			escalationTitle.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
+			escalationTitle.trailingAnchor.constraint(equalTo: ttlCard.trailingAnchor, constant: -16),
 
 			impatientLabel.topAnchor.constraint(equalTo: escalationTitle.bottomAnchor, constant: 10),
-			impatientLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			impatientLabel.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
 			impatientLabel.widthAnchor.constraint(equalToConstant: 190),
 
 			impatientPicker.centerYAnchor.constraint(equalTo: impatientLabel.centerYAnchor),
@@ -2670,7 +2683,7 @@ private final class CustomizationTabView: NSView {
 			impatientPicker.widthAnchor.constraint(equalToConstant: 130),
 
 			frustratedLabel.topAnchor.constraint(equalTo: impatientLabel.bottomAnchor, constant: 10),
-			frustratedLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			frustratedLabel.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
 			frustratedLabel.widthAnchor.constraint(equalToConstant: 190),
 
 			frustratedPicker.centerYAnchor.constraint(equalTo: frustratedLabel.centerYAnchor),
@@ -2678,15 +2691,15 @@ private final class CustomizationTabView: NSView {
 			frustratedPicker.widthAnchor.constraint(equalToConstant: 130),
 
 			escalationNote.topAnchor.constraint(equalTo: frustratedLabel.bottomAnchor, constant: 8),
-			escalationNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			escalationNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			escalationNote.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
+			escalationNote.trailingAnchor.constraint(equalTo: ttlCard.trailingAnchor, constant: -16),
 
 			evictionTitle.topAnchor.constraint(equalTo: escalationNote.bottomAnchor, constant: 20),
-			evictionTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			evictionTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			evictionTitle.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
+			evictionTitle.trailingAnchor.constraint(equalTo: ttlCard.trailingAnchor, constant: -16),
 
 			evictionLabel.topAnchor.constraint(equalTo: evictionTitle.bottomAnchor, constant: 10),
-			evictionLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			evictionLabel.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
 			evictionLabel.widthAnchor.constraint(equalToConstant: 140),
 
 			evictSessionPetsPicker.centerYAnchor.constraint(equalTo: evictionLabel.centerYAnchor),
@@ -2694,9 +2707,9 @@ private final class CustomizationTabView: NSView {
 			evictSessionPetsPicker.widthAnchor.constraint(equalToConstant: 130),
 
 			evictionNote.topAnchor.constraint(equalTo: evictionLabel.bottomAnchor, constant: 8),
-			evictionNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			evictionNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
-			evictionNote.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -20),
+			evictionNote.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
+			evictionNote.trailingAnchor.constraint(equalTo: ttlCard.trailingAnchor, constant: -16),
+			evictionNote.bottomAnchor.constraint(equalTo: ttlCard.bottomAnchor, constant: -16),
 		])
 	}
 
@@ -2797,7 +2810,12 @@ private final class AboutTabView: NSView {
 		let card = settingsThemedCard()
 		addSubview(card)
 
+		let headerBadge = settingsHeaderIconBadge(
+			symbolName: SettingsTab.about.symbolName, color: .systemBlue)
+		card.addSubview(headerBadge)
+
 		let title = settingsSectionTitle("About")
+		title.font = .systemFont(ofSize: 15, weight: .semibold)
 		card.addSubview(title)
 
 		let appVersionLabel = settingsBodyLabel("Codogotchi \(viewModel.appVersion)")
@@ -2825,11 +2843,14 @@ private final class AboutTabView: NSView {
 			card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			title.topAnchor.constraint(equalTo: card.topAnchor, constant: 20),
-			title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			headerBadge.topAnchor.constraint(equalTo: card.topAnchor, constant: 20),
+			headerBadge.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+
+			title.centerYAnchor.constraint(equalTo: headerBadge.centerYAnchor),
+			title.leadingAnchor.constraint(equalTo: headerBadge.trailingAnchor, constant: 12),
 			title.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
-			appVersionLabel.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
+			appVersionLabel.topAnchor.constraint(equalTo: headerBadge.bottomAnchor, constant: 12),
 			appVersionLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
 			appVersionLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
