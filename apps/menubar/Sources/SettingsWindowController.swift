@@ -135,7 +135,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		)
 		w.title = Self.windowTitle
 		w.isReleasedWhenClosed = false
-		w.minSize = CGSize(width: 460, height: 480)
+		w.minSize = CGSize(width: 1024, height: 480)
 		w.delegate = self
 		w.center()
 
