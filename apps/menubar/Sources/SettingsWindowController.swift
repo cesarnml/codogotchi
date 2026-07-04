@@ -1809,15 +1809,18 @@ private final class CustomizationTabView: NSView {
 		)
 		minimalistCard.addSubview(scaleNote)
 
-		// MARK: Idle Dismiss (full width, below both cards)
+		// MARK: Pet Idle and Eviction Preferences (full-width card, below both cards)
 
-		let ttlTitle = settingsSectionTitle("Idle Dismiss")
-		addSubview(ttlTitle)
+		let ttlCard = makeSettingsCard()
+		addSubview(ttlCard)
 
-		let ttlLabel = NSTextField(labelWithString: "Dismiss after idle:")
+		let ttlTitle = settingsSectionTitle("Pet Idle and Eviction Preferences")
+		ttlCard.addSubview(ttlTitle)
+
+		let ttlLabel = NSTextField(labelWithString: "Dismiss Idle Pet After:")
 		ttlLabel.font = .systemFont(ofSize: 13)
 		ttlLabel.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(ttlLabel)
+		ttlCard.addSubview(ttlLabel)
 
 		ttlPicker.translatesAutoresizingMaskIntoConstraints = false
 		for preset in IdleDismissTTL.allCases {
@@ -1832,24 +1835,24 @@ private final class CustomizationTabView: NSView {
 		}
 		ttlPicker.target = self
 		ttlPicker.action = #selector(ttlPickerChanged(_:))
-		addSubview(ttlPicker)
+		ttlCard.addSubview(ttlPicker)
 
 		let ttlNote = settingsBodyLabel(
 			"\"Never\" keeps the pet visible until you switch tools or quit. "
 				+ "Changes take effect on the next poll cycle."
 		)
-		addSubview(ttlNote)
+		ttlCard.addSubview(ttlNote)
 
 		let rowsTop = note.bottomAnchor
 
-		// Idle Dismiss sits below whichever of the two side-by-side cards is
+		// The card sits below whichever of the two side-by-side cards is
 		// taller (Platform Settings, with one row per origin, is expected to
 		// usually be the taller one, but this must not assume that).
-		let ttlBelowPlatform = ttlTitle.topAnchor.constraint(
+		let ttlBelowPlatform = ttlCard.topAnchor.constraint(
 			greaterThanOrEqualTo: platformCard.bottomAnchor, constant: 24)
-		let ttlBelowMinimalist = ttlTitle.topAnchor.constraint(
+		let ttlBelowMinimalist = ttlCard.topAnchor.constraint(
 			greaterThanOrEqualTo: minimalistCard.bottomAnchor, constant: 24)
-		let ttlPrefersBelowPlatform = ttlTitle.topAnchor.constraint(
+		let ttlPrefersBelowPlatform = ttlCard.topAnchor.constraint(
 			equalTo: platformCard.bottomAnchor, constant: 24)
 		ttlPrefersBelowPlatform.priority = .defaultHigh
 
@@ -1932,20 +1935,26 @@ private final class CustomizationTabView: NSView {
 			minimalistCard.bottomAnchor.constraint(equalTo: platformCard.bottomAnchor),
 
 			ttlBelowPlatform, ttlBelowMinimalist, ttlPrefersBelowPlatform,
-			ttlTitle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			ttlTitle.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			ttlCard.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			ttlCard.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-			ttlLabel.topAnchor.constraint(equalTo: ttlTitle.bottomAnchor, constant: 10),
-			ttlLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			ttlLabel.widthAnchor.constraint(equalToConstant: 140),
+			ttlTitle.topAnchor.constraint(equalTo: ttlCard.topAnchor, constant: 16),
+			ttlTitle.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
+			ttlTitle.trailingAnchor.constraint(equalTo: ttlCard.trailingAnchor, constant: -16),
+
+			ttlLabel.topAnchor.constraint(equalTo: ttlTitle.bottomAnchor, constant: 14),
+			ttlLabel.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
+			ttlLabel.widthAnchor.constraint(equalToConstant: 170),
 
 			ttlPicker.centerYAnchor.constraint(equalTo: ttlLabel.centerYAnchor),
 			ttlPicker.leadingAnchor.constraint(equalTo: ttlLabel.trailingAnchor, constant: 8),
 			ttlPicker.widthAnchor.constraint(equalToConstant: 130),
 
 			ttlNote.topAnchor.constraint(equalTo: ttlLabel.bottomAnchor, constant: 8),
-			ttlNote.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-			ttlNote.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			ttlNote.leadingAnchor.constraint(equalTo: ttlCard.leadingAnchor, constant: 16),
+			ttlNote.trailingAnchor.constraint(equalTo: ttlCard.trailingAnchor, constant: -16),
+
+			ttlNote.bottomAnchor.constraint(equalTo: ttlCard.bottomAnchor, constant: -16),
 		])
 	}
 
