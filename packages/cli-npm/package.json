@@ -1,9 +1,9 @@
 {
   "name": "codogotchi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Install Codogotchi pets from the marketplace",
   "bin": {
-    "codogotchi": "./dist/codogotchi.js"
+    "codogotchi": "dist/codogotchi.js"
   },
   "files": [
     "dist"
