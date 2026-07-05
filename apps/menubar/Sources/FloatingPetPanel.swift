@@ -89,6 +89,10 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// right-click rename affordance. Wired by the caller (`MenubarApp`) to
 	/// persist to `SessionLabelStore` — mirrors Own mode's `onRenameRequested`.
 	var onRenameRequested: ((String) -> Void)?
+	/// Fired when the user activates the badge's right-click "Pet Mode"
+	/// affordance. Wired by the caller (`MenubarApp`) to persist the mode
+	/// switch to customization.json — mirrors Own mode's `onSwitchToMinimalist`.
+	var onSwitchToPetMode: (() -> Void)?
 
 	init(
 		visibleFrameProvider: @escaping () -> CGRect = {
@@ -125,6 +129,10 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		badgeView.renameHandler = { [weak self] newLabel in
 			self?.applySessionLabel(newLabel)
 			self?.onRenameRequested?(newLabel)
+		}
+		// Right-click "Pet Mode" affordance — back to the full pet renderer.
+		badgeView.onPetModeRequested = { [weak self] in
+			self?.onSwitchToPetMode?()
 		}
 	}
 
@@ -404,6 +412,10 @@ private final class MinimalistBadgeView: NSView {
 	/// "Rename…" affordance. Not fired when the user cancels or commits an
 	/// empty/whitespace-only label. Mirrors Own mode's `renameHandler`.
 	var renameHandler: ((String) -> Void)?
+	/// Fires when the user activates the right-click "Pet Mode" pill — the
+	/// mode-switch back to the full pet renderer. Mirrors Own mode's
+	/// `minimalistModeHandler`.
+	var onPetModeRequested: (() -> Void)?
 	/// Latest activity the badge is displaying, mirrored so the right-click prompt
 	/// can decide whether to offer "Force Idle".
 	private var currentActivity: ActivityState = .idle
@@ -593,6 +605,13 @@ private final class MinimalistBadgeView: NSView {
 					self?.presentRenameAlert()
 				})
 		}
+		// Mode switch back to the full pet renderer. Sits directly above
+		// "Hide panel", mirroring Own mode's "Minimalist Mode" placement.
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.petModeTitle) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.onPetModeRequested?()
+			})
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.panelTitle) { [weak self] in
 				self?.dismissHidePrompt()
@@ -789,6 +808,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// slice, free-list number, and label — this panel never touches those
 	/// stores directly, it only reports the user's confirmed intent.
 	var onPruneRequested: (() -> Void)?
+	/// Fired when the user activates the right-click "Minimalist Mode"
+	/// affordance. Wired by the caller (`MenubarApp`) to persist the mode
+	/// switch to customization.json — this panel never writes config itself.
+	var onSwitchToMinimalist: (() -> Void)?
 
 	// RPG HUD — shown on hover, and transiently revealed on animation moments
 	// (lose/gain a half-heart, level up) when not hovering.
@@ -1607,6 +1630,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 		view.pruneHandler = { [weak self] in
 			self?.onPruneRequested?()
+		}
+		view.minimalistModeHandler = { [weak self] in
+			self?.onSwitchToMinimalist?()
 		}
 		view.holdDeEscalationHandler = { [weak self] in
 			self?.scene?.decrementIdleEscalation()
@@ -2863,6 +2889,15 @@ enum FloatingPetHidePrompt {
 	/// (slice, free-list number, rename label) — the same end-state as
 	/// automatic TTL expiry.
 	static let pruneTitle = "Prune Session"
+	/// Title for the right-click mode-switch affordance on an Own/Combined pet
+	/// window: flips the platform to Minimalist mode (or, on the combined
+	/// window, turns on combined-minimalist rendering). For a sessions-enabled
+	/// platform this is a platform-level switch — every session panel of that
+	/// origin flips together, since mode is keyed per-origin.
+	static let minimalistModeTitle = "Minimalist Mode"
+	/// Title for the right-click mode-switch affordance on a Minimalist strip:
+	/// the inverse of `minimalistModeTitle` — back to the full pet renderer.
+	static let petModeTitle = "Pet Mode"
 	static let font = NSFont.systemFont(ofSize: 13, weight: .medium)
 	static let horizontalPadding: CGFloat = 14
 	static let verticalPadding: CGFloat = 7
@@ -3194,6 +3229,10 @@ private final class FloatingPetInteractionView: NSView {
 	/// offered while `hasActiveSessionBadge` — see that property's doc for why
 	/// this gate differs from Rename's.
 	var pruneHandler: (() -> Void)?
+	/// Fired when the user activates the right-click "Minimalist Mode"
+	/// affordance. The app wires this to persist the mode switch to
+	/// customization.json; the window pool re-renders on its next tick.
+	var minimalistModeHandler: (() -> Void)?
 	/// Fired when the pointer enters or leaves the pet frame. `true` = entered.
 	var onHoverChange: ((Bool) -> Void)?
 	/// Fired on every pointer event while tracking (moved, entered, exited).
@@ -3613,6 +3652,13 @@ private final class FloatingPetInteractionView: NSView {
 					self?.presentPruneConfirmation()
 				})
 		}
+		// Mode switch to the compact badge strip. Sits directly above "Hide pet"
+		// — like Hide it acts on the window's chrome, not the session's state.
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.minimalistModeTitle) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.minimalistModeHandler?()
+			})
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.title) { [weak self] in
 				self?.dismissHidePrompt()

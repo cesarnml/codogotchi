@@ -2207,14 +2207,67 @@ private final class CustomizationTabView: NSView {
 	private static let platformCardWidth: CGFloat =
 		16 + 110 + 8 + modeColumnWidth + 24 + sessionsColumnWidth + 24 + 110 + 16
 
+	/// Observer for `.customizationDidChangeExternally` — a right-click mode
+	/// switch on a floating panel writes customization.json through its own
+	/// short-lived view model, so this tab's controls would silently go stale
+	/// without a re-sync trigger.
+	private var externalChangeObserver: NSObjectProtocol?
+
 	init(viewModel: CustomizationTabViewModel) {
 		self.viewModel = viewModel
 		super.init(frame: .zero)
 		setupViews()
+		externalChangeObserver = NotificationCenter.default.addObserver(
+			forName: .customizationDidChangeExternally,
+			object: nil,
+			queue: .main
+		) { [weak self] _ in
+			Task { @MainActor in self?.refreshFromDisk() }
+		}
 	}
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
+
+	deinit {
+		if let externalChangeObserver {
+			NotificationCenter.default.removeObserver(externalChangeObserver)
+		}
+	}
+
+	/// Re-reads customization.json via the view model and re-syncs every
+	/// control to the reloaded state, mirroring each control's initial
+	/// selection logic in `setupViews`. Unmatchable persisted values (e.g. a
+	/// hand-edited TTL between presets) keep the current selection rather than
+	/// guessing, so a refresh never moves a picker to a value the file does
+	/// not actually contain a preset for.
+	private func refreshFromDisk() {
+		viewModel.reload()
+		for origin in CustomizationTabViewModel.origins {
+			let mode = viewModel.mode(for: origin)
+			modePickers[origin]?.selectItem(withTitle: mode.rawValue.capitalized)
+			let sessionsEnabled = viewModel.sessionPetsEnabled[origin] == true
+			sessionsPickers[origin]?.selectItem(withTitle: sessionsEnabled ? "Enabled" : "Disabled")
+			sessionsPickers[origin]?.isEnabled = mode.supportsSessionPets
+			let capOption =
+				SessionCapOption.matching(viewModel.effectiveSessionCap(for: origin)) ?? .three
+			sessionCapPickers[origin]?.selectItem(withTitle: capOption.label)
+			sessionCapPickers[origin]?.isEnabled = mode.supportsSessionPets && sessionsEnabled
+		}
+		combinedMinimalistCheckbox.state = viewModel.combinedMinimalistEnabled ? .on : .off
+		badgeScaleSlider.doubleValue = viewModel.minimalistBadgeScale
+		if let preset = IdleDismissTTL.matching(viewModel.idleDismissTtlSeconds) {
+			ttlPicker.selectItem(withTitle: preset.label)
+		}
+		if let preset = IdleEscalationTiming.matching(viewModel.idleImpatientSeconds) {
+			impatientPicker.selectItem(withTitle: preset.label)
+		}
+		if let preset = IdleEscalationTiming.matching(viewModel.idleFrustratedSeconds) {
+			frustratedPicker.selectItem(withTitle: preset.label)
+		}
+		evictSessionPetsPicker.selectItem(
+			withTitle: viewModel.evictSessionPetsEnabled ? "Enabled" : "Disabled")
+	}
 
 	/// Styled inner panel used for the "Platform Settings", "Minimalist Panel
 	/// Options", and idle/eviction sections. Uses the darker table shade (the

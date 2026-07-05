@@ -391,4 +391,43 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		let reloaded = CustomizationTabViewModel(filePath: path)
 		XCTAssertFalse(reloaded.evictSessionPetsEnabled, "value must round-trip through a fresh read")
 	}
+
+	// MARK: - reload() re-syncs from an external write
+
+	func testReloadPicksUpAModeSwitchWrittenByAnotherViewModel() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		// The Settings tab's long-lived view model…
+		let settingsVM = CustomizationTabViewModel(filePath: path)
+		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .own)
+
+		// …goes stale when a right-click mode switch writes through its own
+		// short-lived view model (the MenubarApp affordance handlers' path).
+		let rightClickVM = CustomizationTabViewModel(filePath: path)
+		rightClickVM.setMode(.minimalist, for: "claude_code")
+		rightClickVM.setCombinedMinimalistEnabled(true)
+		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .own, "stale until reload()")
+
+		settingsVM.reload()
+
+		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .minimalist)
+		XCTAssertTrue(settingsVM.combinedMinimalistEnabled)
+	}
+
+	func testReloadRestoresTheDefaultWhenAModeSwitchRemovedTheEntry() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let settingsVM = CustomizationTabViewModel(filePath: path)
+		settingsVM.setMode(.minimalist, for: "cursor")
+
+		// "Pet Mode" writes .own, which removes the platform_modes entry
+		// (own is the default) — reload must fall back to .own, not keep the
+		// stale .minimalist.
+		let rightClickVM = CustomizationTabViewModel(filePath: path)
+		rightClickVM.setMode(.own, for: "cursor")
+
+		settingsVM.reload()
+
+		XCTAssertEqual(settingsVM.mode(for: "cursor"), .own)
+	}
 }

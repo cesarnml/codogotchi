@@ -2696,6 +2696,27 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 	func testSessionIdentityIsNilForTheCombinedKey() {
 		XCTAssertNil(FloatingPetWindowPool.sessionIdentity(forWindowKey: "combined"))
 	}
+
+	// MARK: - modeSwitchOrigin(forWindowKey:)
+
+	func testModeSwitchOriginResolvesASessionKeyedKeyToItsPlatformOrigin() {
+		// Platform-level switch: a right-click on one session panel must
+		// rewrite the whole platform's mode, never a per-session mode.
+		XCTAssertEqual(
+			FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: "claude_code:s1"),
+			"claude_code")
+	}
+
+	func testModeSwitchOriginIsTheKeyItselfForAPlainOrigin() {
+		XCTAssertEqual(
+			FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: "cursor"), "cursor")
+	}
+
+	func testModeSwitchOriginIsNilForTheCombinedKey() {
+		// The combined window has no single origin — the switch flips
+		// combined_minimalist_enabled instead of any platform_modes entry.
+		XCTAssertNil(FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: "combined"))
+	}
 }
 
 final class PromptAttentionReaderTests: XCTestCase {

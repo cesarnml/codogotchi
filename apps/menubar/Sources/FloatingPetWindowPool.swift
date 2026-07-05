@@ -187,6 +187,18 @@ final class FloatingPetWindowPool {
 		return (origin, sessionId)
 	}
 
+	/// Platform origin whose `platform_modes` entry the right-click mode-switch
+	/// affordance (Pet Mode ↔ Minimalist Mode) should rewrite for the window
+	/// keyed `key`, or `nil` for the literal `"combined"` window — that one
+	/// flips `combined_minimalist_enabled` instead of any origin's mode. A
+	/// session-keyed key resolves to its platform origin: mode is keyed
+	/// per-origin, so the switch is platform-level and every sibling session
+	/// panel of the same platform flips together.
+	static func modeSwitchOrigin(forWindowKey key: String) -> String? {
+		guard key != "combined" else { return nil }
+		return sessionIdentity(forWindowKey: key)?.origin ?? key
+	}
+
 	private var userHiddenWindowKeys: Set<String> = []
 	private let hiddenKeysSaver: (Set<String>) -> Void
 

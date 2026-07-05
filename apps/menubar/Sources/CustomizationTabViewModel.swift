@@ -74,6 +74,16 @@ enum SessionCapOption: Int, LabeledIntPreset {
 	}
 }
 
+extension Notification.Name {
+	/// Posted after a `customization.json` write made outside the Settings UI —
+	/// the floating panels' right-click mode-switch affordances (Pet Mode ↔
+	/// Minimalist Mode) — so an open Customization tab can `reload()` its view
+	/// model and re-sync its controls. The Settings tab's own writes never post
+	/// this; its controls are already the source of those changes.
+	static let customizationDidChangeExternally = Notification.Name(
+		"CodogotchiCustomizationDidChangeExternally")
+}
+
 /// View model for the Customization settings tab.
 ///
 /// Exposes per-platform mode pickers and an idle-dismiss TTL picker.
@@ -134,6 +144,26 @@ final class CustomizationTabViewModel {
 		self.idleImpatientSeconds = snapshot.idleImpatientSeconds
 		self.idleFrustratedSeconds = snapshot.idleFrustratedSeconds
 		self.evictSessionPetsEnabled = snapshot.evictSessionPetsEnabled
+	}
+
+	/// Re-reads `customization.json` and replaces all in-memory state. Used when
+	/// another writer changed the file behind this instance's back — e.g. the
+	/// floating panels' right-click mode-switch affordances, which persist via
+	/// their own short-lived view model and then post
+	/// `.customizationDidChangeExternally` so the open Settings tab can re-sync.
+	func reload() {
+		let snapshot = CustomizationJsonReader.read(at: filePath)
+		platformModes = snapshot.platformModes
+		idleDismissTtlSeconds = snapshot.idleDismissTtlSeconds
+		combinedMinimalistEnabled = snapshot.combinedMinimalistEnabled
+		minimalistBadgeScale = snapshot.minimalistBadgeScale
+		sessionPetsEnabled = snapshot.sessionPetsEnabled
+		sessionCap = snapshot.sessionCap
+		sessionPetsActivatedAt = snapshot.sessionPetsActivatedAt
+		sessionPetsGrandfatheredSessionId = snapshot.sessionPetsGrandfatheredSessionId
+		idleImpatientSeconds = snapshot.idleImpatientSeconds
+		idleFrustratedSeconds = snapshot.idleFrustratedSeconds
+		evictSessionPetsEnabled = snapshot.evictSessionPetsEnabled
 	}
 
 	func mode(for origin: String) -> PlatformMode {

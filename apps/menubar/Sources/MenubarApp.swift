@@ -304,6 +304,25 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						self?.floatingPetWindowPool?.pruneSession(
 							windowKey: origin, stateDirectory: stateDir)
 					}
+					// Right-click "Minimalist Mode": persist the switch via the same
+					// read-merge-write the Settings pickers use; the pool re-reads
+					// customization.json on its next tick and respawns this window as
+					// a badge strip. Mode is keyed per platform origin, so on a
+					// sessions-enabled platform every sibling session panel flips
+					// together — a session-keyed window resolves to its platform's
+					// origin, never a per-session mode. The literal "combined" window
+					// has no single origin; it keeps its grouping and flips the
+					// combined-minimalist rendering flag instead.
+					panel.onSwitchToMinimalist = {
+						let viewModel = CustomizationTabViewModel()
+						if let platformOrigin = FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: origin) {
+							viewModel.setMode(.minimalist, for: platformOrigin)
+						} else {
+							viewModel.setCombinedMinimalistEnabled(true)
+						}
+						NotificationCenter.default.post(
+							name: .customizationDidChangeExternally, object: nil)
+					}
 					// P15.08: left-clicking the conflict bubble deep-links to
 					// Settings > Customization so the user can raise the cap.
 					panel.onOpenSettingsRequested = { [weak self] in
@@ -335,6 +354,20 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// above for the full rationale).
 					panel.onRenameRequested = { newLabel in
 						SessionLabelStore.setLabel(newLabel, for: origin)
+					}
+					// Right-click "Pet Mode": the inverse of Own mode's "Minimalist
+					// Mode" switch above — same key-shape resolution, same
+					// platform-level scope (all sibling session panels flip together),
+					// same combined-window special case.
+					panel.onSwitchToPetMode = {
+						let viewModel = CustomizationTabViewModel()
+						if let platformOrigin = FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: origin) {
+							viewModel.setMode(.own, for: platformOrigin)
+						} else {
+							viewModel.setCombinedMinimalistEnabled(false)
+						}
+						NotificationCenter.default.post(
+							name: .customizationDidChangeExternally, object: nil)
 					}
 					// Focus/dismiss on a session-keyed minimalist badge can only act on
 					// the platform app as a whole, so it idles every sibling session's
