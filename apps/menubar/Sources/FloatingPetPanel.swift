@@ -454,6 +454,7 @@ private final class MinimalistBadgeView: NSView {
 	private var sizePillObservers: [NSObjectProtocol] = []
 	private var sizePillGlobalMouseMonitor: Any?
 	private var sizePillGlobalKeyboardMonitor: Any?
+	private var sizePillLocalMouseMonitor: Any?
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -746,10 +747,11 @@ private final class MinimalistBadgeView: NSView {
 		removeSizePillDismissObservers()
 	}
 
-	/// Same dismissal triggers as the hide prompt's observers: any click in
-	/// another application, any keyboard input, or this app resigning active.
-	/// Clicks inside this app land either on the dial (handled by the pill) or
-	/// on this strip (dismissed by `mouseDown`/`rightMouseDown` above).
+	/// Dismissal triggers: any click in another application (global monitor),
+	/// any click inside this app landing outside the pill's own window (local
+	/// monitor — global monitors never see same-app events, so without it a
+	/// click or drag on a sibling strip or pet panel would strand the pill),
+	/// any keyboard input, or this app resigning active.
 	private func installSizePillDismissObservers() {
 		removeSizePillDismissObservers()
 
@@ -767,6 +769,16 @@ private final class MinimalistBadgeView: NSView {
 		) { [weak self] _ in
 			Task { @MainActor in self?.dismissSizePill() }
 		}
+		sizePillLocalMouseMonitor = NSEvent.addLocalMonitorForEvents(
+			matching: [.leftMouseDown, .rightMouseDown]
+		) { [weak self] event in
+			// Clicks on the pill itself (the slider) must not dismiss it —
+			// everything else in-app does, including this strip and siblings.
+			if event.window !== self?.sizePillPanel {
+				Task { @MainActor in self?.dismissSizePill() }
+			}
+			return event
+		}
 		sizePillGlobalKeyboardMonitor = NSEvent.addGlobalMonitorForEvents(
 			matching: [.keyDown, .keyUp, .flagsChanged]
 		) { [weak self] _ in
@@ -782,6 +794,10 @@ private final class MinimalistBadgeView: NSView {
 		if let sizePillGlobalMouseMonitor {
 			NSEvent.removeMonitor(sizePillGlobalMouseMonitor)
 			self.sizePillGlobalMouseMonitor = nil
+		}
+		if let sizePillLocalMouseMonitor {
+			NSEvent.removeMonitor(sizePillLocalMouseMonitor)
+			self.sizePillLocalMouseMonitor = nil
 		}
 		if let sizePillGlobalKeyboardMonitor {
 			NSEvent.removeMonitor(sizePillGlobalKeyboardMonitor)
