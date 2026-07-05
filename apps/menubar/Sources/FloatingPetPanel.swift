@@ -93,6 +93,11 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// affordance. Wired by the caller (`MenubarApp`) to persist the mode
 	/// switch to customization.json — mirrors Own mode's `onSwitchToMinimalist`.
 	var onSwitchToPetMode: (() -> Void)?
+	/// Fired on each tick of the badge's right-click "Panel Size" radial
+	/// slider (`isFinal` marks the tick ending the drag gesture). Wired by the
+	/// caller (`MenubarApp`) to persist the global `minimalist_badge_scale` —
+	/// the same setting the Customization tab's slider writes.
+	var onPanelSizeChanged: ((Double, Bool) -> Void)?
 
 	init(
 		visibleFrameProvider: @escaping () -> CGRect = {
@@ -133,6 +138,14 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		// Right-click "Pet Mode" affordance — back to the full pet renderer.
 		badgeView.onPetModeRequested = { [weak self] in
 			self?.onSwitchToPetMode?()
+		}
+		// Right-click "Panel Size" radial slider: live-apply the scale to this
+		// strip immediately for direct feedback (sibling strips follow on their
+		// next poll tick once the persisted write lands), then forward for
+		// persistence.
+		badgeView.panelSizeHandler = { [weak self] scale, isFinal in
+			self?.applyBadgeScale(scale)
+			self?.onPanelSizeChanged?(scale, isFinal)
 		}
 	}
 
@@ -182,6 +195,9 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	}
 
 	func applyBadgeScale(_ scale: Double) {
+		// Mirror before the no-change guard so the size pill's dial always
+		// starts at the live value, even when metrics quantize to no repaint.
+		badgeView.currentBadgeScale = scale
 		let newMetrics = GateBadgeLayout.metrics(scale: CGFloat(scale))
 		guard newMetrics != currentBadgeMetrics else { return }
 		currentBadgeMetrics = newMetrics
@@ -416,6 +432,14 @@ private final class MinimalistBadgeView: NSView {
 	/// mode-switch back to the full pet renderer. Mirrors Own mode's
 	/// `minimalistModeHandler`.
 	var onPetModeRequested: (() -> Void)?
+	/// Fires on every tick of the "Panel Size" radial slider with the new
+	/// scale; `isFinal` marks the tick ending the drag gesture. Wired by the
+	/// controller to live-apply the scale and persist it — this view never
+	/// writes config itself.
+	var panelSizeHandler: ((Double, Bool) -> Void)?
+	/// Current global badge scale, mirrored by the controller's
+	/// `applyBadgeScale` so the size pill's dial starts at the live value.
+	var currentBadgeScale: Double = 1.0
 	/// Latest activity the badge is displaying, mirrored so the right-click prompt
 	/// can decide whether to offer "Force Idle".
 	private var currentActivity: ActivityState = .idle
@@ -425,6 +449,11 @@ private final class MinimalistBadgeView: NSView {
 	private var hidePromptObservers: [NSObjectProtocol] = []
 	private var hidePromptGlobalMouseMonitor: Any?
 	private var hidePromptGlobalKeyboardMonitor: Any?
+
+	private var sizePillPanel: MinimalistPanelSizePillPanel?
+	private var sizePillObservers: [NSObjectProtocol] = []
+	private var sizePillGlobalMouseMonitor: Any?
+	private var sizePillGlobalKeyboardMonitor: Any?
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -436,6 +465,7 @@ private final class MinimalistBadgeView: NSView {
 
 	deinit {
 		removeHidePromptDismissObservers()
+		removeSizePillDismissObservers()
 	}
 
 	func configureBadge(
@@ -492,6 +522,7 @@ private final class MinimalistBadgeView: NSView {
 	override func mouseDown(with event: NSEvent) {
 		guard let window else { return }
 		dismissHidePrompt()
+		dismissSizePill()
 		let point = NSEvent.mouseLocation
 		dragOffsetInScreen = CGPoint(
 			x: point.x - window.frame.origin.x,
@@ -530,6 +561,7 @@ private final class MinimalistBadgeView: NSView {
 	fileprivate func beginExternalDrag() {
 		guard let window else { return }
 		dismissHidePrompt()
+		dismissSizePill()
 		let point = NSEvent.mouseLocation
 		dragOffsetInScreen = CGPoint(
 			x: point.x - window.frame.origin.x,
@@ -571,6 +603,7 @@ private final class MinimalistBadgeView: NSView {
 
 	func dismissHidePromptIfPresent() {
 		dismissHidePrompt()
+		dismissSizePill()
 	}
 
 	/// `fileprivate` (not `private`) so `GateBadgePanel` can route a right-click
@@ -579,6 +612,7 @@ private final class MinimalistBadgeView: NSView {
 	fileprivate func presentHidePrompt(anchorInScreen: CGPoint) {
 		guard let window else { return }
 		dismissHidePrompt()
+		dismissSizePill()
 		let offersForceIdle = FloatingPetHidePrompt.offersForceIdle(for: currentActivity)
 		FloatingPetPromptCoordinator.shared.willPresent(owner: self) { [weak self] in
 			self?.dismissHidePrompt()
@@ -611,6 +645,14 @@ private final class MinimalistBadgeView: NSView {
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.petModeTitle) { [weak self] in
 				self?.dismissHidePrompt()
 				self?.onPetModeRequested?()
+			})
+		// Opens the radial-slider pill driving the global minimalist badge
+		// scale — the same setting as the Customization tab's size slider, so
+		// it resizes every Minimalist platform's strip, not just this one.
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.panelSizeTitle) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.presentPanelSizePill(anchorInScreen: anchorInScreen)
 			})
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.panelTitle) { [weak self] in
@@ -650,6 +692,91 @@ private final class MinimalistBadgeView: NSView {
 		let normalized = SessionLabelStore.normalize(field.stringValue)
 		guard !normalized.isEmpty else { return }
 		renameHandler?(normalized)
+	}
+
+	// MARK: - Panel Size pill (radial slider)
+
+	/// Presents the "Panel Size" radial-slider pill anchored at the original
+	/// right-click point. The dial starts at the live global scale
+	/// (`currentBadgeScale`) and streams ticks through `panelSizeHandler`;
+	/// the pill stays up through the whole drag gesture — the dial lives
+	/// inside the pill, so the outside-click dismissal below never sees it —
+	/// and dismisses on any click away, keyboard input, or app switch,
+	/// mirroring the hide prompt's dismissal contract.
+	private func presentPanelSizePill(anchorInScreen: CGPoint) {
+		guard let window else { return }
+		dismissSizePill()
+		FloatingPetPromptCoordinator.shared.willPresent(owner: self) { [weak self] in
+			self?.dismissHidePrompt()
+			self?.dismissSizePill()
+		}
+		let visibleFrame = window.screen?.visibleFrame
+			?? NSScreen.main?.visibleFrame
+			?? CGRect(x: 0, y: 0, width: 800, height: 600)
+		let screenFrame = FloatingPetHidePrompt.screenFrame(
+			anchor: anchorInScreen,
+			promptSize: MinimalistPanelSizePill.size,
+			visibleFrame: visibleFrame
+		)
+		let pill = MinimalistPanelSizePillPanel(frame: screenFrame, initialScale: currentBadgeScale)
+		pill.onScaleChanged = { [weak self] scale, isFinal in
+			self?.currentBadgeScale = scale
+			self?.panelSizeHandler?(scale, isFinal)
+		}
+		pill.orderFrontRegardless()
+		sizePillPanel = pill
+		installSizePillDismissObservers()
+	}
+
+	private func dismissSizePill() {
+		guard sizePillPanel != nil else { return }
+		FloatingPetPromptCoordinator.shared.didDismiss(owner: self)
+		sizePillPanel?.orderOut(nil)
+		sizePillPanel = nil
+		removeSizePillDismissObservers()
+	}
+
+	/// Same dismissal triggers as the hide prompt's observers: any click in
+	/// another application, any keyboard input, or this app resigning active.
+	/// Clicks inside this app land either on the dial (handled by the pill) or
+	/// on this strip (dismissed by `mouseDown`/`rightMouseDown` above).
+	private func installSizePillDismissObservers() {
+		removeSizePillDismissObservers()
+
+		sizePillObservers.append(
+			NotificationCenter.default.addObserver(
+				forName: NSApplication.didResignActiveNotification,
+				object: nil,
+				queue: .main
+			) { [weak self] _ in
+				Task { @MainActor in self?.dismissSizePill() }
+			}
+		)
+		sizePillGlobalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
+			matching: [.leftMouseDown, .rightMouseDown]
+		) { [weak self] _ in
+			Task { @MainActor in self?.dismissSizePill() }
+		}
+		sizePillGlobalKeyboardMonitor = NSEvent.addGlobalMonitorForEvents(
+			matching: [.keyDown, .keyUp, .flagsChanged]
+		) { [weak self] _ in
+			Task { @MainActor in self?.dismissSizePill() }
+		}
+	}
+
+	private func removeSizePillDismissObservers() {
+		for observer in sizePillObservers {
+			NotificationCenter.default.removeObserver(observer)
+		}
+		sizePillObservers.removeAll()
+		if let sizePillGlobalMouseMonitor {
+			NSEvent.removeMonitor(sizePillGlobalMouseMonitor)
+			self.sizePillGlobalMouseMonitor = nil
+		}
+		if let sizePillGlobalKeyboardMonitor {
+			NSEvent.removeMonitor(sizePillGlobalKeyboardMonitor)
+			self.sizePillGlobalKeyboardMonitor = nil
+		}
 	}
 
 	private func dismissHidePrompt() {
@@ -2898,6 +3025,11 @@ enum FloatingPetHidePrompt {
 	/// Title for the right-click mode-switch affordance on a Minimalist strip:
 	/// the inverse of `minimalistModeTitle` — back to the full pet renderer.
 	static let petModeTitle = "Pet Mode"
+	/// Title for the right-click "Panel Size" affordance on a Minimalist strip.
+	/// Opens the radial-slider pill (`MinimalistPanelSizePillPanel`) driving the
+	/// same global `minimalist_badge_scale` the Customization tab's slider
+	/// writes — ellipsis per the "opens follow-up UI" convention (`Rename…`).
+	static let panelSizeTitle = "Panel Size…"
 	static let font = NSFont.systemFont(ofSize: 13, weight: .medium)
 	static let horizontalPadding: CGFloat = 14
 	static let verticalPadding: CGFloat = 7
@@ -4078,6 +4210,123 @@ final class FloatingPetPromptCoordinator {
 		activeOwner = nil
 		activeDismiss = nil
 	}
+}
+
+/// Layout + formatting for the "Panel Size" radial-slider pill. Internal (not
+/// file-private) so tests can pin the scale→label contract and the pill's
+/// slider range staying in lockstep with the Customization tab's slider.
+enum MinimalistPanelSizePill {
+	/// Fixed pill size: the circular dial plus the percent readout beneath it.
+	static let size = CGSize(width: 96, height: 100)
+	static let cornerRadius: CGFloat = 12
+	/// Slider range — identical to the Customization tab's badge-scale slider,
+	/// which is the whole point: both controls drive the same global setting.
+	static let minScale = Double(GateBadgeLayout.achievableMinScale)
+	static let maxScale = Double(GateBadgeLayout.achievableMaxScale)
+
+	/// Percent readout under the dial, e.g. `1.0` → "100%".
+	static func percentText(for scale: Double) -> String {
+		"\(Int((scale * 100).rounded()))%"
+	}
+}
+
+/// Circular slider that tracks from the first click even while its
+/// borderless, non-activating host panel is not (and can never become) key.
+private final class FirstMouseCircularSlider: NSSlider {
+	override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+/// Frosted pill hosting the "Panel Size" radial slider, shown when the user
+/// activates the right-click "Panel Size…" affordance on a Minimalist strip.
+/// Mirrors `FloatingPetHidePromptPanel`'s chrome (material, level, collection
+/// behavior); the dial drives the same global `minimalist_badge_scale` the
+/// Customization tab's slider writes, so the change applies to every
+/// Minimalist platform, not just the clicked strip.
+private final class MinimalistPanelSizePillPanel: NSPanel {
+	private let slider = FirstMouseCircularSlider()
+	private let valueLabel = NSTextField(labelWithString: "")
+	/// Fires on every dial tick with the new scale; `isFinal` is true on the
+	/// mouse-up tick that ends the drag (or on a single click), so the caller
+	/// can live-apply per tick but defer once-per-gesture work (the Settings
+	/// re-sync notification) to the end of the gesture.
+	var onScaleChanged: ((Double, Bool) -> Void)?
+
+	init(frame: CGRect, initialScale: Double) {
+		super.init(
+			contentRect: frame,
+			styleMask: [.borderless, .nonactivatingPanel],
+			backing: .buffered,
+			defer: false
+		)
+		backgroundColor = .clear
+		isOpaque = false
+		hasShadow = false
+		// Same level rationale as FloatingPetHidePromptPanel: pet chrome is
+		// re-fronted every poll tick and would bury a `.floating` pill.
+		level = .popUpMenu
+		collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+		hidesOnDeactivate = false
+		isReleasedWhenClosed = false
+		ignoresMouseEvents = false
+		acceptsMouseMovedEvents = true
+
+		let container = NSView(frame: CGRect(origin: .zero, size: frame.size))
+		container.autoresizingMask = [.width, .height]
+
+		let effectView = NSVisualEffectView()
+		effectView.material = .hudWindow
+		effectView.blendingMode = .behindWindow
+		effectView.state = .active
+		effectView.appearance = NSAppearance(named: .darkAqua)
+		effectView.wantsLayer = true
+		effectView.isEmphasized = false
+		effectView.layer?.cornerRadius = MinimalistPanelSizePill.cornerRadius
+		effectView.layer?.masksToBounds = true
+		effectView.translatesAutoresizingMaskIntoConstraints = false
+		container.addSubview(effectView)
+
+		slider.sliderType = .circular
+		slider.minValue = MinimalistPanelSizePill.minScale
+		slider.maxValue = MinimalistPanelSizePill.maxScale
+		slider.doubleValue = initialScale
+		slider.isContinuous = true
+		slider.target = self
+		slider.action = #selector(sliderChanged(_:))
+		slider.translatesAutoresizingMaskIntoConstraints = false
+		container.addSubview(slider)
+
+		valueLabel.stringValue = MinimalistPanelSizePill.percentText(for: initialScale)
+		valueLabel.font = FloatingPetHidePrompt.font
+		valueLabel.textColor = .white
+		valueLabel.alignment = .center
+		valueLabel.translatesAutoresizingMaskIntoConstraints = false
+		container.addSubview(valueLabel)
+
+		NSLayoutConstraint.activate([
+			effectView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+			effectView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+			effectView.topAnchor.constraint(equalTo: container.topAnchor),
+			effectView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+			slider.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
+			slider.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+			slider.widthAnchor.constraint(equalToConstant: 56),
+			slider.heightAnchor.constraint(equalToConstant: 56),
+			valueLabel.topAnchor.constraint(equalTo: slider.bottomAnchor, constant: 4),
+			valueLabel.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+		])
+		contentView = container
+	}
+
+	@objc private func sliderChanged(_ sender: NSSlider) {
+		// A continuous slider fires this per drag tick; the tick delivered on
+		// mouse-up marks the end of the gesture.
+		let isFinal = NSApp.currentEvent.map { $0.type == .leftMouseUp } ?? true
+		valueLabel.stringValue = MinimalistPanelSizePill.percentText(for: sender.doubleValue)
+		onScaleChanged?(sender.doubleValue, isFinal)
+	}
+
+	override var canBecomeKey: Bool { false }
+	override var canBecomeMain: Bool { false }
 }
 
 private final class FloatingPetHidePromptPanel: NSPanel {

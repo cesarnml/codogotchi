@@ -369,6 +369,21 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						NotificationCenter.default.post(
 							name: .customizationDidChangeExternally, object: nil)
 					}
+					// Right-click "Panel Size…" radial slider: persists the same
+					// global minimalist_badge_scale the Customization tab's slider
+					// writes, so every Minimalist strip resizes, not just this one
+					// (the clicked strip live-applies in the panel; siblings follow
+					// on their next poll tick). The Settings re-sync notification
+					// is deferred to the gesture's final tick — per-tick posts
+					// would make an open Customization tab re-read the file for
+					// every pixel of the drag.
+					panel.onPanelSizeChanged = { scale, isFinal in
+						CustomizationTabViewModel().setMinimalistBadgeScale(scale)
+						if isFinal {
+							NotificationCenter.default.post(
+								name: .customizationDidChangeExternally, object: nil)
+						}
+					}
 					// Focus/dismiss on a session-keyed minimalist badge can only act on
 					// the platform app as a whole, so it idles every sibling session's
 					// slice for that origin (not just the clicked one) and clears their

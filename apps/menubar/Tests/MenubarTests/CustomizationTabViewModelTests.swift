@@ -414,6 +414,38 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		XCTAssertTrue(settingsVM.combinedMinimalistEnabled)
 	}
 
+	func testReloadPicksUpABadgeScaleWrittenByAnotherViewModel() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let settingsVM = CustomizationTabViewModel(filePath: path)
+		XCTAssertEqual(settingsVM.minimalistBadgeScale, 1.0)
+
+		// The Panel Size pill's write path (MenubarApp's onPanelSizeChanged
+		// handler) uses its own short-lived view model, same as a mode switch.
+		// 0.9 sits inside the achievable range, so it round-trips unclamped.
+		let pillVM = CustomizationTabViewModel(filePath: path)
+		pillVM.setMinimalistBadgeScale(0.9)
+
+		settingsVM.reload()
+
+		XCTAssertEqual(settingsVM.minimalistBadgeScale, 0.9)
+	}
+
+	func testSetMinimalistBadgeScaleClampsToTheAchievableCeiling() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let vm = CustomizationTabViewModel(filePath: path)
+
+		// The achievable ceiling (~1.16, from FloatingFramePolicy's max pet
+		// width) is well below the hard 1.5 cap — a dial value past it must
+		// persist as the ceiling, exactly like the Customization slider.
+		vm.setMinimalistBadgeScale(1.5)
+
+		XCTAssertEqual(
+			vm.minimalistBadgeScale, Double(GateBadgeLayout.achievableMaxScale),
+			accuracy: 0.0001)
+	}
+
 	func testReloadRestoresTheDefaultWhenAModeSwitchRemovedTheEntry() {
 		let path = makeTmpPath()
 		defer { try? FileManager.default.removeItem(atPath: path) }
