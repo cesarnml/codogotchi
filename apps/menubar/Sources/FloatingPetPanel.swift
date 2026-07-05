@@ -652,7 +652,7 @@ private final class MinimalistBadgeView: NSView {
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.panelSizeTitle) { [weak self] in
 				self?.dismissHidePrompt()
-				self?.presentPanelSizePill(anchorInScreen: anchorInScreen)
+				self?.presentPanelSizePill()
 			})
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.panelTitle) { [weak self] in
@@ -696,14 +696,16 @@ private final class MinimalistBadgeView: NSView {
 
 	// MARK: - Panel Size pill
 
-	/// Presents the "Panel Size" slider pill anchored at the original
-	/// right-click point. The slider starts at the live global scale
-	/// (`currentBadgeScale`) and streams ticks through `panelSizeHandler`;
-	/// the pill stays up through the whole drag gesture — the slider lives
-	/// inside the pill, so the outside-click dismissal below never sees it —
-	/// and dismisses on any click away, keyboard input, or app switch,
-	/// mirroring the hide prompt's dismissal contract.
-	private func presentPanelSizePill(anchorInScreen: CGPoint) {
+	/// Presents the "Panel Size" slider pill just below the strip,
+	/// left-aligned with the session-label row (which shares the chip row's
+	/// leading edge — `outerStack` is leading-aligned at `hPad`). The slider
+	/// starts at the live global scale (`currentBadgeScale`) and streams ticks
+	/// through `panelSizeHandler`; the pill stays up through the whole drag
+	/// gesture — the slider lives inside the pill, so the outside-click
+	/// dismissal below never sees it — and dismisses on any click away,
+	/// keyboard input, or app switch, mirroring the hide prompt's dismissal
+	/// contract.
+	private func presentPanelSizePill() {
 		guard let window else { return }
 		dismissSizePill()
 		FloatingPetPromptCoordinator.shared.willPresent(owner: self) { [weak self] in
@@ -713,10 +715,18 @@ private final class MinimalistBadgeView: NSView {
 		let visibleFrame = window.screen?.visibleFrame
 			?? NSScreen.main?.visibleFrame
 			?? CGRect(x: 0, y: 0, width: 800, height: 600)
-		let screenFrame = FloatingPetHidePrompt.screenFrame(
-			anchor: anchorInScreen,
-			promptSize: MinimalistPanelSizePill.size,
-			visibleFrame: visibleFrame
+		let pillSize = MinimalistPanelSizePill.size
+		// Below the strip, clamped so the pill never leaves the visible frame
+		// (falling back to on-screen positions when the strip sits at an edge).
+		let proposed = CGPoint(
+			x: window.frame.minX + Self.hPad,
+			y: window.frame.minY - MinimalistPanelSizePill.gapBelowStrip - pillSize.height
+		)
+		let screenFrame = CGRect(
+			x: max(visibleFrame.minX, min(visibleFrame.maxX - pillSize.width, proposed.x)),
+			y: max(visibleFrame.minY, min(visibleFrame.maxY - pillSize.height, proposed.y)),
+			width: pillSize.width,
+			height: pillSize.height
 		)
 		let pill = MinimalistPanelSizePillPanel(frame: screenFrame, initialScale: currentBadgeScale)
 		pill.onScaleChanged = { [weak self] scale, isFinal in
@@ -4216,10 +4226,12 @@ final class FloatingPetPromptCoordinator {
 /// tests can pin the pill's slider range staying in lockstep with the
 /// Customization tab's slider.
 enum MinimalistPanelSizePill {
-	/// Fixed pill size: a single "Small ——●—— Large" row, mirroring the
-	/// Customization tab's badge-scale control.
-	static let size = CGSize(width: 260, height: 40)
+	/// Fixed pill size: the slider row with "Small"/"Large" captions beneath
+	/// its endpoints, mirroring the Customization tab's badge-scale control.
+	static let size = CGSize(width: 260, height: 48)
 	static let cornerRadius: CGFloat = 12
+	/// Vertical gap between the strip's bottom edge and the pill's top edge.
+	static let gapBelowStrip: CGFloat = 6
 	/// Slider range — identical to the Customization tab's badge-scale slider,
 	/// which is the whole point: both controls drive the same global setting.
 	static let minScale = Double(GateBadgeLayout.achievableMinScale)
@@ -4304,13 +4316,15 @@ private final class MinimalistPanelSizePillPanel: NSPanel {
 			effectView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
 			effectView.topAnchor.constraint(equalTo: container.topAnchor),
 			effectView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-			smallLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
-			smallLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-			slider.leadingAnchor.constraint(equalTo: smallLabel.trailingAnchor, constant: 8),
-			slider.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-			largeLabel.leadingAnchor.constraint(equalTo: slider.trailingAnchor, constant: 8),
-			largeLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
-			largeLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+			// Slider spans the full pill width; the captions sit beneath its
+			// endpoints, mirroring the Customization tab's Small/Large row.
+			slider.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+			slider.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+			slider.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+			smallLabel.topAnchor.constraint(equalTo: slider.bottomAnchor, constant: 2),
+			smallLabel.leadingAnchor.constraint(equalTo: slider.leadingAnchor),
+			largeLabel.topAnchor.constraint(equalTo: slider.bottomAnchor, constant: 2),
+			largeLabel.trailingAnchor.constraint(equalTo: slider.trailingAnchor),
 		])
 		contentView = container
 	}
