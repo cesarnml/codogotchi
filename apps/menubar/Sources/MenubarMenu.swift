@@ -38,6 +38,12 @@ final class MenubarMenu: NSObject {
 	/// aged past the TTL while hidden is a silent no-op (the pool suppresses
 	/// re-spawn of expired keys, so nothing appears).
 	private let refreshTtlForShow: ((String) -> Void)?
+	/// Called just before the menu opens. Wired by `MenubarApp` to the pool's
+	/// `pruneHiddenKeysWithoutBackingSlice`, which drops hidden keys whose
+	/// slice `SlicePruner` has already deleted from disk (24h horizon) —
+	/// past that point there is genuinely nothing to show, so keeping the
+	/// "Show … Pet" entry would be a misleading no-op button.
+	private let pruneOrphanHiddenKeys: (() -> Void)?
 	private weak var builtMenu: NSMenu?
 	private weak var hooksNotActiveItem: NSMenuItem?
 	/// Index of the first pet-section item within `builtMenu` (after the header
@@ -51,19 +57,22 @@ final class MenubarMenu: NSObject {
 		floatingPetPool: FloatingPetWindowPool? = nil,
 		retryHooksInstall: (() -> Void)? = nil,
 		openSettings: ((SettingsTab?) -> Void)? = nil,
-		refreshTtlForShow: ((String) -> Void)? = nil
+		refreshTtlForShow: ((String) -> Void)? = nil,
+		pruneOrphanHiddenKeys: (() -> Void)? = nil
 	) {
 		self.terminate = terminate
 		self.floatingPetPool = floatingPetPool
 		self.retryHooksInstall = retryHooksInstall
 		self.openSettings = openSettings
 		self.refreshTtlForShow = refreshTtlForShow
+		self.pruneOrphanHiddenKeys = pruneOrphanHiddenKeys
 		super.init()
 	}
 
 	@MainActor
 	func build() -> NSMenu {
 		let menu = NSMenu()
+		menu.delegate = self
 		builtMenu = menu
 
 		let header = NSMenuItem(title: Self.headerTitle, action: nil, keyEquivalent: "")
@@ -331,5 +340,19 @@ final class MenubarMenu: NSObject {
 		case "antigravity": return "Antigravity"
 		default: return origin.replacingOccurrences(of: "_", with: " ").capitalized
 		}
+	}
+}
+
+extension MenubarMenu: NSMenuDelegate {
+	/// Refresh the pet section at the moment the dropdown is about to
+	/// display: first cull hidden keys whose backing slice is gone from disk
+	/// (their "Show" entries would be misleading no-op buttons), then rebuild
+	/// the section so it reflects the pool's current state — visibility can
+	/// have changed since the last explicit refresh (TTL dismissals, slice
+	/// pruning) without any menu action having run.
+	func menuWillOpen(_ menu: NSMenu) {
+		guard menu === builtMenu else { return }
+		pruneOrphanHiddenKeys?()
+		refreshFloatingPetMenuItemTitle()
 	}
 }

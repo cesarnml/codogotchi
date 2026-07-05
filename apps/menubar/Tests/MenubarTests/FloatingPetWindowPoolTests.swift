@@ -2717,6 +2717,85 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		// combined_minimalist_enabled instead of any platform_modes entry.
 		XCTAssertNil(FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: "combined"))
 	}
+
+	// MARK: - pruneHiddenKeysWithoutBackingSlice (zombie "Show … Pet" menu entries)
+
+	private func makeSliceDir(files: [String]) -> String {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("pool-hidden-prune-\(UUID().uuidString)", isDirectory: true)
+		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		for name in files {
+			try! Data("{}".utf8).write(to: dir.appendingPathComponent(name))
+		}
+		return dir.path
+	}
+
+	func testPruneHiddenKeysDropsASessionKeyWhoseSliceWasDeletedAndPersists() {
+		let dir = makeSliceDir(files: ["claude_code:alive.json"])
+		defer { try? FileManager.default.removeItem(atPath: dir) }
+		var savedSets: [Set<String>] = []
+		let pool = FloatingPetWindowPool(
+			customizationReader: { .safeDefault },
+			windowFactory: { _, _ in StubWindowController() },
+			hiddenKeysSaver: { savedSets.append($0) }
+		)
+		pool.setVisible(false, for: "claude_code:alive")
+		pool.setVisible(false, for: "claude_code:pruned")
+
+		pool.pruneHiddenKeysWithoutBackingSlice(stateDirectory: dir)
+
+		XCTAssertEqual(
+			Set(pool.hiddenWindowKeys), ["claude_code:alive"],
+			"the key with a live slice survives; the SlicePruner-deleted one is culled")
+		XCTAssertEqual(
+			savedSets.last, ["claude_code:alive"],
+			"the trimmed set must persist so the zombie key does not resurrect on relaunch")
+	}
+
+	func testPruneHiddenKeysKeepsAPlainOriginKeyWhileAnySliceOfThatOriginExists() {
+		let dir = makeSliceDir(files: ["cursor:s1.json"])
+		defer { try? FileManager.default.removeItem(atPath: dir) }
+		let pool = FloatingPetWindowPool(
+			customizationReader: { .safeDefault },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+		pool.setVisible(false, for: "cursor")
+		pool.setVisible(false, for: "codex")
+
+		pool.pruneHiddenKeysWithoutBackingSlice(stateDirectory: dir)
+
+		XCTAssertEqual(
+			Set(pool.hiddenWindowKeys), ["cursor"],
+			"a plain-origin key survives on any slice of its origin; codex has none left")
+	}
+
+	func testPruneHiddenKeysCombinedKeySurvivesWhileACombinedOriginHasASlice() {
+		let dir = makeSliceDir(files: ["cursor:s1.json"])
+		defer { try? FileManager.default.removeItem(atPath: dir) }
+		let combined = CustomizationSnapshot(
+			platformModes: ["cursor": .combined, "codex": .combined],
+			idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false,
+			minimalistBadgeScale: 1.0
+		)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { combined },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+		pool.setVisible(false, for: "combined")
+
+		pool.pruneHiddenKeysWithoutBackingSlice(stateDirectory: dir)
+		XCTAssertEqual(
+			Set(pool.hiddenWindowKeys), ["combined"],
+			"the combined key survives while any combined-mode origin still has a slice")
+
+		try? FileManager.default.removeItem(atPath: (dir as NSString).appendingPathComponent("cursor:s1.json"))
+		pool.pruneHiddenKeysWithoutBackingSlice(stateDirectory: dir)
+		XCTAssertTrue(
+			pool.hiddenWindowKeys.isEmpty,
+			"once every combined-mode origin's slices are gone, the combined key is culled")
+	}
 }
 
 final class PromptAttentionReaderTests: XCTestCase {

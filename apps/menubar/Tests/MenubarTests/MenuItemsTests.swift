@@ -276,6 +276,47 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertFalse(pool.hiddenWindowKeys.contains("cursor"))
 	}
 
+	func testMenuWillOpenPrunesOrphanHiddenKeysThenRebuildsThePetSection() {
+		// A hidden pet whose slice SlicePruner deleted from disk must vanish
+		// from the dropdown at open time — its "Show" entry is a no-op lie.
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		pool.setVisible(false, for: "cursor")
+		var pruneCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			pruneOrphanHiddenKeys: {
+				pruneCalls += 1
+				// Stand-in for pruneHiddenKeysWithoutBackingSlice finding no
+				// slice on disk: the hidden key is gone when the rebuild runs.
+				pool.setVisible(true, for: "cursor")
+			})
+		let menu = builder.build()
+		builder.refreshFloatingPetMenuItemTitle()
+		XCTAssertTrue(
+			menu.items.contains { $0.title == "Show Cursor Pet" },
+			"precondition: the zombie Show entry exists before the menu opens")
+
+		builder.menuWillOpen(menu)
+
+		XCTAssertEqual(pruneCalls, 1)
+		XCTAssertFalse(
+			menu.items.contains { $0.title == "Show Cursor Pet" },
+			"the culled key's Show entry must not survive the open-time rebuild")
+	}
+
+	func testMenuWillOpenIgnoresForeignMenus() {
+		let pool = makePool(origins: ["claude_code"])
+		var pruneCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			pruneOrphanHiddenKeys: { pruneCalls += 1 })
+		_ = builder.build()
+
+		builder.menuWillOpen(NSMenu())
+
+		XCTAssertEqual(pruneCalls, 0, "a submenu or foreign menu must not trigger the prune")
+	}
+
 	func testHideAllPetsHidesEveryActiveOrigin() {
 		let pool = makePool(origins: ["claude_code", "cursor"])
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)

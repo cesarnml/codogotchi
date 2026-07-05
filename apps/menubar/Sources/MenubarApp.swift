@@ -502,6 +502,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						origins: self?.resolveWindowOrigins(windowKey: windowKey) ?? [windowKey]
 					)
 				}
+			},
+			// On menu open, drop hidden keys whose slice SlicePruner already
+			// deleted — past the 24h horizon there is nothing left for Show
+			// (or refreshForShow) to act on, so the entry would be a lie.
+			pruneOrphanHiddenKeys: { [weak self] in
+				self?.floatingPetWindowPool?.pruneHiddenKeysWithoutBackingSlice(
+					stateDirectory: config.pollingTarget.path)
 			}
 		)
 		item.menu = menuBuilder.build()

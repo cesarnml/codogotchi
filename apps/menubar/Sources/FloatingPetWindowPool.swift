@@ -821,6 +821,49 @@ final class FloatingPetWindowPool {
 	/// per-window callbacks (attention dismiss, app-nap opt-out).
 	func controller(for key: String) -> FloatingPetWindowControlling? { windows[key] }
 
+	/// Drops hidden window keys whose backing `state.d/` slice no longer
+	/// exists on disk. `SlicePruner` deletes slices 24h after their last
+	/// write, at which point the key's "Show … Pet" menu entry is a lie —
+	/// `refreshForShow` has nothing left to rewrite, so Show would silently
+	/// do nothing. Called by the menu just before it opens (via
+	/// `MenubarMenu`'s `menuWillOpen` hook), so a zombie entry is culled at
+	/// exactly the moment it would otherwise be displayed.
+	///
+	/// Matching is filename-authoritative via
+	/// `StateJsonReader.parseSliceFilename` — the same parse `SlicePruner`'s
+	/// own orphan-label sweep uses — so the two "does this session still have
+	/// any trace on disk?" answers can never disagree. A session-keyed hidden
+	/// key needs its exact `origin:session_id.json`; a plain-origin key
+	/// survives while any slice of that origin exists; the literal
+	/// `"combined"` key survives while any current combined-mode origin has a
+	/// slice. The trimmed set is persisted so a culled key does not
+	/// resurrect on relaunch.
+	func pruneHiddenKeysWithoutBackingSlice(stateDirectory: String) {
+		guard !userHiddenWindowKeys.isEmpty else { return }
+		let names = (try? FileManager.default.contentsOfDirectory(atPath: stateDirectory)) ?? []
+		var liveOrigins: Set<String> = []
+		var liveSessionKeys: Set<String> = []
+		for name in names {
+			guard let (origin, sessionId) = StateJsonReader.parseSliceFilename(name) else { continue }
+			liveOrigins.insert(origin)
+			liveSessionKeys.insert(makeSessionKey(origin: origin, sessionId: sessionId))
+		}
+		let combinedOrigins = Set(combinedModeOrigins())
+		let survivors = userHiddenWindowKeys.filter { key in
+			if key == "combined" {
+				return !liveOrigins.isDisjoint(with: combinedOrigins)
+			}
+			if let identity = Self.sessionIdentity(forWindowKey: key) {
+				return liveSessionKeys.contains(
+					makeSessionKey(origin: identity.origin, sessionId: identity.sessionId))
+			}
+			return liveOrigins.contains(key)
+		}
+		guard survivors.count != userHiddenWindowKeys.count else { return }
+		userHiddenWindowKeys = survivors
+		hiddenKeysSaver(userHiddenWindowKeys)
+	}
+
 	/// Manual "Prune Session" (P15.07, right-click on a session-keyed window):
 	/// tears down the panel and destroys its state.d slice, free-list number,
 	/// and session-labels.json key — the same end-state as automatic TTL
