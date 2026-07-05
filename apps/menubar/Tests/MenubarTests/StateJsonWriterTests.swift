@@ -552,4 +552,140 @@ final class StateJsonWriterTests: XCTestCase {
 			readSlice(filename, in: dir)!["activity_state"] as? String, "waiting_for_input",
 			"a stale-mtime slice must not be rewritten (would resurrect an aged-out pet)")
 	}
+
+	// MARK: - refreshForShow (explicit menubar "Show" restarts the dismiss-TTL clock)
+
+	private func runRefreshForShow(dir: URL, origins: Set<String>, now: Date = Date()) {
+		let done = expectation(description: "refreshForShow")
+		StateJsonWriter.refreshForShow(at: dir.path, origins: origins, now: now) {
+			done.fulfill()
+		}
+		wait(for: [done], timeout: 5)
+	}
+
+	private func runRefreshForShow(dir: URL, origin: String, sessionId: String, now: Date = Date()) {
+		let done = expectation(description: "refreshForShow-exact")
+		StateJsonWriter.refreshForShow(at: dir.path, origin: origin, sessionId: sessionId, now: now) {
+			done.fulfill()
+		}
+		wait(for: [done], timeout: 5)
+	}
+
+	func testRefreshForShowRewritesAStaleSliceToIdleWithAFreshClock() {
+		let dir = makeStateDir()
+		let filename = "claude_code:expired.json"
+		writeSlice(
+			filename, in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "implementing",
+				"updated_at": "2026-07-01T09:00:00Z",
+				"source_event": ["origin": "claude_code"],
+			])
+		// Aged past the reader's 2h TTL while hidden — the exact state where the
+		// menu's "Show" used to be a silent no-op. Unlike forceIdle/dismiss, an
+		// explicit Show MUST rewrite this slice: that click is the user's "I
+		// still care", so the TTL clock restarts rather than suppressing spawn.
+		let now = Date()
+		setMTime(filename, in: dir, to: now.addingTimeInterval(-3 * 60 * 60))
+
+		runRefreshForShow(dir: dir, origin: "claude_code", sessionId: "expired", now: now)
+
+		let result = readSlice(filename, in: dir)!
+		XCTAssertEqual(
+			result["activity_state"] as? String, "idle",
+			"a 2h-stale in-flight state will never emit a correcting event — re-show it as idle")
+		let updatedAt = (result["updated_at"] as? String).flatMap {
+			StateJsonReader.parseISO8601Date($0)
+		}
+		XCTAssertNotNil(updatedAt)
+		XCTAssertEqual(
+			updatedAt!.timeIntervalSince(now), 0, accuracy: 1.0,
+			"updated_at must be bumped to now so the pool's dismiss-TTL clock restarts")
+		let mtime = try! FileManager.default.attributesOfItem(
+			atPath: dir.appendingPathComponent(filename).path)[.modificationDate] as! Date
+		XCTAssertGreaterThan(
+			mtime.timeIntervalSince(now), -60,
+			"the atomic rewrite must refresh the mtime so the reader re-includes the slice")
+	}
+
+	func testRefreshForShowPreservesALiveStateOnAFreshSlice() {
+		let dir = makeStateDir()
+		let filename = "claude_code:live.json"
+		writeSlice(
+			filename, in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "implementing",
+				"updated_at": "2026-07-01T09:00:00Z",
+				"source_event": ["origin": "claude_code"],
+			])
+
+		// Fresh mtime: a briefly-hidden, still-working session — Show must not
+		// knock its live animation back to idle, only restart the TTL clock.
+		runRefreshForShow(dir: dir, origin: "claude_code", sessionId: "live")
+
+		let result = readSlice(filename, in: dir)!
+		XCTAssertEqual(
+			result["activity_state"] as? String, "implementing",
+			"a fresh slice's live state must survive an explicit Show untouched")
+		XCTAssertNotNil(result["updated_at"])
+	}
+
+	func testRefreshForShowRewritesOnlyTheFreshestSlicePerTargetOrigin() {
+		let dir = makeStateDir()
+		writeSlice(
+			"claude_code:old.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "reading",
+				"updated_at": "2026-07-01T10:00:00Z",
+				"source_event": ["origin": "claude_code"],
+			])
+		writeSlice(
+			"claude_code:new.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "thinking",
+				"updated_at": "2026-07-01T11:00:00Z",
+				"source_event": ["origin": "claude_code"],
+			])
+		writeSlice(
+			"cursor:s1.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "thinking",
+				"updated_at": "2026-07-01T11:00:00Z",
+				"source_event": ["origin": "cursor"],
+			])
+		// Both claude_code slices aged out — the winner scan must still find the
+		// freshest by updated_at (unlike the other writers' scans, stale slices
+		// are exactly the ones an explicit Show exists to resurrect).
+		let now = Date()
+		setMTime("claude_code:old.json", in: dir, to: now.addingTimeInterval(-3 * 60 * 60))
+		setMTime("claude_code:new.json", in: dir, to: now.addingTimeInterval(-3 * 60 * 60))
+
+		runRefreshForShow(dir: dir, origins: ["claude_code"], now: now)
+
+		let winner = readSlice("claude_code:new.json", in: dir)!
+		XCTAssertEqual(
+			winner["activity_state"] as? String, "idle",
+			"the freshest slice of the shown origin must be refreshed (idle — it was stale)")
+		let older = readSlice("claude_code:old.json", in: dir)!
+		XCTAssertEqual(
+			older["updated_at"] as? String, "2026-07-01T10:00:00Z",
+			"a non-winner sibling must not have its clock refreshed")
+		let otherOrigin = readSlice("cursor:s1.json", in: dir)!
+		XCTAssertEqual(
+			otherOrigin["updated_at"] as? String, "2026-07-01T11:00:00Z",
+			"an origin outside the shown window's set must be untouched")
+	}
+
+	func testRefreshForShowWithExactSessionIsNoOpWhenSliceIsAbsent() {
+		let dir = makeStateDir()
+		// A slice pruned from disk (24h SlicePruner horizon) can't be refreshed;
+		// Show degrades to today's no-op rather than crashing.
+		runRefreshForShow(dir: dir, origin: "claude_code", sessionId: "missing")
+		XCTAssertNil(readSlice("claude_code:missing.json", in: dir))
+	}
 }

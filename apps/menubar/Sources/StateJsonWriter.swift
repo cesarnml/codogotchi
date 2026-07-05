@@ -137,6 +137,129 @@ enum StateJsonWriter {
 		}
 	}
 
+	/// Restarts the dismiss-TTL clock on the slice(s) behind a window the user
+	/// explicitly asked to see (menubar "Show … Pet" / "Show All Pets").
+	///
+	/// A hidden pet whose slice has aged past the pool's idle-dismiss TTL is
+	/// suppressed from re-spawn, and one past the reader's 2h mtime staleTTL
+	/// vanishes from the snapshot entirely — so without this rewrite the menu
+	/// action would silently show nothing. Unlike every other writer here,
+	/// this one deliberately rewrites stale slices: the explicit Show click is
+	/// the user saying "I still care about this one", which is exactly the
+	/// signal the TTL exists to detect the absence of.
+	///
+	/// Per target slice: `updated_at` is bumped to `now` (the atomic write
+	/// also refreshes the mtime the reader checks). A slice already past the
+	/// reader's staleTTL additionally has its `activity_state` reset to idle —
+	/// a 2h-stale in-flight state describes a session that will never emit a
+	/// correcting event, so re-showing it as "working" would lie forever. A
+	/// fresh slice keeps its live state untouched (a briefly-hidden,
+	/// still-working session must not be knocked back to idle by Show).
+	///
+	/// `origins` scopes the refresh exactly like `forceIdle`: one entry for an
+	/// own/minimalist window, the full combined-mode set for the shared
+	/// combined window; only the freshest slice per origin is rewritten.
+	static func refreshForShow(
+		at dir: String,
+		origins: Set<String>,
+		now: Date = Date(),
+		staleTTL: TimeInterval = 2 * 60 * 60,
+		queue: DispatchQueue = DispatchQueue.global(qos: .userInitiated),
+		completion: (() -> Void)? = nil
+	) {
+		guard !origins.isEmpty else {
+			completion?()
+			return
+		}
+		queue.async {
+			refreshWinnersForShow(at: dir, origins: origins, now: now, staleTTL: staleTTL)
+			if let completion {
+				DispatchQueue.main.async(execute: completion)
+			}
+		}
+	}
+
+	/// Session-precise variant for a session-keyed window: refreshes exactly
+	/// `origin:sessionId.json`, never a sibling session's slice — the same
+	/// targeting contract as the session-precise `forceIdle`.
+	static func refreshForShow(
+		at dir: String,
+		origin: String,
+		sessionId: String,
+		now: Date = Date(),
+		staleTTL: TimeInterval = 2 * 60 * 60,
+		queue: DispatchQueue = DispatchQueue.global(qos: .userInitiated),
+		completion: (() -> Void)? = nil
+	) {
+		queue.async {
+			let path = (dir as NSString).appendingPathComponent(
+				"\(makeSessionKey(origin: origin, sessionId: sessionId)).json")
+			refreshSliceForShow(atPath: path, now: now, staleTTL: staleTTL)
+			if let completion {
+				DispatchQueue.main.async(execute: completion)
+			}
+		}
+	}
+
+	/// Finds the freshest slice (max `updated_at`) per origin — including
+	/// stale ones, unlike `resetWinnersToIdle`'s scan — and refreshes each via
+	/// `refreshSliceForShow`. Runs synchronously on the caller's queue;
+	/// `refreshForShow` dispatches it off-main.
+	private static func refreshWinnersForShow(
+		at dir: String,
+		origins: Set<String>,
+		now: Date,
+		staleTTL: TimeInterval
+	) {
+		let fm = FileManager.default
+		guard let names = try? fm.contentsOfDirectory(atPath: dir) else { return }
+		var winners: [String: (date: Date, path: String)] = [:]
+		for name in names {
+			guard name.hasSuffix(".json"), !name.hasPrefix(".") else { continue }
+			let path = (dir as NSString).appendingPathComponent(name)
+			guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+				let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+			else { continue }
+			let sliceOrigin = ((root["source_event"] as? [String: Any])?["origin"] as? String)?
+				.trimmingCharacters(in: .whitespaces)
+			guard let sliceOrigin, origins.contains(sliceOrigin) else { continue }
+			let updatedAt = (root["updated_at"] as? String)
+				.flatMap { StateJsonReader.parseISO8601Date($0) } ?? .distantPast
+			if let existing = winners[sliceOrigin], existing.date >= updatedAt { continue }
+			winners[sliceOrigin] = (updatedAt, path)
+		}
+		for winner in winners.values {
+			refreshSliceForShow(atPath: winner.path, now: now, staleTTL: staleTTL)
+		}
+	}
+
+	/// Rewrites one slice for an explicit Show: `updated_at` = `now`, and
+	/// `activity_state` = idle only when the file's mtime is already past
+	/// `staleTTL` (see `refreshForShow` for the fresh-vs-stale rationale).
+	private static func refreshSliceForShow(
+		atPath path: String,
+		now: Date,
+		staleTTL: TimeInterval
+	) {
+		let fm = FileManager.default
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+			var root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+		else { return }
+		if let attrs = try? fm.attributesOfItem(atPath: path),
+			let mtime = attrs[.modificationDate] as? Date,
+			now.timeIntervalSince(mtime) > staleTTL
+		{
+			root["activity_state"] = "idle"
+		}
+		let formatter = ISO8601DateFormatter()
+		formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+		root["updated_at"] = formatter.string(from: now)
+		guard let out = try? JSONSerialization.data(
+			withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
+		else { return }
+		try? out.write(to: URL(fileURLWithPath: path), options: .atomic)
+	}
+
 	/// Finds the winner slice (freshest `updated_at`, non-stale mtime) for each
 	/// origin in `origins` and rewrites just those to idle. Runs synchronously on
 	/// the caller's queue; `forceIdle` dispatches it off-main.

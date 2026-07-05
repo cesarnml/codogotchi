@@ -31,6 +31,13 @@ final class MenubarMenu: NSObject {
 	private weak var floatingPetPool: FloatingPetWindowPool?
 	private let retryHooksInstall: (() -> Void)?
 	private let openSettings: ((SettingsTab?) -> Void)?
+	/// Called with the window key just before an explicit "Show … Pet" /
+	/// "Show All Pets" un-hide. Wired by `MenubarApp` to
+	/// `StateJsonWriter.refreshForShow`, which restarts the dismiss-TTL clock
+	/// on the backing slice(s) — without it, showing a pet whose slice has
+	/// aged past the TTL while hidden is a silent no-op (the pool suppresses
+	/// re-spawn of expired keys, so nothing appears).
+	private let refreshTtlForShow: ((String) -> Void)?
 	private weak var builtMenu: NSMenu?
 	private weak var hooksNotActiveItem: NSMenuItem?
 	/// Index of the first pet-section item within `builtMenu` (after the header
@@ -43,12 +50,14 @@ final class MenubarMenu: NSObject {
 		terminate: @escaping () -> Void = { NSApplication.shared.terminate(nil) },
 		floatingPetPool: FloatingPetWindowPool? = nil,
 		retryHooksInstall: (() -> Void)? = nil,
-		openSettings: ((SettingsTab?) -> Void)? = nil
+		openSettings: ((SettingsTab?) -> Void)? = nil,
+		refreshTtlForShow: ((String) -> Void)? = nil
 	) {
 		self.terminate = terminate
 		self.floatingPetPool = floatingPetPool
 		self.retryHooksInstall = retryHooksInstall
 		self.openSettings = openSettings
+		self.refreshTtlForShow = refreshTtlForShow
 		super.init()
 	}
 
@@ -179,6 +188,9 @@ final class MenubarMenu: NSObject {
 	@objc func showAllPets(_ sender: Any?) {
 		guard let pool = floatingPetPool else { return }
 		for key in pool.hiddenWindowKeys {
+			// Restart each key's dismiss-TTL clock before un-hiding, or a key
+			// that expired while hidden would stay suppressed and never re-spawn.
+			refreshTtlForShow?(key)
 			pool.setVisible(true, for: key)
 		}
 		refreshFloatingPetMenuItemTitle()
@@ -284,6 +296,8 @@ final class MenubarMenu: NSObject {
 			let item = sender as? NSMenuItem,
 			let key = item.representedObject as? String
 		else { return }
+		// Restart the dismiss-TTL clock before un-hiding — see showAllPets.
+		refreshTtlForShow?(key)
 		pool.setVisible(true, for: key)
 		refreshFloatingPetMenuItemTitle()
 	}

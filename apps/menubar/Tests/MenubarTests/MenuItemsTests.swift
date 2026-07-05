@@ -236,6 +236,46 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertTrue(pool.hiddenWindowKeys.isEmpty)
 	}
 
+	func testShowAllPetsRefreshesTtlForEveryHiddenKeyBeforeUnhiding() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		pool.setVisible(false, for: "claude_code")
+		pool.setVisible(false, for: "cursor")
+		var refreshed: [String] = []
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshTtlForShow: { refreshed.append($0) })
+		_ = builder.build()
+
+		builder.showAllPets(nil)
+
+		// Without the refresh, a key whose slice TTL-expired while hidden would
+		// be un-hidden but never re-spawn — an invisible "Show All".
+		XCTAssertEqual(Set(refreshed), Set(["claude_code", "cursor"]))
+		XCTAssertTrue(pool.hiddenWindowKeys.isEmpty)
+	}
+
+	func testShowPetItemRefreshesTtlForExactlyItsOwnKey() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		var refreshed: [String] = []
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshTtlForShow: { refreshed.append($0) })
+		let menu = builder.build()
+		pool.setVisible(false, for: "cursor")
+		builder.refreshFloatingPetMenuItemTitle()
+
+		let showItem = menu.items.first {
+			($0.representedObject as? String) == "cursor" && $0.title.hasPrefix("Show")
+		}
+		XCTAssertNotNil(showItem, "hidden cursor must have a Show item carrying its window key")
+		_ = (showItem!.target as AnyObject?)?.perform(showItem!.action!, with: showItem!)
+
+		XCTAssertEqual(
+			refreshed, ["cursor"],
+			"only the clicked key's TTL clock restarts — never a sibling's")
+		XCTAssertFalse(pool.hiddenWindowKeys.contains("cursor"))
+	}
+
 	func testHideAllPetsHidesEveryActiveOrigin() {
 		let pool = makePool(origins: ["claude_code", "cursor"])
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)

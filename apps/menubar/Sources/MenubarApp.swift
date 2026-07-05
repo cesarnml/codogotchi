@@ -486,6 +486,22 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			},
 			openSettings: { [weak settingsController] tab in
 				settingsController?.show(tab: tab)
+			},
+			// Explicit "Show" restarts the dismiss-TTL clock on the window's
+			// backing slice(s) so a pet that expired while hidden actually
+			// re-spawns; same window-key targeting as Force Idle (session-keyed
+			// → exactly that slice, combined/plain → that window's origin set).
+			refreshTtlForShow: { [weak self] windowKey in
+				let stateDir = config.pollingTarget.path
+				if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: windowKey) {
+					StateJsonWriter.refreshForShow(
+						at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
+				} else {
+					StateJsonWriter.refreshForShow(
+						at: stateDir,
+						origins: self?.resolveWindowOrigins(windowKey: windowKey) ?? [windowKey]
+					)
+				}
 			}
 		)
 		item.menu = menuBuilder.build()
