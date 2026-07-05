@@ -449,6 +449,7 @@ private final class MinimalistBadgeView: NSView {
 	private var hidePromptObservers: [NSObjectProtocol] = []
 	private var hidePromptGlobalMouseMonitor: Any?
 	private var hidePromptGlobalKeyboardMonitor: Any?
+	private var hidePromptLocalMouseMonitor: Any?
 
 	private var sizePillPanel: MinimalistPanelSizePillPanel?
 	private var sizePillObservers: [NSObjectProtocol] = []
@@ -774,8 +775,10 @@ private final class MinimalistBadgeView: NSView {
 		) { [weak self] event in
 			// Clicks on the pill itself (the slider) must not dismiss it —
 			// everything else in-app does, including this strip and siblings.
-			if event.window !== self?.sizePillPanel {
-				Task { @MainActor in self?.dismissSizePill() }
+			// Synchronous for the same before-dispatch reason as the hide
+			// prompt's local monitor above.
+			if let self, event.window !== self.sizePillPanel {
+				self.dismissSizePill()
 			}
 			return event
 		}
@@ -834,6 +837,22 @@ private final class MinimalistBadgeView: NSView {
 			Task { @MainActor in self?.dismissHidePrompt() }
 		}
 
+		// In-app half of "any click away dismisses": global monitors only
+		// report other applications' events, so a click on a sibling strip, a
+		// pet panel, or the menubar icon would strand this prompt without a
+		// local monitor. Dismissal is synchronous (not Task-deferred) — the
+		// monitor fires before the event dispatches, and a deferred dismissal
+		// would land after a right-click's re-present and tear down the new
+		// prompt instead of the old one.
+		hidePromptLocalMouseMonitor = NSEvent.addLocalMonitorForEvents(
+			matching: [.leftMouseDown, .rightMouseDown]
+		) { [weak self] event in
+			if let self, event.window !== self.hidePromptPanel {
+				self.dismissHidePrompt()
+			}
+			return event
+		}
+
 		// Dismiss on any keyboard input (including app switchers) so the pill never
 		// lingers over the UI while the user changes apps or windows.
 		hidePromptGlobalKeyboardMonitor = NSEvent.addGlobalMonitorForEvents(
@@ -851,6 +870,10 @@ private final class MinimalistBadgeView: NSView {
 		if let hidePromptGlobalMouseMonitor {
 			NSEvent.removeMonitor(hidePromptGlobalMouseMonitor)
 			self.hidePromptGlobalMouseMonitor = nil
+		}
+		if let hidePromptLocalMouseMonitor {
+			NSEvent.removeMonitor(hidePromptLocalMouseMonitor)
+			self.hidePromptLocalMouseMonitor = nil
 		}
 		if let hidePromptGlobalKeyboardMonitor {
 			NSEvent.removeMonitor(hidePromptGlobalKeyboardMonitor)
@@ -3342,6 +3365,7 @@ private final class FloatingPetInteractionView: NSView {
 	private var localMouseMonitor: Any?
 	private var globalMouseMonitor: Any?
 	private var globalKeyboardMonitor: Any?
+	private var hidePromptLocalMouseMonitor: Any?
 	private var hidePromptDismissObservers: [NSObjectProtocol] = []
 	private var pointerInsideFrame = false
 	private var affordanceHoverActive = false
@@ -3912,6 +3936,22 @@ private final class FloatingPetInteractionView: NSView {
 			}
 		}
 
+		// In-app half of "any click away dismisses": global monitors only
+		// report other applications' events, so a click on a sibling pet, a
+		// Minimalist strip, or the menubar icon would strand this prompt
+		// without a local monitor. Dismissal is synchronous (not
+		// Task-deferred) — the monitor fires before the event dispatches, and
+		// a deferred dismissal would land after a right-click's re-present
+		// and tear down the new prompt instead of the old one.
+		hidePromptLocalMouseMonitor = NSEvent.addLocalMonitorForEvents(
+			matching: [.leftMouseDown, .rightMouseDown]
+		) { [weak self] event in
+			if let self, event.window !== self.hidePromptPanel {
+				self.dismissHidePrompt()
+			}
+			return event
+		}
+
 		// Dismiss on any keyboard input (including Cmd+Tab / Alt+Tab system
 		// switchers) so the pill never lingers over the UI while the user is
 		// changing apps/windows.
@@ -3932,6 +3972,10 @@ private final class FloatingPetInteractionView: NSView {
 		if let globalMouseMonitor {
 			NSEvent.removeMonitor(globalMouseMonitor)
 			self.globalMouseMonitor = nil
+		}
+		if let hidePromptLocalMouseMonitor {
+			NSEvent.removeMonitor(hidePromptLocalMouseMonitor)
+			self.hidePromptLocalMouseMonitor = nil
 		}
 		if let globalKeyboardMonitor {
 			NSEvent.removeMonitor(globalKeyboardMonitor)
