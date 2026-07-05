@@ -198,7 +198,7 @@ final class FloatingInteractionTests: XCTestCase {
 			"sanity: the mode-switch title is the row driving the stack width")
 	}
 
-	// MARK: - Panel Size pill (radial slider)
+	// MARK: - Panel Size pill
 
 	func testPanelSizePromptTitleUsesEllipsisConvention() {
 		// Ellipsis marks "opens follow-up UI", matching "Rename…".
@@ -210,13 +210,6 @@ final class FloatingInteractionTests: XCTestCase {
 		// minimalist_badge_scale, so their ranges must never drift apart.
 		XCTAssertEqual(MinimalistPanelSizePill.minScale, Double(GateBadgeLayout.achievableMinScale))
 		XCTAssertEqual(MinimalistPanelSizePill.maxScale, Double(GateBadgeLayout.achievableMaxScale))
-	}
-
-	func testPanelSizePillPercentTextRoundsToWholePercent() {
-		XCTAssertEqual(MinimalistPanelSizePill.percentText(for: 1.0), "100%")
-		XCTAssertEqual(MinimalistPanelSizePill.percentText(for: 0.75), "75%")
-		XCTAssertEqual(MinimalistPanelSizePill.percentText(for: 1.5), "150%")
-		XCTAssertEqual(MinimalistPanelSizePill.percentText(for: 1.249), "125%")
 	}
 
 	func testStackSizeSingleTitleMatchesPreferredSize() {

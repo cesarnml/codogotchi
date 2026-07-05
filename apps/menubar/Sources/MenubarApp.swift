@@ -369,7 +369,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						NotificationCenter.default.post(
 							name: .customizationDidChangeExternally, object: nil)
 					}
-					// Right-click "Panel Size…" radial slider: persists the same
+					// Right-click "Panel Size…" slider pill: persists the same
 					// global minimalist_badge_scale the Customization tab's slider
 					// writes, so every Minimalist strip resizes, not just this one
 					// (the clicked strip live-applies in the panel; siblings follow

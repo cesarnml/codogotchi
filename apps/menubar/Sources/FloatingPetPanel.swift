@@ -93,8 +93,8 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// affordance. Wired by the caller (`MenubarApp`) to persist the mode
 	/// switch to customization.json — mirrors Own mode's `onSwitchToMinimalist`.
 	var onSwitchToPetMode: (() -> Void)?
-	/// Fired on each tick of the badge's right-click "Panel Size" radial
-	/// slider (`isFinal` marks the tick ending the drag gesture). Wired by the
+	/// Fired on each tick of the badge's right-click "Panel Size" slider
+	/// (`isFinal` marks the tick ending the drag gesture). Wired by the
 	/// caller (`MenubarApp`) to persist the global `minimalist_badge_scale` —
 	/// the same setting the Customization tab's slider writes.
 	var onPanelSizeChanged: ((Double, Bool) -> Void)?
@@ -139,7 +139,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		badgeView.onPetModeRequested = { [weak self] in
 			self?.onSwitchToPetMode?()
 		}
-		// Right-click "Panel Size" radial slider: live-apply the scale to this
+		// Right-click "Panel Size" slider: live-apply the scale to this
 		// strip immediately for direct feedback (sibling strips follow on their
 		// next poll tick once the persisted write lands), then forward for
 		// persistence.
@@ -432,13 +432,13 @@ private final class MinimalistBadgeView: NSView {
 	/// mode-switch back to the full pet renderer. Mirrors Own mode's
 	/// `minimalistModeHandler`.
 	var onPetModeRequested: (() -> Void)?
-	/// Fires on every tick of the "Panel Size" radial slider with the new
+	/// Fires on every tick of the "Panel Size" slider with the new
 	/// scale; `isFinal` marks the tick ending the drag gesture. Wired by the
 	/// controller to live-apply the scale and persist it — this view never
 	/// writes config itself.
 	var panelSizeHandler: ((Double, Bool) -> Void)?
 	/// Current global badge scale, mirrored by the controller's
-	/// `applyBadgeScale` so the size pill's dial starts at the live value.
+	/// `applyBadgeScale` so the size pill's slider starts at the live value.
 	var currentBadgeScale: Double = 1.0
 	/// Latest activity the badge is displaying, mirrored so the right-click prompt
 	/// can decide whether to offer "Force Idle".
@@ -646,7 +646,7 @@ private final class MinimalistBadgeView: NSView {
 				self?.dismissHidePrompt()
 				self?.onPetModeRequested?()
 			})
-		// Opens the radial-slider pill driving the global minimalist badge
+		// Opens the slider pill driving the global minimalist badge
 		// scale — the same setting as the Customization tab's size slider, so
 		// it resizes every Minimalist platform's strip, not just this one.
 		items.append(
@@ -694,12 +694,12 @@ private final class MinimalistBadgeView: NSView {
 		renameHandler?(normalized)
 	}
 
-	// MARK: - Panel Size pill (radial slider)
+	// MARK: - Panel Size pill
 
-	/// Presents the "Panel Size" radial-slider pill anchored at the original
-	/// right-click point. The dial starts at the live global scale
+	/// Presents the "Panel Size" slider pill anchored at the original
+	/// right-click point. The slider starts at the live global scale
 	/// (`currentBadgeScale`) and streams ticks through `panelSizeHandler`;
-	/// the pill stays up through the whole drag gesture — the dial lives
+	/// the pill stays up through the whole drag gesture — the slider lives
 	/// inside the pill, so the outside-click dismissal below never sees it —
 	/// and dismisses on any click away, keyboard input, or app switch,
 	/// mirroring the hide prompt's dismissal contract.
@@ -3026,7 +3026,7 @@ enum FloatingPetHidePrompt {
 	/// the inverse of `minimalistModeTitle` — back to the full pet renderer.
 	static let petModeTitle = "Pet Mode"
 	/// Title for the right-click "Panel Size" affordance on a Minimalist strip.
-	/// Opens the radial-slider pill (`MinimalistPanelSizePillPanel`) driving the
+	/// Opens the slider pill (`MinimalistPanelSizePillPanel`) driving the
 	/// same global `minimalist_badge_scale` the Customization tab's slider
 	/// writes — ellipsis per the "opens follow-up UI" convention (`Rename…`).
 	static let panelSizeTitle = "Panel Size…"
@@ -4212,40 +4212,36 @@ final class FloatingPetPromptCoordinator {
 	}
 }
 
-/// Layout + formatting for the "Panel Size" radial-slider pill. Internal (not
-/// file-private) so tests can pin the scale→label contract and the pill's
-/// slider range staying in lockstep with the Customization tab's slider.
+/// Layout for the "Panel Size" slider pill. Internal (not file-private) so
+/// tests can pin the pill's slider range staying in lockstep with the
+/// Customization tab's slider.
 enum MinimalistPanelSizePill {
-	/// Fixed pill size: the circular dial plus the percent readout beneath it.
-	static let size = CGSize(width: 96, height: 100)
+	/// Fixed pill size: a single "Small ——●—— Large" row, mirroring the
+	/// Customization tab's badge-scale control.
+	static let size = CGSize(width: 260, height: 40)
 	static let cornerRadius: CGFloat = 12
 	/// Slider range — identical to the Customization tab's badge-scale slider,
 	/// which is the whole point: both controls drive the same global setting.
 	static let minScale = Double(GateBadgeLayout.achievableMinScale)
 	static let maxScale = Double(GateBadgeLayout.achievableMaxScale)
-
-	/// Percent readout under the dial, e.g. `1.0` → "100%".
-	static func percentText(for scale: Double) -> String {
-		"\(Int((scale * 100).rounded()))%"
-	}
 }
 
-/// Circular slider that tracks from the first click even while its
-/// borderless, non-activating host panel is not (and can never become) key.
-private final class FirstMouseCircularSlider: NSSlider {
+/// Slider that tracks from the first click even while its borderless,
+/// non-activating host panel is not (and can never become) key.
+private final class FirstMouseSlider: NSSlider {
 	override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-/// Frosted pill hosting the "Panel Size" radial slider, shown when the user
+/// Frosted pill hosting the "Panel Size" slider, shown when the user
 /// activates the right-click "Panel Size…" affordance on a Minimalist strip.
 /// Mirrors `FloatingPetHidePromptPanel`'s chrome (material, level, collection
-/// behavior); the dial drives the same global `minimalist_badge_scale` the
-/// Customization tab's slider writes, so the change applies to every
-/// Minimalist platform, not just the clicked strip.
+/// behavior) and the Customization tab's control layout ("Small" — slider —
+/// "Large"); the slider drives the same global `minimalist_badge_scale` the
+/// Customization tab writes, so the change applies to every Minimalist
+/// platform, not just the clicked strip.
 private final class MinimalistPanelSizePillPanel: NSPanel {
-	private let slider = FirstMouseCircularSlider()
-	private let valueLabel = NSTextField(labelWithString: "")
-	/// Fires on every dial tick with the new scale; `isFinal` is true on the
+	private let slider = FirstMouseSlider()
+	/// Fires on every slider tick with the new scale; `isFinal` is true on the
 	/// mouse-up tick that ends the drag (or on a single click), so the caller
 	/// can live-apply per tick but defer once-per-gesture work (the Settings
 	/// re-sync notification) to the end of the gesture.
@@ -4285,7 +4281,15 @@ private final class MinimalistPanelSizePillPanel: NSPanel {
 		effectView.translatesAutoresizingMaskIntoConstraints = false
 		container.addSubview(effectView)
 
-		slider.sliderType = .circular
+		let smallLabel = NSTextField(labelWithString: "Small")
+		let largeLabel = NSTextField(labelWithString: "Large")
+		for label in [smallLabel, largeLabel] {
+			label.font = .systemFont(ofSize: 11)
+			label.textColor = .white
+			label.translatesAutoresizingMaskIntoConstraints = false
+			container.addSubview(label)
+		}
+
 		slider.minValue = MinimalistPanelSizePill.minScale
 		slider.maxValue = MinimalistPanelSizePill.maxScale
 		slider.doubleValue = initialScale
@@ -4295,24 +4299,18 @@ private final class MinimalistPanelSizePillPanel: NSPanel {
 		slider.translatesAutoresizingMaskIntoConstraints = false
 		container.addSubview(slider)
 
-		valueLabel.stringValue = MinimalistPanelSizePill.percentText(for: initialScale)
-		valueLabel.font = FloatingPetHidePrompt.font
-		valueLabel.textColor = .white
-		valueLabel.alignment = .center
-		valueLabel.translatesAutoresizingMaskIntoConstraints = false
-		container.addSubview(valueLabel)
-
 		NSLayoutConstraint.activate([
 			effectView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
 			effectView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
 			effectView.topAnchor.constraint(equalTo: container.topAnchor),
 			effectView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-			slider.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
-			slider.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-			slider.widthAnchor.constraint(equalToConstant: 56),
-			slider.heightAnchor.constraint(equalToConstant: 56),
-			valueLabel.topAnchor.constraint(equalTo: slider.bottomAnchor, constant: 4),
-			valueLabel.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+			smallLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+			smallLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+			slider.leadingAnchor.constraint(equalTo: smallLabel.trailingAnchor, constant: 8),
+			slider.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+			largeLabel.leadingAnchor.constraint(equalTo: slider.trailingAnchor, constant: 8),
+			largeLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+			largeLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
 		])
 		contentView = container
 	}
@@ -4321,7 +4319,6 @@ private final class MinimalistPanelSizePillPanel: NSPanel {
 		// A continuous slider fires this per drag tick; the tick delivered on
 		// mouse-up marks the end of the gesture.
 		let isFinal = NSApp.currentEvent.map { $0.type == .leftMouseUp } ?? true
-		valueLabel.stringValue = MinimalistPanelSizePill.percentText(for: sender.doubleValue)
 		onScaleChanged?(sender.doubleValue, isFinal)
 	}
 
