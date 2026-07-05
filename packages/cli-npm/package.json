@@ -1,7 +1,13 @@
 {
   "name": "codogotchi",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Install Codogotchi pets from the marketplace",
+  "homepage": "https://codogotchi.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cesarnml/codogotchi.git",
+    "directory": "packages/cli-npm"
+  },
   "bin": {
     "codogotchi": "dist/codogotchi.js"
   },
