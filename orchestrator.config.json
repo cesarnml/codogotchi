@@ -25,6 +25,6 @@
   "codogotchi": {
     "enabled": true
   },
-  "deliveryBaseBranch": "main",
-  "closeoutBranch": "main"
+  "deliveryBaseBranch": "v3_preview",
+  "closeoutBranch": "v3_preview"
 }
