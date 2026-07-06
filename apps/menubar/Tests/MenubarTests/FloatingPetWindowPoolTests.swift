@@ -2565,7 +2565,11 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Refactor pass")
 	}
 
-	func testSessionKeyedWindowWithoutSidecarLabelAppliesNilLabel() {
+	// An unrenamed session-keyed window gets its "Session N" default resolved
+	// at the pool, not synthesized inside the badge view — a non-nil label is
+	// what gates the right-click "Rename…" affordance, so leaving it nil here
+	// would hide Rename on every never-renamed session window.
+	func testSessionKeyedWindowWithoutSidecarLabelAppliesSessionNumberDefault() {
 		var stubs: [String: StubWindowController] = [:]
 		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
 		let pool = FloatingPetWindowPool(
@@ -2583,7 +2587,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			],
 			customization: customization
 		))
-		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, nil)
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Session 1")
 	}
 
 	// A plain-origin window (session-pets off) now gets a session-label badge
