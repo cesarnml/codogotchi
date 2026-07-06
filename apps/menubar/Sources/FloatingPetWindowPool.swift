@@ -747,10 +747,14 @@ final class FloatingPetWindowPool {
 					// `sessionNumber(forWindowKey:)` already guards that; nothing to
 					// apply here), but it now gets a session-label badge too (P??
 					// unification): the user's rename if set, else whichever platform
-					// is currently driving the shared pet ("Default" while idle).
+					// is currently driving the shared pet, or "Combined" while idle —
+					// distinct from the platform chip's ⭐ "Default" text (still driven
+					// by `applyPlatform(origin: "combined")` above), which names the
+					// idle *pet assignment* slot, not this window itself.
+					let idleDefaultLabel = combinedDefaultOrigin == "combined"
+						? "Combined" : Self.defaultSessionLabel(forOrigin: combinedDefaultOrigin)
 					windows["combined"]?.applySessionLabel(
-						sessionLabel(forWindowKey: "combined")
-							?? Self.defaultSessionLabel(forOrigin: combinedDefaultOrigin))
+						sessionLabel(forWindowKey: "combined") ?? idleDefaultLabel)
 					windows["combined"]?.applySessionTooltip(nil)
 				}
 			}

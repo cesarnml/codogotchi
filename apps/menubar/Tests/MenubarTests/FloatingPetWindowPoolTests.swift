@@ -2253,6 +2253,11 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			stubs["combined"]?.appliedPlatforms.last ?? nil, "combined",
 			"the folded combined window must keep the idle ⭐ Default badge behavior"
 		)
+		XCTAssertEqual(
+			stubs["combined"]?.appliedSessionLabels.last ?? nil, "Combined",
+			"the session-label badge names the window itself (\"Combined\"), distinct from"
+				+ " the platform chip's ⭐ \"Default\" pet-assignment text"
+		)
 	}
 
 	/// (5) own→minimalist toggle tears down and respawns the correct controller
