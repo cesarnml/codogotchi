@@ -647,15 +647,18 @@ final class FloatingPetWindowPool {
 			} else if let sourceOrigin = state.sourceEvent?.origin {
 				windows[renderKey]?.applyPlatform(origin: sourceOrigin)
 			}
-			windows[renderKey]?.applySessionNumber(sessionNumber(forWindowKey: renderKey))
-			// A session-keyed window's own badge already synthesizes "Session N"
-			// when unrenamed (`sessionLabel` nil is the right signal there); a
-			// plain-origin window has no such built-in default, so it falls back
-			// to the platform's display name here instead.
+			let assignedNumber = sessionNumber(forWindowKey: renderKey)
+			windows[renderKey]?.applySessionNumber(assignedNumber)
+			// Every window gets a label at render — the user's rename if set,
+			// else a default: "Session N" for a session-keyed window, the
+			// platform's display name for a plain-origin one. A non-nil label
+			// is what gates the right-click "Rename…" affordance, so the
+			// session-keyed default must be resolved here rather than left to
+			// the badge view's own "Session N" synthesis.
 			let userLabel = sessionLabel(forWindowKey: renderKey)
-			let resolvedLabel =
-				isSessionKeyed(renderKey) ? userLabel : (userLabel ?? Self.defaultSessionLabel(forOrigin: origin))
-			windows[renderKey]?.applySessionLabel(resolvedLabel)
+			let defaultLabel =
+				assignedNumber.map { "Session \($0)" } ?? Self.defaultSessionLabel(forOrigin: origin)
+			windows[renderKey]?.applySessionLabel(userLabel ?? defaultLabel)
 			windows[renderKey]?.applySessionTooltip(sessionPromptSummary(forWindowKey: renderKey))
 		}
 
@@ -894,8 +897,8 @@ final class FloatingPetWindowPool {
 	/// Fallback session-label text for a plain-origin/"combined" window that
 	/// has never been renamed — the platform's own display name (e.g.
 	/// "Claude Code", "VS Code"), so every platform now shows *some* label
-	/// even with session-pets off, mirroring the "Session N" default a
-	/// session-keyed window's badge already synthesizes on its own. Passing
+	/// even with session-pets off, mirroring the "Session N" default the
+	/// pool resolves for an unrenamed session-keyed window. Passing
 	/// the literal `"combined"` origin (the folded window while idle, before
 	/// any platform has driven it this tick) resolves to `PlatformAttribution
 	/// .default.displayName`, "Default" — the same label already shown on
