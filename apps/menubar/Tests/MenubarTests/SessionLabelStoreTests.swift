@@ -66,6 +66,40 @@ final class SessionLabelStoreTests: XCTestCase {
 		XCTAssertEqual(SessionLabelStore.label(for: "claude_code:sess1", at: path), label)
 	}
 
+	// MARK: - setLabelExemptFromCap: no 24-char truncation ("Sync Label")
+
+	func testSetLabelExemptFromCapStoresLongLabelVerbatim() {
+		let path = tempPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+
+		let longLabel = String(repeating: "x", count: 40)
+		SessionLabelStore.setLabelExemptFromCap(longLabel, for: "codex:sess1", at: path)
+
+		XCTAssertEqual(SessionLabelStore.label(for: "codex:sess1", at: path), longLabel)
+	}
+
+	func testSetLabelExemptFromCapStillTrimsWhitespace() {
+		let path = tempPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+
+		SessionLabelStore.setLabelExemptFromCap("  Locate session auto label  ", for: "codex:sess1", at: path)
+
+		XCTAssertEqual(
+			SessionLabelStore.label(for: "codex:sess1", at: path), "Locate session auto label")
+	}
+
+	func testSetLabelExemptFromCapPreservesOtherKeysReadMergeWrite() {
+		let path = tempPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+
+		SessionLabelStore.setLabel("First session", for: "codex:sess1", at: path)
+		SessionLabelStore.setLabelExemptFromCap(String(repeating: "y", count: 40), for: "codex:sess2", at: path)
+
+		XCTAssertEqual(SessionLabelStore.label(for: "codex:sess1", at: path), "First session")
+		XCTAssertEqual(
+			SessionLabelStore.label(for: "codex:sess2", at: path), String(repeating: "y", count: 40))
+	}
+
 	// MARK: - Whitespace is trimmed before the cap is applied
 
 	func testLabelIsTrimmed() {

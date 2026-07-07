@@ -742,6 +742,120 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         XCTAssertEqual(savedCalls.last, [], "showing must write-through the cleared hidden set")
     }
 
+    // MARK: - Hide All Other Pets
+
+    func testHideAllOtherWindowsHidesEveryOtherActiveWindowButNotTheTrigger() {
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in StubWindowController() }
+        )
+        let snap = makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+            "codex": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+            "cursor": makeSnapshot(updated: "2026-06-28T10:00:02.000Z"),
+        ])
+        pool.update(snapshot: snap)
+        XCTAssertEqual(Set(pool.activeOrigins), ["claude_code", "codex", "cursor"])
+
+        pool.hideAllOtherWindows(keepVisible: "codex")
+
+        XCTAssertEqual(pool.activeOrigins, ["codex"])
+        XCTAssertEqual(pool.hiddenWindowKeys.sorted(), ["claude_code", "cursor"])
+        XCTAssertFalse(
+            pool.hiddenWindowKeys.contains("codex"),
+            "the window that triggered the action must never be hidden by it")
+    }
+
+    // Same-platform sibling sessions are hidden too, not just other platforms —
+    // "Hide All Other Pets" has no platform-scoping, unlike Force Idle/Focus.
+    func testHideAllOtherWindowsHidesSameOriginSiblingSessions() {
+        let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+        let pool = FloatingPetWindowPool(
+            customizationReader: { customization },
+            windowFactory: { _, _ in StubWindowController() }
+        )
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: [
+                "codex:s1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+                "codex:s2": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+            ],
+            customization: customization
+        ))
+        XCTAssertEqual(Set(pool.activeOrigins), ["codex:s1", "codex:s2"])
+
+        pool.hideAllOtherWindows(keepVisible: "codex:s1")
+
+        XCTAssertEqual(pool.activeOrigins, ["codex:s1"])
+        XCTAssertTrue(pool.hiddenWindowKeys.contains("codex:s2"))
+    }
+
+    // Not a mode: a session/platform that spawns AFTER the bulk-hide fires is
+    // untouched and renders normally on its very first tick.
+    func testHideAllOtherWindowsDoesNotAffectASessionThatSpawnsAfterward() {
+        var spawnCount = 0
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in
+                spawnCount += 1
+                return StubWindowController()
+            }
+        )
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "codex": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+        ]))
+        pool.hideAllOtherWindows(keepVisible: "codex")
+        XCTAssertEqual(spawnCount, 1)
+
+        // A previously-unseen platform arrives on a later tick.
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "codex": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+        ]))
+        XCTAssertTrue(
+            pool.activeOrigins.contains("claude_code"),
+            "a platform unseen at the time of the bulk-hide must spawn normally")
+        XCTAssertEqual(spawnCount, 2)
+    }
+
+    func testHideAllOtherWindowsWithNoOtherActiveWindowsIsNoOp() {
+        var savedCalls: [Set<String>] = []
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in StubWindowController() },
+            hiddenKeysSaver: { savedCalls.append($0) }
+        )
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "codex": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+        ]))
+
+        pool.hideAllOtherWindows(keepVisible: "codex")
+
+        XCTAssertEqual(pool.activeOrigins, ["codex"])
+        XCTAssertTrue(savedCalls.isEmpty, "no window was actually hidden, so the sidecar must not be rewritten")
+    }
+
+    // The write-through to `hiddenKeysSaver` is batched into a single call
+    // covering every hidden key, not one call per window — unlike calling
+    // `setVisible(false, for:)` in a loop, which would write once per window.
+    func testHideAllOtherWindowsWritesThroughExactlyOnce() {
+        var savedCalls: [Set<String>] = []
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in StubWindowController() },
+            hiddenKeysSaver: { savedCalls.append($0) }
+        )
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+            "codex": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+            "cursor": makeSnapshot(updated: "2026-06-28T10:00:02.000Z"),
+        ]))
+
+        pool.hideAllOtherWindows(keepVisible: "codex")
+
+        XCTAssertEqual(savedCalls.count, 1)
+        XCTAssertEqual(savedCalls.first, ["claude_code", "cursor"])
+    }
+
     func testInitRestoresHiddenKeysFromInjectedLoader() {
         var spawnCount = 0
         let pool = FloatingPetWindowPool(

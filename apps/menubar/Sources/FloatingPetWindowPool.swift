@@ -843,6 +843,27 @@ final class FloatingPetWindowPool {
 		hiddenKeysSaver(userHiddenWindowKeys)
 	}
 
+	/// Hides every currently active window except `keepVisible` — the
+	/// right-click "Hide All Other Pets" affordance, offered on every panel
+	/// regardless of mode or session-keyed-ness. A snapshot action, not a
+	/// persistent mode: only windows rendered at the moment this fires are
+	/// hidden, with the same persist-until-shown semantics as
+	/// `setVisible(false, for:)` (a single batched disk write here instead of
+	/// one per window) — a session or platform that spawns afterward is
+	/// untouched and renders normally.
+	func hideAllOtherWindows(keepVisible: String) {
+		let others = windows.keys.filter { $0 != keepVisible }
+		guard !others.isEmpty else { return }
+		for key in others {
+			windows[key]?.setFloatingPetVisible(false)
+			windows.removeValue(forKey: key)
+			windowSpawnedModes.removeValue(forKey: key)
+			releaseSessionNumber(forWindowKey: key)
+			userHiddenWindowKeys.insert(key)
+		}
+		hiddenKeysSaver(userHiddenWindowKeys)
+	}
+
 	/// Returns the controller for the given window key. Used by MenubarApp to wire
 	/// per-window callbacks (attention dismiss, app-nap opt-out).
 	func controller(for key: String) -> FloatingPetWindowControlling? { windows[key] }

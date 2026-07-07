@@ -89,6 +89,16 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// right-click rename affordance. Wired by the caller (`MenubarApp`) to
 	/// persist to `SessionLabelStore` — mirrors Own mode's `onRenameRequested`.
 	var onRenameRequested: ((String) -> Void)?
+	/// Fired when the user activates the badge's right-click "Sync Label"
+	/// affordance. Wired by the caller (`MenubarApp`) to re-fetch the
+	/// platform's current thread title and persist it — mirrors Own mode's
+	/// `onSyncLabelRequested`.
+	var onSyncLabelRequested: (() -> Void)?
+	/// Fired when the user activates the badge's right-click "Hide All Other
+	/// Pets" affordance. Wired by the caller (`MenubarApp`) to hide every
+	/// other currently-rendered window via the pool — mirrors Own mode's
+	/// `onHideAllOtherPetsRequested`.
+	var onHideAllOtherPetsRequested: (() -> Void)?
 	/// Fired when the user activates the badge's right-click "Pet Mode"
 	/// affordance. Wired by the caller (`MenubarApp`) to persist the mode
 	/// switch to customization.json — mirrors Own mode's `onSwitchToMinimalist`.
@@ -134,6 +144,18 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		badgeView.renameHandler = { [weak self] newLabel in
 			self?.applySessionLabel(newLabel)
 			self?.onRenameRequested?(newLabel)
+		}
+		// Right-click "Sync Label" affordance, offered only while a session
+		// number is assigned. This panel never resolves or writes the label
+		// itself — the app-level handler does the fetch-and-persist and the
+		// next poll tick re-applies it via `applySessionLabel`.
+		badgeView.syncLabelHandler = { [weak self] in
+			self?.onSyncLabelRequested?()
+		}
+		// Right-click "Hide All Other Pets" affordance, offered
+		// unconditionally. This panel never touches other windows itself.
+		badgeView.hideAllOtherPetsHandler = { [weak self] in
+			self?.onHideAllOtherPetsRequested?()
 		}
 		// Right-click "Pet Mode" affordance — back to the full pet renderer.
 		badgeView.onPetModeRequested = { [weak self] in
@@ -428,6 +450,16 @@ private final class MinimalistBadgeView: NSView {
 	/// "Rename…" affordance. Not fired when the user cancels or commits an
 	/// empty/whitespace-only label. Mirrors Own mode's `renameHandler`.
 	var renameHandler: ((String) -> Void)?
+	/// Fires when the user activates the right-click "Sync Label" affordance,
+	/// offered only while a session number is assigned (mirrors Own mode's
+	/// `syncLabelHandler`). This view never resolves or writes the label
+	/// itself — the caller re-fetches the platform's title and persists it.
+	var syncLabelHandler: (() -> Void)?
+	/// Fires when the user activates the right-click "Hide All Other Pets"
+	/// affordance, offered unconditionally. This view never touches other
+	/// windows itself — the caller (the window pool, via the app-level
+	/// wiring) hides every other currently-rendered window.
+	var hideAllOtherPetsHandler: (() -> Void)?
 	/// Fires when the user activates the right-click "Pet Mode" pill — the
 	/// mode-switch back to the full pet renderer. Mirrors Own mode's
 	/// `minimalistModeHandler`.
@@ -641,6 +673,16 @@ private final class MinimalistBadgeView: NSView {
 					self?.presentRenameAlert()
 				})
 		}
+		// Only offered on an actual session-keyed strip — a plain-origin/
+		// combined strip has no session id to resolve a platform title for.
+		// Sits directly below "Rename…", grouping the two label actions.
+		if currentSessionNumber != nil {
+			items.append(
+				FloatingPetPromptItem(title: FloatingPetHidePrompt.syncLabelTitle) { [weak self] in
+					self?.dismissHidePrompt()
+					self?.syncLabelHandler?()
+				})
+		}
 		// Mode switch back to the full pet renderer. Sits directly above
 		// "Hide panel", mirroring Own mode's "Minimalist Mode" placement.
 		items.append(
@@ -655,6 +697,13 @@ private final class MinimalistBadgeView: NSView {
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.panelSizeTitle) { [weak self] in
 				self?.dismissHidePrompt()
 				self?.presentPanelSizePill()
+			})
+		// Offered unconditionally, directly above "Hide panel" — the last
+		// action before the strip's own hide, mirroring Own mode's placement.
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.hideAllOtherPetsTitle) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.hideAllOtherPetsHandler?()
 			})
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.panelTitle) { [weak self] in
@@ -984,6 +1033,16 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// slice, free-list number, and label — this panel never touches those
 	/// stores directly, it only reports the user's confirmed intent.
 	var onPruneRequested: (() -> Void)?
+	/// Fired when the user activates the right-click "Sync Label" affordance.
+	/// Wired by the caller (`MenubarApp`) to re-fetch the platform's current
+	/// thread title and persist it — this panel never resolves or writes the
+	/// label itself.
+	var onSyncLabelRequested: (() -> Void)?
+	/// Fired when the user activates the right-click "Hide All Other Pets"
+	/// affordance. Wired by the caller (`MenubarApp`) to hide every other
+	/// currently-rendered window via the pool — this panel never touches
+	/// other windows itself.
+	var onHideAllOtherPetsRequested: (() -> Void)?
 	/// Fired when the user activates the right-click "Minimalist Mode"
 	/// affordance. Wired by the caller (`MenubarApp`) to persist the mode
 	/// switch to customization.json — this panel never writes config itself.
@@ -1806,6 +1865,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 		view.pruneHandler = { [weak self] in
 			self?.onPruneRequested?()
+		}
+		view.syncLabelHandler = { [weak self] in
+			self?.onSyncLabelRequested?()
+		}
+		view.hideAllOtherPetsHandler = { [weak self] in
+			self?.onHideAllOtherPetsRequested?()
 		}
 		view.minimalistModeHandler = { [weak self] in
 			self?.onSwitchToMinimalist?()
@@ -3065,6 +3130,23 @@ enum FloatingPetHidePrompt {
 	/// (slice, free-list number, rename label) — the same end-state as
 	/// automatic TTL expiry.
 	static let pruneTitle = "Prune Session"
+	/// Title for the right-click "Sync Label" affordance, offered only on a
+	/// session-keyed window (mirrors Prune Session's gating): re-fetches the
+	/// platform's own current thread title — bypassing the pool's
+	/// once-resolved-then-frozen cache — and adopts it as this session's
+	/// label. Lets a user who renamed the thread in the source app (Claude
+	/// Code, Codex, Cursor) after Codogotchi already froze an earlier title
+	/// pull the rename in manually, since Codogotchi never re-polls a
+	/// resolved title on its own.
+	static let syncLabelTitle = "Sync Label"
+	/// Title for the right-click "Hide All Other Pets" affordance, offered
+	/// unconditionally on every panel (Own mode, Minimalist mode, and the
+	/// combined window — all share this prompt). Hides every OTHER
+	/// currently-rendered window, same-platform sibling sessions included,
+	/// leaving only the panel that was clicked. A snapshot action, not a
+	/// mode: a session or platform that spawns afterward is unaffected and
+	/// renders normally.
+	static let hideAllOtherPetsTitle = "Hide All Other Pets"
 	/// Title for the right-click mode-switch affordance on an Own/Combined pet
 	/// window: flips the platform to Minimalist mode (or, on the combined
 	/// window, turns on combined-minimalist rendering). For a sessions-enabled
@@ -3411,6 +3493,16 @@ private final class FloatingPetInteractionView: NSView {
 	/// offered while `hasActiveSessionBadge` — see that property's doc for why
 	/// this gate differs from Rename's.
 	var pruneHandler: (() -> Void)?
+	/// Fired when the user activates the right-click "Sync Label" affordance.
+	/// Only offered while `hasActiveSessionBadge` (same gate as Prune, unlike
+	/// Rename) — a plain-origin/combined window has no session id to
+	/// re-fetch a platform title for. This view never resolves or writes the
+	/// label itself.
+	var syncLabelHandler: (() -> Void)?
+	/// Fired when the user activates the right-click "Hide All Other Pets"
+	/// affordance, offered unconditionally. This view never touches other
+	/// windows itself — the app wires this to the pool's bulk-hide call.
+	var hideAllOtherPetsHandler: (() -> Void)?
 	/// Fired when the user activates the right-click "Minimalist Mode"
 	/// affordance. The app wires this to persist the mode switch to
 	/// customization.json; the window pool re-renders on its next tick.
@@ -3822,6 +3914,18 @@ private final class FloatingPetInteractionView: NSView {
 					self?.presentRenameAlert()
 				})
 		}
+		// Only offered on an actual session-keyed window — a plain-origin/
+		// combined window has no session id to resolve a platform title for.
+		// Sits directly below "Rename…", grouping the two label actions;
+		// non-destructive, so it fires immediately on click like Rename does
+		// once its (separate) text-entry alert is confirmed.
+		if hasActiveSessionBadge {
+			items.append(
+				FloatingPetPromptItem(title: FloatingPetHidePrompt.syncLabelTitle) { [weak self] in
+					self?.dismissHidePrompt()
+					self?.syncLabelHandler?()
+				})
+		}
 		// Destroys backing session state (slice, free-list number), so unlike
 		// Rename this stays restricted to an actual session-keyed window —
 		// a plain-origin/combined window has no session to prune. Destructive,
@@ -3840,6 +3944,13 @@ private final class FloatingPetInteractionView: NSView {
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.minimalistModeTitle) { [weak self] in
 				self?.dismissHidePrompt()
 				self?.minimalistModeHandler?()
+			})
+		// Offered unconditionally, directly above "Hide pet" — the last
+		// action before the pet's own hide.
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.hideAllOtherPetsTitle) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.hideAllOtherPetsHandler?()
 			})
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.title) { [weak self] in
