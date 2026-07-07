@@ -20,9 +20,14 @@ export type DeliveryNotifier =
       enabled: true;
       botToken: string;
       chatId: string;
+    }
+  | {
+      kind: 'discord';
+      enabled: true;
+      webhookUrl: string;
     };
 
-type NotificationPayload = {
+export type NotificationPayload = {
   entities?: Array<{
     length: number;
     offset: number;
@@ -33,6 +38,10 @@ type NotificationPayload = {
 };
 
 const TELEGRAM_SEND_TIMEOUT_MS = 10_000;
+const DISCORD_SEND_TIMEOUT_MS = 10_000;
+// Discord webhook message flag: SUPPRESS_EMBEDS. Mirrors Telegram's
+// `disable_web_page_preview` so bare URLs don't expand into preview cards.
+const DISCORD_SUPPRESS_EMBEDS_FLAG = 4;
 
 function findTicketById(
   state: DeliveryState,
@@ -206,18 +215,30 @@ export function resolveNotifier(): DeliveryNotifier {
   const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
   const chatId = process.env.TELEGRAM_CHAT_ID?.trim();
 
-  if (!botToken || !chatId) {
+  // Telegram wins when fully configured: this preserves the prior behavior for
+  // anyone already on Telegram who also sets a Discord webhook to experiment.
+  if (botToken && chatId) {
     return {
-      kind: 'noop',
-      enabled: false,
+      kind: 'telegram',
+      enabled: true,
+      botToken,
+      chatId,
+    };
+  }
+
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL?.trim();
+
+  if (webhookUrl) {
+    return {
+      kind: 'discord',
+      enabled: true,
+      webhookUrl,
     };
   }
 
   return {
-    kind: 'telegram',
-    enabled: true,
-    botToken,
-    chatId,
+    kind: 'noop',
+    enabled: false,
   };
 }
 
@@ -529,6 +550,102 @@ async function sendTelegramMessage(
   }
 }
 
+// Discord renders the webhook `content` field as Markdown, whereas Telegram
+// renders our payload as plain text. Escape Markdown so notes, titles, and
+// branches read literally on Discord, matching Telegram. The intentional
+// `[label](url)` link spans are emitted unescaped by buildDiscordContent.
+//
+// Brackets and parens are escaped too: free-form text (e.g. a review note
+// derived from lower-trust AI review comments) containing `[text](url)` must
+// not render as a live masked link in the channel.
+//
+// Inline markers can fire anywhere on a line; block markers (headings,
+// blockquotes, bullet/ordered lists, subtext) only fire at the start of a
+// line, so escaping is applied per line.
+const DISCORD_INLINE_METACHARACTERS = /[\\`*_~|[\]()]/g;
+const DISCORD_LINE_START_MARKER = /^(\s*)(-#|#{1,3}|>{1,3}|[-+]|\d+\.)(?=\s)/;
+
+function escapeDiscordMarkdown(text: string): string {
+  return text
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(DISCORD_INLINE_METACHARACTERS, (char) => `\\${char}`)
+        .replace(DISCORD_LINE_START_MARKER, (_match, leading, marker) =>
+          // Ordered lists trigger on `N.`; escape the dot. Every other block
+          // marker is neutralized by escaping its leading symbol.
+          /^\d/.test(marker)
+            ? `${leading}${marker.replace('.', '\\.')}`
+            : `${leading}\\${marker}`,
+        ),
+    )
+    .join('\n');
+}
+
+export function buildDiscordContent(payload: NotificationPayload): string {
+  const { entities, text } = payload;
+
+  if (!entities || entities.length === 0) {
+    return escapeDiscordMarkdown(text);
+  }
+
+  // The payload's `text_link` entities are platform-neutral position data
+  // (offset/length/url). Build the content left-to-right: escape the prose
+  // between links and splice each in-range entity into a real Markdown link.
+  // Out-of-range or overlapping entities are skipped so a malformed offset
+  // degrades to plain (escaped) text instead of emitting a broken link.
+  const ordered = [...entities]
+    .filter(
+      (entity) =>
+        entity.offset >= 0 && entity.offset + entity.length <= text.length,
+    )
+    .sort((a, b) => a.offset - b.offset);
+
+  let content = '';
+  let cursor = 0;
+
+  for (const entity of ordered) {
+    if (entity.offset < cursor) {
+      continue;
+    }
+
+    content += escapeDiscordMarkdown(text.slice(cursor, entity.offset));
+    content += `[${text.slice(entity.offset, entity.offset + entity.length)}](${entity.url})`;
+    cursor = entity.offset + entity.length;
+  }
+
+  content += escapeDiscordMarkdown(text.slice(cursor));
+
+  return content;
+}
+
+async function sendDiscordMessage(
+  webhookUrl: string,
+  payload: NotificationPayload,
+): Promise<void> {
+  const response = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      content: buildDiscordContent(payload),
+      flags: DISCORD_SUPPRESS_EMBEDS_FLAG,
+      // Milestone messages are informational: never parse mentions so a
+      // free-form ticket title or review note cannot accidentally ping a role
+      // or @everyone.
+      allowed_mentions: { parse: [] },
+    }),
+    signal: AbortSignal.timeout(DISCORD_SEND_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Discord webhook failed with ${response.status}: ${await response.text()}`,
+    );
+  }
+}
+
 function formatError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -547,9 +664,14 @@ export async function notifyBestEffort(
   }
 
   try {
-    await sendTelegramMessage(notifier.botToken, notifier.chatId, {
-      ...buildNotificationPayload(cwd, event),
-    });
+    const payload = buildNotificationPayload(cwd, event);
+
+    if (notifier.kind === 'telegram') {
+      await sendTelegramMessage(notifier.botToken, notifier.chatId, payload);
+    } else {
+      await sendDiscordMessage(notifier.webhookUrl, payload);
+    }
+
     return undefined;
   } catch (error) {
     return `Notification warning: ${formatError(error)}`;
