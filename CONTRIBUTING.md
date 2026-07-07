@@ -144,6 +144,37 @@ Knobs in `~/.codogotchi/config.json`:
 
 [`codogotchi.app/gallery`](https://codogotchi.app/gallery) is the community marketplace. Pets install into `${CODOGOTCHI_HOME:-~/.codogotchi}/pets/<pet-id>/`, ready to pick in **Settings → Pet**. Publishing requires sign-in at [`/upload`](https://codogotchi.app/upload); every upload is server-validated, stripped to an allowlist, and re-packed into a canonical zip — the trust boundary is at upload. Minimum bar: a **Codex + Lite-Basic** pet (use [`hatch-codogotchi`](plugins/hatch-codogotchi/README.md) to generate one). Operators can unlist instantly; takedowns go to admin@codogotchi.app.
 
+## How to actually get involved
+
+Reading the architecture is step one. Here's how to turn that into a merged PR.
+
+1. **Fork the repo and clone your fork.** `bun install`, then `bun run ci:quiet` — should pass clean.
+2. **Pick an issue sized to your comfort level** (see the difficulty scale below), or open one yourself if you found a gap while reading [START-HERE.md](START-HERE.md) or the [dev guide](https://codogotchi.app).
+3. **Branch from `main`.** Make your change; add/update a test if you touched `packages/engine/` or `packages/contracts/`; run `bun run ci:quiet` (and `bun run mac:test` if you touched `apps/menubar/`) before opening the PR.
+4. **Open a PR.** One logical change per PR. Reference the issue it closes.
+5. **Design questions before code.** If your idea reshapes a contract (`state.d/`, `customization.json`, `assignments.json`) or touches more than one of the five pieces, open an issue (or comment on the [v3 roadmap discussion](https://github.com/cesarnml/codogotchi/discussions)) first — a brief discussion before a PR saves everyone time.
+
+### Picking an issue (difficulty points)
+
+Issues are labeled with a difficulty estimate on a Fibonacci scale, so you can match an issue to your comfort level. Higher is harder — it reflects breadth and design judgment, not just lines of code.
+
+| Label | Meaning |
+| --- | --- |
+| `difficulty: 1` | Trivial — a one-liner or typo fix. |
+| `difficulty: 2` | Easy — a focused change with a clear pattern to copy. |
+| `difficulty: 3` | Moderate — the sweet spot; some breadth or judgment. |
+| `difficulty: 5` | Involved — touches multiple areas or needs design care. |
+| `difficulty: 8` | Hard — architectural; not a first issue. |
+
+No issue is rated above `8`. **If you're new, start with a `2` or `3`.** Save the `5`s and `8`s for after you've landed one.
+
+```bash
+gh issue list --label "difficulty: 2"
+gh issue list --label "difficulty: 3"
+```
+
+`good first issue` is also in play for anything cross-cutting with `difficulty: 1`–`2`. `art` is for pet sprite/animation work — no Swift required.
+
 ## Contracts to read before extending
 
 - [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md) — closed-enum state vocabulary the hook writes and the app reads (Swift `StateJsonReader`).

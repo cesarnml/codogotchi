@@ -1,6 +1,22 @@
 
 # Contributor Covenant Code of Conduct
 
+> **New contributor, or joining through a course?** Welcome — Codogotchi
+> is a friendly place to make your first open-source contribution. A few
+> things to set expectations:
+>
+> - **Questions are welcome.** If a setup step, an issue, or a piece of the
+>   architecture is unclear, open an issue with the `question` label, or ask
+>   directly in your pull request. "I don't understand X yet" is a completely
+>   valid thing to say.
+> - **Mistakes are expected.** A broken build, a force-push you regret, or a
+>   PR that needs a few rounds of revision is normal — nobody was born
+>   knowing Swift/AppKit or `git rebase`. We'll be patient; please be patient
+>   with yourself.
+> - **Read [CONTRIBUTING.md](CONTRIBUTING.md) first.** It walks through
+>   setup, the repo layout, and how to pick an issue sized to your comfort
+>   level.
+
 ## Our Pledge
 
 We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, caste, color, religion, or sexual identity and orientation.
