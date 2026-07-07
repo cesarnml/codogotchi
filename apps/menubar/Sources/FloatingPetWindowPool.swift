@@ -34,6 +34,14 @@ final class FloatingPetWindowPool {
 	/// Reads a session's platform-auto-generated thread title given its
 	/// `(origin, session_id)` identity, or `nil` when unsupported/unresolved.
 	typealias SessionTitleReader = (String, String) -> String?
+	/// Reads a session's previously-resolved thread title from the on-disk
+	/// cache, given its window key, or `nil` when never cached. Consulted
+	/// BEFORE `sessionTitleReader` so a relaunch doesn't repeat the disk/
+	/// subprocess cost of the original resolution.
+	typealias RetrievedSessionTitleReader = (String) -> String?
+	/// Persists a freshly-resolved thread title to the on-disk cache, given
+	/// its window key.
+	typealias RetrievedSessionTitleWriter = (String, String) -> Void
 
 	private let assignmentsReader: AssignmentsReader
 	private let customizationReader: CustomizationReader
@@ -42,6 +50,8 @@ final class FloatingPetWindowPool {
 	private let sessionLabelReader: SessionLabelReader
 	private let sessionPromptSummaryReader: SessionPromptSummaryReader
 	private let sessionTitleReader: SessionTitleReader
+	private let retrievedSessionTitleReader: RetrievedSessionTitleReader
+	private let retrievedSessionTitleWriter: RetrievedSessionTitleWriter
 	private let now: () -> Date
 
 	/// Active windows keyed by window key (the resolved render key, or "combined").
@@ -91,13 +101,21 @@ final class FloatingPetWindowPool {
 	/// snapshot would silently no-op and leak the number under a bounded cap.
 	private var windowSessionIdentities: [String: RenderKeyIdentity] = [:]
 	/// Platform-auto-generated thread title resolved for each session-keyed
-	/// window key, once found. `sessionTitleReader` hits disk (another app's
-	/// storage, outside `~/.codogotchi/`), so a `nil` result is retried every
-	/// tick — the platform may not have titled the thread yet — but a
-	/// resolved title is cached here and never re-fetched, since these
-	/// titles rarely change after generation. Cleared alongside
-	/// `windowSessionIdentities` in `releaseSessionNumber` so a later session
-	/// reusing the same window key starts with a fresh lookup.
+	/// window key, once found. This is the in-process hot cache only —
+	/// `RetrievedSessionTitleStore` (via `retrievedSessionTitleReader`/
+	/// `retrievedSessionTitleWriter`) is the on-disk cache that survives a
+	/// relaunch, consulted first so a resolved title never needs to hit
+	/// `sessionTitleReader`'s disk/subprocess cost twice. A `nil` result from
+	/// both is retried every tick — the platform may not have titled the
+	/// thread yet — but a resolved title, once found, is never re-fetched,
+	/// since these titles rarely change after generation. This in-memory
+	/// entry is cleared alongside `windowSessionIdentities` in
+	/// `releaseSessionNumber`, but the on-disk entry is deliberately left in
+	/// place — a hide/show or TTL-dismiss-then-respawn of the SAME session
+	/// should still hit the disk cache rather than re-resolving from
+	/// scratch. The on-disk entry only disappears via the same orphan-label
+	/// sweep and manual "Prune Session" path that clean up
+	/// `session-labels.json`.
 	private var resolvedSessionTitles: [String: String] = [:]
 	/// Free-list session-number allocator, keyed per-origin internally.
 	/// Assign/release only apply to session-keyed windows (an `origin:session_id`
@@ -245,6 +263,18 @@ final class FloatingPetWindowPool {
 		sessionTitleReader: @escaping SessionTitleReader = { origin, sessionId in
 			SessionTitleResolver.title(forOrigin: origin, sessionId: sessionId)
 		},
+		// No production-disk defaults, unlike sessionLabelReader/sessionTitleReader
+		// above (both read-only): the writer half of this pair writes through to
+		// disk on every freshly-resolved title, and the test suite reuses the same
+		// handful of session keys (e.g. "codex:s1") across dozens of tests that
+		// don't override these two — a real-disk default here would let one test's
+		// resolved title leak into every later test (in this run AND every future
+		// run) that shares its key, and would silently pollute the developer's
+		// real ~/.codogotchi/retrieved-session-labels.json. Mirrors the
+		// hiddenKeysLoader/hiddenKeysSaver precedent below. Production wiring
+		// happens explicitly in MenubarApp.
+		retrievedSessionTitleReader: @escaping RetrievedSessionTitleReader = { _ in nil },
+		retrievedSessionTitleWriter: @escaping RetrievedSessionTitleWriter = { _, _ in },
 		// No production-disk defaults: unlike assignmentsReader/customizationReader
 		// (read-only, idempotent), a hidden-keys default that wrote through to
 		// AppStateStore would make every setVisible() call in the test suite — which
@@ -263,6 +293,8 @@ final class FloatingPetWindowPool {
 		self.sessionLabelReader = sessionLabelReader
 		self.sessionPromptSummaryReader = sessionPromptSummaryReader
 		self.sessionTitleReader = sessionTitleReader
+		self.retrievedSessionTitleReader = retrievedSessionTitleReader
+		self.retrievedSessionTitleWriter = retrievedSessionTitleWriter
 		self.hiddenKeysSaver = hiddenKeysSaver
 		self.now = now
 		self.idleEscalationEnvironment = idleEscalationEnvironment
@@ -913,17 +945,19 @@ final class FloatingPetWindowPool {
 
 	/// Manual "Prune Session" (P15.07, right-click on a session-keyed window):
 	/// tears down the panel and destroys its state.d slice, free-list number,
-	/// and session-labels.json key — the same end-state as automatic TTL
-	/// expiry plus the orphan-label sweep. No-op for a plain-origin/"combined"
-	/// window, since those are never session-keyed. `stateDirectory` is the
-	/// live `state.d/` path (`config.pollingTarget.path`), passed by the
-	/// caller so this pool never hardcodes a filesystem location. `labelPath`
-	/// defaults to the real `session-labels.json` location and exists as a
-	/// parameter purely so tests can redirect it, mirroring `sessionLabelReader`.
+	/// session-labels.json key, and retrieved-session-labels.json cached
+	/// title — the same end-state as automatic TTL expiry plus the orphan
+	/// sweeps. No-op for a plain-origin/"combined" window, since those are
+	/// never session-keyed. `stateDirectory` is the live `state.d/` path
+	/// (`config.pollingTarget.path`), passed by the caller so this pool never
+	/// hardcodes a filesystem location. `labelPath`/`retrievedTitlePath`
+	/// default to the real sidecar file locations and exist as parameters
+	/// purely so tests can redirect them, mirroring `sessionLabelReader`.
 	func pruneSession(
 		windowKey: String,
 		stateDirectory: String,
-		labelPath: String = SessionLabelStore.path()
+		labelPath: String = SessionLabelStore.path(),
+		retrievedTitlePath: String = RetrievedSessionTitleStore.path()
 	) {
 		guard isSessionKeyed(windowKey),
 			let identity = windowSessionIdentities[windowKey] ?? currentRenderKeyIdentities[windowKey]
@@ -932,6 +966,7 @@ final class FloatingPetWindowPool {
 		windows.removeValue(forKey: windowKey)
 		windowSpawnedModes.removeValue(forKey: windowKey)
 		windowSessionIdentities.removeValue(forKey: windowKey)
+		resolvedSessionTitles.removeValue(forKey: windowKey)
 		prunedOrigins.insert(identity.origin)
 		SessionPruner.pruneSession(
 			windowKey: windowKey,
@@ -939,7 +974,8 @@ final class FloatingPetWindowPool {
 			sessionId: identity.sessionId,
 			stateDirectory: stateDirectory,
 			allocator: sessionNumberAllocator,
-			labelPath: labelPath
+			labelPath: labelPath,
+			retrievedTitlePath: retrievedTitlePath
 		)
 	}
 
@@ -1057,14 +1093,24 @@ final class FloatingPetWindowPool {
 	/// Resolves and caches `key`'s platform-auto-generated thread title (see
 	/// `resolvedSessionTitles`), or `nil` for a plain-origin/"combined"
 	/// window, or a session-keyed window the platform hasn't titled (yet, or
-	/// ever, e.g. an unsupported origin). A cached hit skips
-	/// `sessionTitleReader` entirely — resolution touches another app's
-	/// on-disk storage, so a title once found is never re-fetched.
+	/// ever, e.g. an unsupported origin). Checks the in-memory cache, then
+	/// `RetrievedSessionTitleStore`'s on-disk cache (cheap — a JSON dict
+	/// lookup, no directory walk or subprocess), before finally falling
+	/// through to `sessionTitleReader` — resolution touches another app's
+	/// on-disk storage, so a title once found (from either cache or a fresh
+	/// resolve) is never re-fetched. A fresh resolve is written through to
+	/// the on-disk cache so a later relaunch skips straight to the second
+	/// check.
 	private func resolveSessionTitle(forWindowKey key: String) -> String? {
 		if let cached = resolvedSessionTitles[key] { return cached }
 		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return nil }
+		if let persisted = retrievedSessionTitleReader(key) {
+			resolvedSessionTitles[key] = persisted
+			return persisted
+		}
 		guard let title = sessionTitleReader(identity.origin, identity.sessionId) else { return nil }
 		resolvedSessionTitles[key] = title
+		retrievedSessionTitleWriter(key, title)
 		return title
 	}
 

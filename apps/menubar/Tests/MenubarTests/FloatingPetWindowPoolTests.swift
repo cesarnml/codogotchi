@@ -2874,6 +2874,71 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Locate session auto label")
 	}
 
+	// The on-disk `RetrievedSessionTitleStore` cache is consulted BEFORE
+	// `sessionTitleReader` — a title already cached from a prior run (or a
+	// prior window for the same session) must resolve without ever touching
+	// the (expensive) platform-lookup reader.
+	func testSessionKeyedWindowConsultsPersistedTitleCacheBeforeFetching() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		var readerCallCount = 0
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { _, _ in
+				readerCallCount += 1
+				return "Freshly fetched"
+			},
+			retrievedSessionTitleReader: { key in
+				key == "codex:s1" ? "Cached from a prior run" : nil
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization
+		))
+
+		XCTAssertEqual(readerCallCount, 0, "a persisted cache hit must never fall through to the platform fetch")
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Cached from a prior run")
+	}
+
+	// A freshly-resolved title (persisted cache miss) is written through to
+	// the on-disk store exactly once, so a later relaunch can skip the fetch.
+	func testSessionKeyedWindowWritesFreshlyResolvedTitleThroughToPersistedCache() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		var writtenEntries: [(String, String)] = []
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { _, _ in "Locate session auto label" },
+			retrievedSessionTitleReader: { _ in nil },
+			retrievedSessionTitleWriter: { key, title in writtenEntries.append((key, title)) }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization
+		))
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:01.000Z")],
+			customization: customization
+		))
+
+		XCTAssertEqual(writtenEntries.count, 1, "the write-through must happen exactly once, not every tick")
+		XCTAssertEqual(writtenEntries.first?.0, "codex:s1")
+		XCTAssertEqual(writtenEntries.first?.1, "Locate session auto label")
+	}
+
 	/// Mirrors `testSessionKeyedWindowWithSidecarLabelDisplaysItInsteadOfSessionN`
 	/// for `applySessionTooltip` — the pool-level path was previously untested
 	/// even though the label path had symmetric coverage.

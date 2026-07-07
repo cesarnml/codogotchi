@@ -484,6 +484,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					}
 					return controller
 				},
+				retrievedSessionTitleReader: { RetrievedSessionTitleStore.title(for: $0) },
+				retrievedSessionTitleWriter: { key, title in
+					RetrievedSessionTitleStore.setTitle(title, for: key)
+				},
 				hiddenKeysLoader: { AppStateStore.loadHiddenWindowKeys() },
 				hiddenKeysSaver: { try? AppStateStore.saveHiddenWindowKeys($0) }
 			)

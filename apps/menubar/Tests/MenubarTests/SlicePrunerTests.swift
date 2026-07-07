@@ -137,4 +137,41 @@ final class SlicePrunerTests: XCTestCase {
 		let labelsFile = dir.appendingPathComponent("session-labels.json")
 		XCTAssertEqual(SlicePruner.pruneOrphanLabels(dir: dir.path, labelPath: labelsFile.path), 0)
 	}
+
+	// MARK: - Orphan retrieved-title hygiene (mirrors orphan label hygiene)
+
+	func testPruneOrphanRetrievedTitlesRemovesKeyWhoseSliceIsGone() {
+		let titlesFile = dir.appendingPathComponent("retrieved-session-labels.json")
+		writeSlice("codex:live.json", mtimeAgo: 0)
+		RetrievedSessionTitleStore.setTitle("Live thread", for: "codex:live", at: titlesFile.path)
+		RetrievedSessionTitleStore.setTitle("Ghost thread", for: "codex:ghost", at: titlesFile.path)
+
+		let removed = SlicePruner.pruneOrphanRetrievedTitles(dir: dir.path, storePath: titlesFile.path)
+
+		XCTAssertEqual(removed, 1)
+		XCTAssertEqual(
+			RetrievedSessionTitleStore.title(for: "codex:live", at: titlesFile.path), "Live thread",
+			"a cached title whose slice still exists must survive")
+		XCTAssertNil(
+			RetrievedSessionTitleStore.title(for: "codex:ghost", at: titlesFile.path),
+			"a cached title whose slice no longer exists must be removed")
+	}
+
+	func testPruneOrphanRetrievedTitlesIsNoOpWhenStoreFileMissing() {
+		let titlesFile = dir.appendingPathComponent("retrieved-session-labels.json")
+		XCTAssertEqual(SlicePruner.pruneOrphanRetrievedTitles(dir: dir.path, storePath: titlesFile.path), 0)
+	}
+
+	// Plain-origin/"combined" keys never correspond to a slice filename, so
+	// they must survive the sweep regardless of live slices — mirrors the
+	// same guarantee `pruneOrphanLabels` gives `session-labels.json`.
+	func testPruneOrphanRetrievedTitlesNeverRemovesPlainOriginKey() {
+		let titlesFile = dir.appendingPathComponent("retrieved-session-labels.json")
+		RetrievedSessionTitleStore.setTitle("Persistent", for: "codex", at: titlesFile.path)
+
+		let removed = SlicePruner.pruneOrphanRetrievedTitles(dir: dir.path, storePath: titlesFile.path)
+
+		XCTAssertEqual(removed, 0)
+		XCTAssertEqual(RetrievedSessionTitleStore.title(for: "codex", at: titlesFile.path), "Persistent")
+	}
 }
