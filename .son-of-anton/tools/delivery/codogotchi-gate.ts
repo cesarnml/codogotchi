@@ -1,7 +1,11 @@
 import {
   appendFileSync,
+  existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
@@ -48,6 +52,7 @@ export type GateJsonPayload = {
 const GATE_JSON_FILENAME = 'gate.json';
 const GATE_TRANSITIONS_LOG_FILENAME = 'gate-transitions.log';
 const DELIVERY_CONTEXT_JSON_FILENAME = 'delivery-context.json';
+const GATE_TRANSITIONS_LOG_ROTATION_BYTES = 10 * 1024 * 1024;
 
 export type DeliveryContextJsonPayload = {
   owner: 'soa';
@@ -132,6 +137,15 @@ function readActiveSession(repoRoot: string): ActiveSession {
   return { origin: undefined, sessionId: undefined };
 }
 
+function rotateGateTransitionsLogIfNeeded(path: string): void {
+  if (!existsSync(path)) return;
+  if (statSync(path).size <= GATE_TRANSITIONS_LOG_ROTATION_BYTES) return;
+
+  const backupPath = `${path}.1`;
+  if (existsSync(backupPath)) rmSync(backupPath);
+  renameSync(path, backupPath);
+}
+
 export async function writeGateEvent(
   config: ResolvedOrchestratorConfig,
   event: GateEvent,
@@ -170,11 +184,9 @@ export async function writeGateEvent(
     const serialized = JSON.stringify(payload);
     writeFileSync(gateFile, serialized, 'utf8');
 
-    appendFileSync(
-      join(home, GATE_TRANSITIONS_LOG_FILENAME),
-      `${serialized}\n`,
-      'utf8',
-    );
+    const transitionsLogFile = join(home, GATE_TRANSITIONS_LOG_FILENAME);
+    rotateGateTransitionsLogIfNeeded(transitionsLogFile);
+    appendFileSync(transitionsLogFile, `${serialized}\n`, 'utf8');
 
     const contextPayload: DeliveryContextJsonPayload = {
       owner: 'soa',

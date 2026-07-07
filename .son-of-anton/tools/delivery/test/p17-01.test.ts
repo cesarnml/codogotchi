@@ -129,6 +129,38 @@ describe('P17.01 — writeGateEvent produces gate.json with correct shape', () =
     }
   });
 
+  it('rotates gate-transitions.log to a single .1 backup when over 10 MiB', async () => {
+    const home = makeTmpDir();
+    const logFile = join(home, 'gate-transitions.log');
+    const backupFile = join(home, 'gate-transitions.log.1');
+    const secondBackupFile = join(home, 'gate-transitions.log.2');
+    process.env['CODOGOTCHI_HOME'] = home;
+    try {
+      writeFileSync(logFile, 'x'.repeat(10 * 1024 * 1024 + 1), 'utf8');
+      writeFileSync(backupFile, 'stale backup', 'utf8');
+
+      await writeGateEvent(enabledConfig(), {
+        gate: 'ticket_started',
+        planKey: 'phase-17',
+        ticketId: 'P17.01',
+        repoRoot: '/tmp/soa-repo',
+      });
+
+      const rotated = await readFile(backupFile, 'utf8');
+      expect(rotated).toHaveLength(10 * 1024 * 1024 + 1);
+      expect(rotated.startsWith('x')).toBe(true);
+      expect(existsSync(secondBackupFile)).toBe(false);
+
+      const raw = await readFile(logFile, 'utf8');
+      const lines = raw.trim().split('\n');
+      expect(lines).toHaveLength(1);
+      const parsed = JSON.parse(lines[0]);
+      expect(parsed.gate).toBe('ticket_started');
+    } finally {
+      delete process.env['CODOGOTCHI_HOME'];
+    }
+  });
+
   it('sets expires_at to since + 30_000 ms (flat 30-second TTL)', async () => {
     const home = makeTmpDir();
     process.env['CODOGOTCHI_HOME'] = home;
