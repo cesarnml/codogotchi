@@ -206,6 +206,21 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		applyBadge()
 	}
 
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	) {
+		badgeView.applyPromptTimerObservation(
+			state: state,
+			updatedAt: updatedAt,
+			sourceEvent: sourceEvent,
+			attention: attention
+		)
+		applyBadge()
+	}
+
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
 		currentAttention = payload?.isExpired() == true ? nil : payload
 		currentSourceEvent = sourceEvent
@@ -513,11 +528,29 @@ private final class MinimalistBadgeView: NSView {
 			text: activity.displayLabel,
 			platform: platform,
 			inFlight: activity.isInFlight,
+			promptTimer: promptTimer.presentation(),
 			metrics: metrics
 		)
 		sessionBadge.configure(
 			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,
 			metrics: metrics)
+		syncPromptTimerHeartbeat()
+	}
+
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	) {
+		promptTimer.observe(
+			state: state,
+			updatedAt: updatedAt,
+			sourceEvent: sourceEvent,
+			attention: attention
+		)
+		animationBadge.configurePromptTimer(promptTimer.presentation())
+		syncPromptTimerHeartbeat()
 	}
 
 	/// Latest session number/label/tooltip applied via `configureSessionNumber`.
@@ -528,6 +561,25 @@ private final class MinimalistBadgeView: NSView {
 	/// to "Session N". Also prefills the rename alert's text field.
 	private var currentSessionLabel: String?
 	private var currentSessionTooltip: String?
+	private var promptTimer = PromptTimerTracker()
+	private var promptTimerHeartbeat: Timer?
+
+	private func syncPromptTimerHeartbeat() {
+		guard promptTimer.currentStatus()?.isRunning == true else {
+			promptTimerHeartbeat?.invalidate()
+			promptTimerHeartbeat = nil
+			return
+		}
+		guard promptTimerHeartbeat == nil else { return }
+		promptTimerHeartbeat = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+			Task { @MainActor in
+				guard let self else { return }
+				self.animationBadge.configurePromptTimer(self.promptTimer.presentation())
+				self.syncPromptTimerHeartbeat()
+				self.layoutSubtreeIfNeeded()
+			}
+		}
+	}
 
 	/// Shows/hides and labels the session badge row. A session-keyed window
 	/// (`number` non-`nil`) shows "Session N" unless renamed; a plain-origin/
@@ -1024,6 +1076,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// Last submitted prompt for this session, shown as a delayed hover
 	/// tooltip on the session badge.
 	private var currentSessionTooltip: String?
+	private var promptTimer = PromptTimerTracker()
+	private var promptTimerHeartbeat: Timer?
 	/// Fired with the trimmed/capped label the user commits via the
 	/// right-click rename affordance. Wired by the caller (`MenubarApp`) to
 	/// persist to `SessionLabelStore` — this panel never writes the sidecar.
@@ -1639,6 +1693,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
+			promptTimer: promptTimer.presentation(),
 			sessionNumber: currentSessionNumber,
 			sessionLabel: currentSessionLabel,
 			sessionTooltip: currentSessionTooltip,
@@ -1646,6 +1701,22 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			visibleFrame: visibleFrameProvider()
 		)
 		badge.orderFrontRegardless()
+	}
+
+	private func syncPromptTimerHeartbeat() {
+		guard promptTimer.currentStatus()?.isRunning == true else {
+			promptTimerHeartbeat?.invalidate()
+			promptTimerHeartbeat = nil
+			return
+		}
+		guard promptTimerHeartbeat == nil else { return }
+		promptTimerHeartbeat = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+			Task { @MainActor in
+				guard let self else { return }
+				self.repositionAndShowAnimationBadge()
+				self.syncPromptTimerHeartbeat()
+			}
+		}
 	}
 
 	/// Badge copy: the escalated idle label ("Impatient"/"Frustrated") when the
@@ -1673,6 +1744,22 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		(panel?.contentView as? FloatingPetInteractionView)?.isForceIdleAvailable =
 			FloatingPetHidePrompt.offersForceIdle(for: state)
 		// Refresh the animation badge label; no-op while the pet is hidden.
+		repositionAndShowAnimationBadge()
+	}
+
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	) {
+		promptTimer.observe(
+			state: state,
+			updatedAt: updatedAt,
+			sourceEvent: sourceEvent,
+			attention: attention
+		)
+		syncPromptTimerHeartbeat()
 		repositionAndShowAnimationBadge()
 	}
 
@@ -2436,6 +2523,7 @@ final class AnimationBadgePanel: NSPanel {
 		label: String,
 		platform: PlatformAttribution?,
 		inFlight: Bool,
+		promptTimer: PromptTimerPresentation? = nil,
 		sessionNumber: Int? = nil,
 		sessionLabel: String? = nil,
 		sessionTooltip: String? = nil,
@@ -2446,6 +2534,7 @@ final class AnimationBadgePanel: NSPanel {
 			text: label,
 			platform: platform,
 			inFlight: inFlight,
+			promptTimer: promptTimer,
 			metrics: AnimationBadgeLayout.metrics(for: petFrame)
 		)
 		badgeView.configureSessionNumber(sessionNumber, label: sessionLabel, tooltip: sessionTooltip)
@@ -2584,6 +2673,131 @@ final class PlatformChipView: NSView {
 		for constraint in glyphInsetConstraints {
 			constraint.constant = (constraint.constant < 0 ? -1 : 1) * metrics.verticalPadding
 		}
+		AnimationBadgeChrome.apply(to: self, effect: effectView, tint: tintView, cornerRadius: metrics.cornerRadius)
+	}
+}
+
+final class PromptTimerChipView: NSView {
+	private let chipView = TimerIconChipView(frame: .zero)
+	private let label = NSTextField(labelWithString: "")
+	private let stackView = NSStackView()
+	private var metrics = GateBadgeLayout.metrics(
+		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
+	)
+
+	override init(frame frameRect: NSRect) {
+		super.init(frame: frameRect)
+		stackView.orientation = .horizontal
+		stackView.alignment = .centerY
+		stackView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(stackView)
+		stackView.addArrangedSubview(chipView)
+		stackView.addArrangedSubview(label)
+
+		label.lineBreakMode = .byTruncatingTail
+		label.maximumNumberOfLines = 1
+		label.textColor = AnimationBadgeChrome.textColor
+		label.translatesAutoresizingMaskIntoConstraints = false
+		NSLayoutConstraint.activate([
+			stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			stackView.topAnchor.constraint(equalTo: topAnchor),
+			stackView.bottomAnchor.constraint(equalTo: bottomAnchor),
+		])
+		applyMetrics()
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func configure(presentation: PromptTimerPresentation, metrics: GateBadgeLayout.Metrics) {
+		self.metrics = metrics
+		label.stringValue = presentation.label
+		label.alphaValue = presentation.isRunning ? 1.0 : 0.72
+		chipView.configure(metrics: metrics, isRunning: presentation.isRunning)
+		applyMetrics()
+		invalidateIntrinsicContentSize()
+	}
+
+	override var intrinsicContentSize: NSSize {
+		let labelSize = label.intrinsicContentSize
+		return NSSize(
+			width: metrics.badgeHeight + stackView.spacing + labelSize.width,
+			height: metrics.badgeHeight
+		)
+	}
+
+	private func applyMetrics() {
+		label.font = NSFont.monospacedDigitSystemFont(ofSize: metrics.fontSize, weight: .medium)
+		stackView.spacing = max(2, round(metrics.interBadgeSpacing * 0.55))
+	}
+}
+
+private final class TimerIconChipView: NSView {
+	private let effectView = AnimationBadgeChrome.makeEffectView()
+	private let tintView = AnimationBadgeChrome.makeTintView()
+	private let imageView = NSImageView()
+	private var metrics = GateBadgeLayout.metrics(
+		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
+	)
+	private var sideConstraint: NSLayoutConstraint?
+	private var glyphInsetConstraints: [NSLayoutConstraint] = []
+
+	override init(frame frameRect: NSRect) {
+		super.init(frame: frameRect)
+		wantsLayer = true
+		layer?.masksToBounds = false
+		addSubview(effectView)
+		addSubview(tintView)
+
+		imageView.imageScaling = .scaleProportionallyUpOrDown
+		imageView.contentTintColor = AnimationBadgeChrome.textColor
+		imageView.translatesAutoresizingMaskIntoConstraints = false
+		if let image = NSImage(systemSymbolName: "timer", accessibilityDescription: "Prompt timer") {
+			image.isTemplate = true
+			imageView.image = image
+		}
+		addSubview(imageView)
+
+		let side = widthAnchor.constraint(equalToConstant: metrics.badgeHeight)
+		let height = heightAnchor.constraint(equalTo: widthAnchor)
+		let inset = metrics.verticalPadding
+		glyphInsetConstraints = [
+			imageView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: inset),
+			imageView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -inset),
+			imageView.topAnchor.constraint(equalTo: topAnchor, constant: inset),
+			imageView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -inset),
+		]
+		sideConstraint = side
+		NSLayoutConstraint.activate([
+			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			effectView.topAnchor.constraint(equalTo: topAnchor),
+			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			tintView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			tintView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			tintView.topAnchor.constraint(equalTo: topAnchor),
+			tintView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			side,
+			height,
+		] + glyphInsetConstraints)
+		applyMetrics(isRunning: true)
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func configure(metrics: GateBadgeLayout.Metrics, isRunning: Bool) {
+		self.metrics = metrics
+		applyMetrics(isRunning: isRunning)
+	}
+
+	private func applyMetrics(isRunning: Bool) {
+		sideConstraint?.constant = metrics.badgeHeight
+		for constraint in glyphInsetConstraints {
+			constraint.constant = (constraint.constant < 0 ? -1 : 1) * metrics.verticalPadding
+		}
+		imageView.alphaValue = isRunning ? 1.0 : 0.72
 		AnimationBadgeChrome.apply(to: self, effect: effectView, tint: tintView, cornerRadius: metrics.cornerRadius)
 	}
 }
@@ -2958,6 +3172,7 @@ final class PlatformSessionBadge: NSView {
 final class AnimationBadgeView: NSView {
 	private let chipView = PlatformChipView(frame: .zero)
 	private let pillView = AnimationLabelPillView(frame: .zero)
+	private let promptTimerView = PromptTimerChipView(frame: .zero)
 	private let stackView = NSStackView()
 	private let sessionBadge = PlatformSessionBadge(frame: .zero)
 	private let outerStack = NSStackView()
@@ -2967,6 +3182,7 @@ final class AnimationBadgeView: NSView {
 	private var currentSessionNumber: Int?
 	private var currentSessionLabel: String?
 	private var currentSessionTooltip: String?
+	private var currentPromptTimer: PromptTimerPresentation?
 
 	/// Forwards a right-click anywhere on the chip/pill/session-badge stack up
 	/// to `AnimationBadgePanel`, which converts it to a screen anchor. `nil`
@@ -3028,6 +3244,7 @@ final class AnimationBadgeView: NSView {
 		stackView.addArrangedSubview(pillView)
 
 		sessionBadge.isHidden = true
+		promptTimerView.isHidden = true
 
 		outerStack.orientation = .vertical
 		// `.leading` (not `.centerX`) pins the session badge row's leading edge to
@@ -3057,9 +3274,11 @@ final class AnimationBadgeView: NSView {
 		text: String,
 		platform: PlatformAttribution?,
 		inFlight: Bool,
+		promptTimer: PromptTimerPresentation? = nil,
 		metrics: GateBadgeLayout.Metrics
 	) {
 		self.metrics = metrics
+		currentPromptTimer = promptTimer
 		stackView.spacing = metrics.interBadgeSpacing
 		pillView.configure(text: text, inFlight: inFlight, metrics: metrics)
 		if let platform {
@@ -3071,9 +3290,16 @@ final class AnimationBadgeView: NSView {
 			stackView.removeArrangedSubview(chipView)
 			chipView.removeFromSuperview()
 		}
+		applyPromptTimerView()
 		sessionBadge.configure(
 			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,
 			metrics: metrics)
+		layoutSubtreeIfNeeded()
+	}
+
+	func configurePromptTimer(_ presentation: PromptTimerPresentation?) {
+		currentPromptTimer = presentation
+		applyPromptTimerView()
 		layoutSubtreeIfNeeded()
 	}
 
@@ -3108,7 +3334,27 @@ final class AnimationBadgeView: NSView {
 	/// with no chip it collapses to `width / 2` (centered, as before).
 	var pillCenterX: CGFloat {
 		layoutSubtreeIfNeeded()
-		return stackView.fittingSize.width - pillView.intrinsicContentSize.width / 2
+		let leadingWidth =
+			chipView.superview == nil
+			? 0
+			: chipView.intrinsicContentSize.width + stackView.spacing
+		return leadingWidth + pillView.intrinsicContentSize.width / 2
+	}
+
+	private func applyPromptTimerView() {
+		guard let currentPromptTimer else {
+			if promptTimerView.superview != nil {
+				stackView.removeArrangedSubview(promptTimerView)
+				promptTimerView.removeFromSuperview()
+			}
+			promptTimerView.isHidden = true
+			return
+		}
+		promptTimerView.configure(presentation: currentPromptTimer, metrics: metrics)
+		promptTimerView.isHidden = false
+		if promptTimerView.superview == nil {
+			stackView.addArrangedSubview(promptTimerView)
+		}
 	}
 }
 

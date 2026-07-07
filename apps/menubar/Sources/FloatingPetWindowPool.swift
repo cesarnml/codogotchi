@@ -698,6 +698,12 @@ final class FloatingPetWindowPool {
 				}
 			}
 			windows[renderKey]?.apply(state: state.activityState, visualMode: .normal)
+			windows[renderKey]?.applyPromptTimerObservation(
+				state: state.activityState,
+				updatedAt: state.updatedAt,
+				sourceEvent: state.sourceEvent,
+				attention: state.attention
+			)
 			windows[renderKey]?.applyAttention(
 				payload: state.attention,
 				sourceEvent: state.sourceEvent
@@ -771,6 +777,12 @@ final class FloatingPetWindowPool {
 						combinedWindowIsMinimalist = useMinimalist
 					}
 					windows["combined"]?.apply(state: winner.activityState, visualMode: .normal)
+					windows["combined"]?.applyPromptTimerObservation(
+						state: winner.activityState,
+						updatedAt: winner.updatedAt,
+						sourceEvent: winner.sourceEvent,
+						attention: winner.attention
+					)
 					windows["combined"]?.applyAttention(
 						payload: winner.attention,
 						sourceEvent: winner.sourceEvent

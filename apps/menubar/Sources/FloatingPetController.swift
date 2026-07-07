@@ -13,6 +13,12 @@ protocol FloatingPetVisibilityControlling: AnyObject {
 @MainActor
 protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	func apply(state: ActivityState, visualMode: VisualMode)
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	)
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
@@ -53,6 +59,12 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 }
 
 extension FloatingPetWindowControlling {
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	) {}
 	func applySessionNumber(_ number: Int?) {}
 	func applySessionLabel(_ label: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
@@ -67,6 +79,12 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func show(frame: CGRect)
 	func hide()
 	func apply(state: ActivityState, visualMode: VisualMode)
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	)
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
@@ -90,6 +108,12 @@ protocol FloatingPetPanelManaging: AnyObject {
 }
 
 extension FloatingPetPanelManaging {
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	) {}
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 	func applyGateBadge(content: GateBadgeContent?) {}
@@ -181,6 +205,20 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 
 	func apply(state: ActivityState, visualMode: VisualMode) {
 		panel.apply(state: state, visualMode: visualMode)
+	}
+
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	) {
+		panel.applyPromptTimerObservation(
+			state: state,
+			updatedAt: updatedAt,
+			sourceEvent: sourceEvent,
+			attention: attention
+		)
 	}
 
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
@@ -292,6 +330,12 @@ protocol MinimalistPanelManaging: AnyObject {
 	func hide()
 	func applyPlatform(origin: String?)
 	func applyActivity(_ state: ActivityState)
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyPromptSummary(_ summary: String)
 	func applyBadgeScale(_ scale: Double)
@@ -311,6 +355,12 @@ protocol MinimalistPanelManaging: AnyObject {
 }
 
 extension MinimalistPanelManaging {
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	) {}
 	func applySessionLabel(_ label: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 }
@@ -409,6 +459,20 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		panel.applyBadgeScale(badgeScaleProvider())
 		panel.applyActivity(state)
 		refreshPromptSummary()
+	}
+
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	) {
+		panel.applyPromptTimerObservation(
+			state: state,
+			updatedAt: updatedAt,
+			sourceEvent: sourceEvent,
+			attention: attention
+		)
 	}
 
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {

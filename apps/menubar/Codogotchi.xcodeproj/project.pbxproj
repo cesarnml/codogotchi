@@ -106,6 +106,8 @@
 		CBB4A3FDFAA87B468B862419 /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C36708DADAAEA372DF03A2A /* OnboardingWindowController.swift */; };
 		CE32F0392E2F266BFF009D8A /* FloatingPetWindowPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18A0E708A904133895944FBC /* FloatingPetWindowPool.swift */; };
 		CF736BFF3B43B832BDECC802 /* CustomizationTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B874012012EF33F829A2CD7 /* CustomizationTabViewModelTests.swift */; };
+		CFD5C0AE22C996C03621521C /* PromptTimerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6660BA8D585465422C1ABA1A /* PromptTimerTests.swift */; };
+		D064D1DBCBE4B0D0C928E2F2 /* PromptTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5667A5DA451495961FC5D9EF /* PromptTimer.swift */; };
 		D0D4F8896EC0F30182472D1C /* LivePollingDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03267BF299C29EE9DC11590 /* LivePollingDriver.swift */; };
 		D4B25DD9B2E2825856181DBC /* DeveloperTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B9E962BBA7B8B1B05F9F77 /* DeveloperTabViewModelTests.swift */; };
 		D6CCD2A3A92C90A80C5FA82D /* LivePollingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA2D403DBB111D997748F847 /* LivePollingTests.swift */; };
@@ -187,6 +189,7 @@
 		4D11EBC17493B9C4FD6FABC0 /* SessionSelectionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSelectionPolicy.swift; sourceTree = "<group>"; };
 		50592CBB8ED4543FDCF95E79 /* FloatingPetScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetScene.swift; sourceTree = "<group>"; };
 		51F75678F594BE19B610C7B4 /* SessionNumberAllocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNumberAllocator.swift; sourceTree = "<group>"; };
+		5667A5DA451495961FC5D9EF /* PromptTimer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTimer.swift; sourceTree = "<group>"; };
 		57120C267C3617C32AC0430F /* FloatingPetSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetSceneTests.swift; sourceTree = "<group>"; };
 		585425FAA416914A5706D550 /* CustomizationTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationTabViewModel.swift; sourceTree = "<group>"; };
 		5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLogTests.swift; sourceTree = "<group>"; };
@@ -194,6 +197,7 @@
 		5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrapTests.swift; sourceTree = "<group>"; };
 		61DFF543B14E3A888D094385 /* RpgStateReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RpgStateReader.swift; sourceTree = "<group>"; };
 		63448DB1F4F0A42702BBD634 /* RPGHUDPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDPanel.swift; sourceTree = "<group>"; };
+		6660BA8D585465422C1ABA1A /* PromptTimerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTimerTests.swift; sourceTree = "<group>"; };
 		6A1DBC9519F197404895246B /* ConflictBubbleRateLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubbleRateLimiter.swift; sourceTree = "<group>"; };
 		6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetImportHelperTests.swift; sourceTree = "<group>"; };
 		6C36708DADAAEA372DF03A2A /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
@@ -319,6 +323,7 @@
 				777877051ED12A63B5FD6ACB /* PetTabLayoutTests.swift */,
 				E0A9EA8AA7530DED8536C384 /* PetTabViewModelTests.swift */,
 				15EB23CFF7BEBC442A06A8B1 /* PlatformAttributionTests.swift */,
+				6660BA8D585465422C1ABA1A /* PromptTimerTests.swift */,
 				7D0B6066DEB36E24086A2094 /* ReloadActivePetResponsivenessTests.swift */,
 				9ED3AF1D653CB1A713C03DB4 /* RetrievedSessionTitleStoreTests.swift */,
 				78115EE1CE4F0AFD41CC1231 /* RPGHUDViewModelTests.swift */,
@@ -399,6 +404,7 @@
 				DEC685626D14E1B7F1A468CC /* PetTabViewModel.swift */,
 				7C42B8E74290342FE905D0AB /* PetThumbnail.swift */,
 				19D23A5CD119A7DB5B530305 /* PlatformAttribution.swift */,
+				5667A5DA451495961FC5D9EF /* PromptTimer.swift */,
 				04670894103592CA5FCBFF5C /* RenderKeyResolver.swift */,
 				F3915D3A77357DEE6ABF35B1 /* RetrievedSessionTitleStore.swift */,
 				63448DB1F4F0A42702BBD634 /* RPGHUDPanel.swift */,
@@ -615,6 +621,7 @@
 				00F9608A6921A6D7A6FD6454 /* PetTabViewModel.swift in Sources */,
 				ED9CBE0028B28AFCEB8987C9 /* PetThumbnail.swift in Sources */,
 				316AA2C6A8C406E70790A264 /* PlatformAttribution.swift in Sources */,
+				D064D1DBCBE4B0D0C928E2F2 /* PromptTimer.swift in Sources */,
 				28B80419A453FDCC6A0CD4F6 /* RPGHUDPanel.swift in Sources */,
 				BD51685E4C7A6B5F071523BE /* RPGHUDViewModel.swift in Sources */,
 				95749D5B92D2435B61E0B79D /* RPGTabViewModel.swift in Sources */,
@@ -681,6 +688,7 @@
 				708062CE5FDA296BC26AF17C /* PetTabLayoutTests.swift in Sources */,
 				7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */,
 				E93167AF2416BE06B2BAA308 /* PlatformAttributionTests.swift in Sources */,
+				CFD5C0AE22C996C03621521C /* PromptTimerTests.swift in Sources */,
 				A94729EE4E31C8A57629486A /* RPGHUDViewModelTests.swift in Sources */,
 				A4DE38B2FAB835D924339D92 /* RPGTabViewModelTests.swift in Sources */,
 				560036137684236CE680D9F3 /* ReloadActivePetResponsivenessTests.swift in Sources */,
