@@ -37,12 +37,16 @@ final class MenuItemsTests: XCTestCase {
 	private func makePool(
 		origins: [String],
 		renderKeyIdentities: [String: RenderKeyIdentity] = [:],
-		sessionLabelReader: @escaping FloatingPetWindowPool.SessionLabelReader = { _ in nil }
+		sessionLabelReader: @escaping FloatingPetWindowPool.SessionLabelReader = { _ in nil },
+		sessionTitleReader: @escaping FloatingPetWindowPool.SessionTitleReader = { _, _ in nil },
+		retrievedSessionTitleReader: @escaping FloatingPetWindowPool.RetrievedSessionTitleReader = { _ in nil }
 	) -> FloatingPetWindowPool {
 		let pool = FloatingPetWindowPool(
 			customizationReader: { .safeDefault },
 			windowFactory: { _, _ in StubWindow() },
-			sessionLabelReader: sessionLabelReader
+			sessionLabelReader: sessionLabelReader,
+			sessionTitleReader: sessionTitleReader,
+			retrievedSessionTitleReader: retrievedSessionTitleReader
 		)
 		if !origins.isEmpty {
 			let perPlatform = Dictionary(
@@ -387,6 +391,42 @@ final class MenuItemsTests: XCTestCase {
 
 		let titles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
 		XCTAssertTrue(titles.contains("Hide Claude Code - Refactor Sprint Pet"), "got \(titles)")
+		_ = pool  // keep alive
+	}
+
+	func testSessionKeyedOriginUsesRetrievedSessionTitleBeforeSessionNumber() {
+		let sessionKey = "codex:s1"
+		let pool = makePool(
+			origins: ["cursor", sessionKey],
+			renderKeyIdentities: [
+				sessionKey: RenderKeyIdentity(origin: "codex", sessionId: "s1")
+			],
+			retrievedSessionTitleReader: { key in key == sessionKey ? "Rename testing prompts" : nil }
+		)
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		let menu = builder.build()
+
+		let titles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
+		XCTAssertTrue(titles.contains("Hide Codex - Rename testing prompts Pet"), "got \(titles)")
+		_ = pool  // keep alive
+	}
+
+	func testSessionKeyedOriginPrefersCustomSessionLabelOverRetrievedSessionTitle() {
+		let sessionKey = "codex:s1"
+		let pool = makePool(
+			origins: ["cursor", sessionKey],
+			renderKeyIdentities: [
+				sessionKey: RenderKeyIdentity(origin: "codex", sessionId: "s1")
+			],
+			sessionLabelReader: { key in key == sessionKey ? "Manual label" : nil },
+			retrievedSessionTitleReader: { key in key == sessionKey ? "Rename testing prompts" : nil }
+		)
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		let menu = builder.build()
+
+		let titles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
+		XCTAssertTrue(titles.contains("Hide Codex - Manual label Pet"), "got \(titles)")
+		XCTAssertFalse(titles.contains("Hide Codex - Rename testing prompts Pet"), "got \(titles)")
 		_ = pool  // keep alive
 	}
 }

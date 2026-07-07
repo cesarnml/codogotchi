@@ -723,11 +723,7 @@ final class FloatingPetWindowPool {
 			// non-nil label is what gates the right-click "Rename…"
 			// affordance, so the session-keyed default must be resolved here
 			// rather than left to the badge view's own "Session N" synthesis.
-			let userLabel = sessionLabel(forWindowKey: renderKey)
-			let resolvedTitle = resolveSessionTitle(forWindowKey: renderKey)
-			let defaultLabel =
-				resolvedTitle ?? assignedNumber.map { "Session \($0)" } ?? Self.defaultSessionLabel(forOrigin: origin)
-			windows[renderKey]?.applySessionLabel(userLabel ?? defaultLabel)
+			windows[renderKey]?.applySessionLabel(sessionDisplayLabel(forWindowKey: renderKey, origin: origin))
 			windows[renderKey]?.applySessionTooltip(sessionPromptSummary(forWindowKey: renderKey))
 		}
 
@@ -1039,6 +1035,19 @@ final class FloatingPetWindowPool {
 	/// window shows when it has never been renamed.
 	func sessionLabel(forWindowKey key: String) -> String? {
 		sessionLabelReader(key)
+	}
+
+	/// User-facing label for a window key, with the same precedence everywhere
+	/// it is surfaced: explicit `session-labels.json` rename, then a retrieved
+	/// platform title, then the numeric session fallback, then platform name.
+	func sessionDisplayLabel(forWindowKey key: String, origin: String? = nil) -> String? {
+		let resolvedOrigin = origin ?? Self.origin(forWindowKey: key)
+		let userLabel = sessionLabel(forWindowKey: key)
+		let retrievedTitle = resolveSessionTitle(forWindowKey: key)
+		let defaultLabel =
+			retrievedTitle ?? sessionNumber(forWindowKey: key).map { "Session \($0)" }
+				?? Self.defaultSessionLabel(forOrigin: resolvedOrigin)
+		return userLabel ?? defaultLabel
 	}
 
 	/// Fallback session-label text for a plain-origin/"combined" window that
