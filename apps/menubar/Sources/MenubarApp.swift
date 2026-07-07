@@ -385,6 +385,15 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						else { return }
 						SessionLabelStore.setLabelExemptFromCap(title, for: origin)
 					}
+					// Right-click "Prune Session" (P15.07), mirroring Own mode's
+					// wiring above: destroys the panel's backing state (slice,
+					// free-list number, rename label) via the pool, which owns the
+					// allocator and knows the (origin, session_id) identity behind
+					// this window key.
+					panel.onPruneRequested = { [weak self] in
+						self?.floatingPetWindowPool?.pruneSession(
+							windowKey: origin, stateDirectory: stateDir)
+					}
 					// Right-click "Hide All Other Pets", mirroring Own mode's wiring
 					// above.
 					panel.onHideAllOtherPetsRequested = { [weak self] in
@@ -937,8 +946,20 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		settingsWindowController?.updateHookStatus(snapshot)
 	}
 
+	/// Union of every attached display's visible frame, so drag-clamping (see
+	/// `FloatingPetPanel.clampedFrame`) confines a panel to the combined
+	/// desktop area rather than a single screen. `NSScreen.main` names the
+	/// screen with current keyboard focus, not the display a floating panel
+	/// happens to sit on or is being dragged toward — anchoring the clamp to
+	/// it made panels appear locked to whichever screen had focus at launch,
+	/// since the clamped frame could never cross into a neighboring display.
 	private static func visibleFloatingFrame() -> CGRect {
-		NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
+		guard !NSScreen.screens.isEmpty else {
+			return CGRect(x: 0, y: 0, width: 800, height: 600)
+		}
+		return NSScreen.screens
+			.map(\.visibleFrame)
+			.reduce(CGRect.null) { $0.union($1) }
 	}
 
 	/// Sets the status-item button image to the Codogotchi app icon, sized to

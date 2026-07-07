@@ -47,11 +47,22 @@ struct PromptTimerTracker: Equatable {
 	private(set) var status: PromptTimerStatus?
 	private var erroredSince: Date?
 	private var lastObservedState: ActivityState?
+	private var resetAt: Date?
 
-	mutating func reset() {
+	/// - Parameter now: the moment this reset becomes authoritative. A caller
+	///   resetting in response to a live action (Force Idle) should pass the
+	///   real current time; `observe()`'s internal idle transition passes the
+	///   idle event's own timestamp instead. Either way, any later `observe()`
+	///   of an in-flight state timestamped AT OR BEFORE this moment is treated
+	///   as a stale, out-of-order write racing the reset — not a new turn —
+	///   and will not restart the timer. Without this, an explicit Force Idle
+	///   reset can be immediately undone by the next poll tick reading the
+	///   pre-reset on-disk state before the async idle rewrite lands.
+	mutating func reset(now: Date = Date()) {
 		status = nil
 		erroredSince = nil
 		lastObservedState = nil
+		resetAt = now
 	}
 
 	mutating func observe(
@@ -64,18 +75,26 @@ struct PromptTimerTracker: Equatable {
 		let observedAt = StateJsonReader.parseISO8601Date(updatedAt) ?? now
 		defer { lastObservedState = state }
 
+		// Idle wins over every other signal, including a `session_start`
+		// source event: Force Idle's slice rewrite flips only `activity_state`
+		// to idle, preserving the old `source_event` and `updated_at` — so an
+		// idle slice can still carry `kind: "session_start"` on every poll
+		// tick afterward. Checking session_start first would restart the timer
+		// from that preserved timestamp forever, making the chip immortal. A
+		// REAL session start never classifies to idle (the hook maps it to
+		// thinking), so nothing legitimate is lost by resetting here.
+		if state == .idle {
+			reset(now: observedAt)
+			return
+		}
+
 		if sourceEvent?.kind == "session_start" {
 			status = PromptTimerStatus(startedAt: observedAt, endedAt: nil)
 			erroredSince = nil
 			return
 		}
 
-		if state == .idle {
-			reset()
-			return
-		}
-
-		if state.isInFlight, shouldStartTimerOnInFlightTransition {
+		if state.isInFlight, shouldStartTimer(observedAt: observedAt) {
 			status = PromptTimerStatus(startedAt: observedAt, endedAt: nil)
 			erroredSince = nil
 			return
@@ -101,9 +120,12 @@ struct PromptTimerTracker: Equatable {
 		erroredSince = nil
 	}
 
-	private var shouldStartTimerOnInFlightTransition: Bool {
+	private func shouldStartTimer(observedAt: Date) -> Bool {
 		guard status?.isRunning != true else { return false }
-		guard let lastObservedState else { return true }
+		guard let lastObservedState else {
+			if let resetAt { return observedAt > resetAt }
+			return true
+		}
 		switch lastObservedState {
 		case .idle, .standby, .errored:
 			return true

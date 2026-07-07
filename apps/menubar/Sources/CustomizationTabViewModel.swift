@@ -367,17 +367,25 @@ final class CustomizationTabViewModel {
 	}
 
 	/// Resolves the `session_id` currently winning render selection for
-	/// `origin` — the freshest non-stale-mtime slice in `state.d/`, matching
-	/// `StateJsonReader`'s winner semantics — or `nil` when no live session
-	/// exists for it. Used at the instant session-pets is toggled on so that
-	/// session can be grandfathered in as "Session 1" instead of every live
-	/// sibling appearing at once.
+	/// `origin` — the freshest slice in `state.d/`, matching `StateJsonReader`'s
+	/// winner semantics — or `nil` when no slice has ever been written for it.
+	/// Used at the instant session-pets is toggled on so that session can be
+	/// grandfathered in as "Session 1" instead of every live sibling appearing
+	/// at once.
+	///
+	/// Deliberately reads with an infinite stale TTL, unlike every rendering
+	/// read: the collapsed own/minimalist pet the user was just looking at is
+	/// identified by the origin's freshest slice *whatever its age*, and a
+	/// toggle on a platform idle past the 2h rendering TTL must still carry
+	/// that identity over. Without this, such a toggle records no grandfather
+	/// and the activity gate silently excludes every pre-toggle session — the
+	/// pet the user just had on screen vanishes until brand-new activity.
 	private static func currentWinnerSessionId(
 		for origin: String, stateDirectoryPath: String
 	) -> String? {
 		guard
 			case .success(let perSession) = StateJsonReader.readPerSessionDirectory(
-				at: stateDirectoryPath)
+				at: stateDirectoryPath, now: Date(), staleTTL: .infinity)
 		else { return nil }
 		let prefix = "\(origin):"
 		// Sorted iteration + strict `>` (not `max(by:)` over the raw Dictionary)

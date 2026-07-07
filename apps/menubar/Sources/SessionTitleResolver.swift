@@ -10,8 +10,9 @@ import Foundation
 /// throws, and never invents a title.
 ///
 /// Only origins whose hook payload carries a real per-thread id are
-/// supported (`claude_code`, `codex`, `cursor`); every other origin resolves
-/// to `nil` so its window falls back to the existing "Session N" default.
+/// supported (`claude_code`, `codex`, `cursor`, `vscode`, `antigravity`);
+/// every other origin resolves to `nil` so its window falls back to the
+/// existing "Session N" default.
 enum SessionTitleResolver {
 	/// Looks up `sessionId`'s auto-generated title for `origin`, or `nil` when
 	/// unsupported, not-yet-titled, or unreadable. Callers should cache a
@@ -26,6 +27,10 @@ enum SessionTitleResolver {
 			return codexTitle(sessionId: sessionId)
 		case "cursor":
 			return cursorTitle(sessionId: sessionId)
+		case "vscode":
+			return vscodeTitle(sessionId: sessionId)
+		case "antigravity":
+			return antigravityTitle(sessionId: sessionId)
 		default:
 			return nil
 		}
@@ -169,6 +174,237 @@ enum SessionTitleResolver {
 	private struct CursorComposerHeader: Decodable {
 		let composerId: String
 		let name: String?
+	}
+
+	// MARK: - VS Code (GitHub Copilot Chat + Copilot CLI)
+
+	/// Tries the VS Code app's own chat-session index first — the store the
+	/// editor's chat UI actually reads its titles from — falling back to the
+	/// standalone Copilot CLI's session-state directory, which only covers
+	/// sessions started from the `copilot` CLI outside the editor (and which
+	/// newer CLI engine versions may no longer write at all).
+	static func vscodeTitle(sessionId: String) -> String? {
+		vscodeChatSessionTitle(sessionId: sessionId)
+			?? vscodeCopilotCliTitle(sessionId: sessionId)
+	}
+
+	/// The default VS Code user-data roots this resolver checks, Insiders
+	/// first (its sessions are likelier to be live on a machine that has it
+	/// installed at all — a stock-only user just misses on the first root).
+	static let vscodeDefaultUserDirectories = [
+		NSHomeDirectory() + "/Library/Application Support/Code - Insiders/User",
+		NSHomeDirectory() + "/Library/Application Support/Code/User",
+	]
+
+	/// `<userDir>/workspaceStorage/<hash>/state.vscdb` (one per workspace) and
+	/// `<userDir>/globalStorage/state.vscdb` (empty-window chats) — SQLite
+	/// key/value stores whose `chat.ChatSessionStore.index` row holds a JSON
+	/// registry of every chat session, keyed by the same `session_id`
+	/// Copilot's hook payload sends, each entry carrying the `title` the
+	/// editor's chat UI displays. Read via the system `sqlite3` CLI, exactly
+	/// like `cursorTitle` (Cursor is the same VS Code fork storage layout).
+	///
+	/// The literal placeholder title "New Chat" resolves to `nil`: it is the
+	/// editor's untitled default, not a generated title, and "Session N" is
+	/// the more honest fallback.
+	static func vscodeChatSessionTitle(
+		sessionId: String,
+		userDirectories: [String] = vscodeDefaultUserDirectories,
+		sqliteBinaryPath: String = "/usr/bin/sqlite3"
+	) -> String? {
+		let fileManager = FileManager.default
+		for userDirectory in userDirectories {
+			var databasePaths = ["\(userDirectory)/globalStorage/state.vscdb"]
+			let workspaceRoot = "\(userDirectory)/workspaceStorage"
+			if let workspaces = try? fileManager.contentsOfDirectory(atPath: workspaceRoot) {
+				databasePaths += workspaces.map { "\(workspaceRoot)/\($0)/state.vscdb" }
+			}
+			for databasePath in databasePaths {
+				guard
+					let title = chatSessionStoreTitle(
+						sessionId: sessionId,
+						databasePath: databasePath,
+						sqliteBinaryPath: sqliteBinaryPath
+					)
+				else { continue }
+				return title
+			}
+		}
+		return nil
+	}
+
+	private static func chatSessionStoreTitle(
+		sessionId: String,
+		databasePath: String,
+		sqliteBinaryPath: String
+	) -> String? {
+		guard FileManager.default.fileExists(atPath: databasePath) else { return nil }
+		let process = Process()
+		process.executableURL = URL(fileURLWithPath: sqliteBinaryPath)
+		process.arguments = [
+			databasePath,
+			"SELECT value FROM ItemTable WHERE key='chat.ChatSessionStore.index';",
+		]
+		let stdoutPipe = Pipe()
+		process.standardOutput = stdoutPipe
+		process.standardError = Pipe()
+		do {
+			try process.run()
+		} catch {
+			return nil
+		}
+		let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+		process.waitUntilExit()
+		guard process.terminationStatus == 0,
+			let index = try? JSONDecoder().decode(VscodeChatSessionIndex.self, from: data),
+			let title = nonEmpty(index.entries[sessionId]?.title),
+			title != "New Chat"
+		else { return nil }
+		return title
+	}
+
+	private struct VscodeChatSessionIndex: Decodable {
+		let entries: [String: VscodeChatSessionEntry]
+	}
+
+	private struct VscodeChatSessionEntry: Decodable {
+		let title: String?
+	}
+
+	/// `~/.copilot/session-state/<sessionId>/workspace.yaml` — one directory
+	/// per session, id-named to match the `session_id` Copilot's hook payload
+	/// sends. The file is flat `key: value` YAML with a `summary` field
+	/// Copilot generates from the session's content; no YAML parser is
+	/// needed since every value here is a single unquoted scalar on its own
+	/// line.
+	static func vscodeCopilotCliTitle(
+		sessionId: String,
+		rootDirectory: String = NSHomeDirectory() + "/.copilot/session-state"
+	) -> String? {
+		let path = "\(rootDirectory)/\(sessionId)/workspace.yaml"
+		guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+			return nil
+		}
+		for line in contents.split(separator: "\n", omittingEmptySubsequences: false) {
+			guard line.hasPrefix("summary:") else { continue }
+			return nonEmpty(String(line.dropFirst("summary:".count)))
+		}
+		return nil
+	}
+
+	// MARK: - Antigravity
+
+	/// Tries the cheap, reliable per-conversation source first (own
+	/// transcript's CHECKPOINT title), falling back to the expensive
+	/// cross-conversation scan only when that's absent — e.g. a conversation
+	/// short enough to never trigger a context-window checkpoint.
+	static func antigravityTitle(
+		sessionId: String,
+		rootDirectory: String = NSHomeDirectory() + "/.gemini/antigravity/brain",
+		maxFilesScanned: Int = 20
+	) -> String? {
+		antigravityOwnTranscriptTitle(sessionId: sessionId, rootDirectory: rootDirectory)
+			?? antigravityCrossConversationTitle(
+				sessionId: sessionId,
+				rootDirectory: rootDirectory,
+				maxFilesScanned: maxFilesScanned
+			)
+	}
+
+	/// `brain/<sessionId>/.system_generated/logs/transcript.jsonl` — once a
+	/// conversation grows long enough to need context-window truncation,
+	/// Antigravity writes a CHECKPOINT system event summarizing the truncated
+	/// history for its own future reference, and that summary always opens
+	/// with `# USER Objective:\n<title>`. This is a direct, single-file read
+	/// keyed exactly by `sessionId` — far cheaper and more reliable than the
+	/// cross-conversation scan below — but only appears after that
+	/// truncation threshold; a short conversation never gets a CHECKPOINT and
+	/// this resolves to `nil`.
+	static func antigravityOwnTranscriptTitle(
+		sessionId: String,
+		rootDirectory: String = NSHomeDirectory() + "/.gemini/antigravity/brain"
+	) -> String? {
+		let path = "\(rootDirectory)/\(sessionId)/.system_generated/logs/transcript.jsonl"
+		guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+		guard let pattern = try? NSRegularExpression(pattern: "# USER Objective:\\n(.+)") else { return nil }
+		for line in contents.split(separator: "\n") {
+			guard let lineData = line.data(using: .utf8),
+				let event = try? JSONDecoder().decode(AntigravityTranscriptLine.self, from: lineData),
+				event.type == "CHECKPOINT",
+				let content = event.content
+			else { continue }
+			let searchRange = NSRange(content.startIndex..., in: content)
+			guard let match = pattern.firstMatch(in: content, range: searchRange),
+				let titleRange = Range(match.range(at: 1), in: content)
+			else { continue }
+			if let title = nonEmpty(String(content[titleRange])) {
+				return title
+			}
+		}
+		return nil
+	}
+
+	/// Fallback when `antigravityOwnTranscriptTitle` finds nothing: Antigravity
+	/// has no per-conversation title file for a conversation that never got
+	/// checkpointed — but the title can still resurface later, quoted inside
+	/// a DIFFERENT, more-recent conversation's transcript, in a "Conversation
+	/// History" system block Antigravity writes summarizing recent threads
+	/// (format: `## Conversation <id>: <title>`). Recovering a title for
+	/// `sessionId` this way means scanning other conversations' transcripts
+	/// for a mention of it — there is no direct lookup. Bounded to the
+	/// `maxFilesScanned` most recently modified transcripts, checked
+	/// newest-first (a later conversation's recap is more likely to carry the
+	/// freshest title, and this keeps a best-effort read from scanning an
+	/// unbounded, ever-growing directory). A title that was never summarized
+	/// by a later conversation, or fell outside the scan window, resolves to
+	/// `nil` — same as any other not-yet-titled session.
+	static func antigravityCrossConversationTitle(
+		sessionId: String,
+		rootDirectory: String = NSHomeDirectory() + "/.gemini/antigravity/brain",
+		maxFilesScanned: Int = 20
+	) -> String? {
+		let fileManager = FileManager.default
+		guard let conversationDirs = try? fileManager.contentsOfDirectory(atPath: rootDirectory) else {
+			return nil
+		}
+		let candidates: [(path: String, modified: Date)] = conversationDirs.compactMap { dir in
+			let path = "\(rootDirectory)/\(dir)/.system_generated/logs/transcript.jsonl"
+			guard let attributes = try? fileManager.attributesOfItem(atPath: path),
+				let modified = attributes[.modificationDate] as? Date
+			else { return nil }
+			return (path, modified)
+		}
+		let mostRecentFirst = candidates.sorted { $0.modified > $1.modified }.prefix(maxFilesScanned)
+
+		guard
+			let pattern = try? NSRegularExpression(
+				pattern: "## Conversation \(NSRegularExpression.escapedPattern(for: sessionId)): (.+)"
+			)
+		else { return nil }
+
+		for candidate in mostRecentFirst {
+			guard let contents = try? String(contentsOfFile: candidate.path, encoding: .utf8) else { continue }
+			for line in contents.split(separator: "\n") {
+				guard let lineData = line.data(using: .utf8),
+					let event = try? JSONDecoder().decode(AntigravityTranscriptLine.self, from: lineData),
+					event.type == "CONVERSATION_HISTORY",
+					let content = event.content
+				else { continue }
+				let searchRange = NSRange(content.startIndex..., in: content)
+				guard let match = pattern.firstMatch(in: content, range: searchRange),
+					let titleRange = Range(match.range(at: 1), in: content)
+				else { continue }
+				if let title = nonEmpty(String(content[titleRange])) {
+					return title
+				}
+			}
+		}
+		return nil
+	}
+
+	private struct AntigravityTranscriptLine: Decodable {
+		let type: String?
+		let content: String?
 	}
 
 	// MARK: - Shared

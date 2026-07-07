@@ -91,8 +91,34 @@ final class CustomizationTabViewModelTests: XCTestCase {
 
 		XCTAssertNil(
 			vm.sessionPetsGrandfatheredSessionId["claude_code"],
-			"no live session exists to grandfather — the first session with activity after now becomes Session 1 naturally")
+			"no session has ever existed to grandfather — the first session with activity after now becomes Session 1 naturally")
 		XCTAssertNotNil(vm.sessionPetsActivatedAt["claude_code"])
+	}
+
+	// The grandfather lookup must ignore the 2h rendering stale-TTL: toggling
+	// sessions on for a platform that has been idle longer than that must
+	// still carry the collapsed pet's session identity over, or the activity
+	// gate silently excludes every pre-toggle session and the pet the user
+	// just had on screen vanishes until brand-new activity.
+	func testEnablingSessionPetsGrandfathersAStaleMtimeSlice() throws {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let stateDir = makeTmpStateDir()
+		defer { try? FileManager.default.removeItem(atPath: stateDir) }
+		writeSlice(
+			stateDir, filename: "cursor:dormant.json", origin: "cursor",
+			updatedAt: "2026-07-03T09:00:00.000Z")
+		try FileManager.default.setAttributes(
+			[.modificationDate: Date(timeIntervalSinceNow: -3 * 60 * 60)],
+			ofItemAtPath: URL(fileURLWithPath: stateDir).appendingPathComponent("cursor:dormant.json").path
+		)
+		let vm = CustomizationTabViewModel(filePath: path, stateDirectoryPath: stateDir)
+
+		vm.setSessionPetsEnabled(true, for: "cursor")
+
+		XCTAssertEqual(
+			vm.sessionPetsGrandfatheredSessionId["cursor"], "dormant",
+			"a slice past the rendering stale-TTL must still be grandfathered on toggle")
 	}
 
 	func testReenablingAfterTogglingOffResetsTheActivationAndGrandfather() throws {

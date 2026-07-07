@@ -94,6 +94,11 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// platform's current thread title and persist it — mirrors Own mode's
 	/// `onSyncLabelRequested`.
 	var onSyncLabelRequested: (() -> Void)?
+	/// Fired when the user confirms the badge's right-click "Prune Session"
+	/// affordance. Wired by the caller (`MenubarApp`) to destroy the session's
+	/// backing state via the window pool — mirrors Own mode's
+	/// `onPruneRequested`.
+	var onPruneRequested: (() -> Void)?
 	/// Fired when the user activates the badge's right-click "Hide All Other
 	/// Pets" affordance. Wired by the caller (`MenubarApp`) to hide every
 	/// other currently-rendered window via the pool — mirrors Own mode's
@@ -111,7 +116,9 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 
 	init(
 		visibleFrameProvider: @escaping () -> CGRect = {
-			NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
+			NSScreen.screens.isEmpty
+				? CGRect(x: 0, y: 0, width: 800, height: 600)
+				: NSScreen.screens.map(\.visibleFrame).reduce(CGRect.null) { $0.union($1) }
 		}
 	) {
 		self.visibleFrameProvider = visibleFrameProvider
@@ -152,6 +159,12 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		// next poll tick re-applies it via `applySessionLabel`.
 		badgeView.syncLabelHandler = { [weak self] in
 			self?.onSyncLabelRequested?()
+		}
+		// Right-click "Prune Session" affordance, offered only while a session
+		// number is assigned. This panel never destroys session state itself —
+		// the app-level handler routes the prune through the window pool.
+		badgeView.pruneHandler = { [weak self] in
+			self?.onPruneRequested?()
 		}
 		// Right-click "Hide All Other Pets" affordance, offered
 		// unconditionally. This panel never touches other windows itself.
@@ -472,6 +485,12 @@ private final class MinimalistBadgeView: NSView {
 	/// `syncLabelHandler`). This view never resolves or writes the label
 	/// itself — the caller re-fetches the platform's title and persists it.
 	var syncLabelHandler: (() -> Void)?
+	/// Fires when the user confirms the right-click "Prune Session"
+	/// affordance, offered only while a session number is assigned (same gate
+	/// as Sync Label; mirrors Own mode's `pruneHandler`). Not fired when the
+	/// user cancels the confirmation alert. This view never destroys session
+	/// state itself — the caller routes the prune through the window pool.
+	var pruneHandler: (() -> Void)?
 	/// Fires when the user activates the right-click "Hide All Other Pets"
 	/// affordance, offered unconditionally. This view never touches other
 	/// windows itself — the caller (the window pool, via the app-level
@@ -744,6 +763,17 @@ private final class MinimalistBadgeView: NSView {
 					self?.syncLabelHandler?()
 				})
 		}
+		// Destroys backing session state (slice, free-list number), so like
+		// Sync Label this stays restricted to an actual session-keyed strip.
+		// Destructive, so it requires a confirmation alert rather than firing
+		// immediately on click — mirrors Own mode's placement and contract.
+		if currentSessionNumber != nil {
+			items.append(
+				FloatingPetPromptItem(title: FloatingPetHidePrompt.pruneTitle) { [weak self] in
+					self?.dismissHidePrompt()
+					self?.presentPruneConfirmation()
+				})
+		}
 		// Mode switch back to the full pet renderer. Sits directly above
 		// "Hide panel", mirroring Own mode's "Minimalist Mode" placement.
 		items.append(
@@ -804,6 +834,22 @@ private final class MinimalistBadgeView: NSView {
 		let normalized = SessionLabelStore.normalize(field.stringValue)
 		guard !normalized.isEmpty else { return }
 		renameHandler?(normalized)
+	}
+
+	/// Presents a destructive-action confirmation alert for pruning this
+	/// session. `pruneHandler` fires only when the user confirms; Cancel is a
+	/// no-op, matching the rename alert's "no commit on cancel" contract.
+	/// Mirrors Own mode's `presentPruneConfirmation`.
+	private func presentPruneConfirmation() {
+		let alert = NSAlert()
+		alert.messageText = "Prune Session"
+		alert.informativeText =
+			"This destroys the panel and its session data. This cannot be undone."
+		alert.addButton(withTitle: "Prune")
+		alert.addButton(withTitle: "Cancel")
+		alert.buttons.first?.hasDestructiveAction = true
+		guard alert.runModal() == .alertFirstButtonReturn else { return }
+		pruneHandler?()
 	}
 
 	// MARK: - Panel Size pill
@@ -1160,7 +1206,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		initialIdleAge: TimeInterval = 0,
 		clock: @escaping () -> Date = Date.init,
 		visibleFrameProvider: @escaping () -> CGRect = {
-			NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
+			NSScreen.screens.isEmpty
+				? CGRect(x: 0, y: 0, width: 800, height: 600)
+				: NSScreen.screens.map(\.visibleFrame).reduce(CGRect.null) { $0.union($1) }
 		}
 	) {
 		self.codexPet = codexPet
@@ -2705,7 +2753,15 @@ final class PlatformChipView: NSView {
 	}
 }
 
+/// Single frosted pill housing the timer glyph and countdown text together,
+/// on the same `AnimationBadgeChrome` background as `PlatformSessionBadge` —
+/// previously the glyph alone carried a background (`TimerIconChipView`'s own
+/// chrome) while the "1:00" label sat bare in the stack, so the time read as
+/// plain text over whatever the pet was floating above. The glyph no longer
+/// draws its own chrome; this view now owns one background spanning both.
 final class PromptTimerChipView: NSView {
+	private let effectView = AnimationBadgeChrome.makeEffectView()
+	private let tintView = AnimationBadgeChrome.makeTintView()
 	private let chipView = TimerIconChipView(frame: .zero)
 	private let label = NSTextField(labelWithString: "")
 	private let stackView = NSStackView()
@@ -2715,6 +2771,12 @@ final class PromptTimerChipView: NSView {
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
+		wantsLayer = true
+		layer?.masksToBounds = false
+
+		addSubview(effectView)
+		addSubview(tintView)
+
 		stackView.orientation = .horizontal
 		stackView.alignment = .centerY
 		stackView.translatesAutoresizingMaskIntoConstraints = false
@@ -2727,8 +2789,16 @@ final class PromptTimerChipView: NSView {
 		label.textColor = AnimationBadgeChrome.textColor
 		label.translatesAutoresizingMaskIntoConstraints = false
 		NSLayoutConstraint.activate([
-			stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
-			stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			effectView.topAnchor.constraint(equalTo: topAnchor),
+			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			tintView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			tintView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			tintView.topAnchor.constraint(equalTo: topAnchor),
+			tintView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			stackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: metrics.horizontalPadding * 0.6),
+			stackView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -metrics.horizontalPadding),
 			stackView.topAnchor.constraint(equalTo: topAnchor),
 			stackView.bottomAnchor.constraint(equalTo: bottomAnchor),
 		])
@@ -2750,7 +2820,8 @@ final class PromptTimerChipView: NSView {
 	override var intrinsicContentSize: NSSize {
 		let labelSize = label.intrinsicContentSize
 		return NSSize(
-			width: metrics.badgeHeight + stackView.spacing + labelSize.width,
+			width: metrics.horizontalPadding * 1.6 + metrics.badgeHeight
+				+ stackView.spacing + labelSize.width,
 			height: metrics.badgeHeight
 		)
 	}
@@ -2758,12 +2829,15 @@ final class PromptTimerChipView: NSView {
 	private func applyMetrics() {
 		label.font = NSFont.monospacedDigitSystemFont(ofSize: metrics.fontSize, weight: .medium)
 		stackView.spacing = max(2, round(metrics.interBadgeSpacing * 0.55))
+		AnimationBadgeChrome.apply(to: self, effect: effectView, tint: tintView, cornerRadius: metrics.cornerRadius)
 	}
 }
 
+/// Bare timer glyph, sized to a `badgeHeight` square. Chrome (frosted
+/// background, border, shadow) now lives on the owning `PromptTimerChipView`
+/// pill, which wraps this glyph and the countdown label in one shared
+/// background — this view only lays out the image.
 private final class TimerIconChipView: NSView {
-	private let effectView = AnimationBadgeChrome.makeEffectView()
-	private let tintView = AnimationBadgeChrome.makeTintView()
 	private let imageView = NSImageView()
 	private var metrics = GateBadgeLayout.metrics(
 		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
@@ -2773,10 +2847,6 @@ private final class TimerIconChipView: NSView {
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
-		wantsLayer = true
-		layer?.masksToBounds = false
-		addSubview(effectView)
-		addSubview(tintView)
 
 		imageView.imageScaling = .scaleProportionallyUpOrDown
 		imageView.contentTintColor = AnimationBadgeChrome.textColor
@@ -2797,18 +2867,7 @@ private final class TimerIconChipView: NSView {
 			imageView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -inset),
 		]
 		sideConstraint = side
-		NSLayoutConstraint.activate([
-			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
-			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
-			effectView.topAnchor.constraint(equalTo: topAnchor),
-			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
-			tintView.leadingAnchor.constraint(equalTo: leadingAnchor),
-			tintView.trailingAnchor.constraint(equalTo: trailingAnchor),
-			tintView.topAnchor.constraint(equalTo: topAnchor),
-			tintView.bottomAnchor.constraint(equalTo: bottomAnchor),
-			side,
-			height,
-		] + glyphInsetConstraints)
+		NSLayoutConstraint.activate([side, height] + glyphInsetConstraints)
 		applyMetrics(isRunning: true)
 	}
 
@@ -2826,7 +2885,6 @@ private final class TimerIconChipView: NSView {
 			constraint.constant = (constraint.constant < 0 ? -1 : 1) * metrics.verticalPadding
 		}
 		imageView.alphaValue = isRunning ? 1.0 : 0.72
-		AnimationBadgeChrome.apply(to: self, effect: effectView, tint: tintView, cornerRadius: metrics.cornerRadius)
 	}
 }
 

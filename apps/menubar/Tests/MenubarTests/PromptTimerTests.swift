@@ -145,6 +145,88 @@ final class PromptTimerTests: XCTestCase {
 		XCTAssertEqual(tracker.presentation(now: now)?.isRunning, true)
 	}
 
+	// Force Idle calls reset() synchronously, but the matching disk rewrite
+	// (StateJsonWriter.forceIdle) lands asynchronously on a background queue.
+	// A poll tick that reads the stale, pre-reset in-flight state before that
+	// write completes must not resurrect the timer.
+	func testResetIgnoresStaleInFlightObservationRacingTheAsyncRewrite() {
+		var tracker = PromptTimerTracker()
+		tracker.observe(
+			state: .thinking,
+			updatedAt: "2026-07-07T01:00:00.000Z",
+			sourceEvent: SourceEvent(origin: "codex", kind: "session_start", name: "SessionStart"),
+			attention: nil
+		)
+
+		// User right-clicks Force Idle at 01:00:01 (wall clock) — resetPromptTimer()
+		// runs synchronously, well after the stale "thinking" slice's own timestamp.
+		tracker.reset(now: StateJsonReader.parseISO8601Date("2026-07-07T01:00:01.000Z")!)
+
+		// The next poll tick reads that same stale, pre-reset "thinking" slice
+		// (the async idle rewrite hasn't landed on disk yet).
+		tracker.observe(
+			state: .thinking,
+			updatedAt: "2026-07-07T01:00:00.500Z",
+			sourceEvent: SourceEvent(origin: "codex", kind: "tool_use", name: "Bash"),
+			attention: nil
+		)
+
+		let now = StateJsonReader.parseISO8601Date("2026-07-07T01:00:02.000Z")!
+		XCTAssertNil(tracker.presentation(now: now))
+	}
+
+	// Once the idle rewrite lands (or a real new turn starts) with a timestamp
+	// AFTER the reset, the timer must start normally.
+	func testResetAllowsInFlightObservationAfterTheResetMoment() {
+		var tracker = PromptTimerTracker()
+		tracker.observe(
+			state: .thinking,
+			updatedAt: "2026-07-07T01:00:00.000Z",
+			sourceEvent: SourceEvent(origin: "codex", kind: "session_start", name: "SessionStart"),
+			attention: nil
+		)
+
+		tracker.reset(now: StateJsonReader.parseISO8601Date("2026-07-07T01:00:01.000Z")!)
+
+		tracker.observe(
+			state: .implementing,
+			updatedAt: "2026-07-07T01:00:05.000Z",
+			sourceEvent: SourceEvent(origin: "codex", kind: "tool_use", name: "Bash"),
+			attention: nil
+		)
+
+		let now = StateJsonReader.parseISO8601Date("2026-07-07T01:00:09.000Z")!
+		XCTAssertEqual(tracker.presentation(now: now)?.label, "0:04")
+		XCTAssertEqual(tracker.presentation(now: now)?.isRunning, true)
+	}
+
+	// Force Idle's slice rewrite flips only `activity_state` to idle,
+	// preserving the old `source_event` (which can be `session_start`) and
+	// `updated_at`. Idle must win over the session_start branch, or every
+	// poll of the rewritten slice restarts the timer from the preserved
+	// timestamp and the chip becomes immortal.
+	func testIdleWithPreservedSessionStartSourceEventClearsTimer() {
+		var tracker = PromptTimerTracker()
+		tracker.observe(
+			state: .thinking,
+			updatedAt: "2026-07-07T20:23:37.225Z",
+			sourceEvent: SourceEvent(origin: "antigravity", kind: "session_start", name: "unknown"),
+			attention: nil
+		)
+
+		// Force Idle landed: same updated_at, same session_start source event,
+		// only the activity state flipped to idle.
+		tracker.observe(
+			state: .idle,
+			updatedAt: "2026-07-07T20:23:37.225Z",
+			sourceEvent: SourceEvent(origin: "antigravity", kind: "session_start", name: "unknown"),
+			attention: nil
+		)
+
+		let now = StateJsonReader.parseISO8601Date("2026-07-07T20:24:14.000Z")!
+		XCTAssertNil(tracker.presentation(now: now))
+	}
+
 	func testCompactLabelsUseMinutesHoursAndDays() {
 		XCTAssertEqual(PromptTimerPresentation.compactLabel(elapsed: 59), "0:59")
 		XCTAssertEqual(PromptTimerPresentation.compactLabel(elapsed: 754), "12:34")

@@ -66,7 +66,13 @@ export type HookInput = {
   // Explicit failure signal for rate-limit / network-error events.
   is_error?: boolean;
   // Claude Code StopFailure: error type (e.g. "rate_limit", "server_error").
-  error?: string;
+  // Some platforms also use this for rendered API error text.
+  error?: unknown;
+  // Claude Code StopFailure: optional details and rendered assistant error text.
+  error_details?: unknown;
+  last_assistant_message?: unknown;
+  // Cursor/Copilot-style terminal error text.
+  error_message?: unknown;
   // Cursor stop status ("success" | "error" | "canceled").
   status?: string;
   // Cursor postToolUseFailure: true when user interrupted the tool call.
@@ -1219,9 +1225,82 @@ export async function writeSliceAtomic(
   const dir = sliceDirPath(home);
   await mkdir(dir, { recursive: true });
   const target = sliceFilePath(home, verified.origin, verified.session_id);
+
+  // Reject an out-of-order write. All hook invocations serialize through the
+  // single global withHomeLock, but lock ACQUISITION order isn't guaranteed to
+  // match the events' real chronological order — Node startup/OS-scheduling
+  // jitter between two near-simultaneous hook processes (e.g. UserPromptSubmit
+  // immediately followed by Stop, on a short tool-free turn) can let the
+  // earlier event's process win the lock second. Without this guard, that
+  // stale write lands last and overwrites the correct terminal state, leaving
+  // the pet stuck (e.g. on "thinking") forever — nothing else fires to correct
+  // it for a turn with no further tool calls.
+  if (await isStaleSliceWrite(target, verified.updated_at)) return;
+
   const tmp = tempName(target);
   await writeFile(tmp, `${JSON.stringify(verified, null, 2)}\n`, "utf8");
   await rename(tmp, target);
+}
+
+// See the Antigravity trailing-step guard in runHook. The window covers the
+// observed ~1-2s gap between a turn's Stop and its trailing step event, with
+// margin for a loaded machine; it errs small so a genuine rapid-fire next
+// turn loses at most its first thinking tick, never a terminal state.
+const ANTIGRAVITY_TRAILING_STEP_WINDOW_MS = 5000;
+
+async function isTrailingStepAfterTerminalWrite(
+  home: string,
+  origin: SourceEventOrigin,
+  sessionId: string,
+  now: Date,
+): Promise<boolean> {
+  let raw: string;
+  try {
+    raw = await readFile(sliceFilePath(home, origin, sessionId), "utf8");
+  } catch {
+    return false;
+  }
+  let existing: { activity_state?: unknown; updated_at?: unknown };
+  try {
+    existing = JSON.parse(raw) as typeof existing;
+  } catch {
+    return false;
+  }
+  const terminalStates = new Set(["standby", "idle", "errored"]);
+  if (
+    typeof existing.activity_state !== "string" ||
+    !terminalStates.has(existing.activity_state)
+  ) {
+    return false;
+  }
+  if (typeof existing.updated_at !== "string") return false;
+  const writtenMs = Date.parse(existing.updated_at);
+  if (Number.isNaN(writtenMs)) return false;
+  return now.getTime() - writtenMs <= ANTIGRAVITY_TRAILING_STEP_WINDOW_MS;
+}
+
+async function isStaleSliceWrite(
+  target: string,
+  incomingUpdatedAt: string,
+): Promise<boolean> {
+  let existingRaw: string;
+  try {
+    existingRaw = await readFile(target, "utf8");
+  } catch {
+    return false;
+  }
+  let existingUpdatedAt: unknown;
+  try {
+    existingUpdatedAt = (JSON.parse(existingRaw) as { updated_at?: unknown })
+      .updated_at;
+  } catch {
+    return false;
+  }
+  if (typeof existingUpdatedAt !== "string") return false;
+  const existingMs = Date.parse(existingUpdatedAt);
+  const incomingMs = Date.parse(incomingUpdatedAt);
+  if (Number.isNaN(existingMs) || Number.isNaN(incomingMs)) return false;
+  return existingMs > incomingMs;
 }
 
 export async function deleteSliceBestEffort(
@@ -1244,6 +1323,125 @@ const ERRORED_TTL_MS = 30 * 60 * 1000;
 const WAITING_FOR_INPUT_TTL_MS = 15 * 60 * 1000;
 
 const ATTENTION_STANDBY_FALLBACK = "Waiting for your input";
+const ATTENTION_ERROR_FALLBACK = "Something went wrong";
+const ATTENTION_ERROR_SUMMARY_MAX_CHARS = 120;
+
+function normalizeAttentionSummaryText(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const normalized = value.replace(/\s+/g, " ").trim();
+    return normalized.length > 0 ? normalized : undefined;
+  }
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint"
+  ) {
+    return String(value);
+  }
+  if (value === null || value === undefined) return undefined;
+  try {
+    const normalized = JSON.stringify(value).replace(/\s+/g, " ").trim();
+    return normalized.length > 0 ? normalized : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function truncateAttentionSummary(summary: string): string {
+  if (summary.length <= ATTENTION_ERROR_SUMMARY_MAX_CHARS) return summary;
+  return `${summary.slice(0, ATTENTION_ERROR_SUMMARY_MAX_CHARS - 1).trimEnd()}…`;
+}
+
+function formatErrorToken(token: string): string {
+  return token
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function firstDiagnosticText(input: HookInput): string | undefined {
+  return (
+    normalizeAttentionSummaryText(input.last_assistant_message) ??
+    normalizeAttentionSummaryText(input.error_details) ??
+    normalizeAttentionSummaryText(input.error_message) ??
+    normalizeAttentionSummaryText(input.error)
+  );
+}
+
+function isRateLimitFailure(input: HookInput, diagnostic?: string): boolean {
+  const haystack = [
+    input.error,
+    input.error_details,
+    input.error_message,
+    input.last_assistant_message,
+    input.stop_reason,
+    input.reason,
+    input.status,
+    input.terminationReason,
+    diagnostic,
+  ]
+    .map(normalizeAttentionSummaryText)
+    .filter((value): value is string => value !== undefined)
+    .join(" ")
+    .toLowerCase();
+  return (
+    /\brate[ _-]?limit\b/.test(haystack) ||
+    haystack.includes("too many requests") ||
+    haystack.includes("resource_exhausted") ||
+    haystack.includes("quota") ||
+    /\b429\b/.test(haystack)
+  );
+}
+
+function buildErrorAttentionSummary(input: HookInput): string {
+  const diagnostic = firstDiagnosticText(input);
+  if (isRateLimitFailure(input, diagnostic)) {
+    return truncateAttentionSummary(
+      diagnostic !== undefined
+        ? `Rate limit: ${diagnostic}`
+        : "Rate limit: Claude Code reported rate_limit",
+    );
+  }
+
+  if (input.stop_reason === "max_tokens") {
+    return "Max tokens reached";
+  }
+
+  const typedError = normalizeAttentionSummaryText(input.error);
+  if (typedError !== undefined) {
+    return truncateAttentionSummary(
+      diagnostic !== undefined && diagnostic !== typedError
+        ? `${formatErrorToken(typedError)}: ${diagnostic}`
+        : formatErrorToken(typedError),
+    );
+  }
+
+  const status = normalizeAttentionSummaryText(input.status);
+  if (status?.toLowerCase() === "error") {
+    return truncateAttentionSummary(
+      diagnostic !== undefined ? `Error: ${diagnostic}` : "Terminal error",
+    );
+  }
+
+  const reason = normalizeAttentionSummaryText(input.reason);
+  if (reason?.toLowerCase() === "error") {
+    return truncateAttentionSummary(
+      diagnostic !== undefined ? `Error: ${diagnostic}` : "Session error",
+    );
+  }
+
+  const terminationReason = normalizeAttentionSummaryText(
+    input.terminationReason,
+  );
+  if (terminationReason?.toLowerCase() === "error") {
+    return truncateAttentionSummary(
+      diagnostic !== undefined ? `Error: ${diagnostic}` : "Terminal error",
+    );
+  }
+
+  return truncateAttentionSummary(diagnostic ?? ATTENTION_ERROR_FALLBACK);
+}
 
 async function buildAttention(
   state: ActivityState,
@@ -1251,6 +1449,7 @@ async function buildAttention(
   origin: SourceEventOrigin,
   sessionId: string | undefined,
   now: Date,
+  input: HookInput,
 ): Promise<AttentionPayload | undefined> {
   if (state === "standby") {
     const summary = await lookupPromptAttentionSummary(
@@ -1279,7 +1478,7 @@ async function buildAttention(
   if (state === "errored") {
     return {
       reason_kind: "error_blocked",
-      summary: "Something went wrong",
+      summary: buildErrorAttentionSummary(input),
       created_at: now.toISOString(),
       expires_at: new Date(now.getTime() + ERRORED_TTL_MS).toISOString(),
     };
@@ -1343,6 +1542,34 @@ export async function runHook(
 
     const activityState = classified.state;
 
+    // Antigravity emits step-boundary PostToolUse events (`toolCall: null` —
+    // they bracket the model's response steps and exist even on a turn with
+    // zero tool calls), and the LAST one consistently fires ~1s AFTER the
+    // turn's Stop. Classified naively it maps to "thinking", clobbering the
+    // standby the Stop just wrote — and since nothing fires afterward on a
+    // finished turn, the pet is stuck on thinking forever. Captured payloads
+    // carry no field distinguishing that trailing step from a genuine
+    // next-turn step, so fall back to timing: a step-boundary thinking write
+    // arriving hard on the heels of a terminal state for the same session is
+    // that turn's trailing step — drop it. A real new turn starting after the
+    // window shows thinking normally; one starting inside it merely stays on
+    // standby until its own next event.
+    if (
+      origin === "antigravity" &&
+      normalizedEventToken(input.hook_event_name) === "posttooluse" &&
+      input.toolCall == null &&
+      activityState === "thinking" &&
+      (await isTrailingStepAfterTerminalWrite(
+        opts.home,
+        origin,
+        sessionId ?? "default",
+        opts.now,
+      ))
+    ) {
+      await writeCounters(opts.home, { read_run: classified.readRun });
+      return;
+    }
+
     // Explicit session_end signal from any platform: delete the origin/session
     // slice and exit. Only trigger on the raw hook_event_name, not the derived
     // classified kind, to avoid misclassifying antigravity error payloads that
@@ -1404,6 +1631,7 @@ export async function runHook(
       classified.sourceEvent.origin,
       sessionId,
       opts.now,
+      input,
     );
     const isBashOrShell =
       classified.sourceEvent.kind === "tool_use" &&

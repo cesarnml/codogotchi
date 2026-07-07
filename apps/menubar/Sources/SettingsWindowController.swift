@@ -2491,7 +2491,7 @@ private final class CustomizationTabView: NSView {
 		let idleTitle = settingsSectionTitle("Pet Idle Preferences")
 		idleCard.addSubview(idleTitle)
 
-		let ttlLabel = NSTextField(labelWithString: "Dismiss Idle Pet After:")
+		let ttlLabel = NSTextField(labelWithString: "Hide Idle Pet After:")
 		ttlLabel.font = .systemFont(ofSize: 13)
 		ttlLabel.translatesAutoresizingMaskIntoConstraints = false
 		idleCard.addSubview(ttlLabel)

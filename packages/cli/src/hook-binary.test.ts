@@ -1184,6 +1184,75 @@ describe("runHook", () => {
     expect(state.activity_state).toBe("errored");
   });
 
+  // Antigravity fires a step-boundary PostToolUse (toolCall: null) ~1s AFTER
+  // every turn's Stop; naively classified it clobbers the just-written
+  // standby with a thinking that nothing ever corrects. Replays the exact
+  // captured payload sequence from a real "do nothing" turn.
+  it("drops antigravity's trailing step PostToolUse after a fresh Stop (real payload sequence)", async () => {
+    const sessionId = "a1c2e89d-1b5d-4cc1-a38c-3242a02e5fa6";
+    const base = {
+      origin: "antigravity",
+      conversationId: sessionId,
+      error: "",
+      workspacePaths: ["/tmp/codogotchi-ag-trailing"],
+    };
+    const stopAt = FIXED_NOW;
+    await runHook(
+      {
+        ...base,
+        hook_event_name: "Stop",
+        executionNum: 0,
+        fullyIdle: true,
+        terminationReason: "NO_TOOL_CALL",
+      } as HookInput,
+      { home, now: stopAt },
+    );
+    expect(readState(home).activity_state).toBe("standby");
+
+    await runHook(
+      {
+        ...base,
+        hook_event_name: "PostToolUse",
+        stepIdx: 3,
+        toolCall: null,
+      } as HookInput,
+      { home, now: new Date(stopAt.getTime() + 1000) },
+    );
+    expect(readState(home).activity_state).toBe("standby");
+  });
+
+  it("still classifies an antigravity step PostToolUse as thinking once the trailing window has passed", async () => {
+    const sessionId = "a1c2e89d-1b5d-4cc1-a38c-3242a02e5fa6";
+    const base = {
+      origin: "antigravity",
+      conversationId: sessionId,
+      error: "",
+      workspacePaths: ["/tmp/codogotchi-ag-trailing"],
+    };
+    await runHook(
+      {
+        ...base,
+        hook_event_name: "Stop",
+        executionNum: 0,
+        fullyIdle: true,
+        terminationReason: "NO_TOOL_CALL",
+      } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+
+    // A new turn's first step event, arriving well past the trailing window.
+    await runHook(
+      {
+        ...base,
+        hook_event_name: "PostToolUse",
+        stepIdx: 1,
+        toolCall: null,
+      } as HookInput,
+      { home, now: new Date(FIXED_NOW.getTime() + 30_000) },
+    );
+    expect(readState(home).activity_state).toBe("thinking");
+  });
+
   it("layers HP from profile.json when present", async () => {
     const profile: Pick<ProfileResponse, "hp" | "mood"> & {
       [k: string]: unknown;
@@ -1260,6 +1329,39 @@ describe("runHook", () => {
     ]);
 
     expect(readState(home).activity_state).toBe("cramming");
+  });
+
+  it("rejects an out-of-order slice write that would clobber a newer terminal state", async () => {
+    // Reversed arrival: a Stop hook's process wins the shared lock race and
+    // writes first, but a still-in-flight UserPromptSubmit for the same
+    // session (real chronological order: submit, then a near-instant Stop)
+    // arrives second with an OLDER event timestamp. Without an ordering
+    // guard this stale "thinking" write lands last and sticks forever, since
+    // nothing else fires to correct it on a short, tool-free turn.
+    const sessionId = "11111111-1111-4111-8111-111111111111";
+    const earlier = FIXED_NOW;
+    const later = new Date(FIXED_NOW.getTime() + 50);
+
+    await runHook(
+      {
+        origin: "claude_code",
+        hook_event_name: "Stop",
+        session_id: sessionId,
+        status: "completed",
+      } as HookInput,
+      { home, now: later },
+    );
+    await runHook(
+      {
+        origin: "claude_code",
+        hook_event_name: "UserPromptSubmit",
+        session_id: sessionId,
+        prompt: "do nothing immediately",
+      } as HookInput,
+      { home, now: earlier },
+    );
+
+    expect(readState(home).activity_state).toBe("standby");
   });
 
   it("breaks a stale .hook.lock left by a killed hook and still writes slice", async () => {
@@ -1406,6 +1508,56 @@ describe("runHook", () => {
       FIXED_NOW.getTime() + 30 * 60 * 1000,
     ).toISOString();
     expect(state.attention?.expires_at).toBe(expectedExpiry);
+  });
+
+  it("StopFailure rate_limit writes a diagnostic error attention summary", async () => {
+    await runHook(
+      {
+        hook_event_name: "StopFailure",
+        error: "rate_limit",
+        error_details: {
+          retry_after_seconds: 183,
+          reset_at: "2026-07-08T03:15:00Z",
+        },
+        last_assistant_message:
+          "Claude Code usage limit reached. Please retry after the reset window.",
+      } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.activity_state).toBe("errored");
+    expect(state.attention?.reason_kind).toBe("error_blocked");
+    expect(state.attention?.summary).toBe(
+      "Rate limit: Claude Code usage limit reached. Please retry after the reset window.",
+    );
+  });
+
+  it("429 quota text is identified as a rate-limit error attention summary", async () => {
+    await runHook(
+      {
+        origin: "antigravity",
+        error: "RESOURCE_EXHAUSTED (code 429): Individual quota reached.",
+        executionNum: 0,
+        fullyIdle: true,
+        terminationReason: "ERROR",
+      } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.activity_state).toBe("errored");
+    expect(state.attention?.summary).toBe(
+      "Rate limit: RESOURCE_EXHAUSTED (code 429): Individual quota reached.",
+    );
+  });
+
+  it("Stop max_tokens writes a specific error attention summary", async () => {
+    await runHook(
+      { hook_event_name: "Stop", stop_reason: "max_tokens" } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+    const state = readState(home);
+    expect(state.activity_state).toBe("errored");
+    expect(state.attention?.summary).toBe("Max tokens reached");
   });
 
   it("Edit tool_use event writes no attention field", async () => {
