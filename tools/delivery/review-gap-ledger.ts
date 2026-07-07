@@ -54,10 +54,9 @@ export interface ReviewGapRecordInput {
   recurrence?: string[];
 }
 
-export interface ReviewGapRecord extends Omit<
-  ReviewGapRecordInput,
-  'kind' | 'reachability'
-> {
+type ReviewGapRecordBase = Omit<ReviewGapRecordInput, 'kind' | 'reachability'>;
+
+export interface ReviewGapRecord extends ReviewGapRecordBase {
   kind: ReviewGapKind;
   reachability: {
     classification: ReviewGapReachabilityClassification;

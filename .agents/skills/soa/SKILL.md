@@ -292,7 +292,7 @@ create one review-gap ledger entry.
 
 **Trigger:** `/soa closeout XX`
 
-Squash-merge a completed stacked PR set onto main.
+Squash-merge a completed stacked PR set onto the configured `closeoutBranch`.
 
 Run the closeout script:
 

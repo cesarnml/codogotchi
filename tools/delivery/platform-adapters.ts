@@ -228,7 +228,17 @@ export function createPlatformAdapters(
       rebasePlatformOntoDefaultBranch(cwd, defaultBranch, config.runtime);
     },
     resolveGitHubRepoForOrchestrator(cwd) {
-      return resolvePlatformGitHubRepo(cwd, config.runtime);
+      const repo = resolvePlatformGitHubRepo(cwd, config.runtime);
+      if (!repo) {
+        return repo;
+      }
+      // `defaultBranch` here must be the configured "repo-primary branch used
+      // for source links" (see delivery-orchestrator.md), not GitHub's live
+      // repo-settings default branch — those two diverge on purpose whenever
+      // an operator points delivery at a branch other than GitHub's actual
+      // default (e.g. `deliveryBaseBranch`/`closeoutBranch` set to a release
+      // branch while GitHub's own default branch stays `main`).
+      return { ...repo, defaultBranch: config.defaultBranch };
     },
     replyToReviewThreadForOrchestrator(worktreePath, databaseId, body) {
       const cached = repoCacheByWorktree.get(worktreePath);
