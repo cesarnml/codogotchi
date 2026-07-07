@@ -1613,6 +1613,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 			systemSymbolName: "person.badge.plus",
 			accessibilityDescription: "Assign platform badge")
 		btn.contentTintColor = .secondaryLabelColor
+		btn.toolTip = "Assign Pet to a Platform"
 		btn.translatesAutoresizingMaskIntoConstraints = false
 		btn.setContentHuggingPriority(.required, for: .horizontal)
 		NSLayoutConstraint.activate([
@@ -1635,6 +1636,7 @@ private final class PetTabView: NSView, NSSearchFieldDelegate {
 			systemSymbolName: "square.and.arrow.down",
 			accessibilityDescription: "Import pet")
 		btn.contentTintColor = .secondaryLabelColor
+		btn.toolTip = "Import Codex Pet"
 		btn.translatesAutoresizingMaskIntoConstraints = false
 		NSLayoutConstraint.activate([
 			btn.widthAnchor.constraint(equalToConstant: 20),
