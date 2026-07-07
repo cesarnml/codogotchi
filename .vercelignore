@@ -9,10 +9,37 @@ web/.astro/
 
 .git/
 .vercel/
+.claude/
+.codex-hatch-runs/
+.cursor/
+.generated-pets/
+.hatch-runs/
 .pytest_cache/
+.qodo/
+.soa/
+.son-of-anton/
+.vscode/
 tmp/
 output/
 generated_assets/
+generated-pets/
+run/
+
+/apps/
+/assets/
+/docs/
+/notes/
+/plugins/
+/reviews/
+/scripts/
+/test/
+/tools/
+
+AGENTS.md
+CLAUDE.md
+CONTRIBUTING.md
+START-HERE.md
+wakatime-summaries-response.pretty.json
 
 *.log
 *.dmg
