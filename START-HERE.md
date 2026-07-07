@@ -78,4 +78,4 @@ A pet is a folder of `pet.json` (camelCase keys: `id`, `displayName`, …) plus 
 
 - Be kind: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 - Build, test, and workflow reference: [CONTRIBUTING.md](CONTRIBUTING.md).
-- License: [PolyForm Noncommercial 1.0.0](LICENSE).
+- License: [MIT](LICENSE).

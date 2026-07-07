@@ -98,4 +98,4 @@ Codogotchi is open source. New to the codebase? **[START-HERE.md](START-HERE.md)
 
 ## License
 
-[PolyForm Noncommercial 1.0.0](LICENSE) — free for personal and noncommercial use.
+[MIT](LICENSE) — free for any use, commercial included.

@@ -37,12 +37,16 @@ final class MenuItemsTests: XCTestCase {
 	private func makePool(
 		origins: [String],
 		renderKeyIdentities: [String: RenderKeyIdentity] = [:],
-		sessionLabelReader: @escaping FloatingPetWindowPool.SessionLabelReader = { _ in nil }
+		sessionLabelReader: @escaping FloatingPetWindowPool.SessionLabelReader = { _ in nil },
+		sessionTitleReader: @escaping FloatingPetWindowPool.SessionTitleReader = { _, _ in nil },
+		retrievedSessionTitleReader: @escaping FloatingPetWindowPool.RetrievedSessionTitleReader = { _ in nil }
 	) -> FloatingPetWindowPool {
 		let pool = FloatingPetWindowPool(
 			customizationReader: { .safeDefault },
 			windowFactory: { _, _ in StubWindow() },
-			sessionLabelReader: sessionLabelReader
+			sessionLabelReader: sessionLabelReader,
+			sessionTitleReader: sessionTitleReader,
+			retrievedSessionTitleReader: retrievedSessionTitleReader
 		)
 		if !origins.isEmpty {
 			let perPlatform = Dictionary(
@@ -236,6 +240,87 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertTrue(pool.hiddenWindowKeys.isEmpty)
 	}
 
+	func testShowAllPetsRefreshesTtlForEveryHiddenKeyBeforeUnhiding() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		pool.setVisible(false, for: "claude_code")
+		pool.setVisible(false, for: "cursor")
+		var refreshed: [String] = []
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshTtlForShow: { refreshed.append($0) })
+		_ = builder.build()
+
+		builder.showAllPets(nil)
+
+		// Without the refresh, a key whose slice TTL-expired while hidden would
+		// be un-hidden but never re-spawn — an invisible "Show All".
+		XCTAssertEqual(Set(refreshed), Set(["claude_code", "cursor"]))
+		XCTAssertTrue(pool.hiddenWindowKeys.isEmpty)
+	}
+
+	func testShowPetItemRefreshesTtlForExactlyItsOwnKey() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		var refreshed: [String] = []
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshTtlForShow: { refreshed.append($0) })
+		let menu = builder.build()
+		pool.setVisible(false, for: "cursor")
+		builder.refreshFloatingPetMenuItemTitle()
+
+		let showItem = menu.items.first {
+			($0.representedObject as? String) == "cursor" && $0.title.hasPrefix("Show")
+		}
+		XCTAssertNotNil(showItem, "hidden cursor must have a Show item carrying its window key")
+		_ = (showItem!.target as AnyObject?)?.perform(showItem!.action!, with: showItem!)
+
+		XCTAssertEqual(
+			refreshed, ["cursor"],
+			"only the clicked key's TTL clock restarts — never a sibling's")
+		XCTAssertFalse(pool.hiddenWindowKeys.contains("cursor"))
+	}
+
+	func testMenuWillOpenPrunesOrphanHiddenKeysThenRebuildsThePetSection() {
+		// A hidden pet whose slice SlicePruner deleted from disk must vanish
+		// from the dropdown at open time — its "Show" entry is a no-op lie.
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		pool.setVisible(false, for: "cursor")
+		var pruneCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			pruneOrphanHiddenKeys: {
+				pruneCalls += 1
+				// Stand-in for pruneHiddenKeysWithoutBackingSlice finding no
+				// slice on disk: the hidden key is gone when the rebuild runs.
+				pool.setVisible(true, for: "cursor")
+			})
+		let menu = builder.build()
+		builder.refreshFloatingPetMenuItemTitle()
+		XCTAssertTrue(
+			menu.items.contains { $0.title == "Show Cursor Pet" },
+			"precondition: the zombie Show entry exists before the menu opens")
+
+		builder.menuWillOpen(menu)
+
+		XCTAssertEqual(pruneCalls, 1)
+		XCTAssertFalse(
+			menu.items.contains { $0.title == "Show Cursor Pet" },
+			"the culled key's Show entry must not survive the open-time rebuild")
+	}
+
+	func testMenuWillOpenIgnoresForeignMenus() {
+		let pool = makePool(origins: ["claude_code"])
+		var pruneCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			pruneOrphanHiddenKeys: { pruneCalls += 1 })
+		_ = builder.build()
+
+		builder.menuWillOpen(NSMenu())
+
+		XCTAssertEqual(pruneCalls, 0, "a submenu or foreign menu must not trigger the prune")
+	}
+
 	func testHideAllPetsHidesEveryActiveOrigin() {
 		let pool = makePool(origins: ["claude_code", "cursor"])
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
@@ -306,6 +391,42 @@ final class MenuItemsTests: XCTestCase {
 
 		let titles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
 		XCTAssertTrue(titles.contains("Hide Claude Code - Refactor Sprint Pet"), "got \(titles)")
+		_ = pool  // keep alive
+	}
+
+	func testSessionKeyedOriginUsesRetrievedSessionTitleBeforeSessionNumber() {
+		let sessionKey = "codex:s1"
+		let pool = makePool(
+			origins: ["cursor", sessionKey],
+			renderKeyIdentities: [
+				sessionKey: RenderKeyIdentity(origin: "codex", sessionId: "s1")
+			],
+			retrievedSessionTitleReader: { key in key == sessionKey ? "Rename testing prompts" : nil }
+		)
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		let menu = builder.build()
+
+		let titles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
+		XCTAssertTrue(titles.contains("Hide Codex - Rename testing prompts Pet"), "got \(titles)")
+		_ = pool  // keep alive
+	}
+
+	func testSessionKeyedOriginPrefersCustomSessionLabelOverRetrievedSessionTitle() {
+		let sessionKey = "codex:s1"
+		let pool = makePool(
+			origins: ["cursor", sessionKey],
+			renderKeyIdentities: [
+				sessionKey: RenderKeyIdentity(origin: "codex", sessionId: "s1")
+			],
+			sessionLabelReader: { key in key == sessionKey ? "Manual label" : nil },
+			retrievedSessionTitleReader: { key in key == sessionKey ? "Rename testing prompts" : nil }
+		)
+		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
+		let menu = builder.build()
+
+		let titles = Set(menu.items[Self.petSectionStartIndex..<(Self.petSectionStartIndex + 2)].map { $0.title })
+		XCTAssertTrue(titles.contains("Hide Codex - Manual label Pet"), "got \(titles)")
+		XCTAssertFalse(titles.contains("Hide Codex - Rename testing prompts Pet"), "got \(titles)")
 		_ = pool  // keep alive
 	}
 }

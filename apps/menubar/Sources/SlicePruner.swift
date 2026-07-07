@@ -64,6 +64,34 @@ enum SlicePruner {
 	/// clears it.
 	@discardableResult
 	static func pruneOrphanLabels(dir: String, labelPath: String = SessionLabelStore.path()) -> Int {
+		pruneOrphanKeys(dir: dir, storePath: labelPath, remove: SessionLabelStore.removeLabel)
+	}
+
+	/// Removes `retrieved-session-labels.json` keys whose `origin:session_id`
+	/// slice no longer exists in `dir` — the same orphan-hygiene contract as
+	/// `pruneOrphanLabels`, applied to `RetrievedSessionTitleStore`'s cache of
+	/// platform-fetched thread titles instead of Codogotchi's own rename
+	/// sidecar. Run alongside `pruneOrphanLabels` so neither file outlives
+	/// every trace of the session it names.
+	@discardableResult
+	static func pruneOrphanRetrievedTitles(
+		dir: String, storePath: String = RetrievedSessionTitleStore.path()
+	) -> Int {
+		pruneOrphanKeys(dir: dir, storePath: storePath, remove: RetrievedSessionTitleStore.removeTitle)
+	}
+
+	/// Shared orphan-sweep algorithm: reads `storePath` as a `[String: String]`
+	/// JSON dict, and removes (via `remove`) every session-keyed
+	/// (`"origin:session_id"`, colon-containing) key whose slice is no longer
+	/// present in `dir`. Plain-origin keys (e.g. `"vscode"`) or the literal
+	/// `"combined"` key name a persistent per-platform value, not an ephemeral
+	/// session — they never correspond to a slice filename, so treating them
+	/// the same way would delete them on every sweep. Best-effort: a missing
+	/// or unreadable store file is a no-op, not an error. Returns the number
+	/// of keys removed.
+	private static func pruneOrphanKeys(
+		dir: String, storePath: String, remove: (String, String) -> Void
+	) -> Int {
 		let fm = FileManager.default
 		let names = (try? fm.contentsOfDirectory(atPath: dir)) ?? []
 		let liveKeys = Set(
@@ -71,12 +99,12 @@ enum SlicePruner {
 				guard let (origin, sessionId) = StateJsonReader.parseSliceFilename(name) else { return nil }
 				return makeSessionKey(origin: origin, sessionId: sessionId)
 			})
-		guard let data = try? Data(contentsOf: URL(fileURLWithPath: labelPath)),
-			let labels = try? JSONDecoder().decode([String: String].self, from: data)
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: storePath)),
+			let entries = try? JSONDecoder().decode([String: String].self, from: data)
 		else { return 0 }
 		var removed = 0
-		for key in labels.keys where key.contains(":") && !liveKeys.contains(key) {
-			SessionLabelStore.removeLabel(for: key, at: labelPath)
+		for key in entries.keys where key.contains(":") && !liveKeys.contains(key) {
+			remove(key, storePath)
 			removed += 1
 		}
 		return removed
@@ -143,6 +171,11 @@ final class SlicePruneScheduler {
 			let removedLabels = SlicePruner.pruneOrphanLabels(dir: dir)
 			if removedLabels > 0 {
 				NSLog("SlicePruneScheduler: removed %d orphan session-labels.json key(s)", removedLabels)
+			}
+			let removedTitles = SlicePruner.pruneOrphanRetrievedTitles(dir: dir)
+			if removedTitles > 0 {
+				NSLog(
+					"SlicePruneScheduler: removed %d orphan retrieved-session-labels.json key(s)", removedTitles)
 			}
 		}
 	}

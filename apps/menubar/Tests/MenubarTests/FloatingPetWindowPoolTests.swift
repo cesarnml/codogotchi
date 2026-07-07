@@ -742,6 +742,120 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         XCTAssertEqual(savedCalls.last, [], "showing must write-through the cleared hidden set")
     }
 
+    // MARK: - Hide All Other Pets
+
+    func testHideAllOtherWindowsHidesEveryOtherActiveWindowButNotTheTrigger() {
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in StubWindowController() }
+        )
+        let snap = makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+            "codex": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+            "cursor": makeSnapshot(updated: "2026-06-28T10:00:02.000Z"),
+        ])
+        pool.update(snapshot: snap)
+        XCTAssertEqual(Set(pool.activeOrigins), ["claude_code", "codex", "cursor"])
+
+        pool.hideAllOtherWindows(keepVisible: "codex")
+
+        XCTAssertEqual(pool.activeOrigins, ["codex"])
+        XCTAssertEqual(pool.hiddenWindowKeys.sorted(), ["claude_code", "cursor"])
+        XCTAssertFalse(
+            pool.hiddenWindowKeys.contains("codex"),
+            "the window that triggered the action must never be hidden by it")
+    }
+
+    // Same-platform sibling sessions are hidden too, not just other platforms —
+    // "Hide All Other Pets" has no platform-scoping, unlike Force Idle/Focus.
+    func testHideAllOtherWindowsHidesSameOriginSiblingSessions() {
+        let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+        let pool = FloatingPetWindowPool(
+            customizationReader: { customization },
+            windowFactory: { _, _ in StubWindowController() }
+        )
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: [
+                "codex:s1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+                "codex:s2": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+            ],
+            customization: customization
+        ))
+        XCTAssertEqual(Set(pool.activeOrigins), ["codex:s1", "codex:s2"])
+
+        pool.hideAllOtherWindows(keepVisible: "codex:s1")
+
+        XCTAssertEqual(pool.activeOrigins, ["codex:s1"])
+        XCTAssertTrue(pool.hiddenWindowKeys.contains("codex:s2"))
+    }
+
+    // Not a mode: a session/platform that spawns AFTER the bulk-hide fires is
+    // untouched and renders normally on its very first tick.
+    func testHideAllOtherWindowsDoesNotAffectASessionThatSpawnsAfterward() {
+        var spawnCount = 0
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in
+                spawnCount += 1
+                return StubWindowController()
+            }
+        )
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "codex": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+        ]))
+        pool.hideAllOtherWindows(keepVisible: "codex")
+        XCTAssertEqual(spawnCount, 1)
+
+        // A previously-unseen platform arrives on a later tick.
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "codex": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+        ]))
+        XCTAssertTrue(
+            pool.activeOrigins.contains("claude_code"),
+            "a platform unseen at the time of the bulk-hide must spawn normally")
+        XCTAssertEqual(spawnCount, 2)
+    }
+
+    func testHideAllOtherWindowsWithNoOtherActiveWindowsIsNoOp() {
+        var savedCalls: [Set<String>] = []
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in StubWindowController() },
+            hiddenKeysSaver: { savedCalls.append($0) }
+        )
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "codex": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+        ]))
+
+        pool.hideAllOtherWindows(keepVisible: "codex")
+
+        XCTAssertEqual(pool.activeOrigins, ["codex"])
+        XCTAssertTrue(savedCalls.isEmpty, "no window was actually hidden, so the sidecar must not be rewritten")
+    }
+
+    // The write-through to `hiddenKeysSaver` is batched into a single call
+    // covering every hidden key, not one call per window — unlike calling
+    // `setVisible(false, for:)` in a loop, which would write once per window.
+    func testHideAllOtherWindowsWritesThroughExactlyOnce() {
+        var savedCalls: [Set<String>] = []
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in StubWindowController() },
+            hiddenKeysSaver: { savedCalls.append($0) }
+        )
+        pool.update(snapshot: makePerPlatformSnapshot([
+            "claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+            "codex": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+            "cursor": makeSnapshot(updated: "2026-06-28T10:00:02.000Z"),
+        ]))
+
+        pool.hideAllOtherWindows(keepVisible: "codex")
+
+        XCTAssertEqual(savedCalls.count, 1)
+        XCTAssertEqual(savedCalls.first, ["claude_code", "cursor"])
+    }
+
     func testInitRestoresHiddenKeysFromInjectedLoader() {
         var spawnCount = 0
         let pool = FloatingPetWindowPool(
@@ -2253,6 +2367,11 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			stubs["combined"]?.appliedPlatforms.last ?? nil, "combined",
 			"the folded combined window must keep the idle ⭐ Default badge behavior"
 		)
+		XCTAssertEqual(
+			stubs["combined"]?.appliedSessionLabels.last ?? nil, "Combined",
+			"the session-label badge names the window itself (\"Combined\"), distinct from"
+				+ " the platform chip's ⭐ \"Default\" pet-assignment text"
+		)
 	}
 
 	/// (5) own→minimalist toggle tears down and respawns the correct controller
@@ -2638,6 +2757,188 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(stubs["codex"]?.appliedSessionLabels.last ?? nil, "Codex")
 	}
 
+	// MARK: - Session title resolution (platform auto-generated thread titles)
+
+	// A session-keyed window with no sidecar rename prefers the platform's
+	// own resolved thread title over the numeric "Session N" fallback — a
+	// friendlier default when the coding-agent platform already titled it.
+	func testSessionKeyedWindowWithResolvedTitlePrefersItOverSessionNumber() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { origin, sessionId in
+				origin == "codex" && sessionId == "s1" ? "Locate session auto label" : nil
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Locate session auto label")
+	}
+
+	// A sidecar rename always wins over a resolved title, exactly as it wins
+	// over the "Session N" default — the user's explicit rename is never
+	// second-guessed by a friendlier-looking platform title.
+	func testSessionKeyedWindowUserRenameStillWinsOverResolvedTitle() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { key in key == "codex:s1" ? "Renamed by user" : nil },
+			sessionTitleReader: { _, _ in "Locate session auto label" }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Renamed by user")
+	}
+
+	// A title unresolved on the first tick (the platform hasn't titled the
+	// thread yet) is retried on a later tick rather than permanently frozen
+	// at "Session N".
+	func testSessionKeyedWindowRetriesUnresolvedTitleOnLaterTick() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		var titleAvailable = false
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { _, _ in titleAvailable ? "Locate session auto label" : nil }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Session 1")
+
+		titleAvailable = true
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:01.000Z")],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Locate session auto label")
+	}
+
+	// Once resolved, a title is cached rather than re-fetched every tick —
+	// `sessionTitleReader` touches another app's on-disk storage, so a
+	// resolved title must not be looked up again on every subsequent tick.
+	func testSessionKeyedWindowResolvedTitleIsNotReFetchedOnLaterTicks() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		var readerCallCount = 0
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { _, _ in
+				readerCallCount += 1
+				return "Locate session auto label"
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization
+		))
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:01.000Z")],
+			customization: customization
+		))
+		XCTAssertEqual(readerCallCount, 1)
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Locate session auto label")
+	}
+
+	// The on-disk `RetrievedSessionTitleStore` cache is consulted BEFORE
+	// `sessionTitleReader` — a title already cached from a prior run (or a
+	// prior window for the same session) must resolve without ever touching
+	// the (expensive) platform-lookup reader.
+	func testSessionKeyedWindowConsultsPersistedTitleCacheBeforeFetching() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		var readerCallCount = 0
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { _, _ in
+				readerCallCount += 1
+				return "Freshly fetched"
+			},
+			retrievedSessionTitleReader: { key in
+				key == "codex:s1" ? "Cached from a prior run" : nil
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization
+		))
+
+		XCTAssertEqual(readerCallCount, 0, "a persisted cache hit must never fall through to the platform fetch")
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Cached from a prior run")
+	}
+
+	// A freshly-resolved title (persisted cache miss) is written through to
+	// the on-disk store exactly once, so a later relaunch can skip the fetch.
+	func testSessionKeyedWindowWritesFreshlyResolvedTitleThroughToPersistedCache() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		var writtenEntries: [(String, String)] = []
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { _, _ in "Locate session auto label" },
+			retrievedSessionTitleReader: { _ in nil },
+			retrievedSessionTitleWriter: { key, title in writtenEntries.append((key, title)) }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization
+		))
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:01.000Z")],
+			customization: customization
+		))
+
+		XCTAssertEqual(writtenEntries.count, 1, "the write-through must happen exactly once, not every tick")
+		XCTAssertEqual(writtenEntries.first?.0, "codex:s1")
+		XCTAssertEqual(writtenEntries.first?.1, "Locate session auto label")
+	}
+
 	/// Mirrors `testSessionKeyedWindowWithSidecarLabelDisplaysItInsteadOfSessionN`
 	/// for `applySessionTooltip` — the pool-level path was previously untested
 	/// even though the label path had symmetric coverage.
@@ -2699,6 +3000,106 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 
 	func testSessionIdentityIsNilForTheCombinedKey() {
 		XCTAssertNil(FloatingPetWindowPool.sessionIdentity(forWindowKey: "combined"))
+	}
+
+	// MARK: - modeSwitchOrigin(forWindowKey:)
+
+	func testModeSwitchOriginResolvesASessionKeyedKeyToItsPlatformOrigin() {
+		// Platform-level switch: a right-click on one session panel must
+		// rewrite the whole platform's mode, never a per-session mode.
+		XCTAssertEqual(
+			FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: "claude_code:s1"),
+			"claude_code")
+	}
+
+	func testModeSwitchOriginIsTheKeyItselfForAPlainOrigin() {
+		XCTAssertEqual(
+			FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: "cursor"), "cursor")
+	}
+
+	func testModeSwitchOriginIsNilForTheCombinedKey() {
+		// The combined window has no single origin — the switch flips
+		// combined_minimalist_enabled instead of any platform_modes entry.
+		XCTAssertNil(FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: "combined"))
+	}
+
+	// MARK: - pruneHiddenKeysWithoutBackingSlice (zombie "Show … Pet" menu entries)
+
+	private func makeSliceDir(files: [String]) -> String {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("pool-hidden-prune-\(UUID().uuidString)", isDirectory: true)
+		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		for name in files {
+			try! Data("{}".utf8).write(to: dir.appendingPathComponent(name))
+		}
+		return dir.path
+	}
+
+	func testPruneHiddenKeysDropsASessionKeyWhoseSliceWasDeletedAndPersists() {
+		let dir = makeSliceDir(files: ["claude_code:alive.json"])
+		defer { try? FileManager.default.removeItem(atPath: dir) }
+		var savedSets: [Set<String>] = []
+		let pool = FloatingPetWindowPool(
+			customizationReader: { .safeDefault },
+			windowFactory: { _, _ in StubWindowController() },
+			hiddenKeysSaver: { savedSets.append($0) }
+		)
+		pool.setVisible(false, for: "claude_code:alive")
+		pool.setVisible(false, for: "claude_code:pruned")
+
+		pool.pruneHiddenKeysWithoutBackingSlice(stateDirectory: dir)
+
+		XCTAssertEqual(
+			Set(pool.hiddenWindowKeys), ["claude_code:alive"],
+			"the key with a live slice survives; the SlicePruner-deleted one is culled")
+		XCTAssertEqual(
+			savedSets.last, ["claude_code:alive"],
+			"the trimmed set must persist so the zombie key does not resurrect on relaunch")
+	}
+
+	func testPruneHiddenKeysKeepsAPlainOriginKeyWhileAnySliceOfThatOriginExists() {
+		let dir = makeSliceDir(files: ["cursor:s1.json"])
+		defer { try? FileManager.default.removeItem(atPath: dir) }
+		let pool = FloatingPetWindowPool(
+			customizationReader: { .safeDefault },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+		pool.setVisible(false, for: "cursor")
+		pool.setVisible(false, for: "codex")
+
+		pool.pruneHiddenKeysWithoutBackingSlice(stateDirectory: dir)
+
+		XCTAssertEqual(
+			Set(pool.hiddenWindowKeys), ["cursor"],
+			"a plain-origin key survives on any slice of its origin; codex has none left")
+	}
+
+	func testPruneHiddenKeysCombinedKeySurvivesWhileACombinedOriginHasASlice() {
+		let dir = makeSliceDir(files: ["cursor:s1.json"])
+		defer { try? FileManager.default.removeItem(atPath: dir) }
+		let combined = CustomizationSnapshot(
+			platformModes: ["cursor": .combined, "codex": .combined],
+			idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false,
+			minimalistBadgeScale: 1.0
+		)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { combined },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+		pool.setVisible(false, for: "combined")
+
+		pool.pruneHiddenKeysWithoutBackingSlice(stateDirectory: dir)
+		XCTAssertEqual(
+			Set(pool.hiddenWindowKeys), ["combined"],
+			"the combined key survives while any combined-mode origin still has a slice")
+
+		try? FileManager.default.removeItem(atPath: (dir as NSString).appendingPathComponent("cursor:s1.json"))
+		pool.pruneHiddenKeysWithoutBackingSlice(stateDirectory: dir)
+		XCTAssertTrue(
+			pool.hiddenWindowKeys.isEmpty,
+			"once every combined-mode origin's slices are gone, the combined key is culled")
 	}
 }
 

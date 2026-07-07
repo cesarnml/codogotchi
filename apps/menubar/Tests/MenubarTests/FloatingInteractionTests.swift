@@ -165,6 +165,53 @@ final class FloatingInteractionTests: XCTestCase {
 		XCTAssertEqual(FloatingPetHidePrompt.forceIdleTitle, "Force Idle")
 	}
 
+	// MARK: - Mode-switch affordances (Pet Mode ↔ Minimalist Mode)
+
+	func testMinimalistModePromptTitle() {
+		XCTAssertEqual(FloatingPetHidePrompt.minimalistModeTitle, "Minimalist Mode")
+	}
+
+	func testPetModePromptTitle() {
+		XCTAssertEqual(FloatingPetHidePrompt.petModeTitle, "Pet Mode")
+	}
+
+	func testModeSwitchPromptPreferredSizesFitTitles() {
+		for title in [FloatingPetHidePrompt.minimalistModeTitle, FloatingPetHidePrompt.petModeTitle] {
+			let size = FloatingPetHidePrompt.preferredSize(title: title)
+			XCTAssertGreaterThan(size.width, 70, "\(title) pill must fit its label")
+			XCTAssertGreaterThan(size.height, 24)
+		}
+	}
+
+	func testStackSizeWithModeSwitchRowFitsItsWiderTitle() {
+		// "Minimalist Mode" is the widest title the Own-mode prompt can stack;
+		// the stack must widen to fit it, not clip to "Hide pet"'s width.
+		let titles = [FloatingPetHidePrompt.minimalistModeTitle, FloatingPetHidePrompt.title]
+		let stacked = FloatingPetHidePrompt.stackSize(titles: titles)
+		let widest = titles
+			.map { FloatingPetHidePrompt.preferredSize(title: $0).width }
+			.max() ?? 0
+		XCTAssertEqual(stacked.width, widest, accuracy: 0.5)
+		XCTAssertGreaterThan(
+			FloatingPetHidePrompt.preferredSize(title: FloatingPetHidePrompt.minimalistModeTitle).width,
+			FloatingPetHidePrompt.preferredSize(title: FloatingPetHidePrompt.title).width,
+			"sanity: the mode-switch title is the row driving the stack width")
+	}
+
+	// MARK: - Panel Size pill
+
+	func testPanelSizePromptTitleUsesEllipsisConvention() {
+		// Ellipsis marks "opens follow-up UI", matching "Rename…".
+		XCTAssertEqual(FloatingPetHidePrompt.panelSizeTitle, "Panel Size…")
+	}
+
+	func testPanelSizePillSliderRangeMatchesCustomizationSlider() {
+		// The pill and the Customization tab's slider drive the same global
+		// minimalist_badge_scale, so their ranges must never drift apart.
+		XCTAssertEqual(MinimalistPanelSizePill.minScale, Double(GateBadgeLayout.achievableMinScale))
+		XCTAssertEqual(MinimalistPanelSizePill.maxScale, Double(GateBadgeLayout.achievableMaxScale))
+	}
+
 	func testStackSizeSingleTitleMatchesPreferredSize() {
 		let single = FloatingPetHidePrompt.preferredSize(title: FloatingPetHidePrompt.title)
 		let stacked = FloatingPetHidePrompt.stackSize(titles: [FloatingPetHidePrompt.title])

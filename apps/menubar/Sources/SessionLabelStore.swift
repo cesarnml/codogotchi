@@ -25,7 +25,24 @@ enum SessionLabelStore {
 	/// (normalized) value.
 	@discardableResult
 	static func setLabel(_ label: String, for key: String, at path: String = SessionLabelStore.path()) -> String {
-		let normalized = normalize(label)
+		store(normalize(label), for: key, at: path)
+	}
+
+	/// Trims but does NOT cap `label` at `maxLength` before writing it for
+	/// `key`. Used by the right-click "Sync Label" affordance to adopt a
+	/// platform's own auto-generated (or manually renamed) thread title
+	/// verbatim — that title is itself exempt from the 24-char cap applied to
+	/// a manual Codogotchi rename, so pulling it in here must not truncate it
+	/// either.
+	@discardableResult
+	static func setLabelExemptFromCap(_ label: String, for key: String, at path: String = SessionLabelStore.path())
+		-> String
+	{
+		store(label.trimmingCharacters(in: .whitespacesAndNewlines), for: key, at: path)
+	}
+
+	@discardableResult
+	private static func store(_ normalized: String, for key: String, at path: String) -> String {
 		var labels = read(at: path)
 		labels[key] = normalized
 		write(labels, at: path)

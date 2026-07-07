@@ -391,4 +391,75 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		let reloaded = CustomizationTabViewModel(filePath: path)
 		XCTAssertFalse(reloaded.evictSessionPetsEnabled, "value must round-trip through a fresh read")
 	}
+
+	// MARK: - reload() re-syncs from an external write
+
+	func testReloadPicksUpAModeSwitchWrittenByAnotherViewModel() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		// The Settings tab's long-lived view model…
+		let settingsVM = CustomizationTabViewModel(filePath: path)
+		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .own)
+
+		// …goes stale when a right-click mode switch writes through its own
+		// short-lived view model (the MenubarApp affordance handlers' path).
+		let rightClickVM = CustomizationTabViewModel(filePath: path)
+		rightClickVM.setMode(.minimalist, for: "claude_code")
+		rightClickVM.setCombinedMinimalistEnabled(true)
+		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .own, "stale until reload()")
+
+		settingsVM.reload()
+
+		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .minimalist)
+		XCTAssertTrue(settingsVM.combinedMinimalistEnabled)
+	}
+
+	func testReloadPicksUpABadgeScaleWrittenByAnotherViewModel() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let settingsVM = CustomizationTabViewModel(filePath: path)
+		XCTAssertEqual(settingsVM.minimalistBadgeScale, 1.0)
+
+		// The Panel Size pill's write path (MenubarApp's onPanelSizeChanged
+		// handler) uses its own short-lived view model, same as a mode switch.
+		// 0.9 sits inside the achievable range, so it round-trips unclamped.
+		let pillVM = CustomizationTabViewModel(filePath: path)
+		pillVM.setMinimalistBadgeScale(0.9)
+
+		settingsVM.reload()
+
+		XCTAssertEqual(settingsVM.minimalistBadgeScale, 0.9)
+	}
+
+	func testSetMinimalistBadgeScaleClampsToTheAchievableCeiling() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let vm = CustomizationTabViewModel(filePath: path)
+
+		// The achievable ceiling (~1.16, from FloatingFramePolicy's max pet
+		// width) is well below the hard 1.5 cap — a dial value past it must
+		// persist as the ceiling, exactly like the Customization slider.
+		vm.setMinimalistBadgeScale(1.5)
+
+		XCTAssertEqual(
+			vm.minimalistBadgeScale, Double(GateBadgeLayout.achievableMaxScale),
+			accuracy: 0.0001)
+	}
+
+	func testReloadRestoresTheDefaultWhenAModeSwitchRemovedTheEntry() {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		let settingsVM = CustomizationTabViewModel(filePath: path)
+		settingsVM.setMode(.minimalist, for: "cursor")
+
+		// "Pet Mode" writes .own, which removes the platform_modes entry
+		// (own is the default) — reload must fall back to .own, not keep the
+		// stale .minimalist.
+		let rightClickVM = CustomizationTabViewModel(filePath: path)
+		rightClickVM.setMode(.own, for: "cursor")
+
+		settingsVM.reload()
+
+		XCTAssertEqual(settingsVM.mode(for: "cursor"), .own)
+	}
 }

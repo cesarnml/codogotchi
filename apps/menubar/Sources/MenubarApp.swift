@@ -304,6 +304,46 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						self?.floatingPetWindowPool?.pruneSession(
 							windowKey: origin, stateDirectory: stateDir)
 					}
+					// Right-click "Sync Label": re-fetches the platform's own current
+					// thread title — bypassing the pool's once-resolved-then-frozen
+					// cache — and adopts it as this session's label, exempt from
+					// SessionLabelStore's 24-char cap (mirrors the cap exemption
+					// already given to a title's first automatic resolution). A silent
+					// no-op if the origin has no session identity, isn't a title-
+					// resolvable platform, or hasn't titled the thread (yet, or ever).
+					panel.onSyncLabelRequested = {
+						guard let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin),
+							let title = SessionTitleResolver.title(
+								forOrigin: identity.origin, sessionId: identity.sessionId)
+						else { return }
+						SessionLabelStore.setLabelExemptFromCap(title, for: origin)
+					}
+					// Right-click "Hide All Other Pets": hides every other
+					// currently-rendered window (same-platform sibling sessions
+					// included), leaving only this one shown. A snapshot action, not
+					// a mode — a session/platform that spawns afterward is untouched.
+					panel.onHideAllOtherPetsRequested = { [weak self] in
+						self?.floatingPetWindowPool?.hideAllOtherWindows(keepVisible: origin)
+					}
+					// Right-click "Minimalist Mode": persist the switch via the same
+					// read-merge-write the Settings pickers use; the pool re-reads
+					// customization.json on its next tick and respawns this window as
+					// a badge strip. Mode is keyed per platform origin, so on a
+					// sessions-enabled platform every sibling session panel flips
+					// together — a session-keyed window resolves to its platform's
+					// origin, never a per-session mode. The literal "combined" window
+					// has no single origin; it keeps its grouping and flips the
+					// combined-minimalist rendering flag instead.
+					panel.onSwitchToMinimalist = {
+						let viewModel = CustomizationTabViewModel()
+						if let platformOrigin = FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: origin) {
+							viewModel.setMode(.minimalist, for: platformOrigin)
+						} else {
+							viewModel.setCombinedMinimalistEnabled(true)
+						}
+						NotificationCenter.default.post(
+							name: .customizationDidChangeExternally, object: nil)
+					}
 					// P15.08: left-clicking the conflict bubble deep-links to
 					// Settings > Customization so the user can raise the cap.
 					panel.onOpenSettingsRequested = { [weak self] in
@@ -335,6 +375,49 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// above for the full rationale).
 					panel.onRenameRequested = { newLabel in
 						SessionLabelStore.setLabel(newLabel, for: origin)
+					}
+					// Right-click "Sync Label", mirroring Own mode's wiring above —
+					// same fetch-and-persist, same silent no-op when unresolvable.
+					panel.onSyncLabelRequested = {
+						guard let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin),
+							let title = SessionTitleResolver.title(
+								forOrigin: identity.origin, sessionId: identity.sessionId)
+						else { return }
+						SessionLabelStore.setLabelExemptFromCap(title, for: origin)
+					}
+					// Right-click "Hide All Other Pets", mirroring Own mode's wiring
+					// above.
+					panel.onHideAllOtherPetsRequested = { [weak self] in
+						self?.floatingPetWindowPool?.hideAllOtherWindows(keepVisible: origin)
+					}
+					// Right-click "Pet Mode": the inverse of Own mode's "Minimalist
+					// Mode" switch above — same key-shape resolution, same
+					// platform-level scope (all sibling session panels flip together),
+					// same combined-window special case.
+					panel.onSwitchToPetMode = {
+						let viewModel = CustomizationTabViewModel()
+						if let platformOrigin = FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: origin) {
+							viewModel.setMode(.own, for: platformOrigin)
+						} else {
+							viewModel.setCombinedMinimalistEnabled(false)
+						}
+						NotificationCenter.default.post(
+							name: .customizationDidChangeExternally, object: nil)
+					}
+					// Right-click "Panel Size…" slider pill: persists the same
+					// global minimalist_badge_scale the Customization tab's slider
+					// writes, so every Minimalist strip resizes, not just this one
+					// (the clicked strip live-applies in the panel; siblings follow
+					// on their next poll tick). The Settings re-sync notification
+					// is deferred to the gesture's final tick — per-tick posts
+					// would make an open Customization tab re-read the file for
+					// every pixel of the drag.
+					panel.onPanelSizeChanged = { scale, isFinal in
+						CustomizationTabViewModel().setMinimalistBadgeScale(scale)
+						if isFinal {
+							NotificationCenter.default.post(
+								name: .customizationDidChangeExternally, object: nil)
+						}
 					}
 					// Focus/dismiss on a session-keyed minimalist badge can only act on
 					// the platform app as a whole, so it idles every sibling session's
@@ -401,6 +484,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					}
 					return controller
 				},
+				retrievedSessionTitleReader: { RetrievedSessionTitleStore.title(for: $0) },
+				retrievedSessionTitleWriter: { key, title in
+					RetrievedSessionTitleStore.setTitle(title, for: key)
+				},
 				hiddenKeysLoader: { AppStateStore.loadHiddenWindowKeys() },
 				hiddenKeysSaver: { try? AppStateStore.saveHiddenWindowKeys($0) }
 			)
@@ -438,6 +525,29 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			},
 			openSettings: { [weak settingsController] tab in
 				settingsController?.show(tab: tab)
+			},
+			// Explicit "Show" restarts the dismiss-TTL clock on the window's
+			// backing slice(s) so a pet that expired while hidden actually
+			// re-spawns; same window-key targeting as Force Idle (session-keyed
+			// → exactly that slice, combined/plain → that window's origin set).
+			refreshTtlForShow: { [weak self] windowKey in
+				let stateDir = config.pollingTarget.path
+				if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: windowKey) {
+					StateJsonWriter.refreshForShow(
+						at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
+				} else {
+					StateJsonWriter.refreshForShow(
+						at: stateDir,
+						origins: self?.resolveWindowOrigins(windowKey: windowKey) ?? [windowKey]
+					)
+				}
+			},
+			// On menu open, drop hidden keys whose slice SlicePruner already
+			// deleted — past the 24h horizon there is nothing left for Show
+			// (or refreshForShow) to act on, so the entry would be a lie.
+			pruneOrphanHiddenKeys: { [weak self] in
+				self?.floatingPetWindowPool?.pruneHiddenKeysWithoutBackingSlice(
+					stateDirectory: config.pollingTarget.path)
 			}
 		)
 		item.menu = menuBuilder.build()

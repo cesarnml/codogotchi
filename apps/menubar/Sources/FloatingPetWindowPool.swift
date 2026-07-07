@@ -31,6 +31,17 @@ final class FloatingPetWindowPool {
 	typealias SessionLabelReader = (String) -> String?
 	/// Reads a session's last submitted prompt given its window key.
 	typealias SessionPromptSummaryReader = (String) -> String?
+	/// Reads a session's platform-auto-generated thread title given its
+	/// `(origin, session_id)` identity, or `nil` when unsupported/unresolved.
+	typealias SessionTitleReader = (String, String) -> String?
+	/// Reads a session's previously-resolved thread title from the on-disk
+	/// cache, given its window key, or `nil` when never cached. Consulted
+	/// BEFORE `sessionTitleReader` so a relaunch doesn't repeat the disk/
+	/// subprocess cost of the original resolution.
+	typealias RetrievedSessionTitleReader = (String) -> String?
+	/// Persists a freshly-resolved thread title to the on-disk cache, given
+	/// its window key.
+	typealias RetrievedSessionTitleWriter = (String, String) -> Void
 
 	private let assignmentsReader: AssignmentsReader
 	private let customizationReader: CustomizationReader
@@ -38,6 +49,9 @@ final class FloatingPetWindowPool {
 	private let minimalistWindowFactory: MinimalistWindowFactory?
 	private let sessionLabelReader: SessionLabelReader
 	private let sessionPromptSummaryReader: SessionPromptSummaryReader
+	private let sessionTitleReader: SessionTitleReader
+	private let retrievedSessionTitleReader: RetrievedSessionTitleReader
+	private let retrievedSessionTitleWriter: RetrievedSessionTitleWriter
 	private let now: () -> Date
 
 	/// Active windows keyed by window key (the resolved render key, or "combined").
@@ -86,6 +100,23 @@ final class FloatingPetWindowPool {
 	/// window itself lingers until its TTL expires. Releasing from the stale
 	/// snapshot would silently no-op and leak the number under a bounded cap.
 	private var windowSessionIdentities: [String: RenderKeyIdentity] = [:]
+	/// Platform-auto-generated thread title resolved for each session-keyed
+	/// window key, once found. This is the in-process hot cache only —
+	/// `RetrievedSessionTitleStore` (via `retrievedSessionTitleReader`/
+	/// `retrievedSessionTitleWriter`) is the on-disk cache that survives a
+	/// relaunch, consulted first so a resolved title never needs to hit
+	/// `sessionTitleReader`'s disk/subprocess cost twice. A `nil` result from
+	/// both is retried every tick — the platform may not have titled the
+	/// thread yet — but a resolved title, once found, is never re-fetched,
+	/// since these titles rarely change after generation. This in-memory
+	/// entry is cleared alongside `windowSessionIdentities` in
+	/// `releaseSessionNumber`, but the on-disk entry is deliberately left in
+	/// place — a hide/show or TTL-dismiss-then-respawn of the SAME session
+	/// should still hit the disk cache rather than re-resolving from
+	/// scratch. The on-disk entry only disappears via the same orphan-label
+	/// sweep and manual "Prune Session" path that clean up
+	/// `session-labels.json`.
+	private var resolvedSessionTitles: [String: String] = [:]
 	/// Free-list session-number allocator, keyed per-origin internally.
 	/// Assign/release only apply to session-keyed windows (an `origin:session_id`
 	/// render key) — plain-origin windows (session-pets off) and the literal
@@ -187,6 +218,18 @@ final class FloatingPetWindowPool {
 		return (origin, sessionId)
 	}
 
+	/// Platform origin whose `platform_modes` entry the right-click mode-switch
+	/// affordance (Pet Mode ↔ Minimalist Mode) should rewrite for the window
+	/// keyed `key`, or `nil` for the literal `"combined"` window — that one
+	/// flips `combined_minimalist_enabled` instead of any origin's mode. A
+	/// session-keyed key resolves to its platform origin: mode is keyed
+	/// per-origin, so the switch is platform-level and every sibling session
+	/// panel of the same platform flips together.
+	static func modeSwitchOrigin(forWindowKey key: String) -> String? {
+		guard key != "combined" else { return nil }
+		return sessionIdentity(forWindowKey: key)?.origin ?? key
+	}
+
 	private var userHiddenWindowKeys: Set<String> = []
 	private let hiddenKeysSaver: (Set<String>) -> Void
 
@@ -217,6 +260,21 @@ final class FloatingPetWindowPool {
 		sessionPromptSummaryReader: @escaping SessionPromptSummaryReader = {
 			PromptAttentionReader.summary(forSessionKey: $0)
 		},
+		sessionTitleReader: @escaping SessionTitleReader = { origin, sessionId in
+			SessionTitleResolver.title(forOrigin: origin, sessionId: sessionId)
+		},
+		// No production-disk defaults, unlike sessionLabelReader/sessionTitleReader
+		// above (both read-only): the writer half of this pair writes through to
+		// disk on every freshly-resolved title, and the test suite reuses the same
+		// handful of session keys (e.g. "codex:s1") across dozens of tests that
+		// don't override these two — a real-disk default here would let one test's
+		// resolved title leak into every later test (in this run AND every future
+		// run) that shares its key, and would silently pollute the developer's
+		// real ~/.codogotchi/retrieved-session-labels.json. Mirrors the
+		// hiddenKeysLoader/hiddenKeysSaver precedent below. Production wiring
+		// happens explicitly in MenubarApp.
+		retrievedSessionTitleReader: @escaping RetrievedSessionTitleReader = { _ in nil },
+		retrievedSessionTitleWriter: @escaping RetrievedSessionTitleWriter = { _, _ in },
 		// No production-disk defaults: unlike assignmentsReader/customizationReader
 		// (read-only, idempotent), a hidden-keys default that wrote through to
 		// AppStateStore would make every setVisible() call in the test suite — which
@@ -234,6 +292,9 @@ final class FloatingPetWindowPool {
 		self.minimalistWindowFactory = minimalistWindowFactory
 		self.sessionLabelReader = sessionLabelReader
 		self.sessionPromptSummaryReader = sessionPromptSummaryReader
+		self.sessionTitleReader = sessionTitleReader
+		self.retrievedSessionTitleReader = retrievedSessionTitleReader
+		self.retrievedSessionTitleWriter = retrievedSessionTitleWriter
 		self.hiddenKeysSaver = hiddenKeysSaver
 		self.now = now
 		self.idleEscalationEnvironment = idleEscalationEnvironment
@@ -637,6 +698,12 @@ final class FloatingPetWindowPool {
 				}
 			}
 			windows[renderKey]?.apply(state: state.activityState, visualMode: .normal)
+			windows[renderKey]?.applyPromptTimerObservation(
+				state: state.activityState,
+				updatedAt: state.updatedAt,
+				sourceEvent: state.sourceEvent,
+				attention: state.attention
+			)
 			windows[renderKey]?.applyAttention(
 				payload: state.attention,
 				sourceEvent: state.sourceEvent
@@ -650,15 +717,13 @@ final class FloatingPetWindowPool {
 			let assignedNumber = sessionNumber(forWindowKey: renderKey)
 			windows[renderKey]?.applySessionNumber(assignedNumber)
 			// Every window gets a label at render — the user's rename if set,
-			// else a default: "Session N" for a session-keyed window, the
-			// platform's display name for a plain-origin one. A non-nil label
-			// is what gates the right-click "Rename…" affordance, so the
-			// session-keyed default must be resolved here rather than left to
-			// the badge view's own "Session N" synthesis.
-			let userLabel = sessionLabel(forWindowKey: renderKey)
-			let defaultLabel =
-				assignedNumber.map { "Session \($0)" } ?? Self.defaultSessionLabel(forOrigin: origin)
-			windows[renderKey]?.applySessionLabel(userLabel ?? defaultLabel)
+			// else a default: the platform's own auto-generated thread title
+			// when resolvable, else "Session N" for a session-keyed window,
+			// else the platform's display name for a plain-origin one. A
+			// non-nil label is what gates the right-click "Rename…"
+			// affordance, so the session-keyed default must be resolved here
+			// rather than left to the badge view's own "Session N" synthesis.
+			windows[renderKey]?.applySessionLabel(sessionDisplayLabel(forWindowKey: renderKey, origin: origin))
 			windows[renderKey]?.applySessionTooltip(sessionPromptSummary(forWindowKey: renderKey))
 		}
 
@@ -708,6 +773,12 @@ final class FloatingPetWindowPool {
 						combinedWindowIsMinimalist = useMinimalist
 					}
 					windows["combined"]?.apply(state: winner.activityState, visualMode: .normal)
+					windows["combined"]?.applyPromptTimerObservation(
+						state: winner.activityState,
+						updatedAt: winner.updatedAt,
+						sourceEvent: winner.sourceEvent,
+						attention: winner.attention
+					)
 					windows["combined"]?.applyAttention(
 						payload: winner.attention,
 						sourceEvent: winner.sourceEvent
@@ -735,10 +806,14 @@ final class FloatingPetWindowPool {
 					// `sessionNumber(forWindowKey:)` already guards that; nothing to
 					// apply here), but it now gets a session-label badge too (P??
 					// unification): the user's rename if set, else whichever platform
-					// is currently driving the shared pet ("Default" while idle).
+					// is currently driving the shared pet, or "Combined" while idle —
+					// distinct from the platform chip's ⭐ "Default" text (still driven
+					// by `applyPlatform(origin: "combined")` above), which names the
+					// idle *pet assignment* slot, not this window itself.
+					let idleDefaultLabel = combinedDefaultOrigin == "combined"
+						? "Combined" : Self.defaultSessionLabel(forOrigin: combinedDefaultOrigin)
 					windows["combined"]?.applySessionLabel(
-						sessionLabel(forWindowKey: "combined")
-							?? Self.defaultSessionLabel(forOrigin: combinedDefaultOrigin))
+						sessionLabel(forWindowKey: "combined") ?? idleDefaultLabel)
 					windows["combined"]?.applySessionTooltip(nil)
 				}
 			}
@@ -808,23 +883,89 @@ final class FloatingPetWindowPool {
 		hiddenKeysSaver(userHiddenWindowKeys)
 	}
 
+	/// Hides every currently active window except `keepVisible` — the
+	/// right-click "Hide All Other Pets" affordance, offered on every panel
+	/// regardless of mode or session-keyed-ness. A snapshot action, not a
+	/// persistent mode: only windows rendered at the moment this fires are
+	/// hidden, with the same persist-until-shown semantics as
+	/// `setVisible(false, for:)` (a single batched disk write here instead of
+	/// one per window) — a session or platform that spawns afterward is
+	/// untouched and renders normally.
+	func hideAllOtherWindows(keepVisible: String) {
+		let others = windows.keys.filter { $0 != keepVisible }
+		guard !others.isEmpty else { return }
+		for key in others {
+			windows[key]?.setFloatingPetVisible(false)
+			windows.removeValue(forKey: key)
+			windowSpawnedModes.removeValue(forKey: key)
+			releaseSessionNumber(forWindowKey: key)
+			userHiddenWindowKeys.insert(key)
+		}
+		hiddenKeysSaver(userHiddenWindowKeys)
+	}
+
 	/// Returns the controller for the given window key. Used by MenubarApp to wire
 	/// per-window callbacks (attention dismiss, app-nap opt-out).
 	func controller(for key: String) -> FloatingPetWindowControlling? { windows[key] }
 
+	/// Drops hidden window keys whose backing `state.d/` slice no longer
+	/// exists on disk. `SlicePruner` deletes slices 24h after their last
+	/// write, at which point the key's "Show … Pet" menu entry is a lie —
+	/// `refreshForShow` has nothing left to rewrite, so Show would silently
+	/// do nothing. Called by the menu just before it opens (via
+	/// `MenubarMenu`'s `menuWillOpen` hook), so a zombie entry is culled at
+	/// exactly the moment it would otherwise be displayed.
+	///
+	/// Matching is filename-authoritative via
+	/// `StateJsonReader.parseSliceFilename` — the same parse `SlicePruner`'s
+	/// own orphan-label sweep uses — so the two "does this session still have
+	/// any trace on disk?" answers can never disagree. A session-keyed hidden
+	/// key needs its exact `origin:session_id.json`; a plain-origin key
+	/// survives while any slice of that origin exists; the literal
+	/// `"combined"` key survives while any current combined-mode origin has a
+	/// slice. The trimmed set is persisted so a culled key does not
+	/// resurrect on relaunch.
+	func pruneHiddenKeysWithoutBackingSlice(stateDirectory: String) {
+		guard !userHiddenWindowKeys.isEmpty else { return }
+		let names = (try? FileManager.default.contentsOfDirectory(atPath: stateDirectory)) ?? []
+		var liveOrigins: Set<String> = []
+		var liveSessionKeys: Set<String> = []
+		for name in names {
+			guard let (origin, sessionId) = StateJsonReader.parseSliceFilename(name) else { continue }
+			liveOrigins.insert(origin)
+			liveSessionKeys.insert(makeSessionKey(origin: origin, sessionId: sessionId))
+		}
+		let combinedOrigins = Set(combinedModeOrigins())
+		let survivors = userHiddenWindowKeys.filter { key in
+			if key == "combined" {
+				return !liveOrigins.isDisjoint(with: combinedOrigins)
+			}
+			if let identity = Self.sessionIdentity(forWindowKey: key) {
+				return liveSessionKeys.contains(
+					makeSessionKey(origin: identity.origin, sessionId: identity.sessionId))
+			}
+			return liveOrigins.contains(key)
+		}
+		guard survivors.count != userHiddenWindowKeys.count else { return }
+		userHiddenWindowKeys = survivors
+		hiddenKeysSaver(userHiddenWindowKeys)
+	}
+
 	/// Manual "Prune Session" (P15.07, right-click on a session-keyed window):
 	/// tears down the panel and destroys its state.d slice, free-list number,
-	/// and session-labels.json key — the same end-state as automatic TTL
-	/// expiry plus the orphan-label sweep. No-op for a plain-origin/"combined"
-	/// window, since those are never session-keyed. `stateDirectory` is the
-	/// live `state.d/` path (`config.pollingTarget.path`), passed by the
-	/// caller so this pool never hardcodes a filesystem location. `labelPath`
-	/// defaults to the real `session-labels.json` location and exists as a
-	/// parameter purely so tests can redirect it, mirroring `sessionLabelReader`.
+	/// session-labels.json key, and retrieved-session-labels.json cached
+	/// title — the same end-state as automatic TTL expiry plus the orphan
+	/// sweeps. No-op for a plain-origin/"combined" window, since those are
+	/// never session-keyed. `stateDirectory` is the live `state.d/` path
+	/// (`config.pollingTarget.path`), passed by the caller so this pool never
+	/// hardcodes a filesystem location. `labelPath`/`retrievedTitlePath`
+	/// default to the real sidecar file locations and exist as parameters
+	/// purely so tests can redirect them, mirroring `sessionLabelReader`.
 	func pruneSession(
 		windowKey: String,
 		stateDirectory: String,
-		labelPath: String = SessionLabelStore.path()
+		labelPath: String = SessionLabelStore.path(),
+		retrievedTitlePath: String = RetrievedSessionTitleStore.path()
 	) {
 		guard isSessionKeyed(windowKey),
 			let identity = windowSessionIdentities[windowKey] ?? currentRenderKeyIdentities[windowKey]
@@ -833,6 +974,7 @@ final class FloatingPetWindowPool {
 		windows.removeValue(forKey: windowKey)
 		windowSpawnedModes.removeValue(forKey: windowKey)
 		windowSessionIdentities.removeValue(forKey: windowKey)
+		resolvedSessionTitles.removeValue(forKey: windowKey)
 		prunedOrigins.insert(identity.origin)
 		SessionPruner.pruneSession(
 			windowKey: windowKey,
@@ -840,7 +982,8 @@ final class FloatingPetWindowPool {
 			sessionId: identity.sessionId,
 			stateDirectory: stateDirectory,
 			allocator: sessionNumberAllocator,
-			labelPath: labelPath
+			labelPath: labelPath,
+			retrievedTitlePath: retrievedTitlePath
 		)
 	}
 
@@ -892,6 +1035,19 @@ final class FloatingPetWindowPool {
 	/// window shows when it has never been renamed.
 	func sessionLabel(forWindowKey key: String) -> String? {
 		sessionLabelReader(key)
+	}
+
+	/// User-facing label for a window key, with the same precedence everywhere
+	/// it is surfaced: explicit `session-labels.json` rename, then a retrieved
+	/// platform title, then the numeric session fallback, then platform name.
+	func sessionDisplayLabel(forWindowKey key: String, origin: String? = nil) -> String? {
+		let resolvedOrigin = origin ?? Self.origin(forWindowKey: key)
+		let userLabel = sessionLabel(forWindowKey: key)
+		let retrievedTitle = resolveSessionTitle(forWindowKey: key)
+		let defaultLabel =
+			retrievedTitle ?? sessionNumber(forWindowKey: key).map { "Session \($0)" }
+				?? Self.defaultSessionLabel(forOrigin: resolvedOrigin)
+		return userLabel ?? defaultLabel
 	}
 
 	/// Fallback session-label text for a plain-origin/"combined" window that
@@ -949,9 +1105,34 @@ final class FloatingPetWindowPool {
 	/// (e.g. it was torn down before ever being assigned one).
 	private func releaseSessionNumber(forWindowKey key: String) {
 		guard isSessionKeyed(key), let identity = windowSessionIdentities.removeValue(forKey: key) else { return }
+		resolvedSessionTitles.removeValue(forKey: key)
 		let unlimited = isUnlimited(origin: identity.origin)
 		sessionNumberAllocator.setUnlimited(unlimited, origin: identity.origin)
 		sessionNumberAllocator.release(origin: identity.origin, sessionId: identity.sessionId)
+	}
+
+	/// Resolves and caches `key`'s platform-auto-generated thread title (see
+	/// `resolvedSessionTitles`), or `nil` for a plain-origin/"combined"
+	/// window, or a session-keyed window the platform hasn't titled (yet, or
+	/// ever, e.g. an unsupported origin). Checks the in-memory cache, then
+	/// `RetrievedSessionTitleStore`'s on-disk cache (cheap — a JSON dict
+	/// lookup, no directory walk or subprocess), before finally falling
+	/// through to `sessionTitleReader` — resolution touches another app's
+	/// on-disk storage, so a title once found (from either cache or a fresh
+	/// resolve) is never re-fetched. A fresh resolve is written through to
+	/// the on-disk cache so a later relaunch skips straight to the second
+	/// check.
+	private func resolveSessionTitle(forWindowKey key: String) -> String? {
+		if let cached = resolvedSessionTitles[key] { return cached }
+		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return nil }
+		if let persisted = retrievedSessionTitleReader(key) {
+			resolvedSessionTitles[key] = persisted
+			return persisted
+		}
+		guard let title = sessionTitleReader(identity.origin, identity.sessionId) else { return nil }
+		resolvedSessionTitles[key] = title
+		retrievedSessionTitleWriter(key, title)
+		return title
 	}
 
 	/// Whether `origin`'s current session cap is the Unlimited sentinel,

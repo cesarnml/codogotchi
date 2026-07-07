@@ -89,6 +89,25 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	/// right-click rename affordance. Wired by the caller (`MenubarApp`) to
 	/// persist to `SessionLabelStore` — mirrors Own mode's `onRenameRequested`.
 	var onRenameRequested: ((String) -> Void)?
+	/// Fired when the user activates the badge's right-click "Sync Label"
+	/// affordance. Wired by the caller (`MenubarApp`) to re-fetch the
+	/// platform's current thread title and persist it — mirrors Own mode's
+	/// `onSyncLabelRequested`.
+	var onSyncLabelRequested: (() -> Void)?
+	/// Fired when the user activates the badge's right-click "Hide All Other
+	/// Pets" affordance. Wired by the caller (`MenubarApp`) to hide every
+	/// other currently-rendered window via the pool — mirrors Own mode's
+	/// `onHideAllOtherPetsRequested`.
+	var onHideAllOtherPetsRequested: (() -> Void)?
+	/// Fired when the user activates the badge's right-click "Pet Mode"
+	/// affordance. Wired by the caller (`MenubarApp`) to persist the mode
+	/// switch to customization.json — mirrors Own mode's `onSwitchToMinimalist`.
+	var onSwitchToPetMode: (() -> Void)?
+	/// Fired on each tick of the badge's right-click "Panel Size" slider
+	/// (`isFinal` marks the tick ending the drag gesture). Wired by the
+	/// caller (`MenubarApp`) to persist the global `minimalist_badge_scale` —
+	/// the same setting the Customization tab's slider writes.
+	var onPanelSizeChanged: ((Double, Bool) -> Void)?
 
 	init(
 		visibleFrameProvider: @escaping () -> CGRect = {
@@ -118,6 +137,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		}
 		// Right-click "Force Idle" affordance, shown only while non-idle.
 		badgeView.onForceIdleRequested = { [weak self] in
+			self?.badgeView.resetPromptTimer()
 			self?.onForceIdle?()
 		}
 		// Right-click "Rename…" affordance, offered only while a session number
@@ -125,6 +145,30 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		badgeView.renameHandler = { [weak self] newLabel in
 			self?.applySessionLabel(newLabel)
 			self?.onRenameRequested?(newLabel)
+		}
+		// Right-click "Sync Label" affordance, offered only while a session
+		// number is assigned. This panel never resolves or writes the label
+		// itself — the app-level handler does the fetch-and-persist and the
+		// next poll tick re-applies it via `applySessionLabel`.
+		badgeView.syncLabelHandler = { [weak self] in
+			self?.onSyncLabelRequested?()
+		}
+		// Right-click "Hide All Other Pets" affordance, offered
+		// unconditionally. This panel never touches other windows itself.
+		badgeView.hideAllOtherPetsHandler = { [weak self] in
+			self?.onHideAllOtherPetsRequested?()
+		}
+		// Right-click "Pet Mode" affordance — back to the full pet renderer.
+		badgeView.onPetModeRequested = { [weak self] in
+			self?.onSwitchToPetMode?()
+		}
+		// Right-click "Panel Size" slider: live-apply the scale to this
+		// strip immediately for direct feedback (sibling strips follow on their
+		// next poll tick once the persisted write lands), then forward for
+		// persistence.
+		badgeView.panelSizeHandler = { [weak self] scale, isFinal in
+			self?.applyBadgeScale(scale)
+			self?.onPanelSizeChanged?(scale, isFinal)
 		}
 	}
 
@@ -163,6 +207,21 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		applyBadge()
 	}
 
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	) {
+		badgeView.applyPromptTimerObservation(
+			state: state,
+			updatedAt: updatedAt,
+			sourceEvent: sourceEvent,
+			attention: attention
+		)
+		applyBadge()
+	}
+
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
 		currentAttention = payload?.isExpired() == true ? nil : payload
 		currentSourceEvent = sourceEvent
@@ -174,6 +233,9 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	}
 
 	func applyBadgeScale(_ scale: Double) {
+		// Mirror before the no-change guard so the size pill's dial always
+		// starts at the live value, even when metrics quantize to no repaint.
+		badgeView.currentBadgeScale = scale
 		let newMetrics = GateBadgeLayout.metrics(scale: CGFloat(scale))
 		guard newMetrics != currentBadgeMetrics else { return }
 		currentBadgeMetrics = newMetrics
@@ -367,6 +429,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private func handleBubbleDismiss() {
 		currentAttention = nil
 		currentActivity = .idle
+		badgeView.resetPromptTimer()
 		bubblePanel?.orderOut(nil)
 		applyBadge()
 		onAttentionDismissed?()
@@ -404,6 +467,28 @@ private final class MinimalistBadgeView: NSView {
 	/// "Rename…" affordance. Not fired when the user cancels or commits an
 	/// empty/whitespace-only label. Mirrors Own mode's `renameHandler`.
 	var renameHandler: ((String) -> Void)?
+	/// Fires when the user activates the right-click "Sync Label" affordance,
+	/// offered only while a session number is assigned (mirrors Own mode's
+	/// `syncLabelHandler`). This view never resolves or writes the label
+	/// itself — the caller re-fetches the platform's title and persists it.
+	var syncLabelHandler: (() -> Void)?
+	/// Fires when the user activates the right-click "Hide All Other Pets"
+	/// affordance, offered unconditionally. This view never touches other
+	/// windows itself — the caller (the window pool, via the app-level
+	/// wiring) hides every other currently-rendered window.
+	var hideAllOtherPetsHandler: (() -> Void)?
+	/// Fires when the user activates the right-click "Pet Mode" pill — the
+	/// mode-switch back to the full pet renderer. Mirrors Own mode's
+	/// `minimalistModeHandler`.
+	var onPetModeRequested: (() -> Void)?
+	/// Fires on every tick of the "Panel Size" slider with the new
+	/// scale; `isFinal` marks the tick ending the drag gesture. Wired by the
+	/// controller to live-apply the scale and persist it — this view never
+	/// writes config itself.
+	var panelSizeHandler: ((Double, Bool) -> Void)?
+	/// Current global badge scale, mirrored by the controller's
+	/// `applyBadgeScale` so the size pill's slider starts at the live value.
+	var currentBadgeScale: Double = 1.0
 	/// Latest activity the badge is displaying, mirrored so the right-click prompt
 	/// can decide whether to offer "Force Idle".
 	private var currentActivity: ActivityState = .idle
@@ -413,6 +498,13 @@ private final class MinimalistBadgeView: NSView {
 	private var hidePromptObservers: [NSObjectProtocol] = []
 	private var hidePromptGlobalMouseMonitor: Any?
 	private var hidePromptGlobalKeyboardMonitor: Any?
+	private var hidePromptLocalMouseMonitor: Any?
+
+	private var sizePillPanel: MinimalistPanelSizePillPanel?
+	private var sizePillObservers: [NSObjectProtocol] = []
+	private var sizePillGlobalMouseMonitor: Any?
+	private var sizePillGlobalKeyboardMonitor: Any?
+	private var sizePillLocalMouseMonitor: Any?
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -424,6 +516,7 @@ private final class MinimalistBadgeView: NSView {
 
 	deinit {
 		removeHidePromptDismissObservers()
+		removeSizePillDismissObservers()
 	}
 
 	func configureBadge(
@@ -437,11 +530,36 @@ private final class MinimalistBadgeView: NSView {
 			text: activity.displayLabel,
 			platform: platform,
 			inFlight: activity.isInFlight,
+			promptTimer: promptTimer.presentation(),
 			metrics: metrics
 		)
 		sessionBadge.configure(
 			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,
 			metrics: metrics)
+		syncPromptTimerHeartbeat()
+	}
+
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	) {
+		promptTimer.observe(
+			state: state,
+			updatedAt: updatedAt,
+			sourceEvent: sourceEvent,
+			attention: attention
+		)
+		animationBadge.configurePromptTimer(promptTimer.presentation())
+		syncPromptTimerHeartbeat()
+	}
+
+	func resetPromptTimer() {
+		promptTimer.reset()
+		promptTimerHeartbeat?.invalidate()
+		promptTimerHeartbeat = nil
+		animationBadge.configurePromptTimer(nil)
 	}
 
 	/// Latest session number/label/tooltip applied via `configureSessionNumber`.
@@ -452,6 +570,25 @@ private final class MinimalistBadgeView: NSView {
 	/// to "Session N". Also prefills the rename alert's text field.
 	private var currentSessionLabel: String?
 	private var currentSessionTooltip: String?
+	private var promptTimer = PromptTimerTracker()
+	private var promptTimerHeartbeat: Timer?
+
+	private func syncPromptTimerHeartbeat() {
+		guard promptTimer.currentStatus()?.isRunning == true else {
+			promptTimerHeartbeat?.invalidate()
+			promptTimerHeartbeat = nil
+			return
+		}
+		guard promptTimerHeartbeat == nil else { return }
+		promptTimerHeartbeat = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+			Task { @MainActor in
+				guard let self else { return }
+				self.animationBadge.configurePromptTimer(self.promptTimer.presentation())
+				self.syncPromptTimerHeartbeat()
+				self.layoutSubtreeIfNeeded()
+			}
+		}
+	}
 
 	/// Shows/hides and labels the session badge row. A session-keyed window
 	/// (`number` non-`nil`) shows "Session N" unless renamed; a plain-origin/
@@ -480,6 +617,7 @@ private final class MinimalistBadgeView: NSView {
 	override func mouseDown(with event: NSEvent) {
 		guard let window else { return }
 		dismissHidePrompt()
+		dismissSizePill()
 		let point = NSEvent.mouseLocation
 		dragOffsetInScreen = CGPoint(
 			x: point.x - window.frame.origin.x,
@@ -518,6 +656,7 @@ private final class MinimalistBadgeView: NSView {
 	fileprivate func beginExternalDrag() {
 		guard let window else { return }
 		dismissHidePrompt()
+		dismissSizePill()
 		let point = NSEvent.mouseLocation
 		dragOffsetInScreen = CGPoint(
 			x: point.x - window.frame.origin.x,
@@ -559,6 +698,7 @@ private final class MinimalistBadgeView: NSView {
 
 	func dismissHidePromptIfPresent() {
 		dismissHidePrompt()
+		dismissSizePill()
 	}
 
 	/// `fileprivate` (not `private`) so `GateBadgePanel` can route a right-click
@@ -567,6 +707,7 @@ private final class MinimalistBadgeView: NSView {
 	fileprivate func presentHidePrompt(anchorInScreen: CGPoint) {
 		guard let window else { return }
 		dismissHidePrompt()
+		dismissSizePill()
 		let offersForceIdle = FloatingPetHidePrompt.offersForceIdle(for: currentActivity)
 		FloatingPetPromptCoordinator.shared.willPresent(owner: self) { [weak self] in
 			self?.dismissHidePrompt()
@@ -593,6 +734,38 @@ private final class MinimalistBadgeView: NSView {
 					self?.presentRenameAlert()
 				})
 		}
+		// Only offered on an actual session-keyed strip — a plain-origin/
+		// combined strip has no session id to resolve a platform title for.
+		// Sits directly below "Rename…", grouping the two label actions.
+		if currentSessionNumber != nil {
+			items.append(
+				FloatingPetPromptItem(title: FloatingPetHidePrompt.syncLabelTitle) { [weak self] in
+					self?.dismissHidePrompt()
+					self?.syncLabelHandler?()
+				})
+		}
+		// Mode switch back to the full pet renderer. Sits directly above
+		// "Hide panel", mirroring Own mode's "Minimalist Mode" placement.
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.petModeTitle) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.onPetModeRequested?()
+			})
+		// Opens the slider pill driving the global minimalist badge
+		// scale — the same setting as the Customization tab's size slider, so
+		// it resizes every Minimalist platform's strip, not just this one.
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.panelSizeTitle) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.presentPanelSizePill()
+			})
+		// Offered unconditionally, directly above "Hide panel" — the last
+		// action before the strip's own hide, mirroring Own mode's placement.
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.hideAllOtherPetsTitle) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.hideAllOtherPetsHandler?()
+			})
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.panelTitle) { [weak self] in
 				self?.dismissHidePrompt()
@@ -633,6 +806,118 @@ private final class MinimalistBadgeView: NSView {
 		renameHandler?(normalized)
 	}
 
+	// MARK: - Panel Size pill
+
+	/// Presents the "Panel Size" slider pill just below the strip,
+	/// left-aligned with the session-label row (which shares the chip row's
+	/// leading edge — `outerStack` is leading-aligned at `hPad`). The slider
+	/// starts at the live global scale (`currentBadgeScale`) and streams ticks
+	/// through `panelSizeHandler`; the pill stays up through the whole drag
+	/// gesture — the slider lives inside the pill, so the outside-click
+	/// dismissal below never sees it — and dismisses on any click away,
+	/// keyboard input, or app switch, mirroring the hide prompt's dismissal
+	/// contract.
+	private func presentPanelSizePill() {
+		guard let window else { return }
+		dismissSizePill()
+		FloatingPetPromptCoordinator.shared.willPresent(owner: self) { [weak self] in
+			self?.dismissHidePrompt()
+			self?.dismissSizePill()
+		}
+		let visibleFrame = window.screen?.visibleFrame
+			?? NSScreen.main?.visibleFrame
+			?? CGRect(x: 0, y: 0, width: 800, height: 600)
+		let pillSize = MinimalistPanelSizePill.size
+		// Below the strip, clamped so the pill never leaves the visible frame
+		// (falling back to on-screen positions when the strip sits at an edge).
+		let proposed = CGPoint(
+			x: window.frame.minX + Self.hPad,
+			y: window.frame.minY - MinimalistPanelSizePill.gapBelowStrip - pillSize.height
+		)
+		let screenFrame = CGRect(
+			x: max(visibleFrame.minX, min(visibleFrame.maxX - pillSize.width, proposed.x)),
+			y: max(visibleFrame.minY, min(visibleFrame.maxY - pillSize.height, proposed.y)),
+			width: pillSize.width,
+			height: pillSize.height
+		)
+		let pill = MinimalistPanelSizePillPanel(frame: screenFrame, initialScale: currentBadgeScale)
+		pill.onScaleChanged = { [weak self] scale, isFinal in
+			self?.currentBadgeScale = scale
+			self?.panelSizeHandler?(scale, isFinal)
+		}
+		pill.orderFrontRegardless()
+		sizePillPanel = pill
+		installSizePillDismissObservers()
+	}
+
+	private func dismissSizePill() {
+		guard sizePillPanel != nil else { return }
+		FloatingPetPromptCoordinator.shared.didDismiss(owner: self)
+		sizePillPanel?.orderOut(nil)
+		sizePillPanel = nil
+		removeSizePillDismissObservers()
+	}
+
+	/// Dismissal triggers: any click in another application (global monitor),
+	/// any click inside this app landing outside the pill's own window (local
+	/// monitor — global monitors never see same-app events, so without it a
+	/// click or drag on a sibling strip or pet panel would strand the pill),
+	/// any keyboard input, or this app resigning active.
+	private func installSizePillDismissObservers() {
+		removeSizePillDismissObservers()
+
+		sizePillObservers.append(
+			NotificationCenter.default.addObserver(
+				forName: NSApplication.didResignActiveNotification,
+				object: nil,
+				queue: .main
+			) { [weak self] _ in
+				Task { @MainActor in self?.dismissSizePill() }
+			}
+		)
+		sizePillGlobalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
+			matching: [.leftMouseDown, .rightMouseDown]
+		) { [weak self] _ in
+			Task { @MainActor in self?.dismissSizePill() }
+		}
+		sizePillLocalMouseMonitor = NSEvent.addLocalMonitorForEvents(
+			matching: [.leftMouseDown, .rightMouseDown]
+		) { [weak self] event in
+			// Clicks on the pill itself (the slider) must not dismiss it —
+			// everything else in-app does, including this strip and siblings.
+			// Synchronous for the same before-dispatch reason as the hide
+			// prompt's local monitor above.
+			if let self, event.window !== self.sizePillPanel {
+				self.dismissSizePill()
+			}
+			return event
+		}
+		sizePillGlobalKeyboardMonitor = NSEvent.addGlobalMonitorForEvents(
+			matching: [.keyDown, .keyUp, .flagsChanged]
+		) { [weak self] _ in
+			Task { @MainActor in self?.dismissSizePill() }
+		}
+	}
+
+	private func removeSizePillDismissObservers() {
+		for observer in sizePillObservers {
+			NotificationCenter.default.removeObserver(observer)
+		}
+		sizePillObservers.removeAll()
+		if let sizePillGlobalMouseMonitor {
+			NSEvent.removeMonitor(sizePillGlobalMouseMonitor)
+			self.sizePillGlobalMouseMonitor = nil
+		}
+		if let sizePillLocalMouseMonitor {
+			NSEvent.removeMonitor(sizePillLocalMouseMonitor)
+			self.sizePillLocalMouseMonitor = nil
+		}
+		if let sizePillGlobalKeyboardMonitor {
+			NSEvent.removeMonitor(sizePillGlobalKeyboardMonitor)
+			self.sizePillGlobalKeyboardMonitor = nil
+		}
+	}
+
 	private func dismissHidePrompt() {
 		FloatingPetPromptCoordinator.shared.didDismiss(owner: self)
 		guard hidePromptPanel != nil else { return }
@@ -662,6 +947,22 @@ private final class MinimalistBadgeView: NSView {
 			Task { @MainActor in self?.dismissHidePrompt() }
 		}
 
+		// In-app half of "any click away dismisses": global monitors only
+		// report other applications' events, so a click on a sibling strip, a
+		// pet panel, or the menubar icon would strand this prompt without a
+		// local monitor. Dismissal is synchronous (not Task-deferred) — the
+		// monitor fires before the event dispatches, and a deferred dismissal
+		// would land after a right-click's re-present and tear down the new
+		// prompt instead of the old one.
+		hidePromptLocalMouseMonitor = NSEvent.addLocalMonitorForEvents(
+			matching: [.leftMouseDown, .rightMouseDown]
+		) { [weak self] event in
+			if let self, event.window !== self.hidePromptPanel {
+				self.dismissHidePrompt()
+			}
+			return event
+		}
+
 		// Dismiss on any keyboard input (including app switchers) so the pill never
 		// lingers over the UI while the user changes apps or windows.
 		hidePromptGlobalKeyboardMonitor = NSEvent.addGlobalMonitorForEvents(
@@ -679,6 +980,10 @@ private final class MinimalistBadgeView: NSView {
 		if let hidePromptGlobalMouseMonitor {
 			NSEvent.removeMonitor(hidePromptGlobalMouseMonitor)
 			self.hidePromptGlobalMouseMonitor = nil
+		}
+		if let hidePromptLocalMouseMonitor {
+			NSEvent.removeMonitor(hidePromptLocalMouseMonitor)
+			self.hidePromptLocalMouseMonitor = nil
 		}
 		if let hidePromptGlobalKeyboardMonitor {
 			NSEvent.removeMonitor(hidePromptGlobalKeyboardMonitor)
@@ -780,6 +1085,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// Last submitted prompt for this session, shown as a delayed hover
 	/// tooltip on the session badge.
 	private var currentSessionTooltip: String?
+	private var promptTimer = PromptTimerTracker()
+	private var promptTimerHeartbeat: Timer?
 	/// Fired with the trimmed/capped label the user commits via the
 	/// right-click rename affordance. Wired by the caller (`MenubarApp`) to
 	/// persist to `SessionLabelStore` — this panel never writes the sidecar.
@@ -789,6 +1096,20 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// slice, free-list number, and label — this panel never touches those
 	/// stores directly, it only reports the user's confirmed intent.
 	var onPruneRequested: (() -> Void)?
+	/// Fired when the user activates the right-click "Sync Label" affordance.
+	/// Wired by the caller (`MenubarApp`) to re-fetch the platform's current
+	/// thread title and persist it — this panel never resolves or writes the
+	/// label itself.
+	var onSyncLabelRequested: (() -> Void)?
+	/// Fired when the user activates the right-click "Hide All Other Pets"
+	/// affordance. Wired by the caller (`MenubarApp`) to hide every other
+	/// currently-rendered window via the pool — this panel never touches
+	/// other windows itself.
+	var onHideAllOtherPetsRequested: (() -> Void)?
+	/// Fired when the user activates the right-click "Minimalist Mode"
+	/// affordance. Wired by the caller (`MenubarApp`) to persist the mode
+	/// switch to customization.json — this panel never writes config itself.
+	var onSwitchToMinimalist: (() -> Void)?
 
 	// RPG HUD — shown on hover, and transiently revealed on animation moments
 	// (lose/gain a half-heart, level up) when not hovering.
@@ -1169,6 +1490,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	private func handleBubbleDismiss() {
 		attentionActive = false
+		resetPromptTimer()
 		apply(state: .idle, visualMode: currentMode)
 		onAttentionDismissed?()
 	}
@@ -1381,6 +1703,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
+			promptTimer: promptTimer.presentation(),
 			sessionNumber: currentSessionNumber,
 			sessionLabel: currentSessionLabel,
 			sessionTooltip: currentSessionTooltip,
@@ -1388,6 +1711,22 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			visibleFrame: visibleFrameProvider()
 		)
 		badge.orderFrontRegardless()
+	}
+
+	private func syncPromptTimerHeartbeat() {
+		guard promptTimer.currentStatus()?.isRunning == true else {
+			promptTimerHeartbeat?.invalidate()
+			promptTimerHeartbeat = nil
+			return
+		}
+		guard promptTimerHeartbeat == nil else { return }
+		promptTimerHeartbeat = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+			Task { @MainActor in
+				guard let self else { return }
+				self.repositionAndShowAnimationBadge()
+				self.syncPromptTimerHeartbeat()
+			}
+		}
 	}
 
 	/// Badge copy: the escalated idle label ("Impatient"/"Frustrated") when the
@@ -1416,6 +1755,39 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			FloatingPetHidePrompt.offersForceIdle(for: state)
 		// Refresh the animation badge label; no-op while the pet is hidden.
 		repositionAndShowAnimationBadge()
+	}
+
+	func applyPromptTimerObservation(
+		state: ActivityState,
+		updatedAt: String,
+		sourceEvent: SourceEvent?,
+		attention: AttentionPayload?
+	) {
+		promptTimer.observe(
+			state: state,
+			updatedAt: updatedAt,
+			sourceEvent: sourceEvent,
+			attention: attention
+		)
+		syncPromptTimerHeartbeat()
+		repositionAndShowAnimationBadge()
+	}
+
+	private func resetPromptTimer() {
+		promptTimer.reset()
+		promptTimerHeartbeat?.invalidate()
+		promptTimerHeartbeat = nil
+		animationBadgePanel?.reposition(
+			label: animationBadgeLabel,
+			platform: currentPlatform,
+			inFlight: animationBadgeInFlight,
+			promptTimer: nil,
+			sessionNumber: currentSessionNumber,
+			sessionLabel: currentSessionLabel,
+			sessionTooltip: currentSessionTooltip,
+			relativeTo: lastPanelFrame,
+			visibleFrame: visibleFrameProvider()
+		)
 	}
 
 	func setInteraction(_ interaction: FloatingInteraction?) {
@@ -1596,6 +1968,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 		view.isForceIdleAvailable = FloatingPetHidePrompt.offersForceIdle(for: currentState)
 		view.forceIdleHandler = { [weak self] in
+			self?.resetPromptTimer()
 			self?.onForceIdle?()
 		}
 		view.hasActiveSessionBadge = currentSessionNumber != nil
@@ -1607,6 +1980,15 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 		view.pruneHandler = { [weak self] in
 			self?.onPruneRequested?()
+		}
+		view.syncLabelHandler = { [weak self] in
+			self?.onSyncLabelRequested?()
+		}
+		view.hideAllOtherPetsHandler = { [weak self] in
+			self?.onHideAllOtherPetsRequested?()
+		}
+		view.minimalistModeHandler = { [weak self] in
+			self?.onSwitchToMinimalist?()
 		}
 		view.holdDeEscalationHandler = { [weak self] in
 			self?.scene?.decrementIdleEscalation()
@@ -2169,6 +2551,7 @@ final class AnimationBadgePanel: NSPanel {
 		label: String,
 		platform: PlatformAttribution?,
 		inFlight: Bool,
+		promptTimer: PromptTimerPresentation? = nil,
 		sessionNumber: Int? = nil,
 		sessionLabel: String? = nil,
 		sessionTooltip: String? = nil,
@@ -2179,6 +2562,7 @@ final class AnimationBadgePanel: NSPanel {
 			text: label,
 			platform: platform,
 			inFlight: inFlight,
+			promptTimer: promptTimer,
 			metrics: AnimationBadgeLayout.metrics(for: petFrame)
 		)
 		badgeView.configureSessionNumber(sessionNumber, label: sessionLabel, tooltip: sessionTooltip)
@@ -2317,6 +2701,131 @@ final class PlatformChipView: NSView {
 		for constraint in glyphInsetConstraints {
 			constraint.constant = (constraint.constant < 0 ? -1 : 1) * metrics.verticalPadding
 		}
+		AnimationBadgeChrome.apply(to: self, effect: effectView, tint: tintView, cornerRadius: metrics.cornerRadius)
+	}
+}
+
+final class PromptTimerChipView: NSView {
+	private let chipView = TimerIconChipView(frame: .zero)
+	private let label = NSTextField(labelWithString: "")
+	private let stackView = NSStackView()
+	private var metrics = GateBadgeLayout.metrics(
+		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
+	)
+
+	override init(frame frameRect: NSRect) {
+		super.init(frame: frameRect)
+		stackView.orientation = .horizontal
+		stackView.alignment = .centerY
+		stackView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(stackView)
+		stackView.addArrangedSubview(chipView)
+		stackView.addArrangedSubview(label)
+
+		label.lineBreakMode = .byTruncatingTail
+		label.maximumNumberOfLines = 1
+		label.textColor = AnimationBadgeChrome.textColor
+		label.translatesAutoresizingMaskIntoConstraints = false
+		NSLayoutConstraint.activate([
+			stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			stackView.topAnchor.constraint(equalTo: topAnchor),
+			stackView.bottomAnchor.constraint(equalTo: bottomAnchor),
+		])
+		applyMetrics()
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func configure(presentation: PromptTimerPresentation, metrics: GateBadgeLayout.Metrics) {
+		self.metrics = metrics
+		label.stringValue = presentation.label
+		label.alphaValue = presentation.isRunning ? 1.0 : 0.72
+		chipView.configure(metrics: metrics, isRunning: presentation.isRunning)
+		applyMetrics()
+		invalidateIntrinsicContentSize()
+	}
+
+	override var intrinsicContentSize: NSSize {
+		let labelSize = label.intrinsicContentSize
+		return NSSize(
+			width: metrics.badgeHeight + stackView.spacing + labelSize.width,
+			height: metrics.badgeHeight
+		)
+	}
+
+	private func applyMetrics() {
+		label.font = NSFont.monospacedDigitSystemFont(ofSize: metrics.fontSize, weight: .medium)
+		stackView.spacing = max(2, round(metrics.interBadgeSpacing * 0.55))
+	}
+}
+
+private final class TimerIconChipView: NSView {
+	private let effectView = AnimationBadgeChrome.makeEffectView()
+	private let tintView = AnimationBadgeChrome.makeTintView()
+	private let imageView = NSImageView()
+	private var metrics = GateBadgeLayout.metrics(
+		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
+	)
+	private var sideConstraint: NSLayoutConstraint?
+	private var glyphInsetConstraints: [NSLayoutConstraint] = []
+
+	override init(frame frameRect: NSRect) {
+		super.init(frame: frameRect)
+		wantsLayer = true
+		layer?.masksToBounds = false
+		addSubview(effectView)
+		addSubview(tintView)
+
+		imageView.imageScaling = .scaleProportionallyUpOrDown
+		imageView.contentTintColor = AnimationBadgeChrome.textColor
+		imageView.translatesAutoresizingMaskIntoConstraints = false
+		if let image = NSImage(systemSymbolName: "timer", accessibilityDescription: "Prompt timer") {
+			image.isTemplate = true
+			imageView.image = image
+		}
+		addSubview(imageView)
+
+		let side = widthAnchor.constraint(equalToConstant: metrics.badgeHeight)
+		let height = heightAnchor.constraint(equalTo: widthAnchor)
+		let inset = metrics.verticalPadding
+		glyphInsetConstraints = [
+			imageView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: inset),
+			imageView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -inset),
+			imageView.topAnchor.constraint(equalTo: topAnchor, constant: inset),
+			imageView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -inset),
+		]
+		sideConstraint = side
+		NSLayoutConstraint.activate([
+			effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			effectView.topAnchor.constraint(equalTo: topAnchor),
+			effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			tintView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			tintView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			tintView.topAnchor.constraint(equalTo: topAnchor),
+			tintView.bottomAnchor.constraint(equalTo: bottomAnchor),
+			side,
+			height,
+		] + glyphInsetConstraints)
+		applyMetrics(isRunning: true)
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func configure(metrics: GateBadgeLayout.Metrics, isRunning: Bool) {
+		self.metrics = metrics
+		applyMetrics(isRunning: isRunning)
+	}
+
+	private func applyMetrics(isRunning: Bool) {
+		sideConstraint?.constant = metrics.badgeHeight
+		for constraint in glyphInsetConstraints {
+			constraint.constant = (constraint.constant < 0 ? -1 : 1) * metrics.verticalPadding
+		}
+		imageView.alphaValue = isRunning ? 1.0 : 0.72
 		AnimationBadgeChrome.apply(to: self, effect: effectView, tint: tintView, cornerRadius: metrics.cornerRadius)
 	}
 }
@@ -2691,6 +3200,7 @@ final class PlatformSessionBadge: NSView {
 final class AnimationBadgeView: NSView {
 	private let chipView = PlatformChipView(frame: .zero)
 	private let pillView = AnimationLabelPillView(frame: .zero)
+	private let promptTimerView = PromptTimerChipView(frame: .zero)
 	private let stackView = NSStackView()
 	private let sessionBadge = PlatformSessionBadge(frame: .zero)
 	private let outerStack = NSStackView()
@@ -2700,6 +3210,7 @@ final class AnimationBadgeView: NSView {
 	private var currentSessionNumber: Int?
 	private var currentSessionLabel: String?
 	private var currentSessionTooltip: String?
+	private var currentPromptTimer: PromptTimerPresentation?
 
 	/// Forwards a right-click anywhere on the chip/pill/session-badge stack up
 	/// to `AnimationBadgePanel`, which converts it to a screen anchor. `nil`
@@ -2761,6 +3272,7 @@ final class AnimationBadgeView: NSView {
 		stackView.addArrangedSubview(pillView)
 
 		sessionBadge.isHidden = true
+		promptTimerView.isHidden = true
 
 		outerStack.orientation = .vertical
 		// `.leading` (not `.centerX`) pins the session badge row's leading edge to
@@ -2790,9 +3302,11 @@ final class AnimationBadgeView: NSView {
 		text: String,
 		platform: PlatformAttribution?,
 		inFlight: Bool,
+		promptTimer: PromptTimerPresentation? = nil,
 		metrics: GateBadgeLayout.Metrics
 	) {
 		self.metrics = metrics
+		currentPromptTimer = promptTimer
 		stackView.spacing = metrics.interBadgeSpacing
 		pillView.configure(text: text, inFlight: inFlight, metrics: metrics)
 		if let platform {
@@ -2804,9 +3318,16 @@ final class AnimationBadgeView: NSView {
 			stackView.removeArrangedSubview(chipView)
 			chipView.removeFromSuperview()
 		}
+		applyPromptTimerView()
 		sessionBadge.configure(
 			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,
 			metrics: metrics)
+		layoutSubtreeIfNeeded()
+	}
+
+	func configurePromptTimer(_ presentation: PromptTimerPresentation?) {
+		currentPromptTimer = presentation
+		applyPromptTimerView()
 		layoutSubtreeIfNeeded()
 	}
 
@@ -2841,7 +3362,27 @@ final class AnimationBadgeView: NSView {
 	/// with no chip it collapses to `width / 2` (centered, as before).
 	var pillCenterX: CGFloat {
 		layoutSubtreeIfNeeded()
-		return stackView.fittingSize.width - pillView.intrinsicContentSize.width / 2
+		let leadingWidth =
+			chipView.superview == nil
+			? 0
+			: chipView.intrinsicContentSize.width + stackView.spacing
+		return leadingWidth + pillView.intrinsicContentSize.width / 2
+	}
+
+	private func applyPromptTimerView() {
+		guard let currentPromptTimer else {
+			if promptTimerView.superview != nil {
+				stackView.removeArrangedSubview(promptTimerView)
+				promptTimerView.removeFromSuperview()
+			}
+			promptTimerView.isHidden = true
+			return
+		}
+		promptTimerView.configure(presentation: currentPromptTimer, metrics: metrics)
+		promptTimerView.isHidden = false
+		if promptTimerView.superview == nil {
+			stackView.addArrangedSubview(promptTimerView)
+		}
 	}
 }
 
@@ -2863,6 +3404,37 @@ enum FloatingPetHidePrompt {
 	/// (slice, free-list number, rename label) — the same end-state as
 	/// automatic TTL expiry.
 	static let pruneTitle = "Prune Session"
+	/// Title for the right-click "Sync Label" affordance, offered only on a
+	/// session-keyed window (mirrors Prune Session's gating): re-fetches the
+	/// platform's own current thread title — bypassing the pool's
+	/// once-resolved-then-frozen cache — and adopts it as this session's
+	/// label. Lets a user who renamed the thread in the source app (Claude
+	/// Code, Codex, Cursor) after Codogotchi already froze an earlier title
+	/// pull the rename in manually, since Codogotchi never re-polls a
+	/// resolved title on its own.
+	static let syncLabelTitle = "Sync Label"
+	/// Title for the right-click "Hide All Other Pets" affordance, offered
+	/// unconditionally on every panel (Own mode, Minimalist mode, and the
+	/// combined window — all share this prompt). Hides every OTHER
+	/// currently-rendered window, same-platform sibling sessions included,
+	/// leaving only the panel that was clicked. A snapshot action, not a
+	/// mode: a session or platform that spawns afterward is unaffected and
+	/// renders normally.
+	static let hideAllOtherPetsTitle = "Hide All Other Pets"
+	/// Title for the right-click mode-switch affordance on an Own/Combined pet
+	/// window: flips the platform to Minimalist mode (or, on the combined
+	/// window, turns on combined-minimalist rendering). For a sessions-enabled
+	/// platform this is a platform-level switch — every session panel of that
+	/// origin flips together, since mode is keyed per-origin.
+	static let minimalistModeTitle = "Minimalist Mode"
+	/// Title for the right-click mode-switch affordance on a Minimalist strip:
+	/// the inverse of `minimalistModeTitle` — back to the full pet renderer.
+	static let petModeTitle = "Pet Mode"
+	/// Title for the right-click "Panel Size" affordance on a Minimalist strip.
+	/// Opens the slider pill (`MinimalistPanelSizePillPanel`) driving the
+	/// same global `minimalist_badge_scale` the Customization tab's slider
+	/// writes — ellipsis per the "opens follow-up UI" convention (`Rename…`).
+	static let panelSizeTitle = "Panel Size…"
 	static let font = NSFont.systemFont(ofSize: 13, weight: .medium)
 	static let horizontalPadding: CGFloat = 14
 	static let verticalPadding: CGFloat = 7
@@ -3149,6 +3721,7 @@ private final class FloatingPetInteractionView: NSView {
 	private var localMouseMonitor: Any?
 	private var globalMouseMonitor: Any?
 	private var globalKeyboardMonitor: Any?
+	private var hidePromptLocalMouseMonitor: Any?
 	private var hidePromptDismissObservers: [NSObjectProtocol] = []
 	private var pointerInsideFrame = false
 	private var affordanceHoverActive = false
@@ -3194,6 +3767,20 @@ private final class FloatingPetInteractionView: NSView {
 	/// offered while `hasActiveSessionBadge` — see that property's doc for why
 	/// this gate differs from Rename's.
 	var pruneHandler: (() -> Void)?
+	/// Fired when the user activates the right-click "Sync Label" affordance.
+	/// Only offered while `hasActiveSessionBadge` (same gate as Prune, unlike
+	/// Rename) — a plain-origin/combined window has no session id to
+	/// re-fetch a platform title for. This view never resolves or writes the
+	/// label itself.
+	var syncLabelHandler: (() -> Void)?
+	/// Fired when the user activates the right-click "Hide All Other Pets"
+	/// affordance, offered unconditionally. This view never touches other
+	/// windows itself — the app wires this to the pool's bulk-hide call.
+	var hideAllOtherPetsHandler: (() -> Void)?
+	/// Fired when the user activates the right-click "Minimalist Mode"
+	/// affordance. The app wires this to persist the mode switch to
+	/// customization.json; the window pool re-renders on its next tick.
+	var minimalistModeHandler: (() -> Void)?
 	/// Fired when the pointer enters or leaves the pet frame. `true` = entered.
 	var onHoverChange: ((Bool) -> Void)?
 	/// Fired on every pointer event while tracking (moved, entered, exited).
@@ -3601,6 +4188,18 @@ private final class FloatingPetInteractionView: NSView {
 					self?.presentRenameAlert()
 				})
 		}
+		// Only offered on an actual session-keyed window — a plain-origin/
+		// combined window has no session id to resolve a platform title for.
+		// Sits directly below "Rename…", grouping the two label actions;
+		// non-destructive, so it fires immediately on click like Rename does
+		// once its (separate) text-entry alert is confirmed.
+		if hasActiveSessionBadge {
+			items.append(
+				FloatingPetPromptItem(title: FloatingPetHidePrompt.syncLabelTitle) { [weak self] in
+					self?.dismissHidePrompt()
+					self?.syncLabelHandler?()
+				})
+		}
 		// Destroys backing session state (slice, free-list number), so unlike
 		// Rename this stays restricted to an actual session-keyed window —
 		// a plain-origin/combined window has no session to prune. Destructive,
@@ -3613,6 +4212,20 @@ private final class FloatingPetInteractionView: NSView {
 					self?.presentPruneConfirmation()
 				})
 		}
+		// Mode switch to the compact badge strip. Sits directly above "Hide pet"
+		// — like Hide it acts on the window's chrome, not the session's state.
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.minimalistModeTitle) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.minimalistModeHandler?()
+			})
+		// Offered unconditionally, directly above "Hide pet" — the last
+		// action before the pet's own hide.
+		items.append(
+			FloatingPetPromptItem(title: FloatingPetHidePrompt.hideAllOtherPetsTitle) { [weak self] in
+				self?.dismissHidePrompt()
+				self?.hideAllOtherPetsHandler?()
+			})
 		items.append(
 			FloatingPetPromptItem(title: FloatingPetHidePrompt.title) { [weak self] in
 				self?.dismissHidePrompt()
@@ -3708,6 +4321,22 @@ private final class FloatingPetInteractionView: NSView {
 			}
 		}
 
+		// In-app half of "any click away dismisses": global monitors only
+		// report other applications' events, so a click on a sibling pet, a
+		// Minimalist strip, or the menubar icon would strand this prompt
+		// without a local monitor. Dismissal is synchronous (not
+		// Task-deferred) — the monitor fires before the event dispatches, and
+		// a deferred dismissal would land after a right-click's re-present
+		// and tear down the new prompt instead of the old one.
+		hidePromptLocalMouseMonitor = NSEvent.addLocalMonitorForEvents(
+			matching: [.leftMouseDown, .rightMouseDown]
+		) { [weak self] event in
+			if let self, event.window !== self.hidePromptPanel {
+				self.dismissHidePrompt()
+			}
+			return event
+		}
+
 		// Dismiss on any keyboard input (including Cmd+Tab / Alt+Tab system
 		// switchers) so the pill never lingers over the UI while the user is
 		// changing apps/windows.
@@ -3728,6 +4357,10 @@ private final class FloatingPetInteractionView: NSView {
 		if let globalMouseMonitor {
 			NSEvent.removeMonitor(globalMouseMonitor)
 			self.globalMouseMonitor = nil
+		}
+		if let hidePromptLocalMouseMonitor {
+			NSEvent.removeMonitor(hidePromptLocalMouseMonitor)
+			self.hidePromptLocalMouseMonitor = nil
 		}
 		if let globalKeyboardMonitor {
 			NSEvent.removeMonitor(globalKeyboardMonitor)
@@ -4032,6 +4665,124 @@ final class FloatingPetPromptCoordinator {
 		activeOwner = nil
 		activeDismiss = nil
 	}
+}
+
+/// Layout for the "Panel Size" slider pill. Internal (not file-private) so
+/// tests can pin the pill's slider range staying in lockstep with the
+/// Customization tab's slider.
+enum MinimalistPanelSizePill {
+	/// Fixed pill size: the slider row with "Small"/"Large" captions beneath
+	/// its endpoints, mirroring the Customization tab's badge-scale control.
+	static let size = CGSize(width: 260, height: 48)
+	static let cornerRadius: CGFloat = 12
+	/// Vertical gap between the strip's bottom edge and the pill's top edge.
+	static let gapBelowStrip: CGFloat = 6
+	/// Slider range — identical to the Customization tab's badge-scale slider,
+	/// which is the whole point: both controls drive the same global setting.
+	static let minScale = Double(GateBadgeLayout.achievableMinScale)
+	static let maxScale = Double(GateBadgeLayout.achievableMaxScale)
+}
+
+/// Slider that tracks from the first click even while its borderless,
+/// non-activating host panel is not (and can never become) key.
+private final class FirstMouseSlider: NSSlider {
+	override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+/// Frosted pill hosting the "Panel Size" slider, shown when the user
+/// activates the right-click "Panel Size…" affordance on a Minimalist strip.
+/// Mirrors `FloatingPetHidePromptPanel`'s chrome (material, level, collection
+/// behavior) and the Customization tab's control layout ("Small" — slider —
+/// "Large"); the slider drives the same global `minimalist_badge_scale` the
+/// Customization tab writes, so the change applies to every Minimalist
+/// platform, not just the clicked strip.
+private final class MinimalistPanelSizePillPanel: NSPanel {
+	private let slider = FirstMouseSlider()
+	/// Fires on every slider tick with the new scale; `isFinal` is true on the
+	/// mouse-up tick that ends the drag (or on a single click), so the caller
+	/// can live-apply per tick but defer once-per-gesture work (the Settings
+	/// re-sync notification) to the end of the gesture.
+	var onScaleChanged: ((Double, Bool) -> Void)?
+
+	init(frame: CGRect, initialScale: Double) {
+		super.init(
+			contentRect: frame,
+			styleMask: [.borderless, .nonactivatingPanel],
+			backing: .buffered,
+			defer: false
+		)
+		backgroundColor = .clear
+		isOpaque = false
+		hasShadow = false
+		// Same level rationale as FloatingPetHidePromptPanel: pet chrome is
+		// re-fronted every poll tick and would bury a `.floating` pill.
+		level = .popUpMenu
+		collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+		hidesOnDeactivate = false
+		isReleasedWhenClosed = false
+		ignoresMouseEvents = false
+		acceptsMouseMovedEvents = true
+
+		let container = NSView(frame: CGRect(origin: .zero, size: frame.size))
+		container.autoresizingMask = [.width, .height]
+
+		let effectView = NSVisualEffectView()
+		effectView.material = .hudWindow
+		effectView.blendingMode = .behindWindow
+		effectView.state = .active
+		effectView.appearance = NSAppearance(named: .darkAqua)
+		effectView.wantsLayer = true
+		effectView.isEmphasized = false
+		effectView.layer?.cornerRadius = MinimalistPanelSizePill.cornerRadius
+		effectView.layer?.masksToBounds = true
+		effectView.translatesAutoresizingMaskIntoConstraints = false
+		container.addSubview(effectView)
+
+		let smallLabel = NSTextField(labelWithString: "Small")
+		let largeLabel = NSTextField(labelWithString: "Large")
+		for label in [smallLabel, largeLabel] {
+			label.font = .systemFont(ofSize: 11)
+			label.textColor = .white
+			label.translatesAutoresizingMaskIntoConstraints = false
+			container.addSubview(label)
+		}
+
+		slider.minValue = MinimalistPanelSizePill.minScale
+		slider.maxValue = MinimalistPanelSizePill.maxScale
+		slider.doubleValue = initialScale
+		slider.isContinuous = true
+		slider.target = self
+		slider.action = #selector(sliderChanged(_:))
+		slider.translatesAutoresizingMaskIntoConstraints = false
+		container.addSubview(slider)
+
+		NSLayoutConstraint.activate([
+			effectView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+			effectView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+			effectView.topAnchor.constraint(equalTo: container.topAnchor),
+			effectView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+			// Slider spans the full pill width; the captions sit beneath its
+			// endpoints, mirroring the Customization tab's Small/Large row.
+			slider.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+			slider.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+			slider.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+			smallLabel.topAnchor.constraint(equalTo: slider.bottomAnchor, constant: 2),
+			smallLabel.leadingAnchor.constraint(equalTo: slider.leadingAnchor),
+			largeLabel.topAnchor.constraint(equalTo: slider.bottomAnchor, constant: 2),
+			largeLabel.trailingAnchor.constraint(equalTo: slider.trailingAnchor),
+		])
+		contentView = container
+	}
+
+	@objc private func sliderChanged(_ sender: NSSlider) {
+		// A continuous slider fires this per drag tick; the tick delivered on
+		// mouse-up marks the end of the gesture.
+		let isFinal = NSApp.currentEvent.map { $0.type == .leftMouseUp } ?? true
+		onScaleChanged?(sender.doubleValue, isFinal)
+	}
+
+	override var canBecomeKey: Bool { false }
+	override var canBecomeMain: Bool { false }
 }
 
 private final class FloatingPetHidePromptPanel: NSPanel {
