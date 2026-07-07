@@ -25,6 +25,7 @@ import {
 } from '../cli-runner';
 import { formatStatus } from '../format';
 import {
+  buildDiscordContent,
   eventsForAdvanceCommand,
   eventsForOpenPrCommand,
   eventsForPollReviewCommand,
@@ -33,6 +34,7 @@ import {
   eventsForStartCommand,
   formatNotificationMessage,
   formatReviewWindowMessage,
+  type NotificationPayload,
   notifyBestEffort,
   resolveNotifier,
 } from '../notifications';
@@ -75,6 +77,14 @@ async function readArtifactJson(cwd: string, relativePath: string) {
     string,
     unknown
   >;
+}
+
+function setOrDeleteEnv(key: string, value: string | undefined): void {
+  if (typeof value === 'undefined') {
+    delete process.env[key];
+  } else {
+    process.env[key] = value;
+  }
 }
 
 const baseConfig: ResolvedOrchestratorConfig = {
@@ -822,8 +832,10 @@ describe('delivery orchestrator', () => {
   it('resolves the notifier from Telegram env vars', () => {
     const originalToken = process.env.TELEGRAM_BOT_TOKEN;
     const originalChatId = process.env.TELEGRAM_CHAT_ID;
+    const originalWebhook = process.env.DISCORD_WEBHOOK_URL;
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_CHAT_ID;
+    delete process.env.DISCORD_WEBHOOK_URL;
 
     expect(resolveNotifier()).toEqual({
       kind: 'noop',
@@ -840,8 +852,63 @@ describe('delivery orchestrator', () => {
       chatId: 'chat-id',
     });
 
-    process.env.TELEGRAM_BOT_TOKEN = originalToken;
-    process.env.TELEGRAM_CHAT_ID = originalChatId;
+    setOrDeleteEnv('TELEGRAM_BOT_TOKEN', originalToken);
+    setOrDeleteEnv('TELEGRAM_CHAT_ID', originalChatId);
+    setOrDeleteEnv('DISCORD_WEBHOOK_URL', originalWebhook);
+  });
+
+  it('resolves the Discord notifier from the webhook env var', () => {
+    const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+    const originalChatId = process.env.TELEGRAM_CHAT_ID;
+    const originalWebhook = process.env.DISCORD_WEBHOOK_URL;
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_CHAT_ID;
+    process.env.DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1/abc';
+
+    expect(resolveNotifier()).toEqual({
+      kind: 'discord',
+      enabled: true,
+      webhookUrl: 'https://discord.com/api/webhooks/1/abc',
+    });
+
+    setOrDeleteEnv('TELEGRAM_BOT_TOKEN', originalToken);
+    setOrDeleteEnv('TELEGRAM_CHAT_ID', originalChatId);
+    setOrDeleteEnv('DISCORD_WEBHOOK_URL', originalWebhook);
+  });
+
+  it('prefers Telegram over Discord when both are configured', () => {
+    const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+    const originalChatId = process.env.TELEGRAM_CHAT_ID;
+    const originalWebhook = process.env.DISCORD_WEBHOOK_URL;
+    process.env.TELEGRAM_BOT_TOKEN = 'bot-token';
+    process.env.TELEGRAM_CHAT_ID = 'chat-id';
+    process.env.DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1/abc';
+
+    expect(resolveNotifier()).toEqual({
+      kind: 'telegram',
+      enabled: true,
+      botToken: 'bot-token',
+      chatId: 'chat-id',
+    });
+
+    setOrDeleteEnv('TELEGRAM_BOT_TOKEN', originalToken);
+    setOrDeleteEnv('TELEGRAM_CHAT_ID', originalChatId);
+    setOrDeleteEnv('DISCORD_WEBHOOK_URL', originalWebhook);
+  });
+
+  it('treats a whitespace-only Discord webhook as disabled', () => {
+    const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+    const originalChatId = process.env.TELEGRAM_CHAT_ID;
+    const originalWebhook = process.env.DISCORD_WEBHOOK_URL;
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_CHAT_ID;
+    process.env.DISCORD_WEBHOOK_URL = '   ';
+
+    expect(resolveNotifier()).toEqual({ kind: 'noop', enabled: false });
+
+    setOrDeleteEnv('TELEGRAM_BOT_TOKEN', originalToken);
+    setOrDeleteEnv('TELEGRAM_CHAT_ID', originalChatId);
+    setOrDeleteEnv('DISCORD_WEBHOOK_URL', originalWebhook);
   });
 
   it('formats notification messages for milestone events', () => {
@@ -3839,10 +3906,12 @@ describe('delivery orchestrator', () => {
   it('keeps notification failures best-effort', async () => {
     const originalToken = process.env.TELEGRAM_BOT_TOKEN;
     const originalChatId = process.env.TELEGRAM_CHAT_ID;
+    const originalWebhook = process.env.DISCORD_WEBHOOK_URL;
     const originalFetch = globalThis.fetch;
 
     process.env.TELEGRAM_BOT_TOKEN = 'bot-token';
     process.env.TELEGRAM_CHAT_ID = 'chat-id';
+    delete process.env.DISCORD_WEBHOOK_URL;
     globalThis.fetch = (async () =>
       new Response('nope', { status: 500 })) as unknown as typeof fetch;
 
@@ -3862,19 +3931,22 @@ describe('delivery orchestrator', () => {
     expect(warning).toContain('Notification warning:');
     expect(warning).toContain('Telegram sendMessage failed with 500');
 
-    process.env.TELEGRAM_BOT_TOKEN = originalToken;
-    process.env.TELEGRAM_CHAT_ID = originalChatId;
+    setOrDeleteEnv('TELEGRAM_BOT_TOKEN', originalToken);
+    setOrDeleteEnv('TELEGRAM_CHAT_ID', originalChatId);
+    setOrDeleteEnv('DISCORD_WEBHOOK_URL', originalWebhook);
     globalThis.fetch = originalFetch;
   });
 
   it('sends standalone telegram notifications with a linked pr label instead of a raw url', async () => {
     const originalToken = process.env.TELEGRAM_BOT_TOKEN;
     const originalChatId = process.env.TELEGRAM_CHAT_ID;
+    const originalWebhook = process.env.DISCORD_WEBHOOK_URL;
     const originalFetch = globalThis.fetch;
     const requests: string[] = [];
 
     process.env.TELEGRAM_BOT_TOKEN = 'bot-token';
     process.env.TELEGRAM_CHAT_ID = 'chat-id';
+    delete process.env.DISCORD_WEBHOOK_URL;
     globalThis.fetch = (async (
       _input: RequestInfo | URL,
       init?: RequestInit,
@@ -3904,9 +3976,215 @@ describe('delivery orchestrator', () => {
       ],
     });
 
-    process.env.TELEGRAM_BOT_TOKEN = originalToken;
-    process.env.TELEGRAM_CHAT_ID = originalChatId;
+    setOrDeleteEnv('TELEGRAM_BOT_TOKEN', originalToken);
+    setOrDeleteEnv('TELEGRAM_CHAT_ID', originalChatId);
+    setOrDeleteEnv('DISCORD_WEBHOOK_URL', originalWebhook);
     globalThis.fetch = originalFetch;
+  });
+
+  it('formats Discord notifications with Markdown links and suppressed embeds', async () => {
+    const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+    const originalChatId = process.env.TELEGRAM_CHAT_ID;
+    const originalWebhook = process.env.DISCORD_WEBHOOK_URL;
+    const originalFetch = globalThis.fetch;
+    const requests: Array<{ body: string; url: string }> = [];
+
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_CHAT_ID;
+    process.env.DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1/abc';
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      requests.push({ body: String(init?.body ?? ''), url: String(input) });
+      return new Response('', { status: 204 });
+    }) as unknown as typeof fetch;
+
+    await notifyBestEffort(resolveNotifier(), '/tmp/test_project', {
+      kind: 'standalone_review_started',
+      prNumber: 33,
+      prUrl: 'https://example.test/pull/33',
+      reviewPollIntervalMinutes: 6,
+      reviewPollMaxWaitMinutes: 12,
+    });
+
+    await notifyBestEffort(resolveNotifier(), '/tmp/test_project', {
+      kind: 'ticket_started',
+      planKey: 'phase-03',
+      ticketId: 'P3.01',
+      ticketTitle: 'Persist Transmission Identity For Queued Torrents',
+      branch: 'agents/p3-01-persist-transmission-identity-for-queued-torrents',
+    });
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.url).toBe('https://discord.com/api/webhooks/1/abc');
+    expect(JSON.parse(requests[0]?.body ?? '{}')).toEqual({
+      content:
+        'Son of Anton [PR #33](https://example.test/pull/33)\nAI review started.',
+      flags: 4,
+      allowed_mentions: { parse: [] },
+    });
+    expect(JSON.parse(requests[1]?.body ?? '{}')).toEqual({
+      content:
+        'Son of Anton\nP3.01 underway for phase-03.\nPersist Transmission Identity For Queued Torrents\nBranch: agents/p3-01-persist-transmission-identity-for-queued-torrents',
+      flags: 4,
+      allowed_mentions: { parse: [] },
+    });
+
+    setOrDeleteEnv('TELEGRAM_BOT_TOKEN', originalToken);
+    setOrDeleteEnv('TELEGRAM_CHAT_ID', originalChatId);
+    setOrDeleteEnv('DISCORD_WEBHOOK_URL', originalWebhook);
+    globalThis.fetch = originalFetch;
+  });
+
+  it('keeps Discord notification failures best-effort', async () => {
+    const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+    const originalChatId = process.env.TELEGRAM_CHAT_ID;
+    const originalWebhook = process.env.DISCORD_WEBHOOK_URL;
+    const originalFetch = globalThis.fetch;
+
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_CHAT_ID;
+    process.env.DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1/abc';
+    globalThis.fetch = (async () =>
+      new Response('nope', { status: 500 })) as unknown as typeof fetch;
+
+    const warning = await notifyBestEffort(
+      resolveNotifier(),
+      '/tmp/test_project',
+      {
+        kind: 'ticket_started',
+        planKey: 'phase-03',
+        ticketId: 'P3.01',
+        ticketTitle: 'Persist Transmission Identity For Queued Torrents',
+        branch:
+          'agents/p3-01-persist-transmission-identity-for-queued-torrents',
+      },
+    );
+
+    expect(warning).toContain('Notification warning:');
+    expect(warning).toContain('Discord webhook failed with 500');
+
+    setOrDeleteEnv('TELEGRAM_BOT_TOKEN', originalToken);
+    setOrDeleteEnv('TELEGRAM_CHAT_ID', originalChatId);
+    setOrDeleteEnv('DISCORD_WEBHOOK_URL', originalWebhook);
+    globalThis.fetch = originalFetch;
+  });
+
+  it('renders ticketed PR URLs bare and escapes Markdown metacharacters on Discord', async () => {
+    const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+    const originalChatId = process.env.TELEGRAM_CHAT_ID;
+    const originalWebhook = process.env.DISCORD_WEBHOOK_URL;
+    const originalFetch = globalThis.fetch;
+    const bodies: string[] = [];
+
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_CHAT_ID;
+    process.env.DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1/abc';
+    globalThis.fetch = (async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      bodies.push(String(init?.body ?? ''));
+      return new Response('', { status: 204 });
+    }) as unknown as typeof fetch;
+
+    // Ticketed events carry the PR URL as plain text (no entity) -> bare URL,
+    // not a Markdown link. Only standalone review events splice [PR #N](url).
+    await notifyBestEffort(resolveNotifier(), '/tmp/test_project', {
+      kind: 'pr_opened',
+      planKey: 'phase-03',
+      ticketId: 'P3.01',
+      ticketTitle: 'Persist Transmission Identity',
+      branch: 'agents/p3-01-persist-transmission-identity',
+      prUrl: 'https://example.test/pull/40',
+    });
+
+    // Free-form text with Markdown metacharacters must render literally on
+    // Discord, matching Telegram's plain-text rendering.
+    await notifyBestEffort(resolveNotifier(), '/tmp/test_project', {
+      kind: 'run_blocked',
+      planKey: 'phase-03',
+      command: 'open-pr',
+      reason: 'see foo_bar in `logs`',
+    });
+
+    expect(JSON.parse(bodies[0] ?? '{}')).toEqual({
+      content:
+        'Son of Anton\nP3.01 is up for review in phase-03.\nPersist Transmission Identity\nBranch: agents/p3-01-persist-transmission-identity\nPR: https://example.test/pull/40',
+      flags: 4,
+      allowed_mentions: { parse: [] },
+    });
+    expect(JSON.parse(bodies[1] ?? '{}')).toEqual({
+      content:
+        'Son of Anton\nStopped in phase-03.\nCommand: open-pr\nReason: see foo\\_bar in \\`logs\\`',
+      flags: 4,
+      allowed_mentions: { parse: [] },
+    });
+
+    setOrDeleteEnv('TELEGRAM_BOT_TOKEN', originalToken);
+    setOrDeleteEnv('TELEGRAM_CHAT_ID', originalChatId);
+    setOrDeleteEnv('DISCORD_WEBHOOK_URL', originalWebhook);
+    globalThis.fetch = originalFetch;
+  });
+
+  it('buildDiscordContent escapes prose, splices links, and skips out-of-range entities', () => {
+    // No entities: plain prose is escaped so Markdown renders literally.
+    expect(
+      buildDiscordContent({ text: 'fixed foo_bar and *baz* in `x`' }),
+    ).toBe('fixed foo\\_bar and \\*baz\\* in \\`x\\`');
+
+    // Multiple entities splice left-to-right and stay offset-stable while the
+    // surrounding prose is escaped.
+    const payload: NotificationPayload = {
+      text: 'a_b LINK1 c_d LINK2 e_f',
+      entities: [
+        { type: 'text_link', offset: 4, length: 5, url: 'https://x.test/1' },
+        { type: 'text_link', offset: 14, length: 5, url: 'https://x.test/2' },
+      ],
+    };
+    expect(buildDiscordContent(payload)).toBe(
+      'a\\_b [LINK1](https://x.test/1) c\\_d [LINK2](https://x.test/2) e\\_f',
+    );
+
+    // An out-of-range entity is skipped: output degrades to escaped text rather
+    // than emitting a malformed empty-label link.
+    expect(
+      buildDiscordContent({
+        text: 'Son of Anton PR #5',
+        entities: [
+          {
+            type: 'text_link',
+            offset: 100,
+            length: 6,
+            url: 'https://x.test/9',
+          },
+        ],
+      }),
+    ).toBe('Son of Anton PR #5');
+
+    // Block-level markers at the start of a line are escaped so headings,
+    // bullet/ordered lists, and blockquotes render literally.
+    expect(
+      buildDiscordContent({ text: '# Heading\n- bullet\n> quote\n1. first' }),
+    ).toBe('\\# Heading\n\\- bullet\n\\> quote\n1\\. first');
+
+    // ...but only when they actually begin a block: `#tag` and `1.0` (no
+    // trailing space) are not markers and must be left untouched.
+    expect(buildDiscordContent({ text: '#nospace and 1.0 release' })).toBe(
+      '#nospace and 1.0 release',
+    );
+
+    // Markdown-link injection: `[text](url)` in free-form prose (e.g. a review
+    // note derived from AI review comments) must not render as a live masked
+    // link — brackets and parens are escaped. Only entity-driven links splice.
+    expect(
+      buildDiscordContent({
+        text: 'Reason: see [click me](https://evil.example.com) for details',
+      }),
+    ).toBe(
+      'Reason: see \\[click me\\]\\(https://evil.example.com\\) for details',
+    );
   });
 
   it('prefers an explicit review fetcher environment variable', () => {

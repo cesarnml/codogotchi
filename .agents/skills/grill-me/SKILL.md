@@ -80,4 +80,4 @@ When used for use case 2, the output is the ticket breakdown — not the start o
 2. Explicitly ask the developer to approve it before any implementation begins.
 3. Do not create branches, write code, or invoke the orchestrator until approved.
 
-Skipping this control point bypasses the sequencing requirement (delivery docs committed to main before orchestrator begins) and will corrupt orchestrator state.
+Skipping this control point bypasses the sequencing requirement (delivery docs committed to the configured `deliveryBaseBranch` before orchestrator begins) and will corrupt orchestrator state.
