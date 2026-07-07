@@ -960,6 +960,8 @@ private final class HookRowView: NSView {
 			return NSColor(srgbRed: 0.00, green: 0.48, blue: 0.80, alpha: 1)  // VS Code blue
 		case "cursor":
 			return NSColor(calibratedWhite: 0.78, alpha: 1)  // Cursor slate
+		case "antigravity":
+			return NSColor(srgbRed: 0.545, green: 0.361, blue: 0.965, alpha: 1)  // "AI" violet
 		default:
 			return .labelColor
 		}
