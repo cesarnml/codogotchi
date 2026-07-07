@@ -1727,6 +1727,48 @@ describe("P7.02 §7 pure classifier", () => {
     ).toBe("testing");
   });
 
+  it("classifies npm run mac:test as testing", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command: "npm run mac:test",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("testing");
+  });
+
+  it("classifies bun run mac:build as verifying", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command: "bun run mac:build",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("verifying");
+  });
+
+  it("classifies npm run mac:build as verifying", () => {
+    expect(
+      classifyEvent(
+        {
+          origin: "codex",
+          kind: "tool_use",
+          name: "Bash",
+          command: "npm run mac:build",
+        },
+        { readRun: 0 },
+      ).state,
+    ).toBe("verifying");
+  });
+
   it("classifies bun run verify:quiet as verifying", () => {
     expect(
       classifyEvent(
