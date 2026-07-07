@@ -8,8 +8,6 @@ const makeSlice = (overrides: Partial<SliceEntry> = {}): SliceEntry => ({
   origin: "claude_code",
   session_id: "test-session-1",
   activity_state: "idle",
-  hp_overlay: "thriving",
-  hp: 100,
   updated_at: "2026-06-28T00:00:00.000Z",
   source_event: { origin: "claude_code", kind: "cli", name: "test" },
   ...overrides,
@@ -62,7 +60,7 @@ describe("sliceEntrySchema — validator", () => {
     ).not.toThrow();
   });
 
-  // P13.01 red: v8 removes RPG fields from the slice schema (they move to rpg-state.json).
+  // v8 removes RPG fields from the slice schema (they move to rpg-state.json).
   // Strict schema must reject a payload that carries RPG fields.
   it("v8 slice: RPG fields present in payload are rejected (strict — RPG belongs in rpg-state.json)", () => {
     const payloadWithRpg = {
@@ -70,14 +68,28 @@ describe("sliceEntrySchema — validator", () => {
       origin: "claude_code",
       session_id: "test-v8-rpg",
       activity_state: "idle",
-      hp_overlay: "thriving",
-      hp: 100,
       updated_at: "2026-06-28T00:00:00.000Z",
       source_event: { origin: "claude_code", kind: "cli", name: "test" },
       level: 5,
       half_hearts: 4,
     };
     expect(() => sliceEntrySchema.parse(payloadWithRpg)).toThrow();
+  });
+
+  // v9 removes hp/hp_overlay from the slice schema — hp was pure denormalization
+  // of profile.json with no renderer ever reading it off the slice.
+  it("v9 slice: hp/hp_overlay present in payload are rejected (strict — no longer part of the slice)", () => {
+    const payloadWithHp = {
+      schema_version: STATE_JSON_SCHEMA_VERSION,
+      origin: "claude_code",
+      session_id: "test-v9-hp",
+      activity_state: "idle",
+      hp_overlay: "thriving",
+      hp: 100,
+      updated_at: "2026-06-28T00:00:00.000Z",
+      source_event: { origin: "claude_code", kind: "cli", name: "test" },
+    };
+    expect(() => sliceEntrySchema.parse(payloadWithHp)).toThrow();
   });
 });
 
@@ -86,22 +98,12 @@ describe("globalAggregate — empty set", () => {
     const result = globalAggregate([]);
     expect(result.activity_state).toBe("idle");
   });
-
-  it("returns thriving hp_overlay for an empty slice set", () => {
-    const result = globalAggregate([]);
-    expect(result.hp_overlay).toBe("thriving");
-  });
 });
 
 describe("globalAggregate — single slice", () => {
   it("returns the slice state for a one-element input", () => {
     const slice = makeSlice({ activity_state: "implementing" });
     expect(globalAggregate([slice]).activity_state).toBe("implementing");
-  });
-
-  it("returns the slice hp for a one-element input", () => {
-    const slice = makeSlice({ hp: 42 });
-    expect(globalAggregate([slice]).hp).toBe(42);
   });
 });
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { activityStateSchema, hpOverlaySchema } from "./animation-state";
+import { activityStateSchema } from "./animation-state";
 import type { StateJsonV1 } from "./state-json";
 import {
   STATE_JSON_SCHEMA_VERSION,
@@ -15,7 +15,9 @@ const attentionSchema = z.object({
 });
 
 // v8: RPG fields removed from slice; they now live in rpg-state.json.
-// .strict() rejects any unknown keys so stale v7 writers that include RPG fields
+// v9: hp/hp_overlay removed — no renderer read them off the slice (the real
+// hp source of truth is profile.json / Convex); they were pure denormalization.
+// .strict() rejects any unknown keys so stale v8 writers that include hp fields
 // are caught at parse time rather than silently accepted.
 export const sliceEntrySchema = z
   .object({
@@ -26,8 +28,6 @@ export const sliceEntrySchema = z
       .min(1)
       .regex(/^[^/\\]+$/, "session_id must not contain path separators"),
     activity_state: activityStateSchema,
-    hp_overlay: hpOverlaySchema,
-    hp: z.number().int().min(-100).max(100),
     updated_at: z.string().datetime({ offset: true }),
     source_event: sourceEventSchema,
     attention: attentionSchema.optional(),
@@ -43,8 +43,6 @@ export type SliceReducer<T> = (slices: SliceEntry[]) => T;
 const IDLE_DEFAULT: StateJsonV1 = {
   schema_version: STATE_JSON_SCHEMA_VERSION,
   activity_state: "idle",
-  hp_overlay: "thriving",
-  hp: 100,
   updated_at: new Date(0).toISOString(),
   source_event: { origin: "manual", kind: "cli", name: "idle-default" },
 };
@@ -53,8 +51,6 @@ function sliceToStateJson(slice: SliceEntry): StateJsonV1 {
   return {
     schema_version: STATE_JSON_SCHEMA_VERSION,
     activity_state: slice.activity_state,
-    hp_overlay: slice.hp_overlay,
-    hp: slice.hp,
     updated_at: slice.updated_at,
     source_event: slice.source_event,
     attention: slice.attention,

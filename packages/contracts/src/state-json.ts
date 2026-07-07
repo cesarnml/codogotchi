@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { activityStateSchema, hpOverlaySchema } from "./animation-state";
 
-export const STATE_JSON_SCHEMA_VERSION = 8;
+export const STATE_JSON_SCHEMA_VERSION = 9;
 
 // Forward-compat policy from docs/contracts/animation-state-vocabulary.md:
 // renderers accept any `schema_version` ≤ EXPECTED_VERSION (this constant),
@@ -48,8 +48,11 @@ export const stateJsonV1Schema = z
   .object({
     schema_version: schemaVersionField,
     activity_state: activityStateSchema,
-    hp_overlay: hpOverlaySchema,
-    hp: z.number().int().min(-100).max(100),
+    // v9: hp/hp_overlay removed — no renderer read them from this file (see
+    // slice-entry.ts); the real hp source of truth is profile.json / Convex.
+    // Optional so v5–v8 payloads (which still carry them) continue to parse.
+    hp_overlay: hpOverlaySchema.optional(),
+    hp: z.number().int().min(-100).max(100).optional(),
     updated_at: z.string().datetime({ offset: true }),
     source_event: sourceEventSchema,
     // v5 RPG progression fields — required when schema_version >= 5, optional for ≤4
@@ -98,6 +101,21 @@ export const stateJsonV1Schema = z
             code: z.ZodIssueCode.custom,
             path: [field],
             message: `${field} is required for schema_version 5–7`,
+          });
+        }
+      }
+    }
+    // hp/hp_overlay moved out of this shape in v9; still required for ≤v8
+    // payloads, which always carried them — a payload claiming an old version
+    // without them is malformed, not merely missing an optional field.
+    if (data.schema_version < 9) {
+      const required: Array<keyof typeof data> = ["hp", "hp_overlay"];
+      for (const field of required) {
+        if (data[field] === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message: `${field} is required for schema_version < 9`,
           });
         }
       }

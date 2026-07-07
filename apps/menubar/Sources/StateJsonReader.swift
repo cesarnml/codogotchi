@@ -5,7 +5,7 @@ import Foundation
 /// is refused; equal or lower versions parse best-effort and tolerate extra
 /// fields. Bump deliberately when the renderer gains support for a newer
 /// schema; do not silently widen.
-let EXPECTED_STATE_SCHEMA_VERSION = 8
+let EXPECTED_STATE_SCHEMA_VERSION = 9
 
 /// Error cases surfaced by `StateJsonReader.read(at:)`.
 ///

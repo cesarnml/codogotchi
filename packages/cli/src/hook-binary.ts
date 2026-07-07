@@ -12,9 +12,6 @@ import { dirname, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import {
   type ActivityState,
-  type HpOverlay,
-  hpToOverlay,
-  type ProfileResponse,
   type SliceEntry,
   type SourceEvent,
   type SourceEventKind,
@@ -1069,31 +1066,6 @@ async function isLockStale(lockPath: string): Promise<boolean> {
   }
 }
 
-export type HpSnapshot = { hp: number; hpOverlay: HpOverlay };
-
-function isValidHp(value: unknown): value is number {
-  return (
-    typeof value === "number" &&
-    Number.isInteger(value) &&
-    value >= -100 &&
-    value <= 100
-  );
-}
-
-export async function readProfileOverlay(
-  home: string,
-): Promise<HpSnapshot | null> {
-  try {
-    const raw = await readFile(join(home, "profile.json"), "utf8");
-    const parsed = JSON.parse(raw) as Partial<ProfileResponse>;
-    if (!isValidHp(parsed.hp)) return null;
-    return { hp: parsed.hp, hpOverlay: hpToOverlay(parsed.hp) };
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
-    return null;
-  }
-}
-
 export function statePath(home: string): string {
   return join(home, "state.json");
 }
@@ -1621,10 +1593,6 @@ export async function runHook(
       }),
     };
 
-    const overlay = await readProfileOverlay(opts.home);
-    const hp = overlay?.hp ?? 100;
-    const hp_overlay = overlay?.hpOverlay ?? "thriving";
-
     const attention = await buildAttention(
       activityState,
       opts.home,
@@ -1666,8 +1634,6 @@ export async function runHook(
       origin,
       session_id: sessionId ?? "default",
       activity_state: activityState,
-      hp_overlay,
-      hp,
       updated_at: opts.now.toISOString(),
       source_event: sourceEvent,
       ...(attention !== undefined && { attention }),
