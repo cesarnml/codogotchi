@@ -137,6 +137,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		}
 		// Right-click "Force Idle" affordance, shown only while non-idle.
 		badgeView.onForceIdleRequested = { [weak self] in
+			self?.badgeView.resetPromptTimer()
 			self?.onForceIdle?()
 		}
 		// Right-click "Rename…" affordance, offered only while a session number
@@ -428,6 +429,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private func handleBubbleDismiss() {
 		currentAttention = nil
 		currentActivity = .idle
+		badgeView.resetPromptTimer()
 		bubblePanel?.orderOut(nil)
 		applyBadge()
 		onAttentionDismissed?()
@@ -551,6 +553,13 @@ private final class MinimalistBadgeView: NSView {
 		)
 		animationBadge.configurePromptTimer(promptTimer.presentation())
 		syncPromptTimerHeartbeat()
+	}
+
+	func resetPromptTimer() {
+		promptTimer.reset()
+		promptTimerHeartbeat?.invalidate()
+		promptTimerHeartbeat = nil
+		animationBadge.configurePromptTimer(nil)
 	}
 
 	/// Latest session number/label/tooltip applied via `configureSessionNumber`.
@@ -1481,6 +1490,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	private func handleBubbleDismiss() {
 		attentionActive = false
+		resetPromptTimer()
 		apply(state: .idle, visualMode: currentMode)
 		onAttentionDismissed?()
 	}
@@ -1763,6 +1773,23 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		repositionAndShowAnimationBadge()
 	}
 
+	private func resetPromptTimer() {
+		promptTimer.reset()
+		promptTimerHeartbeat?.invalidate()
+		promptTimerHeartbeat = nil
+		animationBadgePanel?.reposition(
+			label: animationBadgeLabel,
+			platform: currentPlatform,
+			inFlight: animationBadgeInFlight,
+			promptTimer: nil,
+			sessionNumber: currentSessionNumber,
+			sessionLabel: currentSessionLabel,
+			sessionTooltip: currentSessionTooltip,
+			relativeTo: lastPanelFrame,
+			visibleFrame: visibleFrameProvider()
+		)
+	}
+
 	func setInteraction(_ interaction: FloatingInteraction?) {
 		scene?.setInteraction(interaction)
 	}
@@ -1941,6 +1968,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 		view.isForceIdleAvailable = FloatingPetHidePrompt.offersForceIdle(for: currentState)
 		view.forceIdleHandler = { [weak self] in
+			self?.resetPromptTimer()
 			self?.onForceIdle?()
 		}
 		view.hasActiveSessionBadge = currentSessionNumber != nil

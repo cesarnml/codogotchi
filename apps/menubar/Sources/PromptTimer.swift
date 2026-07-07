@@ -46,6 +46,13 @@ struct PromptTimerTracker: Equatable {
 
 	private(set) var status: PromptTimerStatus?
 	private var erroredSince: Date?
+	private var lastObservedState: ActivityState?
+
+	mutating func reset() {
+		status = nil
+		erroredSince = nil
+		lastObservedState = nil
+	}
 
 	mutating func observe(
 		state: ActivityState,
@@ -55,8 +62,20 @@ struct PromptTimerTracker: Equatable {
 		now: Date = Date()
 	) {
 		let observedAt = StateJsonReader.parseISO8601Date(updatedAt) ?? now
+		defer { lastObservedState = state }
 
 		if sourceEvent?.kind == "session_start" {
+			status = PromptTimerStatus(startedAt: observedAt, endedAt: nil)
+			erroredSince = nil
+			return
+		}
+
+		if state == .idle {
+			reset()
+			return
+		}
+
+		if state.isInFlight, shouldStartTimerOnInFlightTransition {
 			status = PromptTimerStatus(startedAt: observedAt, endedAt: nil)
 			erroredSince = nil
 			return
@@ -80,6 +99,17 @@ struct PromptTimerTracker: Equatable {
 		}
 
 		erroredSince = nil
+	}
+
+	private var shouldStartTimerOnInFlightTransition: Bool {
+		guard status?.isRunning != true else { return false }
+		guard let lastObservedState else { return true }
+		switch lastObservedState {
+		case .idle, .standby, .errored:
+			return true
+		default:
+			return false
+		}
 	}
 
 	mutating func currentStatus(now: Date = Date()) -> PromptTimerStatus? {
