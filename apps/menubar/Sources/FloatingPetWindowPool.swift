@@ -31,6 +31,9 @@ final class FloatingPetWindowPool {
 	typealias SessionLabelReader = (String) -> String?
 	/// Reads a session's last submitted prompt given its window key.
 	typealias SessionPromptSummaryReader = (String) -> String?
+	/// Reads a session's platform-auto-generated thread title given its
+	/// `(origin, session_id)` identity, or `nil` when unsupported/unresolved.
+	typealias SessionTitleReader = (String, String) -> String?
 
 	private let assignmentsReader: AssignmentsReader
 	private let customizationReader: CustomizationReader
@@ -38,6 +41,7 @@ final class FloatingPetWindowPool {
 	private let minimalistWindowFactory: MinimalistWindowFactory?
 	private let sessionLabelReader: SessionLabelReader
 	private let sessionPromptSummaryReader: SessionPromptSummaryReader
+	private let sessionTitleReader: SessionTitleReader
 	private let now: () -> Date
 
 	/// Active windows keyed by window key (the resolved render key, or "combined").
@@ -86,6 +90,15 @@ final class FloatingPetWindowPool {
 	/// window itself lingers until its TTL expires. Releasing from the stale
 	/// snapshot would silently no-op and leak the number under a bounded cap.
 	private var windowSessionIdentities: [String: RenderKeyIdentity] = [:]
+	/// Platform-auto-generated thread title resolved for each session-keyed
+	/// window key, once found. `sessionTitleReader` hits disk (another app's
+	/// storage, outside `~/.codogotchi/`), so a `nil` result is retried every
+	/// tick — the platform may not have titled the thread yet — but a
+	/// resolved title is cached here and never re-fetched, since these
+	/// titles rarely change after generation. Cleared alongside
+	/// `windowSessionIdentities` in `releaseSessionNumber` so a later session
+	/// reusing the same window key starts with a fresh lookup.
+	private var resolvedSessionTitles: [String: String] = [:]
 	/// Free-list session-number allocator, keyed per-origin internally.
 	/// Assign/release only apply to session-keyed windows (an `origin:session_id`
 	/// render key) — plain-origin windows (session-pets off) and the literal
@@ -229,6 +242,9 @@ final class FloatingPetWindowPool {
 		sessionPromptSummaryReader: @escaping SessionPromptSummaryReader = {
 			PromptAttentionReader.summary(forSessionKey: $0)
 		},
+		sessionTitleReader: @escaping SessionTitleReader = { origin, sessionId in
+			SessionTitleResolver.title(forOrigin: origin, sessionId: sessionId)
+		},
 		// No production-disk defaults: unlike assignmentsReader/customizationReader
 		// (read-only, idempotent), a hidden-keys default that wrote through to
 		// AppStateStore would make every setVisible() call in the test suite — which
@@ -246,6 +262,7 @@ final class FloatingPetWindowPool {
 		self.minimalistWindowFactory = minimalistWindowFactory
 		self.sessionLabelReader = sessionLabelReader
 		self.sessionPromptSummaryReader = sessionPromptSummaryReader
+		self.sessionTitleReader = sessionTitleReader
 		self.hiddenKeysSaver = hiddenKeysSaver
 		self.now = now
 		self.idleEscalationEnvironment = idleEscalationEnvironment
@@ -662,14 +679,16 @@ final class FloatingPetWindowPool {
 			let assignedNumber = sessionNumber(forWindowKey: renderKey)
 			windows[renderKey]?.applySessionNumber(assignedNumber)
 			// Every window gets a label at render — the user's rename if set,
-			// else a default: "Session N" for a session-keyed window, the
-			// platform's display name for a plain-origin one. A non-nil label
-			// is what gates the right-click "Rename…" affordance, so the
-			// session-keyed default must be resolved here rather than left to
-			// the badge view's own "Session N" synthesis.
+			// else a default: the platform's own auto-generated thread title
+			// when resolvable, else "Session N" for a session-keyed window,
+			// else the platform's display name for a plain-origin one. A
+			// non-nil label is what gates the right-click "Rename…"
+			// affordance, so the session-keyed default must be resolved here
+			// rather than left to the badge view's own "Session N" synthesis.
 			let userLabel = sessionLabel(forWindowKey: renderKey)
+			let resolvedTitle = resolveSessionTitle(forWindowKey: renderKey)
 			let defaultLabel =
-				assignedNumber.map { "Session \($0)" } ?? Self.defaultSessionLabel(forOrigin: origin)
+				resolvedTitle ?? assignedNumber.map { "Session \($0)" } ?? Self.defaultSessionLabel(forOrigin: origin)
 			windows[renderKey]?.applySessionLabel(userLabel ?? defaultLabel)
 			windows[renderKey]?.applySessionTooltip(sessionPromptSummary(forWindowKey: renderKey))
 		}
@@ -1008,9 +1027,24 @@ final class FloatingPetWindowPool {
 	/// (e.g. it was torn down before ever being assigned one).
 	private func releaseSessionNumber(forWindowKey key: String) {
 		guard isSessionKeyed(key), let identity = windowSessionIdentities.removeValue(forKey: key) else { return }
+		resolvedSessionTitles.removeValue(forKey: key)
 		let unlimited = isUnlimited(origin: identity.origin)
 		sessionNumberAllocator.setUnlimited(unlimited, origin: identity.origin)
 		sessionNumberAllocator.release(origin: identity.origin, sessionId: identity.sessionId)
+	}
+
+	/// Resolves and caches `key`'s platform-auto-generated thread title (see
+	/// `resolvedSessionTitles`), or `nil` for a plain-origin/"combined"
+	/// window, or a session-keyed window the platform hasn't titled (yet, or
+	/// ever, e.g. an unsupported origin). A cached hit skips
+	/// `sessionTitleReader` entirely — resolution touches another app's
+	/// on-disk storage, so a title once found is never re-fetched.
+	private func resolveSessionTitle(forWindowKey key: String) -> String? {
+		if let cached = resolvedSessionTitles[key] { return cached }
+		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return nil }
+		guard let title = sessionTitleReader(identity.origin, identity.sessionId) else { return nil }
+		resolvedSessionTitles[key] = title
+		return title
 	}
 
 	/// Whether `origin`'s current session cap is the Unlimited sentinel,

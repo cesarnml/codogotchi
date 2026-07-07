@@ -2643,6 +2643,123 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(stubs["codex"]?.appliedSessionLabels.last ?? nil, "Codex")
 	}
 
+	// MARK: - Session title resolution (platform auto-generated thread titles)
+
+	// A session-keyed window with no sidecar rename prefers the platform's
+	// own resolved thread title over the numeric "Session N" fallback — a
+	// friendlier default when the coding-agent platform already titled it.
+	func testSessionKeyedWindowWithResolvedTitlePrefersItOverSessionNumber() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { origin, sessionId in
+				origin == "codex" && sessionId == "s1" ? "Locate session auto label" : nil
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Locate session auto label")
+	}
+
+	// A sidecar rename always wins over a resolved title, exactly as it wins
+	// over the "Session N" default — the user's explicit rename is never
+	// second-guessed by a friendlier-looking platform title.
+	func testSessionKeyedWindowUserRenameStillWinsOverResolvedTitle() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { key in key == "codex:s1" ? "Renamed by user" : nil },
+			sessionTitleReader: { _, _ in "Locate session auto label" }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Renamed by user")
+	}
+
+	// A title unresolved on the first tick (the platform hasn't titled the
+	// thread yet) is retried on a later tick rather than permanently frozen
+	// at "Session N".
+	func testSessionKeyedWindowRetriesUnresolvedTitleOnLaterTick() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		var titleAvailable = false
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { _, _ in titleAvailable ? "Locate session auto label" : nil }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Session 1")
+
+		titleAvailable = true
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:01.000Z")],
+			customization: customization
+		))
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Locate session auto label")
+	}
+
+	// Once resolved, a title is cached rather than re-fetched every tick —
+	// `sessionTitleReader` touches another app's on-disk storage, so a
+	// resolved title must not be looked up again on every subsequent tick.
+	func testSessionKeyedWindowResolvedTitleIsNotReFetchedOnLaterTicks() {
+		var stubs: [String: StubWindowController] = [:]
+		let customization = makeCustomization(sessionPetsEnabled: ["codex": true])
+		var readerCallCount = 0
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { key, _ in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { _, _ in
+				readerCallCount += 1
+				return "Locate session auto label"
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization
+		))
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:01.000Z")],
+			customization: customization
+		))
+		XCTAssertEqual(readerCallCount, 1)
+		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Locate session auto label")
+	}
+
 	/// Mirrors `testSessionKeyedWindowWithSidecarLabelDisplaysItInsteadOfSessionN`
 	/// for `applySessionTooltip` — the pool-level path was previously untested
 	/// even though the label path had symmetric coverage.
