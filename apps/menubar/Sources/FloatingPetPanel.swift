@@ -1468,7 +1468,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			}
 		}
 		hudFlashPending = false
-		currentSicknessLevel = SicknessLevel(halfHearts: halfHearts)
+		currentSicknessLevel =
+			PetConfig.resolvedDiseaseAnimationsEnabled() ? SicknessLevel(halfHearts: halfHearts) : .none
 		scene?.setSicknessLevel(currentSicknessLevel)
 		rpgHUDViewModel.update(
 			halfHearts: halfHearts,
