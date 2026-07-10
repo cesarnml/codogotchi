@@ -615,9 +615,22 @@ def main() -> None:
         if not config_path.exists():
             sys.exit(f"ERROR: {config_path} not found")
         config = json.loads(config_path.read_text())
+
+        # Smart defaults: derive description from config if available, otherwise generate from context
+        description = config.get("description")
+        if not description:
+            pet_name = config.get("pet_name", "Codogotchi Pet")
+            style = config.get("style", "auto")
+
+            # Generate smart default description from pet name and style context
+            description = f"A {pet_name} companion for focused work and productivity."
+            if style != "auto":
+                description = f"A {pet_name} companion for focused work and productivity, in a {style}-style aesthetic."
+
         pet_json = {
             "id": config["pet_id"],
             "displayName": config["pet_name"],
+            "description": description,
             "spritesheetPath": "spritesheet.webp",
         }
         out = run_dir / "pet.json"

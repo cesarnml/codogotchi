@@ -185,7 +185,7 @@ python scripts/pre_install_qa_gate.py --atlas <atlas-webp> --tier lite-basic
 #   python scripts/prepare_pet_run.py --seed <seed> --pet-id beemo --tier lite-enhanced
 #   …generate 4x2 grids / slice_grid / compose --tier lite-enhanced → magenta-background atlas
 
-# 6. Write pet.json (metadata only)
+# 6. Write pet.json (metadata only; description defaults from pet name/style if --description was omitted)
 python scripts/prepare_pet_run.py --write-pet-json --run-dir <work>/
 
 # 7. KEY THE MAGENTA ATLASES — do NOT install them as-is.

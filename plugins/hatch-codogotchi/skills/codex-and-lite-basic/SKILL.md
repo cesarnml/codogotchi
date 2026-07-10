@@ -102,9 +102,11 @@ python scripts/make_contact_sheet.py        --atlas <atlas-webp> --tier lite-bas
 python scripts/render_animation_previews.py --atlas <atlas-webp> --tier lite-basic
 python scripts/pre_install_qa_gate.py       --atlas <atlas-webp> --tier lite-basic
 
-# 6. Write pet.json (metadata only)
+# 6. Write pet.json (metadata only; smart defaults for description)
 python scripts/prepare_pet_run.py --write-pet-json --run-dir <work>/
 ```
+
+**`pet.json` generation — smart defaults for description:** `--write-pet-json` reads `run-config.json` and writes `id`, `displayName`, `description`, and `spritesheetPath`. If you passed `--description` during setup, that text is used as-is. If not, the script auto-generates a smart default from the pet name and style (e.g., "A pixel art My Pet companion for focused work and productivity.") so `pet.json` is always complete without manual editing.
 
 **Final step — keying is the user's, not yours.** The composed `*.webp` atlases still have their flat magenta background. Do **not** install them. Direct the user to **https://codogotchi.app/studio**: load each magenta atlas, tune tolerance / edge / spill, export the transparent sheet, and only then install (`spritesheet.webp` + `codogotchi-lite-basic-spritesheet.webp` + `pet.json`) and quit-reopen Codogotchi.
 

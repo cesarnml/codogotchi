@@ -88,9 +88,14 @@ python scripts/make_contact_sheet.py --atlas <atlas-webp> --tier lite-enhanced
 python scripts/render_animation_previews.py --atlas <atlas-webp> --tier lite-enhanced
 python scripts/pre_install_qa_gate.py --atlas <atlas-webp> --tier lite-enhanced
 
-# ---- Write pet.json (metadata only) ----
+# ---- Write pet.json (metadata only; smart defaults for description) ----
 python scripts/prepare_pet_run.py --write-pet-json --run-dir <work>/
 ```
+
+**`pet.json` generation — smart defaults for description:**
+- `prepare_pet_run.py --write-pet-json` reads `run-config.json` and generates `pet.json` with `id`, `displayName`, `description`, and `spritesheetPath`.
+- **If you provided `--description` during setup**, that description is used directly.
+- **If no description was provided**, the script auto-generates a smart default from the pet name and style (e.g., "A pixel art My Pet companion for focused work and productivity."). This ensures `pet.json` is always complete and ready to import without requiring manual editing.
 
 Per-row slice (run for every row before composing its tier; paths are caller-chosen/ephemeral):
 ```bash
