@@ -69,14 +69,21 @@ enum SicknessLevel: Equatable {
 	case warning
 	case critical
 
-	init(halfHearts: Int) {
-		let clamped = max(0, min(6, halfHearts))
-		switch clamped {
-		case 1...2:
+	/// Trigger thresholds come from Settings → RPG → Pet Sickness Configuration,
+	/// in half-hearts with `0` meaning "Never". Severe wins when both match
+	/// (config guarantees severe < mild, but this is safe regardless).
+	/// `halfHearts == 0` is the ghost state — the grayscale/tombstone treatment
+	/// owns that, so sickness effects never stack on a dead pet.
+	init(halfHearts: Int, mildTriggerHalfHearts: Int, severeTriggerHalfHearts: Int) {
+		guard halfHearts >= 1 else {
+			self = .none
+			return
+		}
+		if severeTriggerHalfHearts >= 1, halfHearts <= severeTriggerHalfHearts {
 			self = .critical
-		case 3...4:
+		} else if mildTriggerHalfHearts >= 1, halfHearts <= mildTriggerHalfHearts {
 			self = .warning
-		default:
+		} else {
 			self = .none
 		}
 	}

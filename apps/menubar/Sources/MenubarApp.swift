@@ -86,6 +86,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// Held strongly so the Settings panel is not deallocated while the app runs.
 	var settingsWindowController: SettingsWindowController?
 
+	/// Same `state.d/`-scan tier engine backing Settings → Sessions, also
+	/// wired into `MenubarMenu` so the menu bar's Active/Live/Capped tiering
+	/// reads the identical rows the Sessions tab shows. Held strongly here
+	/// (not just inside `settingsWindowController`) so `menuBuilder`'s weak
+	/// reference to it stays valid for the app's lifetime.
+	var sessionsTabViewModel: SessionsTabViewModel?
+
 	/// Opaque observer token for `NSWorkspace.didWakeNotification`. Held
 	/// strongly so the block-based observer is not deallocated while the app
 	/// runs, and removed in `applicationWillTerminate` so the workspace
@@ -251,6 +258,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// single session to name, so it clears the winner slice per origin.
 					let stateDir = config.pollingTarget.path
 					panel.onAttentionDismissed = { [weak self] in
+						// Reset the pool-owned prompt timer before the on-disk rewrite:
+						// the reset's real-current-time stamp is what stops a next-tick
+						// poll of the pre-rewrite slice from restarting the timer.
+						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
 						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
 							StateJsonWriter.dismissAllSessionsAttention(at: stateDir, origin: identity.origin)
 							self?.floatingPetWindowPool?.clearAttentionBubbles(sharingOriginWith: origin)
@@ -276,6 +287,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// idle rewrite above never touches, so without this the stuck
 					// badge/bubble would survive the "escape hatch" click.
 					panel.onForceIdle = { [weak self, weak panel] in
+						// Pool-tracker reset first — see onAttentionDismissed above.
+						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
 						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
 							StateJsonWriter.forceIdle(
 								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
@@ -435,6 +448,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// origins into one badge, so it scopes both writes to that combined
 					// set (or the single plain origin).
 					panel.onAttentionDismissed = { [weak self] in
+						// Reset the pool-owned prompt timer before the on-disk rewrite:
+						// the reset's real-current-time stamp is what stops a next-tick
+						// poll of the pre-rewrite slice from restarting the timer.
+						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
 						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
 							StateJsonWriter.dismissAllSessionsAttention(at: stateDir, origin: identity.origin)
 							self?.floatingPetWindowPool?.clearAttentionBubbles(sharingOriginWith: origin)
@@ -453,6 +470,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// conflict speech bubble — see the matching Own-mode comment
 					// above for why the state.d/ idle rewrite alone can't do this.
 					panel.onForceIdle = { [weak self, weak panel] in
+						// Pool-tracker reset first — see onAttentionDismissed above.
+						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
 						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
 							StateJsonWriter.forceIdle(
 								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
@@ -515,12 +534,40 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		let onboardingController = OnboardingWindowController()
 		self.onboardingWindowController = onboardingController
 
-		let settingsController = SettingsWindowController()
+		// Explicit "Show" restarts the dismiss-TTL clock on the window's
+		// backing slice(s) so a pet that expired while hidden actually
+		// re-spawns; same window-key targeting as Force Idle (session-keyed
+		// → exactly that slice, combined/plain → that window's origin set).
+		// Shared by the menubar's "Show … Pet" items and the Settings →
+		// Sessions tab's per-row/bulk "Show" actions.
+		let refreshTtlForShow: (String) -> Void = { [weak self] windowKey in
+			let stateDir = config.pollingTarget.path
+			if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: windowKey) {
+				StateJsonWriter.refreshForShow(
+					at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
+			} else {
+				StateJsonWriter.refreshForShow(
+					at: stateDir,
+					origins: self?.resolveWindowOrigins(windowKey: windowKey) ?? [windowKey]
+				)
+			}
+		}
+
+		let sessionsTabViewModel = SessionsTabViewModel(
+			stateDirectoryPath: config.pollingTarget.path,
+			pool: self.floatingPetWindowPool,
+			refreshTtlForShow: refreshTtlForShow
+		)
+		self.sessionsTabViewModel = sessionsTabViewModel
+
+		let settingsController = SettingsWindowController(
+			sessionsTabViewModel: sessionsTabViewModel
+		)
 		settingsController.onPetActivated = { [weak self] _ in
 			self?.reloadActivePet()
 		}
-		settingsController.onRPGHUDEnabledChanged = { _ in
-			// Pool reads PetConfig.resolvedRPGHUDEnabled() on each tick; no direct wire needed.
+		settingsController.onRPGHUDModeChanged = { _ in
+			// Pool reads PetConfig.resolvedRPGHUDMode() on each tick; no direct wire needed.
 		}
 		settingsController.onMonochromeChanged = { [weak item] isMonochrome in
 			if let button = item?.button { Self.applyMenubarIcon(to: button, monochrome: isMonochrome) }
@@ -529,28 +576,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 
 		let menuBuilder = MenubarMenu(
 			floatingPetPool: self.floatingPetWindowPool,
+			sessionsTabViewModel: sessionsTabViewModel,
 			retryHooksInstall: { [weak onboardingController] in
 				onboardingController?.showIfNeeded()
 			},
 			openSettings: { [weak settingsController] tab in
 				settingsController?.show(tab: tab)
 			},
-			// Explicit "Show" restarts the dismiss-TTL clock on the window's
-			// backing slice(s) so a pet that expired while hidden actually
-			// re-spawns; same window-key targeting as Force Idle (session-keyed
-			// → exactly that slice, combined/plain → that window's origin set).
-			refreshTtlForShow: { [weak self] windowKey in
-				let stateDir = config.pollingTarget.path
-				if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: windowKey) {
-					StateJsonWriter.refreshForShow(
-						at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
-				} else {
-					StateJsonWriter.refreshForShow(
-						at: stateDir,
-						origins: self?.resolveWindowOrigins(windowKey: windowKey) ?? [windowKey]
-					)
-				}
-			},
+			refreshTtlForShow: refreshTtlForShow,
 			// On menu open, drop hidden keys whose slice SlicePruner already
 			// deleted — past the 24h horizon there is nothing left for Show
 			// (or refreshForShow) to act on, so the entry would be a lie.
@@ -641,7 +674,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			// accumulate one-per-session forever. Prune the ones the reader already
 			// ignores (mtime past its staleTTL) on launch and periodically, keeping
 			// the per-tick scan and the winner-only writers cheap.
-			let pruneScheduler = SlicePruneScheduler(dir: config.pollingTarget.path)
+			let pruneScheduler = SlicePruneScheduler(
+				dir: config.pollingTarget.path,
+				maxAgeProvider: {
+					TimeInterval(
+						CustomizationJsonReader.read(at: CodogotchiFolders.customizationPath())
+							.pruneArchivedSessionsAfterSeconds)
+				}
+			)
 			pruneScheduler.start()
 			self.slicePruneScheduler = pruneScheduler
 		}

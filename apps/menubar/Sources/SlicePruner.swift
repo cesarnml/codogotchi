@@ -119,7 +119,11 @@ enum SlicePruner {
 final class SlicePruneScheduler {
 	private let dir: String
 	private let interval: TimeInterval
-	private let maxAge: TimeInterval
+	/// Evaluated fresh on every sweep rather than captured once at init, so a
+	/// Settings → Sessions "Prune Archived Sessions" picker change takes
+	/// effect on this scheduler's very next tick instead of requiring an app
+	/// restart.
+	private let maxAgeProvider: () -> TimeInterval
 	private let initialDelay: TimeInterval
 	private let queue: DispatchQueue
 	private var timer: Timer?
@@ -127,13 +131,13 @@ final class SlicePruneScheduler {
 	init(
 		dir: String,
 		interval: TimeInterval = 30 * 60,
-		maxAge: TimeInterval = SlicePruner.defaultMaxAge,
+		maxAgeProvider: @escaping () -> TimeInterval = { SlicePruner.defaultMaxAge },
 		initialDelay: TimeInterval = 5,
 		queue: DispatchQueue = DispatchQueue.global(qos: .utility)
 	) {
 		self.dir = dir
 		self.interval = interval
-		self.maxAge = maxAge
+		self.maxAgeProvider = maxAgeProvider
 		self.initialDelay = initialDelay
 		self.queue = queue
 	}
@@ -162,7 +166,7 @@ final class SlicePruneScheduler {
 
 	private func pruneAsync() {
 		let dir = self.dir
-		let maxAge = self.maxAge
+		let maxAge = maxAgeProvider()
 		queue.async {
 			let count = SlicePruner.prune(at: dir, maxAge: maxAge)
 			if count > 0 {

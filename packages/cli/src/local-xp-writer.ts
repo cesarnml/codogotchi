@@ -149,11 +149,22 @@ function isTokenSource(origin: SourceEventOrigin): boolean {
  * All 5 platforms update `last_activity_at`; only claude_code and codex
  * scan JSONL for new tokens. Antigravity, Cursor, and VS Code freeze the
  * level ring while keeping hearts alive.
+ *
+ * `healthLogic` mirrors config.json's `health_logic` section: weekend hours
+ * are excluded from idle decay when `skipWeekends` is set, and the decay /
+ * regen block sizes are configurable (defaulting to 8h / 60min).
  */
+export type HealthLogicOptions = {
+  skipWeekends?: boolean;
+  decayHours?: number;
+  regenMinutes?: number;
+};
+
 export async function computeAndPersistV5Fields(
   home: string,
   origin: SourceEventOrigin,
   now: Date,
+  healthLogic: HealthLogicOptions = {},
 ): Promise<V5Fields> {
   const cache = await readLocalXpCache(home);
 
@@ -241,6 +252,9 @@ export async function computeAndPersistV5Fields(
       lastActivityAt: prevLastActivityAt,
       activeMinutes: cache.active_minutes,
       currentHalfHearts: cache.half_hearts,
+      skipWeekends: healthLogic.skipWeekends,
+      decayHours: healthLogic.decayHours,
+      regenMinutes: healthLogic.regenMinutes,
     },
     now,
   );
@@ -265,9 +279,16 @@ export async function computeAndPersistV5Fields(
   }
 
   // Persist updated cache. Carry forward remainder active minutes so partial
-  // heal-progress is not lost between events.
+  // heal-progress is not lost between events. The modulus must match the heal
+  // block used by resolveHalfHearts, or configured regen would double-count.
+  const regenBlock =
+    healthLogic.regenMinutes !== undefined &&
+    Number.isFinite(healthLogic.regenMinutes) &&
+    healthLogic.regenMinutes > 0
+      ? healthLogic.regenMinutes
+      : 60;
   cache.half_hearts = newHalfHearts;
-  cache.active_minutes = cache.active_minutes % 60;
+  cache.active_minutes = cache.active_minutes % regenBlock;
   cache.revive_until = revive_until;
 
   await writeLocalXpCache(home, cache);

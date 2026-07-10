@@ -8,21 +8,127 @@ let DEFAULT_PET_NAME = "maew"
 /// at call time and returns the `pet` key value. Falls back to `DEFAULT_PET_NAME`
 /// on any read or parse failure — missing file, malformed JSON, or absent key.
 enum PetConfig {
-	/// Returns `false` only when `features.rpg_hud_enabled` is explicitly `false`.
-	/// Defaults to `true` (HUD visible) when the key is absent, config is
-	/// missing, or the value is not a Boolean.
-	static func resolvedRPGHUDEnabled() -> Bool {
-		resolvedRPGHUDEnabled(from: configURL())
+	/// Which floating pet(s) show the RPG HUD overlay (hearts/level/XP ring).
+	/// Persisted as `features.rpg_hud_mode`, replacing the older boolean
+	/// `features.rpg_hud_enabled` (still read for one-time migration).
+	enum RPGHUDMode: String, Equatable, CaseIterable {
+		case all
+		case mostRecent = "most_recent"
+		case hidden
+
+		static let defaultMode: RPGHUDMode = .mostRecent
 	}
 
-	/// URL-injectable variant for tests and `RPGTabViewModel`.
-	static func resolvedRPGHUDEnabled(from url: URL) -> Bool {
+	struct HealthLogicSettings: Equatable {
+		/// Sickness trigger thresholds are stored in half-hearts; `0` means
+		/// "Never". Severe must stay strictly below mild (a heart count can't be
+		/// both mild-sick and severe-sick), so reads clamp severe to `mild - 1`
+		/// when a stale config violates the invariant.
+		static let sicknessTriggerMaxHalfHearts = 4
+
+		var inactivityDecayHours: Double
+		var inactivityDecayHalfHearts: Int
+		var activityRegenMinutes: Int
+		var activityRegenHalfHearts: Int
+		var diseaseAnimationsEnabled: Bool
+		var skipWeekends: Bool
+		var mildSicknessHalfHearts: Int
+		var severeSicknessHalfHearts: Int
+
+		static let defaults = HealthLogicSettings(
+			inactivityDecayHours: 8,
+			inactivityDecayHalfHearts: 1,
+			activityRegenMinutes: 60,
+			activityRegenHalfHearts: 1,
+			diseaseAnimationsEnabled: true,
+			skipWeekends: false,
+			mildSicknessHalfHearts: 2,
+			severeSicknessHalfHearts: 1
+		)
+	}
+
+	/// Resolves the active `RPGHUDMode`. Prefers `features.rpg_hud_mode` when
+	/// present and valid; otherwise migrates the legacy `features.rpg_hud_enabled`
+	/// boolean (`false` -> `.hidden`), and falls back to `.defaultMode`
+	/// ("Show HUD on Most Recent Pet") when neither key is present.
+	static func resolvedRPGHUDMode() -> RPGHUDMode {
+		resolvedRPGHUDMode(from: configURL())
+	}
+
+	static func resolvedRPGHUDMode(from url: URL) -> RPGHUDMode {
 		guard let data = try? Data(contentsOf: url),
 			let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-			let features = obj["features"] as? [String: Any],
-			let flag = features["rpg_hud_enabled"] as? Bool
-		else { return true }
-		return flag
+			let features = obj["features"] as? [String: Any]
+		else { return .defaultMode }
+		if let modeRaw = features["rpg_hud_mode"] as? String, let mode = RPGHUDMode(rawValue: modeRaw) {
+			return mode
+		}
+		if let legacyEnabled = features["rpg_hud_enabled"] as? Bool, legacyEnabled == false {
+			return .hidden
+		}
+		return .defaultMode
+	}
+
+	static func resolvedHealthLogicSettings() -> HealthLogicSettings {
+		resolvedHealthLogicSettings(from: configURL())
+	}
+
+	static func resolvedHealthLogicSettings(from url: URL) -> HealthLogicSettings {
+		guard let data = try? Data(contentsOf: url),
+			let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+			let healthLogic = obj["health_logic"] as? [String: Any]
+		else { return .defaults }
+
+		let defaults = HealthLogicSettings.defaults
+		let mild = boundedInt(
+			healthLogic["mild_sickness_half_hearts"],
+			range: 0...HealthLogicSettings.sicknessTriggerMaxHalfHearts,
+			default: defaults.mildSicknessHalfHearts
+		)
+		let severeRaw = boundedInt(
+			healthLogic["severe_sickness_half_hearts"],
+			range: 0...HealthLogicSettings.sicknessTriggerMaxHalfHearts,
+			default: defaults.severeSicknessHalfHearts
+		)
+		return HealthLogicSettings(
+			inactivityDecayHours: positiveDouble(
+				healthLogic["inactivity_decay_hours"],
+				default: defaults.inactivityDecayHours
+			),
+			inactivityDecayHalfHearts: positiveInt(
+				healthLogic["inactivity_decay_half_hearts"],
+				default: defaults.inactivityDecayHalfHearts
+			),
+			activityRegenMinutes: positiveInt(
+				healthLogic["activity_regen_minutes"],
+				default: defaults.activityRegenMinutes
+			),
+			activityRegenHalfHearts: positiveInt(
+				healthLogic["activity_regen_half_hearts"],
+				default: defaults.activityRegenHalfHearts
+			),
+			diseaseAnimationsEnabled: (healthLogic["disease_animations_enabled"] as? Bool)
+				?? defaults.diseaseAnimationsEnabled,
+			skipWeekends: (healthLogic["skip_weekends"] as? Bool) ?? defaults.skipWeekends,
+			mildSicknessHalfHearts: mild,
+			severeSicknessHalfHearts: min(severeRaw, max(0, mild - 1))
+		)
+	}
+
+	/// Whether the destructive "Prune Session" confirmation alert should be
+	/// skipped, pruning immediately on click. Opt-in via a checkbox on the
+	/// alert itself ("Do not show this warning again."); defaults to `false`
+	/// (confirm every time) when unset or on any read failure.
+	static func resolvedSkipPruneConfirmation() -> Bool {
+		resolvedSkipPruneConfirmation(from: configURL())
+	}
+
+	static func resolvedSkipPruneConfirmation(from url: URL) -> Bool {
+		guard let data = try? Data(contentsOf: url),
+			let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+			let features = obj["features"] as? [String: Any]
+		else { return false }
+		return (features["skip_prune_confirmation"] as? Bool) ?? false
 	}
 
 	/// Returns the configured pet name, or `DEFAULT_PET_NAME` on soft failure.
@@ -44,30 +150,84 @@ enum PetConfig {
 			.appendingPathComponent("config.json")
 	}
 
-	/// Updates `features.rpg_hud_enabled` in `~/.codogotchi/config.json`,
-	/// preserving every other field using a read-merge-write approach.
-	static func write(rpgHUDEnabled: Bool, to url: URL) throws {
+	/// Updates `features.rpg_hud_mode` in `~/.codogotchi/config.json`,
+	/// preserving every other field using a read-merge-write approach. Clears
+	/// the legacy `features.rpg_hud_enabled` boolean so future reads are
+	/// unambiguous once the user has touched the new control.
+	static func write(rpgHUDMode: RPGHUDMode, to url: URL) throws {
+		var obj = try readMergedConfigObject(from: url)
+		var features = (obj["features"] as? [String: Any]) ?? ["rpg_enabled": false]
+		features["rpg_hud_mode"] = rpgHUDMode.rawValue
+		features.removeValue(forKey: "rpg_hud_enabled")
+		obj["features"] = features
+		try writeConfigObject(obj, to: url)
+	}
+
+	/// Persists the user's "Do not show this warning again." choice on the
+	/// Prune Session alert. Only ever called with `true` — there's no UI path
+	/// to re-enable the confirmation once skipped.
+	static func write(skipPruneConfirmation: Bool, to url: URL) throws {
+		var obj = try readMergedConfigObject(from: url)
+		var features = (obj["features"] as? [String: Any]) ?? ["rpg_enabled": false]
+		features["skip_prune_confirmation"] = skipPruneConfirmation
+		obj["features"] = features
+		try writeConfigObject(obj, to: url)
+	}
+
+	static func write(healthLogic settings: HealthLogicSettings, to url: URL) throws {
+		var obj = try readMergedConfigObject(from: url)
+		obj["health_logic"] = [
+			"inactivity_decay_hours": settings.inactivityDecayHours,
+			"inactivity_decay_half_hearts": settings.inactivityDecayHalfHearts,
+			"activity_regen_minutes": settings.activityRegenMinutes,
+			"activity_regen_half_hearts": settings.activityRegenHalfHearts,
+			"disease_animations_enabled": settings.diseaseAnimationsEnabled,
+			"skip_weekends": settings.skipWeekends,
+			"mild_sickness_half_hearts": settings.mildSicknessHalfHearts,
+			"severe_sickness_half_hearts": settings.severeSicknessHalfHearts,
+		]
+		try writeConfigObject(obj, to: url)
+	}
+
+	private static func readMergedConfigObject(from url: URL) throws -> [String: Any] {
 		let parent = url.deletingLastPathComponent()
 		try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
 
-		var obj: [String: Any]
 		if let data = try? Data(contentsOf: url),
 			let existing = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
 		{
-			obj = existing
-		} else {
-			obj = [
-				"profile_id": UUID().uuidString,
-				"features": ["rpg_enabled": false],
-			]
+			return existing
 		}
-		var features = (obj["features"] as? [String: Any]) ?? ["rpg_enabled": false]
-		features["rpg_hud_enabled"] = rpgHUDEnabled
-		obj["features"] = features
+		return [
+			"profile_id": UUID().uuidString,
+			"features": ["rpg_enabled": false],
+		]
+	}
 
+	private static func writeConfigObject(_ obj: [String: Any], to url: URL) throws {
 		let data = try JSONSerialization.data(
 			withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])
 		try data.write(to: url, options: .atomic)
+	}
+
+	private static func boundedInt(_ value: Any?, range: ClosedRange<Int>, default defaultValue: Int) -> Int {
+		if let int = value as? Int, range.contains(int) { return int }
+		if let double = value as? Double, double.rounded() == double, range.contains(Int(double)) {
+			return Int(double)
+		}
+		return defaultValue
+	}
+
+	private static func positiveInt(_ value: Any?, default defaultValue: Int) -> Int {
+		if let int = value as? Int, int > 0 { return int }
+		if let double = value as? Double, double > 0 { return Int(double.rounded()) }
+		return defaultValue
+	}
+
+	private static func positiveDouble(_ value: Any?, default defaultValue: Double) -> Double {
+		if let double = value as? Double, double > 0 { return double }
+		if let int = value as? Int, int > 0 { return Double(int) }
+		return defaultValue
 	}
 
 	/// Updates the `pet` key in `~/.codogotchi/config.json`, preserving every
@@ -80,26 +240,8 @@ enum PetConfig {
 	/// features.rpg_enabled"). When no parseable config exists yet, fall back to a
 	/// minimal valid Lite config so we never emit a schema-invalid file.
 	static func write(petName: String, to url: URL) throws {
-		let parent = url.deletingLastPathComponent()
-		try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
-
-		var obj: [String: Any]
-		if let data = try? Data(contentsOf: url),
-			let existing = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-		{
-			obj = existing
-		} else {
-			// No valid config on disk — synthesize a minimal Lite config so the
-			// result still satisfies the CLI schema.
-			obj = [
-				"profile_id": UUID().uuidString,
-				"features": ["rpg_enabled": false],
-			]
-		}
+		var obj = try readMergedConfigObject(from: url)
 		obj["pet"] = petName
-
-		let data = try JSONSerialization.data(
-			withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])
-		try data.write(to: url, options: .atomic)
+		try writeConfigObject(obj, to: url)
 	}
 }

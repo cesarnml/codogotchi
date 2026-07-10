@@ -142,6 +142,11 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		badgeView.onHidePanelRequested = { [weak self] in
 			self?.onHidePanel?()
 		}
+		// Double-click the platform chip to jump to the driving app, mirroring
+		// the attention bubble's Focus button.
+		badgeView.onPlatformChipDoubleClick = { [weak self] in
+			AttentionFocusTarget.focus(sourceEvent: self?.currentSourceEvent)
+		}
 		// Right-click "Force Idle" affordance, shown only while non-idle.
 		badgeView.onForceIdleRequested = { [weak self] in
 			self?.badgeView.resetPromptTimer()
@@ -220,18 +225,8 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		applyBadge()
 	}
 
-	func applyPromptTimerObservation(
-		state: ActivityState,
-		updatedAt: String,
-		sourceEvent: SourceEvent?,
-		attention: AttentionPayload?
-	) {
-		badgeView.applyPromptTimerObservation(
-			state: state,
-			updatedAt: updatedAt,
-			sourceEvent: sourceEvent,
-			attention: attention
-		)
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
+		badgeView.applyPromptTimerStatus(status)
 		applyBadge()
 	}
 
@@ -473,6 +468,12 @@ private final class MinimalistBadgeView: NSView {
 	var frameChangeHandler: ((CGRect) -> Void)?
 	/// Fires when the user activates the right-click "Hide panel" pill.
 	var onHidePanelRequested: (() -> Void)?
+	/// Fires when the user double-clicks the platform chip — mirrors Own
+	/// mode's `AnimationBadgePanel.onPlatformChipDoubleClick`, forwarded from
+	/// the embedded `animationBadge`.
+	var onPlatformChipDoubleClick: (() -> Void)? {
+		didSet { animationBadge.onPlatformChipDoubleClick = onPlatformChipDoubleClick }
+	}
 	/// Fires when the user activates the right-click "Force Idle" pill. Only shown
 	/// while the badge represents a non-idle activity (see `currentActivity`).
 	var onForceIdleRequested: (() -> Void)?
@@ -549,7 +550,7 @@ private final class MinimalistBadgeView: NSView {
 			text: activity.displayLabel,
 			platform: platform,
 			inFlight: activity.isInFlight,
-			promptTimer: promptTimer.presentation(),
+			promptTimer: promptTimerStatus?.presentation(),
 			metrics: metrics
 		)
 		sessionBadge.configure(
@@ -558,24 +559,14 @@ private final class MinimalistBadgeView: NSView {
 		syncPromptTimerHeartbeat()
 	}
 
-	func applyPromptTimerObservation(
-		state: ActivityState,
-		updatedAt: String,
-		sourceEvent: SourceEvent?,
-		attention: AttentionPayload?
-	) {
-		promptTimer.observe(
-			state: state,
-			updatedAt: updatedAt,
-			sourceEvent: sourceEvent,
-			attention: attention
-		)
-		animationBadge.configurePromptTimer(promptTimer.presentation())
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
+		promptTimerStatus = status
+		animationBadge.configurePromptTimer(status?.presentation())
 		syncPromptTimerHeartbeat()
 	}
 
 	func resetPromptTimer() {
-		promptTimer.reset()
+		promptTimerStatus = nil
 		promptTimerHeartbeat?.invalidate()
 		promptTimerHeartbeat = nil
 		animationBadge.configurePromptTimer(nil)
@@ -589,11 +580,14 @@ private final class MinimalistBadgeView: NSView {
 	/// to "Session N". Also prefills the rename alert's text field.
 	private var currentSessionLabel: String?
 	private var currentSessionTooltip: String?
-	private var promptTimer = PromptTimerTracker()
+	/// Latest prompt-timer status pushed by the pool (which owns the tracker —
+	/// see `PromptTimerTracker`). This view only renders it; the heartbeat
+	/// recomputes the label each second while the status reports running.
+	private var promptTimerStatus: PromptTimerStatus?
 	private var promptTimerHeartbeat: Timer?
 
 	private func syncPromptTimerHeartbeat() {
-		guard promptTimer.currentStatus()?.isRunning == true else {
+		guard promptTimerStatus?.isRunning == true else {
 			promptTimerHeartbeat?.invalidate()
 			promptTimerHeartbeat = nil
 			return
@@ -602,7 +596,7 @@ private final class MinimalistBadgeView: NSView {
 		promptTimerHeartbeat = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
 			Task { @MainActor in
 				guard let self else { return }
-				self.animationBadge.configurePromptTimer(self.promptTimer.presentation())
+				self.animationBadge.configurePromptTimer(self.promptTimerStatus?.presentation())
 				self.syncPromptTimerHeartbeat()
 				self.layoutSubtreeIfNeeded()
 			}
@@ -839,8 +833,17 @@ private final class MinimalistBadgeView: NSView {
 	/// Presents a destructive-action confirmation alert for pruning this
 	/// session. `pruneHandler` fires only when the user confirms; Cancel is a
 	/// no-op, matching the rename alert's "no commit on cancel" contract.
+	/// Skipped entirely once the user has checked "Do not show this warning
+	/// again." on a prior confirmation (`features.skip_prune_confirmation`) —
+	/// pruning a slice is cheap to recover from (regenerated on the next
+	/// activity transition, or by another prompt), so this alert only exists
+	/// to catch accidental clicks, not to gate a truly destructive action.
 	/// Mirrors Own mode's `presentPruneConfirmation`.
 	private func presentPruneConfirmation() {
+		guard !PetConfig.resolvedSkipPruneConfirmation() else {
+			pruneHandler?()
+			return
+		}
 		let alert = NSAlert()
 		alert.messageText = "Prune Session"
 		alert.informativeText =
@@ -848,7 +851,14 @@ private final class MinimalistBadgeView: NSView {
 		alert.addButton(withTitle: "Prune")
 		alert.addButton(withTitle: "Cancel")
 		alert.buttons.first?.hasDestructiveAction = true
+		let skipCheckbox = NSButton(
+			checkboxWithTitle: "Do not show this warning again.", target: nil, action: nil)
+		skipCheckbox.state = .off
+		alert.accessoryView = skipCheckbox
 		guard alert.runModal() == .alertFirstButtonReturn else { return }
+		if skipCheckbox.state == .on {
+			try? PetConfig.write(skipPruneConfirmation: true, to: PetConfig.configURL())
+		}
 		pruneHandler?()
 	}
 
@@ -1121,6 +1131,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// logo chip shown immediately left of the animation badge. `nil` when the
 	/// origin is absent or non-platform, in which case no chip is drawn.
 	private var currentPlatform: PlatformAttribution?
+	/// Latest `source_event` from `state.json`, mirrored so a double-click on
+	/// the platform chip can resolve the same Focus target the attention
+	/// bubble's Focus button does, even when no bubble is currently shown.
+	private var currentSourceEvent: SourceEvent?
 	/// Session number assigned to this window by `FloatingPetWindowPool`, or
 	/// `nil` for a plain-origin/combined window. Drives the `PlatformSessionBadge`
 	/// row beneath the platform chip + animation badge.
@@ -1131,7 +1145,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// Last submitted prompt for this session, shown as a delayed hover
 	/// tooltip on the session badge.
 	private var currentSessionTooltip: String?
-	private var promptTimer = PromptTimerTracker()
+	/// Latest prompt-timer status pushed by the pool (which owns the tracker —
+	/// see `PromptTimerTracker`). This panel only renders it; the heartbeat
+	/// recomputes the label each second while the status reports running.
+	private var promptTimerStatus: PromptTimerStatus?
 	private var promptTimerHeartbeat: Timer?
 	/// Fired with the trimmed/capped label the user commits via the
 	/// right-click rename affordance. Wired by the caller (`MenubarApp`) to
@@ -1335,6 +1352,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	}
 
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
+		currentSourceEvent = sourceEvent
 		guard let payload, !payload.isExpired() else {
 			attentionActive = false
 			attentionBubble?.orderOut(nil)
@@ -1468,14 +1486,25 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			}
 		}
 		hudFlashPending = false
-		currentSicknessLevel = SicknessLevel(halfHearts: halfHearts)
+		// Sickness visuals follow the HUD: under "most recent" mode only the
+		// HUD-bearing pet shows them, so a background pet never looks ill with
+		// no hearts on screen to explain why.
+		let healthLogic = PetConfig.resolvedHealthLogicSettings()
+		currentSicknessLevel =
+			(hudEnabled && healthLogic.diseaseAnimationsEnabled)
+			? SicknessLevel(
+				halfHearts: halfHearts,
+				mildTriggerHalfHearts: healthLogic.mildSicknessHalfHearts,
+				severeTriggerHalfHearts: healthLogic.severeSicknessHalfHearts)
+			: .none
 		scene?.setSicknessLevel(currentSicknessLevel)
 		rpgHUDViewModel.update(
 			halfHearts: halfHearts,
 			levelFraction: levelFraction,
 			level: level,
 			activeMinutes: activeMinutes,
-			hudEnabled: hudEnabled
+			hudEnabled: hudEnabled,
+			regenMinutesPerHalfHeart: healthLogic.activityRegenMinutes
 		)
 		updateGhostPresentation()
 		guard isPanelShown else { return }
@@ -1744,6 +1773,9 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			panel.onDragBegan = { [weak self] in self?.beginChromeDrag() }
 			panel.onDragChanged = { [weak self] in self?.continueChromeDrag() }
 			panel.onDragEnded = { [weak self] in self?.endChromeDrag() }
+			panel.onPlatformChipDoubleClick = { [weak self] in
+				AttentionFocusTarget.focus(sourceEvent: self?.currentSourceEvent)
+			}
 			animationBadgePanel = panel
 			return panel
 		}()
@@ -1751,18 +1783,23 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
-			promptTimer: promptTimer.presentation(),
+			promptTimer: promptTimerStatus?.presentation(),
 			sessionNumber: currentSessionNumber,
 			sessionLabel: currentSessionLabel,
 			sessionTooltip: currentSessionTooltip,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
-		badge.orderFrontRegardless()
+		// promptTimerHeartbeat calls this every second while a prompt timer is
+		// running; reordering the window on every tick fought AppKit's tooltip
+		// hover-delay timer, so only reorder when the panel isn't already visible.
+		if !badge.isVisible {
+			badge.orderFrontRegardless()
+		}
 	}
 
 	private func syncPromptTimerHeartbeat() {
-		guard promptTimer.currentStatus()?.isRunning == true else {
+		guard promptTimerStatus?.isRunning == true else {
 			promptTimerHeartbeat?.invalidate()
 			promptTimerHeartbeat = nil
 			return
@@ -1805,24 +1842,14 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		repositionAndShowAnimationBadge()
 	}
 
-	func applyPromptTimerObservation(
-		state: ActivityState,
-		updatedAt: String,
-		sourceEvent: SourceEvent?,
-		attention: AttentionPayload?
-	) {
-		promptTimer.observe(
-			state: state,
-			updatedAt: updatedAt,
-			sourceEvent: sourceEvent,
-			attention: attention
-		)
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
+		promptTimerStatus = status
 		syncPromptTimerHeartbeat()
 		repositionAndShowAnimationBadge()
 	}
 
 	private func resetPromptTimer() {
-		promptTimer.reset()
+		promptTimerStatus = nil
 		promptTimerHeartbeat?.invalidate()
 		promptTimerHeartbeat = nil
 		animationBadgePanel?.reposition(
@@ -2564,6 +2591,11 @@ final class AnimationBadgePanel: NSPanel {
 	var onDragChanged: (() -> Void)?
 	var onDragEnded: (() -> Void)?
 
+	/// Fired when the user double-clicks the platform chip — mirrors the
+	/// attention bubble's Focus button. Wired by `FloatingPetPanelController`
+	/// to the same `AttentionFocusTarget.focus(sourceEvent:)` call.
+	var onPlatformChipDoubleClick: (() -> Void)?
+
 	init() {
 		super.init(
 			contentRect: .zero,
@@ -2590,6 +2622,7 @@ final class AnimationBadgePanel: NSPanel {
 		badgeView.onDragBegan = { [weak self] in self?.onDragBegan?() }
 		badgeView.onDragChanged = { [weak self] in self?.onDragChanged?() }
 		badgeView.onDragEnded = { [weak self] in self?.onDragEnded?() }
+		badgeView.onPlatformChipDoubleClick = { [weak self] in self?.onPlatformChipDoubleClick?() }
 	}
 
 	override var canBecomeKey: Bool { false }
@@ -3217,21 +3250,34 @@ final class PlatformSessionBadge: NSView {
 	func configure(number: Int?, label: String? = nil, tooltip: String? = nil, metrics: GateBadgeLayout.Metrics) {
 		self.metrics = metrics
 		let resolvedLabel = (label?.isEmpty == false) ? label : nil
+		// Assign toolTip only on real change: the setter re-registers AppKit's
+		// tooltip tracking even for an identical string, restarting the hover
+		// delay — and reposition() re-configures every poll tick, so an
+		// unconditional set here starves the delayed tooltip forever.
+		let resolvedTooltip: String?
 		if let number {
 			self.label.stringValue = resolvedLabel ?? "Session \(number)"
 			isHidden = false
-			toolTip = (tooltip?.isEmpty == false) ? tooltip : nil
+			resolvedTooltip = (tooltip?.isEmpty == false) ? tooltip : nil
 		} else if let resolvedLabel {
 			self.label.stringValue = resolvedLabel
 			isHidden = false
-			toolTip = (tooltip?.isEmpty == false) ? tooltip : nil
+			resolvedTooltip = (tooltip?.isEmpty == false) ? tooltip : nil
 		} else {
 			isHidden = true
-			toolTip = nil
+			resolvedTooltip = nil
+		}
+		if toolTip != resolvedTooltip {
+			toolTip = resolvedTooltip
+			boundsAtTooltipRegistration = bounds
 		}
 		applyMetrics()
 		invalidateIntrinsicContentSize()
 	}
+
+	// Geometry captured at the moment AppKit registers the tooltip rect, so
+	// `layout()` can detect later silent resizes and re-register.
+	private var boundsAtTooltipRegistration: NSRect = .zero
 
 	override var intrinsicContentSize: NSSize {
 		NSSize(
@@ -3243,6 +3289,18 @@ final class PlatformSessionBadge: NSView {
 	override func layout() {
 		super.layout()
 		applyMetrics()
+		// AppKit pins the tooltip rect to the view's geometry at toolTip-setter
+		// time and does not track later resizes. The badge resizes after
+		// registration whenever the label text changes without the tooltip
+		// string changing (e.g. "Session N" → retrieved title), leaving a
+		// stale rect that no longer covers the hover area — so re-register
+		// here whenever bounds have drifted since the last registration.
+		if toolTip != nil, bounds != boundsAtTooltipRegistration {
+			let current = toolTip
+			toolTip = nil
+			toolTip = current
+			boundsAtTooltipRegistration = bounds
+		}
 	}
 
 	private func applyMetrics() {
@@ -3296,7 +3354,20 @@ final class AnimationBadgeView: NSView {
 	var onDragChanged: (() -> Void)?
 	var onDragEnded: (() -> Void)?
 
+	/// Fired when the user double-clicks the platform chip specifically (not
+	/// the pill/session badge) — mirrors the attention bubble's Focus button,
+	/// giving the chip the same "jump to the driving app" gesture even when no
+	/// bubble is on screen to click Focus on.
+	var onPlatformChipDoubleClick: (() -> Void)?
+
 	override func mouseDown(with event: NSEvent) {
+		if event.clickCount == 2, chipView.superview != nil {
+			let pointInChip = chipView.convert(event.locationInWindow, from: nil)
+			if chipView.bounds.contains(pointInChip) {
+				onPlatformChipDoubleClick?()
+				return
+			}
+		}
 		guard let onDragBegan else {
 			super.mouseDown(with: event)
 			return
@@ -4325,7 +4396,16 @@ private final class FloatingPetInteractionView: NSView {
 	/// Presents a destructive-action confirmation alert for pruning this
 	/// session. `pruneHandler` fires only when the user confirms; Cancel is a
 	/// no-op, matching the rename alert's "no commit on cancel" contract.
+	/// Skipped entirely once the user has checked "Do not show this warning
+	/// again." on a prior confirmation (`features.skip_prune_confirmation`) —
+	/// pruning a slice is cheap to recover from (regenerated on the next
+	/// activity transition, or by another prompt), so this alert only exists
+	/// to catch accidental clicks, not to gate a truly destructive action.
 	private func presentPruneConfirmation() {
+		guard !PetConfig.resolvedSkipPruneConfirmation() else {
+			pruneHandler?()
+			return
+		}
 		let alert = NSAlert()
 		alert.messageText = "Prune Session"
 		alert.informativeText =
@@ -4333,7 +4413,14 @@ private final class FloatingPetInteractionView: NSView {
 		alert.addButton(withTitle: "Prune")
 		alert.addButton(withTitle: "Cancel")
 		alert.buttons.first?.hasDestructiveAction = true
+		let skipCheckbox = NSButton(
+			checkboxWithTitle: "Do not show this warning again.", target: nil, action: nil)
+		skipCheckbox.state = .off
+		alert.accessoryView = skipCheckbox
 		guard alert.runModal() == .alertFirstButtonReturn else { return }
+		if skipCheckbox.state == .on {
+			try? PetConfig.write(skipPruneConfirmation: true, to: PetConfig.configURL())
+		}
 		pruneHandler?()
 	}
 

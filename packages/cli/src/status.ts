@@ -118,7 +118,7 @@ function formatProfile(
   }
   if (state !== null) {
     lines.push(
-      `Current: activity=${state.activity_state} overlay=${state.hp_overlay} (updated ${state.updated_at})`,
+      `Current: activity=${state.activity_state} (updated ${state.updated_at})`,
     );
   }
   const updatedAtMs = profile.updated_at;

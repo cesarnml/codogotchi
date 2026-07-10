@@ -1,10 +1,11 @@
 import AppKit
 
 /// Shows the Settings window — a standard macOS window (not an `NSPanel`) with
-/// six selectable tabs:
+/// seven selectable tabs:
 /// - **General**: per-platform hook install/uninstall/status; Cursor native-hook note.
 /// - **Pet**: list + select pets from `~/.codogotchi/pets/`; import from `~/.codex/pets/`.
 /// - **Customization**: per-platform mode pickers and idle-dismiss TTL.
+/// - **Sessions**: `state.d/` slices bucketed into Active/Live/Archived lifecycle tiers.
 /// - **RPG**: HUD opt-out toggle.
 /// - **Developer**: read-only observability.
 /// - **About**: app version, bundled hook-binary version, and product links.
@@ -26,6 +27,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private let petTabViewModel: PetTabViewModel
 	private let rpgTabViewModel: RPGTabViewModel
 	private let customizationTabViewModel: CustomizationTabViewModel
+	private let sessionsTabViewModel: SessionsTabViewModel
+	private weak var sessionsTab: SessionsTabView?
 
 	private let settingsController: SettingsController
 	private let petImportHelper: PetImportHelper
@@ -37,10 +40,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	/// Wire this in `MenubarApp` to reload pet loaders and push a fresh frame.
 	var onPetActivated: ((String) -> Void)?
 
-	/// Called when the user toggles the RPG HUD checkbox. Receives the persisted
-	/// enabled state. Wire this in `MenubarApp` to push HUD visibility to the
-	/// floating pet live, so the change takes effect without an app restart.
-	var onRPGHUDEnabledChanged: ((Bool) -> Void)?
+	/// Called when the user changes the RPG HUD mode picker. Receives the
+	/// persisted mode. Wire this in `MenubarApp` to push HUD visibility to the
+	/// floating pet(s) live, so the change takes effect without an app restart.
+	var onRPGHUDModeChanged: ((PetConfig.RPGHUDMode) -> Void)?
 
 	/// Called when the user toggles "Monochrome menu bar icon". Receives the new
 	/// state. Wire this in `MenubarApp` to toggle `image.isTemplate` on the status item.
@@ -52,6 +55,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		petTabViewModel: PetTabViewModel = PetTabViewModel(),
 		rpgTabViewModel: RPGTabViewModel = RPGTabViewModel(),
 		customizationTabViewModel: CustomizationTabViewModel = CustomizationTabViewModel(),
+		sessionsTabViewModel: SessionsTabViewModel = SessionsTabViewModel(),
 		aboutViewModel: AboutViewModel = AboutViewModel(),
 		generalViewModel: GeneralTabViewModel = GeneralTabViewModel(),
 		appStateLoader: @escaping () -> FloatingAppState = {
@@ -64,6 +68,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		self.petTabViewModel = petTabViewModel
 		self.rpgTabViewModel = rpgTabViewModel
 		self.customizationTabViewModel = customizationTabViewModel
+		self.sessionsTabViewModel = sessionsTabViewModel
 		self.aboutViewModel = aboutViewModel
 		self.generalViewModel = generalViewModel
 		self.appStateLoader = appStateLoader
@@ -106,6 +111,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		petTab = nil
 		tabView = nil
 		tabStripView = nil
+		sessionsTab = nil
 		// Drop back to a menu-bar-only presence — no Dock icon, no Cmd+Tab entry —
 		// now that Settings is gone. Any other visible window (onboarding, floating
 		// pet panels) does not require `.regular`, so this always reverts cleanly.
@@ -170,24 +176,33 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			let persisted = self?.generalViewModel.setMonochromeMenubarIcon(isMonochrome) ?? false
 			if persisted { self?.onMonochromeChanged?(isMonochrome) }
 		}
-		petTabViewModel.onAssignmentsChanged = { [weak self] in
-			self?.onPetActivated?(self?.petTabViewModel.assignmentsSnapshot.default ?? DEFAULT_PET_NAME)
+		general.onRequirePruneConfirmationToggled = { [weak self] requireConfirmation in
+			self?.generalViewModel.setRequirePruneConfirmation(requireConfirmation)
 		}
 		let pet = PetTabView(
 			viewModel: petTabViewModel,
 			onImportPet: { [weak self] petId in self?.handleImportPet(id: petId) }
 		)
 		let customization = CustomizationTabView(viewModel: customizationTabViewModel)
+		sessionsTabViewModel.refresh()
+		let sessions = SessionsTabView(
+			viewModel: sessionsTabViewModel, customizationTabViewModel: customizationTabViewModel)
 		let rpg = RPGTabView(
 			viewModel: rpgTabViewModel,
-			onToggle: { [weak self] enabled in
+			onHUDModeChanged: { [weak self] mode in
 				guard let self else { return }
-				self.rpgTabViewModel.setRPGHUDEnabled(enabled)
-				// Fire with the *persisted* value: `setRPGHUDEnabled` reverts on a
-				// failed write, so the live HUD must track what survives a relaunch.
-				self.onRPGHUDEnabledChanged?(self.rpgTabViewModel.rpgHUDEnabled)
+				self.rpgTabViewModel.setHUDMode(mode)
+				// Fire with the *persisted* value: `setHUDMode` reverts on a failed
+				// write, so the live HUD must track what survives a relaunch.
+				self.onRPGHUDModeChanged?(self.rpgTabViewModel.hudMode)
 			}
 		)
+		petTabViewModel.onAssignmentsChanged = { [weak self, weak rpg] in
+			guard let self else { return }
+			self.rpgTabViewModel.refresh()
+			rpg?.reload(viewModel: self.rpgTabViewModel)
+			self.onPetActivated?(self.petTabViewModel.assignmentsSnapshot.default)
+		}
 		let developerViewModel = makeDeveloperTabViewModel()
 		let developer = DeveloperTabView(viewModel: developerViewModel)
 		let about = AboutTabView(viewModel: aboutViewModel)
@@ -204,6 +219,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 			(.general, general),
 			(.pet, pet),
 			(.customization, customization),
+			(.sessions, sessions),
 			(.rpg, rpg),
 			(.developer, developer),
 			(.about, about),
@@ -216,7 +232,22 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 
 		let tabStrip = TabStripView(tabs: SettingsTab.allCases)
 		tabStrip.translatesAutoresizingMaskIntoConstraints = false
-		tabStrip.onSelect = { [weak tabView] tab in
+		tabStrip.onSelect = { [weak self, weak tabView, weak rpg, weak sessions] tab in
+			if tab == .rpg {
+				self?.rpgTabViewModel.refresh()
+				if let viewModel = self?.rpgTabViewModel {
+					rpg?.reload(viewModel: viewModel)
+				}
+			}
+			if tab == .sessions {
+				// Disk state (and the pool's active/hidden window keys) can have
+				// changed since the tab was last built — re-scan on every visit
+				// rather than only once at window-open time.
+				self?.sessionsTabViewModel.refresh()
+				if let viewModel = self?.sessionsTabViewModel {
+					sessions?.reload(viewModel: viewModel)
+				}
+			}
 			tabView?.selectTabViewItem(at: tab.rawValue)
 		}
 
@@ -253,6 +284,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		self.petTab = pet
 		self.tabView = tabView
 		self.tabStripView = tabStrip
+		self.sessionsTab = sessions
 	}
 
 	private func handleInstallHooks() {
@@ -557,11 +589,13 @@ private final class GeneralTabView: NSView {
 	private let statusPanel = DynamicStatusPanelView()
 	private let hookTableContainer = NSView()
 	private let monochromeSwitch = NSSwitch()
+	private let requirePruneConfirmationSwitch = NSSwitch()
 
 	private let onInstallHooks: () -> Void
 	private let onUpdateHooks: () -> Void
 	private let onUninstallHooks: () -> Void
 	var onMonochromeToggled: ((Bool) -> Void)?
+	var onRequirePruneConfirmationToggled: ((Bool) -> Void)?
 	private var viewModel: GeneralTabViewModel
 
 	init(
@@ -589,6 +623,7 @@ private final class GeneralTabView: NSView {
 			? .attention(vm.updateBannerMessage)
 			: .upToDate
 		monochromeSwitch.state = vm.menubarIconMonochrome ? .on : .off
+		requirePruneConfirmationSwitch.state = vm.requirePruneConfirmation ? .on : .off
 	}
 
 	func setHooksWorking(message: String) {
@@ -786,6 +821,76 @@ private final class GeneralTabView: NSView {
 			monochromeSwitch.centerYAnchor.constraint(equalTo: monoRow.centerYAnchor),
 		])
 
+		requirePruneConfirmationSwitch.target = self
+		requirePruneConfirmationSwitch.action = #selector(requirePruneConfirmationToggleChanged)
+		requirePruneConfirmationSwitch.translatesAutoresizingMaskIntoConstraints = false
+
+		// "Require Prune Session confirmation" row: same treatment as the
+		// monochrome row, stacked directly beneath it.
+		let pruneRow = NSView()
+		pruneRow.translatesAutoresizingMaskIntoConstraints = false
+		pruneRow.wantsLayer = true
+		pruneRow.layer?.cornerRadius = 8
+		pruneRow.layer?.backgroundColor = SettingsTheme.tableBackground.cgColor
+		card.addSubview(pruneRow)
+
+		let pruneBadge = NSView()
+		pruneBadge.translatesAutoresizingMaskIntoConstraints = false
+		pruneBadge.wantsLayer = true
+		pruneBadge.layer?.cornerRadius = 6
+		pruneBadge.layer?.backgroundColor = SettingsTheme.buttonBackground.cgColor
+		pruneRow.addSubview(pruneBadge)
+
+		let pruneGlyph = NSImageView()
+		pruneGlyph.translatesAutoresizingMaskIntoConstraints = false
+		pruneGlyph.image = NSImage(systemSymbolName: "shield", accessibilityDescription: nil)
+		pruneGlyph.contentTintColor = .secondaryLabelColor
+		pruneGlyph.imageScaling = .scaleProportionallyUpOrDown
+		pruneBadge.addSubview(pruneGlyph)
+
+		let pruneTitle = NSTextField(labelWithString: "Require Prune Session confirmation")
+		pruneTitle.font = .systemFont(ofSize: 13, weight: .medium)
+		pruneTitle.translatesAutoresizingMaskIntoConstraints = false
+		pruneRow.addSubview(pruneTitle)
+
+		let pruneSubtitle = NSTextField(
+			wrappingLabelWithString:
+				"Show a confirmation dialog before pruning session data. When off, pruning will happen immediately."
+		)
+		pruneSubtitle.font = .systemFont(ofSize: 11)
+		pruneSubtitle.textColor = .secondaryLabelColor
+		pruneSubtitle.translatesAutoresizingMaskIntoConstraints = false
+		pruneRow.addSubview(pruneSubtitle)
+
+		pruneRow.addSubview(requirePruneConfirmationSwitch)
+
+		NSLayoutConstraint.activate([
+			pruneBadge.leadingAnchor.constraint(equalTo: pruneRow.leadingAnchor, constant: 14),
+			pruneBadge.centerYAnchor.constraint(equalTo: pruneRow.centerYAnchor),
+			pruneBadge.widthAnchor.constraint(equalToConstant: 28),
+			pruneBadge.heightAnchor.constraint(equalToConstant: 28),
+
+			pruneGlyph.centerXAnchor.constraint(equalTo: pruneBadge.centerXAnchor),
+			pruneGlyph.centerYAnchor.constraint(equalTo: pruneBadge.centerYAnchor),
+			pruneGlyph.widthAnchor.constraint(equalToConstant: 14),
+			pruneGlyph.heightAnchor.constraint(equalToConstant: 14),
+
+			pruneTitle.leadingAnchor.constraint(equalTo: pruneBadge.trailingAnchor, constant: 12),
+			pruneTitle.topAnchor.constraint(equalTo: pruneRow.topAnchor, constant: 10),
+
+			pruneSubtitle.leadingAnchor.constraint(equalTo: pruneTitle.leadingAnchor),
+			pruneSubtitle.topAnchor.constraint(equalTo: pruneTitle.bottomAnchor, constant: 2),
+			pruneSubtitle.trailingAnchor.constraint(
+				lessThanOrEqualTo: requirePruneConfirmationSwitch.leadingAnchor, constant: -12),
+			pruneSubtitle.bottomAnchor.constraint(
+				lessThanOrEqualTo: pruneRow.bottomAnchor, constant: -10),
+
+			requirePruneConfirmationSwitch.trailingAnchor.constraint(
+				equalTo: pruneRow.trailingAnchor, constant: -14),
+			requirePruneConfirmationSwitch.centerYAnchor.constraint(
+				equalTo: pruneRow.centerYAnchor),
+		])
+
 		NSLayoutConstraint.activate([
 			card.topAnchor.constraint(equalTo: topAnchor, constant: 20),
 			card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
@@ -835,7 +940,12 @@ private final class GeneralTabView: NSView {
 			monoRow.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
 			monoRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 			monoRow.heightAnchor.constraint(equalToConstant: 56),
-			monoRow.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
+
+			pruneRow.topAnchor.constraint(equalTo: monoRow.bottomAnchor, constant: 10),
+			pruneRow.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			pruneRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+			pruneRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
+			pruneRow.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
 		])
 	}
 
@@ -855,6 +965,9 @@ private final class GeneralTabView: NSView {
 	@objc private func removeTapped() { onUninstallHooks() }
 	@objc private func monochromeToggleChanged() {
 		onMonochromeToggled?(monochromeSwitch.state == .on)
+	}
+	@objc private func requirePruneConfirmationToggleChanged() {
+		onRequirePruneConfirmationToggled?(requirePruneConfirmationSwitch.state == .on)
 	}
 
 	@objc private func copyDiagnosticsTapped() {
@@ -1949,18 +2062,34 @@ private final class FlippedStackView: NSStackView {
 
 /// RPG tab — HUD opt-out toggle and demo mode preview.
 private final class RPGTabView: NSView {
-	private let toggleButton = NSButton(checkboxWithTitle: "Show RPG HUD", target: nil, action: nil)
-	private let onToggle: (Bool) -> Void
+	private let hudModePicker = NSPopUpButton()
+	private let sicknessSwitch = NSSwitch()
+	private let skipWeekendsSwitch = NSSwitch()
+	private let decayHoursPicker = NSPopUpButton()
+	private let regenMinutesPicker = NSPopUpButton()
+	private let mildSicknessPicker = NSPopUpButton()
+	private let severeSicknessPicker = NSPopUpButton()
+	private let sicknessSummary = settingsBodyLabel("")
+	private var viewModel: RPGTabViewModel
+	private let onHUDModeChanged: (PetConfig.RPGHUDMode) -> Void
 
-	init(viewModel: RPGTabViewModel, onToggle: @escaping (Bool) -> Void) {
-		self.onToggle = onToggle
+	init(viewModel: RPGTabViewModel, onHUDModeChanged: @escaping (PetConfig.RPGHUDMode) -> Void) {
+		self.viewModel = viewModel
+		self.onHUDModeChanged = onHUDModeChanged
 		super.init(frame: .zero)
-		toggleButton.state = viewModel.rpgHUDEnabled ? .on : .off
 		setupViews()
 	}
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
+
+	func reload(viewModel: RPGTabViewModel) {
+		self.viewModel = viewModel
+		NSLayoutConstraint.deactivate(constraints)
+		subviews.forEach { $0.removeFromSuperview() }
+		setupViews()
+		needsLayout = true
+	}
 
 	private func setupViews() {
 		let card = settingsThemedCard()
@@ -1981,15 +2110,46 @@ private final class RPGTabView: NSView {
 		)
 		card.addSubview(note)
 
-		toggleButton.target = self
-		toggleButton.action = #selector(toggleChanged)
-		toggleButton.translatesAutoresizingMaskIntoConstraints = false
-		card.addSubview(toggleButton)
+		let previewPanel = makePreviewPanel()
+		let healthPanel = makeHealthConfigurationPanel()
+		healthPanel.setContentHuggingPriority(.defaultLow, for: .vertical)
+
+		let leftColumn = NSStackView()
+		leftColumn.translatesAutoresizingMaskIntoConstraints = false
+		leftColumn.orientation = .vertical
+		leftColumn.alignment = .leading
+		leftColumn.distribution = .fill
+		leftColumn.spacing = 16
+		leftColumn.addArrangedSubview(previewPanel)
+		leftColumn.addArrangedSubview(healthPanel)
+
+		let hudPanel = makeHudElementsPanel()
+		hudPanel.setContentHuggingPriority(.required, for: .vertical)
+		let sicknessPanel = makeSicknessConfigurationPanel()
+		sicknessPanel.setContentHuggingPriority(.defaultLow, for: .vertical)
+		let rightColumn = NSStackView()
+		rightColumn.translatesAutoresizingMaskIntoConstraints = false
+		rightColumn.orientation = .vertical
+		rightColumn.alignment = .leading
+		rightColumn.spacing = 16
+		rightColumn.addArrangedSubview(hudPanel)
+		rightColumn.addArrangedSubview(sicknessPanel)
+
+		let content = NSStackView()
+		content.translatesAutoresizingMaskIntoConstraints = false
+		content.orientation = .horizontal
+		content.alignment = .top
+		content.distribution = .fill
+		content.spacing = 22
+		content.addArrangedSubview(leftColumn)
+		content.addArrangedSubview(rightColumn)
+		card.addSubview(content)
 
 		NSLayoutConstraint.activate([
 			card.topAnchor.constraint(equalTo: topAnchor, constant: 20),
 			card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 			card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			card.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -20),
 
 			headerBadge.topAnchor.constraint(equalTo: card.topAnchor, constant: 20),
 			headerBadge.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
@@ -2002,15 +2162,750 @@ private final class RPGTabView: NSView {
 			note.leadingAnchor.constraint(equalTo: title.leadingAnchor),
 			note.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
-			toggleButton.topAnchor.constraint(equalTo: note.bottomAnchor, constant: 16),
-			toggleButton.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
-			toggleButton.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
+			content.topAnchor.constraint(equalTo: note.bottomAnchor, constant: 22),
+			content.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			content.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+			content.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
+
+			// Only the left column carries a width multiplier; the right column
+			// fills whatever remains after the stack's fixed spacing. Pinning
+			// BOTH columns to multipliers (0.44 + 0.54) plus the 22pt spacing
+			// was satisfiable only at one exact content width (1100pt) — wider
+			// than the fixed 1120pt window provides — so AppKit grew the window
+			// to meet it, and the oversized frame then leaked extra bottom
+			// padding into every other tab after visiting RPG.
+			leftColumn.widthAnchor.constraint(equalTo: content.widthAnchor, multiplier: 0.44),
+			previewPanel.widthAnchor.constraint(equalTo: leftColumn.widthAnchor),
+			healthPanel.widthAnchor.constraint(equalTo: leftColumn.widthAnchor),
+			hudPanel.widthAnchor.constraint(equalTo: rightColumn.widthAnchor),
+			sicknessPanel.widthAnchor.constraint(equalTo: rightColumn.widthAnchor),
+			// 320 (not the previous 400) keeps the full left column — preview +
+			// 16 spacing + ≥210 health card — inside the height the fixed
+			// 770pt window actually offers, for the same no-window-growth
+			// reason as the width note above.
+			previewPanel.heightAnchor.constraint(equalToConstant: 320),
+			hudPanel.heightAnchor.constraint(equalTo: previewPanel.heightAnchor),
+			healthPanel.heightAnchor.constraint(greaterThanOrEqualToConstant: 210),
+			sicknessPanel.heightAnchor.constraint(greaterThanOrEqualToConstant: 210),
 		])
 	}
 
-	@objc private func toggleChanged() {
-		onToggle(toggleButton.state == .on)
+	private static let hudModeOptions = PetConfig.RPGHUDMode.allCases
+
+	private func hudModeLabel(_ mode: PetConfig.RPGHUDMode) -> String {
+		switch mode {
+		case .all: return "Show HUD on All Pets"
+		case .mostRecent: return "Show HUD on Most Recent Pet"
+		case .hidden: return "Hide HUD"
+		}
 	}
+
+	private func makePreviewPanel() -> NSView {
+		let panel = settingsThemedCard()
+		let title = settingsColumnHeader("HUD PREVIEW")
+		let subtitle = settingsBodyLabel("Selected Default Pet: \(viewModel.petName)")
+		// Groups title+subtitle so the mode picker can center against their
+		// combined vertical span, not just the title's baseline.
+		let headerTextStack = NSStackView(views: [title, subtitle])
+		headerTextStack.translatesAutoresizingMaskIntoConstraints = false
+		headerTextStack.orientation = .vertical
+		headerTextStack.alignment = .leading
+		headerTextStack.spacing = 6
+
+		configurePopup(
+			hudModePicker,
+			options: Self.hudModeOptions,
+			selected: viewModel.hudMode,
+			label: hudModeLabel,
+			action: #selector(hudModeChanged)
+		)
+
+		let preview = RPGHUDPreviewView(viewModel: viewModel)
+		panel.addSubview(headerTextStack)
+		panel.addSubview(hudModePicker)
+		panel.addSubview(preview)
+
+		NSLayoutConstraint.activate([
+			headerTextStack.topAnchor.constraint(equalTo: panel.topAnchor, constant: 16),
+			headerTextStack.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 18),
+			headerTextStack.trailingAnchor.constraint(
+				lessThanOrEqualTo: hudModePicker.leadingAnchor, constant: -12),
+
+			hudModePicker.centerYAnchor.constraint(equalTo: headerTextStack.centerYAnchor),
+			hudModePicker.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -18),
+
+			preview.topAnchor.constraint(equalTo: headerTextStack.bottomAnchor, constant: 14),
+			preview.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 16),
+			preview.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -16),
+			preview.bottomAnchor.constraint(equalTo: panel.bottomAnchor, constant: -16),
+			preview.heightAnchor.constraint(greaterThanOrEqualToConstant: 200),
+		])
+		return panel
+	}
+
+	@objc private func hudModeChanged(_ sender: NSPopUpButton) {
+		guard let mode = sender.selectedItem?.representedObject as? PetConfig.RPGHUDMode else { return }
+		onHUDModeChanged(mode)
+	}
+
+	private func makeHudElementsPanel() -> NSView {
+		let panel = settingsThemedCard()
+		let title = settingsColumnHeader("HUD ELEMENTS")
+		let subtitle = settingsBodyLabel("Current RPG state values shown by the in-session HUD.")
+		let stack = NSStackView()
+		stack.translatesAutoresizingMaskIntoConstraints = false
+		stack.orientation = .vertical
+		stack.spacing = 12
+		let heartsRow = HUDElementRowView(
+			icon: RPGHUDIconTileView(icon: makeSingleHeartIcon()),
+			title: "Hearts",
+			subtitle: "Represent your pet's health.",
+			valueView: RPGHeartStripView(hearts: viewModel.hearts, heartSize: 22)
+		)
+		let levelRow = HUDElementRowView(
+			icon: RPGHUDIconTileView(icon: RPGMiniRingIconView(fraction: viewModel.ringFraction)),
+			title: "Level",
+			subtitle: "Your pet's current level.",
+			value: "\(viewModel.level)"
+		)
+		let xpRow = HUDElementRowView(
+			icon: RPGHUDIconTileView(icon: RPGMiniXPBadgeView()),
+			title: "XP Ring",
+			subtitle: "Progress toward next level.",
+			value: viewModel.xpPercentText,
+			footer: RPGProgressBarView(fraction: viewModel.ringFraction)
+		)
+		stack.addArrangedSubview(heartsRow)
+		stack.addArrangedSubview(levelRow)
+		stack.addArrangedSubview(xpRow)
+		// Hearts/Level have no footer so their intrinsic height is shorter than
+		// XP Ring's (which carries a progress bar) — pin them equal so the row
+		// backgrounds line up and the centered icon tile never overflows past a
+		// short row's border.
+		NSLayoutConstraint.activate([
+			heartsRow.heightAnchor.constraint(equalTo: xpRow.heightAnchor),
+			levelRow.heightAnchor.constraint(equalTo: xpRow.heightAnchor),
+		])
+
+		panel.addSubview(title)
+		panel.addSubview(subtitle)
+		panel.addSubview(stack)
+		NSLayoutConstraint.activate([
+			title.topAnchor.constraint(equalTo: panel.topAnchor, constant: 16),
+			title.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 18),
+			title.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -18),
+
+			subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 6),
+			subtitle.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+			subtitle.trailingAnchor.constraint(equalTo: title.trailingAnchor),
+
+			stack.topAnchor.constraint(equalTo: subtitle.bottomAnchor, constant: 14),
+			stack.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 16),
+			stack.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -16),
+			stack.bottomAnchor.constraint(equalTo: panel.bottomAnchor, constant: -16),
+		])
+		return panel
+	}
+
+	private func makeSingleHeartIcon() -> NSView {
+		let heart = RPGHeartView(frame: .zero)
+		heart.translatesAutoresizingMaskIntoConstraints = false
+		heart.setState(.full)
+		NSLayoutConstraint.activate([
+			heart.widthAnchor.constraint(equalToConstant: 28),
+			heart.heightAnchor.constraint(equalToConstant: 28),
+		])
+		return heart
+	}
+
+	private func makeHealthConfigurationPanel() -> NSView {
+		let panel = settingsThemedCard()
+		let title = settingsColumnHeader("HEALTH CONFIGURATION")
+		let stack = NSStackView()
+		stack.translatesAutoresizingMaskIntoConstraints = false
+		stack.orientation = .vertical
+		stack.alignment = .leading
+		stack.distribution = .fillEqually
+		stack.spacing = 12
+
+		configurePopup(
+			decayHoursPicker,
+			options: RPGTabViewModel.inactivityDecayHourOptions,
+			selected: viewModel.healthLogic.inactivityDecayHours,
+			label: { "\(Int($0)) hours" },
+			fixedWidth: 126
+		)
+		configurePopup(
+			regenMinutesPicker,
+			options: RPGTabViewModel.activityRegenMinuteOptions,
+			selected: viewModel.healthLogic.activityRegenMinutes,
+			label: { $0 == 60 ? "60 minutes" : "\($0) minutes" },
+			fixedWidth: 126
+		)
+		skipWeekendsSwitch.state = viewModel.healthLogic.skipWeekends ? .on : .off
+		skipWeekendsSwitch.target = self
+		skipWeekendsSwitch.action = #selector(skipWeekendsChanged)
+		skipWeekendsSwitch.translatesAutoresizingMaskIntoConstraints = false
+
+		stack.addArrangedSubview(
+			settingRow(
+				title: "Inactivity Decay Config",
+				value: "Lose 1/2 heart after sustained inactivity.",
+				controls: [decayHoursPicker]))
+		stack.addArrangedSubview(
+			settingRow(
+				title: "Activity Regeneration",
+				value: "Regain 1/2 heart after active coding time.",
+				controls: [regenMinutesPicker]))
+		stack.addArrangedSubview(
+			settingRow(
+				title: "Skip Weekends",
+				value: "No health decay on weekends.",
+				controls: [skipWeekendsSwitch]))
+
+		panel.addSubview(title)
+		panel.addSubview(stack)
+		NSLayoutConstraint.activate([
+			title.topAnchor.constraint(equalTo: panel.topAnchor, constant: 16),
+			title.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 18),
+			title.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -18),
+			stack.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
+			stack.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 16),
+			stack.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -16),
+			stack.bottomAnchor.constraint(equalTo: panel.bottomAnchor, constant: -16),
+		])
+		for row in stack.arrangedSubviews {
+			row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+		}
+		return panel
+	}
+
+	private func makeSicknessConfigurationPanel() -> NSView {
+		let panel = settingsThemedCard()
+		let title = settingsColumnHeader("PET SICKNESS CONFIGURATION")
+		let stack = NSStackView()
+		stack.translatesAutoresizingMaskIntoConstraints = false
+		stack.orientation = .vertical
+		stack.alignment = .leading
+		stack.distribution = .fillEqually
+		stack.spacing = 12
+
+		sicknessSwitch.state = viewModel.healthLogic.diseaseAnimationsEnabled ? .on : .off
+		sicknessSwitch.target = self
+		sicknessSwitch.action = #selector(sicknessAnimationsChanged)
+		sicknessSwitch.translatesAutoresizingMaskIntoConstraints = false
+
+		configureSicknessPopup(
+			mildSicknessPicker,
+			options: RPGTabViewModel.sicknessTriggerOptions,
+			selected: viewModel.healthLogic.mildSicknessHalfHearts
+		)
+		configureSicknessPopup(
+			severeSicknessPicker,
+			options: viewModel.severeSicknessOptions,
+			selected: viewModel.healthLogic.severeSicknessHalfHearts
+		)
+
+		stack.addArrangedSubview(
+			settingRow(title: "Sickness animations", value: sicknessSummary, controls: [sicknessSwitch]))
+		stack.addArrangedSubview(
+			settingRow(
+				title: "Mild Sickness animation triggers on:",
+				value: "Heart level that triggers mild sickness.",
+				controls: [mildSicknessPicker]))
+		stack.addArrangedSubview(
+			settingRow(
+				title: "Severe Sickness animation triggers on:",
+				value: "Heart level that triggers severe sickness.",
+				controls: [severeSicknessPicker]))
+		refreshSicknessSummary()
+
+		panel.addSubview(title)
+		panel.addSubview(stack)
+		NSLayoutConstraint.activate([
+			title.topAnchor.constraint(equalTo: panel.topAnchor, constant: 16),
+			title.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 18),
+			title.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -18),
+			stack.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
+			stack.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 16),
+			stack.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -16),
+			stack.bottomAnchor.constraint(equalTo: panel.bottomAnchor, constant: -16),
+		])
+		for row in stack.arrangedSubviews {
+			row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+		}
+		return panel
+	}
+
+	/// Menu options are half-heart counts (`0` = Never). "Never" is the only
+	/// textual option; every heart value renders as the literal heart state
+	/// (e.g. 3/2 = a full heart followed by a half heart), image-only.
+	///
+	/// Items are built as `NSMenuItem`s rather than via `addItem(withTitle:)`
+	/// because that API removes an existing item with the same title — and the
+	/// image-only options all share the empty title, so they would collapse
+	/// into a single entry.
+	private func configureSicknessPopup(_ popup: NSPopUpButton, options: [Int], selected: Int) {
+		popup.removeAllItems()
+		popup.translatesAutoresizingMaskIntoConstraints = false
+		popup.target = self
+		popup.action = #selector(sicknessTriggerChanged)
+		for option in options {
+			let item = NSMenuItem(title: option == 0 ? "Never" : "", action: nil, keyEquivalent: "")
+			item.representedObject = option
+			item.image = Self.sicknessTriggerImage(option)
+			popup.menu?.addItem(item)
+		}
+		let selectedIndex = options.firstIndex(of: selected) ?? 0
+		popup.selectItem(at: selectedIndex)
+		pinPopupWidth(popup, to: 126)
+	}
+
+	/// Composite strip of the literal heart state for a half-heart count:
+	/// full hearts first, then the trailing half heart for odd values.
+	private static func sicknessTriggerImage(_ halfHearts: Int) -> NSImage? {
+		guard halfHearts > 0 else { return nil }
+		let fullCount = halfHearts / 2
+		let hasHalf = !halfHearts.isMultiple(of: 2)
+		let heartCount = fullCount + (hasHalf ? 1 : 0)
+		let heartSize: CGFloat = 18
+		let gap: CGFloat = 4
+		let width = CGFloat(heartCount) * heartSize + CGFloat(heartCount - 1) * gap
+		return NSImage(size: NSSize(width: width, height: heartSize), flipped: false) { _ in
+			var x: CGFloat = 0
+			for index in 0..<heartCount {
+				let name = index < fullCount ? "heart_full_health" : "heart_half_health"
+				NSImage(named: name)?.draw(in: NSRect(x: x, y: 0, width: heartSize, height: heartSize))
+				x += heartSize + gap
+			}
+			return true
+		}
+	}
+
+	private func configurePopup<T: Equatable>(
+		_ popup: NSPopUpButton,
+		options: [T],
+		selected: T,
+		label: (T) -> String,
+		action: Selector = #selector(healthPopupChanged),
+		fixedWidth: CGFloat? = nil
+	) {
+		popup.removeAllItems()
+		popup.translatesAutoresizingMaskIntoConstraints = false
+		popup.target = self
+		popup.action = action
+		for option in options {
+			popup.addItem(withTitle: label(option))
+			popup.lastItem?.representedObject = option
+		}
+		let selectedIndex = options.firstIndex(of: selected) ?? 0
+		popup.selectItem(at: selectedIndex)
+		if let fixedWidth {
+			pinPopupWidth(popup, to: fixedWidth)
+		} else {
+			NSLayoutConstraint.deactivate(popup.constraints.filter { $0.firstAttribute == .width })
+			popup.widthAnchor.constraint(greaterThanOrEqualToConstant: 126).isActive = true
+		}
+	}
+
+	/// Pins a popup to an exact width. The pickers are shared instances that
+	/// survive `reload(viewModel:)` rebuilds and live menu swaps (the severe
+	/// picker is rebuilt whenever mild changes), and an intrinsic-size-driven
+	/// width lets those rebuilds stretch the control mid-flight. An exact,
+	/// once-installed constraint plus required hugging keeps the width stable.
+	private func pinPopupWidth(_ popup: NSPopUpButton, to width: CGFloat) {
+		popup.setContentHuggingPriority(.required, for: .horizontal)
+		popup.setContentCompressionResistancePriority(.required, for: .horizontal)
+		NSLayoutConstraint.deactivate(popup.constraints.filter { $0.firstAttribute == .width })
+		popup.widthAnchor.constraint(equalToConstant: width).isActive = true
+	}
+
+	private func settingRow(title: String, value: String, controls: [NSView]) -> NSView {
+		let valueLabel = settingsBodyLabel(value)
+		return settingRow(title: title, value: valueLabel, controls: controls)
+	}
+
+	private func settingRow(title: String, value: NSTextField, controls: [NSView]) -> NSView {
+		let row = settingsThemedCard()
+		let label = settingsSectionTitle(title)
+		label.font = .systemFont(ofSize: 13, weight: .semibold)
+		label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+		// The subtitle must wrap short of the trailing controls instead of
+		// running underneath the vertically-centered toggle/dropdown.
+		value.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+		let controlStack = NSStackView(views: controls)
+		controlStack.translatesAutoresizingMaskIntoConstraints = false
+		controlStack.orientation = .horizontal
+		controlStack.spacing = 8
+		controlStack.setContentHuggingPriority(.required, for: .horizontal)
+		controlStack.setContentCompressionResistancePriority(.required, for: .horizontal)
+		row.addSubview(label)
+		row.addSubview(value)
+		row.addSubview(controlStack)
+		NSLayoutConstraint.activate([
+			label.topAnchor.constraint(equalTo: row.topAnchor, constant: 13),
+			label.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 16),
+			label.trailingAnchor.constraint(lessThanOrEqualTo: controlStack.leadingAnchor, constant: -12),
+			controlStack.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+			controlStack.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -16),
+			value.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 4),
+			value.leadingAnchor.constraint(equalTo: label.leadingAnchor),
+			value.trailingAnchor.constraint(lessThanOrEqualTo: controlStack.leadingAnchor, constant: -12),
+			value.bottomAnchor.constraint(equalTo: row.bottomAnchor, constant: -13),
+		])
+		return row
+	}
+
+	@objc private func healthPopupChanged(_ sender: NSPopUpButton) {
+		switch sender {
+		case decayHoursPicker:
+			if let value = sender.selectedItem?.representedObject as? Double {
+				viewModel.setInactivityDecayHours(value)
+			}
+		case regenMinutesPicker:
+			if let value = sender.selectedItem?.representedObject as? Int {
+				viewModel.setActivityRegenMinutes(value)
+			}
+		default:
+			break
+		}
+	}
+
+	@objc private func sicknessAnimationsChanged() {
+		viewModel.setDiseaseAnimationsEnabled(sicknessSwitch.state == .on)
+		refreshSicknessSummary()
+	}
+
+	@objc private func skipWeekendsChanged() {
+		viewModel.setSkipWeekends(skipWeekendsSwitch.state == .on)
+	}
+
+	@objc private func sicknessTriggerChanged(_ sender: NSPopUpButton) {
+		guard let value = sender.selectedItem?.representedObject as? Int else { return }
+		switch sender {
+		case mildSicknessPicker:
+			viewModel.setMildSicknessHalfHearts(value)
+			// Mild caps severe exclusively, so the severe menu is rebuilt from the
+			// surviving options; the view-model already snapped an invalidated
+			// severe value to the maximal valid one.
+			configureSicknessPopup(
+				severeSicknessPicker,
+				options: viewModel.severeSicknessOptions,
+				selected: viewModel.healthLogic.severeSicknessHalfHearts
+			)
+		case severeSicknessPicker:
+			viewModel.setSevereSicknessHalfHearts(value)
+		default:
+			break
+		}
+	}
+
+	private func refreshSicknessSummary() {
+		sicknessSummary.stringValue = viewModel.healthLogic.diseaseAnimationsEnabled
+			? "Low-health illness visuals can appear."
+			: "Health still runs; illness visuals are suppressed."
+	}
+}
+
+private final class RPGHUDPreviewView: NSView {
+	private let hearts: RPGHeartStripView
+	private let ring = RPGRingView(frame: .zero)
+	private let petView = NSImageView()
+	private let fallbackLabel = settingsBodyLabel("Default pet preview unavailable")
+	private let ringFraction: Double
+	private let level: Int
+
+	init(viewModel: RPGTabViewModel) {
+		self.hearts = RPGHeartStripView(hearts: viewModel.hearts, heartSize: 24)
+		self.ringFraction = viewModel.ringFraction
+		self.level = viewModel.level
+		super.init(frame: .zero)
+		translatesAutoresizingMaskIntoConstraints = false
+		wantsLayer = true
+		layer?.cornerRadius = 8
+		layer?.borderWidth = 1
+		layer?.borderColor = SettingsTheme.cardBorder.cgColor
+		layer?.backgroundColor = SettingsTheme.windowBackground.withAlphaComponent(0.55).cgColor
+
+		for view in [hearts, ring, petView, fallbackLabel] {
+			view.translatesAutoresizingMaskIntoConstraints = false
+			addSubview(view)
+		}
+		petView.image = viewModel.petImage
+		petView.imageScaling = .scaleProportionallyUpOrDown
+		fallbackLabel.alignment = .center
+		fallbackLabel.isHidden = viewModel.petImage != nil
+		ring.configure(fraction: ringFraction, level: level, ringDiameter: 96)
+
+		// Geometry is tuned against the 320pt preview panel (see RPGTabView's
+		// column constraints): the HUD column (hearts + ring) sits compact on
+		// the left, and the pet takes the reclaimed space — pinned to the
+		// preview's vertical bounds rather than a fixed height so it always
+		// renders as large as the panel allows without overflowing it.
+		NSLayoutConstraint.activate([
+			hearts.topAnchor.constraint(equalTo: topAnchor, constant: 32),
+			hearts.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 48),
+			hearts.widthAnchor.constraint(equalToConstant: 90),
+			hearts.heightAnchor.constraint(equalToConstant: 28),
+
+			ring.topAnchor.constraint(equalTo: hearts.bottomAnchor, constant: 18),
+			ring.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 46),
+			ring.widthAnchor.constraint(equalToConstant: 96),
+			ring.heightAnchor.constraint(equalToConstant: 96),
+
+			petView.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+			petView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
+			petView.leadingAnchor.constraint(equalTo: ring.trailingAnchor, constant: 36),
+			petView.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -24),
+			petView.widthAnchor.constraint(equalToConstant: 210),
+
+			fallbackLabel.centerXAnchor.constraint(equalTo: petView.centerXAnchor),
+			fallbackLabel.centerYAnchor.constraint(equalTo: petView.centerYAnchor),
+			fallbackLabel.widthAnchor.constraint(lessThanOrEqualTo: petView.widthAnchor),
+		])
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+}
+
+private final class RPGHeartStripView: NSView {
+	private let hearts: [HeartState]
+	private let heartSize: CGFloat
+	private let spacing: CGFloat = 6
+
+	init(hearts: [HeartState], heartSize: CGFloat) {
+		self.hearts = hearts
+		self.heartSize = heartSize
+		super.init(frame: .zero)
+		translatesAutoresizingMaskIntoConstraints = false
+		let stack = NSStackView()
+		stack.translatesAutoresizingMaskIntoConstraints = false
+		stack.orientation = .horizontal
+		stack.spacing = spacing
+		addSubview(stack)
+		for state in hearts {
+			let heart = RPGHeartView(frame: .zero)
+			heart.translatesAutoresizingMaskIntoConstraints = false
+			heart.setState(state)
+			stack.addArrangedSubview(heart)
+			NSLayoutConstraint.activate([
+				heart.widthAnchor.constraint(equalToConstant: heartSize),
+				heart.heightAnchor.constraint(equalToConstant: heartSize),
+			])
+		}
+		NSLayoutConstraint.activate([
+			stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+			stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+			stack.topAnchor.constraint(equalTo: topAnchor),
+			stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+		])
+	}
+
+	override var intrinsicContentSize: NSSize {
+		let count = CGFloat(hearts.count)
+		let width = count * heartSize + max(0, count - 1) * spacing
+		return NSSize(width: width, height: heartSize)
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+}
+
+private final class RPGHUDIconTileView: NSView {
+	init(icon: NSView) {
+		super.init(frame: .zero)
+		translatesAutoresizingMaskIntoConstraints = false
+		wantsLayer = true
+		layer?.cornerRadius = 8
+		layer?.backgroundColor = NSColor(calibratedWhite: 1, alpha: 0.07).cgColor
+		layer?.borderWidth = 1
+		layer?.borderColor = NSColor.white.withAlphaComponent(0.05).cgColor
+		icon.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(icon)
+		NSLayoutConstraint.activate([
+			widthAnchor.constraint(equalToConstant: 54),
+			heightAnchor.constraint(equalToConstant: 54),
+			icon.centerXAnchor.constraint(equalTo: centerXAnchor),
+			icon.centerYAnchor.constraint(equalTo: centerYAnchor),
+		])
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+}
+
+private final class RPGMiniRingIconView: NSView {
+	private let shapeLayer = CAShapeLayer()
+
+	init(fraction: Double) {
+		super.init(frame: .zero)
+		translatesAutoresizingMaskIntoConstraints = false
+		wantsLayer = true
+		layer?.addSublayer(shapeLayer)
+		shapeLayer.fillColor = NSColor.clear.cgColor
+		shapeLayer.strokeColor = NSColor.systemYellow.cgColor
+		shapeLayer.lineWidth = 4
+		shapeLayer.lineCap = .round
+		NSLayoutConstraint.activate([
+			widthAnchor.constraint(equalToConstant: 34),
+			heightAnchor.constraint(equalToConstant: 34),
+		])
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	override func layout() {
+		super.layout()
+		let inset: CGFloat = 6
+		let rect = bounds.insetBy(dx: inset, dy: inset)
+		let path = CGMutablePath()
+		path.addEllipse(in: rect)
+		shapeLayer.frame = bounds
+		shapeLayer.path = path
+	}
+}
+
+private final class RPGMiniXPBadgeView: NSView {
+	override init(frame: NSRect) {
+		super.init(frame: frame)
+		translatesAutoresizingMaskIntoConstraints = false
+		wantsLayer = true
+		layer?.cornerRadius = 17
+		layer?.borderWidth = 4
+		layer?.borderColor = NSColor.systemGreen.cgColor
+		let label = NSTextField(labelWithString: "XP")
+		label.translatesAutoresizingMaskIntoConstraints = false
+		label.font = .systemFont(ofSize: 11, weight: .heavy)
+		label.textColor = .white
+		addSubview(label)
+		NSLayoutConstraint.activate([
+			widthAnchor.constraint(equalToConstant: 34),
+			heightAnchor.constraint(equalToConstant: 34),
+			label.centerXAnchor.constraint(equalTo: centerXAnchor),
+			label.centerYAnchor.constraint(equalTo: centerYAnchor),
+		])
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+}
+
+private final class RPGProgressBarView: NSView {
+	private let fill = NSView()
+	private let fraction: Double
+
+	init(fraction: Double) {
+		self.fraction = fraction.isFinite ? max(0, min(1, fraction)) : 0
+		super.init(frame: .zero)
+		translatesAutoresizingMaskIntoConstraints = false
+		wantsLayer = true
+		layer?.cornerRadius = 5
+		layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
+		fill.translatesAutoresizingMaskIntoConstraints = false
+		fill.wantsLayer = true
+		fill.layer?.cornerRadius = 5
+		fill.layer?.backgroundColor = NSColor.systemYellow.cgColor
+		addSubview(fill)
+		NSLayoutConstraint.activate([
+			heightAnchor.constraint(equalToConstant: 10),
+			fill.leadingAnchor.constraint(equalTo: leadingAnchor),
+			fill.topAnchor.constraint(equalTo: topAnchor),
+			fill.bottomAnchor.constraint(equalTo: bottomAnchor),
+			fill.widthAnchor.constraint(equalTo: widthAnchor, multiplier: self.fraction),
+		])
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+}
+
+private final class HUDElementRowView: NSView {
+	init(icon: NSView, title: String, subtitle: String, value: String? = nil, valueView: NSView? = nil, footer: NSView? = nil) {
+		super.init(frame: .zero)
+		translatesAutoresizingMaskIntoConstraints = false
+		wantsLayer = true
+		layer?.cornerRadius = 8
+		layer?.borderWidth = 1
+		layer?.borderColor = SettingsTheme.cardBorder.cgColor
+		layer?.backgroundColor = SettingsTheme.windowBackground.withAlphaComponent(0.45).cgColor
+
+		let titleLabel = settingsSectionTitle(title)
+		titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+		let subtitleLabel = settingsBodyLabel(subtitle)
+		let valueLabel = value.map { text -> NSTextField in
+			let label = settingsSectionTitle(text)
+			label.font = .systemFont(ofSize: 15, weight: .bold)
+			label.alignment = .right
+			return label
+		}
+
+		for view in [icon, titleLabel, subtitleLabel] {
+			view.translatesAutoresizingMaskIntoConstraints = false
+			addSubview(view)
+		}
+		if let valueLabel {
+			addSubview(valueLabel)
+		}
+		if let valueView {
+			valueView.translatesAutoresizingMaskIntoConstraints = false
+			addSubview(valueView)
+		}
+		if let footer {
+			footer.translatesAutoresizingMaskIntoConstraints = false
+			addSubview(footer)
+		}
+
+		NSLayoutConstraint.activate([
+			icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+			icon.centerYAnchor.constraint(equalTo: centerYAnchor),
+			icon.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 14),
+			icon.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -14),
+
+			titleLabel.topAnchor.constraint(equalTo: topAnchor, constant: 14),
+			titleLabel.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 14),
+			titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16),
+
+			subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 3),
+			subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+			subtitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16),
+		])
+
+		if let valueLabel {
+			NSLayoutConstraint.activate([
+				valueLabel.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+				valueLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+				titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: valueLabel.leadingAnchor, constant: -16),
+			])
+		}
+		if let valueView {
+			NSLayoutConstraint.activate([
+				valueView.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+				valueView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+				titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: valueView.leadingAnchor, constant: -16),
+			])
+		}
+		if let footer {
+			NSLayoutConstraint.activate([
+				footer.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 12),
+				footer.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+				footer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+				footer.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14),
+			])
+		} else {
+			// Minimum only (not equality): an external equal-height constraint
+			// (Hearts/Level pinned to XP Ring's taller height, in
+			// makeHudElementsPanel) stretches this row past its intrinsic
+			// content height, and a required equality here would conflict with
+			// that at required priority.
+			bottomAnchor.constraint(greaterThanOrEqualTo: subtitleLabel.bottomAnchor, constant: 14)
+				.isActive = true
+		}
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
 }
 
 // MARK: - DeveloperTabView
@@ -2878,6 +3773,576 @@ private final class CustomizationTabView: NSView {
 	@objc private func badgeScaleChanged(_ sender: NSSlider) {
 		viewModel.setMinimalistBadgeScale(sender.doubleValue)
 	}
+}
+
+// MARK: - SessionsTabView
+
+/// Sessions tab — visualizes every `state.d/` slice bucketed into the three
+/// lifecycle tiers `SessionsTabViewModel` computes: Active (rendered or
+/// renderable via Show/Hide All Pets), Live (fresh but not currently
+/// rendered), and Archived (past the reader's fresh window, short of
+/// `SlicePruner`'s deletion horizon). One themed section per tier, scrolled
+/// together since the row count is unbounded; `reload(viewModel:)` tears
+/// down and rebuilds, mirroring `RPGTabView`'s pattern for viewModel swaps.
+private final class SessionsTabView: NSView {
+	private var viewModel: SessionsTabViewModel
+	private let customizationTabViewModel: CustomizationTabViewModel
+	private let scrollView = NSScrollView()
+	private let archiveAfterIdlePicker = NSPopUpButton()
+	private let pruneArchivedPicker = NSPopUpButton()
+
+	init(viewModel: SessionsTabViewModel, customizationTabViewModel: CustomizationTabViewModel) {
+		self.viewModel = viewModel
+		self.customizationTabViewModel = customizationTabViewModel
+		super.init(frame: .zero)
+		setupViews()
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	func reload(viewModel: SessionsTabViewModel) {
+		self.viewModel = viewModel
+		// setupViews() below swaps in a brand-new documentView, which resets
+		// the clip view to origin (0,0) — the *bottom* of an un-flipped
+		// document view, not the top. Every Show/Hide/Prune action rebuilds
+		// via reload(), so without restoring this the scrollbar would jerk to
+		// the bottom on every single action.
+		let savedScrollOrigin = scrollView.contentView.bounds.origin
+		NSLayoutConstraint.deactivate(constraints)
+		subviews.forEach { $0.removeFromSuperview() }
+		setupViews()
+		scrollView.contentView.scroll(to: savedScrollOrigin)
+		scrollView.reflectScrolledClipView(scrollView.contentView)
+		needsLayout = true
+	}
+
+	private func setupViews() {
+		let card = settingsThemedCard()
+		addSubview(card)
+
+		let headerBadge = settingsHeaderIconBadge(
+			symbolName: SettingsTab.sessions.symbolName, color: .systemTeal)
+		card.addSubview(headerBadge)
+
+		let title = settingsSectionTitle("Sessions")
+		title.font = .systemFont(ofSize: 15, weight: .semibold)
+		card.addSubview(title)
+
+		let note = settingsBodyLabel(
+			"Every coding-tool session Codogotchi has heard from, grouped by lifecycle stage. "
+				+ "Active sessions are what Show/Hide All Pets controls — shown on screen, or "
+				+ "hidden by you or the idle timer. Live sessions are fresh but not rendered."
+		)
+		card.addSubview(note)
+
+		// MARK: Archive/Prune TTL pickers
+
+		let archiveLabel = NSTextField(labelWithString: "Archive Session After Idle:")
+		archiveLabel.font = .systemFont(ofSize: 13)
+		archiveLabel.translatesAutoresizingMaskIntoConstraints = false
+
+		archiveAfterIdlePicker.translatesAutoresizingMaskIntoConstraints = false
+		for preset in ArchiveSessionAfterIdleTTL.allCases {
+			archiveAfterIdlePicker.addItem(withTitle: preset.label)
+			archiveAfterIdlePicker.lastItem?.representedObject = preset
+		}
+		let currentArchivePreset = ArchiveSessionAfterIdleTTL.matching(
+			customizationTabViewModel.archiveSessionAfterIdleSeconds)
+		archiveAfterIdlePicker.selectItem(
+			withTitle: (currentArchivePreset ?? .twoHours).label)
+		archiveAfterIdlePicker.target = self
+		archiveAfterIdlePicker.action = #selector(archiveAfterIdlePickerChanged(_:))
+
+		let pruneLabel = NSTextField(labelWithString: "Prune Archived Sessions:")
+		pruneLabel.font = .systemFont(ofSize: 13)
+		pruneLabel.translatesAutoresizingMaskIntoConstraints = false
+
+		pruneArchivedPicker.translatesAutoresizingMaskIntoConstraints = false
+		for preset in PruneArchivedSessionsTTL.allCases {
+			pruneArchivedPicker.addItem(withTitle: preset.label)
+			pruneArchivedPicker.lastItem?.representedObject = preset
+		}
+		let currentPrunePreset = PruneArchivedSessionsTTL.matching(
+			customizationTabViewModel.pruneArchivedSessionsAfterSeconds)
+		pruneArchivedPicker.selectItem(withTitle: (currentPrunePreset ?? .oneDay).label)
+		pruneArchivedPicker.target = self
+		pruneArchivedPicker.action = #selector(pruneArchivedPickerChanged(_:))
+
+		// Thin vertical rule separating the two label+picker groups, mirroring
+		// the mockup's divided control row.
+		let ttlDivider = NSView()
+		ttlDivider.translatesAutoresizingMaskIntoConstraints = false
+		ttlDivider.wantsLayer = true
+		ttlDivider.layer?.backgroundColor = SettingsTheme.cardBorder.cgColor
+		NSLayoutConstraint.activate([
+			ttlDivider.widthAnchor.constraint(equalToConstant: 1),
+			ttlDivider.heightAnchor.constraint(equalToConstant: 26),
+		])
+
+		let ttlRow = NSStackView(views: [
+			archiveLabel, archiveAfterIdlePicker, ttlDivider, pruneLabel, pruneArchivedPicker,
+		])
+		ttlRow.orientation = .horizontal
+		ttlRow.alignment = .centerY
+		ttlRow.spacing = 12
+		// Generous breathing room on both sides of the divider so the two
+		// groups read as separate settings, not one run-on control strip.
+		ttlRow.setCustomSpacing(28, after: archiveAfterIdlePicker)
+		ttlRow.setCustomSpacing(28, after: ttlDivider)
+		ttlRow.translatesAutoresizingMaskIntoConstraints = false
+		card.addSubview(ttlRow)
+
+		let contentStack = NSStackView()
+		contentStack.orientation = .vertical
+		contentStack.alignment = .leading
+		contentStack.spacing = 16
+		contentStack.translatesAutoresizingMaskIntoConstraints = false
+
+		let activeSection = SessionTierSectionView(
+			title: "Active",
+			iconSymbol: "eye.fill",
+			tint: .systemGreen,
+			rows: viewModel.activeRows,
+			emptyText: "No pets are currently shown or hidden.",
+			bulkAction: nil,
+			onShow: { [weak self] row in self?.show(row) },
+			onHide: { [weak self] row in self?.hide(row) },
+			onPrune: { [weak self] row in self?.pruneActive(row) }
+		)
+		contentStack.addArrangedSubview(activeSection)
+		activeSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+
+		let liveSection = SessionTierSectionView(
+			title: "Live",
+			iconSymbol: "clock.fill",
+			tint: .systemYellow,
+			rows: viewModel.liveRows,
+			emptyText: "No sessions are waiting to be resumed.",
+			bulkAction: viewModel.liveRows.isEmpty
+				? nil
+				: ("Show All Live", { [weak self] in self?.showAllLive() }),
+			onShow: { [weak self] row in self?.show(row) },
+			onHide: nil,
+			onPrune: nil
+		)
+		contentStack.addArrangedSubview(liveSection)
+		liveSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+
+		let archivedSection = SessionTierSectionView(
+			title: "Archived",
+			iconSymbol: "archivebox.fill",
+			tint: .secondaryLabelColor,
+			rows: viewModel.archivedRows,
+			emptyText: "Nothing has gone stale in the last 24 hours.",
+			bulkAction: viewModel.archivedRows.isEmpty
+				? nil
+				: ("Prune All Archived", { [weak self] in self?.pruneAllArchived() }),
+			onShow: { [weak self] row in self?.show(row) },
+			onHide: nil,
+			onPrune: { [weak self] row in self?.prune(row) }
+		)
+		contentStack.addArrangedSubview(archivedSection)
+		archivedSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+
+		scrollView.hasVerticalScroller = true
+		scrollView.hasHorizontalScroller = false
+		scrollView.autohidesScrollers = true
+		scrollView.borderType = .noBorder
+		scrollView.drawsBackground = false
+		scrollView.translatesAutoresizingMaskIntoConstraints = false
+		scrollView.documentView = contentStack
+		card.addSubview(scrollView)
+
+		NSLayoutConstraint.activate([
+			contentStack.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+		])
+
+		NSLayoutConstraint.activate([
+			card.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+			card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+			card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+			card.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -20),
+
+			headerBadge.topAnchor.constraint(equalTo: card.topAnchor, constant: 20),
+			headerBadge.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+
+			title.leadingAnchor.constraint(equalTo: headerBadge.trailingAnchor, constant: 12),
+			title.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+			title.topAnchor.constraint(equalTo: card.topAnchor, constant: 18),
+
+			note.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
+			note.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+			note.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+
+			// Even 16pt above and below the control row so it sits centered
+			// between the header note and the tier sections.
+			ttlRow.topAnchor.constraint(equalTo: note.bottomAnchor, constant: 16),
+			ttlRow.leadingAnchor.constraint(equalTo: note.leadingAnchor),
+			ttlRow.trailingAnchor.constraint(lessThanOrEqualTo: card.trailingAnchor, constant: -20),
+
+			scrollView.topAnchor.constraint(equalTo: ttlRow.bottomAnchor, constant: 16),
+			scrollView.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			scrollView.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+			scrollView.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
+		])
+	}
+
+	@objc private func archiveAfterIdlePickerChanged(_ sender: NSPopUpButton) {
+		guard let preset = sender.selectedItem?.representedObject as? ArchiveSessionAfterIdleTTL else {
+			return
+		}
+		customizationTabViewModel.setArchiveSessionAfterIdleSeconds(preset.rawValue)
+		// The tier boundary just moved — re-bucket rows immediately rather than
+		// waiting for the next tab visit.
+		viewModel.refresh()
+		reload(viewModel: viewModel)
+	}
+
+	@objc private func pruneArchivedPickerChanged(_ sender: NSPopUpButton) {
+		guard let preset = sender.selectedItem?.representedObject as? PruneArchivedSessionsTTL else {
+			return
+		}
+		customizationTabViewModel.setPruneArchivedSessionsAfterSeconds(preset.rawValue)
+		viewModel.refresh()
+		reload(viewModel: viewModel)
+	}
+
+	private func show(_ row: SessionRow) {
+		viewModel.show(key: row.id)
+		reload(viewModel: viewModel)
+	}
+
+	private func hide(_ row: SessionRow) {
+		viewModel.hide(key: row.id)
+		reload(viewModel: viewModel)
+	}
+
+	private func showAllLive() {
+		viewModel.showAllLive()
+		reload(viewModel: viewModel)
+	}
+
+	private func pruneAllArchived() {
+		viewModel.pruneArchivedNow()
+		reload(viewModel: viewModel)
+	}
+
+	private func prune(_ row: SessionRow) {
+		viewModel.prune(row: row)
+		reload(viewModel: viewModel)
+	}
+
+	/// Same confirmation contract as the right-click "Prune Session" alert
+	/// (`FloatingPetPanel.presentPruneConfirmation`): skipped entirely once
+	/// `features.skip_prune_confirmation` is set, otherwise a destructive
+	/// "Prune"/"Cancel" alert with a "Do not show this warning again."
+	/// checkbox that persists the skip.
+	private func pruneActive(_ row: SessionRow) {
+		guard !PetConfig.resolvedSkipPruneConfirmation() else {
+			viewModel.pruneActive(row: row)
+			reload(viewModel: viewModel)
+			return
+		}
+		let alert = NSAlert()
+		alert.messageText = "Prune Session"
+		alert.informativeText =
+			"This destroys the panel and its session data. This cannot be undone."
+		alert.addButton(withTitle: "Prune")
+		alert.addButton(withTitle: "Cancel")
+		alert.buttons.first?.hasDestructiveAction = true
+		let skipCheckbox = NSButton(
+			checkboxWithTitle: "Do not show this warning again.", target: nil, action: nil)
+		skipCheckbox.state = .off
+		alert.accessoryView = skipCheckbox
+		guard alert.runModal() == .alertFirstButtonReturn else { return }
+		if skipCheckbox.state == .on {
+			try? PetConfig.write(skipPruneConfirmation: true, to: PetConfig.configURL())
+		}
+		viewModel.pruneActive(row: row)
+		reload(viewModel: viewModel)
+	}
+}
+
+/// One tier's card: icon badge + title + count pill + optional bulk-action
+/// button in the header, then one `SessionRowView` per row (or an empty-state
+/// label when there are none).
+private final class SessionTierSectionView: NSView {
+	init(
+		title: String,
+		iconSymbol: String,
+		tint: NSColor,
+		rows: [SessionRow],
+		emptyText: String,
+		bulkAction: (title: String, action: () -> Void)?,
+		onShow: ((SessionRow) -> Void)?,
+		onHide: ((SessionRow) -> Void)?,
+		onPrune: ((SessionRow) -> Void)?
+	) {
+		super.init(frame: .zero)
+		translatesAutoresizingMaskIntoConstraints = false
+		setup(
+			title: title, iconSymbol: iconSymbol, tint: tint, rows: rows, emptyText: emptyText,
+			bulkAction: bulkAction, onShow: onShow, onHide: onHide, onPrune: onPrune)
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	private func setup(
+		title: String,
+		iconSymbol: String,
+		tint: NSColor,
+		rows: [SessionRow],
+		emptyText: String,
+		bulkAction: (title: String, action: () -> Void)?,
+		onShow: ((SessionRow) -> Void)?,
+		onHide: ((SessionRow) -> Void)?,
+		onPrune: ((SessionRow) -> Void)?
+	) {
+		wantsLayer = true
+		layer?.cornerRadius = 8
+		layer?.backgroundColor = SettingsTheme.tableBackground.cgColor
+		layer?.borderWidth = 1
+		layer?.borderColor = SettingsTheme.cardBorder.cgColor
+
+		let badge = settingsHeaderIconBadge(symbolName: iconSymbol, color: tint, side: 24)
+		addSubview(badge)
+
+		let titleLabel = settingsSectionTitle("\(title) (\(rows.count))")
+		addSubview(titleLabel)
+
+		var bulkButton: NSButton?
+		if let bulkAction {
+			let button = ActionButton(title: bulkAction.title, tint: tint, action: bulkAction.action)
+			addSubview(button)
+			bulkButton = button
+		}
+
+		let rowsStack = NSStackView()
+		rowsStack.orientation = .vertical
+		rowsStack.spacing = 0
+		rowsStack.alignment = .leading
+		rowsStack.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(rowsStack)
+
+		if rows.isEmpty {
+			let empty = settingsBodyLabel(emptyText)
+			rowsStack.addArrangedSubview(empty)
+			empty.widthAnchor.constraint(equalTo: rowsStack.widthAnchor).isActive = true
+		} else {
+			for (index, row) in rows.enumerated() {
+				let rowView = SessionRowView(
+					row: row, showsDivider: index < rows.count - 1,
+					onShow: onShow, onHide: onHide, onPrune: onPrune)
+				rowsStack.addArrangedSubview(rowView)
+				rowView.widthAnchor.constraint(equalTo: rowsStack.widthAnchor).isActive = true
+			}
+		}
+
+		NSLayoutConstraint.activate([
+			badge.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+			badge.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+
+			titleLabel.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
+			titleLabel.leadingAnchor.constraint(equalTo: badge.trailingAnchor, constant: 10),
+
+			rowsStack.topAnchor.constraint(equalTo: badge.bottomAnchor, constant: 10),
+			rowsStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+			rowsStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+			rowsStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12),
+		])
+
+		if let bulkButton {
+			NSLayoutConstraint.activate([
+				bulkButton.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
+				bulkButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+				titleLabel.trailingAnchor.constraint(
+					lessThanOrEqualTo: bulkButton.leadingAnchor, constant: -12),
+			])
+		}
+	}
+}
+
+/// One session row: platform icon, display label, a relative-age caption, and
+/// up to two trailing action buttons (Show/Hide, and Prune for Archived rows).
+private final class SessionRowView: NSView {
+	init(
+		row: SessionRow, showsDivider: Bool,
+		onShow: ((SessionRow) -> Void)?,
+		onHide: ((SessionRow) -> Void)?,
+		onPrune: ((SessionRow) -> Void)?
+	) {
+		super.init(frame: .zero)
+		translatesAutoresizingMaskIntoConstraints = false
+		setup(row: row, showsDivider: showsDivider, onShow: onShow, onHide: onHide, onPrune: onPrune)
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	private func setup(
+		row: SessionRow, showsDivider: Bool,
+		onShow: ((SessionRow) -> Void)?,
+		onHide: ((SessionRow) -> Void)?,
+		onPrune: ((SessionRow) -> Void)?
+	) {
+		let iconView = NSImageView()
+		iconView.translatesAutoresizingMaskIntoConstraints = false
+		iconView.imageScaling = .scaleProportionallyUpOrDown
+		if let attribution = platformAttribution(forBadgeKey: row.origin) {
+			iconView.image = NSImage(named: attribution.assetName)
+		} else {
+			iconView.image = NSImage(systemSymbolName: "app.dashed", accessibilityDescription: nil)
+		}
+		iconView.contentTintColor = Self.iconTint(forOrigin: row.origin)
+		addSubview(iconView)
+
+		let label = NSTextField(labelWithString: row.displayLabel)
+		label.font = .systemFont(ofSize: 12, weight: .medium)
+		label.lineBreakMode = .byTruncatingTail
+		label.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(label)
+
+		let statusText: String
+		switch row.tier {
+		case .active: statusText = row.isShown ? "Shown" : "Hidden"
+		case .live: statusText = "Idle \(Self.relativeAge(row.ageSeconds))"
+		case .archived: statusText = "Quiet \(Self.relativeAge(row.ageSeconds))"
+		}
+		let statusLabel = NSTextField(labelWithString: statusText)
+		statusLabel.font = .systemFont(ofSize: 11)
+		statusLabel.textColor = .secondaryLabelColor
+		statusLabel.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(statusLabel)
+
+		var trailingButtons: [NSButton] = []
+		if row.tier == .active {
+			// Gated on `sessionId` (session-keyed window), mirroring the
+			// right-click affordance's `hasActiveSessionBadge` gate: a
+			// plain-origin/combined row has no session to prune.
+			if row.sessionId != nil, let onPrune {
+				trailingButtons.append(ActionButton(title: "Prune", tint: .systemRed) { onPrune(row) })
+			}
+			if row.isShown {
+				if let onHide {
+					trailingButtons.append(
+						ActionButton(title: "Hide", tint: .secondaryLabelColor) { onHide(row) })
+				}
+			} else if let onShow {
+				trailingButtons.append(ActionButton(title: "Show", tint: .systemBlue) { onShow(row) })
+			}
+		} else {
+			if let onShow {
+				trailingButtons.append(ActionButton(title: "Show", tint: .systemBlue) { onShow(row) })
+			}
+			if let onPrune {
+				trailingButtons.append(ActionButton(title: "Prune", tint: .systemRed) { onPrune(row) })
+			}
+		}
+
+		let buttonStack = NSStackView(views: trailingButtons)
+		buttonStack.orientation = .horizontal
+		buttonStack.spacing = 6
+		buttonStack.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(buttonStack)
+
+		NSLayoutConstraint.activate([
+			heightAnchor.constraint(equalToConstant: 36),
+
+			iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+			iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+			iconView.widthAnchor.constraint(equalToConstant: 20),
+			iconView.heightAnchor.constraint(equalToConstant: 20),
+
+			label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 10),
+			label.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -8),
+
+			statusLabel.leadingAnchor.constraint(equalTo: label.leadingAnchor),
+			statusLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 8),
+
+			buttonStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+			buttonStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+			buttonStack.leadingAnchor.constraint(
+				greaterThanOrEqualTo: label.trailingAnchor, constant: 12),
+		])
+
+		if showsDivider {
+			let divider = NSView()
+			divider.translatesAutoresizingMaskIntoConstraints = false
+			divider.wantsLayer = true
+			divider.layer?.backgroundColor = SettingsTheme.rowDivider.cgColor
+			addSubview(divider)
+			NSLayoutConstraint.activate([
+				divider.leadingAnchor.constraint(equalTo: leadingAnchor),
+				divider.trailingAnchor.constraint(equalTo: trailingAnchor),
+				divider.bottomAnchor.constraint(equalTo: bottomAnchor),
+				divider.heightAnchor.constraint(equalToConstant: 1),
+			])
+		}
+	}
+
+	private static func iconTint(forOrigin origin: String) -> NSColor {
+		switch origin {
+		case "claude_code": return NSColor(srgbRed: 0.85, green: 0.47, blue: 0.34, alpha: 1)
+		case "codex": return NSColor(srgbRed: 0.06, green: 0.64, blue: 0.50, alpha: 1)
+		case "vscode": return NSColor(srgbRed: 0.00, green: 0.48, blue: 0.80, alpha: 1)
+		case "cursor": return NSColor(calibratedWhite: 0.78, alpha: 1)
+		case "antigravity": return NSColor(srgbRed: 0.545, green: 0.361, blue: 0.965, alpha: 1)
+		default: return .labelColor
+		}
+	}
+
+	private static func relativeAge(_ seconds: TimeInterval) -> String {
+		let minutes = Int(seconds / 60)
+		if minutes < 1 { return "just now" }
+		if minutes < 60 { return "\(minutes)m ago" }
+		let hours = Int(seconds / 3600)
+		if hours < 24 { return "\(hours)h ago" }
+		let days = Int(seconds / 86400)
+		return "\(days)d ago"
+	}
+}
+
+/// Small pill-style text button shared by bulk and per-row session actions —
+/// the same borderless-with-tint treatment as the Hooks card's action row,
+/// scaled down for inline row use.
+private final class ActionButton: NSButton {
+	private let handler: () -> Void
+
+	init(title: String, tint: NSColor, action: @escaping () -> Void) {
+		self.handler = action
+		super.init(frame: .zero)
+		self.title = title
+		translatesAutoresizingMaskIntoConstraints = false
+		isBordered = false
+		wantsLayer = true
+		layer?.backgroundColor = tint.withAlphaComponent(0.16).cgColor
+		layer?.cornerRadius = 6
+		font = .systemFont(ofSize: 11, weight: .semibold)
+		contentTintColor = tint
+		attributedTitle = NSAttributedString(
+			string: title,
+			attributes: [.foregroundColor: tint, .font: NSFont.systemFont(ofSize: 11, weight: .semibold)])
+		target = self
+		self.action = #selector(tapped)
+		heightAnchor.constraint(equalToConstant: 22).isActive = true
+		widthAnchor.constraint(greaterThanOrEqualToConstant: 52).isActive = true
+	}
+
+	/// Real horizontal padding. The 52pt min width alone only pads titles
+	/// shorter than it ("Show", "Prune"); a longer title ("Prune All
+	/// Archived") would otherwise render its text flush with the pill edges.
+	override var intrinsicContentSize: NSSize {
+		var size = super.intrinsicContentSize
+		size.width += 20
+		return size
+	}
+
+	@available(*, unavailable)
+	required init?(coder: NSCoder) { nil }
+
+	@objc private func tapped() { handler() }
 }
 
 // MARK: - AboutTabView

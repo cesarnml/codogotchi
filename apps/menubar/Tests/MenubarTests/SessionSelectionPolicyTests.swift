@@ -346,4 +346,75 @@ final class SessionSelectionPolicyTests: XCTestCase {
 			selection.rendered, ["claude_code:incumbent"],
 			"incumbency must still be checked before recency")
 	}
+
+	// MARK: - Pinned (user-hidden) keys
+
+	func testPinnedIdleIncumbentSurvivesAnInFlightNewcomerEvenWithEvictionEnabled() {
+		// Eviction enabled (incumbentsProtected: false) would normally let the
+		// in-flight newcomer bump the idle incumbent. Pinning — the user
+		// explicitly hid this session to revisit it — must override rank.
+		let sessions: [String: ActivityState] = [
+			"claude_code:hidden-idle": .idle,
+			"claude_code:newcomer": .implementing,
+		]
+
+		let selection = SessionSelectionPolicy.select(
+			sessions: sessions, cap: 1,
+			currentlyRendered: ["claude_code:hidden-idle"],
+			incumbentsProtected: false,
+			pinnedKeys: ["claude_code:hidden-idle"])
+
+		XCTAssertEqual(
+			selection.rendered, ["claude_code:hidden-idle"],
+			"a pinned (user-hidden) incumbent must never lose its slot to passive cap eviction")
+		XCTAssertEqual(selection.pending, ["claude_code:newcomer"])
+		XCTAssertTrue(
+			selection.blocked,
+			"the held-back in-flight newcomer is a genuine conflict and must still signal blocked")
+	}
+
+	func testCapReductionStillTrimsPinnedKeys() {
+		// Pinning protects against passive eviction, not against the user
+		// deliberately lowering the cap below the pinned count.
+		let sessions: [String: ActivityState] = [
+			"claude_code:pinned-a": .idle,
+			"claude_code:pinned-b": .idle,
+		]
+		let updatedAt = [
+			"claude_code:pinned-a": "2026-07-03T12:00:00.000Z",
+			"claude_code:pinned-b": "2026-07-03T12:30:00.000Z",
+		]
+
+		let selection = SessionSelectionPolicy.select(
+			sessions: sessions, cap: 1,
+			currentlyRendered: ["claude_code:pinned-a", "claude_code:pinned-b"],
+			updatedAt: updatedAt,
+			pinnedKeys: ["claude_code:pinned-a", "claude_code:pinned-b"])
+
+		XCTAssertEqual(
+			selection.rendered, ["claude_code:pinned-b"],
+			"cap 1 with two pinned keys must keep exactly one — the more recent")
+		XCTAssertEqual(selection.pending, ["claude_code:pinned-a"])
+	}
+
+	func testPinnedIdleIncumbentYieldsToAFellowInFlightIncumbentOnCapReduction() {
+		// Pinning protects against newcomers, not against fellow incumbents:
+		// when the cap shrinks, the surviving slot must go to the visible
+		// in-flight session — rendering the invisible (hidden) pinned one
+		// instead would show the user nothing while their working pet vanished.
+		let sessions: [String: ActivityState] = [
+			"claude_code:pinned-idle": .idle,
+			"claude_code:working": .implementing,
+		]
+
+		let selection = SessionSelectionPolicy.select(
+			sessions: sessions, cap: 1,
+			currentlyRendered: ["claude_code:pinned-idle", "claude_code:working"],
+			pinnedKeys: ["claude_code:pinned-idle"])
+
+		XCTAssertEqual(
+			selection.rendered, ["claude_code:working"],
+			"a fellow incumbent's higher rank must beat pinning when slots shrink")
+		XCTAssertEqual(selection.pending, ["claude_code:pinned-idle"])
+	}
 }

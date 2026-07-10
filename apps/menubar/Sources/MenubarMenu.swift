@@ -4,12 +4,30 @@ import AppKit
 ///
 /// Layout: a disabled "Codogotchi" header, a separator, the dynamic pet
 /// section, "Show/Hide All Pets", "Pets" (jumps to Settings > Pet),
-/// "Customization" (jumps to Settings > Customization), "Settings", and
+/// "Customization" (jumps to Settings > Customization), "Sessions" (jumps to
+/// Settings > Sessions), "RPG" (jumps to Settings > RPG), "Settings", and
 /// "Quit Codogotchi".
 ///
-/// The pet section is dynamic: when `FloatingPetWindowPool` has a single active
-/// origin it collapses to a single "Show/Hide Pet" toggle; with two or more
-/// origins it expands to one "Hide <Platform> Pet" item per active origin.
+/// The pet section mirrors the Settings > Sessions lifecycle tiers (same
+/// shared `SessionsTabViewModel`) instead of the pool's raw 24h hidden-key
+/// horizon, so the two surfaces can never disagree about what counts as a
+/// showable pet:
+///
+/// - A disabled **"Active Pets"** header, then one Show/Hide item per
+///   `.active` row — rendered right now, or hidden (by the user or by the
+///   "Hide Idle Pet After" idle-dismiss TTL) with a slice still inside the
+///   reader's 2h fresh window. A single row collapses to a plain
+///   "Show Pet"/"Hide Pet" title; multiple rows carry per-pet names.
+/// - **"Live Pets ▸"**: `.live` rows minus cap-pending keys — fresh but
+///   unrendered and not merely concealed (platform mode off, or folded into
+///   Combined). Real per-row "Show" actions.
+/// - **"Capped Sessions ▸"**: `.live` rows held back by the per-origin
+///   session cap (`FloatingPetWindowPool.pendingSessionKeys`). Status-only
+///   rows (a "Show" would be a silent no-op — the cap partition ignores the
+///   hidden flag) plus an "Open Customization…" jump to raise the cap.
+///
+/// Archived slices (2h–24h) are deliberately absent here; Settings > Sessions
+/// owns that bucket, including bulk Prune.
 ///
 /// `MenubarMenu` is itself the action target for all items, so the caller
 /// must retain it for the lifetime of the menu. `NSMenuItem.target` is a
@@ -17,18 +35,34 @@ import AppKit
 /// items "do nothing"), so `MenubarApp` holds a strong reference.
 final class MenubarMenu: NSObject {
 	static let headerTitle = "Codogotchi"
+	static let activePetsSectionTitle = "Active Pets"
 	static let showFloatingPetTitle = "Show Pet"
 	static let hideFloatingPetTitle = "Hide Pet"
+	static let livePetsTitle = "Live Pets"
+	static let noLivePetsTitle = "No Live Sessions"
+	static let cappedSessionsTitle = "Capped Sessions"
+	static let noCappedSessionsTitle = "No Capped Sessions"
+	static let openCustomizationTitle = "Open Customization…"
 	static let showAllPetsTitle = "Show All Pets"
 	static let hideAllPetsTitle = "Hide All Pets"
 	static let petsTitle = "Pets"
 	static let customizationTitle = "Customization"
+	static let sessionsTitle = "Sessions"
+	static let rpgTitle = "RPG"
 	static let settingsTitle = "Settings"
 	static let quitTitle = "Quit Codogotchi"
 	static let hooksNotActiveTitle = "⚠ Hooks not active — Retry install"
 
 	private let terminate: () -> Void
 	private weak var floatingPetPool: FloatingPetWindowPool?
+	/// Same `state.d/`-scan tier engine backing Settings → Sessions (shared
+	/// instance, injected by `MenubarApp`): its `.active` rows (rendered or
+	/// hidden-but-<2h) drive the top pet-section list, and its `.live` rows
+	/// (fresh but unrendered — mode-off, combined-folded, or cap-pending)
+	/// drive the "Live Pets"/"Capped Sessions" submenus. `nil` in tests that
+	/// don't need the new tiering falls back to the pool's raw (unfiltered)
+	/// active/hidden sets, matching pre-tiering behavior.
+	private weak var sessionsTabViewModel: SessionsTabViewModel?
 	private let retryHooksInstall: (() -> Void)?
 	private let openSettings: ((SettingsTab?) -> Void)?
 	/// Called with the window key just before an explicit "Show … Pet" /
@@ -55,6 +89,7 @@ final class MenubarMenu: NSObject {
 	init(
 		terminate: @escaping () -> Void = { NSApplication.shared.terminate(nil) },
 		floatingPetPool: FloatingPetWindowPool? = nil,
+		sessionsTabViewModel: SessionsTabViewModel? = nil,
 		retryHooksInstall: (() -> Void)? = nil,
 		openSettings: ((SettingsTab?) -> Void)? = nil,
 		refreshTtlForShow: ((String) -> Void)? = nil,
@@ -62,6 +97,7 @@ final class MenubarMenu: NSObject {
 	) {
 		self.terminate = terminate
 		self.floatingPetPool = floatingPetPool
+		self.sessionsTabViewModel = sessionsTabViewModel
 		self.retryHooksInstall = retryHooksInstall
 		self.openSettings = openSettings
 		self.refreshTtlForShow = refreshTtlForShow
@@ -120,6 +156,24 @@ final class MenubarMenu: NSObject {
 		customizationItem.target = self
 		customizationItem.isEnabled = openSettings != nil
 		menu.addItem(customizationItem)
+
+		let sessionsItem = NSMenuItem(
+			title: Self.sessionsTitle,
+			action: #selector(openSessionsSettingsAction(_:)),
+			keyEquivalent: ""
+		)
+		sessionsItem.target = self
+		sessionsItem.isEnabled = openSettings != nil
+		menu.addItem(sessionsItem)
+
+		let rpgItem = NSMenuItem(
+			title: Self.rpgTitle,
+			action: #selector(openRPGSettingsAction(_:)),
+			keyEquivalent: ""
+		)
+		rpgItem.target = self
+		rpgItem.isEnabled = openSettings != nil
+		menu.addItem(rpgItem)
 
 		let settingsItem = NSMenuItem(
 			title: Self.settingsTitle,
@@ -193,10 +247,29 @@ final class MenubarMenu: NSObject {
 		openSettings?(.customization)
 	}
 
+	@objc func openSessionsSettingsAction(_ sender: Any?) {
+		openSettings?(.sessions)
+	}
+
+	@objc func openRPGSettingsAction(_ sender: Any?) {
+		openSettings?(.rpg)
+	}
+
 	@MainActor
 	@objc func showAllPets(_ sender: Any?) {
 		guard let pool = floatingPetPool else { return }
-		for key in pool.hiddenWindowKeys {
+		// Scoped to exactly what "Active Pets" displays (hidden keys <2h old)
+		// when a view model is wired, not every raw hidden key: bulk-showing
+		// a session the Active list doesn't even list would silently reach
+		// further than what the user can see is about to happen.
+		let keys: [String]
+		if let viewModel = sessionsTabViewModel {
+			viewModel.refresh()
+			keys = viewModel.activeRows.filter { !$0.isShown }.map(\.id)
+		} else {
+			keys = pool.hiddenWindowKeys
+		}
+		for key in keys {
 			// Restart each key's dismiss-TTL clock before un-hiding, or a key
 			// that expired while hidden would stay suppressed and never re-spawn.
 			refreshTtlForShow?(key)
@@ -216,61 +289,43 @@ final class MenubarMenu: NSObject {
 
 	// MARK: - Pet section
 
+	/// Builds the "Active Pets" header + list, plus the "Live Pets" and
+	/// "Capped Sessions" submenus. Active rows come from the shared
+	/// `SessionsTabViewModel` when one is wired (its `.active` tier already
+	/// implements the "rendered, or hidden but <2h old" contract agreed for
+	/// the menu bar — see the file-level doc comment); with no view model
+	/// (older call sites, most unit tests) this falls back to the pool's raw
+	/// active/hidden sets, matching the pre-tiering behavior exactly.
 	@MainActor
 	private func buildPetSection(in menu: NSMenu, insertAt index: Int? = nil) {
-		let active = floatingPetPool?.activeOrigins ?? []
-		let hidden = floatingPetPool?.hiddenWindowKeys ?? []
-		let items: [NSMenuItem]
+		sessionsTabViewModel?.refresh()
+		let activeRows: [SessionRow] = sessionsTabViewModel?.activeRows ?? fallbackActiveRows()
+		let liveRows: [SessionRow] = sessionsTabViewModel?.liveRows ?? []
+		let pendingKeys = floatingPetPool?.pendingSessionKeys ?? []
+		let liveOnly = liveRows.filter { !pendingKeys.contains($0.id) }
+		let cappedOnly = liveRows.filter { pendingKeys.contains($0.id) }
 
-		if active.count == 1 && hidden.isEmpty {
-			// Single visible pet, nothing hidden: one "Hide Pet" toggle.
-			let item = NSMenuItem(
-				title: Self.hideFloatingPetTitle,
-				action: #selector(toggleSingleFloatingPet(_:)),
-				keyEquivalent: ""
-			)
-			item.target = self
-			items = [item]
-		} else if active.isEmpty && hidden.count == 1 {
-			// Nothing visible, one hidden pet: single enabled "Show Pet".
-			let item = NSMenuItem(
-				title: Self.showFloatingPetTitle,
-				action: #selector(showFloatingPetForKey(_:)),
-				keyEquivalent: ""
-			)
-			item.target = self
-			item.representedObject = hidden[0]
-			items = [item]
-		} else if active.isEmpty && hidden.isEmpty {
-			// No pool or no windows at all: disabled "Show Pet" placeholder.
+		var items: [NSMenuItem] = []
+
+		let header = NSMenuItem(title: Self.activePetsSectionTitle, action: nil, keyEquivalent: "")
+		header.isEnabled = false
+		items.append(header)
+
+		if activeRows.isEmpty {
+			// No pool, or no windows/hidden keys at all: disabled placeholder.
 			let item = NSMenuItem(title: Self.showFloatingPetTitle, action: nil, keyEquivalent: "")
 			item.isEnabled = false
-			items = [item]
+			items.append(item)
+		} else if activeRows.count == 1 {
+			items.append(activePetMenuItem(for: activeRows[0], titlePrefix: false))
 		} else {
-			// Multiple active and/or hidden: one item per window key.
-			var all: [NSMenuItem] = []
-			for origin in active {
-				let item = NSMenuItem(
-					title: "Hide \(displayName(for: origin)) Pet",
-					action: #selector(hideFloatingPetForOrigin(_:)),
-					keyEquivalent: ""
-				)
-				item.target = self
-				item.representedObject = origin
-				all.append(item)
+			for row in activeRows {
+				items.append(activePetMenuItem(for: row, titlePrefix: true))
 			}
-			for key in hidden {
-				let item = NSMenuItem(
-					title: "Show \(displayName(for: key)) Pet",
-					action: #selector(showFloatingPetForKey(_:)),
-					keyEquivalent: ""
-				)
-				item.target = self
-				item.representedObject = key
-				all.append(item)
-			}
-			items = all
 		}
+
+		items.append(makeLivePetsItem(rows: liveOnly))
+		items.append(makeCappedSessionsItem(rows: cappedOnly))
 
 		if let index {
 			for (offset, item) in items.enumerated() {
@@ -282,11 +337,106 @@ final class MenubarMenu: NSObject {
 		petItemCount = items.count
 	}
 
+	/// Reconstructs the old pool-only (no view model) active/hidden row set,
+	/// so call sites that never wire a `SessionsTabViewModel` — most existing
+	/// unit tests — keep seeing every hidden key regardless of age, exactly
+	/// as before this change.
 	@MainActor
-	@objc private func toggleSingleFloatingPet(_ sender: Any?) {
-		guard let pool = floatingPetPool, let origin = pool.activeOrigins.first else { return }
-		pool.setVisible(false, for: origin)
-		refreshFloatingPetMenuItemTitle()
+	private func fallbackActiveRows() -> [SessionRow] {
+		guard let pool = floatingPetPool else { return [] }
+		let active = pool.activeOrigins.map {
+			SessionRow(
+				id: $0, origin: FloatingPetWindowPool.origin(forWindowKey: $0), sessionId: nil,
+				displayLabel: $0, tier: .active, isShown: true, ageSeconds: 0)
+		}
+		let hidden = pool.hiddenWindowKeys.map {
+			SessionRow(
+				id: $0, origin: FloatingPetWindowPool.origin(forWindowKey: $0), sessionId: nil,
+				displayLabel: $0, tier: .active, isShown: false, ageSeconds: 0)
+		}
+		return active + hidden
+	}
+
+	@MainActor
+	private func activePetMenuItem(for row: SessionRow, titlePrefix: Bool) -> NSMenuItem {
+		let item: NSMenuItem
+		if row.isShown {
+			let title = titlePrefix ? "Hide \(displayName(for: row.id)) Pet" : Self.hideFloatingPetTitle
+			item = NSMenuItem(title: title, action: #selector(hideFloatingPetForOrigin(_:)), keyEquivalent: "")
+		} else {
+			let title = titlePrefix ? "Show \(displayName(for: row.id)) Pet" : Self.showFloatingPetTitle
+			item = NSMenuItem(title: title, action: #selector(showFloatingPetForKey(_:)), keyEquivalent: "")
+		}
+		item.target = self
+		item.representedObject = row.id
+		return item
+	}
+
+	/// Sessions fresh within the reader's 2h window but not rendered — mode
+	/// disabled or folded into Combined. Each row offers a real "Show":
+	/// unlike a capped session, nothing here is blocked by rank/cap
+	/// contention, so un-hiding actually resurrects it.
+	@MainActor
+	private func makeLivePetsItem(rows: [SessionRow]) -> NSMenuItem {
+		let item = NSMenuItem(title: Self.livePetsTitle, action: nil, keyEquivalent: "")
+		let submenu = NSMenu()
+		if rows.isEmpty {
+			let empty = NSMenuItem(title: Self.noLivePetsTitle, action: nil, keyEquivalent: "")
+			empty.isEnabled = false
+			submenu.addItem(empty)
+		} else {
+			for row in rows.sorted(by: { $0.displayLabel < $1.displayLabel }) {
+				let rowItem = NSMenuItem(
+					title: "Show \(displayName(for: row.id)) Pet",
+					action: #selector(showFloatingPetForKey(_:)),
+					keyEquivalent: ""
+				)
+				rowItem.target = self
+				rowItem.representedObject = row.id
+				submenu.addItem(rowItem)
+			}
+		}
+		item.submenu = submenu
+		item.isEnabled = !rows.isEmpty
+		return item
+	}
+
+	/// Sessions blocked from rendering by the per-origin session cap
+	/// (`FloatingPetWindowPool.pendingSessionKeys`). Deliberately status-only:
+	/// cap partitioning is re-ranked every tick independent of the hidden
+	/// flag, so a "Show" button here would silently do nothing until the
+	/// session wins the rank fight on its own. The way out is raising the
+	/// cap, so the only action offered jumps straight to Customization.
+	@MainActor
+	private func makeCappedSessionsItem(rows: [SessionRow]) -> NSMenuItem {
+		let item = NSMenuItem(title: Self.cappedSessionsTitle, action: nil, keyEquivalent: "")
+		let submenu = NSMenu()
+		if rows.isEmpty {
+			let empty = NSMenuItem(title: Self.noCappedSessionsTitle, action: nil, keyEquivalent: "")
+			empty.isEnabled = false
+			submenu.addItem(empty)
+		} else {
+			for row in rows.sorted(by: { $0.displayLabel < $1.displayLabel }) {
+				let status = NSMenuItem(
+					title: "\(displayName(for: row.id)) — session cap reached",
+					action: nil, keyEquivalent: ""
+				)
+				status.isEnabled = false
+				submenu.addItem(status)
+			}
+			submenu.addItem(.separator())
+			let openItem = NSMenuItem(
+				title: Self.openCustomizationTitle,
+				action: #selector(openCustomizationSettingsAction(_:)),
+				keyEquivalent: ""
+			)
+			openItem.target = self
+			openItem.isEnabled = openSettings != nil
+			submenu.addItem(openItem)
+		}
+		item.submenu = submenu
+		item.isEnabled = !rows.isEmpty
+		return item
 	}
 
 	@MainActor

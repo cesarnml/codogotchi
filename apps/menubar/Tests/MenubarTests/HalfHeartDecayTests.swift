@@ -90,4 +90,102 @@ final class HalfHeartDecayTests: XCTestCase {
 		// [red] MAX_HALF_HEARTS must equal 6 per contracts/decay-constants.ts
 		XCTAssertEqual(MAX_HALF_HEARTS, 6)
 	}
+
+	// MARK: - Configurable decay block
+
+	func testCustomDecaySecondsChangesBlockSize() {
+		// 24h elapsed at a 24h block = exactly one half-heart of decay.
+		let base = Date(timeIntervalSinceReferenceDate: 0)
+		let now = Date(timeIntervalSinceReferenceDate: 24 * 3600)
+		XCTAssertEqual(
+			HalfHeartDecayEngine.displayed(
+				written: 6, lastActivityAt: base, now: now, decaySeconds: 24 * 3600),
+			5
+		)
+	}
+
+	func testNonPositiveDecaySecondsFallsBackToDefaultBlock() {
+		let base = Date(timeIntervalSinceReferenceDate: 0)
+		let now = Date(timeIntervalSinceReferenceDate: 8 * 3600)
+		XCTAssertEqual(
+			HalfHeartDecayEngine.displayed(
+				written: 6, lastActivityAt: base, now: now, decaySeconds: 0),
+			5
+		)
+	}
+
+	// MARK: - Skip Weekends
+
+	/// Fixed UTC Gregorian calendar so weekend boundaries are deterministic
+	/// regardless of the machine's locale and time zone.
+	private var utcCalendar: Calendar {
+		var cal = Calendar(identifier: .gregorian)
+		cal.timeZone = TimeZone(identifier: "UTC")!
+		return cal
+	}
+
+	/// 2026-07-03 is a Friday; 2026-07-04/05 are the weekend.
+	private func date(_ iso: String) -> Date {
+		ISO8601DateFormatter().date(from: iso)!
+	}
+
+	func testWeekendSecondsFullWeekendInsideWindow() {
+		// Friday noon → Monday noon spans exactly Sat+Sun = 48 h of weekend.
+		let seconds = HalfHeartDecayEngine.weekendSeconds(
+			from: date("2026-07-03T12:00:00Z"),
+			to: date("2026-07-06T12:00:00Z"),
+			calendar: utcCalendar
+		)
+		XCTAssertEqual(seconds, 48 * 3600)
+	}
+
+	func testWeekendSecondsPartialOverlap() {
+		// Saturday 18:00 → Sunday 06:00 is 12 h, all of it weekend.
+		let seconds = HalfHeartDecayEngine.weekendSeconds(
+			from: date("2026-07-04T18:00:00Z"),
+			to: date("2026-07-05T06:00:00Z"),
+			calendar: utcCalendar
+		)
+		XCTAssertEqual(seconds, 12 * 3600)
+	}
+
+	func testWeekendSecondsZeroForMidweekWindow() {
+		let seconds = HalfHeartDecayEngine.weekendSeconds(
+			from: date("2026-07-06T09:00:00Z"),
+			to: date("2026-07-08T09:00:00Z"),
+			calendar: utcCalendar
+		)
+		XCTAssertEqual(seconds, 0)
+	}
+
+	func testSkipWeekendsSuppressesWeekendOnlyDecay() {
+		// Friday 22:00 → Sunday 22:00 = 48 h elapsed. Without skip: −6 → 0.
+		// With skip: only Fri 22:00–24:00 (2 h) counts ⇒ floor(2/8) = 0 decay.
+		let last = date("2026-07-03T22:00:00Z")
+		let now = date("2026-07-05T22:00:00Z")
+		XCTAssertEqual(
+			HalfHeartDecayEngine.displayed(
+				written: 6, lastActivityAt: last, now: now, calendar: utcCalendar),
+			0
+		)
+		XCTAssertEqual(
+			HalfHeartDecayEngine.displayed(
+				written: 6, lastActivityAt: last, now: now,
+				skipWeekends: true, calendar: utcCalendar),
+			6
+		)
+	}
+
+	func testSkipWeekendsStillDecaysWeekdayHours() {
+		// Friday 00:00 → Monday 16:00 = 88 h elapsed, 48 h of it weekend.
+		// Effective 40 h ⇒ floor(40/8) = 5 half-hearts of decay.
+		let last = date("2026-07-03T00:00:00Z")
+		let now = date("2026-07-06T16:00:00Z")
+		XCTAssertEqual(
+			HalfHeartDecayEngine.displayed(
+				written: 6, lastActivityAt: last, now: now,
+				skipWeekends: true, calendar: utcCalendar),
+			1
+		)
+	}
 }

@@ -9,6 +9,13 @@ struct PromptTimerStatus: Equatable {
 	func elapsed(now: Date = Date()) -> TimeInterval {
 		max(0, (endedAt ?? now).timeIntervalSince(startedAt))
 	}
+
+	func presentation(now: Date = Date()) -> PromptTimerPresentation {
+		PromptTimerPresentation(
+			label: PromptTimerPresentation.compactLabel(elapsed: elapsed(now: now)),
+			isRunning: isRunning
+		)
+	}
 }
 
 struct PromptTimerPresentation: Equatable {
@@ -41,6 +48,12 @@ struct PromptTimerPresentation: Equatable {
 /// Tracks one prompt turn from its `session_start` event until the renderer sees
 /// a terminal attention state. Transient tool failures do not stop the clock;
 /// an uninterrupted errored state only freezes the timer after the grace period.
+///
+/// Owned by `FloatingPetWindowPool`, one tracker per render key — NOT by the
+/// window/panel it renders on. The pool observes every polled slice every tick
+/// whether or not a window currently exists for it, so the timer keeps correct
+/// time across hide/show, idle-TTL dismiss, and session-cap de-render — windows
+/// only ever receive the resulting `PromptTimerStatus` to display.
 struct PromptTimerTracker: Equatable {
 	static let erroredTerminalThreshold: TimeInterval = 60
 

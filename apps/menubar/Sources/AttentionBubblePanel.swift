@@ -82,6 +82,35 @@ enum AttentionFocusTarget {
 		]
 		return ideMap[event?.origin ?? ""]
 	}
+
+	/// Foregrounds the app resolved for `event`, exactly what the attention
+	/// bubble's Focus button does — shared so other chrome (e.g. a double-click
+	/// on the platform chip) can trigger the same behavior without an attention
+	/// bubble present. No-ops when no bundle id resolves.
+	@MainActor
+	static func focus(sourceEvent event: SourceEvent?) {
+		guard let bundleId = bundleId(for: event) else { return }
+		let running = NSWorkspace.shared.runningApplications.first {
+			$0.bundleIdentifier == bundleId
+		}
+		// activate forces the OS to foreground the app (handles Electron apps that
+		// ignore the reopen event).
+		running?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+		// Resolve the bundle URL (running instance first, else a LaunchServices
+		// lookup for a not-running target) and reopen it via `openApplication`.
+		// This deliberately replaces the deprecated `NSWorkspace.open(bundleURL)`:
+		// opening another app's bundle URL trips macOS App Management ("…prevented
+		// from modifying apps"), which re-prompts on every unsigned rebuild.
+		// `openApplication(at:configuration:)` is the sanctioned launch/reopen path
+		// — it un-minimises from the Dock without touching the bundle.
+		guard
+			let url = running?.bundleURL
+				?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId)
+		else { return }
+		let configuration = NSWorkspace.OpenConfiguration()
+		configuration.activates = true
+		NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+	}
 }
 
 /// Floating attention bubble shown below the pet panel when `state.json`
@@ -504,32 +533,11 @@ private final class AttentionBubbleView: NSView {
 	}
 
 	@objc private func performAction() {
-		let bundleId = AttentionFocusTarget.bundleId(for: sourceEvent)
 		defer {
 			onDismiss?()
 			window?.orderOut(nil)
 		}
-		guard let bundleId else { return }
-		let running = NSWorkspace.shared.runningApplications.first {
-			$0.bundleIdentifier == bundleId
-		}
-		// activate forces the OS to foreground the app (handles Electron apps that
-		// ignore the reopen event).
-		running?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-		// Resolve the bundle URL (running instance first, else a LaunchServices
-		// lookup for a not-running target) and reopen it via `openApplication`.
-		// This deliberately replaces the deprecated `NSWorkspace.open(bundleURL)`:
-		// opening another app's bundle URL trips macOS App Management ("…prevented
-		// from modifying apps"), which re-prompts on every unsigned rebuild.
-		// `openApplication(at:configuration:)` is the sanctioned launch/reopen path
-		// — it un-minimises from the Dock without touching the bundle.
-		guard
-			let url = running?.bundleURL
-				?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId)
-		else { return }
-		let configuration = NSWorkspace.OpenConfiguration()
-		configuration.activates = true
-		NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+		AttentionFocusTarget.focus(sourceEvent: sourceEvent)
 	}
 
 }

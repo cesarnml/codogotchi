@@ -90,6 +90,10 @@ final class LivePollingDriver {
 	/// decay timer — no separate `Timer` is needed and `pollNow()` (wake-from-
 	/// sleep) reflects true elapsed time immediately.
 	private let now: () -> Date
+	/// Reads the health-logic settings fresh per decay computation so a Skip
+	/// Weekends toggle in Settings takes effect on the next tick. Injected so
+	/// tests stay hermetic of `~/.codogotchi/config.json`.
+	private let healthLogicReader: () -> PetConfig.HealthLogicSettings
 
 	/// Optional sink for attention payload updates. Called when `attention`
 	/// or `sourceEvent.origin` changes between ticks. Second parameter is the
@@ -153,7 +157,10 @@ final class LivePollingDriver {
 		tickInterval: TimeInterval = 1.0,
 		transitionLog: TransitionLog? = nil,
 		codogotchiPet: CodogotchiPet? = nil,
-		now: @escaping () -> Date = { Date() }
+		now: @escaping () -> Date = { Date() },
+		healthLogicReader: @escaping () -> PetConfig.HealthLogicSettings = {
+			PetConfig.resolvedHealthLogicSettings()
+		}
 	) {
 		self.pollingTargetPath = pollingTargetPath
 		self.rpgStatePath = rpgStatePath
@@ -171,6 +178,7 @@ final class LivePollingDriver {
 		self.transitionLog = transitionLog
 		self.codogotchiPet = codogotchiPet
 		self.now = now
+		self.healthLogicReader = healthLogicReader
 	}
 
 	deinit {
@@ -445,10 +453,13 @@ final class LivePollingDriver {
 			// idle stretch with no new hook write still shows hearts ticking down
 			// — the change-gated emit fires only when a half-heart boundary is
 			// crossed (≤ once per 8h), so this is effectively free.
+			let healthLogic = healthLogicReader()
 			let displayedHalfHearts = HalfHeartDecayEngine.displayed(
 				written: rpgSnapshot.halfHearts,
 				lastActivityAt: Self.parseISO8601Date(rpgSnapshot.lastActivityAt),
-				now: now()
+				now: now(),
+				skipWeekends: healthLogic.skipWeekends,
+				decaySeconds: healthLogic.inactivityDecayHours * 3600
 			)
 			return Outcome(
 				state: state,

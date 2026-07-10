@@ -185,9 +185,13 @@ final class FloatingPetControllerTests: XCTestCase {
 	}
 
 	func testSetRPGHUDEnabledForwardsLiveToggleToPanel() throws {
-		// Regression (P10.08-B): toggling the Settings → RPG "Show RPG HUD"
-		// checkbox must reach the floating panel live, not only on the next RPG
-		// poll — otherwise the change requires an app restart to take effect.
+		// Regression (P10.08-B): `FloatingPetController.setRPGHUDEnabled` must
+		// forward straight to the panel, not only take effect on the next RPG
+		// poll — otherwise a live HUD-visibility change requires an app
+		// restart to take effect. (The Settings > RPG HUD mode picker itself
+		// drives visibility through FloatingPetWindowPool's per-tick broadcast
+		// rather than this controller method; this test covers the controller
+		// API's own contract.)
 		try withTempHome { _ in
 			let initial = FloatingAppState(
 				isFloatingPetVisible: true,

@@ -64,6 +64,16 @@ struct CustomizationSnapshot {
 	/// protects every incumbent from eviction regardless of rank; a newcomer
 	/// only fills a slot that isn't already held.
 	let evictSessionPetsEnabled: Bool
+	/// Elapsed-idle seconds after which a Settings → Sessions "Active"/"Live"
+	/// session slice moves into the "Archived" tier. Drives
+	/// `SessionsTabViewModel`'s Active/Live vs. Archived tier boundary.
+	let archiveSessionAfterIdleSeconds: Int
+	/// Age past which an Archived session slice is deleted outright. Drives
+	/// both `SessionsTabViewModel`'s Archived tier's upper bound and
+	/// `SlicePruner`'s automatic sweep horizon — the two are kept in lockstep
+	/// so a slice the Sessions tab still shows as Archived is never silently
+	/// deleted by the background pruner ahead of the UI's own horizon.
+	let pruneArchivedSessionsAfterSeconds: Int
 
 	/// Sentinel written to `session_cap` for the Unlimited option — every
 	/// session-keyed panel renders, nothing is evicted (see `SessionSelectionPolicy`).
@@ -73,6 +83,13 @@ struct CustomizationSnapshot {
 	/// consumers that resolve this default (`FloatingPetWindowPool`,
 	/// `SessionNumberAllocator`, `CustomizationTabViewModel`/Settings UI).
 	static let defaultSessionCap = 3
+	/// Default "Archive Session After Idle" TTL — 2 hours, matching
+	/// `StateJsonReader`'s render-fresh window at the time this became
+	/// user-configurable.
+	static let defaultArchiveSessionAfterIdleSeconds = 2 * 60 * 60
+	/// Default "Prune Archived Sessions" TTL — 24 hours, matching
+	/// `SlicePruner`'s original hardcoded deletion horizon.
+	static let defaultPruneArchivedSessionsAfterSeconds = 24 * 60 * 60
 
 	/// Explicit initializer (not the synthesized memberwise init) so the two new
 	/// session-pets maps carry `[:]` defaults. This keeps existing
@@ -91,7 +108,10 @@ struct CustomizationSnapshot {
 		sessionPetsGrandfatheredSessionId: [String: String] = [:],
 		idleImpatientSeconds: Int = 300,
 		idleFrustratedSeconds: Int = 600,
-		evictSessionPetsEnabled: Bool = true
+		evictSessionPetsEnabled: Bool = true,
+		archiveSessionAfterIdleSeconds: Int = CustomizationSnapshot.defaultArchiveSessionAfterIdleSeconds,
+		pruneArchivedSessionsAfterSeconds: Int = CustomizationSnapshot
+			.defaultPruneArchivedSessionsAfterSeconds
 	) {
 		self.platformModes = platformModes
 		self.idleDismissTtlSeconds = idleDismissTtlSeconds
@@ -105,6 +125,8 @@ struct CustomizationSnapshot {
 		self.idleImpatientSeconds = idleImpatientSeconds
 		self.idleFrustratedSeconds = idleFrustratedSeconds
 		self.evictSessionPetsEnabled = evictSessionPetsEnabled
+		self.archiveSessionAfterIdleSeconds = archiveSessionAfterIdleSeconds
+		self.pruneArchivedSessionsAfterSeconds = pruneArchivedSessionsAfterSeconds
 	}
 
 	static let safeDefault = CustomizationSnapshot(
@@ -119,7 +141,9 @@ struct CustomizationSnapshot {
 		sessionPetsGrandfatheredSessionId: [:],
 		idleImpatientSeconds: 300,
 		idleFrustratedSeconds: 600,
-		evictSessionPetsEnabled: true
+		evictSessionPetsEnabled: true,
+		archiveSessionAfterIdleSeconds: CustomizationSnapshot.defaultArchiveSessionAfterIdleSeconds,
+		pruneArchivedSessionsAfterSeconds: CustomizationSnapshot.defaultPruneArchivedSessionsAfterSeconds
 	)
 }
 
@@ -145,6 +169,12 @@ enum CustomizationJsonReader {
 		let rawScale = payload.minimalistBadgeScale ?? 1.0
 		let rawImpatient = payload.idleImpatientSeconds ?? 300
 		let rawFrustrated = payload.idleFrustratedSeconds ?? 600
+		let rawArchiveAfterIdle =
+			payload.archiveSessionAfterIdleSeconds
+			?? CustomizationSnapshot.defaultArchiveSessionAfterIdleSeconds
+		let rawPruneArchived =
+			payload.pruneArchivedSessionsAfterSeconds
+			?? CustomizationSnapshot.defaultPruneArchivedSessionsAfterSeconds
 		return CustomizationSnapshot(
 			platformModes: modes,
 			idleDismissTtlSeconds: rawTtl < 0 ? 300 : rawTtl,
@@ -159,7 +189,11 @@ enum CustomizationJsonReader {
 			sessionPetsGrandfatheredSessionId: payload.sessionPetsGrandfatheredSessionId ?? [:],
 			idleImpatientSeconds: rawImpatient < 0 ? 300 : rawImpatient,
 			idleFrustratedSeconds: rawFrustrated < 0 ? 600 : rawFrustrated,
-			evictSessionPetsEnabled: payload.evictSessionPetsEnabled ?? true
+			evictSessionPetsEnabled: payload.evictSessionPetsEnabled ?? true,
+			archiveSessionAfterIdleSeconds: rawArchiveAfterIdle < 0
+				? CustomizationSnapshot.defaultArchiveSessionAfterIdleSeconds : rawArchiveAfterIdle,
+			pruneArchivedSessionsAfterSeconds: rawPruneArchived < 0
+				? CustomizationSnapshot.defaultPruneArchivedSessionsAfterSeconds : rawPruneArchived
 		)
 	}
 }
@@ -177,4 +211,6 @@ private struct CustomizationPayload: Decodable {
 	let idleImpatientSeconds: Int?
 	let idleFrustratedSeconds: Int?
 	let evictSessionPetsEnabled: Bool?
+	let archiveSessionAfterIdleSeconds: Int?
+	let pruneArchivedSessionsAfterSeconds: Int?
 }

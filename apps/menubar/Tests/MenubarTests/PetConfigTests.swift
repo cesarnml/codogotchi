@@ -68,6 +68,44 @@ final class PetConfigTests: XCTestCase {
 		}
 	}
 
+	// MARK: - Health logic sickness triggers
+
+	func testSicknessTriggersReadFromConfig() throws {
+		try withTempHome { dir in
+			try writeConfig(
+				#"{"health_logic": {"skip_weekends": true, "mild_sickness_half_hearts": 4, "severe_sickness_half_hearts": 2}}"#,
+				in: dir)
+			let settings = PetConfig.resolvedHealthLogicSettings(
+				from: dir.appendingPathComponent("config.json"))
+			XCTAssertTrue(settings.skipWeekends)
+			XCTAssertEqual(settings.mildSicknessHalfHearts, 4)
+			XCTAssertEqual(settings.severeSicknessHalfHearts, 2)
+		}
+	}
+
+	func testSevereAtOrAboveMildClampsToStrictlyBelowOnRead() throws {
+		try withTempHome { dir in
+			try writeConfig(
+				#"{"health_logic": {"mild_sickness_half_hearts": 2, "severe_sickness_half_hearts": 4}}"#,
+				in: dir)
+			let settings = PetConfig.resolvedHealthLogicSettings(
+				from: dir.appendingPathComponent("config.json"))
+			XCTAssertEqual(settings.severeSicknessHalfHearts, 1, "severe must clamp to mild − 1")
+		}
+	}
+
+	func testOutOfRangeSicknessTriggersFallBackToDefaults() throws {
+		try withTempHome { dir in
+			try writeConfig(
+				#"{"health_logic": {"mild_sickness_half_hearts": 9, "severe_sickness_half_hearts": -1}}"#,
+				in: dir)
+			let settings = PetConfig.resolvedHealthLogicSettings(
+				from: dir.appendingPathComponent("config.json"))
+			XCTAssertEqual(settings.mildSicknessHalfHearts, 2)
+			XCTAssertEqual(settings.severeSicknessHalfHearts, 1)
+		}
+	}
+
 	// MARK: - CODOGOTCHI_HOME override
 
 	func testCodogotchiHomeOverridesConfigPath() throws {

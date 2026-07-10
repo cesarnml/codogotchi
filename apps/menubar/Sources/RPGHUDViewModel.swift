@@ -42,6 +42,11 @@ final class RPGHUDViewModel {
 	/// snapshot. While ghosted this is the raw progress toward revival.
 	private(set) var activeMinutes: Int = 0
 
+	/// Active minutes needed per half-heart — the revive/regen meter
+	/// denominator. Tracks Settings → RPG → Activity Regeneration; defaults to
+	/// the contract constant when the config is untouched.
+	private(set) var regenMinutesPerHalfHeart: Int = ACTIVE_MINUTES_PER_HALF_HEART
+
 	/// The pet is ghosted when every heart slot is empty (0 half-hearts). False
 	/// before the first snapshot (no hearts yet) so the ghost presentation never flashes on.
 	var isGhosted: Bool { !hearts.isEmpty && hearts.allSatisfy { $0 == .empty } }
@@ -59,7 +64,8 @@ final class RPGHUDViewModel {
 	/// earning its first half-heart back. `activeMinutes / 60`, clamped. Only
 	/// meaningful while ghosted — the meter consumer gates on `showsReviveMeter`.
 	var reviveProgress: Double {
-		let raw = Double(activeMinutes) / Double(ACTIVE_MINUTES_PER_HALF_HEART)
+		let denominator = max(1, regenMinutesPerHalfHeart)
+		let raw = Double(activeMinutes) / Double(denominator)
 		return min(1.0, max(0.0, raw))
 	}
 
@@ -102,7 +108,8 @@ final class RPGHUDViewModel {
 		levelFraction: Double,
 		level: Int,
 		activeMinutes: Int,
-		hudEnabled: Bool
+		hudEnabled: Bool,
+		regenMinutesPerHalfHeart: Int = ACTIVE_MINUTES_PER_HALF_HEART
 	) {
 		let prevHalfHearts = previousHalfHearts
 		let prevLevel = previousLevel
@@ -111,6 +118,7 @@ final class RPGHUDViewModel {
 		self.ringFraction = levelFraction
 		self.level = level
 		self.activeMinutes = activeMinutes
+		self.regenMinutesPerHalfHeart = max(1, regenMinutesPerHalfHeart)
 		self.isHUDEnabled = hudEnabled
 
 		previousHalfHearts = halfHearts
@@ -134,9 +142,10 @@ final class RPGHUDViewModel {
 	}
 
 	/// Flip HUD visibility without touching the displayed snapshot. Used when
-	/// the user toggles `rpg_hud_enabled` in Settings: there is no new RPG poll
-	/// to ride, so the live value must be updated directly. Does not emit flash
-	/// events — it is a visibility change, not a state delta.
+	/// the resolved `rpg_hud_mode` changes which window(s) should show the
+	/// HUD: there is no new RPG poll to ride, so the live value must be
+	/// updated directly. Does not emit flash events — it is a visibility
+	/// change, not a state delta.
 	func setHUDEnabled(_ enabled: Bool) {
 		isHUDEnabled = enabled
 	}

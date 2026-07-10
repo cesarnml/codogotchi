@@ -18,6 +18,26 @@ describe("codogotchiConfigSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("surfaces health_logic.skip_weekends and tolerates the Settings-owned keys around it", () => {
+    // The macOS Settings app writes the full health_logic object; the CLI
+    // only types skip_weekends and must not reject the rest.
+    const parsed = codogotchiConfigSchema.safeParse({
+      profile_id: "11111111-2222-3333-4444-555555555555",
+      features: { rpg_enabled: true },
+      health_logic: {
+        skip_weekends: true,
+        inactivity_decay_hours: 8,
+        mild_sickness_half_hearts: 2,
+        severe_sickness_half_hearts: 1,
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.health_logic?.skip_weekends).toBe(true);
+      expect(parsed.data.health_logic?.inactivity_decay_hours).toBe(8);
+    }
+  });
+
   it("rpg_hud_enabled: true round-trips through config schema (P10.03)", () => {
     const parsed = codogotchiConfigSchema.safeParse({
       profile_id: "11111111-2222-3333-4444-555555555555",

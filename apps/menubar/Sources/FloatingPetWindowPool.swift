@@ -66,6 +66,13 @@ final class FloatingPetWindowPool {
 	private var lastUpdatedAt: [String: Date] = [:]
 	/// Render key whose snapshot `updated_at` is most recent across all tracked keys.
 	private var lastActiveRenderKey: String? = nil
+	/// Render key currently holding the RPG HUD under "Show HUD on Most Recent
+	/// Pet" mode. Sticky: unlike `lastActiveRenderKey` (a plain every-tick
+	/// max-`updated_at` election used for TTL immunity), this only re-elects
+	/// when the current holder goes idle, drops out of eligibility, or hasn't
+	/// been elected yet — so the HUD doesn't hop to a different pet mid-prompt
+	/// just because a background session's slice ticked with a newer timestamp.
+	private var hudBearingRenderKey: String? = nil
 	/// Most-recently read customization — updated at the start of each tick.
 	private var currentCustomization: CustomizationSnapshot = .safeDefault
 	/// The `IdleEscalationConfig` last pushed to every open window, so a tick
@@ -137,6 +144,26 @@ final class FloatingPetWindowPool {
 	/// deliberately in-memory only so a restart returns the origin to the
 	/// passive TTL/cap contract.
 	private var prunedOrigins: Set<String> = []
+	/// Session-keyed window keys blocked from rendering by
+	/// `SessionSelectionPolicy`'s per-origin cap on the most recent tick
+	/// (Step 6c below). Exposed so the menu bar's "Capped Sessions" panel can
+	/// list them with a status-only affordance instead of a "Show" button:
+	/// cap partitioning is recomputed from activity/rank every tick and
+	/// ignores the hidden flag, so `setVisible(true, for:)` on one of these
+	/// keys would silently no-op until it wins the rank fight on its own.
+	private(set) var pendingSessionKeys: Set<String> = []
+	/// Window keys the idle-dismiss TTL ("Hide Idle Pet After") is currently
+	/// suppressing: visible in this tick's snapshot but past the TTL, so their
+	/// window was torn down (or never re-spawned) at Steps 7/8. Recomputed
+	/// fresh every tick, exactly like `pendingSessionKeys`. Exposed so
+	/// `SessionsTabViewModel` can classify these as Active (hidden) — a pet
+	/// the idle timer set aside is the same "still here, just concealed"
+	/// concept as a user Hide, and both surfaces (Settings > Sessions and the
+	/// menubar's Active Pets section) list it with a Show affordance rather
+	/// than demoting it to the Live tier. Cap-pending keys are excluded even
+	/// when also TTL-expired, so a capped session never leaks a Show button
+	/// through this set.
+	private(set) var ttlDismissedWindowKeys: Set<String> = []
 	/// Session-keyed window keys that hold a cap slot (P15.07-QC), independent
 	/// of whether their window is actually spawned. Diverges from
 	/// `windows.keys` exactly when a slot's window is user-hidden: hide/show
@@ -173,6 +200,17 @@ final class FloatingPetWindowPool {
 	/// lowering a session cap by more than 1), and every evicted frame must
 	/// survive to be claimed by a later spawn, not just the last one captured.
 	private var evictedSessionFrames: [String: [CGRect]] = [:]
+
+	/// One prompt-timer tracker per render key, observed from the polled slice
+	/// on EVERY tick — before and regardless of the window teardown/spawn
+	/// decisions below — so the timer keeps correct time across hide/show,
+	/// idle-TTL dismiss, and session-cap de-render, including turn boundaries
+	/// (a prompt ending and a new one starting) that occur while no window
+	/// exists to display it. Windows only receive the resulting status to
+	/// render. Bounded by the same eligibility filter as the other per-key
+	/// bookkeeping; the literal "combined" key is exempted there and cleared
+	/// when no combined entries remain (Step 8).
+	private var promptTimers: [String: PromptTimerTracker] = [:]
 
 	/// Window keys that currently have visible windows.
 	var activeOrigins: [String] { Array(windows.keys).sorted() }
@@ -374,6 +412,21 @@ final class FloatingPetWindowPool {
 			lastActiveRenderKey = eligibleForElection.max(by: { $0.value < $1.value })?.key
 		}
 
+		// Step 3b: elect hudBearingRenderKey ("Show HUD on Most Recent Pet").
+		// Re-elect only when the current holder is no longer in-flight (idle,
+		// or an ActivityState the snapshot doesn't carry) or has fallen out of
+		// eligibility (TTL-expired / never seen). Otherwise keep pointing at
+		// the same render key regardless of what else updated this tick.
+		let holderStillInFlight: Bool =
+			if let key = hudBearingRenderKey, eligibleKeys.contains(key) {
+				visibleEntries[key]?.activityState.isInFlight ?? false
+			} else {
+				false
+			}
+		if !holderStillInFlight, !eligibleForElection.isEmpty {
+			hudBearingRenderKey = eligibleForElection.max(by: { $0.value < $1.value })?.key
+		}
+
 		// Bound firstSeenAt/lastSeenAt/lastUpdatedAt to the same eligibility
 		// window computed above — without this they grow one entry per render
 		// key ever seen for the lifetime of the app process (P15.08
@@ -389,6 +442,11 @@ final class FloatingPetWindowPool {
 		lastSeenAt = lastSeenAt.filter { eligibleKeys.contains($0.key) }
 		lastUpdatedAt = lastUpdatedAt.filter { eligibleKeys.contains($0.key) }
 		slotOccupants = slotOccupants.filter { eligibleKeys.contains($0) }
+		// "combined" is exempt: with unfolded per-origin input its tracker is
+		// keyed by the literal "combined" while eligibility is per-origin, so
+		// the filter would drop it every tick. Step 8 clears it explicitly when
+		// no combined-folded entries remain.
+		promptTimers = promptTimers.filter { eligibleKeys.contains($0.key) || $0.key == "combined" }
 
 		// Step 4: compute the key of the window that must not be dismissed
 		let lastActiveWindowKey: String? = lastActiveRenderKey.map { windowKey(for: $0) }
@@ -553,6 +611,12 @@ final class FloatingPetWindowPool {
 				sessions: states, cap: cap, currentlyRendered: currentlyRendered,
 				updatedAt: updatedAt,
 				incumbentsProtected: !currentCustomization.evictSessionPetsEnabled,
+				// Explicitly-hidden keys are pinned: an intentional "Hide Pet"
+				// must never lose its slot to passive cap eviction, even with
+				// "Evict Session Pets" enabled — the user set that session
+				// aside to revisit, and eviction would silently discard it
+				// (the genuinelyEvictedKeys purge below drops the hidden flag).
+				pinnedKeys: userHiddenWindowKeys.intersection(keys),
 				restrictNewPromotionsToInFlight: prunedOrigins.contains(origin))
 			slotOccupants.subtract(keys)
 			slotOccupants.formUnion(selection.rendered)
@@ -622,6 +686,7 @@ final class FloatingPetWindowPool {
 			hiddenKeysSaver(userHiddenWindowKeys)
 		}
 		blockedOrigins = computedBlockedOrigins
+		pendingSessionKeys = pendingWindowKeys
 		// Clear the conflict bubble for any origin that resolved this tick —
 		// promotion (P15.07) freed the withheld slot, so the conflict no
 		// longer applies. The one-hour rate limit is untouched by this clear.
@@ -632,11 +697,28 @@ final class FloatingPetWindowPool {
 		}
 
 		// Step 7: spawn / update directly-keyed windows
+		var computedTtlDismissedKeys: Set<String> = []
 		for renderKey in directKeys {
 			guard let state = visibleEntries[renderKey] else { continue }
+			// Feed the pool-owned prompt timer BEFORE any of the teardown/spawn
+			// guards below can `continue`: a hidden, TTL-dismissed, or
+			// cap-pending key must still observe every tick so turn boundaries
+			// occurring while no window exists keep the timer honest.
+			promptTimers[renderKey, default: PromptTimerTracker()].observe(
+				state: state.activityState,
+				updatedAt: state.updatedAt,
+				sourceEvent: state.sourceEvent,
+				attention: state.attention
+			)
 			// Idle past TTL: leave it dismissed and do not re-spawn from the lingering
 			// idle slice (Step 5b already removed any window for it).
 			if isTTLExpired(windowKey: renderKey) {
+				// Record the suppression for `ttlDismissedWindowKeys` — unless
+				// the key is also cap-pending, which must keep presenting as
+				// Capped (status-only), never as a showable Active (hidden) row.
+				if !pendingWindowKeys.contains(renderKey) {
+					computedTtlDismissedKeys.insert(renderKey)
+				}
 				if windows[renderKey] != nil {
 					windows[renderKey]?.setFloatingPetVisible(false)
 					windows.removeValue(forKey: renderKey)
@@ -698,12 +780,7 @@ final class FloatingPetWindowPool {
 				}
 			}
 			windows[renderKey]?.apply(state: state.activityState, visualMode: .normal)
-			windows[renderKey]?.applyPromptTimerObservation(
-				state: state.activityState,
-				updatedAt: state.updatedAt,
-				sourceEvent: state.sourceEvent,
-				attention: state.attention
-			)
+			windows[renderKey]?.applyPromptTimerStatus(promptTimers[renderKey]?.currentStatus())
 			windows[renderKey]?.applyAttention(
 				payload: state.attention,
 				sourceEvent: state.sourceEvent
@@ -738,21 +815,34 @@ final class FloatingPetWindowPool {
 				combined.setFloatingPetVisible(false)
 				windows.removeValue(forKey: "combined")
 			}
+			// Feed the shared pet's pool-owned prompt timer from the winning
+			// (freshest-updated) folded entry BEFORE the TTL/hidden branches can
+			// skip rendering — mirroring Step 7's observe-before-guards so the
+			// combined timer stays honest while its window doesn't exist.
+			let combinedEntries = combinedKeys.compactMap { key in
+				visibleEntries[key].map { (key: key, state: $0) }
+			}
+			let winnerEntry = combinedEntries.max(by: { a, b in
+				(StateJsonReader.parseISO8601Date(a.state.updatedAt) ?? .distantPast)
+					< (StateJsonReader.parseISO8601Date(b.state.updatedAt) ?? .distantPast)
+			})
+			if let winner = winnerEntry?.state {
+				promptTimers["combined", default: PromptTimerTracker()].observe(
+					state: winner.activityState,
+					updatedAt: winner.updatedAt,
+					sourceEvent: winner.sourceEvent,
+					attention: winner.attention
+				)
+			}
 			if isTTLExpired(windowKey: "combined") {
 				// All combined-folded keys idle past TTL (and not last-active): dismiss
 				// the shared window and do not re-spawn it this tick.
+				computedTtlDismissedKeys.insert("combined")
 				if windows["combined"] != nil {
 					windows["combined"]?.setFloatingPetVisible(false)
 					windows.removeValue(forKey: "combined")
 				}
 			} else if !userHiddenWindowKeys.contains("combined") {
-				let combinedEntries = combinedKeys.compactMap { key in
-					visibleEntries[key].map { (key: key, state: $0) }
-				}
-				let winnerEntry = combinedEntries.max(by: { a, b in
-					(StateJsonReader.parseISO8601Date(a.state.updatedAt) ?? .distantPast)
-						< (StateJsonReader.parseISO8601Date(b.state.updatedAt) ?? .distantPast)
-				})
 				if let winnerEntry {
 					let winner = winnerEntry.state
 					if windows["combined"] == nil {
@@ -773,12 +863,7 @@ final class FloatingPetWindowPool {
 						combinedWindowIsMinimalist = useMinimalist
 					}
 					windows["combined"]?.apply(state: winner.activityState, visualMode: .normal)
-					windows["combined"]?.applyPromptTimerObservation(
-						state: winner.activityState,
-						updatedAt: winner.updatedAt,
-						sourceEvent: winner.sourceEvent,
-						attention: winner.attention
-					)
+					windows["combined"]?.applyPromptTimerStatus(promptTimers["combined"]?.currentStatus())
 					windows["combined"]?.applyAttention(
 						payload: winner.attention,
 						sourceEvent: winner.sourceEvent
@@ -833,6 +918,10 @@ final class FloatingPetWindowPool {
 				windows["combined"]?.setFloatingPetVisible(false)
 				windows.removeValue(forKey: "combined")
 			}
+			// The shared timer is as obsolete as the shared window — and the
+			// eligibility filter above deliberately exempts "combined", so this
+			// is the only place it gets cleared.
+			promptTimers.removeValue(forKey: "combined")
 		} else {
 			// At least one origin is still assigned to combined mode; this tick's
 			// snapshot simply has no combined-folded session present (a transient
@@ -844,10 +933,23 @@ final class FloatingPetWindowPool {
 			}
 		}
 
-		// Step 9: broadcast RPG to all windows
+		ttlDismissedWindowKeys = computedTtlDismissedKeys
+
+		// Step 9: broadcast RPG to all windows. Which window(s) actually show the
+		// HUD overlay depends on the configured mode: "all" broadcasts true to
+		// every open window (pre-existing behavior), "hidden" broadcasts false,
+		// and "most_recent" enables only the sticky hudBearingRenderKey's window
+		// (Step 3b), so a background pet never steals the HUD mid-prompt.
 		let rpg = snapshot.rpgSnapshot
-		let hudEnabled = PetConfig.resolvedRPGHUDEnabled()
-		for controller in windows.values {
+		let hudMode = PetConfig.resolvedRPGHUDMode()
+		let hudBearingWindowKey = hudBearingRenderKey.map(windowKey(for:))
+		for (key, controller) in windows {
+			let hudEnabled: Bool
+			switch hudMode {
+			case .all: hudEnabled = true
+			case .hidden: hudEnabled = false
+			case .mostRecent: hudEnabled = key == hudBearingWindowKey
+			}
 			controller.applyRPGState(
 				halfHearts: rpg.halfHearts,
 				levelFraction: rpg.levelFraction,
@@ -861,6 +963,17 @@ final class FloatingPetWindowPool {
 	/// Returns true when the window for the given key is currently in `windows`.
 	func isActive(for key: String) -> Bool { windows[key] != nil }
 
+	/// Resets the pool-owned prompt timer for a window key in response to a
+	/// live user action (Force Idle, attention-bubble dismiss). The panel
+	/// clears its own displayed status immediately for instant feedback; this
+	/// reset is what makes it stick — `PromptTimerTracker.reset(now:)` stamps
+	/// the real current time so a next-tick poll that reads the pre-rewrite
+	/// on-disk in-flight slice (racing the async idle rewrite) is treated as
+	/// stale and cannot restart the timer.
+	func resetPromptTimer(forWindowKey key: String) {
+		promptTimers[key]?.reset()
+	}
+
 	/// Hides or shows the window for the given key.
 	/// Hiding persists across update() ticks until setVisible(true) is called.
 	/// Deliberately never touches `slotOccupants` (P15.07-QC): hide/show is a
@@ -870,6 +983,17 @@ final class FloatingPetWindowPool {
 	func setVisible(_ visible: Bool, for key: String) {
 		if visible {
 			userHiddenWindowKeys.remove(key)
+			// Restart the in-memory idle-TTL clock alongside the on-disk
+			// `refreshForShow` rewrite callers already perform: dropping the
+			// entry makes the next tick re-seed it (`lastSeenAt == nil` →
+			// full TTL grace window), so an explicit Show deterministically
+			// respawns a TTL-dismissed pet. Without this, respawn hinged on
+			// the refreshed slice winning the last-active election — which a
+			// concurrently-working sibling session's newer updated_at wins
+			// instead, leaving Show a silent no-op. Harmless for the literal
+			// "combined" key (its TTL reads per-folded-render-key clocks;
+			// there is no "combined" entry here to drop).
+			lastSeenAt.removeValue(forKey: key)
 			// Re-spawn is handled by the next update() tick once the key is unblocked.
 		} else {
 			windows[key]?.setFloatingPetVisible(false)
@@ -947,6 +1071,10 @@ final class FloatingPetWindowPool {
 			return liveOrigins.contains(key)
 		}
 		guard survivors.count != userHiddenWindowKeys.count else { return }
+		let culled = userHiddenWindowKeys.subtracting(survivors)
+		for key in culled {
+			promptTimers.removeValue(forKey: key)
+		}
 		userHiddenWindowKeys = survivors
 		hiddenKeysSaver(userHiddenWindowKeys)
 	}
@@ -975,6 +1103,7 @@ final class FloatingPetWindowPool {
 		windowSpawnedModes.removeValue(forKey: windowKey)
 		windowSessionIdentities.removeValue(forKey: windowKey)
 		resolvedSessionTitles.removeValue(forKey: windowKey)
+		promptTimers.removeValue(forKey: windowKey)
 		prunedOrigins.insert(identity.origin)
 		SessionPruner.pruneSession(
 			windowKey: windowKey,

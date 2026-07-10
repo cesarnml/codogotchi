@@ -62,6 +62,47 @@ enum IdleEscalationTiming: Int, LabeledIntPreset {
 	}
 }
 
+/// TTL presets for the Sessions tab's "Archive Session After Idle" picker —
+/// how long a session slice stays in the Active/Live tiers before moving to
+/// Archived. In display order.
+enum ArchiveSessionAfterIdleTTL: Int, LabeledIntPreset {
+	case thirtyMinutes = 1800
+	case oneHour = 3600
+	case twoHours = 7200
+	case fourHours = 14400
+	case eightHours = 28800
+
+	var label: String {
+		switch self {
+		case .thirtyMinutes: return "30 minutes"
+		case .oneHour: return "1 hour"
+		case .twoHours: return "2 hours"
+		case .fourHours: return "4 hours"
+		case .eightHours: return "8 hours"
+		}
+	}
+}
+
+/// TTL presets for the Sessions tab's "Prune Archived Sessions" picker — the
+/// age at which an Archived session slice is deleted outright, both from the
+/// panel's own "Prune All Archived" horizon and `SlicePruner`'s background
+/// sweep. In display order.
+enum PruneArchivedSessionsTTL: Int, LabeledIntPreset {
+	case twelveHours = 43200
+	case oneDay = 86400
+	case twoDays = 172800
+	case oneWeek = 604800
+
+	var label: String {
+		switch self {
+		case .twelveHours: return "12 hours"
+		case .oneDay: return "24 hours"
+		case .twoDays: return "2 days"
+		case .oneWeek: return "7 days"
+		}
+	}
+}
+
 /// Session Cap dropdown options for the Platform Settings card: 2–10 (no 1,
 /// since a cap of 1 defeats the point of session-keyed panels) plus Unlimited,
 /// which persists as `CustomizationSnapshot.unlimitedSessionCap` (`0`).
@@ -108,6 +149,8 @@ final class CustomizationTabViewModel {
 	private(set) var idleImpatientSeconds: Int
 	private(set) var idleFrustratedSeconds: Int
 	private(set) var evictSessionPetsEnabled: Bool
+	private(set) var archiveSessionAfterIdleSeconds: Int
+	private(set) var pruneArchivedSessionsAfterSeconds: Int
 	private let filePath: String
 	/// Live `state.d/` directory read at the instant session-pets is toggled
 	/// on for an origin, to identify the session to grandfather in as
@@ -144,6 +187,8 @@ final class CustomizationTabViewModel {
 		self.idleImpatientSeconds = snapshot.idleImpatientSeconds
 		self.idleFrustratedSeconds = snapshot.idleFrustratedSeconds
 		self.evictSessionPetsEnabled = snapshot.evictSessionPetsEnabled
+		self.archiveSessionAfterIdleSeconds = snapshot.archiveSessionAfterIdleSeconds
+		self.pruneArchivedSessionsAfterSeconds = snapshot.pruneArchivedSessionsAfterSeconds
 	}
 
 	/// Re-reads `customization.json` and replaces all in-memory state. Used when
@@ -164,6 +209,8 @@ final class CustomizationTabViewModel {
 		idleImpatientSeconds = snapshot.idleImpatientSeconds
 		idleFrustratedSeconds = snapshot.idleFrustratedSeconds
 		evictSessionPetsEnabled = snapshot.evictSessionPetsEnabled
+		archiveSessionAfterIdleSeconds = snapshot.archiveSessionAfterIdleSeconds
+		pruneArchivedSessionsAfterSeconds = snapshot.pruneArchivedSessionsAfterSeconds
 	}
 
 	func mode(for origin: String) -> PlatformMode {
@@ -272,6 +319,36 @@ final class CustomizationTabViewModel {
 			evictSessionPetsEnabled = enabled
 		} catch {
 			NSLog("CustomizationTabViewModel: evict-session-pets write failed — \(error)")
+		}
+	}
+
+	/// Persists the Sessions tab's "Archive Session After Idle" TTL — the
+	/// Active/Live vs. Archived tier boundary `SessionsTabViewModel` reads on
+	/// every `refresh()`.
+	func setArchiveSessionAfterIdleSeconds(_ seconds: Int) {
+		do {
+			try ConfigFileWriter.merge(
+				["archive_session_after_idle_seconds": seconds],
+				into: URL(fileURLWithPath: filePath)
+			)
+			archiveSessionAfterIdleSeconds = seconds
+		} catch {
+			NSLog("CustomizationTabViewModel: archive-session-after-idle write failed — \(error)")
+		}
+	}
+
+	/// Persists the Sessions tab's "Prune Archived Sessions" TTL — the
+	/// Archived tier's deletion horizon, read by both `SessionsTabViewModel`
+	/// and `SlicePruneScheduler`'s background sweep so the two never drift.
+	func setPruneArchivedSessionsAfterSeconds(_ seconds: Int) {
+		do {
+			try ConfigFileWriter.merge(
+				["prune_archived_sessions_after_seconds": seconds],
+				into: URL(fileURLWithPath: filePath)
+			)
+			pruneArchivedSessionsAfterSeconds = seconds
+		} catch {
+			NSLog("CustomizationTabViewModel: prune-archived-sessions write failed — \(error)")
 		}
 	}
 

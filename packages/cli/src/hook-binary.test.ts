@@ -12,11 +12,7 @@ import {
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  globalAggregate,
-  type ProfileResponse,
-  type StateJsonV1,
-} from "@codogotchi/contracts";
+import { globalAggregate, type StateJsonV1 } from "@codogotchi/contracts";
 import {
   classifyEvent,
   type HookInput,
@@ -1133,16 +1129,14 @@ describe("runHook", () => {
     rmSync(home, { recursive: true, force: true });
   });
 
-  it("writes slice on first event with default thriving overlay when no profile", async () => {
+  it("writes slice on first event", async () => {
     await runHook(
       { origin: "claude_code", kind: "tool_use", name: "Edit" },
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(8);
+    expect(state.schema_version).toBe(9);
     expect(state.activity_state).toBe("editing");
-    expect(state.hp).toBe(100);
-    expect(state.hp_overlay).toBe("thriving");
     expect(state.updated_at).toBe(FIXED_NOW.toISOString());
     expect(state.source_event.name).toBe("Edit");
     expect(state.source_event.repo_root).toBe(process.cwd());
@@ -1251,44 +1245,6 @@ describe("runHook", () => {
       { home, now: new Date(FIXED_NOW.getTime() + 30_000) },
     );
     expect(readState(home).activity_state).toBe("thinking");
-  });
-
-  it("layers HP from profile.json when present", async () => {
-    const profile: Pick<ProfileResponse, "hp" | "mood"> & {
-      [k: string]: unknown;
-    } = {
-      hp: 20,
-      mood: "near_death",
-      profile_id: "p",
-      handle: "h",
-      xp_by_source: {
-        claude_code: 0,
-        codex: 0,
-        github: 0,
-        wakatime: 0,
-      },
-      total_xp: 0,
-      stage: 1,
-      died_at: null,
-      cause: null,
-      death_count: 0,
-      last_signal_at_by_source: {
-        claude_code: null,
-        codex: null,
-        github: null,
-        wakatime: null,
-      },
-      updated_at: 0,
-    };
-    writeFileSync(join(home, "profile.json"), JSON.stringify(profile), "utf8");
-
-    await runHook(
-      { origin: "claude_code", kind: "tool_use", name: "Edit" },
-      { home, now: FIXED_NOW },
-    );
-    const state = readState(home);
-    expect(state.hp).toBe(20);
-    expect(state.hp_overlay).toBe("near_death");
   });
 
   it("SoA gate events produce thinking (hook no longer reads SoA events)", async () => {
@@ -1406,7 +1362,7 @@ describe("runHook", () => {
       now: FIXED_NOW,
     });
     const state = readState(home);
-    expect(state.schema_version).toBe(8);
+    expect(state.schema_version).toBe(9);
     expect(state.activity_state).toBe("standby");
   });
 
@@ -2195,6 +2151,9 @@ describe("P13.01 rpg-state.json separation (red)", () => {
     expect(slice.active_minutes).toBeUndefined();
     expect(slice.last_activity_at).toBeUndefined();
     expect(slice.revive_until).toBeUndefined();
+    // slice file must NOT contain hp fields either (v9 — hp lives in profile.json)
+    expect(slice.hp).toBeUndefined();
+    expect(slice.hp_overlay).toBeUndefined();
   });
 
   it("migration seed: v7 slice with half_hearts:4 level:3 seeds rpg-state.json on first runHook", async () => {
@@ -2510,7 +2469,7 @@ describe("runHook v5 local RPG fields", () => {
     );
     const state = readState(home);
     const rpg = readRpgState(home);
-    expect(state.schema_version).toBe(8);
+    expect(state.schema_version).toBe(9);
     expect(rpg.level).toBe(EXPECTED_LEVEL);
     expect(rpg.level_fraction as number).toBeCloseTo(
       EXPECTED_LEVEL_FRACTION,
@@ -2571,7 +2530,7 @@ describe("runHook v5 local RPG fields", () => {
     );
     const state = readState(home);
     const rpg = readRpgState(home);
-    expect(state.schema_version).toBe(8);
+    expect(state.schema_version).toBe(9);
     expect(rpg.level).toBeDefined();
     expect(rpg.half_hearts).toBeDefined();
     expect(rpg.last_activity_at).toBeDefined();
@@ -2645,7 +2604,7 @@ describe("slice-directory writer (P12.02 red)", () => {
     const expected = sliceFilePath(home, "claude_code", sessionId);
     expect(existsSync(expected)).toBe(true);
     const slice = JSON.parse(readFileSync(expected, "utf8"));
-    expect(slice.schema_version).toBe(8);
+    expect(slice.schema_version).toBe(9);
     expect(slice.origin).toBe("claude_code");
     expect(slice.session_id).toBe(sessionId);
     expect(slice.activity_state).toBeDefined();

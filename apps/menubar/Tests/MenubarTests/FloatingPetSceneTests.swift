@@ -87,14 +87,43 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertEqual(scene.currentColorBlendFactorForTesting, 0)
 	}
 
-	func testSicknessThresholdsMapFromHalfHearts() {
-		XCTAssertEqual(SicknessLevel(halfHearts: 6), .none)
-		XCTAssertEqual(SicknessLevel(halfHearts: 5), .none)
-		XCTAssertEqual(SicknessLevel(halfHearts: 4), .warning)
-		XCTAssertEqual(SicknessLevel(halfHearts: 3), .warning)
-		XCTAssertEqual(SicknessLevel(halfHearts: 2), .critical)
-		XCTAssertEqual(SicknessLevel(halfHearts: 1), .critical)
-		XCTAssertEqual(SicknessLevel(halfHearts: 0), .none)
+	func testSicknessThresholdsMapFromHalfHeartsWithDefaultTriggers() {
+		// Defaults: mild triggers at 1 heart (2 half-hearts), severe at 1/2 heart.
+		let defaults = PetConfig.HealthLogicSettings.defaults
+		func level(_ halfHearts: Int) -> SicknessLevel {
+			SicknessLevel(
+				halfHearts: halfHearts,
+				mildTriggerHalfHearts: defaults.mildSicknessHalfHearts,
+				severeTriggerHalfHearts: defaults.severeSicknessHalfHearts)
+		}
+		XCTAssertEqual(level(6), .none)
+		XCTAssertEqual(level(3), .none)
+		XCTAssertEqual(level(2), .warning)
+		XCTAssertEqual(level(1), .critical)
+		XCTAssertEqual(level(0), .none, "0 half-hearts is the ghost state, not sickness")
+	}
+
+	func testSicknessThresholdsHonorConfiguredTriggers() {
+		XCTAssertEqual(
+			SicknessLevel(halfHearts: 4, mildTriggerHalfHearts: 4, severeTriggerHalfHearts: 2),
+			.warning)
+		XCTAssertEqual(
+			SicknessLevel(halfHearts: 2, mildTriggerHalfHearts: 4, severeTriggerHalfHearts: 2),
+			.critical)
+		XCTAssertEqual(
+			SicknessLevel(halfHearts: 5, mildTriggerHalfHearts: 4, severeTriggerHalfHearts: 2),
+			.none)
+	}
+
+	func testSicknessNeverTriggersSuppressLevels() {
+		// 0 = "Never": a disabled severe tier still allows mild, and a fully
+		// disabled config never reports sickness even at 1 half-heart.
+		XCTAssertEqual(
+			SicknessLevel(halfHearts: 1, mildTriggerHalfHearts: 2, severeTriggerHalfHearts: 0),
+			.warning)
+		XCTAssertEqual(
+			SicknessLevel(halfHearts: 1, mildTriggerHalfHearts: 0, severeTriggerHalfHearts: 0),
+			.none)
 	}
 
 	func testWarningSicknessAddsPersistentOverlay() throws {

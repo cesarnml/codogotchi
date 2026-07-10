@@ -144,22 +144,33 @@ final class GeneralTabViewModel {
 	/// Loaded from `customization.json` on init; updated via `setMonochromeMenubarIcon`.
 	private(set) var menubarIconMonochrome: Bool
 
+	/// Current value of the "Require Prune Session confirmation" toggle. `true`
+	/// (the default) shows the destructive-action alert every time; unchecked
+	/// it prunes immediately. Inverted storage: persisted as
+	/// `features.skip_prune_confirmation` in `config.json`, since that flag also
+	/// gets set from the alert's own "Do not show this warning again." checkbox.
+	private(set) var requirePruneConfirmation: Bool
+
 	private let statusClient: HookStatusClient
 	private let appVersion: String
 	private let hookVersion: String
 	private let customizationFilePath: String
+	private let configFileURL: URL
 
 	init(
 		statusClient: HookStatusClient = HookStatusClient(),
 		appVersion: String = AboutViewModel.bundleShortVersion(),
 		hookVersion: String = AboutViewModel.bundledHookVersion(),
-		customizationFilePath: String = CodogotchiFolders.customizationPath()
+		customizationFilePath: String = CodogotchiFolders.customizationPath(),
+		configFileURL: URL = PetConfig.configURL()
 	) {
 		self.statusClient = statusClient
 		self.appVersion = appVersion
 		self.hookVersion = hookVersion
 		self.customizationFilePath = customizationFilePath
+		self.configFileURL = configFileURL
 		self.menubarIconMonochrome = CustomizationJsonReader.read(at: customizationFilePath).menubarIconMonochrome
+		self.requirePruneConfirmation = !PetConfig.resolvedSkipPruneConfirmation(from: configFileURL)
 	}
 
 	/// Persists `menubar_icon_monochrome` to `customization.json` without clobbering
@@ -177,6 +188,22 @@ final class GeneralTabViewModel {
 			return false
 		}
 		menubarIconMonochrome = value
+		return true
+	}
+
+	/// Persists `features.skip_prune_confirmation` (the inverse of `value`) to
+	/// `config.json`, preserving every other field. Returns `true` on a
+	/// successful write; in-memory state only updates on success so it stays in
+	/// sync with what survives a relaunch.
+	@discardableResult
+	func setRequirePruneConfirmation(_ value: Bool) -> Bool {
+		do {
+			try PetConfig.write(skipPruneConfirmation: !value, to: configFileURL)
+		} catch {
+			NSLog("GeneralTabViewModel: prune-confirmation write failed — \(error)")
+			return false
+		}
+		requirePruneConfirmation = value
 		return true
 	}
 

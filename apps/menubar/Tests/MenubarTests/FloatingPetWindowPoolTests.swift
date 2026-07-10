@@ -1535,6 +1535,49 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			"cap 2 must render only the two active sessions, holding the idle one")
 	}
 
+	// MARK: - TTL-dismissed exposure ("Hide Idle Pet After" → Active hidden)
+
+	func testTtlDismissedKeysAreExposedAndShowRespawnsDeterministically() {
+		var currentTime = Date(timeIntervalSinceReferenceDate: 0)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { makeCustomization(ttlSeconds: 60) },
+			windowFactory: { _, _ in StubWindowController() },
+			now: { currentTime }
+		)
+
+		// Tick 1: an idle pet plus a working sibling (which will hold the
+		// last-active immunity for the rest of the test).
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"claude_code": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+			"cursor": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+		]))
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code", "cursor"])
+		XCTAssertTrue(pool.ttlDismissedWindowKeys.isEmpty)
+
+		// Advance past the TTL: the idle pet is dismissed and must register in
+		// ttlDismissedWindowKeys so both UI surfaces list it as Active (hidden).
+		currentTime = currentTime.addingTimeInterval(61)
+		let staleTickSnapshot = makePerPlatformSnapshot([
+			"claude_code": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+			"cursor": makeSnapshot(state: .implementing, updated: "2026-07-01T10:01:30.000Z"),
+		])
+		pool.update(snapshot: staleTickSnapshot)
+		XCTAssertEqual(pool.activeOrigins, ["cursor"])
+		XCTAssertEqual(pool.ttlDismissedWindowKeys, ["claude_code"])
+
+		// Show restarts the in-memory TTL clock, so the pet respawns on the
+		// very next tick even though the working sibling still owns the
+		// last-active election (its updated_at is newer) — before the clock
+		// restart, respawn hinged on winning that election and this exact
+		// scenario left Show a silent no-op.
+		pool.setVisible(true, for: "claude_code")
+		pool.update(snapshot: staleTickSnapshot)
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code", "cursor"])
+		XCTAssertTrue(
+			pool.ttlDismissedWindowKeys.isEmpty,
+			"a respawned pet must drop out of the TTL-dismissed set on the same tick")
+	}
+
 	// MARK: - "Evict Session Pets" kill-switch
 
 	func testEvictSessionPetsDisabledProtectsAnIdleIncumbentFromANewcomer() {
@@ -1570,6 +1613,71 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(
 			Set(pool.activeOrigins), ["claude_code:idle-one", "claude_code:active-one"],
 			"Evict Session Pets disabled must protect the idle incumbent — the newcomer stays pending")
+	}
+
+	func testUserHiddenSessionKeepsItsSlotAgainstAnInFlightNewcomerEvenWithEvictionEnabled() {
+		// The "I hid a pet meaning to revisit it and lost it" bug: with Evict
+		// Session Pets ENABLED, an idle hidden incumbent used to lose its cap
+		// slot to any in-flight newcomer, and the eviction purge then silently
+		// dropped its hidden flag. An explicit Hide must pin the slot.
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2],
+			evictSessionPetsEnabled: true)
+		var savedHiddenKeys: Set<String>? = nil
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() },
+			hiddenKeysSaver: { savedHiddenKeys = $0 }
+		)
+
+		// Tick 1: one idle + one active session both render (cap 2, exactly full).
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-hidden": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+			],
+			customization: customization
+		))
+		// The user explicitly hides the idle session to revisit it later.
+		pool.setVisible(false, for: "claude_code:idle-hidden")
+
+		// Tick 2: a 3rd (in-flight) newcomer arrives. Without pinning, eviction
+		// would hand the hidden session's slot to the newcomer and purge its
+		// hidden flag.
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-hidden": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:newcomer": makeSnapshot(state: .thinking, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+
+		XCTAssertEqual(
+			pool.hiddenWindowKeys, ["claude_code:idle-hidden"],
+			"the explicitly-hidden session must keep its hidden flag — not be purged by cap eviction")
+		XCTAssertEqual(
+			pool.pendingSessionKeys, ["claude_code:newcomer"],
+			"the newcomer is the one held back — the pinned hidden session keeps its slot")
+
+		// And showing the hidden session again respawns it into its retained
+		// slot, proving the slot really was kept rather than just the flag.
+		// The newcomer has gone idle by now: un-hiding removes the pin, so an
+		// idle ex-hidden session beats an equally-idle non-incumbent only via
+		// the incumbency tie-break — which is exactly what slot retention buys.
+		pool.setVisible(true, for: "claude_code:idle-hidden")
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:idle-hidden": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
+				"claude_code:active-one": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
+				"claude_code:newcomer": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:02.000Z"),
+			],
+			customization: customization
+		))
+		XCTAssertEqual(
+			Set(pool.activeOrigins), ["claude_code:idle-hidden", "claude_code:active-one"],
+			"un-hiding must respawn the ex-hidden session into its retained slot, beating the idle newcomer on incumbency")
+		_ = savedHiddenKeys
 	}
 
 	// MARK: - Live Idle Escalation Timing propagation
@@ -1963,15 +2071,21 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			"un-hiding a still-occupant session must respawn immediately without competing for a slot")
 	}
 
-	/// (P15.07-QC) A hidden session that genuinely loses the cap fight (a real
-	/// in-flight newcomer takes its slot, not a bogus backfill) must drop out
-	/// of `hiddenWindowKeys` the moment it's evicted — otherwise the menu keeps
-	/// offering a "Show" entry that does nothing when clicked, and the session
-	/// vanishes from both `activeOrigins` and `hiddenWindowKeys` with no way to
-	/// retry ("lost in the ether").
-	func testHiddenSessionThatLosesTheCapFightIsRemovedFromHiddenList() {
+	/// (P15.07-QC) A hidden session that genuinely loses the cap fight must
+	/// drop out of `hiddenWindowKeys` the moment it's evicted — otherwise the
+	/// menu keeps offering a "Show" entry that does nothing when clicked, and
+	/// the session vanishes from both `activeOrigins` and `hiddenWindowKeys`
+	/// with no way to retry ("lost in the ether").
+	///
+	/// Since hidden keys became pinned against passive eviction, the only way
+	/// a hidden session can still genuinely lose its slot is a deliberate cap
+	/// *reduction* below the pinned count — so that is the trigger here (an
+	/// in-flight newcomer, the old trigger, now leaves a hidden session
+	/// untouched: see
+	/// `testUserHiddenSessionKeepsItsSlotAgainstAnInFlightNewcomerEvenWithEvictionEnabled`).
+	func testHiddenSessionEvictedByACapReductionIsRemovedFromHiddenList() {
 		var savedCalls: [Set<String>] = []
-		let customization = makeCustomization(
+		var customization = makeCustomization(
 			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
 		let pool = FloatingPetWindowPool(
 			customizationReader: { customization },
@@ -1993,18 +2107,20 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		pool.setVisible(false, for: "claude_code:idle-a")
 		XCTAssertTrue(pool.hiddenWindowKeys.contains("claude_code:idle-a"))
 
-		// A genuine in-flight newcomer arrives — both slots correctly go to
-		// the two in-flight sessions, legitimately evicting idle-a.
+		// The user lowers the cap to 1 — a deliberate curation act that beats
+		// pinning. The single slot goes to the in-flight session, legitimately
+		// evicting hidden idle-a.
+		customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 1])
 		pool.update(snapshot: makeResolvedSnapshot(
 			perSession: [
 				"claude_code:idle-a": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z"),
 				"claude_code:active-b": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:01.000Z"),
-				"claude_code:active-c": makeSnapshot(state: .implementing, updated: "2026-07-01T10:00:02.000Z"),
 			],
 			customization: customization
 		))
 
-		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:active-b", "claude_code:active-c"])
+		XCTAssertEqual(Set(pool.activeOrigins), ["claude_code:active-b"])
 		XCTAssertFalse(
 			pool.hiddenWindowKeys.contains("claude_code:idle-a"),
 			"a hidden session that loses the cap fight must be dropped from hiddenWindowKeys, not left as a dead 'Show' entry")

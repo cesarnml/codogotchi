@@ -18,6 +18,12 @@ const CODOGOTCHI_HOME_REL = ".codogotchi";
 const CODOGOTCHI_STATE_D_REL = join(CODOGOTCHI_HOME_REL, "state.d");
 const FIRING_RECENTLY_WINDOW_MS = 5 * 60 * 1000;
 
+// A slice written by a pre-upgrade hook binary (older schema_version, e.g.
+// still carrying the pre-v9 hp/hp_overlay fields) fails safeParse here and is
+// silently skipped, same as in status.ts's readSliceDir. For an ended session
+// with no more hook events coming, this means it drops out of "most recent
+// activity" until something else overwrites the file — an accepted,
+// self-healing tradeoff of the same kind used for the v7→v8 migration.
 async function readLatestSliceForHooks(
   userRoot: string,
 ): Promise<{ updated_at: string; origin: string } | null> {

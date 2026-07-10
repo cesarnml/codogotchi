@@ -79,6 +79,29 @@ enum SessionSelectionPolicy {
 	/// A newcomer can still fill any slot that isn't already held by an
 	/// incumbent; only eviction of an existing occupant is suppressed.
 	///
+	/// `pinnedKeys` are window keys the user explicitly hid via "Hide Pet"
+	/// (`FloatingPetWindowPool.userHiddenWindowKeys`). A hidden session keeps
+	/// its cap slot by design (hide is concealment, not release), but before
+	/// this parameter it also kept its usual eviction rank — idle-bottom — so
+	/// with "Evict Session Pets" enabled, any in-flight newcomer would silently
+	/// take the hidden session's slot, and the pool's post-selection purge
+	/// would then drop its hidden flag: a pet the user deliberately set aside
+	/// to revisit later, lost to a passive background policy.
+	///
+	/// Pinning protects a pinned *incumbent* from **newcomers only**: after
+	/// the rank partition, any pinned incumbent that lost its slot to a
+	/// non-incumbent takes that newcomer's slot back (the newcomer goes
+	/// pending instead). It deliberately does NOT protect against a fellow
+	/// incumbent — on a cap *reduction*, the trimmed slots must go to the
+	/// highest-ranked visible sessions, not to an invisible hidden one (a
+	/// user watching their working pet vanish while "nothing" won the slot
+	/// would be strictly worse than the hidden pet dropping to plain
+	/// cap-pending, where it surfaces in the menu's Capped Sessions list).
+	/// This is a post-pass rather than a comparator tier because "beats
+	/// newcomers but yields to incumbents" is not expressible as a strict
+	/// weak ordering — with a pinned-idle incumbent, an unpinned-idle
+	/// incumbent, and an in-flight newcomer, the pairwise rules form a cycle.
+	///
 	/// `restrictNewPromotionsToInFlight` is the P15.07-QC prune-armed gate: once
 	/// an origin has had a manual Prune this app session, a session that was
 	/// NOT already rendered may only newly promote into a freed slot while it
@@ -97,6 +120,7 @@ enum SessionSelectionPolicy {
 		currentlyRendered: Set<String> = [],
 		updatedAt: [String: String] = [:],
 		incumbentsProtected: Bool = false,
+		pinnedKeys: Set<String> = [],
 		restrictNewPromotionsToInFlight: Bool = false
 	) -> Selection {
 		guard cap > 0 else {
@@ -130,13 +154,31 @@ enum SessionSelectionPolicy {
 		// prune-armed gate below trims a fresh, non-in-flight promotion out of it.
 		let renderCount = min(cap, ordered.count)
 		let rankedRendered = Set(ordered.suffix(renderCount))
-		let rendered: Set<String>
+		var rendered: Set<String>
 		if restrictNewPromotionsToInFlight {
 			rendered = rankedRendered.filter {
 				currentlyRendered.contains($0) || (sessions[$0]?.isInFlight ?? false)
 			}
 		} else {
 			rendered = rankedRendered
+		}
+		// Pinned rescue (see the `pinnedKeys` doc above): a pinned incumbent
+		// displaced by a NEWCOMER takes that newcomer's slot back. Losers are
+		// processed least-evictable-first and each claims the most evictable
+		// rendered newcomer still standing — both walks follow `ordered`, so
+		// the outcome is deterministic. A pinned incumbent that lost to a
+		// fellow incumbent finds no victim here and stays evicted (the cap-
+		// reduction case). The rescued key is gate-exempt by construction:
+		// `restrictNewPromotionsToInFlight` never re-evaluates incumbents.
+		if !pinnedKeys.isEmpty {
+			var victims = ordered.filter { rendered.contains($0) && !currentlyRendered.contains($0) }[...]
+			for loser in ordered.reversed()
+			where pinnedKeys.contains(loser) && currentlyRendered.contains(loser) && !rendered.contains(loser) {
+				guard let victim = victims.first else { break }
+				victims = victims.dropFirst()
+				rendered.remove(victim)
+				rendered.insert(loser)
+			}
 		}
 		let pending = Set(sessions.keys).subtracting(rendered)
 		// Blocked only when a genuinely in-flight session is the one held back —

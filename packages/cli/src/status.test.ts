@@ -47,8 +47,6 @@ function stateFixture(overrides?: Partial<StateJsonV1>): StateJsonV1 {
   return {
     schema_version: STATE_JSON_SCHEMA_VERSION,
     activity_state: "implementing",
-    hp_overlay: "thriving",
-    hp: 87,
     updated_at: NOW.toISOString(),
     source_event: {
       origin: "claude_code",
@@ -248,8 +246,6 @@ describe("runStatus reads from state.d/ slice directory (P12.02 red)", () => {
       origin: "codex",
       session_id: "ses-codex-old",
       activity_state: "idle",
-      hp_overlay: "thriving",
-      hp: 80,
       updated_at: new Date(NOW.getTime() - 60_000).toISOString(),
       source_event: { origin: "codex", kind: "tool_use", name: "Read" },
     };
@@ -258,8 +254,6 @@ describe("runStatus reads from state.d/ slice directory (P12.02 red)", () => {
       origin: "claude_code",
       session_id: "ses-claude-new",
       activity_state: "implementing",
-      hp_overlay: "thriving",
-      hp: 90,
       updated_at: NOW.toISOString(),
       source_event: { origin: "claude_code", kind: "tool_use", name: "Write" },
     };

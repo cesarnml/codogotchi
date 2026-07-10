@@ -13,12 +13,11 @@ protocol FloatingPetVisibilityControlling: AnyObject {
 @MainActor
 protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	func apply(state: ActivityState, visualMode: VisualMode)
-	func applyPromptTimerObservation(
-		state: ActivityState,
-		updatedAt: String,
-		sourceEvent: SourceEvent?,
-		attention: AttentionPayload?
-	)
+	/// Latest prompt-timer status for this window's render key, computed by the
+	/// pool's `PromptTimerTracker` (the pool owns the tracker so the timer keeps
+	/// correct time while no window exists — see `PromptTimerTracker`). The
+	/// window only displays it.
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?)
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
@@ -59,12 +58,7 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 }
 
 extension FloatingPetWindowControlling {
-	func applyPromptTimerObservation(
-		state: ActivityState,
-		updatedAt: String,
-		sourceEvent: SourceEvent?,
-		attention: AttentionPayload?
-	) {}
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {}
 	func applySessionNumber(_ number: Int?) {}
 	func applySessionLabel(_ label: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
@@ -79,12 +73,8 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func show(frame: CGRect)
 	func hide()
 	func apply(state: ActivityState, visualMode: VisualMode)
-	func applyPromptTimerObservation(
-		state: ActivityState,
-		updatedAt: String,
-		sourceEvent: SourceEvent?,
-		attention: AttentionPayload?
-	)
+	/// Pool-computed prompt-timer status for display (see `PromptTimerTracker`).
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?)
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
@@ -108,12 +98,7 @@ protocol FloatingPetPanelManaging: AnyObject {
 }
 
 extension FloatingPetPanelManaging {
-	func applyPromptTimerObservation(
-		state: ActivityState,
-		updatedAt: String,
-		sourceEvent: SourceEvent?,
-		attention: AttentionPayload?
-	) {}
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {}
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 	func applyGateBadge(content: GateBadgeContent?) {}
@@ -207,18 +192,8 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 		panel.apply(state: state, visualMode: visualMode)
 	}
 
-	func applyPromptTimerObservation(
-		state: ActivityState,
-		updatedAt: String,
-		sourceEvent: SourceEvent?,
-		attention: AttentionPayload?
-	) {
-		panel.applyPromptTimerObservation(
-			state: state,
-			updatedAt: updatedAt,
-			sourceEvent: sourceEvent,
-			attention: attention
-		)
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
+		panel.applyPromptTimerStatus(status)
 	}
 
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
@@ -330,12 +305,8 @@ protocol MinimalistPanelManaging: AnyObject {
 	func hide()
 	func applyPlatform(origin: String?)
 	func applyActivity(_ state: ActivityState)
-	func applyPromptTimerObservation(
-		state: ActivityState,
-		updatedAt: String,
-		sourceEvent: SourceEvent?,
-		attention: AttentionPayload?
-	)
+	/// Pool-computed prompt-timer status for display (see `PromptTimerTracker`).
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyPromptSummary(_ summary: String)
 	func applyBadgeScale(_ scale: Double)
@@ -355,12 +326,7 @@ protocol MinimalistPanelManaging: AnyObject {
 }
 
 extension MinimalistPanelManaging {
-	func applyPromptTimerObservation(
-		state: ActivityState,
-		updatedAt: String,
-		sourceEvent: SourceEvent?,
-		attention: AttentionPayload?
-	) {}
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {}
 	func applySessionLabel(_ label: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 }
@@ -461,18 +427,8 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		refreshPromptSummary()
 	}
 
-	func applyPromptTimerObservation(
-		state: ActivityState,
-		updatedAt: String,
-		sourceEvent: SourceEvent?,
-		attention: AttentionPayload?
-	) {
-		panel.applyPromptTimerObservation(
-			state: state,
-			updatedAt: updatedAt,
-			sourceEvent: sourceEvent,
-			attention: attention
-		)
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
+		panel.applyPromptTimerStatus(status)
 	}
 
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {

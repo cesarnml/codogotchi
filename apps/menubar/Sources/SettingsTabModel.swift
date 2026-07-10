@@ -5,6 +5,7 @@ enum SettingsTab: Int, CaseIterable {
 	case general
 	case pet
 	case customization
+	case sessions
 	case rpg
 	case developer
 	case about
@@ -14,6 +15,7 @@ enum SettingsTab: Int, CaseIterable {
 		case .general: return "General"
 		case .pet: return "Pet"
 		case .customization: return "Customization"
+		case .sessions: return "Sessions"
 		case .rpg: return "RPG"
 		case .developer: return "Developer"
 		case .about: return "About"
@@ -27,6 +29,7 @@ enum SettingsTab: Int, CaseIterable {
 		case .general: return "gearshape"
 		case .pet: return "pawprint"
 		case .customization: return "wand.and.stars"
+		case .sessions: return "clock.arrow.2.circlepath"
 		case .rpg: return "gamecontroller.fill"
 		case .developer: return "chevron.left.forwardslash.chevron.right"
 		case .about: return "info.circle"

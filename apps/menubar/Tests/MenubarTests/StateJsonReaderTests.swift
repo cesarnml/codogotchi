@@ -104,11 +104,11 @@ final class StateJsonReaderTests: XCTestCase {
 			return
 		}
 		XCTAssertEqual(got, 99)
-		XCTAssertEqual(expected, 8)
+		XCTAssertEqual(expected, 9)
 	}
 
-	func testExpectedSchemaVersionIs8() {
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 8)
+	func testExpectedSchemaVersionIs9() {
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 9)
 	}
 
 	func testSchemaVersion4ParsesSuccessfullyAfterV4Bump() throws {
@@ -292,8 +292,9 @@ final class StateJsonReaderTests: XCTestCase {
 	// MARK: - Schema v4 vocabulary (P7.01 — [red])
 
 	func testExpectedSchemaVersionIsV8WasV4() {
-		// Updated to v5 in P10.06, v6 for revive_until, v7 for state.d slice reader
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 8)
+		// Updated to v5 in P10.06, v6 for revive_until, v7 for state.d slice
+		// reader, v8 for RPG-fields-out, v9 for hp/hp_overlay-out
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 9)
 	}
 
 	func testTicketStartedIsAValidV4State() {
@@ -353,8 +354,9 @@ final class StateJsonReaderTests: XCTestCase {
 	// MARK: - Schema v5 RPG fields (P10.06 — [red])
 
 	func testExpectedSchemaVersionIsV8WasV5() {
-		// Bumped to v6 for revive_until, v7 for state.d slice reader
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 8)
+		// Bumped to v6 for revive_until, v7 for state.d slice reader, v8 for
+		// RPG-fields-out, v9 for hp/hp_overlay-out
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 9)
 	}
 
 	func testSchemaVersion6ParsesSuccessfullyAfterV6Bump() throws {
@@ -425,11 +427,11 @@ final class StateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(snapshot.activityState, .idle)
 	}
 
-	func testSchemaVersion9FailsWithSchemaNewer() throws {
-		// v9 is newer than expected (v8) and must be refused.
+	func testSchemaVersion10FailsWithSchemaNewer() throws {
+		// v10 is newer than expected (v9) and must be refused.
 		let tmp = FileManager.default.temporaryDirectory
-			.appendingPathComponent("schema-v9-\(UUID().uuidString).json")
-		try #"{"schema_version": 9, "activity_state": "idle", "updated_at": "x"}"#
+			.appendingPathComponent("schema-v10-\(UUID().uuidString).json")
+		try #"{"schema_version": 10, "activity_state": "idle", "updated_at": "x"}"#
 			.write(to: tmp, atomically: true, encoding: .utf8)
 		defer { try? FileManager.default.removeItem(at: tmp) }
 
@@ -442,8 +444,8 @@ final class StateJsonReaderTests: XCTestCase {
 			XCTFail("expected schemaNewer, got \(error)")
 			return
 		}
-		XCTAssertEqual(got, 9)
-		XCTAssertEqual(expected, 8)
+		XCTAssertEqual(got, 10)
+		XCTAssertEqual(expected, 9)
 	}
 
 	func testV5PayloadDecodesLevelHalfHeartsAndLevelFraction() throws {
@@ -710,8 +712,8 @@ final class SliceDirReaderTests: XCTestCase {
 
 	// MARK: - Schema version
 
-	func testExpectedSchemaVersionIs8() {
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 8)
+	func testExpectedSchemaVersionIs9() {
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 9)
 	}
 
 	// MARK: - Schema v8 slice (P13.03 — [red])

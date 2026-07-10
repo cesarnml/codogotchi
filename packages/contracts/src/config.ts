@@ -1,11 +1,22 @@
 import { z } from "zod";
 import { healthConfigSchema } from "./sync-profile";
 
+// Health-logic knobs owned by the macOS Settings > RPG tab. The menubar app
+// writes the full object; the CLI consumes the decay/regen timings and
+// `skip_weekends` for the half-heart computation, while the sickness-trigger
+// keys (render-side only) pass through untyped.
+const healthLogicSchema = z.object({
+  skip_weekends: z.boolean().optional(),
+  inactivity_decay_hours: z.number().positive().optional(),
+  activity_regen_minutes: z.number().positive().optional(),
+});
+
 const configBaseSchema = z.object({
   profile_id: z.string().min(1),
   features: z.object({
     rpg_enabled: z.boolean(),
   }),
+  health_logic: healthLogicSchema.optional(),
 });
 
 const liteConfigSchema = configBaseSchema.extend({

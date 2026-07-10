@@ -1,4 +1,4 @@
-# Animation State Vocabulary (v8)
+# Animation State Vocabulary (v9)
 
 The contract for the data the codogotchi hook binary writes to
 `~/.codogotchi/state.d/<origin>:<session_id>.json` on every relevant Claude Code / Codex / Cursor lifecycle event,
@@ -83,6 +83,41 @@ decodes each file as a `SliceEntry` (see § v7 slice-entry shape below), applies
 - `EXPECTED_STATE_SCHEMA_VERSION = 8` in Swift; `STATE_JSON_SCHEMA_VERSION = 8` in TS CLI.
 - The macOS app is v2.0.0 as of Phase 13. The menubar icon is now a static app icon (no per-tick animation); all animation is in the floating panels.
 - Renderers that expect v7 or lower will gray out on v8 slices (forward-compat policy: refuse higher versions).
+
+**v9 removes `hp`/`hp_overlay` from both the slice-entry shape and the resolved `StateJsonV1` shape.** They were pure denormalization: the hook binary read `profile.json` on every write and stamped a copy of `hp`/`hp_overlay` into the slice, but no renderer (the Swift menu-bar app) ever decoded those keys off a slice or `state.json` — the pet's HP-driven visuals come from `~/.codogotchi/rpg-state.json`'s `half_hearts`, and `codogotchi status` now reads `hp`/`mood` directly from the profile cache instead of from the aggregated slice. Key v9 properties:
+
+- Slice files carry only `origin`, `session_id`, `activity_state`, `source_event`, `updated_at`, and the optional `attention`/`tool_command`/`pid` fields. `hp`/`hp_overlay` are no longer valid keys — `sliceEntrySchema` is `.strict()` and rejects them.
+- `StateJsonV1` keeps `hp`/`hp_overlay` as `.optional()` (not removed) so v1–v8 payloads written by an older hook binary still parse under the forward-compat policy; `globalAggregate`/`perPlatform` never populate them on the resolved shape.
+- `EXPECTED_STATE_SCHEMA_VERSION = 9` in Swift; `STATE_JSON_SCHEMA_VERSION = 9` in TS CLI.
+
+### Current on-disk slice shape (v9)
+
+The § Resolved state shape and § v7 slice-entry shape sections below are kept
+for historical reference (each documents the shape at the version it was
+written) — this section is the authoritative current shape. A v9 slice file
+(`state.d/<origin>:<session_id>.json`) is:
+
+```json
+{
+  "origin": "claude_code",
+  "session_id": "sess-abc123",
+  "activity_state": "testing",
+  "updated_at": "2026-06-03T04:00:01.000Z",
+  "source_event": {
+    "origin": "claude_code",
+    "kind": "tool_use",
+    "name": "Bash"
+  },
+  "tool_command": "bun test packages/contracts"
+}
+```
+
+Required fields: `origin`, `session_id`, `activity_state`, `updated_at`,
+`source_event`. `attention` and `tool_command` are optional. `hp`, `hp_overlay`,
+`level`, `level_fraction`, `half_hearts`, `last_activity_at`, and `revive_until`
+are **not** valid slice keys — `sliceEntrySchema` is `.strict()` and rejects
+them. RPG values live in `~/.codogotchi/rpg-state.json`; HP/mood live in
+`~/.codogotchi/profile.json`.
 
 ### Forward-compatibility policy
 
@@ -197,14 +232,18 @@ The HP overlay is orthogonal to activity state. A pet can be `implementing`
 | `near_death`   | `0 < HP ≤ 25`     | Heavy distress. Strong visual cue (sweat, gasp). |
 | `ghost`        | `HP ≤ 0`          | Dead. Renderer shows ghost form until revived.   |
 
-HP is server-canonical and computed in Convex's `syncProfile` mutation. The
-hook binary itself does not compute HP; it writes the activity state plus the
-last-seen HP overlay it received from the most recent sync. HP bucket
+HP is server-canonical and computed in Convex's `syncProfile` mutation. As of
+v9 the hook binary no longer reads or forwards HP at all — it writes only the
+activity state to the slice. `~/.codogotchi/profile.json` (the local cache of
+the last sync response) is the sole place HP/mood are carried on disk;
+`codogotchi status` reads `hp`/`mood` from that cache directly. HP bucket
 boundaries are confirmed by the engine implementation in **P1.04** — if P1.04
 discovers a more honest curve (e.g. half-life decay around 50), it updates this
 table and bumps `schema_version`.
 
 ## Resolved state shape (v7)
+
+> Historical: documents the shape as of v7. See § Current on-disk slice shape (v9) above for what the schema requires today.
 
 The renderer collapses `state.d/` slices via `globalAggregate` into a `StateJsonV1` object with `schema_version: 7`. This is the shape the renderer operates on internally — it is not written to disk as a single file. The on-disk format is the slice-entry shape above.
 
@@ -296,6 +335,8 @@ The hook binary creates `state.d/` with `mkdir -p` on first write. Readers must 
 - `~/.codogotchi/state.json`
 
 ### v7 slice-entry shape (`state.d/<origin>:<session_id>.json`)
+
+> Historical: documents the shape as of v7 (before the v8 RPG-field extraction and the v9 hp/hp_overlay removal). See § Current on-disk slice shape (v9) above.
 
 Each slice file is a JSON object validated against `sliceEntrySchema` in `packages/contracts/src/slice-entry.ts`. The file has **no `schema_version` field** — versioning is implicit in the writer/reader constants.
 
