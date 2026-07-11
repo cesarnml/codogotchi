@@ -115,22 +115,13 @@ enum SessionCapOption: Int, LabeledIntPreset {
 	}
 }
 
-extension Notification.Name {
-	/// Posted after a `customization.json` write made outside the Settings UI —
-	/// the floating panels' right-click mode-switch affordances (Pet Mode ↔
-	/// Minimalist Mode) — so an open Customization tab can `reload()` its view
-	/// model and re-sync its controls. The Settings tab's own writes never post
-	/// this; its controls are already the source of those changes.
-	static let customizationDidChangeExternally = Notification.Name(
-		"CodogotchiCustomizationDidChangeExternally")
-}
-
 /// View model for the Customization settings tab.
 ///
-/// Exposes per-platform mode pickers and an idle-dismiss TTL picker.
-/// Changes are immediately persisted to `customization.json` via a
-/// read-merge-write so unmanaged keys (e.g. `menubar_icon_monochrome`)
-/// are never clobbered.
+/// Exposes per-platform mode pickers and an idle-dismiss TTL picker. A
+/// view-facing adapter over `CustomizationStore`: every write is delegated to
+/// the store (the sole `customization.json` writer), and in-memory state is
+/// only updated from the snapshot the store returns — no read-merge-write of
+/// its own.
 final class CustomizationTabViewModel {
 	/// Fixed origin list mirroring the TS `SourceEventOrigin` union.
 	/// Shown in stable display order so the UI is consistent across sessions.
@@ -151,7 +142,7 @@ final class CustomizationTabViewModel {
 	private(set) var evictSessionPetsEnabled: Bool
 	private(set) var archiveSessionAfterIdleSeconds: Int
 	private(set) var pruneArchivedSessionsAfterSeconds: Int
-	private let filePath: String
+	private let store: CustomizationStore
 	/// Live `state.d/` directory read at the instant session-pets is toggled
 	/// on for an origin, to identify the session to grandfather in as
 	/// "Session 1". Overridable so tests can point at a fixture directory.
@@ -164,18 +155,36 @@ final class CustomizationTabViewModel {
 	/// Overridable so tests can assert exact, non-flaky timestamps instead of
 	/// racing the wall clock's 1-second ISO 8601 string resolution.
 	private let now: () -> Date
+	private var subscriptionToken: CustomizationStore.Token?
+	/// Guards the store's publish callback against firing for this instance's
+	/// OWN writes — a write this instance itself made already updates its
+	/// in-memory state directly (see each setter below); only a write from a
+	/// DIFFERENT call site sharing this instance's store (e.g. a right-click
+	/// mode switch, wired through the same store in `MenubarApp`) should raise
+	/// `onExternalChange`. Mirrors the pre-refactor contract, where the
+	/// Settings tab's own writes never posted the old external-change
+	/// notification.
+	private var isApplyingOwnWrite = false
+
+	/// Called after the store publishes a snapshot NOT caused by this
+	/// instance's own writes — the replacement for the old
+	/// NotificationCenter-based external-change notification.
+	/// `CustomizationTabView` sets this to re-sync its controls.
+	var onExternalChange: (() -> Void)?
 
 	init(
 		filePath: String = CodogotchiFolders.customizationPath(),
 		stateDirectoryPath: String = CodogotchiFolders.stateDirectoryPath(),
 		sessionLabelPath: String = SessionLabelStore.path(),
-		now: @escaping () -> Date = Date.init
+		now: @escaping () -> Date = Date.init,
+		store: CustomizationStore? = nil
 	) {
-		self.filePath = filePath
+		let store = store ?? CustomizationStore(filePath: filePath)
+		self.store = store
 		self.stateDirectoryPath = stateDirectoryPath
 		self.sessionLabelPath = sessionLabelPath
 		self.now = now
-		let snapshot = CustomizationJsonReader.read(at: filePath)
+		let snapshot = store.snapshot
 		self.platformModes = snapshot.platformModes
 		self.idleDismissTtlSeconds = snapshot.idleDismissTtlSeconds
 		self.combinedMinimalistEnabled = snapshot.combinedMinimalistEnabled
@@ -189,15 +198,20 @@ final class CustomizationTabViewModel {
 		self.evictSessionPetsEnabled = snapshot.evictSessionPetsEnabled
 		self.archiveSessionAfterIdleSeconds = snapshot.archiveSessionAfterIdleSeconds
 		self.pruneArchivedSessionsAfterSeconds = snapshot.pruneArchivedSessionsAfterSeconds
+		subscriptionToken = store.subscribe { [weak self] snapshot in
+			guard let self, !self.isApplyingOwnWrite else { return }
+			self.applySnapshot(snapshot)
+			self.onExternalChange?()
+		}
 	}
 
-	/// Re-reads `customization.json` and replaces all in-memory state. Used when
-	/// another writer changed the file behind this instance's back — e.g. the
-	/// floating panels' right-click mode-switch affordances, which persist via
-	/// their own short-lived view model and then post
-	/// `.customizationDidChangeExternally` so the open Settings tab can re-sync.
-	func reload() {
-		let snapshot = CustomizationJsonReader.read(at: filePath)
+	deinit {
+		if let subscriptionToken {
+			store.unsubscribe(subscriptionToken)
+		}
+	}
+
+	private func applySnapshot(_ snapshot: CustomizationSnapshot) {
 		platformModes = snapshot.platformModes
 		idleDismissTtlSeconds = snapshot.idleDismissTtlSeconds
 		combinedMinimalistEnabled = snapshot.combinedMinimalistEnabled
@@ -213,42 +227,32 @@ final class CustomizationTabViewModel {
 		pruneArchivedSessionsAfterSeconds = snapshot.pruneArchivedSessionsAfterSeconds
 	}
 
+	/// Re-reads `customization.json` (via the store) and replaces all
+	/// in-memory state. Used when another writer changed the file behind this
+	/// instance's back — e.g. the floating panels' right-click mode-switch
+	/// affordances, which now write through the same shared store instance.
+	func reload() {
+		isApplyingOwnWrite = true
+		defer { isApplyingOwnWrite = false }
+		applySnapshot(store.reload())
+	}
+
 	func mode(for origin: String) -> PlatformMode {
 		platformModes[origin] ?? .own
 	}
 
 	func setMode(_ mode: PlatformMode, for origin: String) {
-		var proposed = platformModes
-		if mode == .own {
-			proposed.removeValue(forKey: origin)
-		} else {
-			proposed[origin] = mode
-		}
-		// NSNull removes the key when all modes are default (.own), avoiding an
-		// empty platform_modes object in the file.
-		let modesValue: Any =
-			proposed.isEmpty ? NSNull() : proposed.mapValues { $0.rawValue }
-		do {
-			try ConfigFileWriter.merge(
-				["platform_modes": modesValue],
-				into: URL(fileURLWithPath: filePath)
-			)
-			platformModes = proposed
-		} catch {
-			NSLog("CustomizationTabViewModel: mode write failed — \(error)")
-		}
+		isApplyingOwnWrite = true
+		defer { isApplyingOwnWrite = false }
+		guard let snapshot = store.setMode(mode, for: origin) else { return }
+		platformModes = snapshot.platformModes
 	}
 
 	func setTTL(_ seconds: Int) {
-		do {
-			try ConfigFileWriter.merge(
-				["idle_dismiss_ttl_seconds": seconds],
-				into: URL(fileURLWithPath: filePath)
-			)
-			idleDismissTtlSeconds = seconds
-		} catch {
-			NSLog("CustomizationTabViewModel: TTL write failed — \(error)")
-		}
+		isApplyingOwnWrite = true
+		defer { isApplyingOwnWrite = false }
+		guard let snapshot = store.merge(["idle_dismiss_ttl_seconds": seconds]) else { return }
+		idleDismissTtlSeconds = snapshot.idleDismissTtlSeconds
 	}
 
 	/// Persists the Impatient threshold. Also bumps the Frustrated threshold to
@@ -279,89 +283,63 @@ final class CustomizationTabViewModel {
 		} else {
 			newFrustrated = (timedOptions.first { $0.rawValue > seconds } ?? .never).rawValue
 		}
-		do {
-			try ConfigFileWriter.merge(
-				[
-					"idle_impatient_seconds": seconds,
-					"idle_frustrated_seconds": newFrustrated,
-				],
-				into: URL(fileURLWithPath: filePath)
-			)
-			idleImpatientSeconds = seconds
-			idleFrustratedSeconds = newFrustrated
-		} catch {
-			NSLog("CustomizationTabViewModel: idle-impatient write failed — \(error)")
-		}
+		isApplyingOwnWrite = true
+		defer { isApplyingOwnWrite = false }
+		guard
+			let snapshot = store.merge([
+				"idle_impatient_seconds": seconds,
+				"idle_frustrated_seconds": newFrustrated,
+			])
+		else { return }
+		idleImpatientSeconds = snapshot.idleImpatientSeconds
+		idleFrustratedSeconds = snapshot.idleFrustratedSeconds
 	}
 
 	/// Persists the Frustrated threshold directly — never adjusts Impatient.
 	func setIdleFrustratedSeconds(_ seconds: Int) {
-		do {
-			try ConfigFileWriter.merge(
-				["idle_frustrated_seconds": seconds],
-				into: URL(fileURLWithPath: filePath)
-			)
-			idleFrustratedSeconds = seconds
-		} catch {
-			NSLog("CustomizationTabViewModel: idle-frustrated write failed — \(error)")
-		}
+		isApplyingOwnWrite = true
+		defer { isApplyingOwnWrite = false }
+		guard let snapshot = store.merge(["idle_frustrated_seconds": seconds]) else { return }
+		idleFrustratedSeconds = snapshot.idleFrustratedSeconds
 	}
 
 	/// Persists the "Evict Session Pets" kill-switch. `true` (default)
 	/// preserves today's rank-based session-cap eviction; `false` protects
 	/// every incumbent session from eviction regardless of rank.
 	func setEvictSessionPetsEnabled(_ enabled: Bool) {
-		do {
-			try ConfigFileWriter.merge(
-				["evict_session_pets_enabled": enabled],
-				into: URL(fileURLWithPath: filePath)
-			)
-			evictSessionPetsEnabled = enabled
-		} catch {
-			NSLog("CustomizationTabViewModel: evict-session-pets write failed — \(error)")
-		}
+		isApplyingOwnWrite = true
+		defer { isApplyingOwnWrite = false }
+		guard let snapshot = store.merge(["evict_session_pets_enabled": enabled]) else { return }
+		evictSessionPetsEnabled = snapshot.evictSessionPetsEnabled
 	}
 
 	/// Persists the Sessions tab's "Archive Session After Idle" TTL — the
 	/// Active/Live vs. Archived tier boundary `SessionsTabViewModel` reads on
 	/// every `refresh()`.
 	func setArchiveSessionAfterIdleSeconds(_ seconds: Int) {
-		do {
-			try ConfigFileWriter.merge(
-				["archive_session_after_idle_seconds": seconds],
-				into: URL(fileURLWithPath: filePath)
-			)
-			archiveSessionAfterIdleSeconds = seconds
-		} catch {
-			NSLog("CustomizationTabViewModel: archive-session-after-idle write failed — \(error)")
-		}
+		isApplyingOwnWrite = true
+		defer { isApplyingOwnWrite = false }
+		guard let snapshot = store.merge(["archive_session_after_idle_seconds": seconds])
+		else { return }
+		archiveSessionAfterIdleSeconds = snapshot.archiveSessionAfterIdleSeconds
 	}
 
 	/// Persists the Sessions tab's "Prune Archived Sessions" TTL — the
 	/// Archived tier's deletion horizon, read by both `SessionsTabViewModel`
 	/// and `SlicePruneScheduler`'s background sweep so the two never drift.
 	func setPruneArchivedSessionsAfterSeconds(_ seconds: Int) {
-		do {
-			try ConfigFileWriter.merge(
-				["prune_archived_sessions_after_seconds": seconds],
-				into: URL(fileURLWithPath: filePath)
-			)
-			pruneArchivedSessionsAfterSeconds = seconds
-		} catch {
-			NSLog("CustomizationTabViewModel: prune-archived-sessions write failed — \(error)")
-		}
+		isApplyingOwnWrite = true
+		defer { isApplyingOwnWrite = false }
+		guard let snapshot = store.merge(["prune_archived_sessions_after_seconds": seconds])
+		else { return }
+		pruneArchivedSessionsAfterSeconds = snapshot.pruneArchivedSessionsAfterSeconds
 	}
 
 	func setCombinedMinimalistEnabled(_ enabled: Bool) {
-		do {
-			try ConfigFileWriter.merge(
-				["combined_minimalist_enabled": enabled],
-				into: URL(fileURLWithPath: filePath)
-			)
-			combinedMinimalistEnabled = enabled
-		} catch {
-			NSLog("CustomizationTabViewModel: combined-minimalist write failed — \(error)")
-		}
+		isApplyingOwnWrite = true
+		defer { isApplyingOwnWrite = false }
+		guard let snapshot = store.setCombinedMinimalistEnabled(enabled) else { return }
+		combinedMinimalistEnabled = snapshot.combinedMinimalistEnabled
 	}
 
 	/// Effective per-origin session cap for UI display: the persisted value, or
@@ -415,15 +393,13 @@ final class CustomizationTabViewModel {
 			updates["session_pets_grandfathered_session_id"] = proposedGrandfather
 		}
 
-		do {
-			try ConfigFileWriter.merge(updates, into: URL(fileURLWithPath: filePath))
-			sessionPetsEnabled = proposed
-			sessionPetsActivatedAt = proposedActivatedAt
-			sessionPetsGrandfatheredSessionId = proposedGrandfather
-		} catch {
-			NSLog("CustomizationTabViewModel: session-pets-enabled write failed — \(error)")
-			return
-		}
+		isApplyingOwnWrite = true
+		let snapshot = store.merge(updates)
+		isApplyingOwnWrite = false
+		guard let snapshot else { return }
+		sessionPetsEnabled = snapshot.sessionPetsEnabled
+		sessionPetsActivatedAt = snapshot.sessionPetsActivatedAt
+		sessionPetsGrandfatheredSessionId = snapshot.sessionPetsGrandfatheredSessionId
 
 		// Carry over the plain-origin window's existing custom label (if any)
 		// to the grandfathered session's new key, so a rename survives the
@@ -486,31 +462,18 @@ final class CustomizationTabViewModel {
 	/// Persists the per-origin session cap. Callers pass
 	/// `CustomizationSnapshot.unlimitedSessionCap` (`0`) for the Unlimited option.
 	func setSessionCap(_ cap: Int, for origin: String) {
+		isApplyingOwnWrite = true
+		defer { isApplyingOwnWrite = false }
 		var proposed = sessionCap
 		proposed[origin] = cap
-		do {
-			try ConfigFileWriter.merge(
-				["session_cap": proposed],
-				into: URL(fileURLWithPath: filePath)
-			)
-			sessionCap = proposed
-		} catch {
-			NSLog("CustomizationTabViewModel: session-cap write failed — \(error)")
-		}
+		guard let snapshot = store.merge(["session_cap": proposed]) else { return }
+		sessionCap = snapshot.sessionCap
 	}
 
 	func setMinimalistBadgeScale(_ scale: Double) {
-		let clamped = max(
-			Double(GateBadgeLayout.achievableMinScale), min(Double(GateBadgeLayout.achievableMaxScale), scale)
-		)
-		do {
-			try ConfigFileWriter.merge(
-				["minimalist_badge_scale": clamped],
-				into: URL(fileURLWithPath: filePath)
-			)
-			minimalistBadgeScale = clamped
-		} catch {
-			NSLog("CustomizationTabViewModel: badge scale write failed — \(error)")
-		}
+		isApplyingOwnWrite = true
+		defer { isApplyingOwnWrite = false }
+		guard let snapshot = store.setMinimalistBadgeScale(scale) else { return }
+		minimalistBadgeScale = snapshot.minimalistBadgeScale
 	}
 }

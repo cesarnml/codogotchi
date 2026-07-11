@@ -154,7 +154,7 @@ final class GeneralTabViewModel {
 	private let statusClient: HookStatusClient
 	private let appVersion: String
 	private let hookVersion: String
-	private let customizationFilePath: String
+	private let store: CustomizationStore
 	private let configFileURL: URL
 
 	init(
@@ -162,32 +162,26 @@ final class GeneralTabViewModel {
 		appVersion: String = AboutViewModel.bundleShortVersion(),
 		hookVersion: String = AboutViewModel.bundledHookVersion(),
 		customizationFilePath: String = CodogotchiFolders.customizationPath(),
-		configFileURL: URL = PetConfig.configURL()
+		configFileURL: URL = PetConfig.configURL(),
+		store: CustomizationStore? = nil
 	) {
 		self.statusClient = statusClient
 		self.appVersion = appVersion
 		self.hookVersion = hookVersion
-		self.customizationFilePath = customizationFilePath
+		self.store = store ?? CustomizationStore(filePath: customizationFilePath)
 		self.configFileURL = configFileURL
-		self.menubarIconMonochrome = CustomizationJsonReader.read(at: customizationFilePath).menubarIconMonochrome
+		self.menubarIconMonochrome = self.store.snapshot.menubarIconMonochrome
 		self.requirePruneConfirmation = !PetConfig.resolvedSkipPruneConfirmation(from: configFileURL)
 	}
 
-	/// Persists `menubar_icon_monochrome` to `customization.json` without clobbering
-	/// unmanaged keys. Returns `true` when the write succeeded; in-memory state is
-	/// only updated on success so it stays in sync with what survives a relaunch.
+	/// Persists `menubar_icon_monochrome` through the shared `CustomizationStore`
+	/// (the sole `customization.json` writer) without clobbering unmanaged keys.
+	/// Returns `true` when the write succeeded; in-memory state is only updated
+	/// on success so it stays in sync with what survives a relaunch.
 	@discardableResult
 	func setMonochromeMenubarIcon(_ value: Bool) -> Bool {
-		do {
-			try ConfigFileWriter.merge(
-				["menubar_icon_monochrome": value],
-				into: URL(fileURLWithPath: customizationFilePath)
-			)
-		} catch {
-			NSLog("GeneralTabViewModel: monochrome write failed — \(error)")
-			return false
-		}
-		menubarIconMonochrome = value
+		guard let snapshot = store.merge(["menubar_icon_monochrome": value]) else { return false }
+		menubarIconMonochrome = snapshot.menubarIconMonochrome
 		return true
 	}
 

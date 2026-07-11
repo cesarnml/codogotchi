@@ -54,10 +54,17 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		petImportHelper: PetImportHelper = PetImportHelper(),
 		petTabViewModel: PetTabViewModel = PetTabViewModel(),
 		rpgTabViewModel: RPGTabViewModel = RPGTabViewModel(),
-		customizationTabViewModel: CustomizationTabViewModel = CustomizationTabViewModel(),
+		// The store both Customization/General view models below adapt over
+		// when a caller does not inject its own view model directly. Passing
+		// this (rather than a `CustomizationTabViewModel`/`GeneralTabViewModel`
+		// instance) is how `MenubarApp` shares its single `customization.json`
+		// writer with the Settings window's tabs, without constructing a
+		// `CustomizationTabViewModel` itself.
+		customizationStore: CustomizationStore = CustomizationStore(),
+		customizationTabViewModel: CustomizationTabViewModel? = nil,
 		sessionsTabViewModel: SessionsTabViewModel = SessionsTabViewModel(),
 		aboutViewModel: AboutViewModel = AboutViewModel(),
-		generalViewModel: GeneralTabViewModel = GeneralTabViewModel(),
+		generalViewModel: GeneralTabViewModel? = nil,
 		appStateLoader: @escaping () -> FloatingAppState = {
 			AppStateStore.load(visibleFrame: NSScreen.main?.visibleFrame ?? .zero)
 		},
@@ -67,10 +74,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		self.petImportHelper = petImportHelper
 		self.petTabViewModel = petTabViewModel
 		self.rpgTabViewModel = rpgTabViewModel
-		self.customizationTabViewModel = customizationTabViewModel
+		self.customizationTabViewModel =
+			customizationTabViewModel ?? CustomizationTabViewModel(store: customizationStore)
 		self.sessionsTabViewModel = sessionsTabViewModel
 		self.aboutViewModel = aboutViewModel
-		self.generalViewModel = generalViewModel
+		self.generalViewModel = generalViewModel ?? GeneralTabViewModel(store: customizationStore)
 		self.appStateLoader = appStateLoader
 		self.appStateSaver = appStateSaver
 	}
