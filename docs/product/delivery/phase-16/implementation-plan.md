@@ -66,7 +66,7 @@ All seven conditions from the product plan hold on `v3_preview`, with evidence r
 
 Run `bun run ci:quiet` on `v3_preview` before P16.01 starts and record the result here. This snapshot makes per-ticket CI diffs unambiguous — an agent can tell whether a failure is pre-existing or introduced.
 
-> Baseline recorded: pending — record before P16.01 execution begins.
+> Baseline recorded: 2026-07-11, `bun run ci:quiet` on `v3_preview` @ a7b7eeb9 — `CodogotchiTests.xctest`: 1015 tests, 0 failures. `** TEST SUCCEEDED **`.
 
 ## Review Rules
 
