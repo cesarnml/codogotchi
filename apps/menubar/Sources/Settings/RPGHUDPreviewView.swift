@@ -61,4 +61,3 @@ final class RPGHUDPreviewView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 }
-

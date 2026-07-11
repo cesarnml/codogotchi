@@ -22,4 +22,3 @@ final class RPGHUDIconTileView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 }
-

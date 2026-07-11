@@ -548,4 +548,3 @@ final class RPGTabView: NSView {
 			: "Health still runs; illness visuals are suppressed."
 	}
 }
-

@@ -31,4 +31,3 @@ final class RPGMiniRingIconView: NSView {
 		shapeLayer.path = path
 	}
 }
-

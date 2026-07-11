@@ -698,4 +698,3 @@ final class CustomizationTabView: NSView {
 		viewModel.setMinimalistBadgeScale(sender.doubleValue)
 	}
 }
-
