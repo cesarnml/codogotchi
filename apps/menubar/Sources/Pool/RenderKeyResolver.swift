@@ -107,7 +107,16 @@ func resolveRenderKeys(
 				}
 				renderKey = .session(origin: origin, id: sessionId)
 			} else {
-				renderKey = .origin(origin)
+				// Canonicalize through the single rawValue parse path rather than
+				// constructing `.origin(origin)` directly: an origin literally equal
+				// to `"combined"` must still fold into the shared `.combined` window
+				// key, matching the pre-WindowKey string convention exactly (a bare
+				// origin string of `"combined"` was always indistinguishable from
+				// the synthetic combined-window key). No real hook-registered
+				// platform origin is ever literally `"combined"`, but preserving
+				// this collision keeps key-resolution semantics byte-identical to
+				// before the refactor (P16.04 subagent-review finding).
+				renderKey = WindowKey(rawValue: origin) ?? .origin(origin)
 			}
 		}
 		consider(renderKey: renderKey, origin: origin, sessionId: sessionId, snapshot: snapshot)
