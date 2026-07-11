@@ -197,6 +197,40 @@ final class PerSessionReaderTests: XCTestCase {
 		XCTAssertEqual(resolution.states["claude_code"]?.activityState, .implementing)
 	}
 
+	/// Subagent-review finding (P16.04): a plain origin whose literal name is
+	/// `"combined"` (mode `.own`, session-pets off) must still fold to the
+	/// `.combined` `WindowKey` — matching the pre-WindowKey string convention,
+	/// where a bare origin string of `"combined"` was byte-identical to (and
+	/// therefore indistinguishable from) the synthetic shared-combined-window
+	/// key. No real hook-registered platform is ever literally named
+	/// `"combined"`, but `resolveRenderKeys` must not introduce a new
+	/// `.origin("combined")` case that the pool would treat as a distinct,
+	/// separately-windowed key from `.combined`.
+	func testPlainOriginLiterallyNamedCombinedFoldsToCombinedKey() throws {
+		let dir = makeTempDir()
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let now = Date()
+		try writeSlice(
+			dir, filename: "combined:s1.json", origin: "combined", state: "idle",
+			updatedAt: "2026-06-28T10:00:00.000Z")
+
+		guard case .success(let perSession) = StateJsonReader.readPerSessionDirectory(
+			at: dir.path, now: now)
+		else { return XCTFail("read must succeed") }
+
+		// Default customization: mode .own (default), session-pets off — the
+		// branch that folds to a plain-origin key.
+		let resolution = resolveRenderKeys(perSession: perSession, customization: customization())
+
+		XCTAssertEqual(
+			Set(resolution.states.keys), [.combined],
+			"an origin literally named \"combined\" with session-pets off must fold to .combined, "
+				+ "not a distinct .origin(\"combined\") key")
+		XCTAssertEqual(
+			resolution.identities[.combined],
+			RenderKeyIdentity(origin: "combined", sessionId: "s1"))
+	}
+
 	func testSessionPetsOnKeepsEachSessionKey() throws {
 		let dir = makeTempDir()
 		defer { try? FileManager.default.removeItem(at: dir) }
