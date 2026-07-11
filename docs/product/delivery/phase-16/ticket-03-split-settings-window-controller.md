@@ -55,3 +55,5 @@ Red first: n/a (`Red: skip` — extraction only)
 Why this path: single PR deleting the file gives an atomic exit check; Settings clusters are cleanly per-tab
 Alternative considered: per-tab PRs — rejected; same 6× overhead argument as the restructure ticket
 Deferred: any write-path changes (P16.06); renames
+
+Extraction notes: retained `SettingsWindowController.swift` as the controller-only orchestration file described by Review Focus; moved the shared palette and free helper functions into `SettingsTheme.swift` and `SettingsSupport.swift`. `assignBtnKey` and `importBtnKey` remain beside the Pet-tab badge helpers in `BadgeRowView.swift`. All extracted top-level view/controller types and shared helpers widened from file-private `private` to module-internal only where cross-file references require it; no call sites were added.

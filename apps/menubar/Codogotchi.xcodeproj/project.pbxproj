@@ -11,10 +11,13 @@
 		008F0783A31B8611C5BF87F4 /* AnimationBadgePanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A2153BFE3815F040C90CFB /* AnimationBadgePanelTests.swift */; };
 		025D10BD2A8B47BD0991A05D /* MenubarRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B8CBE6CDDEE928B7593E69 /* MenubarRendererTests.swift */; };
 		0341121B14241F95824B005F /* RetrievedSessionTitleStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED3AF1D653CB1A713C03DB4 /* RetrievedSessionTitleStoreTests.swift */; };
+		088D9837ED236CB7DD704EB2 /* SettingsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE7A49CDBE6CA5CFAD5238C /* SettingsSupport.swift */; };
 		0D1910824919B7F2097B6480 /* DemoCycleDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2EB6CC13A81EBCFDAF037F /* DemoCycleDriver.swift */; };
 		11206CBC485103EA118341AB /* FloatingPetPromptCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8780B208D0E108DA773D3287 /* FloatingPetPromptCoordinator.swift */; };
 		121F58B33BBB5B89020FD3A7 /* FloatingPetSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57120C267C3617C32AC0430F /* FloatingPetSceneTests.swift */; };
+		1275ABCEEE3AB44A8D12B764 /* CustomizationTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0CB6AFE5B881E7C678DD6A /* CustomizationTabView.swift */; };
 		132D20DBD0B1451B5E1A1A49 /* StateDirectoryListing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2398B9D19FC44EA56485D8F1 /* StateDirectoryListing.swift */; };
+		13AA198069CCB976C0119286 /* PetAssignPopoverController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E44BBB4220D0186ED68EA3B8 /* PetAssignPopoverController.swift */; };
 		146969BDD756A5353704E961 /* MenubarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E496AEDA38E70CA0C7D4E4F /* MenubarTests.swift */; };
 		19AA3BDBDFB7696E7578AD0C /* RPGTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6C451C070FEE1714C7F7B0A /* RPGTabViewModel.swift */; };
 		1A454FA87E78F1B590355F43 /* StateDirectoryListingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990E625C075B2CA262A804B1 /* StateDirectoryListingTests.swift */; };
@@ -33,7 +36,9 @@
 		25296F59318459AC7DF83336 /* AttentionBubblePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195864BAFD9024E422A5CDF7 /* AttentionBubblePanel.swift */; };
 		252D3E5EACB7EED9A3F079EB /* PetAssetResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 940773DC46C73D897DB1A638 /* PetAssetResolverTests.swift */; };
 		2665D1F382445B0E92A89EB5 /* HalfHeartDecayEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 472AAFBA7353AE003A97B397 /* HalfHeartDecayEngine.swift */; };
+		28158B37144FCCB29480D853 /* RPGProgressBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40C0B908B205CD27328B8354 /* RPGProgressBarView.swift */; };
 		287A42FE2975BFC9F941A6E6 /* SettingsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3DDB292A731BB7FA920429 /* SettingsController.swift */; };
+		29FE412E7ECC24080C9D76E7 /* DynamicStatusPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04064B5096134F187CB1BD46 /* DynamicStatusPanelView.swift */; };
 		2A1C922497325C4E48472C42 /* SessionTitleResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C94D224E9A29C67C87885DF2 /* SessionTitleResolver.swift */; };
 		2C2603325AFD009E48F0CEB9 /* SessionPrunerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 303107572AD40123E3620006 /* SessionPrunerTests.swift */; };
 		2C985DFC0C4B11F3C3BF69F9 /* AppBootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */; };
@@ -43,10 +48,12 @@
 		2E47A674904203BF5704C95A /* SessionSelectionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BBC3DE729053A5A25EFCF7 /* SessionSelectionPolicyTests.swift */; };
 		3278D5B8A5BF524A956FECEC /* FloatingInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */; };
 		38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */; };
+		3996ADE8B389AEB45AAB6827 /* RPGHUDPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C041CB2EE71340F3F263BFB /* RPGHUDPreviewView.swift */; };
 		3B94CBC8F0510C0545FF7EB9 /* AboutViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EC260ED23DDA79BF1888FA /* AboutViewModel.swift */; };
 		4121304416B4360FAF08294C /* MenubarMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EEE8949FDE061D125E5EB7D /* MenubarMenu.swift */; };
 		430CAFACBB46008FC2F3AAF7 /* ConfigFileWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0726E3AFB7210BA52BF1ACFD /* ConfigFileWriterTests.swift */; };
 		43791C4A0AB326A9F055049C /* GateBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE11B737B6F0D401A7F9696 /* GateBadgeView.swift */; };
+		44C2550A80D96292C3200AA3 /* BadgeRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614CFF95A1D23539328DD341 /* BadgeRowView.swift */; };
 		46A42463FFCE9411B5B6A383 /* RpgStateReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21EAF55FDD0C6277E3CCB83F /* RpgStateReader.swift */; };
 		48039C0D158ED5BFA3835793 /* PetAssetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBEEA897349417D8DCF805AF /* PetAssetResolver.swift */; };
 		48A2772A0D6A58669286E5F9 /* ConflictBubbleTargetSelectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E19594796A8315FCBDF3BD /* ConflictBubbleTargetSelectorTests.swift */; };
@@ -60,6 +67,7 @@
 		549F3D3D2DECCA4B2ED9CA6A /* AnimationBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0C485F8FF34C6954F112BE /* AnimationBadgeView.swift */; };
 		560036137684236CE680D9F3 /* ReloadActivePetResponsivenessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D0B6066DEB36E24086A2094 /* ReloadActivePetResponsivenessTests.swift */; };
 		567FFA2D3A08D9FB1A48E0E1 /* TimerIconChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84C8024611891532F40772AC /* TimerIconChipView.swift */; };
+		588624B3B7B400E50C961066 /* HookRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F078A9D14984485EB28AC9 /* HookRowView.swift */; };
 		58A715CD06913CC033DA019A /* FloatingPetWindowPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5CF055F2A0C9DD84F4F026A /* FloatingPetWindowPool.swift */; };
 		595CC685C452AE0EA1EB9E2F /* PerSessionReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBBC8A9F0A42DAF1E086D27A /* PerSessionReaderTests.swift */; };
 		5B8D08B5B584C695EB75E553 /* SessionLabelStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970D0D22D956516B6FAF0632 /* SessionLabelStoreTests.swift */; };
@@ -73,11 +81,13 @@
 		65E8894467BC8BA03C4A15A9 /* PromptTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D4D0F64AA1A5C04FED5213 /* PromptTimer.swift */; };
 		6652D39E58A4B10CCBEA0351 /* FloatingPetController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C74564777AB5E8D0E7BB7DC1 /* FloatingPetController.swift */; };
 		66B5C50B58C2A0D21B2D59A6 /* AssignmentsJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B088460D34832B339123365F /* AssignmentsJsonReaderTests.swift */; };
+		68485B3B8680FFE11827FF76 /* SessionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E81C08D00F0FFD36420D565 /* SessionRowView.swift */; };
 		686F220636F60BF638F4588B /* RPGHUDViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B45875058BDB67738967BE7A /* RPGHUDViewModel.swift */; };
 		68A45AC229C671EE01A9DEAC /* PerPlatformSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B41CAA48264D60619035FE /* PerPlatformSnapshot.swift */; };
 		692DB55B96C40097202445F2 /* PlatformAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44643FE5868DCD56DDF5F1E2 /* PlatformAttribution.swift */; };
 		6A6E965676C08DCF5EA44900 /* PromptTimerChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D8D2C351C51A43AE40A1A6 /* PromptTimerChipView.swift */; };
 		6A78A39CED185B02C213FE62 /* MenuItemsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */; };
+		6BE7F6EA53A623C22C0B98E5 /* RPGHUDIconTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6858ADF75A07FF4C263F283 /* RPGHUDIconTileView.swift */; };
 		6DA9D60EB6FA048B64876A79 /* RPGHUDPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 349466D86E4C96C4D4A098BD /* RPGHUDPanel.swift */; };
 		708062CE5FDA296BC26AF17C /* PetTabLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 777877051ED12A63B5FD6ACB /* PetTabLayoutTests.swift */; };
 		74348CC405B92950FC9E967D /* ConfigFileWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F8A5A89CFE5F72C7CB6896 /* ConfigFileWriter.swift */; };
@@ -86,14 +96,18 @@
 		7893BF413AB78DCAEDB74D58 /* LivePollingDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BABED0FED8D4478E21F2531 /* LivePollingDriver.swift */; };
 		7A7D6AF5F7CAC9C273EDC5FF /* SettingsWindowOpenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14570954EC4AB5F26AFE2173 /* SettingsWindowOpenTests.swift */; };
 		7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A9EA8AA7530DED8536C384 /* PetTabViewModelTests.swift */; };
+		7D24501811F59E54BD4E9F3D /* SessionTierSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84049FAC818E80AE127C5F23 /* SessionTierSectionView.swift */; };
 		7D32570272F65A110375775F /* SpeechBubblePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4178FC9C08DC67BF3B23050 /* SpeechBubblePanel.swift */; };
 		7DC659F8DECEC6D8932E49DE /* DemoModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489C5364D39974B530891975 /* DemoModeTests.swift */; };
 		7DC798A56562AFD21895CCCD /* LockstepPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D6A87B12C5C352984BFCCC7 /* LockstepPolicy.swift */; };
 		7E2C0BDEA3AFE0C443B55F2A /* PlatformChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15A1B6845D95861A8465263 /* PlatformChipView.swift */; };
+		856504A2B86473918E0A6E96 /* DeveloperTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8CC94677D76B8E6CD8CE6A /* DeveloperTabView.swift */; };
+		89111DC256531C6E539D3A1A /* RPGTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A3B04AF847963FAD0DB798 /* RPGTabView.swift */; };
 		89C78F1D4BB5D5156E42495E /* GateBadgeTokenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 347DEB3E8BE1216D2ED10CAF /* GateBadgeTokenView.swift */; };
 		8E45E71E1192412961009395 /* FloatingPetHidePromptPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55898E86406D617C88025210 /* FloatingPetHidePromptPanel.swift */; };
 		8F1F8583F4FEFC28BD92B6AC /* PlatformSessionBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 815A1F6AB8504430784C0CB7 /* PlatformSessionBadge.swift */; };
 		91984170095B8A44B2F8BEA8 /* LockstepPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15F8B7A0E0B770D28C7486B7 /* LockstepPolicyTests.swift */; };
+		927FA2B8C9DF5103A8B20283 /* HUDElementRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784F03AAA99D5261EEAF9837 /* HUDElementRowView.swift */; };
 		94517E2D23A71B04A73DF372 /* AttentionSubtitleFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A3F3FFB7DF8572D37B7C3F1 /* AttentionSubtitleFormatting.swift */; };
 		96B8F67F61C130F416843455 /* SessionNumberAllocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA22D5D2131753BBC81766B8 /* SessionNumberAllocator.swift */; };
 		98EBA9B7E29244B21755C4F5 /* FloatingPetControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CE9EFEFECAFAC8156F61DF7 /* FloatingPetControllerTests.swift */; };
@@ -102,32 +116,38 @@
 		9AC96FCF34BDC5818BF0E1B2 /* FloatingPetHidePromptTintView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955975966FD7379ECF343793 /* FloatingPetHidePromptTintView.swift */; };
 		9FF94A8F1636E73C24BE4846 /* SettingsTabModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F91F037388E6AEB00DBBC86A /* SettingsTabModel.swift */; };
 		A4DE38B2FAB835D924339D92 /* RPGTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 073E1DA7FD402C40CFEA5439 /* RPGTabViewModelTests.swift */; };
+		A7EE9A463FF230338BEA765A /* ActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8A1C529AE9116E412788CF /* ActionButton.swift */; };
 		A8D2FD9DA4CBDFDB018AF971 /* LegacyStateFileCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82CC030BC8806022DB8BBA8B /* LegacyStateFileCleanup.swift */; };
 		A92DC2BEE3B5EFA1E191BA32 /* state-json in Resources */ = {isa = PBXBuildFile; fileRef = 4412C28CB80A89E0E021EC03 /* state-json */; };
 		A93D73A2FFD804C3C3D48CD0 /* DemoConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C34F80A449B6C9EAA2C37B /* DemoConfig.swift */; };
 		A94729EE4E31C8A57629486A /* RPGHUDViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78115EE1CE4F0AFD41CC1231 /* RPGHUDViewModelTests.swift */; };
 		AAC66A3D20F70AA3BC1608C5 /* RenderKeyResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B86CEF42917F1F47CF4166F3 /* RenderKeyResolver.swift */; };
 		AD267BA7C6B0CD027737CB3A /* GateBadgePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1203CF2C4FF29C31534A7CF /* GateBadgePanel.swift */; };
+		B06C74474A2E6AC6365223CA /* TabStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE2082F8FBBB4E484C347FC /* TabStripView.swift */; };
 		B20913FC5559EE95F7E4E2BA /* PetImportHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */; };
 		B2E987D4266CDD1A1AC3AF04 /* CustomizationJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EED7E5C1185B639D5786A2E2 /* CustomizationJsonReaderTests.swift */; };
 		B3EC2DCC0EBE6D4EE5AF88FE /* GateBadgeLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2120EF41902AB522F5AC969 /* GateBadgeLayout.swift */; };
+		B69656D5873253F3A80DDF25 /* FlippedStackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED1E6B27BAC9CB8CAE40022 /* FlippedStackView.swift */; };
 		B892760D965875045A18494B /* SessionNumberAllocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC2EC51845CF105F01A1BBE4 /* SessionNumberAllocatorTests.swift */; };
 		BA3F2EF6D3F5E093C9DFFBE9 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F15B1B99434EA9F9005052 /* AppStateTests.swift */; };
 		BB7A722079A26146B51633AC /* HalfHeartDecayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02675B5F9E50F8DB86AA76E0 /* HalfHeartDecayTests.swift */; };
 		BBAA522CAC3B1ED9771430F9 /* StateJsonWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C367AE2D8D1BB37467677308 /* StateJsonWriter.swift */; };
 		BC18ABAA096D64CF5E2F87C4 /* FloatingInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A41D03348B33BB814D7233A /* FloatingInteraction.swift */; };
 		BEDDEBC79B0C95BFCE29E3A3 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76C6A4BBDE3D1AC70D3BCD82 /* AppState.swift */; };
+		BEFBED8588D0ECA957839EC2 /* SettingsTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53E22537B1479AB50B2441E2 /* SettingsTheme.swift */; };
 		C1772FED64E7F25DF52EBD94 /* ConfigBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73377920B0941E9C1C4DE4FF /* ConfigBootstrap.swift */; };
 		C19268CE3514D09DF9675B74 /* CustomizationJsonReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61ADDBCA1AB46B4CC695D70A /* CustomizationJsonReader.swift */; };
 		C290EE1287F115D6FCFA05D8 /* FloatingPetOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D574C8088D0CC53510729EAA /* FloatingPetOverlayView.swift */; };
 		C2C8007B031E4924E7D0F79D /* AnimationBadgeChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A8D4BFA46121B6684F74F5 /* AnimationBadgeChrome.swift */; };
 		C36FF6AE70AA258CB1606191 /* GeneralTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4230D08B6B3DE5647616FFB5 /* GeneralTabViewModel.swift */; };
+		C3CF7A5143344F4CAB118216 /* GeneralTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB255569CEB14B591E936A83 /* GeneralTabView.swift */; };
 		C4F4151A25F6ED0D587172FD /* StateJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */; };
 		C6262A26295AA1B037EE560F /* RetrievedSessionTitleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FBBDE3DDE80E6CF81054CE /* RetrievedSessionTitleStore.swift */; };
 		C81091A2187453263DAF99B7 /* CodexPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4610C19ADA41987592CEE748 /* CodexPetTests.swift */; };
 		C869CD78C14ADFF9F38EBDB9 /* GateJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97B6CBA3971EF14695D74F9 /* GateJsonReaderTests.swift */; };
 		C933FD50A0B06CF2966BDDDB /* MenubarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02C474BB144560503328783C /* MenubarApp.swift */; };
 		CA717B4026463DF504612273 /* FloatingPetPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CB181AE0D1FF3EE2035186 /* FloatingPetPanelController.swift */; };
+		CD896BB2F392B5F618DE2D96 /* PetTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DBC88DE074DC11652453ADE /* PetTabView.swift */; };
 		CDE0BB7EEB96B5DAEA8C25CC /* OnboardingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CC1D46465036A1A9F88E9C3 /* OnboardingController.swift */; };
 		CE7ABB1D0A6B2195D2E54F29 /* StateJsonReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C5496B13380891C32935ABE /* StateJsonReader.swift */; };
 		CE9190882611899407182DC2 /* TransitionLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB58C3C8994A38F9FE444EE /* TransitionLog.swift */; };
@@ -147,16 +167,21 @@
 		DCD225D3384F315C78D5D4F7 /* CodexPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A496F7E9628847810149FE6C /* CodexPet.swift */; };
 		DECC2FD6C7CF6ABABE60A9FB /* MinimalistPanelSizePill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 247385038BC1936C3D496AFC /* MinimalistPanelSizePill.swift */; };
 		E081CBC5DF1825CA276C8599 /* AnimationBadgePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F5A99124B6688B4832CB4C /* AnimationBadgePanel.swift */; };
+		E1B4E526EE124C6869E8BAF8 /* RPGHeartStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D928C678ECF64BD2AA362F27 /* RPGHeartStripView.swift */; };
 		E28014AC2F3B192E3A1BAE57 /* OnboardingControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6F4B753185486F7E7FCCC6 /* OnboardingControllerTests.swift */; };
+		E34E1FC2397F088D1B352B5C /* RPGMiniRingIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69AAB6A6C7C3D72625092383 /* RPGMiniRingIconView.swift */; };
 		E40D5C583288F2DC593AC880 /* SessionSelectionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F252B3C5E2C4512BEF298E0 /* SessionSelectionPolicy.swift */; };
+		E7CDC70CCECC39A3E3511A13 /* AboutTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739A5B92AC38A1366A5AA520 /* AboutTabView.swift */; };
 		E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */; };
 		E8ED1C90E2D5DFEE6140C26B /* DeveloperTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753D06BA7617A23E1D9A4113 /* DeveloperTabViewModel.swift */; };
 		E8F5637F5C520B780E4D73D3 /* CodogotchiFoldersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FA942D11A38DA6F0B232D9 /* CodogotchiFoldersTests.swift */; };
 		E93167AF2416BE06B2BAA308 /* PlatformAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EB23CFF7BEBC442A06A8B1 /* PlatformAttributionTests.swift */; };
 		E9D555C5B2708821D5630992 /* PetThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E2899DD8851B86633D4BB28 /* PetThumbnail.swift */; };
 		EA5D31903A8F315299EBD9D6 /* CodogotchiPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11293EAA084837CB406C76BB /* CodogotchiPet.swift */; };
+		ECDDAA60530F9D86F8FB9F52 /* SessionsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B23E8D0BE2CAA5B9E3649410 /* SessionsTabView.swift */; };
 		EDE94984953A0853B0FE255B /* AttentionFocusTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F38C436FB78D4B7E7895A7EA /* AttentionFocusTargetTests.swift */; };
 		EDFFAD8F83BE0E484D996FCB /* SettingsTabModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05EB20E9AD12E7E2765C3217 /* SettingsTabModelTests.swift */; };
+		EE071EA62AB42A9DABC39334 /* RPGMiniXPBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A6FFFD67B63F20FFC62E746 /* RPGMiniXPBadgeView.swift */; };
 		F1DA9A5DDE53EE242990A3C5 /* SessionPruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03729513F99DF25322B23561 /* SessionPruner.swift */; };
 		F3A4343C001908110A748CD7 /* AnimationLabelPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9E9356DD0466C7E29F5783 /* AnimationLabelPillView.swift */; };
 		F82F0F3BD0350BC38F97CA27 /* StateJsonWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */; };
@@ -174,10 +199,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		01A3B04AF847963FAD0DB798 /* RPGTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGTabView.swift; sourceTree = "<group>"; };
 		02675B5F9E50F8DB86AA76E0 /* HalfHeartDecayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HalfHeartDecayTests.swift; sourceTree = "<group>"; };
 		02C474BB144560503328783C /* MenubarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarApp.swift; sourceTree = "<group>"; };
 		03729513F99DF25322B23561 /* SessionPruner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionPruner.swift; sourceTree = "<group>"; };
 		037EF6196923641D00095C30 /* PetTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetTabViewModel.swift; sourceTree = "<group>"; };
+		04064B5096134F187CB1BD46 /* DynamicStatusPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicStatusPanelView.swift; sourceTree = "<group>"; };
 		05648FE986462FA4DA80E2F2 /* FloatingPetHidePromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetHidePromptView.swift; sourceTree = "<group>"; };
 		05EB20E9AD12E7E2765C3217 /* SettingsTabModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabModelTests.swift; sourceTree = "<group>"; };
 		0726E3AFB7210BA52BF1ACFD /* ConfigFileWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigFileWriterTests.swift; sourceTree = "<group>"; };
@@ -197,6 +224,8 @@
 		15EB23CFF7BEBC442A06A8B1 /* PlatformAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformAttributionTests.swift; sourceTree = "<group>"; };
 		15F8B7A0E0B770D28C7486B7 /* LockstepPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockstepPolicyTests.swift; sourceTree = "<group>"; };
 		195864BAFD9024E422A5CDF7 /* AttentionBubblePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttentionBubblePanel.swift; sourceTree = "<group>"; };
+		1A0CB6AFE5B881E7C678DD6A /* CustomizationTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationTabView.swift; sourceTree = "<group>"; };
+		1C041CB2EE71340F3F263BFB /* RPGHUDPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDPreviewView.swift; sourceTree = "<group>"; };
 		1F540BC6B6EBC67D38138D89 /* ActivityState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityState.swift; sourceTree = "<group>"; };
 		1F671C56394833C823D8585D /* LegacyStateFileCleanupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyStateFileCleanupTests.swift; sourceTree = "<group>"; };
 		21EAF55FDD0C6277E3CCB83F /* RpgStateReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RpgStateReader.swift; sourceTree = "<group>"; };
@@ -206,6 +235,7 @@
 		24FA942D11A38DA6F0B232D9 /* CodogotchiFoldersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiFoldersTests.swift; sourceTree = "<group>"; };
 		292B7AD0DCECA1D78663651D /* SessionTitleResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTitleResolverTests.swift; sourceTree = "<group>"; };
 		2A3F3FFB7DF8572D37B7C3F1 /* AttentionSubtitleFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttentionSubtitleFormatting.swift; sourceTree = "<group>"; };
+		2A6FFFD67B63F20FFC62E746 /* RPGMiniXPBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGMiniXPBadgeView.swift; sourceTree = "<group>"; };
 		2BABED0FED8D4478E21F2531 /* LivePollingDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePollingDriver.swift; sourceTree = "<group>"; };
 		2E496AEDA38E70CA0C7D4E4F /* MenubarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarTests.swift; sourceTree = "<group>"; };
 		303107572AD40123E3620006 /* SessionPrunerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionPrunerTests.swift; sourceTree = "<group>"; };
@@ -216,6 +246,7 @@
 		37BBC3DE729053A5A25EFCF7 /* SessionSelectionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSelectionPolicyTests.swift; sourceTree = "<group>"; };
 		3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonWriterTests.swift; sourceTree = "<group>"; };
 		3D25A5BC6A9880AD71D04A83 /* FloatingPetHidePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetHidePrompt.swift; sourceTree = "<group>"; };
+		40C0B908B205CD27328B8354 /* RPGProgressBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGProgressBarView.swift; sourceTree = "<group>"; };
 		41B41CAA48264D60619035FE /* PerPlatformSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerPlatformSnapshot.swift; sourceTree = "<group>"; };
 		4230D08B6B3DE5647616FFB5 /* GeneralTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTabViewModel.swift; sourceTree = "<group>"; };
 		4412C28CB80A89E0E021EC03 /* state-json */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "state-json"; path = "Fixtures/state-json"; sourceTree = SOURCE_ROOT; };
@@ -227,6 +258,7 @@
 		48F8A5A89CFE5F72C7CB6896 /* ConfigFileWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigFileWriter.swift; sourceTree = "<group>"; };
 		4B392769C3C680408B4BC067 /* SessionsTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsTabViewModel.swift; sourceTree = "<group>"; };
 		4E9E9356DD0466C7E29F5783 /* AnimationLabelPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationLabelPillView.swift; sourceTree = "<group>"; };
+		53E22537B1479AB50B2441E2 /* SettingsTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTheme.swift; sourceTree = "<group>"; };
 		55898E86406D617C88025210 /* FloatingPetHidePromptPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetHidePromptPanel.swift; sourceTree = "<group>"; };
 		57120C267C3617C32AC0430F /* FloatingPetSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetSceneTests.swift; sourceTree = "<group>"; };
 		581DD6BA7172DEDE8E79F733 /* PetStoreSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStoreSeeder.swift; sourceTree = "<group>"; };
@@ -235,17 +267,22 @@
 		5CC1D46465036A1A9F88E9C3 /* OnboardingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingController.swift; sourceTree = "<group>"; };
 		5CE9EFEFECAFAC8156F61DF7 /* FloatingPetControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetControllerTests.swift; sourceTree = "<group>"; };
 		5D6A87B12C5C352984BFCCC7 /* LockstepPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockstepPolicy.swift; sourceTree = "<group>"; };
+		5E81C08D00F0FFD36420D565 /* SessionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRowView.swift; sourceTree = "<group>"; };
 		5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrapTests.swift; sourceTree = "<group>"; };
+		614CFF95A1D23539328DD341 /* BadgeRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeRowView.swift; sourceTree = "<group>"; };
 		61ADDBCA1AB46B4CC695D70A /* CustomizationJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationJsonReader.swift; sourceTree = "<group>"; };
 		6660BA8D585465422C1ABA1A /* PromptTimerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTimerTests.swift; sourceTree = "<group>"; };
+		69AAB6A6C7C3D72625092383 /* RPGMiniRingIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGMiniRingIconView.swift; sourceTree = "<group>"; };
 		6A41D03348B33BB814D7233A /* FloatingInteraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingInteraction.swift; sourceTree = "<group>"; };
 		6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetImportHelperTests.swift; sourceTree = "<group>"; };
 		72DE062B5722F00B659A555C /* CodogotchiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodogotchiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		73377920B0941E9C1C4DE4FF /* ConfigBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigBootstrap.swift; sourceTree = "<group>"; };
+		739A5B92AC38A1366A5AA520 /* AboutTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutTabView.swift; sourceTree = "<group>"; };
 		753D06BA7617A23E1D9A4113 /* DeveloperTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperTabViewModel.swift; sourceTree = "<group>"; };
 		76C6A4BBDE3D1AC70D3BCD82 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		777877051ED12A63B5FD6ACB /* PetTabLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetTabLayoutTests.swift; sourceTree = "<group>"; };
 		78115EE1CE4F0AFD41CC1231 /* RPGHUDViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDViewModelTests.swift; sourceTree = "<group>"; };
+		784F03AAA99D5261EEAF9837 /* HUDElementRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDElementRowView.swift; sourceTree = "<group>"; };
 		7A99294D27E5D1862559FCA2 /* SessionLabelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLabelStore.swift; sourceTree = "<group>"; };
 		7AC107DCBD46F0F6DBA5B3B6 /* maew */ = {isa = PBXFileReference; lastKnownFileType = folder; name = maew; path = Fixtures/maew; sourceTree = SOURCE_ROOT; };
 		7D0B6066DEB36E24086A2094 /* ReloadActivePetResponsivenessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReloadActivePetResponsivenessTests.swift; sourceTree = "<group>"; };
@@ -253,6 +290,7 @@
 		80E19594796A8315FCBDF3BD /* ConflictBubbleTargetSelectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubbleTargetSelectorTests.swift; sourceTree = "<group>"; };
 		815A1F6AB8504430784C0CB7 /* PlatformSessionBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformSessionBadge.swift; sourceTree = "<group>"; };
 		82CC030BC8806022DB8BBA8B /* LegacyStateFileCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyStateFileCleanup.swift; sourceTree = "<group>"; };
+		84049FAC818E80AE127C5F23 /* SessionTierSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTierSectionView.swift; sourceTree = "<group>"; };
 		84C8024611891532F40772AC /* TimerIconChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerIconChipView.swift; sourceTree = "<group>"; };
 		85617A3F9BAFE2927C403813 /* SlicePruner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlicePruner.swift; sourceTree = "<group>"; };
 		8780B208D0E108DA773D3287 /* FloatingPetPromptCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetPromptCoordinator.swift; sourceTree = "<group>"; };
@@ -260,9 +298,11 @@
 		8BB58C3C8994A38F9FE444EE /* TransitionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLog.swift; sourceTree = "<group>"; };
 		8C5496B13380891C32935ABE /* StateJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonReader.swift; sourceTree = "<group>"; };
 		8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingInteractionTests.swift; sourceTree = "<group>"; };
+		8DBC88DE074DC11652453ADE /* PetTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetTabView.swift; sourceTree = "<group>"; };
 		8E2899DD8851B86633D4BB28 /* PetThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetThumbnail.swift; sourceTree = "<group>"; };
 		9310785E0303F2C6627ADAE4 /* ConflictBubbleRateLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubbleRateLimiter.swift; sourceTree = "<group>"; };
 		933225DDA49AB5637263654E /* MinimalistBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinimalistBadgeView.swift; sourceTree = "<group>"; };
+		93F078A9D14984485EB28AC9 /* HookRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookRowView.swift; sourceTree = "<group>"; };
 		940773DC46C73D897DB1A638 /* PetAssetResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetAssetResolverTests.swift; sourceTree = "<group>"; };
 		955975966FD7379ECF343793 /* FloatingPetHidePromptTintView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetHidePromptTintView.swift; sourceTree = "<group>"; };
 		970D0D22D956516B6FAF0632 /* SessionLabelStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLabelStoreTests.swift; sourceTree = "<group>"; };
@@ -271,6 +311,8 @@
 		9B3DDB292A731BB7FA920429 /* SettingsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsController.swift; sourceTree = "<group>"; };
 		9BCAD41ECE980A5E83D5AE20 /* RpgStateReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RpgStateReaderTests.swift; sourceTree = "<group>"; };
 		9C0C485F8FF34C6954F112BE /* AnimationBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationBadgeView.swift; sourceTree = "<group>"; };
+		9CE2082F8FBBB4E484C347FC /* TabStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabStripView.swift; sourceTree = "<group>"; };
+		9D8CC94677D76B8E6CD8CE6A /* DeveloperTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperTabView.swift; sourceTree = "<group>"; };
 		9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonReaderTests.swift; sourceTree = "<group>"; };
 		9E7256729C3F274DFB3A5204 /* BundledMaewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledMaewTests.swift; sourceTree = "<group>"; };
 		9ED3AF1D653CB1A713C03DB4 /* RetrievedSessionTitleStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievedSessionTitleStoreTests.swift; sourceTree = "<group>"; };
@@ -288,6 +330,7 @@
 		AE6F4B753185486F7E7FCCC6 /* OnboardingControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingControllerTests.swift; sourceTree = "<group>"; };
 		AEE399EF550E69D66FBC271D /* FloatingPetInteractionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetInteractionView.swift; sourceTree = "<group>"; };
 		B088460D34832B339123365F /* AssignmentsJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentsJsonReaderTests.swift; sourceTree = "<group>"; };
+		B23E8D0BE2CAA5B9E3649410 /* SessionsTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsTabView.swift; sourceTree = "<group>"; };
 		B45875058BDB67738967BE7A /* RPGHUDViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDViewModel.swift; sourceTree = "<group>"; };
 		B5C34F80A449B6C9EAA2C37B /* DemoConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoConfig.swift; sourceTree = "<group>"; };
 		B86CEF42917F1F47CF4166F3 /* RenderKeyResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderKeyResolver.swift; sourceTree = "<group>"; };
@@ -300,14 +343,18 @@
 		C4178FC9C08DC67BF3B23050 /* SpeechBubblePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechBubblePanel.swift; sourceTree = "<group>"; };
 		C74564777AB5E8D0E7BB7DC1 /* FloatingPetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetController.swift; sourceTree = "<group>"; };
 		C94D224E9A29C67C87885DF2 /* SessionTitleResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTitleResolver.swift; sourceTree = "<group>"; };
+		CB255569CEB14B591E936A83 /* GeneralTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTabView.swift; sourceTree = "<group>"; };
 		CB4F6F5EFBD5019B61748BA5 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		CDD6E7C7F1B5DFAFCB23B372 /* FloatingPetScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetScene.swift; sourceTree = "<group>"; };
+		CEE7A49CDBE6CA5CFAD5238C /* SettingsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSupport.swift; sourceTree = "<group>"; };
 		D1203CF2C4FF29C31534A7CF /* GateBadgePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateBadgePanel.swift; sourceTree = "<group>"; };
 		D1679B814BC300DCA60C6A97 /* Codogotchi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Codogotchi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D1D8D2C351C51A43AE40A1A6 /* PromptTimerChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTimerChipView.swift; sourceTree = "<group>"; };
 		D21596D58AD546C677F9F838 /* MenubarRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRenderer.swift; sourceTree = "<group>"; };
 		D574C8088D0CC53510729EAA /* FloatingPetOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetOverlayView.swift; sourceTree = "<group>"; };
+		D6858ADF75A07FF4C263F283 /* RPGHUDIconTileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDIconTileView.swift; sourceTree = "<group>"; };
 		D6C451C070FEE1714C7F7B0A /* RPGTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGTabViewModel.swift; sourceTree = "<group>"; };
+		D928C678ECF64BD2AA362F27 /* RPGHeartStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHeartStripView.swift; sourceTree = "<group>"; };
 		D97B6CBA3971EF14695D74F9 /* GateJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateJsonReaderTests.swift; sourceTree = "<group>"; };
 		DA2D403DBB111D997748F847 /* LivePollingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePollingTests.swift; sourceTree = "<group>"; };
 		DBBC8A9F0A42DAF1E086D27A /* PerSessionReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerSessionReaderTests.swift; sourceTree = "<group>"; };
@@ -318,6 +365,8 @@
 		E2120EF41902AB522F5AC969 /* GateBadgeLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateBadgeLayout.swift; sourceTree = "<group>"; };
 		E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiPetTests.swift; sourceTree = "<group>"; };
 		E40A4BCCFACDCAA4D8EB136E /* MinimalistPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinimalistPanelController.swift; sourceTree = "<group>"; };
+		E44BBB4220D0186ED68EA3B8 /* PetAssignPopoverController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetAssignPopoverController.swift; sourceTree = "<group>"; };
+		EB8A1C529AE9116E412788CF /* ActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionButton.swift; sourceTree = "<group>"; };
 		EBEEA897349417D8DCF805AF /* PetAssetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetAssetResolver.swift; sourceTree = "<group>"; };
 		EC52A5E5FCFD36451530C9CE /* PetConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfig.swift; sourceTree = "<group>"; };
 		EDD860AC2D8EE1000D8AE230 /* GateJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateJsonReader.swift; sourceTree = "<group>"; };
@@ -330,6 +379,7 @@
 		F4B2DA7902212941A3DBFFE0 /* AboutViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModelTests.swift; sourceTree = "<group>"; };
 		F5CF055F2A0C9DD84F4F026A /* FloatingPetWindowPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetWindowPool.swift; sourceTree = "<group>"; };
 		F91F037388E6AEB00DBBC86A /* SettingsTabModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabModel.swift; sourceTree = "<group>"; };
+		FED1E6B27BAC9CB8CAE40022 /* FlippedStackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlippedStackView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -506,18 +556,43 @@
 		9D4FF6DAB6660FC0D5ABA2A6 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				739A5B92AC38A1366A5AA520 /* AboutTabView.swift */,
 				F0EC260ED23DDA79BF1888FA /* AboutViewModel.swift */,
+				EB8A1C529AE9116E412788CF /* ActionButton.swift */,
+				614CFF95A1D23539328DD341 /* BadgeRowView.swift */,
+				1A0CB6AFE5B881E7C678DD6A /* CustomizationTabView.swift */,
 				10F56F11CFE7112BD4B4351E /* CustomizationTabViewModel.swift */,
+				9D8CC94677D76B8E6CD8CE6A /* DeveloperTabView.swift */,
 				753D06BA7617A23E1D9A4113 /* DeveloperTabViewModel.swift */,
+				04064B5096134F187CB1BD46 /* DynamicStatusPanelView.swift */,
+				FED1E6B27BAC9CB8CAE40022 /* FlippedStackView.swift */,
+				CB255569CEB14B591E936A83 /* GeneralTabView.swift */,
 				4230D08B6B3DE5647616FFB5 /* GeneralTabViewModel.swift */,
+				93F078A9D14984485EB28AC9 /* HookRowView.swift */,
+				784F03AAA99D5261EEAF9837 /* HUDElementRowView.swift */,
+				E44BBB4220D0186ED68EA3B8 /* PetAssignPopoverController.swift */,
 				36558142C9BA2BEABDDCA036 /* PetImportHelper.swift */,
+				8DBC88DE074DC11652453ADE /* PetTabView.swift */,
 				037EF6196923641D00095C30 /* PetTabViewModel.swift */,
 				8E2899DD8851B86633D4BB28 /* PetThumbnail.swift */,
+				D928C678ECF64BD2AA362F27 /* RPGHeartStripView.swift */,
+				D6858ADF75A07FF4C263F283 /* RPGHUDIconTileView.swift */,
+				1C041CB2EE71340F3F263BFB /* RPGHUDPreviewView.swift */,
+				69AAB6A6C7C3D72625092383 /* RPGMiniRingIconView.swift */,
+				2A6FFFD67B63F20FFC62E746 /* RPGMiniXPBadgeView.swift */,
+				40C0B908B205CD27328B8354 /* RPGProgressBarView.swift */,
+				01A3B04AF847963FAD0DB798 /* RPGTabView.swift */,
 				D6C451C070FEE1714C7F7B0A /* RPGTabViewModel.swift */,
+				5E81C08D00F0FFD36420D565 /* SessionRowView.swift */,
+				B23E8D0BE2CAA5B9E3649410 /* SessionsTabView.swift */,
 				4B392769C3C680408B4BC067 /* SessionsTabViewModel.swift */,
+				84049FAC818E80AE127C5F23 /* SessionTierSectionView.swift */,
 				9B3DDB292A731BB7FA920429 /* SettingsController.swift */,
+				CEE7A49CDBE6CA5CFAD5238C /* SettingsSupport.swift */,
 				F91F037388E6AEB00DBBC86A /* SettingsTabModel.swift */,
+				53E22537B1479AB50B2441E2 /* SettingsTheme.swift */,
 				A5B29FA358FF8C6C74B85325 /* SettingsWindowController.swift */,
+				9CE2082F8FBBB4E484C347FC /* TabStripView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -702,7 +777,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E7CDC70CCECC39A3E3511A13 /* AboutTabView.swift in Sources */,
 				3B94CBC8F0510C0545FF7EB9 /* AboutViewModel.swift in Sources */,
+				A7EE9A463FF230338BEA765A /* ActionButton.swift in Sources */,
 				DB403C0A9BF1678CD2F84299 /* ActivityState.swift in Sources */,
 				C2C8007B031E4924E7D0F79D /* AnimationBadgeChrome.swift in Sources */,
 				62D778DA5516412C76C11F35 /* AnimationBadgeLayout.swift in Sources */,
@@ -713,6 +790,7 @@
 				5F8C103CFF82F729C62EA17B /* AssignmentsJsonReader.swift in Sources */,
 				25296F59318459AC7DF83336 /* AttentionBubblePanel.swift in Sources */,
 				94517E2D23A71B04A73DF372 /* AttentionSubtitleFormatting.swift in Sources */,
+				44C2550A80D96292C3200AA3 /* BadgeRowView.swift in Sources */,
 				DCD225D3384F315C78D5D4F7 /* CodexPet.swift in Sources */,
 				2DE5757A1AB31EA244306A07 /* CodogotchiFolders.swift in Sources */,
 				EA5D31903A8F315299EBD9D6 /* CodogotchiPet.swift in Sources */,
@@ -722,10 +800,14 @@
 				234EB74C49A7ACA478739D8B /* ConflictBubbleRateLimiter.swift in Sources */,
 				DBAB3D7D74045B147EB66953 /* ConflictBubbleTargetSelector.swift in Sources */,
 				C19268CE3514D09DF9675B74 /* CustomizationJsonReader.swift in Sources */,
+				1275ABCEEE3AB44A8D12B764 /* CustomizationTabView.swift in Sources */,
 				D4D1DFE1B735D79C81230EA1 /* CustomizationTabViewModel.swift in Sources */,
 				A93D73A2FFD804C3C3D48CD0 /* DemoConfig.swift in Sources */,
 				0D1910824919B7F2097B6480 /* DemoCycleDriver.swift in Sources */,
+				856504A2B86473918E0A6E96 /* DeveloperTabView.swift in Sources */,
 				E8ED1C90E2D5DFEE6140C26B /* DeveloperTabViewModel.swift in Sources */,
+				29FE412E7ECC24080C9D76E7 /* DynamicStatusPanelView.swift in Sources */,
+				B69656D5873253F3A80DDF25 /* FlippedStackView.swift in Sources */,
 				BC18ABAA096D64CF5E2F87C4 /* FloatingInteraction.swift in Sources */,
 				5ED2ED3F249FA9CB7F314F94 /* FloatingInteractionPolicy.swift in Sources */,
 				6652D39E58A4B10CCBEA0351 /* FloatingPetController.swift in Sources */,
@@ -745,8 +827,11 @@
 				89C78F1D4BB5D5156E42495E /* GateBadgeTokenView.swift in Sources */,
 				43791C4A0AB326A9F055049C /* GateBadgeView.swift in Sources */,
 				60B89B13D54747971618E964 /* GateJsonReader.swift in Sources */,
+				C3CF7A5143344F4CAB118216 /* GeneralTabView.swift in Sources */,
 				C36FF6AE70AA258CB1606191 /* GeneralTabViewModel.swift in Sources */,
+				927FA2B8C9DF5103A8B20283 /* HUDElementRowView.swift in Sources */,
 				2665D1F382445B0E92A89EB5 /* HalfHeartDecayEngine.swift in Sources */,
+				588624B3B7B400E50C961066 /* HookRowView.swift in Sources */,
 				FB53C403B8D67A25A7489DB6 /* HookStatusClient.swift in Sources */,
 				CF5A9521C8B63D0ABCE62EB8 /* HooksStatusSnapshot.swift in Sources */,
 				A8D2FD9DA4CBDFDB018AF971 /* LegacyStateFileCleanup.swift in Sources */,
@@ -762,9 +847,11 @@
 				0045616CC9AF43CF1A3BED3B /* OnboardingWindowController.swift in Sources */,
 				68A45AC229C671EE01A9DEAC /* PerPlatformSnapshot.swift in Sources */,
 				48039C0D158ED5BFA3835793 /* PetAssetResolver.swift in Sources */,
+				13AA198069CCB976C0119286 /* PetAssignPopoverController.swift in Sources */,
 				4E396E0BDA1970BE10A6445E /* PetConfig.swift in Sources */,
 				1C0EF163363EB30B9CFCDADC /* PetImportHelper.swift in Sources */,
 				D79385700DC09F4A708EE577 /* PetStoreSeeder.swift in Sources */,
+				CD896BB2F392B5F618DE2D96 /* PetTabView.swift in Sources */,
 				1BA27411D574E0234975CBC2 /* PetTabViewModel.swift in Sources */,
 				E9D555C5B2708821D5630992 /* PetThumbnail.swift in Sources */,
 				692DB55B96C40097202445F2 /* PlatformAttribution.swift in Sources */,
@@ -772,8 +859,15 @@
 				8F1F8583F4FEFC28BD92B6AC /* PlatformSessionBadge.swift in Sources */,
 				65E8894467BC8BA03C4A15A9 /* PromptTimer.swift in Sources */,
 				6A6E965676C08DCF5EA44900 /* PromptTimerChipView.swift in Sources */,
+				6BE7F6EA53A623C22C0B98E5 /* RPGHUDIconTileView.swift in Sources */,
 				6DA9D60EB6FA048B64876A79 /* RPGHUDPanel.swift in Sources */,
+				3996ADE8B389AEB45AAB6827 /* RPGHUDPreviewView.swift in Sources */,
 				686F220636F60BF638F4588B /* RPGHUDViewModel.swift in Sources */,
+				E1B4E526EE124C6869E8BAF8 /* RPGHeartStripView.swift in Sources */,
+				E34E1FC2397F088D1B352B5C /* RPGMiniRingIconView.swift in Sources */,
+				EE071EA62AB42A9DABC39334 /* RPGMiniXPBadgeView.swift in Sources */,
+				28158B37144FCCB29480D853 /* RPGProgressBarView.swift in Sources */,
+				89111DC256531C6E539D3A1A /* RPGTabView.swift in Sources */,
 				19AA3BDBDFB7696E7578AD0C /* RPGTabViewModel.swift in Sources */,
 				AAC66A3D20F70AA3BC1608C5 /* RenderKeyResolver.swift in Sources */,
 				C6262A26295AA1B037EE560F /* RetrievedSessionTitleStore.swift in Sources */,
@@ -781,17 +875,23 @@
 				5BE414B5F01BD917B60E917C /* SessionLabelStore.swift in Sources */,
 				96B8F67F61C130F416843455 /* SessionNumberAllocator.swift in Sources */,
 				F1DA9A5DDE53EE242990A3C5 /* SessionPruner.swift in Sources */,
+				68485B3B8680FFE11827FF76 /* SessionRowView.swift in Sources */,
 				E40D5C583288F2DC593AC880 /* SessionSelectionPolicy.swift in Sources */,
+				7D24501811F59E54BD4E9F3D /* SessionTierSectionView.swift in Sources */,
 				2A1C922497325C4E48472C42 /* SessionTitleResolver.swift in Sources */,
+				ECDDAA60530F9D86F8FB9F52 /* SessionsTabView.swift in Sources */,
 				9903C2842C2F3339A329DC34 /* SessionsTabViewModel.swift in Sources */,
 				287A42FE2975BFC9F941A6E6 /* SettingsController.swift in Sources */,
+				088D9837ED236CB7DD704EB2 /* SettingsSupport.swift in Sources */,
 				9FF94A8F1636E73C24BE4846 /* SettingsTabModel.swift in Sources */,
+				BEFBED8588D0ECA957839EC2 /* SettingsTheme.swift in Sources */,
 				492E8762693554F3FC19185E /* SettingsWindowController.swift in Sources */,
 				D2E6929B12589CC720E012F7 /* SlicePruner.swift in Sources */,
 				7D32570272F65A110375775F /* SpeechBubblePanel.swift in Sources */,
 				132D20DBD0B1451B5E1A1A49 /* StateDirectoryListing.swift in Sources */,
 				CE7ABB1D0A6B2195D2E54F29 /* StateJsonReader.swift in Sources */,
 				BBAA522CAC3B1ED9771430F9 /* StateJsonWriter.swift in Sources */,
+				B06C74474A2E6AC6365223CA /* TabStripView.swift in Sources */,
 				567FFA2D3A08D9FB1A48E0E1 /* TimerIconChipView.swift in Sources */,
 				CE9190882611899407182DC2 /* TransitionLog.swift in Sources */,
 			);
