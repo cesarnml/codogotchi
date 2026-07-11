@@ -4,7 +4,7 @@
 
 ## Epic
 
-Product plan: [`docs/product/plans/phase-14.md`](../../plans/phase-14.md).
+Product plan: [`docs/product/plans/phase-14-per-platform-pet-identity.md`](../../plans/phase-14-per-platform-pet-identity.md).
 
 ## Product contract
 
@@ -81,6 +81,6 @@ A developer opens Settings > Pet, assigns three different pets to three platform
 ## Phase Closeout
 
 Retrospective: required
-Why: First per-platform pet *identity* behavior, a second config contract (`assignments.json` alongside `customization.json`), the new chromeless Minimalist render path Phase 15 per-thread will build on, and the baked-in transient-subagent-pet behavior. Durable learning and downstream architectural constraints are likely; the upstream SoA attribution dependency is the headline risk to revisit.
+Why: First per-platform pet _identity_ behavior, a second config contract (`assignments.json` alongside `customization.json`), the new chromeless Minimalist render path Phase 15 per-thread will build on, and the baked-in transient-subagent-pet behavior. Durable learning and downstream architectural constraints are likely; the upstream SoA attribution dependency is the headline risk to revisit.
 Trigger: Developer approval of final PR merge.
 Artifact: `docs/product/retrospectives/phase-14-per-platform-pet-identity-retrospective.md`

@@ -4,7 +4,7 @@
 
 ## Epic
 
-Product plan: [`docs/product/plans/phase-15.md`](../../plans/phase-15.md). Decision source of truth: [`notes/private/phase-15-per-session-pet-extension-kickoff.md`](../../../../notes/private/phase-15-per-session-pet-extension-kickoff.md).
+Product plan: [`docs/product/plans/phase-15-per-session-pets.md`](../../plans/phase-15-per-session-pets.md). Decision source of truth: [`notes/private/phase-15-per-session-pet-extension-kickoff.md`](../../../../notes/private/phase-15-per-session-pet-extension-kickoff.md).
 
 ## Product contract
 

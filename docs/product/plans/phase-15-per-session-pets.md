@@ -1,6 +1,6 @@
 # Phase 15: Per-Session Pets (Pet Per Active Agent Thread)
 
-**Delivery status:** Product plan **approved 2026-07-01**. Target app **v2.2.0** (tentative). Next: `/soa decompose docs/product/plans/phase-15.md`.
+**Delivery status:** Product plan **approved 2026-07-01**. Target app **v2.2.0** (tentative). Next: `/soa decompose docs/product/plans/phase-15-per-session-pets.md`.
 
 ## TL;DR
 
@@ -23,7 +23,7 @@
 
 ---
 
-Phase 13 shipped one floating pet window per active platform; Phase 14 gave each platform its own pet *identity* and the chromeless Minimalist render path. Phase 14's retrospective named Phase 15 "pet per active agent thread" as the next step, and the post-Phase-14 mainline sweep already keys gate/badge routing by `origin:session_id`. This phase is the render/lifecycle/UI half: turn each active `session_id` into its own panel, with numbering, rename, aging, capacity, and the Settings surface to opt in.
+Phase 13 shipped one floating pet window per active platform; Phase 14 gave each platform its own pet _identity_ and the chromeless Minimalist render path. Phase 14's retrospective named Phase 15 "pet per active agent thread" as the next step, and the post-Phase-14 mainline sweep already keys gate/badge routing by `origin:session_id`. This phase is the render/lifecycle/UI half: turn each active `session_id` into its own panel, with numbering, rename, aging, capacity, and the Settings surface to opt in.
 
 ## Phase Goal
 
@@ -95,4 +95,4 @@ A developer can open Settings > Platform Settings, enable session pets for a pla
 
 ## Retrospective
 
-`required` — Phase 15 introduces the first *session*-scoped lifecycle (free-list numbering, per-session rename persistence, the priority eviction queue, and the rate-limited conflict bubble) and deliberately leaves a named cross-repo follow-up (session-linked SoA gate attribution across codogotchi + upstream `son-of-anton`). Durable learning and downstream assumptions are likely, and the retrospective is where the post-Phase-15 extension work gets shaped.
+`required` — Phase 15 introduces the first _session_-scoped lifecycle (free-list numbering, per-session rename persistence, the priority eviction queue, and the rate-limited conflict bubble) and deliberately leaves a named cross-repo follow-up (session-linked SoA gate attribution across codogotchi + upstream `son-of-anton`). Durable learning and downstream assumptions are likely, and the retrospective is where the post-Phase-15 extension work gets shaped.
