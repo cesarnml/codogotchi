@@ -30,21 +30,16 @@ final class CustomizationTabView: NSView {
 	private static let platformCardWidth: CGFloat =
 		16 + 110 + 8 + modeColumnWidth + 24 + sessionsColumnWidth + 24 + 110 + 16
 
-	/// Observer for `.customizationDidChangeExternally` — a right-click mode
-	/// switch on a floating panel writes customization.json through its own
-	/// short-lived view model, so this tab's controls would silently go stale
-	/// without a re-sync trigger.
-	private var externalChangeObserver: NSObjectProtocol?
-
 	init(viewModel: CustomizationTabViewModel) {
 		self.viewModel = viewModel
 		super.init(frame: .zero)
 		setupViews()
-		externalChangeObserver = NotificationCenter.default.addObserver(
-			forName: .customizationDidChangeExternally,
-			object: nil,
-			queue: .main
-		) { [weak self] _ in
+		// A right-click mode switch on a floating panel writes customization.json
+		// through the same shared `CustomizationStore` this tab's view model
+		// subscribes to, so this tab's controls would silently go stale without
+		// this re-sync trigger — the replacement for the old
+		// NotificationCenter-based external-change observer.
+		viewModel.onExternalChange = { [weak self] in
 			Task { @MainActor in self?.refreshFromDisk() }
 		}
 	}
@@ -53,9 +48,7 @@ final class CustomizationTabView: NSView {
 	required init?(coder: NSCoder) { nil }
 
 	deinit {
-		if let externalChangeObserver {
-			NotificationCenter.default.removeObserver(externalChangeObserver)
-		}
+		viewModel.onExternalChange = nil
 	}
 
 	/// Re-reads customization.json via the view model and re-syncs every

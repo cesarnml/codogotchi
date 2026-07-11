@@ -86,6 +86,15 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// Held strongly so the Settings panel is not deallocated while the app runs.
 	var settingsWindowController: SettingsWindowController?
 
+	/// The app's single `customization.json` writer, shared with
+	/// `SettingsWindowController`'s `CustomizationTabViewModel`/`GeneralTabViewModel`
+	/// so a right-click write below reaches an open Settings tab's subscription —
+	/// the replacement for the old throwaway-view-model-plus-NotificationCenter-post
+	/// pattern. A stored-property default initializer (no DI params needed here)
+	/// so it exists before any closure below captures `self`, regardless of
+	/// definition order.
+	private let customizationStore = CustomizationStore()
+
 	/// Same `state.d/`-scan tier engine backing Settings → Sessions, also
 	/// wired into `MenubarMenu` so the menu bar's Active/Live/Capped tiering
 	/// reads the identical rows the Sessions tab shows. Held strongly here
@@ -347,15 +356,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// origin, never a per-session mode. The literal "combined" window
 					// has no single origin; it keeps its grouping and flips the
 					// combined-minimalist rendering flag instead.
-					panel.onSwitchToMinimalist = {
-						let viewModel = CustomizationTabViewModel()
+					panel.onSwitchToMinimalist = { [weak self] in
+						guard let self else { return }
 						if let platformOrigin = FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: origin) {
-							viewModel.setMode(.minimalist, for: platformOrigin)
+							self.customizationStore.setMode(.minimalist, for: platformOrigin)
 						} else {
-							viewModel.setCombinedMinimalistEnabled(true)
+							self.customizationStore.setCombinedMinimalistEnabled(true)
 						}
-						NotificationCenter.default.post(
-							name: .customizationDidChangeExternally, object: nil)
 					}
 					// P15.08: left-clicking the conflict bubble deep-links to
 					// Settings > Customization so the user can raise the cap.
@@ -416,15 +423,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// Mode" switch above — same key-shape resolution, same
 					// platform-level scope (all sibling session panels flip together),
 					// same combined-window special case.
-					panel.onSwitchToPetMode = {
-						let viewModel = CustomizationTabViewModel()
+					panel.onSwitchToPetMode = { [weak self] in
+						guard let self else { return }
 						if let platformOrigin = FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: origin) {
-							viewModel.setMode(.own, for: platformOrigin)
+							self.customizationStore.setMode(.own, for: platformOrigin)
 						} else {
-							viewModel.setCombinedMinimalistEnabled(false)
+							self.customizationStore.setCombinedMinimalistEnabled(false)
 						}
-						NotificationCenter.default.post(
-							name: .customizationDidChangeExternally, object: nil)
 					}
 					// Right-click "Panel Size…" slider pill: persists the same
 					// global minimalist_badge_scale the Customization tab's slider
@@ -434,12 +439,12 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// is deferred to the gesture's final tick — per-tick posts
 					// would make an open Customization tab re-read the file for
 					// every pixel of the drag.
-					panel.onPanelSizeChanged = { scale, isFinal in
-						CustomizationTabViewModel().setMinimalistBadgeScale(scale)
-						if isFinal {
-							NotificationCenter.default.post(
-								name: .customizationDidChangeExternally, object: nil)
-						}
+					panel.onPanelSizeChanged = { [weak self] scale, isFinal in
+						// Persists every tick (so the on-disk value tracks the drag even
+						// if the app quits mid-gesture) but only publishes on the final
+						// tick — per-tick publication would make an open Customization
+						// tab re-read the file for every pixel of the drag.
+						self?.customizationStore.setMinimalistBadgeScale(scale, notify: isFinal)
 					}
 					// Focus/dismiss on a session-keyed minimalist badge can only act on
 					// the platform app as a whole, so it idles every sibling session's
@@ -561,6 +566,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		self.sessionsTabViewModel = sessionsTabViewModel
 
 		let settingsController = SettingsWindowController(
+			customizationStore: customizationStore,
 			sessionsTabViewModel: sessionsTabViewModel
 		)
 		settingsController.onPetActivated = { [weak self] _ in

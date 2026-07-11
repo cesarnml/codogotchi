@@ -94,6 +94,7 @@
 		708062CE5FDA296BC26AF17C /* PetTabLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 777877051ED12A63B5FD6ACB /* PetTabLayoutTests.swift */; };
 		74348CC405B92950FC9E967D /* ConfigFileWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F8A5A89CFE5F72C7CB6896 /* ConfigFileWriter.swift */; };
 		766A1353C309F8F7551B6A3C /* FloatingPetWindowPoolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A977437677E31BB6CF62E58C /* FloatingPetWindowPoolTests.swift */; };
+		774F5A301F72D6FC82A66844 /* CustomizationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1805A0BD2255F37C552E1A4 /* CustomizationStore.swift */; };
 		7843F584962C072B18F8B391 /* MinimalistBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 933225DDA49AB5637263654E /* MinimalistBadgeView.swift */; };
 		7893BF413AB78DCAEDB74D58 /* LivePollingDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BABED0FED8D4478E21F2531 /* LivePollingDriver.swift */; };
 		7A7D6AF5F7CAC9C273EDC5FF /* SettingsWindowOpenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14570954EC4AB5F26AFE2173 /* SettingsWindowOpenTests.swift */; };
@@ -346,6 +347,7 @@
 		B8F15B1B99434EA9F9005052 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		BC2EC51845CF105F01A1BBE4 /* SessionNumberAllocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNumberAllocatorTests.swift; sourceTree = "<group>"; };
 		BFE11B737B6F0D401A7F9696 /* GateBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateBadgeView.swift; sourceTree = "<group>"; };
+		C1805A0BD2255F37C552E1A4 /* CustomizationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationStore.swift; sourceTree = "<group>"; };
 		C24E41079FB3603E2C64AAF9 /* CodogotchiFolders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiFolders.swift; sourceTree = "<group>"; };
 		C30E64667A9FEA14148F78D2 /* SpeechBubbleLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechBubbleLayoutTests.swift; sourceTree = "<group>"; };
 		C367AE2D8D1BB37467677308 /* StateJsonWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonWriter.swift; sourceTree = "<group>"; };
@@ -652,6 +654,7 @@
 				C24E41079FB3603E2C64AAF9 /* CodogotchiFolders.swift */,
 				48F8A5A89CFE5F72C7CB6896 /* ConfigFileWriter.swift */,
 				61ADDBCA1AB46B4CC695D70A /* CustomizationJsonReader.swift */,
+				C1805A0BD2255F37C552E1A4 /* CustomizationStore.swift */,
 				EDD860AC2D8EE1000D8AE230 /* GateJsonReader.swift */,
 				A63889677CF9025B4EC26F44 /* HooksStatusSnapshot.swift */,
 				A0A2770025BB0068A8C40E54 /* HookStatusClient.swift */,
@@ -815,6 +818,7 @@
 				234EB74C49A7ACA478739D8B /* ConflictBubbleRateLimiter.swift in Sources */,
 				DBAB3D7D74045B147EB66953 /* ConflictBubbleTargetSelector.swift in Sources */,
 				C19268CE3514D09DF9675B74 /* CustomizationJsonReader.swift in Sources */,
+				774F5A301F72D6FC82A66844 /* CustomizationStore.swift in Sources */,
 				1275ABCEEE3AB44A8D12B764 /* CustomizationTabView.swift in Sources */,
 				D4D1DFE1B735D79C81230EA1 /* CustomizationTabViewModel.swift in Sources */,
 				A93D73A2FFD804C3C3D48CD0 /* DemoConfig.swift in Sources */,
