@@ -53,3 +53,22 @@ Red first: n/a (`Red: skip` — extraction only)
 Why this path: single PR deleting the file gives an atomic "file no longer exists" exit check
 Alternative considered: three cluster-sized PRs — rejected; clusters cross-reference and intermediate half-alive states add ambiguity
 Deferred: any prompt/dismissal convergence (Phase 17); renames
+
+Extraction executed 2026-07-11: 26 files created under `Windows/`, `FloatingPetPanel.swift` deleted. Verified with a full-body diff (imports stripped) between the original file and the concatenation of all 26 new files — exactly one hunk, the sanctioned `extension FloatingPetHidePrompt` relocation next to its enum; no other line altered, reordered, or dropped.
+
+Tiny-leaf bundling beyond the ticket's explicit `MinimalistPanelSizePill (+ FirstMouseSlider, MinimalistPanelSizePillPanel)` grouping: `FloatingInteractionHitTarget` (4-line enum, sole consumer `FloatingInteractionPolicy`) bundled into `FloatingInteractionPolicy.swift` rather than given its own file — extraction to a standalone file added nothing.
+
+`private`/`fileprivate` → `internal` widenings, each compiler-forced by the split and confirmed to enable no new external call site:
+- `MinimalistBadgeView` (class, + `hPad` and `beginExternalDrag`/`continueExternalDrag`/`endExternalDrag`/`presentHidePrompt`) — referenced from `GateBadgePanel.swift`, `MinimalistPanelController.swift`
+- `GateBadgeTokenView` (class) — referenced from `GateBadgeView.swift`
+- `TimerIconChipView` (class) — referenced from `PromptTimerChipView.swift`
+- `FloatingPetInteractionView` (class, + `beginExternalDrag`/`continueExternalDrag`/`endExternalDrag`/`presentHidePrompt`) — referenced from `FloatingPetPanelController.swift`
+- `FloatingPetOverlayView` (class) — referenced from `FloatingPetInteractionView.swift`
+- `FloatingPetHidePromptPanel` (class) — referenced from `FloatingPetInteractionView.swift`, `MinimalistBadgeView.swift`
+- `FloatingPetHidePromptView` (class) — referenced from `FloatingPetHidePromptPanel.swift`
+- `FloatingPetHidePromptTintView` (class) — referenced from `FloatingPetHidePromptView.swift`
+- `MinimalistPanelSizePillPanel` (class) — referenced from `MinimalistBadgeView.swift`
+
+`FirstMouseSlider` stayed `private` (no cross-file use). Two files omit `import SpriteKit` despite prose mentions of SpriteKit (`FloatingPetPanelController.swift`, `FloatingPetOverlayView.swift`) — neither uses an actual `SK*` type.
+
+Verification: `xcodegen generate` + `xcodebuild build`/`build-for-testing` clean; `bun run verify:quiet` green; `bun run ci:quiet` PASS, 1015 tests / 0 failures, matching the recorded CI baseline exactly.
