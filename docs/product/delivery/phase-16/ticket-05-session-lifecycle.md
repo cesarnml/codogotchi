@@ -46,3 +46,17 @@ Red first: classifier table tests fail (type absent)
 Why this path: one ticket rewiring both consumers avoids a dual-source-of-truth window; `Pool/` per drawer glossary (session policy)
 Alternative considered: split "classifier + VM" / "tiering" tickets — rejected; half-adopted type is the disease itself
 Deferred: `derive()` consumption (Phase 18); any lifecycle behavior change
+
+Implementation note: `SessionLifecycle.classify(age:isRendered:isConcealed:liveTTL:archiveTTL:)`
+takes `isConcealed` as one collapsed boolean (hidden-by-user OR pending-show OR
+idle-dismissed) rather than three separate flags — the classifier only needs
+"is this key currently concealed" to pick the tier; which specific concealment
+reason applies only matters for `isShown`/`pendingShowKeys` bookkeeping, which
+stays in `SessionsTabViewModel.refresh()`'s per-branch `if/else` (unchanged
+precedence: rendered > hidden-by-user > pending-show > idle-dismissed) rather
+than the pure classifier. `MenubarMenu`'s "lifecycle tiering" already fully
+delegates to the shared `SessionsTabViewModel` instance (no independent clock
+comparisons of its own), so it required no code change — only
+`SessionsTabViewModel` needed rewiring. No consumer disagreement was found;
+the extraction is behavior-neutral (full existing suite green, 1038/1038
+after the new classifier tests).
