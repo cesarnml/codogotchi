@@ -136,52 +136,68 @@ final class SessionsTabViewModel {
 			else { continue }
 
 			let age = now.timeIntervalSince(mtime)
-			// Past SlicePruner's deletion horizon: this slice is either already
-			// gone or about to be swept on the next prune pass. Nothing to show.
-			guard age < archiveTTL else { continue }
-
 			let isSessionKeyed = parsedSessionId != "default"
 			let key: WindowKey =
 				isSessionKeyed ? .session(origin: origin, id: parsedSessionId) : .origin(origin)
+
+			let isRendered = activeWindowKeys.contains(key)
+			let isHiddenByUser = hiddenWindowKeys.contains(key)
+			let isPendingShow = pendingShowKeys.contains(key)
+			let isTtlDismissed = ttlDismissedKeys.contains(key)
+			let lifecycle = SessionLifecycle.classify(
+				age: age,
+				isRendered: isRendered,
+				isConcealed: isHiddenByUser || isPendingShow || isTtlDismissed,
+				liveTTL: liveTTL,
+				archiveTTL: archiveTTL)
+			// Past SlicePruner's deletion horizon: this slice is either already
+			// gone or about to be swept on the next prune pass. Nothing to show.
+			guard lifecycle != .pruned else { continue }
+
 			let label =
 				pool?.sessionDisplayLabel(forWindowKey: key, origin: origin)
 				?? FloatingPetWindowPool.defaultSessionLabel(forOrigin: origin)
 				?? origin
 			let sessionId = isSessionKeyed ? parsedSessionId : nil
 
-			if activeWindowKeys.contains(key) {
-				pendingShowKeys.remove(key)
-				active.append(
-					SessionRow(
-						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-						tier: .active, isShown: true, ageSeconds: age))
-			} else if hiddenWindowKeys.contains(key), age < liveTTL {
-				pendingShowKeys.remove(key)
-				active.append(
-					SessionRow(
-						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-						tier: .active, isShown: false, ageSeconds: age))
-			} else if pendingShowKeys.contains(key), age < liveTTL {
-				active.append(
-					SessionRow(
-						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-						tier: .active, isShown: true, ageSeconds: age))
-			} else if ttlDismissedKeys.contains(key), age < liveTTL {
-				// Hidden by the "Hide Idle Pet After" idle-dismiss TTL rather
-				// than by the user — same Active (hidden) treatment: the pet is
-				// still here, just concealed, and Show resurrects it. Checked
-				// after `pendingShowKeys` so a just-clicked Show reads as
-				// shown during the one-tick respawn gap, not as hidden again.
-				active.append(
-					SessionRow(
-						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-						tier: .active, isShown: false, ageSeconds: age))
-			} else if age < liveTTL {
+			switch lifecycle {
+			case .pruned:
+				continue
+			case .active:
+				if isRendered {
+					pendingShowKeys.remove(key)
+					active.append(
+						SessionRow(
+							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
+							tier: .active, isShown: true, ageSeconds: age))
+				} else if isHiddenByUser {
+					pendingShowKeys.remove(key)
+					active.append(
+						SessionRow(
+							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
+							tier: .active, isShown: false, ageSeconds: age))
+				} else if isPendingShow {
+					active.append(
+						SessionRow(
+							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
+							tier: .active, isShown: true, ageSeconds: age))
+				} else {
+					// Hidden by the "Hide Idle Pet After" idle-dismiss TTL rather
+					// than by the user — same Active (hidden) treatment: the pet is
+					// still here, just concealed, and Show resurrects it. Checked
+					// after `isPendingShow` so a just-clicked Show reads as shown
+					// during the one-tick respawn gap, not as hidden again.
+					active.append(
+						SessionRow(
+							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
+							tier: .active, isShown: false, ageSeconds: age))
+				}
+			case .live:
 				live.append(
 					SessionRow(
 						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
 						tier: .live, isShown: false, ageSeconds: age))
-			} else {
+			case .archived:
 				archived.append(
 					SessionRow(
 						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
