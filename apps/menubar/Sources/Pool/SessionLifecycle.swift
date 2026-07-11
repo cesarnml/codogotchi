@@ -2,11 +2,13 @@ import Foundation
 
 /// Where a `state.d/` slice sits in its lifecycle, judged from a single
 /// mtime-derived `age` plus the two policy TTLs and the pool's current
-/// render/conceal state — the classifier `SessionsTabViewModel` and the
-/// menubar pet section (via the shared view-model instance) both resolve
-/// against, replacing the inline clock comparisons each used to carry
-/// separately. See `classify(age:isRendered:isConcealed:liveTTL:archiveTTL:)`
-/// for the precedence and boundary rules.
+/// render/conceal state — the classifier `SessionsTabViewModel` resolves
+/// against and the menubar pet section reads via the shared view-model
+/// instance, replacing `SessionsTabViewModel`'s own inline clock
+/// comparisons (the menubar already delegated to that view model and
+/// carried no independent clock logic of its own). See
+/// `classify(age:isRendered:isConcealed:liveTTL:archiveTTL:)` for the
+/// precedence and boundary rules.
 enum SessionLifecycle: Equatable {
 	/// Rendered right now, or concealed (user-hidden, idle-dismissed, or
 	/// mid-Show) with a slice still inside the reader-staleness window.

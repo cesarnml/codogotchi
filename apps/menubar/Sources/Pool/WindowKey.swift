@@ -18,6 +18,17 @@ import Foundation
 ///
 /// Every other call site should match on the enum (`switch`/`if case`)
 /// instead of round-tripping through `rawValue` — see P16.04.
+///
+/// `rawValue` is **not injective**: `.origin("combined")` and `.combined`
+/// both serialize to `"combined"` (mirroring the pre-enum string
+/// convention, where a plain origin literally named `"combined"` was never
+/// distinguishable from the synthetic shared-combined key), and any
+/// `.origin`/`.session` id containing a literal `:` round-trips ambiguously
+/// through the colon-split in `init?(rawValue:)`. No real hook-registered
+/// platform origin or session id produces either case today, so this is a
+/// reserved-value constraint on the raw-string domain rather than a live
+/// bug — construct `.origin`/`.session`/`.combined` directly rather than via
+/// `rawValue` whenever a value in either reserved range is possible.
 enum WindowKey: Hashable {
 	case origin(String)
 	case session(origin: String, id: String)
