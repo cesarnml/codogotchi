@@ -262,13 +262,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						// the reset's real-current-time stamp is what stops a next-tick
 						// poll of the pre-rewrite slice from restarting the timer.
 						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
-						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
+						if let identity = origin.sessionIdentity {
 							StateJsonWriter.dismissAllSessionsAttention(at: stateDir, origin: identity.origin)
 							self?.floatingPetWindowPool?.clearAttentionBubbles(sharingOriginWith: origin)
 						} else {
 							StateJsonWriter.dismissAttention(
 								at: stateDir,
-								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
+								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin.origin]
 							)
 						}
 					}
@@ -289,13 +289,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					panel.onForceIdle = { [weak self, weak panel] in
 						// Pool-tracker reset first — see onAttentionDismissed above.
 						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
-						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
+						if let identity = origin.sessionIdentity {
 							StateJsonWriter.forceIdle(
 								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
 						} else {
 							StateJsonWriter.forceIdle(
 								at: stateDir,
-								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
+								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin.origin]
 							)
 						}
 						panel?.applyGateBadge(content: nil)
@@ -307,7 +307,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// plain origin/"combined" itself (P?? unification: those now offer
 					// Rename too) — so no identity lookup is needed.
 					panel.onRenameRequested = { newLabel in
-						SessionLabelStore.setLabel(newLabel, for: origin)
+						SessionLabelStore.setLabel(newLabel, for: origin.rawValue)
 					}
 					// Right-click "Prune Session" (P15.07): destroys the panel's
 					// backing state (slice, free-list number, rename label) via the
@@ -325,11 +325,11 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// no-op if the origin has no session identity, isn't a title-
 					// resolvable platform, or hasn't titled the thread (yet, or ever).
 					panel.onSyncLabelRequested = {
-						guard let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin),
+						guard let identity = origin.sessionIdentity,
 							let title = SessionTitleResolver.title(
 								forOrigin: identity.origin, sessionId: identity.sessionId)
 						else { return }
-						SessionLabelStore.setLabelExemptFromCap(title, for: origin)
+						SessionLabelStore.setLabelExemptFromCap(title, for: origin.rawValue)
 					}
 					// Right-click "Hide All Other Pets": hides every other
 					// currently-rendered window (same-platform sibling sessions
@@ -387,16 +387,16 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					// key regardless of shape (P?? unification — see Own mode's wiring
 					// above for the full rationale).
 					panel.onRenameRequested = { newLabel in
-						SessionLabelStore.setLabel(newLabel, for: origin)
+						SessionLabelStore.setLabel(newLabel, for: origin.rawValue)
 					}
 					// Right-click "Sync Label", mirroring Own mode's wiring above —
 					// same fetch-and-persist, same silent no-op when unresolvable.
 					panel.onSyncLabelRequested = {
-						guard let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin),
+						guard let identity = origin.sessionIdentity,
 							let title = SessionTitleResolver.title(
 								forOrigin: identity.origin, sessionId: identity.sessionId)
 						else { return }
-						SessionLabelStore.setLabelExemptFromCap(title, for: origin)
+						SessionLabelStore.setLabelExemptFromCap(title, for: origin.rawValue)
 					}
 					// Right-click "Prune Session" (P15.07), mirroring Own mode's
 					// wiring above: destroys the panel's backing state (slice,
@@ -452,13 +452,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						// the reset's real-current-time stamp is what stops a next-tick
 						// poll of the pre-rewrite slice from restarting the timer.
 						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
-						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
+						if let identity = origin.sessionIdentity {
 							StateJsonWriter.dismissAllSessionsAttention(at: stateDir, origin: identity.origin)
 							self?.floatingPetWindowPool?.clearAttentionBubbles(sharingOriginWith: origin)
 						} else {
 							StateJsonWriter.dismissAttention(
 								at: stateDir,
-								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
+								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin.origin]
 							)
 						}
 					}
@@ -472,13 +472,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					panel.onForceIdle = { [weak self, weak panel] in
 						// Pool-tracker reset first — see onAttentionDismissed above.
 						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
-						if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: origin) {
+						if let identity = origin.sessionIdentity {
 							StateJsonWriter.forceIdle(
 								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
 						} else {
 							StateJsonWriter.forceIdle(
 								at: stateDir,
-								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin]
+								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin.origin]
 							)
 						}
 						panel?.applyGateBadge(content: nil)
@@ -512,9 +512,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					}
 					return controller
 				},
-				retrievedSessionTitleReader: { RetrievedSessionTitleStore.title(for: $0) },
+				retrievedSessionTitleReader: { RetrievedSessionTitleStore.title(for: $0.rawValue) },
 				retrievedSessionTitleWriter: { key, title in
-					RetrievedSessionTitleStore.setTitle(title, for: key)
+					RetrievedSessionTitleStore.setTitle(title, for: key.rawValue)
 				},
 				hiddenKeysLoader: { AppStateStore.loadHiddenWindowKeys() },
 				hiddenKeysSaver: { try? AppStateStore.saveHiddenWindowKeys($0) }
@@ -540,15 +540,15 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		// → exactly that slice, combined/plain → that window's origin set).
 		// Shared by the menubar's "Show … Pet" items and the Settings →
 		// Sessions tab's per-row/bulk "Show" actions.
-		let refreshTtlForShow: (String) -> Void = { [weak self] windowKey in
+		let refreshTtlForShow: (WindowKey) -> Void = { [weak self] windowKey in
 			let stateDir = config.pollingTarget.path
-			if let identity = FloatingPetWindowPool.sessionIdentity(forWindowKey: windowKey) {
+			if let identity = windowKey.sessionIdentity {
 				StateJsonWriter.refreshForShow(
 					at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
 			} else {
 				StateJsonWriter.refreshForShow(
 					at: stateDir,
-					origins: self?.resolveWindowOrigins(windowKey: windowKey) ?? [windowKey]
+					origins: self?.resolveWindowOrigins(windowKey: windowKey) ?? [windowKey.origin]
 				)
 			}
 		}
@@ -770,7 +770,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		// window of that origin.
 		let origins = Set(
 			(floatingPetWindowPool?.activeOrigins ?? [])
-				.map { FloatingPetWindowPool.origin(forWindowKey: $0) }
+				.map { $0.origin }
 		)
 		let originPetIds = Dictionary(uniqueKeysWithValues: origins.map { ($0, assignments.resolve(origin: $0)) })
 		let petIdsToReload = Set(originPetIds.values)
@@ -822,11 +822,11 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// window key (plain origin or per-session `origin:session_id`) resolves to its
 	/// owning origin, whose winner slice the writers target.
 	@MainActor
-	private func resolveWindowOrigins(windowKey: String) -> Set<String> {
-		if windowKey == "combined" {
+	private func resolveWindowOrigins(windowKey: WindowKey) -> Set<String> {
+		if windowKey == .combined {
 			return Set(floatingPetWindowPool?.combinedModeOrigins() ?? [])
 		}
-		return [FloatingPetWindowPool.origin(forWindowKey: windowKey)]
+		return [windowKey.origin]
 	}
 
 	private func setFloatingPetAppNapOptOut(active: Bool) {

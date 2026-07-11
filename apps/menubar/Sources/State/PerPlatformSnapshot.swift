@@ -15,16 +15,16 @@ import Foundation
 /// to empty so existing per-origin construction sites (pool tests) compile and
 /// behave unchanged.
 struct PerPlatformSnapshot {
-    let perPlatform: [String: StateSnapshot]
-    let gateBadges: [String: GateBadgeContent]
+    let perPlatform: [WindowKey: StateSnapshot]
+    let gateBadges: [WindowKey: GateBadgeContent]
     let rpgSnapshot: RpgSnapshot
-    let renderKeyIdentities: [String: RenderKeyIdentity]
+    let renderKeyIdentities: [WindowKey: RenderKeyIdentity]
 
     init(
-        perPlatform: [String: StateSnapshot],
-        gateBadges: [String: GateBadgeContent],
+        perPlatform: [WindowKey: StateSnapshot],
+        gateBadges: [WindowKey: GateBadgeContent],
         rpgSnapshot: RpgSnapshot,
-        renderKeyIdentities: [String: RenderKeyIdentity] = [:]
+        renderKeyIdentities: [WindowKey: RenderKeyIdentity] = [:]
     ) {
         self.perPlatform = perPlatform
         self.gateBadges = gateBadges

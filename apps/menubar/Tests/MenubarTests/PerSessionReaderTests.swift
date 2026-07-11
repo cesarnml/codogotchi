@@ -416,9 +416,11 @@ final class PerSessionReaderTests: XCTestCase {
 		else { return XCTFail("both reads must succeed") }
 
 		let collapsed = resolveRenderKeys(perSession: perSession, customization: customization())
+		let perOriginAsWindowKeys = Dictionary(
+			uniqueKeysWithValues: perOrigin.map { (WindowKey.origin($0.key), $0.value) })
 
 		XCTAssertEqual(
-			collapsed.states, perOrigin,
+			collapsed.states, perOriginAsWindowKeys,
 			"all-default collapse must be byte-identical to the pre-change per-origin map")
 	}
 }

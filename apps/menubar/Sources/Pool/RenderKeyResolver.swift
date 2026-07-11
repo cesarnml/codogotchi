@@ -15,8 +15,8 @@ struct RenderKeyIdentity: Equatable {
 /// Output of `resolveRenderKeys`: the render-keyed winner snapshots plus the
 /// parallel identity lookup keyed identically.
 struct RenderKeyResolution: Equatable {
-	let states: [String: StateSnapshot]
-	let identities: [String: RenderKeyIdentity]
+	let states: [WindowKey: StateSnapshot]
+	let identities: [WindowKey: RenderKeyIdentity]
 }
 
 /// Pure reducer from the per-session state map (keyed `origin:session_id`) to the
@@ -46,10 +46,10 @@ func resolveRenderKeys(
 	perSession: [String: StateSnapshot],
 	customization: CustomizationSnapshot
 ) -> RenderKeyResolution {
-	var states: [String: StateSnapshot] = [:]
-	var identities: [String: RenderKeyIdentity] = [:]
+	var states: [WindowKey: StateSnapshot] = [:]
+	var identities: [WindowKey: RenderKeyIdentity] = [:]
 
-	func consider(renderKey: String, origin: String, sessionId: String, snapshot: StateSnapshot) {
+	func consider(renderKey: WindowKey, origin: String, sessionId: String, snapshot: StateSnapshot) {
 		let candidate = StateJsonReader.parseISO8601Date(snapshot.updatedAt) ?? .distantPast
 		if let existing = states[renderKey] {
 			let existingDate = StateJsonReader.parseISO8601Date(existing.updatedAt) ?? .distantPast
@@ -63,11 +63,25 @@ func resolveRenderKeys(
 	// Dictionary order is unspecified and would pick an arbitrary winner.
 	for key in perSession.keys.sorted() {
 		guard let snapshot = perSession[key] else { continue }
-		let (origin, sessionId) = splitSessionKey(key)
+		// `perSession` is keyed by the `state.d/` per-session identity
+		// (built by `StateJsonReader.readPerSessionDirectory` from slice
+		// filenames — the sanctioned slice-filename boundary), so parsing it
+		// through `WindowKey`'s own rawValue path is the single parse site
+		// rather than a bespoke colon split. A key with no colon degrades to
+		// `(key, "default")` for defensiveness, mirroring the pre-WindowKey
+		// contract — the reader always emits a colon-bearing key in
+		// practice, but nothing here depends on that.
+		let (origin, sessionId): (String, String)
+		switch WindowKey(rawValue: key) {
+		case .session(let o, let id): (origin, sessionId) = (o, id)
+		case .origin(let o): (origin, sessionId) = (o, "default")
+		case .combined: (origin, sessionId) = (key, "default")
+			case .none: continue
+		}
 		let mode = customization.platformModes[origin] ?? .own
-		let renderKey: String
+		let renderKey: WindowKey
 		if mode == .combined {
-			renderKey = "combined"
+			renderKey = .combined
 		} else {
 			let sessionPetsOn = customization.sessionPetsEnabled[origin] ?? false
 			if sessionPetsOn {
@@ -91,9 +105,9 @@ func resolveRenderKeys(
 						guard updatedAt > activatedAt else { continue }
 					}
 				}
-				renderKey = key
+				renderKey = .session(origin: origin, id: sessionId)
 			} else {
-				renderKey = origin
+				renderKey = .origin(origin)
 			}
 		}
 		consider(renderKey: renderKey, origin: origin, sessionId: sessionId, snapshot: snapshot)
@@ -102,22 +116,11 @@ func resolveRenderKeys(
 	return RenderKeyResolution(states: states, identities: identities)
 }
 
-/// Splits an `origin:session_id` per-session key back into its components,
-/// splitting on the first colon (origin never contains one). A key with no
-/// colon degrades to `(key, "default")` for defensiveness — the reader always
-/// emits a colon-bearing key.
-private func splitSessionKey(_ key: String) -> (origin: String, sessionId: String) {
-	guard let colon = key.firstIndex(of: ":") else { return (key, "default") }
-	let origin = String(key[key.startIndex..<colon])
-	let session = String(key[key.index(after: colon)...])
-	return (origin, session)
-}
-
 /// Joins `(origin, sessionId)` into the `"<origin>:<session_id>"` key shape
-/// consumed throughout `state.d/` — the inverse of `splitSessionKey`. Single
-/// source of truth for building this key so a future change to its format
-/// (e.g. escaping a literal colon in an origin or session id) only needs one
-/// call site updated.
+/// consumed throughout `state.d/`. Delegates to `WindowKey.session(origin:id:)
+/// .rawValue` — the single source of truth for that format — for callers
+/// that need the raw `String` form (e.g. a lookup key into a `String`-keyed
+/// sidecar map, not a `WindowKey` itself).
 func makeSessionKey(origin: String, sessionId: String) -> String {
-	"\(origin):\(sessionId)"
+	WindowKey.session(origin: origin, id: sessionId).rawValue
 }

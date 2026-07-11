@@ -71,7 +71,7 @@ final class MenubarMenu: NSObject {
 	/// on the backing slice(s) — without it, showing a pet whose slice has
 	/// aged past the TTL while hidden is a silent no-op (the pool suppresses
 	/// re-spawn of expired keys, so nothing appears).
-	private let refreshTtlForShow: ((String) -> Void)?
+	private let refreshTtlForShow: ((WindowKey) -> Void)?
 	/// Called just before the menu opens. Wired by `MenubarApp` to the pool's
 	/// `pruneHiddenKeysWithoutBackingSlice`, which drops hidden keys whose
 	/// slice `SlicePruner` has already deleted from disk (24h horizon) —
@@ -92,7 +92,7 @@ final class MenubarMenu: NSObject {
 		sessionsTabViewModel: SessionsTabViewModel? = nil,
 		retryHooksInstall: (() -> Void)? = nil,
 		openSettings: ((SettingsTab?) -> Void)? = nil,
-		refreshTtlForShow: ((String) -> Void)? = nil,
+		refreshTtlForShow: ((WindowKey) -> Void)? = nil,
 		pruneOrphanHiddenKeys: (() -> Void)? = nil
 	) {
 		self.terminate = terminate
@@ -262,7 +262,7 @@ final class MenubarMenu: NSObject {
 		// when a view model is wired, not every raw hidden key: bulk-showing
 		// a session the Active list doesn't even list would silently reach
 		// further than what the user can see is about to happen.
-		let keys: [String]
+		let keys: [WindowKey]
 		if let viewModel = sessionsTabViewModel {
 			viewModel.refresh()
 			keys = viewModel.activeRows.filter { !$0.isShown }.map(\.id)
@@ -346,13 +346,13 @@ final class MenubarMenu: NSObject {
 		guard let pool = floatingPetPool else { return [] }
 		let active = pool.activeOrigins.map {
 			SessionRow(
-				id: $0, origin: FloatingPetWindowPool.origin(forWindowKey: $0), sessionId: nil,
-				displayLabel: $0, tier: .active, isShown: true, ageSeconds: 0)
+				id: $0, origin: $0.origin, sessionId: nil,
+				displayLabel: $0.rawValue, tier: .active, isShown: true, ageSeconds: 0)
 		}
 		let hidden = pool.hiddenWindowKeys.map {
 			SessionRow(
-				id: $0, origin: FloatingPetWindowPool.origin(forWindowKey: $0), sessionId: nil,
-				displayLabel: $0, tier: .active, isShown: false, ageSeconds: 0)
+				id: $0, origin: $0.origin, sessionId: nil,
+				displayLabel: $0.rawValue, tier: .active, isShown: false, ageSeconds: 0)
 		}
 		return active + hidden
 	}
@@ -443,7 +443,7 @@ final class MenubarMenu: NSObject {
 	@objc private func hideFloatingPetForOrigin(_ sender: Any?) {
 		guard let pool = floatingPetPool,
 			let item = sender as? NSMenuItem,
-			let origin = item.representedObject as? String
+			let origin = item.representedObject as? WindowKey
 		else { return }
 		pool.setVisible(false, for: origin)
 		refreshFloatingPetMenuItemTitle()
@@ -453,7 +453,7 @@ final class MenubarMenu: NSObject {
 	@objc private func showFloatingPetForKey(_ sender: Any?) {
 		guard let pool = floatingPetPool,
 			let item = sender as? NSMenuItem,
-			let key = item.representedObject as? String
+			let key = item.representedObject as? WindowKey
 		else { return }
 		// Restart the dismiss-TTL clock before un-hiding — see showAllPets.
 		refreshTtlForShow?(key)
@@ -467,11 +467,11 @@ final class MenubarMenu: NSObject {
 	/// retrieved platform title, or "Session N" from `SessionNumberAllocator`.
 	/// Plain-origin keys (session pets off for that platform) are unaffected.
 	@MainActor
-	private func displayName(for key: String) -> String {
-		let origin = FloatingPetWindowPool.origin(forWindowKey: key)
+	private func displayName(for key: WindowKey) -> String {
+		let origin = key.origin
 		let platformName = platformDisplayName(for: origin)
 		guard let pool = floatingPetPool else { return platformName }
-		if FloatingPetWindowPool.sessionIdentity(forWindowKey: key) != nil,
+		if key.sessionIdentity != nil,
 			let label = pool.sessionDisplayLabel(forWindowKey: key, origin: origin),
 			!label.isEmpty
 		{

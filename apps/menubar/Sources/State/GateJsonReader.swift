@@ -130,8 +130,9 @@ enum PerPlatformGateReader {
 		let context: DeliveryContextSnapshot?
 	}
 
-	/// One `Entry` per `"<origin>:<session_id>"` key, matching the identity
-	/// shape `resolveRenderKeys` emits for every render key.
+	/// One `Entry` per session-keyed `WindowKey` (`.session(origin:id:)`),
+	/// matching the identity shape `resolveRenderKeys` emits for every render
+	/// key.
 	///
 	/// `listing`, when supplied, is a `state.d/` enumeration already produced
 	/// once for this poll tick — the reader consumes it instead of issuing its
@@ -140,14 +141,14 @@ enum PerPlatformGateReader {
 	/// gate/context file is still opened and decoded here.
 	static func read(
 		at dirPath: String, listing: StateDirectoryListing? = nil
-	) -> [String: Entry] {
+	) -> [WindowKey: Entry] {
 		let (sessionGates, sessionContexts) = scanEntries(at: dirPath, listing: listing)
 		return merge(gates: sessionGates, contexts: sessionContexts)
 	}
 
 	private static func scanEntries(at dirPath: String, listing: StateDirectoryListing?) -> (
-		gates: [String: (mtime: Date, snapshot: GateSnapshot)],
-		contexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)]
+		gates: [WindowKey: (mtime: Date, snapshot: GateSnapshot)],
+		contexts: [WindowKey: (mtime: Date, snapshot: DeliveryContextSnapshot)]
 	) {
 		let entries: [StateDirectoryListing.Entry]
 		if let listing {
@@ -157,8 +158,8 @@ enum PerPlatformGateReader {
 			entries = scanned.entries
 		}
 
-		var sessionGates: [String: (mtime: Date, snapshot: GateSnapshot)] = [:]
-		var sessionContexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)] = [:]
+		var sessionGates: [WindowKey: (mtime: Date, snapshot: GateSnapshot)] = [:]
+		var sessionContexts: [WindowKey: (mtime: Date, snapshot: DeliveryContextSnapshot)] = [:]
 
 		for entry in entries {
 			let name = entry.name
@@ -167,18 +168,16 @@ enum PerPlatformGateReader {
 			guard let mtime = entry.mtime else { continue }
 
 			if name.hasSuffix(".gate.json"),
-				let (origin, sessionId) = originAndSession(of: name, suffix: ".gate.json"),
+				let sessionKey = sessionWindowKey(of: name, suffix: ".gate.json"),
 				let snapshot = GateJsonReader.read(at: filePath)
 			{
-				let sessionKey = makeSessionKey(origin: origin, sessionId: sessionId)
 				if sessionGates[sessionKey] == nil || mtime > sessionGates[sessionKey]!.mtime {
 					sessionGates[sessionKey] = (mtime, snapshot)
 				}
 			} else if name.hasSuffix(".context.json"),
-				let (origin, sessionId) = originAndSession(of: name, suffix: ".context.json"),
+				let sessionKey = sessionWindowKey(of: name, suffix: ".context.json"),
 				let snapshot = DeliveryContextReader.read(at: filePath)
 			{
-				let sessionKey = makeSessionKey(origin: origin, sessionId: sessionId)
 				if sessionContexts[sessionKey] == nil || mtime > sessionContexts[sessionKey]!.mtime {
 					sessionContexts[sessionKey] = (mtime, snapshot)
 				}
@@ -189,23 +188,31 @@ enum PerPlatformGateReader {
 	}
 
 	private static func merge(
-		gates: [String: (mtime: Date, snapshot: GateSnapshot)],
-		contexts: [String: (mtime: Date, snapshot: DeliveryContextSnapshot)]
-	) -> [String: Entry] {
-		var result: [String: Entry] = [:]
+		gates: [WindowKey: (mtime: Date, snapshot: GateSnapshot)],
+		contexts: [WindowKey: (mtime: Date, snapshot: DeliveryContextSnapshot)]
+	) -> [WindowKey: Entry] {
+		var result: [WindowKey: Entry] = [:]
 		for key in Set(gates.keys).union(contexts.keys) {
 			result[key] = Entry(gate: gates[key]?.snapshot, context: contexts[key]?.snapshot)
 		}
 		return result
 	}
 
-	/// Extracts `(origin, session_id)` from a `<origin>:<session_id>.<suffix>`
-	/// filename. Returns nil when the name has no `:` separator — a legacy flat
-	/// file or a malformed slice — so the caller skips it rather than mis-keying
-	/// on the whole filename.
-	private static func originAndSession(
+	/// Extracts the session-keyed `WindowKey` (`.session(origin:id:)`) from a
+	/// `<origin>:<session_id>.<suffix>` filename. Returns nil when the name
+	/// has no `:` separator, or an empty origin/session-id half — a legacy
+	/// flat file or a malformed slice — so the caller skips it rather than
+	/// mis-keying on the whole filename.
+	///
+	/// This is the sanctioned slice-filename boundary (P16.04): the colon
+	/// split here is unavoidable — a filename is not itself a bare
+	/// `WindowKey` rawValue, it has a `.gate.json`/`.context.json` suffix
+	/// appended and (defensively) surrounding whitespace to strip — but the
+	/// parsed halves are handed straight to `WindowKey.session(origin:id:)`
+	/// rather than reassembled into a raw string for a second parse pass.
+	private static func sessionWindowKey(
 		of name: String, suffix: String
-	) -> (origin: String, sessionId: String)? {
+	) -> WindowKey? {
 		let base = String(name.dropLast(suffix.count))
 		guard let colonIndex = base.firstIndex(of: ":") else { return nil }
 		let origin = String(base[base.startIndex..<colonIndex])
@@ -213,7 +220,7 @@ enum PerPlatformGateReader {
 		let session = String(base[base.index(after: colonIndex)...])
 			.trimmingCharacters(in: .whitespaces)
 		guard !origin.isEmpty, !session.isEmpty else { return nil }
-		return (origin, session)
+		return .session(origin: origin, id: session)
 	}
 }
 

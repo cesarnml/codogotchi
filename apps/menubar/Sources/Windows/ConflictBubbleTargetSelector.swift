@@ -8,7 +8,7 @@ enum ConflictBubbleTargetSelector {
 	/// `firstSeenAt` must already be filtered by the caller to the blocked
 	/// origin's currently-rendered session-keyed window keys. Returns the key
 	/// with the earliest timestamp, or `nil` when there are no candidates.
-	static func longestLivedKey(firstSeenAt: [String: Date]) -> String? {
+	static func longestLivedKey(firstSeenAt: [WindowKey: Date]) -> WindowKey? {
 		firstSeenAt.min(by: { $0.value < $1.value })?.key
 	}
 }

@@ -143,42 +143,50 @@ enum AppStateStore {
 		try data.write(to: url, options: .atomic)
 	}
 
-	/// Returns the saved frame for `origin`, or the default frame when none has been stored.
-	static func loadFrame(for origin: String, visibleFrame: CGRect) -> CGRect {
+	/// Returns the saved frame for `key`, or the default frame when none has been stored.
+	///
+	/// `app-state.json`'s `floating_pet_positions` map is the sanctioned
+	/// persistence boundary (P16.04): it is decoded/encoded as a plain
+	/// `[String: FloatingFramePayload]` JSON object, so `key.rawValue`
+	/// converts right here, at the edge, rather than every caller
+	/// round-tripping through a raw string itself.
+	static func loadFrame(for key: WindowKey, visibleFrame: CGRect) -> CGRect {
 		guard let payload = loadRawPayload(url: appStateURL()),
 			payload.schemaVersion <= APP_STATE_SCHEMA_VERSION
 		else {
 			return FloatingFramePolicy.defaultFrame(in: visibleFrame)
 		}
-		if let saved = payload.floatingPetPositions?[origin] {
+		if let saved = payload.floatingPetPositions?[key.rawValue] {
 			return FloatingFramePolicy.clamp(saved.cgRect, to: visibleFrame)
 		}
 		return FloatingFramePolicy.defaultFrame(in: visibleFrame)
 	}
 
 	/// Returns the set of window keys the user explicitly hid, keyed the same way as
-	/// `floatingPetPositions` (plain origin or `origin:session_id`). Keys absent from
-	/// this set are unseen or previously-visible and default to visible.
-	static func loadHiddenWindowKeys() -> Set<String> {
+	/// `floatingPetPositions`. Keys absent from this set are unseen or
+	/// previously-visible and default to visible. Malformed persisted strings
+	/// (should never occur outside manual `app-state.json` editing) are
+	/// dropped rather than crashing the decode.
+	static func loadHiddenWindowKeys() -> Set<WindowKey> {
 		guard let payload = loadRawPayload(url: appStateURL()),
 			payload.schemaVersion <= APP_STATE_SCHEMA_VERSION
 		else {
 			return []
 		}
 		let hidden = payload.floatingPetHidden ?? [:]
-		return Set(hidden.filter { $0.value }.keys)
+		return Set(hidden.filter { $0.value }.keys.compactMap { WindowKey(rawValue: $0) })
 	}
 
 	/// Persists the full set of user-hidden window keys, leaving all other fields in
 	/// the file untouched. Called write-through whenever visibility is toggled.
-	static func saveHiddenWindowKeys(_ hiddenKeys: Set<String>) throws {
+	static func saveHiddenWindowKeys(_ hiddenKeys: Set<WindowKey>) throws {
 		let url = appStateURL()
 		try FileManager.default.createDirectory(
 			at: url.deletingLastPathComponent(),
 			withIntermediateDirectories: true
 		)
 		let existing = loadRawPayload(url: url)
-		let hidden = Dictionary(uniqueKeysWithValues: hiddenKeys.map { ($0, true) })
+		let hidden = Dictionary(uniqueKeysWithValues: hiddenKeys.map { ($0.rawValue, true) })
 		let payload = AppStatePayload(
 			schemaVersion: APP_STATE_SCHEMA_VERSION,
 			floatingPet: existing?.floatingPet
@@ -197,9 +205,9 @@ enum AppStateStore {
 		try data.write(to: url, options: .atomic)
 	}
 
-	/// Persists `frame` for `origin` in the `floating_pet_positions` map, leaving all
+	/// Persists `frame` for `key` in the `floating_pet_positions` map, leaving all
 	/// other fields in the file untouched.
-	static func saveFrame(_ frame: CGRect, for origin: String) throws {
+	static func saveFrame(_ frame: CGRect, for key: WindowKey) throws {
 		let url = appStateURL()
 		try FileManager.default.createDirectory(
 			at: url.deletingLastPathComponent(),
@@ -207,7 +215,7 @@ enum AppStateStore {
 		)
 		let existing = loadRawPayload(url: url)
 		var positions = existing?.floatingPetPositions ?? [:]
-		positions[origin] = FloatingFramePayload(frame)
+		positions[key.rawValue] = FloatingFramePayload(frame)
 		let payload = AppStatePayload(
 			schemaVersion: APP_STATE_SCHEMA_VERSION,
 			floatingPet: existing?.floatingPet
