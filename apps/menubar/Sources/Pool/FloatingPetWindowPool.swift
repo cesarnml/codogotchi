@@ -22,15 +22,14 @@ import Foundation
 ///   active keys) is never dismissed by TTL regardless of elapsed time.
 @MainActor
 final class FloatingPetWindowPool {
-	typealias WindowFactory = (String, String) -> FloatingPetWindowControlling
-	typealias MinimalistWindowFactory = (String) -> FloatingPetWindowControlling
+	typealias WindowFactory = (WindowKey, String) -> FloatingPetWindowControlling
+	typealias MinimalistWindowFactory = (WindowKey) -> FloatingPetWindowControlling
 	typealias CustomizationReader = () -> CustomizationSnapshot
 	typealias AssignmentsReader = () -> AssignmentsSnapshot
-	/// Reads a session's rename label given its window key
-	/// (`"origin:session_id"` — the same string `SessionLabelStore` keys on).
-	typealias SessionLabelReader = (String) -> String?
+	/// Reads a session's rename label given its window key.
+	typealias SessionLabelReader = (WindowKey) -> String?
 	/// Reads a session's last submitted prompt given its window key.
-	typealias SessionPromptSummaryReader = (String) -> String?
+	typealias SessionPromptSummaryReader = (WindowKey) -> String?
 	/// Reads a session's platform-auto-generated thread title given its
 	/// `(origin, session_id)` identity, or `nil` when unsupported/unresolved.
 	typealias SessionTitleReader = (String, String) -> String?
@@ -38,10 +37,10 @@ final class FloatingPetWindowPool {
 	/// cache, given its window key, or `nil` when never cached. Consulted
 	/// BEFORE `sessionTitleReader` so a relaunch doesn't repeat the disk/
 	/// subprocess cost of the original resolution.
-	typealias RetrievedSessionTitleReader = (String) -> String?
+	typealias RetrievedSessionTitleReader = (WindowKey) -> String?
 	/// Persists a freshly-resolved thread title to the on-disk cache, given
 	/// its window key.
-	typealias RetrievedSessionTitleWriter = (String, String) -> Void
+	typealias RetrievedSessionTitleWriter = (WindowKey, String) -> Void
 
 	private let assignmentsReader: AssignmentsReader
 	private let customizationReader: CustomizationReader
@@ -54,25 +53,25 @@ final class FloatingPetWindowPool {
 	private let retrievedSessionTitleWriter: RetrievedSessionTitleWriter
 	private let now: () -> Date
 
-	/// Active windows keyed by window key (the resolved render key, or "combined").
-	private var windows: [String: FloatingPetWindowControlling] = [:]
+	/// Active windows keyed by window key (the resolved render key, or `.combined`).
+	private var windows: [WindowKey: FloatingPetWindowControlling] = [:]
 	/// Tracks the `now()` clock time when each render key was last present in a snapshot (TTL clock).
-	private var lastSeenAt: [String: Date] = [:]
+	private var lastSeenAt: [WindowKey: Date] = [:]
 	/// First-seen clock per render key — unlike `lastSeenAt` this is set once
 	/// and never refreshed, so P15.08's target selector can always find the
 	/// longest-lived currently-rendered session for a blocked origin.
-	private var firstSeenAt: [String: Date] = [:]
+	private var firstSeenAt: [WindowKey: Date] = [:]
 	/// Tracks the most-recent snapshot `updated_at` per render key (used to elect lastActiveRenderKey).
-	private var lastUpdatedAt: [String: Date] = [:]
+	private var lastUpdatedAt: [WindowKey: Date] = [:]
 	/// Render key whose snapshot `updated_at` is most recent across all tracked keys.
-	private var lastActiveRenderKey: String? = nil
+	private var lastActiveRenderKey: WindowKey? = nil
 	/// Render key currently holding the RPG HUD under "Show HUD on Most Recent
 	/// Pet" mode. Sticky: unlike `lastActiveRenderKey` (a plain every-tick
 	/// max-`updated_at` election used for TTL immunity), this only re-elects
 	/// when the current holder goes idle, drops out of eligibility, or hasn't
 	/// been elected yet — so the HUD doesn't hop to a different pet mid-prompt
 	/// just because a background session's slice ticked with a newer timestamp.
-	private var hudBearingRenderKey: String? = nil
+	private var hudBearingRenderKey: WindowKey? = nil
 	/// Most-recently read customization — updated at the start of each tick.
 	private var currentCustomization: CustomizationSnapshot = .safeDefault
 	/// The `IdleEscalationConfig` last pushed to every open window, so a tick
@@ -98,7 +97,7 @@ final class FloatingPetWindowPool {
 	/// window is spawned. NOT used to release, because a session's identity can
 	/// (and, on the normal TTL-dismiss path, does) disappear from the snapshot
 	/// before the window itself is torn down — see `windowSessionIdentities`.
-	private var currentRenderKeyIdentities: [String: RenderKeyIdentity] = [:]
+	private var currentRenderKeyIdentities: [WindowKey: RenderKeyIdentity] = [:]
 	/// Identity captured at assign time for every window key that currently
 	/// holds a session number, keyed independently of `currentRenderKeyIdentities`.
 	/// `releaseSessionNumber` must read from here, not from the latest snapshot:
@@ -106,7 +105,7 @@ final class FloatingPetWindowPool {
 	/// drops out of `snapshot.renderKeyIdentities` on the very next tick, but the
 	/// window itself lingers until its TTL expires. Releasing from the stale
 	/// snapshot would silently no-op and leak the number under a bounded cap.
-	private var windowSessionIdentities: [String: RenderKeyIdentity] = [:]
+	private var windowSessionIdentities: [WindowKey: RenderKeyIdentity] = [:]
 	/// Platform-auto-generated thread title resolved for each session-keyed
 	/// window key, once found. This is the in-process hot cache only —
 	/// `RetrievedSessionTitleStore` (via `retrievedSessionTitleReader`/
@@ -123,7 +122,7 @@ final class FloatingPetWindowPool {
 	/// scratch. The on-disk entry only disappears via the same orphan-label
 	/// sweep and manual "Prune Session" path that clean up
 	/// `session-labels.json`.
-	private var resolvedSessionTitles: [String: String] = [:]
+	private var resolvedSessionTitles: [WindowKey: String] = [:]
 	/// Free-list session-number allocator, keyed per-origin internally.
 	/// Assign/release only apply to session-keyed windows (an `origin:session_id`
 	/// render key) — plain-origin windows (session-pets off) and the literal
@@ -151,7 +150,7 @@ final class FloatingPetWindowPool {
 	/// cap partitioning is recomputed from activity/rank every tick and
 	/// ignores the hidden flag, so `setVisible(true, for:)` on one of these
 	/// keys would silently no-op until it wins the rank fight on its own.
-	private(set) var pendingSessionKeys: Set<String> = []
+	private(set) var pendingSessionKeys: Set<WindowKey> = []
 	/// Window keys the idle-dismiss TTL ("Hide Idle Pet After") is currently
 	/// suppressing: visible in this tick's snapshot but past the TTL, so their
 	/// window was torn down (or never re-spawned) at Steps 7/8. Recomputed
@@ -163,7 +162,7 @@ final class FloatingPetWindowPool {
 	/// than demoting it to the Live tier. Cap-pending keys are excluded even
 	/// when also TTL-expired, so a capped session never leaks a Show button
 	/// through this set.
-	private(set) var ttlDismissedWindowKeys: Set<String> = []
+	private(set) var ttlDismissedWindowKeys: Set<WindowKey> = []
 	/// Session-keyed window keys that hold a cap slot (P15.07-QC), independent
 	/// of whether their window is actually spawned. Diverges from
 	/// `windows.keys` exactly when a slot's window is user-hidden: hide/show
@@ -176,7 +175,7 @@ final class FloatingPetWindowPool {
 	/// this set every tick, so a key leaves it only via genuine eviction (rank
 	/// loss), Prune, or TTL — never via hide. Bounded by the same
 	/// `eligibleKeys` filter as `firstSeenAt`/`lastSeenAt`/`lastUpdatedAt`.
-	private var slotOccupants: Set<String> = []
+	private var slotOccupants: Set<WindowKey> = []
 	/// Rate-limits P15.08 conflict-bubble presentation to at most one fire per
 	/// platform per hour — `blockedOrigins` is recomputed fresh every tick, so
 	/// without this gate a persisting conflict would re-front the bubble on
@@ -185,7 +184,7 @@ final class FloatingPetWindowPool {
 	/// Window key currently showing the P15.08 conflict bubble for each
 	/// blocked origin, so an origin that clears from `blockedOrigins` can be
 	/// told to hide its bubble.
-	private var activeConflictBubbleTargets: [String: String] = [:]
+	private var activeConflictBubbleTargets: [String: WindowKey] = [:]
 	/// Frames of windows torn down per origin for reasons a later spawn for
 	/// that same origin should inherit from, captured the instant the old
 	/// window goes down and consumed FIFO the next time(s) a new window
@@ -210,14 +209,16 @@ final class FloatingPetWindowPool {
 	/// render. Bounded by the same eligibility filter as the other per-key
 	/// bookkeeping; the literal "combined" key is exempted there and cleared
 	/// when no combined entries remain (Step 8).
-	private var promptTimers: [String: PromptTimerTracker] = [:]
+	private var promptTimers: [WindowKey: PromptTimerTracker] = [:]
 
 	/// Window keys that currently have visible windows.
-	var activeOrigins: [String] { Array(windows.keys).sorted() }
+	var activeOrigins: [WindowKey] { Array(windows.keys).sorted { $0.rawValue < $1.rawValue } }
 
 	/// Window keys explicitly hidden by the user via "Hide Pet". Excluded from spawning
 	/// until the user explicitly shows them via "Show Pet".
-	var hiddenWindowKeys: [String] { Array(userHiddenWindowKeys).sorted() }
+	var hiddenWindowKeys: [WindowKey] {
+		Array(userHiddenWindowKeys).sorted { $0.rawValue < $1.rawValue }
+	}
 
 	/// The pet ID currently assigned to the Default badge, read fresh from
 	/// assignments.json on each `update()` tick.
@@ -234,47 +235,28 @@ final class FloatingPetWindowPool {
 			.map(\.key)
 	}
 
-	/// Owning origin of a window/render key: the prefix before the first colon
-	/// for an `origin:session_id` key, the key itself otherwise (plain origins
-	/// never contain a colon; the literal "combined" maps to itself).
-	static func origin(forWindowKey key: String) -> String {
-		guard let colon = key.firstIndex(of: ":") else { return key }
-		return String(key[key.startIndex..<colon])
-	}
-
-	/// Splits a session-keyed window key (`origin:session_id`) into its parts,
-	/// or `nil` for a plain origin or the literal `"combined"` key — mirroring
-	/// `origin(forWindowKey:)`'s colon-split contract. Used to target a
-	/// session-precise Force Idle / dismiss-attention write at exactly the
-	/// clicked session's `state.d/` slice instead of falling back to
-	/// origin-only resolution, which can't distinguish which sibling session
-	/// the user actually clicked.
-	static func sessionIdentity(forWindowKey key: String) -> (origin: String, sessionId: String)? {
-		guard key != "combined", let colon = key.firstIndex(of: ":") else { return nil }
-		let origin = String(key[key.startIndex..<colon])
-		let sessionId = String(key[key.index(after: colon)...])
-		return (origin, sessionId)
-	}
-
 	/// Platform origin whose `platform_modes` entry the right-click mode-switch
 	/// affordance (Pet Mode ↔ Minimalist Mode) should rewrite for the window
-	/// keyed `key`, or `nil` for the literal `"combined"` window — that one
-	/// flips `combined_minimalist_enabled` instead of any origin's mode. A
+	/// keyed `key`, or `nil` for the `.combined` window — that one flips
+	/// `combined_minimalist_enabled` instead of any origin's mode. A
 	/// session-keyed key resolves to its platform origin: mode is keyed
 	/// per-origin, so the switch is platform-level and every sibling session
 	/// panel of the same platform flips together.
-	static func modeSwitchOrigin(forWindowKey key: String) -> String? {
-		guard key != "combined" else { return nil }
-		return sessionIdentity(forWindowKey: key)?.origin ?? key
+	static func modeSwitchOrigin(forWindowKey key: WindowKey) -> String? {
+		switch key {
+		case .combined: return nil
+		case .origin(let origin): return origin
+		case .session(let origin, _): return origin
+		}
 	}
 
-	private var userHiddenWindowKeys: Set<String> = []
-	private let hiddenKeysSaver: (Set<String>) -> Void
+	private var userHiddenWindowKeys: Set<WindowKey> = []
+	private let hiddenKeysSaver: (Set<WindowKey>) -> Void
 
 	/// Mode that was active when each window (keyed by window key) was spawned.
 	/// Used to detect own↔minimalist transitions so the stale window is torn
 	/// down and the correct factory runs on the next spawn gate.
-	private var windowSpawnedModes: [String: PlatformMode] = [:]
+	private var windowSpawnedModes: [WindowKey: PlatformMode] = [:]
 	/// Renderer the current "combined" window was spawned with — nil when no
 	/// combined window exists. Used to detect the combinedMinimalistEnabled
 	/// setting toggling mid-flight so the window is torn down and respawned
@@ -294,9 +276,13 @@ final class FloatingPetWindowPool {
 		},
 		windowFactory: @escaping WindowFactory,
 		minimalistWindowFactory: MinimalistWindowFactory? = nil,
-		sessionLabelReader: @escaping SessionLabelReader = { SessionLabelStore.label(for: $0) },
+		// `SessionLabelStore`/`PromptAttentionReader` are still String-keyed
+		// persistence/lookup stores (session-labels.json, the in-memory
+		// prompt-attention map) — `.rawValue` converts at exactly that edge,
+		// the same sanctioned-boundary pattern as `app-state.json`.
+		sessionLabelReader: @escaping SessionLabelReader = { SessionLabelStore.label(for: $0.rawValue) },
 		sessionPromptSummaryReader: @escaping SessionPromptSummaryReader = {
-			PromptAttentionReader.summary(forSessionKey: $0)
+			PromptAttentionReader.summary(forSessionKey: $0.rawValue)
 		},
 		sessionTitleReader: @escaping SessionTitleReader = { origin, sessionId in
 			SessionTitleResolver.title(forOrigin: origin, sessionId: sessionId)
@@ -319,8 +305,8 @@ final class FloatingPetWindowPool {
 		// does not sandbox CODOGOTCHI_HOME — silently overwrite the developer's real
 		// ~/.codogotchi/app-state.json. Production wiring happens explicitly in
 		// MenubarApp.
-		hiddenKeysLoader: @escaping () -> Set<String> = { [] },
-		hiddenKeysSaver: @escaping (Set<String>) -> Void = { _ in },
+		hiddenKeysLoader: @escaping () -> Set<WindowKey> = { [] },
+		hiddenKeysSaver: @escaping (Set<WindowKey>) -> Void = { _ in },
 		now: @escaping () -> Date = { Date() },
 		idleEscalationEnvironment: [String: String] = ProcessInfo.processInfo.environment
 	) {
@@ -446,10 +432,10 @@ final class FloatingPetWindowPool {
 		// keyed by the literal "combined" while eligibility is per-origin, so
 		// the filter would drop it every tick. Step 8 clears it explicitly when
 		// no combined-folded entries remain.
-		promptTimers = promptTimers.filter { eligibleKeys.contains($0.key) || $0.key == "combined" }
+		promptTimers = promptTimers.filter { eligibleKeys.contains($0.key) || $0.key == .combined }
 
 		// Step 4: compute the key of the window that must not be dismissed
-		let lastActiveWindowKey: String? = lastActiveRenderKey.map { windowKey(for: $0) }
+		let lastActiveWindowKey: WindowKey? = lastActiveRenderKey.map { windowKey(for: $0) }
 
 		// Step 5a: force-dismiss off-mode windows — no last-active immunity.
 		// An origin switching to .off must exit the render pipeline this tick regardless of
@@ -470,7 +456,7 @@ final class FloatingPetWindowPool {
 		// that has aged out (Steps 7–8): without the spawn guard, 5b would drop the
 		// window and the spawn loop would immediately recreate it from the lingering
 		// idle slice, so the pet would never actually disappear.
-		func isTTLExpired(windowKey: String) -> Bool {
+		func isTTLExpired(windowKey: WindowKey) -> Bool {
 			guard windowKey != lastActiveWindowKey else { return false }
 			guard let seen = lastSeenForWindow(key: windowKey) else { return true }
 			return currentTime.timeIntervalSince(seen) > ttlSeconds
@@ -494,8 +480,9 @@ final class FloatingPetWindowPool {
 		// order, and without sorting, which session gets the lower number would
 		// vary run to run (same nondeterminism `resolveRenderKeys` already guards
 		// against via sorted iteration).
-		let directKeys = visibleEntries.keys.filter { windowKey(for: $0) != "combined" }.sorted()
-		let combinedKeys = visibleEntries.keys.filter { windowKey(for: $0) == "combined" }
+		let directKeys = visibleEntries.keys.filter { windowKey(for: $0) != .combined }
+			.sorted { $0.rawValue < $1.rawValue }
+		let combinedKeys = visibleEntries.keys.filter { windowKey(for: $0) == .combined }
 
 		// Step 6a: collapse directly-keyed windows whose owning origin switched to
 		// combined mode. A key moving own/minimalist→combined must lose its own
@@ -505,7 +492,7 @@ final class FloatingPetWindowPool {
 		// literal "combined" key, so the stale window's key never appears in the
 		// snapshot again and only the current customization can identify it. The
 		// literal "combined" key IS the shared window, so it is never torn down here.
-		let collapsedKeys = windows.keys.filter { $0 != "combined" && windowKey(for: $0) == "combined" }
+		let collapsedKeys = windows.keys.filter { $0 != .combined && windowKey(for: $0) == .combined }
 		for key in collapsedKeys {
 			windows[key]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: key)
@@ -528,11 +515,11 @@ final class FloatingPetWindowPool {
 		// combined origin's windows are never plain/session-keyed to begin with
 		// — Step 6a already owns their collapse.
 		let sessionShapeMismatchKeys = windows.keys.filter { key in
-			guard key != "combined" else { return false }
-			let origin = Self.origin(forWindowKey: key)
+			guard key != .combined else { return false }
+			let origin = key.origin
 			guard mode(for: origin) != .combined else { return false }
 			let sessionsOn = currentCustomization.sessionPetsEnabled[origin] ?? false
-			return isSessionKeyed(key) != sessionsOn
+			return key.isSessionKeyed != sessionsOn
 		}
 		for key in sessionShapeMismatchKeys {
 			// Grandfather-frame inheritance: when THIS key is the plain-origin
@@ -545,8 +532,8 @@ final class FloatingPetWindowPool {
 			// session-keyed windows collapsing to one new plain window), there
 			// is no single unambiguous frame to inherit from, so that case is
 			// left to spawn at the default position as before.
-			if !isSessionKeyed(key) {
-				let origin = Self.origin(forWindowKey: key)
+			if !key.isSessionKeyed {
+				let origin = key.origin
 				if currentCustomization.sessionPetsEnabled[origin] ?? false {
 					evictedSessionFrames[origin, default: []].append(windows[key]!.currentFrame)
 				}
@@ -589,20 +576,19 @@ final class FloatingPetWindowPool {
 		// from the hidden pet reappearing as something else. `slotOccupants` is
 		// resynced to exactly `selection.rendered` for this origin every tick,
 		// so hide/show never has to touch it directly.
-		var pendingWindowKeys: Set<String> = []
+		var pendingWindowKeys: Set<WindowKey> = []
 		var computedBlockedOrigins: Set<String> = []
 		// Keys that genuinely lose the cap fight this tick (were an occupant,
 		// no longer are) get their hidden flag cleared below — see the
 		// `userHiddenWindowKeys.subtract` call after this loop.
-		var genuinelyEvictedKeys: Set<String> = []
-		let sessionKeyedDirectKeys = directKeys.filter { isSessionKeyed($0) }
-		let sessionKeyedByOrigin = Dictionary(
-			grouping: sessionKeyedDirectKeys, by: Self.origin(forWindowKey:))
+		var genuinelyEvictedKeys: Set<WindowKey> = []
+		let sessionKeyedDirectKeys = directKeys.filter { $0.isSessionKeyed }
+		let sessionKeyedByOrigin = Dictionary(grouping: sessionKeyedDirectKeys, by: \.origin)
 		for (origin, keys) in sessionKeyedByOrigin {
-			let states: [String: ActivityState] = keys.reduce(into: [:]) { acc, key in
+			let states: [WindowKey: ActivityState] = keys.reduce(into: [:]) { acc, key in
 				acc[key] = visibleEntries[key]?.activityState
 			}
-			let updatedAt: [String: String] = keys.reduce(into: [:]) { acc, key in
+			let updatedAt: [WindowKey: String] = keys.reduce(into: [:]) { acc, key in
 				acc[key] = visibleEntries[key]?.updatedAt
 			}
 			let cap = resolvedSessionCap(for: origin)
@@ -697,7 +683,7 @@ final class FloatingPetWindowPool {
 		}
 
 		// Step 7: spawn / update directly-keyed windows
-		var computedTtlDismissedKeys: Set<String> = []
+		var computedTtlDismissedKeys: Set<WindowKey> = []
 		for renderKey in directKeys {
 			guard let state = visibleEntries[renderKey] else { continue }
 			// Feed the pool-owned prompt timer BEFORE any of the teardown/spawn
@@ -747,7 +733,7 @@ final class FloatingPetWindowPool {
 			if userHiddenWindowKeys.contains(renderKey) { continue }
 			// Pet identity and mode are per-ORIGIN: every session window of a platform
 			// renders that platform's assigned (or Default) pet and follows its mode.
-			let origin = Self.origin(forWindowKey: renderKey)
+			let origin = renderKey.origin
 			if windows[renderKey] == nil {
 				let petId = currentAssignments.resolve(origin: origin)
 				assignSessionNumber(forWindowKey: renderKey)
@@ -809,11 +795,11 @@ final class FloatingPetWindowPool {
 			// Style toggle: if the existing combined window was spawned with the wrong
 			// renderer for the current combinedMinimalistEnabled setting, tear it down so
 			// the spawn gate below recreates it with the correct factory.
-			if let combined = windows["combined"],
+			if let combined = windows[.combined],
 				combinedWindowIsMinimalist != currentCustomization.combinedMinimalistEnabled
 			{
 				combined.setFloatingPetVisible(false)
-				windows.removeValue(forKey: "combined")
+				windows.removeValue(forKey: .combined)
 			}
 			// Feed the shared pet's pool-owned prompt timer from the winning
 			// (freshest-updated) folded entry BEFORE the TTL/hidden branches can
@@ -827,25 +813,25 @@ final class FloatingPetWindowPool {
 					< (StateJsonReader.parseISO8601Date(b.state.updatedAt) ?? .distantPast)
 			})
 			if let winner = winnerEntry?.state {
-				promptTimers["combined", default: PromptTimerTracker()].observe(
+				promptTimers[.combined, default: PromptTimerTracker()].observe(
 					state: winner.activityState,
 					updatedAt: winner.updatedAt,
 					sourceEvent: winner.sourceEvent,
 					attention: winner.attention
 				)
 			}
-			if isTTLExpired(windowKey: "combined") {
+			if isTTLExpired(windowKey: .combined) {
 				// All combined-folded keys idle past TTL (and not last-active): dismiss
 				// the shared window and do not re-spawn it this tick.
-				computedTtlDismissedKeys.insert("combined")
-				if windows["combined"] != nil {
-					windows["combined"]?.setFloatingPetVisible(false)
-					windows.removeValue(forKey: "combined")
+				computedTtlDismissedKeys.insert(.combined)
+				if windows[.combined] != nil {
+					windows[.combined]?.setFloatingPetVisible(false)
+					windows.removeValue(forKey: .combined)
 				}
-			} else if !userHiddenWindowKeys.contains("combined") {
+			} else if !userHiddenWindowKeys.contains(.combined) {
 				if let winnerEntry {
 					let winner = winnerEntry.state
-					if windows["combined"] == nil {
+					if windows[.combined] == nil {
 						let useMinimalist = currentCustomization.combinedMinimalistEnabled
 						let controller: FloatingPetWindowControlling
 						if useMinimalist {
@@ -853,36 +839,36 @@ final class FloatingPetWindowPool {
 								NSLog("FloatingPetWindowPool: combined-minimalist mode requires a minimalistWindowFactory")
 								return
 							}
-							controller = minimalistWindowFactory("combined")
+							controller = minimalistWindowFactory(.combined)
 						} else {
 							let petId = currentAssignments.resolve(origin: "combined")
-							controller = windowFactory("combined", petId)
+							controller = windowFactory(.combined, petId)
 						}
 						controller.setFloatingPetVisible(true)
-						windows["combined"] = controller
+						windows[.combined] = controller
 						combinedWindowIsMinimalist = useMinimalist
 					}
-					windows["combined"]?.apply(state: winner.activityState, visualMode: .normal)
-					windows["combined"]?.applyPromptTimerStatus(promptTimers["combined"]?.currentStatus())
-					windows["combined"]?.applyAttention(
+					windows[.combined]?.apply(state: winner.activityState, visualMode: .normal)
+					windows[.combined]?.applyPromptTimerStatus(promptTimers[.combined]?.currentStatus())
+					windows[.combined]?.applyAttention(
 						payload: winner.attention,
 						sourceEvent: winner.sourceEvent
 					)
 					// The combined window's gate badge follows whichever entry is
 					// currently winning the shared pet, mirroring the platform-chip
 					// precedent below. Badges are keyed by render key, so the winning
-					// entry's key resolves for both pre-folded ("combined") and
+					// entry's key resolves for both pre-folded (`.combined`) and
 					// unfolded (per-origin) input.
-					windows["combined"]?.applyGateBadge(content: snapshot.gateBadges[winnerEntry.key])
+					windows[.combined]?.applyGateBadge(content: snapshot.gateBadges[winnerEntry.key])
 					// While idle the combined window shows the persistent ⭐ Default badge;
 					// when active it badges with whichever platform triggered the winning
 					// state, matching the pre-phase-13 single-pet behavior.
 					let combinedDefaultOrigin: String
 					if winner.activityState == .idle {
-						windows["combined"]?.applyPlatform(origin: "combined")
+						windows[.combined]?.applyPlatform(origin: "combined")
 						combinedDefaultOrigin = "combined"
 					} else if let sourceOrigin = winner.sourceEvent?.origin {
-						windows["combined"]?.applyPlatform(origin: sourceOrigin)
+						windows[.combined]?.applyPlatform(origin: sourceOrigin)
 						combinedDefaultOrigin = sourceOrigin
 					} else {
 						combinedDefaultOrigin = "combined"
@@ -897,9 +883,9 @@ final class FloatingPetWindowPool {
 					// idle *pet assignment* slot, not this window itself.
 					let idleDefaultLabel = combinedDefaultOrigin == "combined"
 						? "Combined" : Self.defaultSessionLabel(forOrigin: combinedDefaultOrigin)
-					windows["combined"]?.applySessionLabel(
-						sessionLabel(forWindowKey: "combined") ?? idleDefaultLabel)
-					windows["combined"]?.applySessionTooltip(nil)
+					windows[.combined]?.applySessionLabel(
+						sessionLabel(forWindowKey: .combined) ?? idleDefaultLabel)
+					windows[.combined]?.applySessionTooltip(nil)
 				}
 			}
 		} else if combinedModeOrigins().isEmpty {
@@ -914,22 +900,22 @@ final class FloatingPetWindowPool {
 			// already in lastUpdatedAt, and Swift's max(by:) tie-break is
 			// Dictionary-iteration-order dependent — so "combined" could keep
 			// last-active immunity and never be dismissed.
-			if windows["combined"] != nil {
-				windows["combined"]?.setFloatingPetVisible(false)
-				windows.removeValue(forKey: "combined")
+			if windows[.combined] != nil {
+				windows[.combined]?.setFloatingPetVisible(false)
+				windows.removeValue(forKey: .combined)
 			}
 			// The shared timer is as obsolete as the shared window — and the
-			// eligibility filter above deliberately exempts "combined", so this
+			// eligibility filter above deliberately exempts `.combined`, so this
 			// is the only place it gets cleared.
-			promptTimers.removeValue(forKey: "combined")
+			promptTimers.removeValue(forKey: .combined)
 		} else {
 			// At least one origin is still assigned to combined mode; this tick's
 			// snapshot simply has no combined-folded session present (a transient
 			// polling gap), so the usual TTL/last-active immunity still applies —
 			// dismissing here would flash the window off on any single gapped tick.
-			if windows["combined"] != nil && "combined" != lastActiveWindowKey {
-				windows["combined"]?.setFloatingPetVisible(false)
-				windows.removeValue(forKey: "combined")
+			if windows[.combined] != nil && .combined != lastActiveWindowKey {
+				windows[.combined]?.setFloatingPetVisible(false)
+				windows.removeValue(forKey: .combined)
 			}
 		}
 
@@ -961,7 +947,7 @@ final class FloatingPetWindowPool {
 	}
 
 	/// Returns true when the window for the given key is currently in `windows`.
-	func isActive(for key: String) -> Bool { windows[key] != nil }
+	func isActive(for key: WindowKey) -> Bool { windows[key] != nil }
 
 	/// Resets the pool-owned prompt timer for a window key in response to a
 	/// live user action (Force Idle, attention-bubble dismiss). The panel
@@ -970,7 +956,7 @@ final class FloatingPetWindowPool {
 	/// the real current time so a next-tick poll that reads the pre-rewrite
 	/// on-disk in-flight slice (racing the async idle rewrite) is treated as
 	/// stale and cannot restart the timer.
-	func resetPromptTimer(forWindowKey key: String) {
+	func resetPromptTimer(forWindowKey key: WindowKey) {
 		promptTimers[key]?.reset()
 	}
 
@@ -980,7 +966,7 @@ final class FloatingPetWindowPool {
 	/// pure visibility toggle on an otherwise-unchanged session, not a cap
 	/// release, so a hidden session keeps its slot reserved and un-hiding it
 	/// respawns on the very next tick without competing for a new one.
-	func setVisible(_ visible: Bool, for key: String) {
+	func setVisible(_ visible: Bool, for key: WindowKey) {
 		if visible {
 			userHiddenWindowKeys.remove(key)
 			// Restart the in-memory idle-TTL clock alongside the on-disk
@@ -1015,7 +1001,7 @@ final class FloatingPetWindowPool {
 	/// `setVisible(false, for:)` (a single batched disk write here instead of
 	/// one per window) — a session or platform that spawns afterward is
 	/// untouched and renders normally.
-	func hideAllOtherWindows(keepVisible: String) {
+	func hideAllOtherWindows(keepVisible: WindowKey) {
 		let others = windows.keys.filter { $0 != keepVisible }
 		guard !others.isEmpty else { return }
 		for key in others {
@@ -1030,7 +1016,7 @@ final class FloatingPetWindowPool {
 
 	/// Returns the controller for the given window key. Used by MenubarApp to wire
 	/// per-window callbacks (attention dismiss, app-nap opt-out).
-	func controller(for key: String) -> FloatingPetWindowControlling? { windows[key] }
+	func controller(for key: WindowKey) -> FloatingPetWindowControlling? { windows[key] }
 
 	/// Drops hidden window keys whose backing `state.d/` slice no longer
 	/// exists on disk. `SlicePruner` deletes slices 24h after their last
@@ -1053,22 +1039,21 @@ final class FloatingPetWindowPool {
 		guard !userHiddenWindowKeys.isEmpty else { return }
 		let names = (try? FileManager.default.contentsOfDirectory(atPath: stateDirectory)) ?? []
 		var liveOrigins: Set<String> = []
-		var liveSessionKeys: Set<String> = []
+		var liveSessionKeys: Set<WindowKey> = []
 		for name in names {
 			guard let (origin, sessionId) = StateJsonReader.parseSliceFilename(name) else { continue }
 			liveOrigins.insert(origin)
-			liveSessionKeys.insert(makeSessionKey(origin: origin, sessionId: sessionId))
+			liveSessionKeys.insert(.session(origin: origin, id: sessionId))
 		}
 		let combinedOrigins = Set(combinedModeOrigins())
 		let survivors = userHiddenWindowKeys.filter { key in
-			if key == "combined" {
+			if key == .combined {
 				return !liveOrigins.isDisjoint(with: combinedOrigins)
 			}
-			if let identity = Self.sessionIdentity(forWindowKey: key) {
-				return liveSessionKeys.contains(
-					makeSessionKey(origin: identity.origin, sessionId: identity.sessionId))
+			if key.isSessionKeyed {
+				return liveSessionKeys.contains(key)
 			}
-			return liveOrigins.contains(key)
+			return liveOrigins.contains(key.origin)
 		}
 		guard survivors.count != userHiddenWindowKeys.count else { return }
 		let culled = userHiddenWindowKeys.subtracting(survivors)
@@ -1090,12 +1075,12 @@ final class FloatingPetWindowPool {
 	/// default to the real sidecar file locations and exist as parameters
 	/// purely so tests can redirect them, mirroring `sessionLabelReader`.
 	func pruneSession(
-		windowKey: String,
+		windowKey: WindowKey,
 		stateDirectory: String,
 		labelPath: String = SessionLabelStore.path(),
 		retrievedTitlePath: String = RetrievedSessionTitleStore.path()
 	) {
-		guard isSessionKeyed(windowKey),
+		guard windowKey.isSessionKeyed,
 			let identity = windowSessionIdentities[windowKey] ?? currentRenderKeyIdentities[windowKey]
 		else { return }
 		windows[windowKey]?.setFloatingPetVisible(false)
@@ -1105,8 +1090,14 @@ final class FloatingPetWindowPool {
 		resolvedSessionTitles.removeValue(forKey: windowKey)
 		promptTimers.removeValue(forKey: windowKey)
 		prunedOrigins.insert(identity.origin)
+		// `SessionPruner.pruneSession(windowKey:)` is the sanctioned
+		// slice-filename boundary (P16.04): it builds
+		// `state.d/<windowKey>.json` and the `session-labels.json` /
+		// `retrieved-session-labels.json` sidecar keys, which are still
+		// String-keyed persistence formats — `.rawValue` converts at exactly
+		// that edge.
 		SessionPruner.pruneSession(
-			windowKey: windowKey,
+			windowKey: windowKey.rawValue,
 			origin: identity.origin,
 			sessionId: identity.sessionId,
 			stateDirectory: stateDirectory,
@@ -1123,9 +1114,9 @@ final class FloatingPetWindowPool {
 	/// window when the origin is in combined mode). Newly spawned windows already
 	/// pick up the current assignment via the factory's petId argument.
 	func replacePet(origin: String, codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
-		let foldedKey = windowKey(for: origin)
+		let foldedKey = windowKey(for: .origin(origin))
 		for key in windows.keys
-		where key == foldedKey || Self.origin(forWindowKey: key) == origin {
+		where key == foldedKey || key.origin == origin {
 			windows[key]?.replacePets(codexPet: codexPet, codogotchiPet: codogotchiPet)
 		}
 	}
@@ -1138,9 +1129,9 @@ final class FloatingPetWindowPool {
 	/// just the one clicked. Callers pair this with a `StateJsonWriter` write
 	/// that idles every sibling's `state.d/` slice so the bubbles do not
 	/// reappear on the next poll tick.
-	func clearAttentionBubbles(sharingOriginWith windowKey: String) {
-		let owningOrigin = Self.origin(forWindowKey: windowKey)
-		for key in windows.keys where Self.origin(forWindowKey: key) == owningOrigin {
+	func clearAttentionBubbles(sharingOriginWith windowKey: WindowKey) {
+		let owningOrigin = windowKey.origin
+		for key in windows.keys where key.origin == owningOrigin {
 			windows[key]?.applyAttention(payload: nil, sourceEvent: nil)
 		}
 	}
@@ -1149,8 +1140,8 @@ final class FloatingPetWindowPool {
 	/// "combined" window (session numbering only applies to session-keyed
 	/// windows). Consumers (e.g. `MenubarApp` wiring the session badge) call
 	/// this after a window is spawned/updated.
-	func sessionNumber(forWindowKey key: String) -> Int? {
-		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return nil }
+	func sessionNumber(forWindowKey key: WindowKey) -> Int? {
+		guard key.isSessionKeyed, let identity = currentRenderKeyIdentities[key] else { return nil }
 		return sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
 	}
 
@@ -1162,15 +1153,15 @@ final class FloatingPetWindowPool {
 	/// window can be renamed too (P?? unification); see
 	/// `defaultSessionLabel(forOrigin:)` for what a plain-origin/"combined"
 	/// window shows when it has never been renamed.
-	func sessionLabel(forWindowKey key: String) -> String? {
+	func sessionLabel(forWindowKey key: WindowKey) -> String? {
 		sessionLabelReader(key)
 	}
 
 	/// User-facing label for a window key, with the same precedence everywhere
 	/// it is surfaced: explicit `session-labels.json` rename, then a retrieved
 	/// platform title, then the numeric session fallback, then platform name.
-	func sessionDisplayLabel(forWindowKey key: String, origin: String? = nil) -> String? {
-		let resolvedOrigin = origin ?? Self.origin(forWindowKey: key)
+	func sessionDisplayLabel(forWindowKey key: WindowKey, origin: String? = nil) -> String? {
+		let resolvedOrigin = origin ?? key.origin
 		let userLabel = sessionLabel(forWindowKey: key)
 		let retrievedTitle = resolveSessionTitle(forWindowKey: key)
 		let defaultLabel =
@@ -1194,8 +1185,8 @@ final class FloatingPetWindowPool {
 
 	/// Last submitted prompt for `windowKey`'s exact session, or `nil` for a
 	/// plain-origin/"combined" window.
-	func sessionPromptSummary(forWindowKey key: String) -> String? {
-		guard isSessionKeyed(key) else { return nil }
+	func sessionPromptSummary(forWindowKey key: WindowKey) -> String? {
+		guard key.isSessionKeyed else { return nil }
 		return sessionPromptSummaryReader(key)
 	}
 
@@ -1205,13 +1196,6 @@ final class FloatingPetWindowPool {
 		currentCustomization.platformModes[origin] ?? .own
 	}
 
-	/// True when `key` is a session-keyed render key (`origin:session_id`),
-	/// as opposed to a plain origin (session-pets off) or the literal
-	/// "combined" key. Session numbering only ever applies to these keys.
-	private func isSessionKeyed(_ key: String) -> Bool {
-		key != "combined" && key.contains(":")
-	}
-
 	/// Assigns a session number for a newly-spawned session-keyed window and
 	/// remembers the identity under `windowSessionIdentities` so a later
 	/// `releaseSessionNumber` call — which may land well after this session's
@@ -1219,8 +1203,8 @@ final class FloatingPetWindowPool {
 	/// an already-ended session) — can still resolve the correct
 	/// (origin, sessionId) pair to free. No-op for plain-origin or "combined"
 	/// windows.
-	private func assignSessionNumber(forWindowKey key: String) {
-		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return }
+	private func assignSessionNumber(forWindowKey key: WindowKey) {
+		guard key.isSessionKeyed, let identity = currentRenderKeyIdentities[key] else { return }
 		let unlimited = isUnlimited(origin: identity.origin)
 		sessionNumberAllocator.setUnlimited(unlimited, origin: identity.origin)
 		sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
@@ -1232,8 +1216,8 @@ final class FloatingPetWindowPool {
 	/// see `windowSessionIdentities`. No-op for plain-origin or "combined"
 	/// windows, and a safe no-op if the window never held a session number
 	/// (e.g. it was torn down before ever being assigned one).
-	private func releaseSessionNumber(forWindowKey key: String) {
-		guard isSessionKeyed(key), let identity = windowSessionIdentities.removeValue(forKey: key) else { return }
+	private func releaseSessionNumber(forWindowKey key: WindowKey) {
+		guard key.isSessionKeyed, let identity = windowSessionIdentities.removeValue(forKey: key) else { return }
 		resolvedSessionTitles.removeValue(forKey: key)
 		let unlimited = isUnlimited(origin: identity.origin)
 		sessionNumberAllocator.setUnlimited(unlimited, origin: identity.origin)
@@ -1251,9 +1235,9 @@ final class FloatingPetWindowPool {
 	/// resolve) is never re-fetched. A fresh resolve is written through to
 	/// the on-disk cache so a later relaunch skips straight to the second
 	/// check.
-	private func resolveSessionTitle(forWindowKey key: String) -> String? {
+	private func resolveSessionTitle(forWindowKey key: WindowKey) -> String? {
 		if let cached = resolvedSessionTitles[key] { return cached }
-		guard isSessionKeyed(key), let identity = currentRenderKeyIdentities[key] else { return nil }
+		guard key.isSessionKeyed, let identity = currentRenderKeyIdentities[key] else { return nil }
 		if let persisted = retrievedSessionTitleReader(key) {
 			resolvedSessionTitles[key] = persisted
 			return persisted
@@ -1285,24 +1269,24 @@ final class FloatingPetWindowPool {
 		return cap
 	}
 
-	private func mode(forWindowKey key: String) -> PlatformMode {
-		mode(for: Self.origin(forWindowKey: key))
+	private func mode(forWindowKey key: WindowKey) -> PlatformMode {
+		mode(for: key.origin)
 	}
 
-	/// THE single branch site mapping a render key to its window key: the
-	/// literal "combined" and combined-mode origins fold to "combined"; every
-	/// other resolved key (plain origin or origin:session_id) is its own window.
-	private func windowKey(for renderKey: String) -> String {
-		renderKey == "combined" || mode(forWindowKey: renderKey) == .combined
-			? "combined" : renderKey
+	/// THE single branch site mapping a render key to its window key: `.combined`
+	/// itself and combined-mode origins fold to `.combined`; every other
+	/// resolved key (`.origin` or `.session`) is its own window.
+	private func windowKey(for renderKey: WindowKey) -> WindowKey {
+		renderKey == .combined || mode(forWindowKey: renderKey) == .combined
+			? .combined : renderKey
 	}
 
 	/// Most-recent lastSeenAt across all tracked render keys that map to this
-	/// window key (several fold into "combined"; every other key maps to itself).
-	private func lastSeenForWindow(key: String) -> Date? {
-		if key == "combined" {
+	/// window key (several fold into `.combined`; every other key maps to itself).
+	private func lastSeenForWindow(key: WindowKey) -> Date? {
+		if key == .combined {
 			return lastSeenAt
-				.filter { windowKey(for: $0.key) == "combined" }
+				.filter { windowKey(for: $0.key) == .combined }
 				.values.max()
 		}
 		return lastSeenAt[key]

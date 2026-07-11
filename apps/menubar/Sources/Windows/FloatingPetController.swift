@@ -333,7 +333,7 @@ extension MinimalistPanelManaging {
 
 @MainActor
 final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
-	private let origin: String
+	private let origin: WindowKey
 	private let panel: MinimalistPanelManaging
 	private let visibleFrameProvider: () -> CGRect
 	private let saveState: (FloatingAppState) throws -> Void
@@ -351,7 +351,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	var onVisibilityChanged: ((Bool) -> Void)?
 
 	init(
-		origin: String,
+		origin: WindowKey,
 		panel: MinimalistPanelManaging,
 		visibleFrameProvider: @escaping () -> CGRect,
 		saveState: @escaping (FloatingAppState) throws -> Void = AppStateStore.save,
@@ -369,7 +369,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		self.notificationCenter = notificationCenter
 		self.promptSummaryProvider = promptSummaryProvider
 		self.badgeScaleProvider = badgeScaleProvider
-		self.lastAppliedOrigin = origin
+		self.lastAppliedOrigin = origin.origin
 		self.state = initialState ?? AppStateStore.load(visibleFrame: visibleFrameProvider())
 		super.init()
 
@@ -445,7 +445,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	}
 
 	func applyPlatform(origin: String?) {
-		lastAppliedOrigin = origin ?? self.origin
+		lastAppliedOrigin = origin ?? self.origin.origin
 		panel.applyPlatform(origin: lastAppliedOrigin)
 	}
 

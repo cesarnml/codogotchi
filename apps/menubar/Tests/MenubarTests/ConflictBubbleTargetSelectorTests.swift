@@ -9,7 +9,7 @@ import XCTest
 final class ConflictBubbleTargetSelectorTests: XCTestCase {
 
 	func testTargetsTheEarliestFirstSeenKeyAmongRenderedActiveSessions() {
-		let firstSeenAt: [String: Date] = [
+		let firstSeenAt: [WindowKey: Date] = [
 			"claude_code:b": Date(timeIntervalSince1970: 200),
 			"claude_code:a": Date(timeIntervalSince1970: 100),
 			"claude_code:c": Date(timeIntervalSince1970: 300),
@@ -27,7 +27,7 @@ final class ConflictBubbleTargetSelectorTests: XCTestCase {
 	}
 
 	func testSingleCandidateIsItsOwnTarget() {
-		let firstSeenAt: [String: Date] = ["claude_code:only": Date()]
+		let firstSeenAt: [WindowKey: Date] = ["claude_code:only": Date()]
 
 		XCTAssertEqual(
 			ConflictBubbleTargetSelector.longestLivedKey(firstSeenAt: firstSeenAt),
@@ -38,7 +38,7 @@ final class ConflictBubbleTargetSelectorTests: XCTestCase {
 		// Same first-seen map queried twice must return the same target — the
 		// selector is pure, so stability across ticks falls out of the caller
 		// re-filtering to the same currently-rendered set each time.
-		let firstSeenAt: [String: Date] = [
+		let firstSeenAt: [WindowKey: Date] = [
 			"codex:x": Date(timeIntervalSince1970: 50),
 			"codex:y": Date(timeIntervalSince1970: 75),
 		]

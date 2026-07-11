@@ -32,7 +32,7 @@ enum SessionTier {
 /// its window key (`origin`, `origin:session_id`, or the fallback plain
 /// origin for a filename with no session id).
 struct SessionRow: Identifiable {
-	let id: String
+	let id: WindowKey
 	let origin: String
 	let sessionId: String?
 	let displayLabel: String
@@ -73,14 +73,14 @@ final class SessionsTabViewModel {
 	private let stateDirectoryPath: String
 	private let customizationPath: String
 	private weak var pool: FloatingPetWindowPool?
-	private let refreshTtlForShow: (String) -> Void
+	private let refreshTtlForShow: (WindowKey) -> Void
 	/// Keys `show(key:)` most recently un-hid, still waiting on the pool's
 	/// next `update()` tick to actually respawn the window and populate
 	/// `activeOrigins`. Bridges the one-refresh gap where the key is in
 	/// neither `activeOrigins` nor `hiddenWindowKeys` (see `refresh()`),
 	/// which would otherwise misclassify a freshly-shown Active row as Live.
 	/// Cleared as soon as `activeOrigins`/`hiddenWindowKeys` catch up.
-	private var pendingShowKeys: Set<String> = []
+	private var pendingShowKeys: Set<WindowKey> = []
 
 	private(set) var activeRows: [SessionRow] = []
 	private(set) var liveRows: [SessionRow] = []
@@ -90,7 +90,7 @@ final class SessionsTabViewModel {
 		stateDirectoryPath: String = CodogotchiFolders.stateDirectoryPath(),
 		customizationPath: String = CodogotchiFolders.customizationPath(),
 		pool: FloatingPetWindowPool? = nil,
-		refreshTtlForShow: @escaping (String) -> Void = { _ in }
+		refreshTtlForShow: @escaping (WindowKey) -> Void = { _ in }
 	) {
 		self.stateDirectoryPath = stateDirectoryPath
 		self.customizationPath = customizationPath
@@ -141,7 +141,8 @@ final class SessionsTabViewModel {
 			guard age < archiveTTL else { continue }
 
 			let isSessionKeyed = parsedSessionId != "default"
-			let key = isSessionKeyed ? makeSessionKey(origin: origin, sessionId: parsedSessionId) : origin
+			let key: WindowKey =
+				isSessionKeyed ? .session(origin: origin, id: parsedSessionId) : .origin(origin)
 			let label =
 				pool?.sessionDisplayLabel(forWindowKey: key, origin: origin)
 				?? FloatingPetWindowPool.defaultSessionLabel(forOrigin: origin)
@@ -199,7 +200,7 @@ final class SessionsTabViewModel {
 	/// Works uniformly for a hidden Active row, a Live row, or an Archived
 	/// row (whose stale mtime `refreshForShow` re-freshens).
 	@MainActor
-	func show(key: String) {
+	func show(key: WindowKey) {
 		refreshTtlForShow(key)
 		pendingShowKeys.insert(key)
 		pool?.setVisible(true, for: key)
@@ -208,7 +209,7 @@ final class SessionsTabViewModel {
 
 	/// Hides a currently-rendered Active row.
 	@MainActor
-	func hide(key: String) {
+	func hide(key: WindowKey) {
 		pool?.setVisible(false, for: key)
 		refresh()
 	}
@@ -238,7 +239,7 @@ final class SessionsTabViewModel {
 	@MainActor
 	func prune(row: SessionRow) {
 		let filename =
-			row.sessionId.map { "\(makeSessionKey(origin: row.origin, sessionId: $0)).json" }
+			row.sessionId.map { "\(WindowKey.session(origin: row.origin, id: $0).rawValue).json" }
 			?? "\(row.origin).json"
 		let path = (stateDirectoryPath as NSString).appendingPathComponent(filename)
 		try? FileManager.default.removeItem(atPath: path)

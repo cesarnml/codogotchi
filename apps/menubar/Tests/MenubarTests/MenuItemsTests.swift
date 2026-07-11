@@ -46,7 +46,7 @@ final class MenuItemsTests: XCTestCase {
 
 	private func makePool(
 		origins: [String],
-		renderKeyIdentities: [String: RenderKeyIdentity] = [:],
+		renderKeyIdentities: [WindowKey: RenderKeyIdentity] = [:],
 		sessionLabelReader: @escaping FloatingPetWindowPool.SessionLabelReader = { _ in nil },
 		sessionTitleReader: @escaping FloatingPetWindowPool.SessionTitleReader = { _, _ in nil },
 		retrievedSessionTitleReader: @escaping FloatingPetWindowPool.RetrievedSessionTitleReader = { _ in nil }
@@ -61,7 +61,7 @@ final class MenuItemsTests: XCTestCase {
 		if !origins.isEmpty {
 			let perPlatform = Dictionary(
 				uniqueKeysWithValues: origins.map { origin in
-					(origin, StateSnapshot(
+					(WindowKey(rawValue: origin) ?? .origin(origin), StateSnapshot(
 						schemaVersion: EXPECTED_STATE_SCHEMA_VERSION,
 						activityState: .idle,
 						updatedAt: "2026-06-28T10:00:00.000Z",
@@ -312,7 +312,7 @@ final class MenuItemsTests: XCTestCase {
 		let pool = makePool(origins: ["claude_code", "cursor"])
 		pool.setVisible(false, for: "claude_code")
 		pool.setVisible(false, for: "cursor")
-		var refreshed: [String] = []
+		var refreshed: [WindowKey] = []
 		let builder = MenubarMenu(
 			terminate: {}, floatingPetPool: pool,
 			refreshTtlForShow: { refreshed.append($0) })
@@ -328,7 +328,7 @@ final class MenuItemsTests: XCTestCase {
 
 	func testShowPetItemRefreshesTtlForExactlyItsOwnKey() {
 		let pool = makePool(origins: ["claude_code", "cursor"])
-		var refreshed: [String] = []
+		var refreshed: [WindowKey] = []
 		let builder = MenubarMenu(
 			terminate: {}, floatingPetPool: pool,
 			refreshTtlForShow: { refreshed.append($0) })
@@ -337,7 +337,7 @@ final class MenuItemsTests: XCTestCase {
 		builder.refreshFloatingPetMenuItemTitle()
 
 		let showItem = menu.items.first {
-			($0.representedObject as? String) == "cursor" && $0.title.hasPrefix("Show")
+			($0.representedObject as? WindowKey) == "cursor" && $0.title.hasPrefix("Show")
 		}
 		XCTAssertNotNil(showItem, "hidden cursor must have a Show item carrying its window key")
 		_ = (showItem!.target as AnyObject?)?.perform(showItem!.action!, with: showItem!)
@@ -434,7 +434,7 @@ final class MenuItemsTests: XCTestCase {
 		let pool = makePool(
 			origins: ["cursor", sessionKey],
 			renderKeyIdentities: [
-				sessionKey: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
+				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
 			]
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
@@ -450,9 +450,9 @@ final class MenuItemsTests: XCTestCase {
 		let pool = makePool(
 			origins: ["cursor", sessionKey],
 			renderKeyIdentities: [
-				sessionKey: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
+				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
 			],
-			sessionLabelReader: { key in key == sessionKey ? "Refactor Sprint" : nil }
+			sessionLabelReader: { key in key.rawValue == sessionKey ? "Refactor Sprint" : nil }
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
@@ -467,9 +467,9 @@ final class MenuItemsTests: XCTestCase {
 		let pool = makePool(
 			origins: ["cursor", sessionKey],
 			renderKeyIdentities: [
-				sessionKey: RenderKeyIdentity(origin: "codex", sessionId: "s1")
+				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "codex", sessionId: "s1")
 			],
-			retrievedSessionTitleReader: { key in key == sessionKey ? "Rename testing prompts" : nil }
+			retrievedSessionTitleReader: { key in key.rawValue == sessionKey ? "Rename testing prompts" : nil }
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
@@ -484,10 +484,10 @@ final class MenuItemsTests: XCTestCase {
 		let pool = makePool(
 			origins: ["cursor", sessionKey],
 			renderKeyIdentities: [
-				sessionKey: RenderKeyIdentity(origin: "codex", sessionId: "s1")
+				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "codex", sessionId: "s1")
 			],
-			sessionLabelReader: { key in key == sessionKey ? "Manual label" : nil },
-			retrievedSessionTitleReader: { key in key == sessionKey ? "Rename testing prompts" : nil }
+			sessionLabelReader: { key in key.rawValue == sessionKey ? "Manual label" : nil },
+			retrievedSessionTitleReader: { key in key.rawValue == sessionKey ? "Rename testing prompts" : nil }
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
@@ -533,10 +533,10 @@ final class MenuItemsTests: XCTestCase {
 
 		let showTitles = menu.items.filter { $0.title.hasPrefix("Show") }.map(\.title)
 		XCTAssertTrue(
-			menu.items.contains { ($0.representedObject as? String) == "claude_code:fresh" },
+			menu.items.contains { ($0.representedObject as? WindowKey) == "claude_code:fresh" },
 			"the fresh hidden key must keep its Show entry; got \(showTitles)")
 		XCTAssertFalse(
-			menu.items.contains { ($0.representedObject as? String) == "claude_code:stale" },
+			menu.items.contains { ($0.representedObject as? WindowKey) == "claude_code:stale" },
 			"a hidden key past the 2h fresh window must not appear under Active Pets; got \(showTitles)")
 	}
 
@@ -548,7 +548,7 @@ final class MenuItemsTests: XCTestCase {
 		try writeSlice(named: "codex:live-one.json", in: dir, age: 60)
 		let pool = makePool(origins: [])
 		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
-		var refreshed: [String] = []
+		var refreshed: [WindowKey] = []
 		let builder = MenubarMenu(
 			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel,
 			refreshTtlForShow: { refreshed.append($0) })
@@ -559,7 +559,7 @@ final class MenuItemsTests: XCTestCase {
 		else {
 			return XCTFail("menu must carry a Live Pets item with a submenu")
 		}
-		let rowItem = submenu.items.first { ($0.representedObject as? String) == "codex:live-one" }
+		let rowItem = submenu.items.first { ($0.representedObject as? WindowKey) == "codex:live-one" }
 		XCTAssertNotNil(rowItem, "the live session must have a submenu row; got \(submenu.items.map(\.title))")
 
 		_ = (rowItem!.target as AnyObject?)?.perform(rowItem!.action!, with: rowItem!)
@@ -624,7 +624,7 @@ final class MenuItemsTests: XCTestCase {
 		let menu = builder.build()
 
 		let activeShowItem = menu.items.first {
-			($0.representedObject as? String) == "claude_code" && $0.title.hasPrefix("Show")
+			($0.representedObject as? WindowKey) == "claude_code" && $0.title.hasPrefix("Show")
 		}
 		XCTAssertNotNil(
 			activeShowItem,
@@ -636,7 +636,7 @@ final class MenuItemsTests: XCTestCase {
 			return XCTFail("menu must carry a Live Pets item with a submenu")
 		}
 		XCTAssertFalse(
-			liveSubmenu.items.contains { ($0.representedObject as? String) == "claude_code" },
+			liveSubmenu.items.contains { ($0.representedObject as? WindowKey) == "claude_code" },
 			"a TTL-dismissed pet is Active (hidden), not Live; got \(liveSubmenu.items.map(\.title))")
 	}
 
@@ -703,7 +703,7 @@ final class MenuItemsTests: XCTestCase {
 			return XCTFail("menu must carry a Live Pets item with a submenu")
 		}
 		XCTAssertFalse(
-			liveSubmenu.items.contains { ($0.representedObject as? String) == "claude_code:capped" },
+			liveSubmenu.items.contains { ($0.representedObject as? WindowKey) == "claude_code:capped" },
 			"a cap-pending session must appear under Capped Sessions, not Live Pets")
 
 		guard let openItem = submenu.items.first(where: { $0.title == MenubarMenu.openCustomizationTitle }),

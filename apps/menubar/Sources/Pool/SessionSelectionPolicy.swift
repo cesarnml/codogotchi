@@ -13,10 +13,10 @@ enum SessionSelectionPolicy {
 	/// its cap.
 	struct Selection: Equatable {
 		/// Window keys that should have a real panel this tick.
-		let rendered: Set<String>
+		let rendered: Set<WindowKey>
 		/// Window keys held back — a reversible de-render. Their `state.d` slice
 		/// stays on disk untouched; only Prune and TTL expiry ever delete it.
-		let pending: Set<String>
+		let pending: Set<WindowKey>
 		/// True when cap pressure blocked an in-flight ("active") session from
 		/// rendering even though every session — rendered and pending — is itself
 		/// in-flight, so there is no evictable target. Consumed by P15.08's
@@ -115,19 +115,19 @@ enum SessionSelectionPolicy {
 	/// a session the user never asked to see, indistinguishable in the UI from
 	/// the pruned one reappearing.
 	static func select(
-		sessions: [String: ActivityState],
+		sessions: [WindowKey: ActivityState],
 		cap: Int,
-		currentlyRendered: Set<String> = [],
-		updatedAt: [String: String] = [:],
+		currentlyRendered: Set<WindowKey> = [],
+		updatedAt: [WindowKey: String] = [:],
 		incumbentsProtected: Bool = false,
-		pinnedKeys: Set<String> = [],
+		pinnedKeys: Set<WindowKey> = [],
 		restrictNewPromotionsToInFlight: Bool = false
 	) -> Selection {
 		guard cap > 0 else {
 			return Selection(rendered: Set(sessions.keys), pending: [], blocked: false)
 		}
 
-		func recency(_ key: String) -> Date {
+		func recency(_ key: WindowKey) -> Date {
 			updatedAt[key].flatMap(StateJsonReader.parseISO8601Date) ?? .distantPast
 		}
 
@@ -147,14 +147,14 @@ enum SessionSelectionPolicy {
 			let dateA = recency(a)
 			let dateB = recency(b)
 			if dateA != dateB { return dateA < dateB }
-			return a < b
+			return a.rawValue < b.rawValue
 		}
 		// When sessions.count <= cap this renders every session, matching the
 		// pre-QC guard clause's unconditional "render all" — unless the
 		// prune-armed gate below trims a fresh, non-in-flight promotion out of it.
 		let renderCount = min(cap, ordered.count)
 		let rankedRendered = Set(ordered.suffix(renderCount))
-		var rendered: Set<String>
+		var rendered: Set<WindowKey>
 		if restrictNewPromotionsToInFlight {
 			rendered = rankedRendered.filter {
 				currentlyRendered.contains($0) || (sessions[$0]?.isInFlight ?? false)

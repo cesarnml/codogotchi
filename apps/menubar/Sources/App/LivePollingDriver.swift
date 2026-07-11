@@ -318,19 +318,22 @@ final class LivePollingDriver {
 	/// with another active session — that reintroduces the cross-session badge
 	/// collapse this per-session lookup exists to fix.
 	private func resolveRenderedPlatforms(
-		renderStates: [String: StateSnapshot],
-		identities: [String: RenderKeyIdentity],
-		perSessionGate: [String: PerPlatformGateReader.Entry],
+		renderStates: [WindowKey: StateSnapshot],
+		identities: [WindowKey: RenderKeyIdentity],
+		perSessionGate: [WindowKey: PerPlatformGateReader.Entry],
 		legacyGate: GateSnapshot?,
 		legacyContext: DeliveryContextSnapshot?
-	) -> (states: [String: StateSnapshot], gateBadges: [String: GateBadgeContent]) {
-		var states: [String: StateSnapshot] = [:]
-		var badges: [String: GateBadgeContent] = [:]
+	) -> (states: [WindowKey: StateSnapshot], gateBadges: [WindowKey: GateBadgeContent]) {
+		var states: [WindowKey: StateSnapshot] = [:]
+		var badges: [WindowKey: GateBadgeContent] = [:]
 		let singleRenderKey = renderStates.count == 1 ? renderStates.keys.first : nil
 
 		for (renderKey, snapshot) in renderStates {
 			let identity = identities[renderKey]
-			let sessionKey = identity.map { makeSessionKey(origin: $0.origin, sessionId: $0.sessionId) }
+			// Policy match, not a round-trip: constructs the session-shaped
+			// `WindowKey` directly from the winning identity to look up
+			// `perSessionGate` (itself `WindowKey`-keyed since P16.04).
+			let sessionKey = identity.map { WindowKey.session(origin: $0.origin, id: $0.sessionId) }
 			let entry = sessionKey.flatMap { perSessionGate[$0] }
 			let gate = entry?.gate ?? (renderKey == singleRenderKey ? legacyGate : nil)
 			let context = entry?.context ?? (renderKey == singleRenderKey ? legacyContext : nil)
