@@ -74,6 +74,28 @@ final class CustomizationStoreTests: XCTestCase {
 		XCTAssertEqual(payload["idle_dismiss_ttl_seconds"] as? Int, 1800)
 	}
 
+	func testTwoAdaptersSettingDifferentOriginsInPlatformModesDoNotDropEachOther() throws {
+		let path = makeTmpPath()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		// Regression for a data-loss bug found in subagent review: `setMode`
+		// must base its proposed `platform_modes` map on a fresh disk read,
+		// not this instance's cached `snapshot`, or a sibling instance's
+		// concurrent entry in the SAME aggregate object is silently dropped.
+		let adapterA = CustomizationStore(filePath: path)
+		let adapterB = CustomizationStore(filePath: path)
+
+		adapterA.setMode(.minimalist, for: "claude_code")
+		adapterB.setMode(.combined, for: "cursor")
+
+		let payload = try readPayload(at: path)
+		let modes = payload["platform_modes"] as? [String: String]
+		XCTAssertEqual(
+			modes?["claude_code"], "minimalist",
+			"adapter A's platform_modes entry must survive adapter B's later write to the same aggregate object"
+		)
+		XCTAssertEqual(modes?["cursor"], "combined")
+	}
+
 	// MARK: - Change publication
 
 	func testPublicationFiresOnWriteAndDeliversTheMergedSnapshot() {
@@ -128,6 +150,9 @@ final class CustomizationStoreTests: XCTestCase {
 		store.merge(["idle_dismiss_ttl_seconds": 900], notify: false)
 
 		XCTAssertEqual(callCount, 0, "a suppressed-notify write (e.g. mid-drag) must not publish")
+		XCTAssertEqual(
+			store.snapshot.idleDismissTtlSeconds, 900,
+			"the in-memory snapshot must still update even when publication is suppressed")
 		let payload = try readPayload(at: path)
 		XCTAssertEqual(
 			payload["idle_dismiss_ttl_seconds"] as? Int, 900, "but must still persist to disk")

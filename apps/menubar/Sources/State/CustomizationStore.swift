@@ -72,11 +72,19 @@ final class CustomizationStore {
 	/// Persists the per-origin platform mode. `NSNull` removes the key when
 	/// every mode is back to the default (`.own`), avoiding an empty
 	/// `platform_modes` object in the file — mirrors the setter this replaces.
+	///
+	/// Builds `proposed` from a fresh disk read, not this instance's cached
+	/// `snapshot` — `platform_modes` is an aggregate object, so basing the
+	/// proposed map on a stale in-memory copy would silently drop entries
+	/// written by a sibling `CustomizationStore` instance since this
+	/// instance's last read (`ConfigFileWriter.merge`'s no-clobber contract
+	/// only protects sibling top-level keys, not the internals of an
+	/// aggregate value this method itself overwrites wholesale).
 	@discardableResult
 	func setMode(_ mode: PlatformMode, for origin: String, notify: Bool = true)
 		-> CustomizationSnapshot?
 	{
-		var proposed = snapshot.platformModes
+		var proposed = CustomizationJsonReader.read(at: filePath).platformModes
 		if mode == .own {
 			proposed.removeValue(forKey: origin)
 		} else {

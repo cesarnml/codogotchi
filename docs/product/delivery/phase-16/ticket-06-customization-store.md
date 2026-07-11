@@ -106,3 +106,48 @@ Deferred: any customization schema/behavior change; Own/Minimalist parity work
   reach the write path (all exercise domain behavior through the VM's public
   API against isolated temp-file paths) — none needed retargeting. Only new
   file: `CustomizationStoreTests.swift`.
+
+### Subagent review findings (post-GREEN, `[subagent-review]` commit)
+
+- **Patched — real data-loss bug**: `CustomizationStore.setMode` built its
+  proposed `platform_modes` map from `snapshot.platformModes` (this
+  instance's cached copy) instead of a fresh disk read. Two distinct
+  `CustomizationStore` instances pointed at the same file each calling
+  `setMode` for a different origin would silently drop each other's entry —
+  demonstrable via `adapterA.setMode(.minimalist, for: "claude_code")` then
+  `adapterB.setMode(.combined, for: "cursor")`, where B's write erased A's
+  entry. This directly violated the store's own documented cross-instance
+  no-clobber contract and the ticket's Red-phase requirement
+  ("concurrent-ish sequential writes from two adapters don't drop fields").
+  Fixed by reading `CustomizationJsonReader.read(at: filePath).platformModes`
+  fresh at the top of `setMode` instead of using the cached `snapshot`.
+  Regression test added:
+  `testTwoAdaptersSettingDifferentOriginsInPlatformModesDoNotDropEachOther`.
+  This correction supersedes the "No pre-existing bug found" note above for
+  aggregate-object fields specifically — the earlier note was accurate for
+  scalar top-level keys (which `ConfigFileWriter.merge` protects directly)
+  but did not hold for `platform_modes`, whose internal map was rebuilt from
+  a per-instance cache rather than re-merged from disk.
+- **Also patched — advisory**: `testNotifyFalseSuppressesPublicationButStillPersists`
+  now also asserts `store.snapshot.idleDismissTtlSeconds` (not just the
+  on-disk payload) per the subagent's advisory note that the in-memory
+  update on a suppressed-notify write was previously unasserted.
+- **Deferred**: the subagent also found that `CustomizationTabViewModel`'s
+  `isApplyingOwnWrite` flag suppresses ALL publication (not just this
+  instance's own write) for the flag's synchronous duration, so a
+  hypothetical re-entrant write from a different subscriber during that
+  window would also be silently swallowed. Verified unreachable in current
+  production wiring: the only production subscriber
+  (`CustomizationTabViewModel`'s own subscription) re-syncs via
+  `onExternalChange` → `Task { @MainActor in refreshFromDisk() }`, which is
+  asynchronous, not a synchronous nested write; `GeneralTabViewModel` and the
+  right-click handlers never subscribe. Deferred rather than patched now —
+  fixing it correctly needs source-aware publication (tagging each write
+  with an origin token instead of an ambient per-instance boolean), which is
+  a real design change beyond this ticket's single-writer/notification-removal
+  scope and isn't exercised by any current call site. Flag for a future
+  ticket if a second synchronous store subscriber is ever added.
+- Advisory doc-drift notes (`CustomizationJsonReader`'s actual caller list,
+  the "never dropped each other's fields" phrasing) are addressed by this
+  section superseding the prior claims; no further doc edit needed beyond
+  this appendix.
