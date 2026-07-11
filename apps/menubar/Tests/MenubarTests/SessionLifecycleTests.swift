@@ -48,11 +48,12 @@ final class SessionLifecycleTests: XCTestCase {
 				archiveTTL: archiveTTL), .active)
 	}
 
-	func testConcealedAtLiveTTLBoundaryIsLive() {
+	func testConcealedAtLiveTTLBoundaryIsArchived() {
 		// Strict `<`: exactly-at-TTL fails the concealed-active check and
 		// falls through to the plain age-vs-liveTTL comparison, which also
-		// fails at the boundary, landing on `.live` before the boundary and
-		// `.archived` at/after it — this case is the still-under-TTL side.
+		// fails at the boundary, landing on `.archived` — this case is the
+		// at-boundary side; `testConcealedWithinLiveTTLIsActive` covers the
+		// still-under-TTL side one second earlier.
 		XCTAssertEqual(
 			SessionLifecycle.classify(
 				age: liveTTL, isRendered: false, isConcealed: true, liveTTL: liveTTL,
