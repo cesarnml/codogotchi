@@ -107,4 +107,3 @@ final class PetAssignPopoverController: NSViewController {
 		}
 	}
 }
-

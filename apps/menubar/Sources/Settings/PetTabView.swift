@@ -617,4 +617,3 @@ extension PetTabView: NSPopoverDelegate {
 		activeAssignPopover = nil
 	}
 }
-

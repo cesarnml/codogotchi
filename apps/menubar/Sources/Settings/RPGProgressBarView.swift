@@ -28,4 +28,3 @@ final class RPGProgressBarView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 }
-

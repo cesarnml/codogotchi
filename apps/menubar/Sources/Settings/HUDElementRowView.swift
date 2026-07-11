@@ -86,4 +86,3 @@ final class HUDElementRowView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 }
-

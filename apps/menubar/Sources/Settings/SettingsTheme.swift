@@ -14,4 +14,3 @@ enum SettingsTheme {
 	static let cardBorder = NSColor.white.withAlphaComponent(0.08)
 	static let rowDivider = NSColor.white.withAlphaComponent(0.06)
 }
-

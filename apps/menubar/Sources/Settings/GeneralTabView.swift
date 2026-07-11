@@ -406,4 +406,3 @@ final class GeneralTabView: NSView {
 		statusPanel.state = .success("Diagnostics copied to clipboard.")
 	}
 }
-

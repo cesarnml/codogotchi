@@ -134,4 +134,3 @@ final class HookRowView: NSView {
 		return container
 	}
 }
-

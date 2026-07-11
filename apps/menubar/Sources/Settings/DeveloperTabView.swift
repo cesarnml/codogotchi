@@ -167,4 +167,3 @@ final class DeveloperTabView: NSView {
 		CodogotchiFolders.reveal(CodogotchiFolders.dataFolderURL())
 	}
 }
-

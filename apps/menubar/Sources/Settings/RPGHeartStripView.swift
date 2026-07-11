@@ -42,4 +42,3 @@ final class RPGHeartStripView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 }
-

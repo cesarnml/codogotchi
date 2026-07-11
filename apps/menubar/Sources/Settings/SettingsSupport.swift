@@ -78,4 +78,3 @@ func settingsColumnHeader(_ text: String) -> NSTextField {
 	label.lineBreakMode = .byWordWrapping
 	return label
 }
-
