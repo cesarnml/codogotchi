@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "recordedAt": "2026-07-11T16:40:53.029Z",
+  "recordedAt": "2026-07-11T16:52:55.144Z",
   "summary": {
     "total": 12,
-    "patched": 3,
+    "patched": 4,
     "rejected": 1,
     "already-covered": 5,
-    "requires-human-review": 3
+    "requires-human-review": 2
   },
   "dispositions": [
     {
@@ -32,8 +32,15 @@
       "observation": "`WindowKey` serialization is deliberately non-injective for `.origin(\"combined\")` versus `.combined`, and for associated values containing colons. That ambiguity largely mirrors the old string convention, but direct enum construction now makes otherwise-unrepresentable distinctions possible. Tests currently cover only unambiguous values and would benefit from explicitly documenting these reserved-value constraints."
     },
     {
-      "disposition": "requires-human-review",
-      "rationale": "Real test-coverage gap on a schema-migration boundary (pre-P16.04 app-state.json keys upgrading to WindowKey). Current coverage is unit-level (serialization round-trip) and code inspection, not a real load-save fixture. Adding a proper end-to-end fixture test is a reasonable follow-up but is scoped test-infrastructure work, not a quick doc/comment fix — developer should decide whether to invest now or track as a follow-up ticket.",
+      "disposition": "patched",
+      "rationale": "Added testPreP1604FixtureLoadsAllThreeWindowKeyShapes and testSaveAfterPreP1604FixtureLoadPreservesLegacyEntriesByteForByte to AppStateTests.swift: a hand-written raw JSON fixture standing in for a real pre-P16.04 app-state.json (bare origin, origin:sessionID, and literal \"combined\" keys in floating_pet_positions/floating_pet_hidden), loaded and re-saved through today's AppStateStore/WindowKey code, confirming byte-compatible round-trip. Full suite green (1049/1049).",
+      "patch": {
+        "commitSha": "6e59a10b13fa269a361216bfcbcc45ba6ae344e1",
+        "files": [
+          "apps/menubar/Tests/MenubarTests/AppStateTests.swift",
+          "docs/product/delivery/phase-16/ticket-04-windowkey-enum.md"
+        ]
+      },
       "source": {
         "reportPath": "docs/product/delivery/phase-16/reviews/P16.04-subagent-review.report.md",
         "ticketId": "P16.04"
