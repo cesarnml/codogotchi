@@ -96,6 +96,7 @@
 		6DA9D60EB6FA048B64876A79 /* RPGHUDPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 349466D86E4C96C4D4A098BD /* RPGHUDPanel.swift */; };
 		708062CE5FDA296BC26AF17C /* PetTabLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 777877051ED12A63B5FD6ACB /* PetTabLayoutTests.swift */; };
 		74348CC405B92950FC9E967D /* ConfigFileWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F8A5A89CFE5F72C7CB6896 /* ConfigFileWriter.swift */; };
+		756CD4993E0950C3ACB78E88 /* WindowActionRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC69F56318CF5679B36BC371 /* WindowActionRouterTests.swift */; };
 		766A1353C309F8F7551B6A3C /* FloatingPetWindowPoolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A977437677E31BB6CF62E58C /* FloatingPetWindowPoolTests.swift */; };
 		774F5A301F72D6FC82A66844 /* CustomizationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1805A0BD2255F37C552E1A4 /* CustomizationStore.swift */; };
 		7843F584962C072B18F8B391 /* MinimalistBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 933225DDA49AB5637263654E /* MinimalistBadgeView.swift */; };
@@ -376,6 +377,7 @@
 		D97B6CBA3971EF14695D74F9 /* GateJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateJsonReaderTests.swift; sourceTree = "<group>"; };
 		DA2D403DBB111D997748F847 /* LivePollingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePollingTests.swift; sourceTree = "<group>"; };
 		DBBC8A9F0A42DAF1E086D27A /* PerSessionReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerSessionReaderTests.swift; sourceTree = "<group>"; };
+		DC69F56318CF5679B36BC371 /* WindowActionRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowActionRouterTests.swift; sourceTree = "<group>"; };
 		DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsControllerTests.swift; sourceTree = "<group>"; };
 		DFAAE832D91C20A69CA7D80B /* WindowKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowKeyTests.swift; sourceTree = "<group>"; };
 		E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuItemsTests.swift; sourceTree = "<group>"; };
@@ -482,6 +484,7 @@
 				9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */,
 				3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */,
 				5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */,
+				DC69F56318CF5679B36BC371 /* WindowActionRouterTests.swift */,
 				DFAAE832D91C20A69CA7D80B /* WindowKeyTests.swift */,
 			);
 			path = MenubarTests;
@@ -999,6 +1002,7 @@
 				C4F4151A25F6ED0D587172FD /* StateJsonReaderTests.swift in Sources */,
 				F82F0F3BD0350BC38F97CA27 /* StateJsonWriterTests.swift in Sources */,
 				E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */,
+				756CD4993E0950C3ACB78E88 /* WindowActionRouterTests.swift in Sources */,
 				9188D02613B670C3AA3D6E05 /* WindowKeyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
