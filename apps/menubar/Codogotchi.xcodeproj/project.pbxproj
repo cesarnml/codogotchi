@@ -71,6 +71,7 @@
 		560036137684236CE680D9F3 /* ReloadActivePetResponsivenessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D0B6066DEB36E24086A2094 /* ReloadActivePetResponsivenessTests.swift */; };
 		567FFA2D3A08D9FB1A48E0E1 /* TimerIconChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84C8024611891532F40772AC /* TimerIconChipView.swift */; };
 		588624B3B7B400E50C961066 /* HookRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F078A9D14984485EB28AC9 /* HookRowView.swift */; };
+		5887637BC646221531D0202F /* PoolDeriveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B308CD35F0C1360F241121D /* PoolDeriveTests.swift */; };
 		58A715CD06913CC033DA019A /* FloatingPetWindowPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5CF055F2A0C9DD84F4F026A /* FloatingPetWindowPool.swift */; };
 		595CC685C452AE0EA1EB9E2F /* PerSessionReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBBC8A9F0A42DAF1E086D27A /* PerSessionReaderTests.swift */; };
 		59E6748B45FAB395638DCE99 /* FloatingPetPromptDismissal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92F7C601B6A2F543E0A4A246 /* FloatingPetPromptDismissal.swift */; };
@@ -199,6 +200,7 @@
 		F82F0F3BD0350BC38F97CA27 /* StateJsonWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */; };
 		F834B238A8C60F6570A8907E /* SessionLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 471826711A4C1A9B3C87ECF6 /* SessionLifecycleTests.swift */; };
 		FB53C403B8D67A25A7489DB6 /* HookStatusClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A2770025BB0068A8C40E54 /* HookStatusClient.swift */; };
+		FD665AC2568C40ADDD61281B /* PoolDerivePurityGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A729378681BEE16B8D2F9AF /* PoolDerivePurityGateTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -238,6 +240,7 @@
 		15F8B7A0E0B770D28C7486B7 /* LockstepPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockstepPolicyTests.swift; sourceTree = "<group>"; };
 		195864BAFD9024E422A5CDF7 /* AttentionBubblePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttentionBubblePanel.swift; sourceTree = "<group>"; };
 		1A0CB6AFE5B881E7C678DD6A /* CustomizationTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationTabView.swift; sourceTree = "<group>"; };
+		1A729378681BEE16B8D2F9AF /* PoolDerivePurityGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolDerivePurityGateTests.swift; sourceTree = "<group>"; };
 		1C041CB2EE71340F3F263BFB /* RPGHUDPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDPreviewView.swift; sourceTree = "<group>"; };
 		1F540BC6B6EBC67D38138D89 /* ActivityState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityState.swift; sourceTree = "<group>"; };
 		1F671C56394833C823D8585D /* LegacyStateFileCleanupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyStateFileCleanupTests.swift; sourceTree = "<group>"; };
@@ -314,6 +317,7 @@
 		85617A3F9BAFE2927C403813 /* SlicePruner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlicePruner.swift; sourceTree = "<group>"; };
 		8780B208D0E108DA773D3287 /* FloatingPetPromptCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetPromptCoordinator.swift; sourceTree = "<group>"; };
 		8A2902FB13A70CEF8221A21A /* GeneralTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTabViewModelTests.swift; sourceTree = "<group>"; };
+		8B308CD35F0C1360F241121D /* PoolDeriveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolDeriveTests.swift; sourceTree = "<group>"; };
 		8BB58C3C8994A38F9FE444EE /* TransitionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLog.swift; sourceTree = "<group>"; };
 		8C5496B13380891C32935ABE /* StateJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonReader.swift; sourceTree = "<group>"; };
 		8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingInteractionTests.swift; sourceTree = "<group>"; };
@@ -409,6 +413,15 @@
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		33E5D2C7B590C0550C757948 /* Derive */ = {
+			isa = PBXGroup;
+			children = (
+				1A729378681BEE16B8D2F9AF /* PoolDerivePurityGateTests.swift */,
+				8B308CD35F0C1360F241121D /* PoolDeriveTests.swift */,
+			);
+			path = Derive;
+			sourceTree = "<group>";
+		};
 		53616D3B63161DE5E0543F8F /* Pool */ = {
 			isa = PBXGroup;
 			children = (
@@ -420,6 +433,7 @@
 				0F252B3C5E2C4512BEF298E0 /* SessionSelectionPolicy.swift */,
 				3BAC0E973502BF1A8691836E /* WindowActionRouter.swift */,
 				77AD5E672E750D5D5DC5CED8 /* WindowKey.swift */,
+				EA34521973DACD4ADF70D6E9 /* Derive */,
 			);
 			path = Pool;
 			sourceTree = "<group>";
@@ -492,6 +506,7 @@
 				5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */,
 				DC69F56318CF5679B36BC371 /* WindowActionRouterTests.swift */,
 				DFAAE832D91C20A69CA7D80B /* WindowKeyTests.swift */,
+				33E5D2C7B590C0550C757948 /* Derive */,
 			);
 			path = MenubarTests;
 			sourceTree = "<group>";
@@ -695,6 +710,13 @@
 				8BB58C3C8994A38F9FE444EE /* TransitionLog.swift */,
 			);
 			path = State;
+			sourceTree = "<group>";
+		};
+		EA34521973DACD4ADF70D6E9 /* Derive */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Derive;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -988,6 +1010,8 @@
 				708062CE5FDA296BC26AF17C /* PetTabLayoutTests.swift in Sources */,
 				7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */,
 				E93167AF2416BE06B2BAA308 /* PlatformAttributionTests.swift in Sources */,
+				FD665AC2568C40ADDD61281B /* PoolDerivePurityGateTests.swift in Sources */,
+				5887637BC646221531D0202F /* PoolDeriveTests.swift in Sources */,
 				CFD5C0AE22C996C03621521C /* PromptTimerTests.swift in Sources */,
 				A94729EE4E31C8A57629486A /* RPGHUDViewModelTests.swift in Sources */,
 				A4DE38B2FAB835D924339D92 /* RPGTabViewModelTests.swift in Sources */,
