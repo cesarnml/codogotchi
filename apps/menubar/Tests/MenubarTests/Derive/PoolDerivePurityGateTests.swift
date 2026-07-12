@@ -22,6 +22,16 @@ final class PoolDerivePurityGateTests: XCTestCase {
 			.appendingPathComponent("Sources/Pool/Derive")
 	}
 
+	/// Matches every Swift import-declaration form that names the `AppKit`
+	/// module: a plain `import AppKit`, an attributed form (`@_exported
+	/// import AppKit`, `@testable import AppKit`), and a declaration-specific
+	/// import (`import class AppKit.NSWindow`). Anchored so a substring like
+	/// `AppKitAdjacentThing` never false-positives.
+	private static let appKitImportPattern = try! NSRegularExpression(
+		pattern:
+			#"^\s*(?:@\w+\s+)*import\s+(?:(?:class|struct|enum|protocol|func|var|let|typealias)\s+)?AppKit(?:\.\w+)?\s*$"#
+	)
+
 	func testNoAppKitImportUnderPoolDerive() throws {
 		let fm = FileManager.default
 		let files = try fm.contentsOfDirectory(
@@ -31,10 +41,14 @@ final class PoolDerivePurityGateTests: XCTestCase {
 
 		for file in files {
 			let contents = try String(contentsOf: file, encoding: .utf8)
-			let hasAppKitImport = contents
-				.split(separator: "\n")
-				.contains { $0.trimmingCharacters(in: .whitespaces) == "import AppKit" }
-			XCTAssertFalse(hasAppKitImport, "\(file.lastPathComponent) must not import AppKit")
+			for line in contents.split(separator: "\n", omittingEmptySubsequences: false) {
+				let range = NSRange(line.startIndex..<line.endIndex, in: line)
+				let hasAppKitImport =
+					Self.appKitImportPattern.firstMatch(in: String(line), range: range) != nil
+				XCTAssertFalse(
+					hasAppKitImport,
+					"\(file.lastPathComponent) must not import AppKit: \"\(line)\"")
+			}
 		}
 	}
 }
