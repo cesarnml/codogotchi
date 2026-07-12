@@ -28,18 +28,13 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// Wired by the caller to open Settings > Customization.
 	var onOpenSettingsRequested: (() -> Void)?
 
-	// Attention bubble — shown below the pet when a non-expired attention payload is active.
-	private var attentionBubble: AttentionBubblePanel?
-	/// Separate bubble panel for P15.08's conflict notice — distinct from
-	/// `attentionBubble` so the two presentations never contend for the same
-	/// field (a blocked origin's rendered sessions are, by definition, active
-	/// and unlikely to also carry a real attention payload, but keeping them
-	/// independent avoids relying on that).
-	private var conflictBubble: SpeechBubblePanel?
-	private var gateBadgePanel: GateBadgePanel?
-	// Animation badge — always shown while the pet is visible; labels the current
-	// activity-state animation, anchored bottom-left inside the pet frame.
-	private var animationBadgePanel: AnimationBadgePanel?
+	/// Owns instance lifecycle, anchoring, drag/right-click routing, and
+	/// fronting for the animation badge, gate badge, attention bubble,
+	/// conflict bubble, and RPG HUD family (P17.03). This controller still
+	/// owns all "when is this visible" business logic (active-content
+	/// flags, hover state, transient-reveal timers) — the coordinator only
+	/// performs the mechanical reposition/front/hide act.
+	private let chromeCoordinator: ChromeFlockCoordinator
 	private var lastPanelFrame: CGRect = .zero
 	private var isPanelShown = false
 	private var attentionActive = false
@@ -100,7 +95,6 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	// RPG HUD — shown on hover, and transiently revealed on animation moments
 	// (lose/gain a half-heart, level up) when not hovering.
-	private var rpgHUDPanel: RPGHUDPanel?
 	private let rpgHUDViewModel = RPGHUDViewModel()
 	private var isHoveringPet = false
 	/// Local event monitor installed when the pointer leaves the pet frame while
@@ -111,11 +105,6 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	// shown to the right of the pet. Both are part of the RPG HUD — they clear
 	// when at least a half-heart returns *or* the HUD is disabled. The active
 	// decision lives in `rpgHUDViewModel.showsGhostPresentation`.
-	private var tombstonePanel: TombstonePanel?
-	/// Regeneration meter shown beside the tombstone while ghosted, visualizing how
-	/// close the pet is to reviving (active-minute carry toward the first
-	/// half-heart). Shares the tombstone's lifecycle via `showsReviveMeter`.
-	private var regenMeterPanel: RegenMeterPanel?
 	/// Pending auto-hide for a transient (non-hover) reveal.
 	private var hudAutoHideWork: DispatchWorkItem?
 	/// Set by the view-model's flash callback during `update`, signalling that
@@ -159,6 +148,24 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		self.initialIdleAge = initialIdleAge
 		self.clock = clock
 		self.visibleFrameProvider = visibleFrameProvider
+		self.chromeCoordinator = ChromeFlockCoordinator()
+		self.chromeCoordinator.configureRouting(
+			ChromeFlockCoordinator.ChromeRouting(
+				presentHidePrompt: { [weak self] anchor in self?.presentChromeHidePrompt(anchorInScreen: anchor) },
+				beginDrag: { [weak self] in self?.beginChromeDrag() },
+				continueDrag: { [weak self] in self?.continueChromeDrag() },
+				endDrag: { [weak self] in self?.endChromeDrag() }
+			)
+		)
+		self.chromeCoordinator.onAttentionDismiss = { [weak self] in self?.handleBubbleDismiss() }
+		self.chromeCoordinator.onConflictAction = { [weak self] in self?.onOpenSettingsRequested?() }
+		self.chromeCoordinator.onConflictDismiss = { [weak self] in
+			self?.conflictActive = false
+			self?.chromeCoordinator.hideConflictBubble()
+		}
+		self.chromeCoordinator.onAnimationBadgePlatformChipDoubleClick = { [weak self] in
+			AttentionFocusTarget.focus(sourceEvent: self?.currentSourceEvent)
+		}
 	}
 
 	func show(frame: CGRect) {
@@ -224,15 +231,14 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		(panel?.contentView as? FloatingPetInteractionView)?.setSpriteKitPaused(true)
 		panel?.orderOut(nil)
 		isPanelShown = false
-		attentionBubble?.orderOut(nil)
-		conflictBubble?.orderOut(nil)
-		gateBadgePanel?.orderOut(nil)
-		animationBadgePanel?.orderOut(nil)
-		tombstonePanel?.orderOut(nil)
-		regenMeterPanel?.orderOut(nil)
+		chromeCoordinator.hideAttentionBubble()
+		chromeCoordinator.hideConflictBubble()
+		chromeCoordinator.hideGateBadge()
+		chromeCoordinator.hideAnimationBadge()
+		chromeCoordinator.hideGhostChrome()
 		cancelHUDAutoHide()
 		cancelHUDHoverMonitor()
-		rpgHUDPanel?.hideImmediately()
+		chromeCoordinator.existingHUDPanel?.hideImmediately()
 	}
 
 	/// Swap in new pet loaders and immediately repaint the current state.
@@ -246,25 +252,16 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {
 		guard let payload else {
 			conflictActive = false
-			conflictBubble?.orderOut(nil)
+			chromeCoordinator.hideConflictBubble()
 			return
 		}
 		conflictActive = true
-		let bubble = conflictBubble ?? {
-			let b = SpeechBubblePanel()
-			b.onAction = { [weak self] in self?.onOpenSettingsRequested?() }
-			// Clearing `conflictActive` (not just ordering out) is what makes
-			// the dismissal stick: live-move repositions re-front the panel
-			// while the flag is set. The pool's hourly rate limiter may
-			// legitimately re-show it later via `applyConflictBubble`.
-			b.onDismiss = { [weak self] in
-				self?.conflictActive = false
-				self?.conflictBubble?.orderOut(nil)
-			}
-			conflictBubble = b
-			return b
-		}()
-		bubble.configureConflict(origin: payload.origin)
+		// Clearing `conflictActive` (not just ordering out) is what makes the
+		// dismissal stick: live-move repositions re-front the panel while the
+		// flag is set. The pool's hourly rate limiter may legitimately
+		// re-show it later via `applyConflictBubble`. See
+		// `chromeCoordinator.onConflictDismiss` wiring in `init`.
+		chromeCoordinator.updateConflictBubble(origin: payload.origin)
 		if isPanelShown {
 			repositionAndShowConflictBubble()
 		}
@@ -279,7 +276,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		currentSourceEvent = sourceEvent
 		guard let payload, !payload.isExpired() else {
 			attentionActive = false
-			attentionBubble?.orderOut(nil)
+			chromeCoordinator.hideAttentionBubble()
 			repositionAndShowAnimationBadge()
 			return
 		}
@@ -289,13 +286,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		// way it always was in Minimalist mode), and the bubble's `chipLeadingX`
 		// anchor below needs this panel's current frame.
 		repositionAndShowAnimationBadge()
-		let bubble = attentionBubble ?? {
-			let b = AttentionBubblePanel()
-			b.onDismiss = { [weak self] in self?.handleBubbleDismiss() }
-			attentionBubble = b
-			return b
-		}()
-		bubble.update(payload: payload, sourceEvent: sourceEvent)
+		chromeCoordinator.updateAttentionBubble(payload: payload, sourceEvent: sourceEvent)
 		if isPanelShown {
 			repositionAndShowBubble()
 		}
@@ -304,21 +295,10 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	func applyGateBadge(content: GateBadgeContent?) {
 		gateBadgeContent = content
 		guard let content else {
-			gateBadgePanel?.orderOut(nil)
+			chromeCoordinator.hideGateBadge()
 			return
 		}
-		let badge = gateBadgePanel ?? {
-			let panel = GateBadgePanel()
-			panel.onRightClickRequested = { [weak self] anchor in
-				self?.presentChromeHidePrompt(anchorInScreen: anchor)
-			}
-			panel.onDragBegan = { [weak self] in self?.beginChromeDrag() }
-			panel.onDragChanged = { [weak self] in self?.continueChromeDrag() }
-			panel.onDragEnded = { [weak self] in self?.endChromeDrag() }
-			gateBadgePanel = panel
-			return panel
-		}()
-		badge.update(content: content, relativeTo: lastPanelFrame)
+		chromeCoordinator.updateGateBadge(content: content, relativeTo: lastPanelFrame)
 		if isPanelShown {
 			repositionAndShowGateBadge()
 		}
@@ -331,7 +311,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// edge before the animation badge panel exists (e.g. the very first tick
 	/// after `show`, ordering permitting) rather than crashing/centering.
 	private var chipLeadingX: CGFloat {
-		animationBadgePanel?.frame.minX ?? lastPanelFrame.minX
+		chromeCoordinator.animationBadgeLeadingX ?? lastPanelFrame.minX
 	}
 
 	/// Screen-space y of the animation badge panel's own bottom edge —
@@ -342,7 +322,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	/// beneath it. Falls back to the pet frame's own bottom edge before the
 	/// animation badge panel exists, same reasoning as `chipLeadingX`.
 	private var chromeBottomY: CGFloat {
-		animationBadgePanel?.frame.minY ?? lastPanelFrame.minY
+		chromeCoordinator.animationBadgeBottomY ?? lastPanelFrame.minY
 	}
 
 	/// Routes a right-click on chrome that lives in its own floating window
@@ -404,7 +384,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		rpgHUDViewModel.onFlash = { [weak self] event in
 			guard let self else { return }
 			self.hudFlashPending = true
-			self.rpgHUDPanel?.flash(event)
+			self.chromeCoordinator.existingHUDPanel?.flash(event)
 			if event == .levelUp {
 				self.scene?.playLevelUpEffect()
 			}
@@ -435,7 +415,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		guard rpgHUDViewModel.isHUDEnabled else {
 			cancelHUDAutoHide()
 			cancelHUDHoverMonitor()
-			rpgHUDPanel?.hideImmediately()
+			chromeCoordinator.existingHUDPanel?.hideImmediately()
 			return
 		}
 		if isHoveringPet || hudForcedVisible {
@@ -458,7 +438,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		guard rpgHUDViewModel.isHUDEnabled else {
 			cancelHUDAutoHide()
 			cancelHUDHoverMonitor()
-			rpgHUDPanel?.hideImmediately()
+			chromeCoordinator.existingHUDPanel?.hideImmediately()
 			return
 		}
 		if isHoveringPet || hudForcedVisible {
@@ -485,7 +465,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		} else if !isHoveringPet {
 			cancelHUDAutoHide()
 			cancelHUDHoverMonitor()
-			rpgHUDPanel?.fadeOut()
+			chromeCoordinator.existingHUDPanel?.fadeOut()
 		}
 	}
 
@@ -497,45 +477,29 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	}
 
 	private func repositionAndShowConflictBubble() {
-		guard let bubble = conflictBubble else { return }
-		bubble.reposition(
+		chromeCoordinator.repositionConflictBubbleOwn(
 			aboveFloatingPetFrame: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
-		bubble.orderFrontRegardless()
 	}
 
 	private func repositionAndShowBubble() {
-		guard let bubble = attentionBubble else { return }
-		bubble.reposition(
+		chromeCoordinator.repositionAttentionBubble(
 			relativeTo: lastPanelFrame,
 			leadingX: chipLeadingX,
 			bottomAnchorY: chromeBottomY,
 			visibleFrame: visibleFrameProvider()
 		)
-		bubble.orderFrontRegardless()
 	}
 
 	private func repositionAndShowGateBadge() {
 		guard let content = gateBadgeContent else { return }
-		let badge = gateBadgePanel ?? {
-			let panel = GateBadgePanel()
-			panel.onRightClickRequested = { [weak self] anchor in
-				self?.presentChromeHidePrompt(anchorInScreen: anchor)
-			}
-			panel.onDragBegan = { [weak self] in self?.beginChromeDrag() }
-			panel.onDragChanged = { [weak self] in self?.continueChromeDrag() }
-			panel.onDragEnded = { [weak self] in self?.endChromeDrag() }
-			gateBadgePanel = panel
-			return panel
-		}()
-		badge.reposition(
+		chromeCoordinator.repositionGateBadgeOwn(
 			content: content,
 			relativeTo: lastPanelFrame,
 			chipLeadingX: chipLeadingX,
 			visibleFrame: visibleFrameProvider()
 		)
-		badge.orderFrontRegardless()
 	}
 
 	/// Apply the 0-HP ghost presentation: grayscale the sprite and show a persistent
@@ -547,46 +511,27 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		let active = rpgHUDViewModel.showsGhostPresentation
 		scene?.setGhosted(active)
 		guard isPanelShown, active else {
-			tombstonePanel?.orderOut(nil)
-			regenMeterPanel?.orderOut(nil)
+			chromeCoordinator.hideGhostChrome()
 			return
 		}
-		let tomb = tombstonePanel ?? {
-			let p = TombstonePanel()
-			tombstonePanel = p
-			return p
-		}()
-		tomb.reposition(
+		chromeCoordinator.repositionGhostChrome(
 			relativeTo: lastPanelFrame,
 			spriteAnchor: currentSpriteAnchorGlobal(),
 			visibleFrame: visibleFrameProvider()
 		)
-		tomb.orderFrontRegardless()
-
 		// Revival meter rides alongside the tombstone, gated on the same flag.
-		let meter = regenMeterPanel ?? {
-			let p = RegenMeterPanel()
-			regenMeterPanel = p
-			return p
-		}()
-		meter.reposition(
+		chromeCoordinator.repositionRegenMeter(
 			progress: rpgHUDViewModel.reviveProgress,
 			relativeTo: lastPanelFrame,
 			spriteAnchor: currentSpriteAnchorGlobal(),
 			visibleFrame: visibleFrameProvider()
 		)
-		meter.orderFrontRegardless()
 	}
 
 	/// Lazily create the HUD panel and push the latest state + position into it.
 	private func refreshHUDContent() -> RPGHUDPanel? {
 		guard rpgHUDViewModel.isHUDEnabled else { return nil }
-		let hud = rpgHUDPanel ?? {
-			let p = RPGHUDPanel()
-			rpgHUDPanel = p
-			return p
-		}()
-		hud.reposition(
+		return chromeCoordinator.repositionHUD(
 			hearts: rpgHUDViewModel.hearts,
 			ringFraction: rpgHUDViewModel.ringFraction,
 			level: rpgHUDViewModel.level,
@@ -596,7 +541,6 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			spriteAnchor: currentSpriteAnchorGlobal(),
 			visibleFrame: visibleFrameProvider()
 		)
-		return hud
 	}
 
 	/// The pet's opaque silhouette in global screen coordinates, used to anchor
@@ -624,11 +568,11 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 	private func hideHUDForHoverEnd() {
 		guard !hudDemoActive else { return }
 		guard hudAutoHideWork == nil else { return }
-		if rpgHUDPanel?.frame.contains(NSEvent.mouseLocation) == true {
+		if chromeCoordinator.existingHUDPanel?.frame.contains(NSEvent.mouseLocation) == true {
 			installHUDHoverMonitor()
 			return
 		}
-		rpgHUDPanel?.fadeOut()
+		chromeCoordinator.existingHUDPanel?.fadeOut()
 	}
 
 	/// Brief reveal on an animation moment while not hovering: fade in, then fade
@@ -643,7 +587,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			guard let self else { return }
 			self.hudAutoHideWork = nil
 			if !self.isHoveringPet {
-				self.rpgHUDPanel?.fadeOut()
+				self.chromeCoordinator.existingHUDPanel?.fadeOut()
 			}
 		}
 		hudAutoHideWork = work
@@ -675,12 +619,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			Task { @MainActor in
 				guard let self else { return }
 				let pt = NSEvent.mouseLocation
-				let inHUD = self.rpgHUDPanel?.frame.contains(pt) == true
+				let inHUD = self.chromeCoordinator.existingHUDPanel?.frame.contains(pt) == true
 				let inPet = self.lastPanelFrame.contains(pt)
 				guard !inHUD, !inPet else { return }
 				self.cancelHUDHoverMonitor()
 				if !self.isHoveringPet, !self.hudDemoActive, self.hudAutoHideWork == nil {
-					self.rpgHUDPanel?.fadeOut()
+					self.chromeCoordinator.existingHUDPanel?.fadeOut()
 				}
 			}
 			return event
@@ -689,21 +633,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 
 	private func repositionAndShowAnimationBadge() {
 		guard isPanelShown else { return }
-		let badge = animationBadgePanel ?? {
-			let panel = AnimationBadgePanel()
-			panel.onRightClickRequested = { [weak self] anchor in
-				self?.presentChromeHidePrompt(anchorInScreen: anchor)
-			}
-			panel.onDragBegan = { [weak self] in self?.beginChromeDrag() }
-			panel.onDragChanged = { [weak self] in self?.continueChromeDrag() }
-			panel.onDragEnded = { [weak self] in self?.endChromeDrag() }
-			panel.onPlatformChipDoubleClick = { [weak self] in
-				AttentionFocusTarget.focus(sourceEvent: self?.currentSourceEvent)
-			}
-			animationBadgePanel = panel
-			return panel
-		}()
-		badge.reposition(
+		chromeCoordinator.repositionAnimationBadge(
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
@@ -714,12 +644,6 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
-		// promptTimerHeartbeat calls this every second while a prompt timer is
-		// running; reordering the window on every tick fought AppKit's tooltip
-		// hover-delay timer, so only reorder when the panel isn't already visible.
-		if !badge.isVisible {
-			badge.orderFrontRegardless()
-		}
 	}
 
 	private func syncPromptTimerHeartbeat() {
@@ -776,7 +700,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		promptTimerStatus = nil
 		promptTimerHeartbeat?.invalidate()
 		promptTimerHeartbeat = nil
-		animationBadgePanel?.reposition(
+		chromeCoordinator.existingAnimationBadgePanel?.reposition(
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
@@ -827,9 +751,8 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			// Order the HUD chrome fully out so it stops rendering and re-anchoring.
 			cancelHUDAutoHide()
 			cancelHUDHoverMonitor()
-			rpgHUDPanel?.hideImmediately()
-			tombstonePanel?.orderOut(nil)
-			regenMeterPanel?.orderOut(nil)
+			chromeCoordinator.existingHUDPanel?.hideImmediately()
+			chromeCoordinator.hideGhostChrome()
 		} else {
 			// Restore whatever should be on screen now that the drag has ended.
 			updateGhostPresentation()
@@ -847,7 +770,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		// Animation badge first — the bubble's and gate badge's `chipLeadingX`
 		// anchor reads this panel's just-updated frame (see the ordering note
 		// in `show`).
-		animationBadgePanel?.reposition(
+		chromeCoordinator.existingAnimationBadgePanel?.reposition(
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
@@ -858,7 +781,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			visibleFrame: visibleFrameProvider()
 		)
 		if attentionActive {
-			attentionBubble?.reposition(
+			chromeCoordinator.existingAttentionBubblePanel?.reposition(
 				relativeTo: lastPanelFrame,
 				leadingX: chipLeadingX,
 				bottomAnchorY: chromeBottomY,
@@ -866,13 +789,13 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 			)
 		}
 		if conflictActive {
-			conflictBubble?.reposition(
+			chromeCoordinator.existingConflictBubblePanel?.reposition(
 				aboveFloatingPetFrame: lastPanelFrame,
 				visibleFrame: visibleFrameProvider()
 			)
 		}
 		if let content = gateBadgeContent {
-			gateBadgePanel?.reposition(
+			chromeCoordinator.existingGateBadgePanel?.reposition(
 				content: content,
 				relativeTo: lastPanelFrame,
 				chipLeadingX: chipLeadingX,
@@ -885,7 +808,7 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		// Keep the HUD glued to the pet on non-drag live moves (e.g. resize) while
 		// it is visible — steady (hover), pinned (demo), or mid transient reveal.
 		if rpgHUDViewModel.isHUDEnabled, isHoveringPet || hudDemoActive || hudAutoHideWork != nil {
-			rpgHUDPanel?.reposition(
+			chromeCoordinator.existingHUDPanel?.reposition(
 				hearts: rpgHUDViewModel.hearts,
 				ringFraction: rpgHUDViewModel.ringFraction,
 				level: rpgHUDViewModel.level,
@@ -898,12 +821,12 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 		}
 		// The tombstone is persistent while ghosted — keep it glued to the pet too.
 		if rpgHUDViewModel.showsGhostPresentation {
-			tombstonePanel?.reposition(
+			chromeCoordinator.existingTombstonePanel?.reposition(
 				relativeTo: lastPanelFrame,
 				spriteAnchor: currentSpriteAnchorGlobal(),
 				visibleFrame: visibleFrameProvider()
 			)
-			regenMeterPanel?.reposition(
+			chromeCoordinator.existingRegenMeterPanel?.reposition(
 				progress: rpgHUDViewModel.reviveProgress,
 				relativeTo: lastPanelFrame,
 				spriteAnchor: currentSpriteAnchorGlobal(),
@@ -999,14 +922,14 @@ final class FloatingPetPanelController: FloatingPetPanelManaging {
 				self.showHUDForHover()
 			} else {
 				self.hideHUDForHoverEnd()
-				self.rpgHUDPanel?.setRingHovered(false)
+				self.chromeCoordinator.existingHUDPanel?.setRingHovered(false)
 			}
 		}
 		view.onPointerUpdate = { [weak self] in
 			guard let self else { return }
 			let screenPt = NSEvent.mouseLocation
-			self.rpgHUDPanel?.setRingHovered(
-				self.rpgHUDPanel?.ringScreenRect()?.contains(screenPt) == true
+			self.chromeCoordinator.existingHUDPanel?.setRingHovered(
+				self.chromeCoordinator.existingHUDPanel?.ringScreenRect()?.contains(screenPt) == true
 			)
 		}
 		return view

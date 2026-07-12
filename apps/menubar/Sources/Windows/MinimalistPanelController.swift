@@ -6,8 +6,9 @@ import AppKit
 /// - `badgePanel` hosts only the `AnimationBadgeView` (platform chip + activity
 ///   label). It is content-tight, owns the drag, and is the persisted frame.
 ///   It never embeds the bubble and never resizes when attention toggles.
-/// - `bubblePanel` is the SAME `AttentionBubblePanel` Own mode uses, ordered in
-///   / out as attention arrives and positioned relative to the badge panel.
+/// - the attention bubble is the SAME `AttentionBubblePanel` Own mode uses
+///   (owned by `chromeCoordinator`), ordered in/out as attention arrives and
+///   positioned relative to the badge panel.
 ///
 /// Keeping the two as separate windows is the whole point: the earlier design
 /// shape-shifted one panel between a content-tight badge and a fixed-width
@@ -24,7 +25,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		/// window is session-keyed and session-pets is on) — a plain-origin
 		/// Minimalist strip never grows. `AttentionBubblePanel.reposition`
 		/// anchors off this panel's actual on-screen frame
-		/// (`BubbleLayout.frame`: `y = petFrame.minY - gapBelowPet - height`),
+		/// (`AttentionBubbleLayout.frame`: `y = petFrame.minY - gapBelowPet - height`),
 		/// so growing the badge panel's height naturally pushes the bubble down
 		/// without a separate offset constant.
 		static let sessionRowExtraHeight: CGFloat = 26
@@ -34,17 +35,12 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private let visibleFrameProvider: () -> CGRect
 	private var badgePanel: NSPanel?
 	private let badgeView = MinimalistBadgeView(frame: .zero)
-	/// Separate attention-bubble panel — the same component Own mode uses,
-	/// created lazily on first attention event.
-	private var bubblePanel: AttentionBubblePanel?
-	/// P15.08 conflict-bubble panel — distinct from `bubblePanel` (real
-	/// attention) so the two never contend for the same field.
-	private var conflictBubblePanel: SpeechBubblePanel?
 	private var currentConflictPayload: ConflictBubblePayload?
-	/// Ticket/gate badge panel, stacked above the strip (ticket over gate,
-	/// centered on the strip's midX) — the same `GateBadgePanel` Own mode uses,
-	/// created lazily on the first non-nil gate badge.
-	private var gateBadgePanel: GateBadgePanel?
+	/// Owns instance lifecycle, anchoring, drag/right-click routing, and
+	/// fronting for the gate badge, attention bubble, and conflict (speech)
+	/// bubble — the same shared panel types Own mode uses (P17.03). This
+	/// controller still owns all "when is this visible" business logic.
+	private let chromeCoordinator: ChromeFlockCoordinator
 
 	private var currentPlatformOrigin: String?
 	private var currentActivity: ActivityState = .idle
@@ -121,6 +117,7 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		}
 	) {
 		self.visibleFrameProvider = visibleFrameProvider
+		self.chromeCoordinator = ChromeFlockCoordinator()
 		badgeView.clampedFrameProvider = { [weak self] origin in
 			guard let self else { return CGRect(origin: origin, size: .zero) }
 			let size = self.badgePanel?.frame.size
@@ -187,6 +184,24 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 			self?.applyBadgeScale(scale)
 			self?.onPanelSizeChanged?(scale, isFinal)
 		}
+		self.chromeCoordinator.configureRouting(
+			ChromeFlockCoordinator.ChromeRouting(
+				presentHidePrompt: { [weak self] anchor in self?.badgeView.presentHidePrompt(anchorInScreen: anchor) },
+				beginDrag: { [weak self] in self?.badgeView.beginExternalDrag() },
+				continueDrag: { [weak self] in self?.badgeView.continueExternalDrag() },
+				endDrag: { [weak self] in self?.badgeView.endExternalDrag() }
+			)
+		)
+		self.chromeCoordinator.onAttentionDismiss = { [weak self] in self?.handleBubbleDismiss() }
+		self.chromeCoordinator.onConflictAction = { [weak self] in self?.onOpenSettingsRequested?() }
+		self.chromeCoordinator.onConflictDismiss = { [weak self] in
+			// Clearing the payload (not just ordering out) is what makes the
+			// dismissal stick: `applyConflictBubblePresentation` re-fronts the
+			// panel on every badge pass while a payload is set. The pool's
+			// hourly rate limiter may legitimately re-show it later.
+			self?.currentConflictPayload = nil
+			self?.chromeCoordinator.hideConflictBubble()
+		}
 	}
 
 	func show(frame: CGRect) {
@@ -203,9 +218,9 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 		isShown = false
 		badgeView.dismissHidePromptIfPresent()
 		badgePanel?.orderOut(nil)
-		bubblePanel?.orderOut(nil)
-		conflictBubblePanel?.orderOut(nil)
-		gateBadgePanel?.orderOut(nil)
+		chromeCoordinator.hideAttentionBubble()
+		chromeCoordinator.hideConflictBubble()
+		chromeCoordinator.hideGateBadge()
 	}
 
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {
@@ -339,33 +354,15 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private func applyGateBadgePanel(badgeFrame: CGRect) {
 		guard isShown else { return }
 		guard let content = currentGateBadge else {
-			gateBadgePanel?.orderOut(nil)
+			chromeCoordinator.hideGateBadge()
 			return
 		}
-		let badge = gateBadgePanel ?? {
-			let panel = GateBadgePanel()
-			// Route a right-click on the ticket/gate stack into the same
-			// hide/rename/force-idle prompt a click on the badge strip itself
-			// presents (P?? unification: right-click works from any chrome
-			// piece, not just the strip's own view).
-			panel.onRightClickRequested = { [weak self] anchor in
-				self?.badgeView.presentHidePrompt(anchorInScreen: anchor)
-			}
-			// Route a left-click-drag on the ticket/gate stack into moving
-			// this strip, same as grabbing the strip itself would.
-			panel.onDragBegan = { [weak self] in self?.badgeView.beginExternalDrag() }
-			panel.onDragChanged = { [weak self] in self?.badgeView.continueExternalDrag() }
-			panel.onDragEnded = { [weak self] in self?.badgeView.endExternalDrag() }
-			gateBadgePanel = panel
-			return panel
-		}()
-		badge.reposition(
+		chromeCoordinator.repositionGateBadgeMinimalist(
 			content: content,
 			metrics: currentBadgeMetrics,
 			relativeTo: badgeFrame,
 			visibleFrame: visibleFrameProvider()
 		)
-		badge.orderFrontRegardless()
 	}
 
 	// MARK: - Bubble panel (independent window, mirrors Own mode)
@@ -374,23 +371,17 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private func applyBubble() {
 		guard isShown else { return }
 		guard let payload = currentAttention else {
-			bubblePanel?.orderOut(nil)
+			chromeCoordinator.hideAttentionBubble()
 			return
 		}
-		let bubble = bubblePanel ?? {
-			let b = AttentionBubblePanel()
-			b.onDismiss = { [weak self] in self?.handleBubbleDismiss() }
-			bubblePanel = b
-			return b
-		}()
-		bubble.update(payload: payload, sourceEvent: currentSourceEvent)
+		chromeCoordinator.updateAttentionBubble(payload: payload, sourceEvent: currentSourceEvent)
 		repositionBubble(badgeFrame: badgePanel?.frame ?? .zero)
-		bubble.orderFrontRegardless()
+		chromeCoordinator.existingAttentionBubblePanel?.orderFrontRegardless()
 	}
 
 	private func repositionBubble(badgeFrame: CGRect) {
-		guard currentAttention != nil, let bubble = bubblePanel else { return }
-		bubble.reposition(
+		guard currentAttention != nil else { return }
+		chromeCoordinator.existingAttentionBubblePanel?.reposition(
 			relativeTo: badgeFrame,
 			leadingX: badgeFrame.minX + MinimalistBadgeView.hPad,
 			bottomAnchorY: badgeFrame.minY,
@@ -406,38 +397,25 @@ final class MinimalistPanelController: MinimalistPanelManaging {
 	private func applyConflictBubblePresentation() {
 		guard isShown else { return }
 		guard let payload = currentConflictPayload else {
-			conflictBubblePanel?.orderOut(nil)
+			chromeCoordinator.hideConflictBubble()
 			return
 		}
-		let bubble = conflictBubblePanel ?? {
-			let b = SpeechBubblePanel()
-			b.onAction = { [weak self] in self?.onOpenSettingsRequested?() }
-			// Clearing the payload (not just ordering out) is what makes the
-			// dismissal stick: `applyConflictBubblePresentation` re-fronts the
-			// panel on every badge pass while a payload is set. The pool's
-			// hourly rate limiter may legitimately re-show it later.
-			b.onDismiss = { [weak self] in
-				self?.currentConflictPayload = nil
-				self?.conflictBubblePanel?.orderOut(nil)
-			}
-			conflictBubblePanel = b
-			return b
-		}()
-		bubble.configureConflict(origin: payload.origin)
+		chromeCoordinator.updateConflictBubble(origin: payload.origin)
 		repositionConflictBubble(badgeFrame: badgePanel?.frame ?? .zero)
-		bubble.orderFrontRegardless()
+		chromeCoordinator.existingConflictBubblePanel?.orderFrontRegardless()
 	}
 
 	private func repositionConflictBubble(badgeFrame: CGRect) {
-		guard currentConflictPayload != nil, let bubble = conflictBubblePanel else { return }
-		bubble.reposition(aboveMinimalistStrip: badgeFrame, visibleFrame: visibleFrameProvider())
+		guard currentConflictPayload != nil else { return }
+		chromeCoordinator.existingConflictBubblePanel?.reposition(
+			aboveMinimalistStrip: badgeFrame, visibleFrame: visibleFrameProvider())
 	}
 
 	private func handleBubbleDismiss() {
 		currentAttention = nil
 		currentActivity = .idle
 		badgeView.resetPromptTimer()
-		bubblePanel?.orderOut(nil)
+		chromeCoordinator.hideAttentionBubble()
 		applyBadge()
 		onAttentionDismissed?()
 	}
