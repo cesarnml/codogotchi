@@ -63,7 +63,7 @@ All six product-plan exit conditions demonstrably true on `v3_preview`:
 
 ## CI Baseline
 
-> Baseline recorded: pending — run `bun run ci:quiet` on `v3_preview` before P18.01 starts and record the result here.
+> Baseline recorded: 2026-07-12 — pass (1077 tests, 0 failures) on `v3_preview` via `bun run ci:quiet`.
 
 ## Review Rules
 
