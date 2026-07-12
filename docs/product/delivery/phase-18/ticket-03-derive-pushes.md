@@ -44,8 +44,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
+Red first: The new fat-payload table failed to compile because `PoolTickInput` had no pure seams for labels, known titles, prompt summaries, or HUD mode.
+Why this path: Extend the existing pure fold additively and construct every controller payload beside membership, preserving the legacy winner, timer, badge, label, HUD, and conflict rules without wiring the live pool.
+Alternative considered: Resolving titles and HUD configuration inside `derive` was rejected because disk/process reads would violate the purity contract; the shell supplies values and receives deterministic title requests instead.
+Deferred: Executing/diffing payloads remains P18.04; live-pipeline comparison remains P18.05.
 Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
