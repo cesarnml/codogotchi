@@ -44,3 +44,15 @@ Why this path: mirrors the P16.07 closeout precedent — dedicated ticket becaus
 Alternative considered: folding the audit into P17.05 — rejected; conditions can regress after their originating ticket and the audit must run at phase tip.
 Deferred: the daily-driver soak (phase-transition gate for Phase 18 execution, no fixed calendar); Phase 18 planning may proceed during it.
 Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+
+Closeout audit deviation (developer-approved): the audit found Exit Condition 2
+did not hold because P17.05 deliberately deferred the shared panel-action
+protocol and left two parallel non-targeting factory wiring blocks. The
+developer explicitly directed P17.06 to close that gap rather than stop the
+phase. P17.06 therefore adds `PanelActionHandling`, normalizes the two
+skin-specific handler slot names, and funnels all nine shared handlers through
+one `MenubarApp.wirePanelActions` path. The only per-skin factory parameters
+left are the mode-switch target and controller identity used to hide the
+current window; Minimalist's panel-size slider remains a named R1.7 capability.
+This is a scope correction to satisfy the already-approved phase exit
+condition, not a user-visible behavior change.

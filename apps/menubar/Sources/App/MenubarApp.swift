@@ -280,144 +280,30 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					controller.onVisibilityChanged = { [weak self] _ in
 						self?.updateAppNapOptOut()
 					}
-					let stateDir = config.pollingTarget.path
-					// Targeting policy for both handlers below lives in
-					// `WindowActionRouter` (P17.05) — see its doc comments
-					// for the session/combined/plain-origin asymmetries.
-					panel.onAttentionDismissed = { [weak self] in
-						self?.windowActionRouter?.handleAttentionDismissed(for: origin)
-					}
-					// Also clears this window's own SOA badges (ticket/gate) and
-					// conflict speech bubble — they're driven by separate
-					// .gate.json/.context.json polling state that the router's
-					// state.d/ idle rewrite never touches, so without this the
-					// stuck badge/bubble would survive the "escape hatch" click.
-					panel.onForceIdle = { [weak self, weak panel] in
-						self?.windowActionRouter?.handleForceIdle(for: origin)
-						panel?.applyGateBadge(content: nil)
-						panel?.applyConflictBubble(nil)
-					}
-					// Right-click "Rename…" (P15.06): `origin` here is the resolved
-					// render key, which IS already the SessionLabelStore key regardless
-					// of shape — "origin:session_id" for a session-keyed window, or the
-					// plain origin/"combined" itself (P?? unification: those now offer
-					// Rename too) — so no identity lookup is needed.
-					panel.onRenameRequested = { newLabel in
-						SessionLabelStore.setLabel(newLabel, for: origin.rawValue)
-					}
-					// Right-click "Prune Session" (P15.07): destroys the panel's
-					// backing state (slice, free-list number, rename label) via the
-					// pool, which owns the allocator and knows the (origin, session_id)
-					// identity behind this window key.
-					panel.onPruneRequested = { [weak self] in
-						self?.floatingPetWindowPool?.pruneSession(
-							windowKey: origin, stateDirectory: stateDir)
-					}
-					// Right-click "Sync Label": re-fetches the platform's own current
-					// thread title — bypassing the pool's once-resolved-then-frozen
-					// cache — and adopts it as this session's label, exempt from
-					// SessionLabelStore's 24-char cap (mirrors the cap exemption
-					// already given to a title's first automatic resolution). A silent
-					// no-op if the origin has no session identity, isn't a title-
-					// resolvable platform, or hasn't titled the thread (yet, or ever).
-					panel.onSyncLabelRequested = {
-						guard let identity = origin.sessionIdentity,
-							let title = SessionTitleResolver.title(
-								forOrigin: identity.origin, sessionId: identity.sessionId)
-						else { return }
-						SessionLabelStore.setLabelExemptFromCap(title, for: origin.rawValue)
-					}
-					// Right-click "Hide All Other Pets": hides every other
-					// currently-rendered window (same-platform sibling sessions
-					// included), leaving only this one shown. A snapshot action, not
-					// a mode — a session/platform that spawns afterward is untouched.
-					panel.onHideAllOtherPetsRequested = { [weak self] in
-						self?.floatingPetWindowPool?.hideAllOtherWindows(keepVisible: origin)
-					}
-					// Right-click "Minimalist Mode": persist the switch via the same
-					// read-merge-write the Settings pickers use; the pool re-reads
-					// customization.json on its next tick and respawns this window as
-					// a badge strip. Mode is keyed per platform origin, so on a
-					// sessions-enabled platform every sibling session panel flips
-					// together — a session-keyed window resolves to its platform's
-					// origin, never a per-session mode. The literal "combined" window
-					// has no single origin; it keeps its grouping and flips the
-					// combined-minimalist rendering flag instead.
-					panel.onSwitchToMinimalist = { [weak self] in
-						guard let self else { return }
-						if let platformOrigin = FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: origin) {
-							self.customizationStore.setMode(.minimalist, for: platformOrigin)
-						} else {
-							self.customizationStore.setCombinedMinimalistEnabled(true)
+					self.wirePanelActions(
+						panel,
+						for: origin,
+						stateDirectory: config.pollingTarget.path,
+						modeSwitch: { app in
+							if let platformOrigin = FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: origin) {
+								app.customizationStore.setMode(.minimalist, for: platformOrigin)
+							} else {
+								app.customizationStore.setCombinedMinimalistEnabled(true)
+							}
+						},
+						hideWindow: { [weak controller] app in
+							guard let controller else { return }
+							if let key = app.floatingPetWindowPool?.activeOrigins.first(where: {
+								app.floatingPetWindowPool?.controller(for: $0) === controller
+							}) {
+								app.floatingPetWindowPool?.setVisible(false, for: key)
+							}
 						}
-					}
-					// P15.08: left-clicking the conflict bubble deep-links to
-					// Settings > Customization so the user can raise the cap.
-					panel.onOpenSettingsRequested = { [weak self] in
-						self?.settingsWindowController?.show(tab: .customization)
-					}
-					panel.onHideFloatingPet = { [weak self, weak controller] in
-						guard let self, let controller else { return }
-						// Find this controller's origin in the pool and dismiss
-						if let key = self.floatingPetWindowPool?.activeOrigins.first(where: {
-							self.floatingPetWindowPool?.controller(for: $0) === controller
-						}) {
-							self.floatingPetWindowPool?.setVisible(false, for: key)
-						}
-						self.menuBuilder?.refreshFloatingPetMenuItemTitle()
-					}
+					)
 					return controller
 				},
 				minimalistWindowFactory: { [weak self] origin in
 					let panel = MinimalistPanelController(visibleFrameProvider: Self.visibleFloatingFrame)
-					let stateDir = config.pollingTarget.path
-					// P15.08: left-clicking the conflict bubble deep-links to
-					// Settings > Customization so the user can raise the cap.
-					panel.onOpenSettingsRequested = { [weak self] in
-						self?.settingsWindowController?.show(tab: .customization)
-					}
-					// Right-click "Rename…", mirroring Own mode: `origin` here is
-					// the resolved render key, which IS already the SessionLabelStore
-					// key regardless of shape (P?? unification — see Own mode's wiring
-					// above for the full rationale).
-					panel.onRenameRequested = { newLabel in
-						SessionLabelStore.setLabel(newLabel, for: origin.rawValue)
-					}
-					// Right-click "Sync Label", mirroring Own mode's wiring above —
-					// same fetch-and-persist, same silent no-op when unresolvable.
-					panel.onSyncLabelRequested = {
-						guard let identity = origin.sessionIdentity,
-							let title = SessionTitleResolver.title(
-								forOrigin: identity.origin, sessionId: identity.sessionId)
-						else { return }
-						SessionLabelStore.setLabelExemptFromCap(title, for: origin.rawValue)
-					}
-					// Right-click "Prune Session" (P15.07), mirroring Own mode's
-					// wiring above: destroys the panel's backing state (slice,
-					// free-list number, rename label) via the pool, which owns the
-					// allocator and knows the (origin, session_id) identity behind
-					// this window key.
-					panel.onPruneRequested = { [weak self] in
-						self?.floatingPetWindowPool?.pruneSession(
-							windowKey: origin, stateDirectory: stateDir)
-					}
-					// Right-click "Hide All Other Pets", mirroring Own mode's wiring
-					// above.
-					panel.onHideAllOtherPetsRequested = { [weak self] in
-						self?.floatingPetWindowPool?.hideAllOtherWindows(keepVisible: origin)
-					}
-					// Right-click "Pet Mode": the inverse of Own mode's "Minimalist
-					// Mode" switch above — same key-shape resolution, same
-					// platform-level scope (all sibling session panels flip together),
-					// same combined-window special case.
-					panel.onSwitchToPetMode = { [weak self] in
-						guard let self else { return }
-						if let platformOrigin = FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: origin) {
-							self.customizationStore.setMode(.own, for: platformOrigin)
-						} else {
-							self.customizationStore.setCombinedMinimalistEnabled(false)
-						}
-					}
 					// Right-click "Panel Size…" slider pill: persists the same
 					// global minimalist_badge_scale the Customization tab's slider
 					// writes, so every Minimalist strip resizes, not just this one
@@ -432,22 +318,6 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						// tick — per-tick publication would make an open Customization
 						// tab re-read the file for every pixel of the drag.
 						self?.customizationStore.setMinimalistBadgeScale(scale, notify: isFinal)
-					}
-					// Targeting policy for both handlers below (session-keyed
-					// badge vs. combined vs. plain origin) lives in
-					// `WindowActionRouter` (P17.05), shared verbatim with the
-					// Own-mode factory above.
-					panel.onAttentionDismissed = { [weak self] in
-						self?.windowActionRouter?.handleAttentionDismissed(for: origin)
-					}
-					// Also clears this window's own SOA badges (ticket/gate) and
-					// conflict speech bubble — see the matching Own-mode comment
-					// above for why the router's state.d/ idle rewrite alone can't
-					// do this.
-					panel.onForceIdle = { [weak self, weak panel] in
-						self?.windowActionRouter?.handleForceIdle(for: origin)
-						panel?.applyGateBadge(content: nil)
-						panel?.applyConflictBubble(nil)
 					}
 					let savedFrame = AppStateStore.loadFrame(
 						for: origin, visibleFrame: Self.visibleFloatingFrame())
@@ -464,17 +334,26 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					controller.onVisibilityChanged = { [weak self] _ in
 						self?.updateAppNapOptOut()
 					}
-					// Right-click "Hide panel" on the badge hides this window, mirroring
-					// Own mode's right-click "Hide pet".
-					panel.onHidePanel = { [weak self, weak controller] in
-						guard let self, let controller else { return }
-						if let key = self.floatingPetWindowPool?.activeOrigins.first(where: {
-							self.floatingPetWindowPool?.controller(for: $0) === controller
-						}) {
-							self.floatingPetWindowPool?.setVisible(false, for: key)
+					self?.wirePanelActions(
+						panel,
+						for: origin,
+						stateDirectory: config.pollingTarget.path,
+						modeSwitch: { app in
+							if let platformOrigin = FloatingPetWindowPool.modeSwitchOrigin(forWindowKey: origin) {
+								app.customizationStore.setMode(.own, for: platformOrigin)
+							} else {
+								app.customizationStore.setCombinedMinimalistEnabled(false)
+							}
+						},
+						hideWindow: { [weak controller] app in
+							guard let controller else { return }
+							if let key = app.floatingPetWindowPool?.activeOrigins.first(where: {
+								app.floatingPetWindowPool?.controller(for: $0) === controller
+							}) {
+								app.floatingPetWindowPool?.setVisible(false, for: key)
+							}
 						}
-						self.menuBuilder?.refreshFloatingPetMenuItemTitle()
-					}
+					)
 					return controller
 				},
 				retrievedSessionTitleReader: { RetrievedSessionTitleStore.title(for: $0.rawValue) },
@@ -780,6 +659,56 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	private func updateAppNapOptOut() {
 		let anyVisible = !(floatingPetWindowPool?.activeOrigins.isEmpty ?? true)
 		setFloatingPetAppNapOptOut(active: anyVisible)
+	}
+
+	/// Wires the action surface shared by Own and Minimalist renderers. Shape
+	/// differences are passed as the two closures; all identity targeting and
+	/// side-effect wiring otherwise lives here exactly once.
+	@MainActor
+	private func wirePanelActions(
+		_ panel: PanelActionHandling,
+		for origin: WindowKey,
+		stateDirectory: String,
+		modeSwitch: @escaping (MenubarApp) -> Void,
+		hideWindow: @escaping (MenubarApp) -> Void
+	) {
+		panel.onAttentionDismissed = { [weak self] in
+			self?.windowActionRouter?.handleAttentionDismissed(for: origin)
+		}
+		panel.onForceIdle = { [weak self, weak panel] in
+			self?.windowActionRouter?.handleForceIdle(for: origin)
+			panel?.applyGateBadge(content: nil)
+			panel?.applyConflictBubble(nil)
+		}
+		panel.onRenameRequested = { newLabel in
+			SessionLabelStore.setLabel(newLabel, for: origin.rawValue)
+		}
+		panel.onSyncLabelRequested = {
+			guard let identity = origin.sessionIdentity,
+				let title = SessionTitleResolver.title(
+					forOrigin: identity.origin, sessionId: identity.sessionId)
+			else { return }
+			SessionLabelStore.setLabelExemptFromCap(title, for: origin.rawValue)
+		}
+		panel.onPruneRequested = { [weak self] in
+			self?.floatingPetWindowPool?.pruneSession(
+				windowKey: origin, stateDirectory: stateDirectory)
+		}
+		panel.onHideAllOtherPetsRequested = { [weak self] in
+			self?.floatingPetWindowPool?.hideAllOtherWindows(keepVisible: origin)
+		}
+		panel.onModeSwitchRequested = { [weak self] in
+			guard let self else { return }
+			modeSwitch(self)
+		}
+		panel.onOpenSettingsRequested = { [weak self] in
+			self?.settingsWindowController?.show(tab: .customization)
+		}
+		panel.onHideWindowRequested = { [weak self] in
+			guard let self else { return }
+			hideWindow(self)
+			self.menuBuilder?.refreshFloatingPetMenuItemTitle()
+		}
 	}
 
 	/// Resolves a window's `state.d/` origins for the winner-only writers

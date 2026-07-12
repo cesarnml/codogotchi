@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor
-final class FloatingPetPanelController: PanelManaging {
+final class FloatingPetPanelController: PanelActionHandling {
 	private var codexPet: CodexPet
 	private var codogotchiPet: CodogotchiPet?
 	private let demoFrameInterval: TimeInterval?
@@ -15,7 +15,10 @@ final class FloatingPetPanelController: PanelManaging {
 	private var currentMode: VisualMode = .normal
 	private var currentSicknessLevel: SicknessLevel = .none
 	private var frameChangeHandler: ((CGRect) -> Void)?
-	var onHideFloatingPet: (() -> Void)?
+	/// Called when the user activates the right-click "Hide pet" affordance.
+	/// Shared handler slot (`PanelActionHandling.onHideWindowRequested`); the
+	/// app wires this to hide this window via the window pool.
+	var onHideWindowRequested: (() -> Void)?
 	/// Called when the user activates the right-click "Force Idle" affordance
 	/// (only offered while non-idle). The app wires this to rewrite this pet's
 	/// `state.d/` slice back to idle — an escape hatch for a stuck animation.
@@ -89,9 +92,10 @@ final class FloatingPetPanelController: PanelManaging {
 	/// other windows itself.
 	var onHideAllOtherPetsRequested: (() -> Void)?
 	/// Fired when the user activates the right-click "Minimalist Mode"
-	/// affordance. Wired by the caller (`MenubarApp`) to persist the mode
-	/// switch to customization.json — this panel never writes config itself.
-	var onSwitchToMinimalist: (() -> Void)?
+	/// affordance. Shared handler slot (`PanelActionHandling.onModeSwitchRequested`);
+	/// wired by the caller (`MenubarApp`) to persist the mode switch to
+	/// customization.json — this panel never writes config itself.
+	var onModeSwitchRequested: (() -> Void)?
 
 	// RPG HUD — shown on hover, and transiently revealed on animation moments
 	// (lose/gain a half-heart, level up) when not hovering.
@@ -886,7 +890,7 @@ final class FloatingPetPanelController: PanelManaging {
 		)
 		wireFrameHandlers(on: view)
 		view.hideFloatingPetHandler = { [weak self] in
-			self?.onHideFloatingPet?()
+			self?.onHideWindowRequested?()
 		}
 		view.isForceIdleAvailable = FloatingPetHidePrompt.offersForceIdle(for: currentState)
 		view.forceIdleHandler = { [weak self] in
@@ -910,7 +914,7 @@ final class FloatingPetPanelController: PanelManaging {
 			self?.onHideAllOtherPetsRequested?()
 		}
 		view.minimalistModeHandler = { [weak self] in
-			self?.onSwitchToMinimalist?()
+			self?.onModeSwitchRequested?()
 		}
 		view.holdDeEscalationHandler = { [weak self] in
 			self?.scene?.decrementIdleEscalation()

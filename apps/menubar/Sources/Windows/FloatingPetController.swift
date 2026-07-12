@@ -140,6 +140,47 @@ extension PanelManaging {
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
 }
 
+/// Action-handler surface shared by both renderer skins: the settable
+/// closures `MenubarApp`'s window factory wires for user-initiated actions
+/// (right-click affordances, attention dismissal, hide-this-window). Both
+/// panel controllers expose the same nine slots, so the factory writes each
+/// handler exactly once against this protocol instead of once per skin.
+/// Per-skin differences are wiring parameters, not separate handler sets:
+/// the mode-switch target is chosen by the factory (Own offers "Minimalist
+/// Mode", Minimalist offers "Pet Mode" — capability matrix R1.6), and
+/// Minimalist-only affordances like the Panel Size slider stay concrete
+/// properties outside this protocol (matrix R1.7).
+@MainActor
+protocol PanelActionHandling: PanelManaging {
+	/// User dismissed or focused away from the attention bubble.
+	var onAttentionDismissed: (() -> Void)? { get set }
+	/// User activated the right-click "Force Idle" affordance (only offered
+	/// while non-idle) — the escape hatch for a stuck animation.
+	var onForceIdle: (() -> Void)? { get set }
+	/// User clicked the P15.08 conflict bubble's action button.
+	var onOpenSettingsRequested: (() -> Void)? { get set }
+	/// User committed a trimmed/capped label via the right-click rename
+	/// affordance. The panel never writes the sidecar itself.
+	var onRenameRequested: ((String) -> Void)? { get set }
+	/// User activated the right-click "Sync Label" affordance. The panel
+	/// never resolves or writes the label itself.
+	var onSyncLabelRequested: (() -> Void)? { get set }
+	/// User confirmed the right-click "Prune Session" affordance (P15.07).
+	/// The panel never destroys session state itself.
+	var onPruneRequested: (() -> Void)? { get set }
+	/// User activated the right-click "Hide All Other Pets" affordance.
+	/// The panel never touches other windows itself.
+	var onHideAllOtherPetsRequested: (() -> Void)? { get set }
+	/// User activated the right-click mode-switch affordance ("Minimalist
+	/// Mode" on an Own panel, "Pet Mode" on a Minimalist strip). The target
+	/// mode is decided by the wiring, not the panel.
+	var onModeSwitchRequested: (() -> Void)? { get set }
+	/// User activated the right-click hide-this-window affordance ("Hide
+	/// pet" on an Own panel, "Hide panel" on a Minimalist strip — same
+	/// semantics, per-skin title; matrix R1.9).
+	var onHideWindowRequested: (() -> Void)? { get set }
+}
+
 @MainActor
 final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, FloatingPetWindowControlling {
 	private let panel: PanelManaging
