@@ -15,6 +15,14 @@ import Foundation
 /// - `isTTLExpired`: the TTL-expiry-with-last-active-immunity predicate
 ///   (Steps 5a/5b's guard), exposed as a pure static function
 ///
+/// Step mapping for the legacy `update()` pipeline (exit-condition evidence):
+/// 1 `visibleEntries`; 2 clock/timer observation; 3/3b elections; 4 clock
+/// bounding; 5a mode-derived membership; 5b TTL filtering; 6a/6a2/6b
+/// `desiredWindowKey` plus previous-key diff; 6c cap selection, conflict target,
+/// numbering and frame FIFO; 7 direct-window payload construction; 8 combined
+/// winner/payload construction; 9 HUD projection. Every controller call from
+/// Steps 7-9 is represented by `DesiredWindow` data; P18.04 only executes it.
+///
 /// P18.02 adds selection (Step 6c) and the collapse steps (6a/6a2/6b) —
 /// though see this ticket's Rationale for why the collapse steps are not
 /// transcribed as separate imperative branches: a pure fold that recomputes
@@ -289,6 +297,8 @@ enum PoolDerive {
 		let freshKeys = visibleFinalKeys.subtracting(previousKeys)
 		let torndownKeys = previousKeys.subtracting(visibleFinalKeys)
 		for key in torndownKeys where key.isSessionKeyed {
+			memory.sessionNumbers.removeValue(forKey: key)
+			memory.resolvedSessionTitles.removeValue(forKey: key)
 			guard let identity = memory.windowSessionIdentities.removeValue(forKey: key) else { continue }
 			// Refresh the allocator's unlimited/bounded mode for this identity's
 			// origin against the CURRENT tick's customization before releasing —
@@ -316,7 +326,8 @@ enum PoolDerive {
 				let cap = resolvedSessionCap(for: identity.origin, customization: customization)
 				memory.sessionNumberAllocator.setUnlimited(
 					cap == CustomizationSnapshot.unlimitedSessionCap, origin: identity.origin)
-				memory.sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
+				memory.sessionNumbers[key] = memory.sessionNumberAllocator.assign(
+					origin: identity.origin, sessionId: identity.sessionId)
 				memory.windowSessionIdentities[key] = identity
 			}
 			if var queued = memory.evictedFrameDirectives[origin], !queued.isEmpty {
@@ -330,17 +341,107 @@ enum PoolDerive {
 			}
 		}
 
-		// Step 7/8 membership (push-payload construction remains P18.03):
-		// build one `DesiredWindow` per visible final key.
+		// Step 7/8: construct the complete controller push payload as data.
 		var windows: [WindowKey: DesiredWindow] = [:]
-		for key in visibleFinalKeys {
+		var titleRequests: [RenderKeyIdentity] = []
+		for key in visibleFinalKeys.sorted(by: { $0.rawValue < $1.rawValue }) {
 			var window = DesiredWindow(key: key)
 			window.isMinimalist =
 				key == .combined
 				? customization.combinedMinimalistEnabled
 				: mode(forWindowKey: key) == .minimalist
 			window.inheritedFrameFrom = inheritedFrameByKey[key]
+
+			let winnerEntry: (key: WindowKey, state: StateSnapshot)? =
+				if key == .combined {
+					foldedGroups[.combined]?
+						.compactMap { renderKey in visibleEntries[renderKey].map { (renderKey, $0) } }
+						.max { lhs, rhs in
+							let left = StateJsonReader.parseISO8601Date(lhs.state.updatedAt) ?? .distantPast
+							let right = StateJsonReader.parseISO8601Date(rhs.state.updatedAt) ?? .distantPast
+							if left != right { return left < right }
+							return lhs.key.rawValue < rhs.key.rawValue
+						}
+				} else {
+					visibleEntries[key].map { (key, $0) }
+						?? foldedGroups[key]?.compactMap { renderKey in
+							visibleEntries[renderKey].map { (renderKey, $0) }
+						}.max { $0.state.updatedAt < $1.state.updatedAt }
+				}
+
+			if let winnerEntry {
+				let state = winnerEntry.state
+				window.activityState = state.activityState
+				window.attention = state.attention
+				window.attentionSourceEvent = state.sourceEvent
+				window.gateBadge = snapshot.gateBadges[winnerEntry.key]
+				window.promptTimerStatus = memory.promptTimers[
+					key == .combined ? .combined : winnerEntry.key]?.presentation(now: currentTime)
+				if key == .combined {
+					window.platformChip = state.activityState == .idle ? "combined" : state.sourceEvent?.origin
+				} else if window.isMinimalist {
+					window.platformChip = key.origin
+				} else {
+					window.platformChip = state.sourceEvent?.origin
+				}
+			}
+
+			window.petId = input.assignments.resolve(origin: key == .combined ? "combined" : key.origin)
+			window.rpgSnapshot = snapshot.rpgSnapshot
+			window.sessionNumber = memory.sessionNumbers[key]
+			window.sessionTooltip = key.isSessionKeyed ? input.sessionPromptSummaries[key] : nil
+			if key == .combined {
+				let fallback = window.platformChip == "combined"
+					? "Combined" : window.platformChip.flatMap { PlatformAttribution(origin: $0)?.displayName }
+				window.sessionLabel = input.sessionLabels[key] ?? fallback
+			} else {
+				if let known = input.knownSessionTitles[key] { memory.resolvedSessionTitles[key] = known }
+				let fallback = memory.resolvedSessionTitles[key]
+					?? memory.sessionNumbers[key].map { "Session \($0)" }
+					?? PlatformAttribution(origin: key.origin)?.displayName
+				window.sessionLabel = input.sessionLabels[key] ?? fallback
+				if key.isSessionKeyed, memory.resolvedSessionTitles[key] == nil,
+					let identity = snapshot.renderKeyIdentities[key]
+				{
+					titleRequests.append(identity)
+				}
+			}
+			switch input.hudMode {
+			case .all: window.hudEnabled = true
+			case .hidden: window.hudEnabled = false
+			case .mostRecent:
+				let bearer = memory.hudBearingRenderKey.map(desiredWindowKey)
+				window.hudEnabled = key == bearer
+			}
 			windows[key] = window
+		}
+
+		// Step 6c/7 conflict bubble: retain a living host; when it disappears,
+		// re-home the same episode without consuming the one-hour fresh-presentation
+		// limit. Only a genuinely new blocked episode consults and advances it.
+		for origin in Set(memory.activeConflictBubbleTargets.keys).subtracting(computedBlockedOrigins) {
+			memory.activeConflictBubbleTargets.removeValue(forKey: origin)
+		}
+		for origin in computedBlockedOrigins.sorted() {
+			let candidates = visibleFinalKeys.filter { $0.origin == origin && $0.isSessionKeyed }
+			let target = candidates.min {
+				let left = memory.firstSeenAt[$0] ?? .distantFuture
+				let right = memory.firstSeenAt[$1] ?? .distantFuture
+				if left != right { return left < right }
+				return $0.rawValue < $1.rawValue
+			}
+			guard let target else { continue }
+			if let existing = memory.activeConflictBubbleTargets[origin] {
+				let host = visibleFinalKeys.contains(existing) ? existing : target
+				memory.activeConflictBubbleTargets[origin] = host
+				windows[host]?.conflictBubble = ConflictBubblePayload(origin: origin)
+			} else {
+				let lastShown = memory.conflictBubbleLastShownAt[origin]
+				guard lastShown == nil || currentTime.timeIntervalSince(lastShown!) > 3600 else { continue }
+				memory.activeConflictBubbleTargets[origin] = target
+				memory.conflictBubbleLastShownAt[origin] = currentTime
+				windows[target]?.conflictBubble = ConflictBubblePayload(origin: origin)
+			}
 		}
 
 		// `windowSpawnedModes` is recomputed fresh from scratch every tick for
@@ -355,6 +456,13 @@ enum PoolDerive {
 
 		var desired = DesiredWindows()
 		desired.windows = windows
+		desired.titleResolutionRequests = titleRequests
+		desired.idleEscalationConfig = IdleEscalationConfig.resolve(
+			customization: customization, environment: input.idleEscalationEnvironment)
+		if memory.lastMenubarIconMonochrome != customization.menubarIconMonochrome {
+			desired.monochromeChanged = customization.menubarIconMonochrome
+			memory.lastMenubarIconMonochrome = customization.menubarIconMonochrome
+		}
 		desired.blockedOrigins = computedBlockedOrigins
 		desired.pendingSessionKeys = pendingWindowKeys
 		desired.ttlDismissedWindowKeys = ttlExpiredRenderKeys.subtracting(pendingWindowKeys)

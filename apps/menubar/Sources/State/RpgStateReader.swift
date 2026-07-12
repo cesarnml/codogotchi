@@ -3,7 +3,7 @@ import Foundation
 /// RPG progression values read from `~/.codogotchi/rpg-state.json`.
 /// All fields have safe defaults so the HUD stays functional when the file is
 /// absent or cannot be parsed.
-struct RpgSnapshot {
+struct RpgSnapshot: Equatable {
 	let level: Int
 	let levelFraction: Double
 	let halfHearts: Int

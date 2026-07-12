@@ -6,11 +6,8 @@ import Foundation
 /// (P18.04) will diff this against the previous tick's `DesiredWindows` and
 /// issue only the calls that changed.
 ///
-/// P18.01 never constructs a non-empty `DesiredWindow` — selection (which
-/// keys exist at all) is P18.02, and the real push payloads below are
-/// P18.03. Every field here is a placeholder with a safe default so
-/// `DesiredWindows.windows` can stay `Equatable` and empty this ticket
-/// without either later ticket reshaping the type.
+/// P18.03 populates this entire value from pure tick input and `PoolMemory`;
+/// P18.04 may therefore apply it mechanically without policy decisions.
 struct DesiredWindow: Equatable {
 	let key: WindowKey
 	/// `true` when this window should use the minimalist renderer. P18.02
@@ -34,6 +31,7 @@ struct DesiredWindow: Equatable {
 	/// Platform origin to badge the window's platform chip with, or `nil` to
 	/// leave it unset this tick.
 	var platformChip: String?
+	var rpgSnapshot: RpgSnapshot = .safeDefault
 	var hudEnabled: Bool = false
 	var conflictBubble: ConflictBubblePayload?
 	/// The window key of the sibling torn down by a session-cap eviction

@@ -128,5 +128,13 @@ struct PoolMemory: Equatable {
 	/// transition. Mirrors `FloatingPetWindowPool.promptTimers`.
 	var promptTimers: [WindowKey: PromptTimerTracker] = [:]
 
+	// MARK: - P18.03: push-spec memory
+
+	var sessionNumbers: [WindowKey: Int] = [:]
+	var resolvedSessionTitles: [WindowKey: String] = [:]
+	var lastMenubarIconMonochrome: Bool?
+	var activeConflictBubbleTargets: [String: WindowKey] = [:]
+	var conflictBubbleLastShownAt: [String: Date] = [:]
+
 	init() {}
 }
