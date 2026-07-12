@@ -61,12 +61,34 @@ final class ChromeFlockCoordinator {
 
 	private var animationBadgePanel: AnimationBadgePanel?
 
-	/// Returns the existing animation badge panel without creating one, for
-	/// callers that must reposition-only-if-already-shown (verbatim mirror of
-	/// the pre-coordinator `animationBadgePanel?.reposition(...)` call in
-	/// `resetPromptTimer`, which silently no-ops rather than lazily spawning
-	/// a badge outside the normal show/reposition flow).
-	var existingAnimationBadgePanel: AnimationBadgePanel? { animationBadgePanel }
+	/// Reposition-only live update: silently no-ops when the badge has never
+	/// been shown, and never touches z-order. Content-change paths use
+	/// `repositionAnimationBadge`, which lazily creates and fronts; this
+	/// variant runs on hot paths (drag/resize ticks, prompt-timer clears)
+	/// where spawning or re-fronting would be wrong.
+	func liveRepositionAnimationBadge(
+		label: String,
+		platform: PlatformAttribution?,
+		inFlight: Bool,
+		promptTimer: PromptTimerPresentation? = nil,
+		sessionNumber: Int? = nil,
+		sessionLabel: String? = nil,
+		sessionTooltip: String? = nil,
+		relativeTo petFrame: CGRect,
+		visibleFrame: CGRect
+	) {
+		animationBadgePanel?.reposition(
+			label: label,
+			platform: platform,
+			inFlight: inFlight,
+			promptTimer: promptTimer,
+			sessionNumber: sessionNumber,
+			sessionLabel: sessionLabel,
+			sessionTooltip: sessionTooltip,
+			relativeTo: petFrame,
+			visibleFrame: visibleFrame
+		)
+	}
 
 	/// Screen-space x of the platform chip's leading edge — the animation
 	/// badge panel's own `minX`. `nil` before the panel has been created.
@@ -131,10 +153,14 @@ final class ChromeFlockCoordinator {
 
 	private var gateBadgePanel: GateBadgePanel?
 
-	/// Returns the existing gate badge panel without creating one, for
-	/// callers (e.g. live drag re-anchoring) that must reposition-only-if-
-	/// already-shown without touching z-order.
-	var existingGateBadgePanel: GateBadgePanel? { gateBadgePanel }
+	/// Reposition-only live update for the Own-mode anchor: no lazy creation,
+	/// no z-order change. Content-change paths use `repositionGateBadgeOwn`.
+	func liveRepositionGateBadgeOwn(
+		content: GateBadgeContent, relativeTo petFrame: CGRect, chipLeadingX: CGFloat, visibleFrame: CGRect
+	) {
+		gateBadgePanel?.reposition(
+			content: content, relativeTo: petFrame, chipLeadingX: chipLeadingX, visibleFrame: visibleFrame)
+	}
 
 	/// Refreshes badge content/metrics without moving the panel — mirrors the
 	/// pre-coordinator behavior of keeping badge content current even while
@@ -190,10 +216,16 @@ final class ChromeFlockCoordinator {
 
 	private var attentionBubblePanel: AttentionBubblePanel?
 
-	/// Returns the existing attention bubble panel without creating one, for
-	/// callers (e.g. live drag re-anchoring) that must reposition-only-if-
-	/// already-shown without touching z-order.
-	var existingAttentionBubblePanel: AttentionBubblePanel? { attentionBubblePanel }
+	/// Reposition-only live update: no lazy creation, no z-order change. Both
+	/// shapes share this (the anchor args differ per shape at the call site,
+	/// not the mechanics — R3.7). Content-change paths use
+	/// `repositionAttentionBubble`, which also re-fronts.
+	func liveRepositionAttentionBubble(
+		relativeTo anchorFrame: CGRect, leadingX: CGFloat, bottomAnchorY: CGFloat, visibleFrame: CGRect
+	) {
+		attentionBubblePanel?.reposition(
+			relativeTo: anchorFrame, leadingX: leadingX, bottomAnchorY: bottomAnchorY, visibleFrame: visibleFrame)
+	}
 
 	/// Fired when the user dismisses the attention bubble (X button or the
 	/// Focus action, both of which call through to this). The host remains
@@ -233,10 +265,16 @@ final class ChromeFlockCoordinator {
 
 	private var conflictBubblePanel: SpeechBubblePanel?
 
-	/// Returns the existing conflict bubble panel without creating one, for
-	/// callers (e.g. live drag re-anchoring) that must reposition-only-if-
-	/// already-shown without touching z-order.
-	var existingConflictBubblePanel: SpeechBubblePanel? { conflictBubblePanel }
+	/// Reposition-only live updates: no lazy creation, no z-order change.
+	/// Content-change paths use `repositionConflictBubbleOwn` /
+	/// `repositionConflictBubbleMinimalist`, which also re-front.
+	func liveRepositionConflictBubbleOwn(aboveFloatingPetFrame petFrame: CGRect, visibleFrame: CGRect) {
+		conflictBubblePanel?.reposition(aboveFloatingPetFrame: petFrame, visibleFrame: visibleFrame)
+	}
+
+	func liveRepositionConflictBubbleMinimalist(aboveMinimalistStrip stripFrame: CGRect, visibleFrame: CGRect) {
+		conflictBubblePanel?.reposition(aboveMinimalistStrip: stripFrame, visibleFrame: visibleFrame)
+	}
 
 	/// Fired when the user clicks the conflict bubble's action affordance
 	/// (opens Settings > Customization).
@@ -285,7 +323,10 @@ final class ChromeFlockCoordinator {
 	private var tombstonePanel: TombstonePanel?
 	private var regenMeterPanel: RegenMeterPanel?
 
-	@discardableResult
+	/// Content-change path: lazily creates the HUD and pushes the latest
+	/// state + position into it. Presentation (fade-in, ensure-visible) is a
+	/// separate act — see `ensureHUDVisible` / `fadeInHUD` — because a
+	/// content refresh can land while the HUD is intentionally hidden.
 	func repositionHUD(
 		hearts: [HeartState],
 		ringFraction: Double,
@@ -295,9 +336,8 @@ final class ChromeFlockCoordinator {
 		relativeTo petFrame: CGRect,
 		spriteAnchor: CGRect?,
 		visibleFrame: CGRect
-	) -> RPGHUDPanel {
-		let hud = rpgHUDPanelInstance()
-		hud.reposition(
+	) {
+		rpgHUDPanelInstance().reposition(
 			hearts: hearts,
 			ringFraction: ringFraction,
 			level: level,
@@ -307,7 +347,73 @@ final class ChromeFlockCoordinator {
 			spriteAnchor: spriteAnchor,
 			visibleFrame: visibleFrame
 		)
-		return hud
+	}
+
+	/// Reposition-only live update: keeps an already-visible HUD glued to the
+	/// pet on non-drag live moves without creating or fronting one.
+	func liveRepositionHUD(
+		hearts: [HeartState],
+		ringFraction: Double,
+		level: Int,
+		regenProgress: Double,
+		showsRegenBar: Bool,
+		relativeTo petFrame: CGRect,
+		spriteAnchor: CGRect?,
+		visibleFrame: CGRect
+	) {
+		rpgHUDPanel?.reposition(
+			hearts: hearts,
+			ringFraction: ringFraction,
+			level: level,
+			regenProgress: regenProgress,
+			showsRegenBar: showsRegenBar,
+			relativeTo: petFrame,
+			spriteAnchor: spriteAnchor,
+			visibleFrame: visibleFrame
+		)
+	}
+
+	// HUD lifecycle façades. All silently no-op while no HUD exists — the
+	// hover/flash/drag paths that call them must never lazily spawn a HUD
+	// that was never shown.
+
+	func ensureHUDVisible() {
+		rpgHUDPanel?.ensureVisible()
+	}
+
+	func fadeInHUD() {
+		rpgHUDPanel?.fadeIn()
+	}
+
+	func fadeOutHUD() {
+		rpgHUDPanel?.fadeOut()
+	}
+
+	func hideHUDImmediately() {
+		rpgHUDPanel?.hideImmediately()
+	}
+
+	func flashHUD(_ event: RPGFlashEvent) {
+		rpgHUDPanel?.flash(event)
+	}
+
+	/// Whether `point` (screen coordinates) lands inside the HUD panel's
+	/// current frame. `false` while no HUD exists.
+	func isPointInsideHUD(_ point: CGPoint) -> Bool {
+		rpgHUDPanel?.frame.contains(point) == true
+	}
+
+	func setHUDRingHovered(_ hovered: Bool) {
+		rpgHUDPanel?.setRingHovered(hovered)
+	}
+
+	/// Hit-tests `screenPoint` against the HUD's XP ring and updates the
+	/// ring-hover state in one act, so pointer-tracking callers never need
+	/// the panel itself.
+	func updateHUDRingHover(at screenPoint: CGPoint) {
+		rpgHUDPanel?.setRingHovered(
+			rpgHUDPanel?.ringScreenRect()?.contains(screenPoint) == true
+		)
 	}
 
 	private func rpgHUDPanelInstance() -> RPGHUDPanel {
@@ -317,17 +423,19 @@ final class ChromeFlockCoordinator {
 		return panel
 	}
 
-	/// Returns the existing HUD panel without creating one, for callers (hover
-	/// tracking, ring-hover pointer updates) that must not lazily spawn a HUD
-	/// that was never shown.
-	var existingHUDPanel: RPGHUDPanel? { rpgHUDPanel }
-	/// Returns the existing tombstone panel without creating one, for callers
-	/// (e.g. live drag re-anchoring) that must reposition-only-if-already-shown
-	/// without touching z-order.
-	var existingTombstonePanel: TombstonePanel? { tombstonePanel }
-	/// Returns the existing regen meter panel without creating one, mirroring
-	/// `existingTombstonePanel`.
-	var existingRegenMeterPanel: RegenMeterPanel? { regenMeterPanel }
+	/// Reposition-only live updates for the ghost chrome: no lazy creation,
+	/// no z-order change. Content-change paths use `repositionGhostChrome` /
+	/// `repositionRegenMeter`, which also re-front.
+	func liveRepositionTombstone(relativeTo petFrame: CGRect, spriteAnchor: CGRect?, visibleFrame: CGRect) {
+		tombstonePanel?.reposition(relativeTo: petFrame, spriteAnchor: spriteAnchor, visibleFrame: visibleFrame)
+	}
+
+	func liveRepositionRegenMeter(
+		progress: Double, relativeTo petFrame: CGRect, spriteAnchor: CGRect?, visibleFrame: CGRect
+	) {
+		regenMeterPanel?.reposition(
+			progress: progress, relativeTo: petFrame, spriteAnchor: spriteAnchor, visibleFrame: visibleFrame)
+	}
 
 	func repositionGhostChrome(relativeTo petFrame: CGRect, spriteAnchor: CGRect?, visibleFrame: CGRect) {
 		let tomb = tombstonePanelInstance()

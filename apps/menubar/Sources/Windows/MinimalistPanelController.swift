@@ -375,13 +375,20 @@ final class MinimalistPanelController: PanelActionHandling {
 			return
 		}
 		chromeCoordinator.updateAttentionBubble(payload: payload, sourceEvent: currentSourceEvent)
-		repositionBubble(badgeFrame: badgePanel?.frame ?? .zero)
-		chromeCoordinator.existingAttentionBubblePanel?.orderFrontRegardless()
+		let badgeFrame = badgePanel?.frame ?? .zero
+		chromeCoordinator.repositionAttentionBubble(
+			relativeTo: badgeFrame,
+			leadingX: badgeFrame.minX + MinimalistBadgeView.hPad,
+			bottomAnchorY: badgeFrame.minY,
+			visibleFrame: visibleFrameProvider()
+		)
 	}
 
+	/// Live re-anchor while the strip moves/resizes: reposition-only, never
+	/// re-fronting — front-on-content-change lives in `applyBubble`.
 	private func repositionBubble(badgeFrame: CGRect) {
 		guard currentAttention != nil else { return }
-		chromeCoordinator.existingAttentionBubblePanel?.reposition(
+		chromeCoordinator.liveRepositionAttentionBubble(
 			relativeTo: badgeFrame,
 			leadingX: badgeFrame.minX + MinimalistBadgeView.hPad,
 			bottomAnchorY: badgeFrame.minY,
@@ -401,13 +408,16 @@ final class MinimalistPanelController: PanelActionHandling {
 			return
 		}
 		chromeCoordinator.updateConflictBubble(origin: payload.origin)
-		repositionConflictBubble(badgeFrame: badgePanel?.frame ?? .zero)
-		chromeCoordinator.existingConflictBubblePanel?.orderFrontRegardless()
+		chromeCoordinator.repositionConflictBubbleMinimalist(
+			aboveMinimalistStrip: badgePanel?.frame ?? .zero, visibleFrame: visibleFrameProvider())
 	}
 
+	/// Live re-anchor while the strip moves/resizes: reposition-only, never
+	/// re-fronting — front-on-content-change lives in
+	/// `applyConflictBubblePresentation`.
 	private func repositionConflictBubble(badgeFrame: CGRect) {
 		guard currentConflictPayload != nil else { return }
-		chromeCoordinator.existingConflictBubblePanel?.reposition(
+		chromeCoordinator.liveRepositionConflictBubbleMinimalist(
 			aboveMinimalistStrip: badgeFrame, visibleFrame: visibleFrameProvider())
 	}
 
