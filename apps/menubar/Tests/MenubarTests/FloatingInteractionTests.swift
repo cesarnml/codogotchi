@@ -365,7 +365,15 @@ final class FloatingInteractionTests: XCTestCase {
 			capabilities: ownPromptCapabilities(
 				offersForceIdle: true, sessionLabel: "x", hasActiveSession: true),
 			handlers: noopPromptHandlers())
-		XCTAssertFalse(items.map(\.title).contains(FloatingPetHidePrompt.panelSizeTitle))
+		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.forceIdleTitle,
+			FloatingPetHidePrompt.renameTitle,
+			FloatingPetHidePrompt.syncLabelTitle,
+			FloatingPetHidePrompt.pruneTitle,
+			FloatingPetHidePrompt.minimalistModeTitle,
+			FloatingPetHidePrompt.hideAllOtherPetsTitle,
+			FloatingPetHidePrompt.title,
+		])
 	}
 
 	func testMinimalistBuilderMinimalCapabilitiesIncludesUnconditionalPanelSize() {
@@ -384,7 +392,13 @@ final class FloatingInteractionTests: XCTestCase {
 		let items = FloatingPetPromptBuilder.items(
 			capabilities: minimalistPromptCapabilities(offersForceIdle: true),
 			handlers: noopPromptHandlers())
-		XCTAssertEqual(items.first?.title, FloatingPetHidePrompt.forceIdleTitle)
+		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.forceIdleTitle,
+			FloatingPetHidePrompt.petModeTitle,
+			FloatingPetHidePrompt.panelSizeTitle,
+			FloatingPetHidePrompt.hideAllOtherPetsTitle,
+			FloatingPetHidePrompt.panelTitle,
+		])
 	}
 
 	func testMinimalistBuilderPlainOriginLabelOffersRenameOnly() {
@@ -421,8 +435,27 @@ final class FloatingInteractionTests: XCTestCase {
 		// R1.9: cosmetic title-only difference; same last-item semantics.
 		let items = FloatingPetPromptBuilder.items(
 			capabilities: minimalistPromptCapabilities(), handlers: noopPromptHandlers())
-		XCTAssertEqual(items.last?.title, FloatingPetHidePrompt.panelTitle)
-		XCTAssertFalse(items.map(\.title).contains(FloatingPetHidePrompt.title))
+		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.petModeTitle,
+			FloatingPetHidePrompt.panelSizeTitle,
+			FloatingPetHidePrompt.hideAllOtherPetsTitle,
+			FloatingPetHidePrompt.panelTitle,
+		])
+	}
+
+	func testBuilderActiveSessionWithoutLabelOffersSyncAndPruneWithoutRename() {
+		// The capability boundary intentionally treats session identity and a
+		// display label independently. Production currently supplies both, but
+		// future callers must not accidentally infer Rename from session identity.
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: ownPromptCapabilities(hasActiveSession: true), handlers: noopPromptHandlers())
+		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.syncLabelTitle,
+			FloatingPetHidePrompt.pruneTitle,
+			FloatingPetHidePrompt.minimalistModeTitle,
+			FloatingPetHidePrompt.hideAllOtherPetsTitle,
+			FloatingPetHidePrompt.title,
+		])
 	}
 
 	func testBuilderActivatingEachItemInvokesOnlyItsOwnHandlerInOrder() {

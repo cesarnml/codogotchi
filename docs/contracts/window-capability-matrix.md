@@ -59,9 +59,9 @@ Source: `FloatingPetController.swift` (`PanelManaging` and `PanelActionHandling`
 | # | Capability | Own | Minimalist | Combined | proposed | disposition |
 |---|---|---|---|---|---|---|
 | R2.1 | Protocol conformance | Shared `PanelManaging` + `PanelActionHandling` via `FloatingPetPanelController`, wrapped by `FloatingPetController` | Shared `PanelManaging` + `PanelActionHandling` via `MinimalistPanelController`, wrapped by `MinimalistWindowController` | Inherits the routed skin through the same renderer/action protocols; `WindowKey` targeting stays in `WindowActionRouter` | intentional | intentional |
-| R2.2 | `apply(state:visualMode:)` (sprite-scene state) | Present | **Absent from protocol** — no sprite scene concept | Present only when routed to Own | intentional | intentional |
-| R2.3 | `applyRPGState` / `setRPGHUDEnabled` / `setHUDDemoActive` / `setHUDPinned` | Present, full RPG HUD lifecycle | **Absent from protocol.** `MinimalistWindowController.applyRPGState` is an explicit no-op with comment "Minimalist mode intentionally has no sprite and no RPG HUD" | Present only when routed to Own | intentional (explicitly documented in code) | intentional |
-| R2.4 | `setInteraction` (drag-interaction state) | Present | Absent from protocol | Present only when routed to Own | intentional | intentional |
+| R2.2 | `apply(state:visualMode:)` (sprite-scene state) | Present | Declared by `PanelManaging` with a no-op default — no sprite scene concept | Present only when routed to Own | intentional | intentional |
+| R2.3 | `applyRPGState` / `setRPGHUDEnabled` / `setHUDDemoActive` / `setHUDPinned` | Present, full RPG HUD lifecycle | Declared by `PanelManaging` with no-op defaults. `MinimalistWindowController.applyRPGState` remains an explicit no-op with comment "Minimalist mode intentionally has no sprite and no RPG HUD" | Present only when routed to Own | intentional (explicitly documented in code) | intentional |
+| R2.4 | `setInteraction` (drag-interaction state) | Present | Declared by `PanelManaging` with a no-op default | Present only when routed to Own | intentional | intentional |
 | R2.5 | `replacePets` (pet-asset reassignment) | Present, visually swaps sprite | `MinimalistWindowController.replacePets` is an unconditional no-op — a strip has no sprite to swap | Present (visual) only when routed to Own | intentional | intentional |
 
 ---
