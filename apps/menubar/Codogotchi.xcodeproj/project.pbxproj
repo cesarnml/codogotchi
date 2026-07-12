@@ -100,6 +100,7 @@
 		74348CC405B92950FC9E967D /* ConfigFileWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F8A5A89CFE5F72C7CB6896 /* ConfigFileWriter.swift */; };
 		756CD4993E0950C3ACB78E88 /* WindowActionRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC69F56318CF5679B36BC371 /* WindowActionRouterTests.swift */; };
 		766A1353C309F8F7551B6A3C /* FloatingPetWindowPoolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A977437677E31BB6CF62E58C /* FloatingPetWindowPoolTests.swift */; };
+		76D1DF2AA36664A0B3993245 /* PoolDeriveSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73D6177E10BF41D1D77DF16 /* PoolDeriveSelectionTests.swift */; };
 		774F5A301F72D6FC82A66844 /* CustomizationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1805A0BD2255F37C552E1A4 /* CustomizationStore.swift */; };
 		7843F584962C072B18F8B391 /* MinimalistBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 933225DDA49AB5637263654E /* MinimalistBadgeView.swift */; };
 		7893BF413AB78DCAEDB74D58 /* LivePollingDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BABED0FED8D4478E21F2531 /* LivePollingDriver.swift */; };
@@ -366,6 +367,7 @@
 		B23E8D0BE2CAA5B9E3649410 /* SessionsTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsTabView.swift; sourceTree = "<group>"; };
 		B45875058BDB67738967BE7A /* RPGHUDViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDViewModel.swift; sourceTree = "<group>"; };
 		B5C34F80A449B6C9EAA2C37B /* DemoConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoConfig.swift; sourceTree = "<group>"; };
+		B73D6177E10BF41D1D77DF16 /* PoolDeriveSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolDeriveSelectionTests.swift; sourceTree = "<group>"; };
 		B86CEF42917F1F47CF4166F3 /* RenderKeyResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderKeyResolver.swift; sourceTree = "<group>"; };
 		B8F15B1B99434EA9F9005052 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		BC2EC51845CF105F01A1BBE4 /* SessionNumberAllocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNumberAllocatorTests.swift; sourceTree = "<group>"; };
@@ -425,6 +427,7 @@
 			isa = PBXGroup;
 			children = (
 				1A729378681BEE16B8D2F9AF /* PoolDerivePurityGateTests.swift */,
+				B73D6177E10BF41D1D77DF16 /* PoolDeriveSelectionTests.swift */,
 				8B308CD35F0C1360F241121D /* PoolDeriveTests.swift */,
 			);
 			path = Derive;
@@ -1027,6 +1030,7 @@
 				7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */,
 				E93167AF2416BE06B2BAA308 /* PlatformAttributionTests.swift in Sources */,
 				FD665AC2568C40ADDD61281B /* PoolDerivePurityGateTests.swift in Sources */,
+				76D1DF2AA36664A0B3993245 /* PoolDeriveSelectionTests.swift in Sources */,
 				5887637BC646221531D0202F /* PoolDeriveTests.swift in Sources */,
 				CFD5C0AE22C996C03621521C /* PromptTimerTests.swift in Sources */,
 				A94729EE4E31C8A57629486A /* RPGHUDViewModelTests.swift in Sources */,
