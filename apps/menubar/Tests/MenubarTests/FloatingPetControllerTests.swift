@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class FloatingPetControllerTests: XCTestCase {
-	final class FloatingPetPanelSpy: FloatingPetPanelManaging {
+	final class FloatingPetPanelSpy: PanelManaging {
 		var shownFrames: [CGRect] = []
 		var hideCount = 0
 		var appliedStates: [(ActivityState, VisualMode)] = []

@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor
-final class FloatingPetPanelController: FloatingPetPanelManaging {
+final class FloatingPetPanelController: PanelManaging {
 	private var codexPet: CodexPet
 	private var codogotchiPet: CodogotchiPet?
 	private let demoFrameInterval: TimeInterval?

@@ -46,7 +46,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
 }
 
 @MainActor
-private final class StubMinimalistPanel: MinimalistPanelManaging {
+private final class StubMinimalistPanel: PanelManaging {
     var visible = false
     var platformOrigin: String?
     var activityLabel = ""
