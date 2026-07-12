@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
@@ -49,7 +49,7 @@ describe('P2.02 — delivery-orchestrator.md cleanliness and gated handoff RESUM
     }
   });
 
-  it('gated handoff with subagentReview disabled contains RESUME COMMAND pointing to open-pr', () => {
+  it('gated handoff resumes through authoritative state instead of guessing a future stage', () => {
     const handoff = buildTicketHandoff(
       gatedState,
       gatedState.tickets[0]!,
@@ -61,23 +61,25 @@ describe('P2.02 — delivery-orchestrator.md cleanliness and gated handoff RESUM
     );
     expect(handoff).toContain('## RESUME COMMAND');
     expect(handoff).toContain(
-      'bun run deliver --plan docs/product/delivery/phase-02/implementation-plan.md open-pr',
+      'bun run deliver --plan docs/product/delivery/phase-02/implementation-plan.md start',
     );
   });
 
-  it('gated handoff with subagentReview required contains RESUME COMMAND pointing to subagent-review', () => {
+  it('consumer handoff prefixes upstream documentation reads', () => {
     const handoff = buildTicketHandoff(
       gatedState,
       gatedState.tickets[0]!,
       undefined,
       {
         ticketBoundaryMode: 'gated',
-        subagentReviewPolicy: 'required',
+        documentationPrefix: '.son-of-anton/',
       },
     );
-    expect(handoff).toContain('## RESUME COMMAND');
     expect(handoff).toContain(
-      'bun run deliver --plan docs/product/delivery/phase-02/implementation-plan.md subagent-review',
+      '`.son-of-anton/docs/template/overview/start-here.md`',
+    );
+    expect(handoff).toContain(
+      '`.son-of-anton/docs/template/delivery/delivery-orchestrator.md`',
     );
   });
 
@@ -97,6 +99,7 @@ describe('P2.02 — delivery-orchestrator.md cleanliness and gated handoff RESUM
     const tempDir = await mkdtemp(resolve(tmpdir(), 'p2-02-handoff-'));
 
     try {
+      await mkdir(resolve(tempDir, '.son-of-anton'));
       const result = await writeTicketHandoff(gatedState, tempDir, 'P2.02', {
         relativeToRepo: (_cwd, absolutePath) => absolutePath,
         subagentReviewPolicy: 'required',
@@ -106,7 +109,13 @@ describe('P2.02 — delivery-orchestrator.md cleanliness and gated handoff RESUM
       const content = await readFile(result.relativePath, 'utf8');
       expect(content).toContain('## RESUME COMMAND');
       expect(content).toContain(
-        'bun run deliver --plan docs/product/delivery/phase-02/implementation-plan.md subagent-review',
+        'bun run deliver --plan docs/product/delivery/phase-02/implementation-plan.md start',
+      );
+      expect(content).toContain(
+        '`.son-of-anton/docs/template/overview/start-here.md`',
+      );
+      expect(content).toContain(
+        '`.son-of-anton/docs/template/delivery/delivery-orchestrator.md`',
       );
     } finally {
       await rm(tempDir, { recursive: true, force: true });

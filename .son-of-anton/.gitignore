@@ -9,7 +9,8 @@ notes/private
 .vscode/settings.json
 media/**/*
 *-subagent-review.trace.log
-.soa/
+.soa/**/*
+.claude
 
 # agy-cli
 **/*/.antigravitycli
