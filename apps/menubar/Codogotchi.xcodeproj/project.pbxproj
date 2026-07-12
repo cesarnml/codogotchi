@@ -145,6 +145,7 @@
 		B2E987D4266CDD1A1AC3AF04 /* CustomizationJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EED7E5C1185B639D5786A2E2 /* CustomizationJsonReaderTests.swift */; };
 		B3EC2DCC0EBE6D4EE5AF88FE /* GateBadgeLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2120EF41902AB522F5AC969 /* GateBadgeLayout.swift */; };
 		B69656D5873253F3A80DDF25 /* FlippedStackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED1E6B27BAC9CB8CAE40022 /* FlippedStackView.swift */; };
+		B7267432230F42A102E5F8F5 /* PoolDerivePushTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF4156C53926BBC287DF6BB /* PoolDerivePushTests.swift */; };
 		B892760D965875045A18494B /* SessionNumberAllocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC2EC51845CF105F01A1BBE4 /* SessionNumberAllocatorTests.swift */; };
 		BA3F2EF6D3F5E093C9DFFBE9 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F15B1B99434EA9F9005052 /* AppStateTests.swift */; };
 		BB7A722079A26146B51633AC /* HalfHeartDecayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02675B5F9E50F8DB86AA76E0 /* HalfHeartDecayTests.swift */; };
@@ -298,6 +299,7 @@
 		5D6A87B12C5C352984BFCCC7 /* LockstepPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockstepPolicy.swift; sourceTree = "<group>"; };
 		5E81C08D00F0FFD36420D565 /* SessionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRowView.swift; sourceTree = "<group>"; };
 		5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrapTests.swift; sourceTree = "<group>"; };
+		5FF4156C53926BBC287DF6BB /* PoolDerivePushTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolDerivePushTests.swift; sourceTree = "<group>"; };
 		614CFF95A1D23539328DD341 /* BadgeRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeRowView.swift; sourceTree = "<group>"; };
 		61ADDBCA1AB46B4CC695D70A /* CustomizationJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationJsonReader.swift; sourceTree = "<group>"; };
 		661B3634E79B69AA992401CC /* PoolMemorySessionAllocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolMemorySessionAllocatorTests.swift; sourceTree = "<group>"; };
@@ -433,6 +435,7 @@
 			isa = PBXGroup;
 			children = (
 				1A729378681BEE16B8D2F9AF /* PoolDerivePurityGateTests.swift */,
+				5FF4156C53926BBC287DF6BB /* PoolDerivePushTests.swift */,
 				B73D6177E10BF41D1D77DF16 /* PoolDeriveSelectionTests.swift */,
 				8B308CD35F0C1360F241121D /* PoolDeriveTests.swift */,
 				661B3634E79B69AA992401CC /* PoolMemorySessionAllocatorTests.swift */,
@@ -1041,6 +1044,7 @@
 				7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */,
 				E93167AF2416BE06B2BAA308 /* PlatformAttributionTests.swift in Sources */,
 				FD665AC2568C40ADDD61281B /* PoolDerivePurityGateTests.swift in Sources */,
+				B7267432230F42A102E5F8F5 /* PoolDerivePushTests.swift in Sources */,
 				76D1DF2AA36664A0B3993245 /* PoolDeriveSelectionTests.swift in Sources */,
 				5887637BC646221531D0202F /* PoolDeriveTests.swift in Sources */,
 				478BB8239A09C07C502308A3 /* PoolMemorySessionAllocatorTests.swift in Sources */,
