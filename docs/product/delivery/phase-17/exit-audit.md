@@ -27,13 +27,20 @@ Audited branch: `agents/p17-06-closeout-exit-audit-dogfood-dmg-retrospective`
 - `WindowActionRouter` exclusively owns the session/combined/plain-origin
   targeting policy for attention dismissal and Force Idle, with focused tests.
 
-## 3. One chrome coordinator — PASS
+## 3. One chrome coordinator — FAIL (phase stop condition)
 
-- Own and Minimalist each construct `ChromeFlockCoordinator`; badge, attention
-  bubble, conflict bubble, right-click/drag routing, anchoring, and fronting
-  live in that coordinator.
-- Controller code supplies only skin-specific routing closures and presentation
-  state. There are no parallel controller-owned anchoring/fronting algorithms.
+- Own and Minimalist each construct `ChromeFlockCoordinator`, and panel-instance
+  lifecycle plus drag/right-click routing are centralized there.
+- The approved exit condition does not hold for anchoring/fronting. Both
+  controllers still reach through `existing*Panel` accessors and directly call
+  `reposition(...)` / `orderFrontRegardless()` in their live re-anchor and
+  presentation paths. P17.03's Rationale explicitly retained those paths to
+  preserve the front-on-content-change versus reposition-only-live-update
+  distinction, even though its Outcome and Refactor sections required deleting
+  every per-shape anchoring/fronting path.
+- This is a code completeness defect, not an audit-wording issue. Per P17.06's
+  stop rule, the phase cannot proceed to publication until the coordinator owns
+  those mechanics or the approved phase contract is explicitly changed.
 
 ## 4. Capability matrix matches code — PASS
 

@@ -2,11 +2,12 @@
 
 ## Scope delivered
 
-Phase 17 delivered the approved capability matrix and the stacked P17.01–P17.06
+Phase 17 delivered the approved capability matrix and the stacked P17.01–P17.05
 branches/PRs: shared prompt construction and dismissal, one chrome-flock
-coordinator, one renderer protocol, one targeting router, one shared panel
-action-wiring path, the exit audit, and a locally installed dogfood DMG. PRs
-#169–#173 contain P17.01–P17.05; P17.06 is the final open slice.
+coordinator component, one renderer protocol, one targeting router, one shared
+panel action-wiring path, the exit audit, and a locally installed dogfood DMG.
+PRs #169–#173 contain P17.01–P17.05; P17.06 remains blocked because the exit
+audit proved controller-owned anchoring/fronting paths survived P17.03.
 
 ## What went well
 
@@ -40,6 +41,10 @@ action-wiring path, the exit audit, and a locally installed dogfood DMG. PRs
 - The final audit found the capability matrix still naming the two retired
   renderer protocols. The implementation had converged correctly, but the
   durable contract had not followed the rename.
+- The final adversarial review disproved the audit's initial chrome PASS claim:
+  P17.03 centralized panel lifecycle and routing but deliberately retained
+  direct controller-side reposition/front calls that its own Outcome required
+  deleting.
 - The protocol convergence alone was insufficient to satisfy the factory exit
   condition. A shared settable action surface plus one wiring method was needed
   to remove the duplicated non-targeting handler blocks honestly.
@@ -61,17 +66,20 @@ action-wiring path, the exit audit, and a locally installed dogfood DMG. PRs
 
 ## Net assessment
 
-The phase achieved its stated architecture: one prompt system, one chrome
-coordinator, one renderer/action protocol surface, and one targeting/wiring
-path serve two skins without intentional behavior change. The final audit found
-and closed a real completeness gap rather than rationalizing it. Phase 18 now
-has the stable renderer and chrome boundary it needs, subject to the explicit
+The phase has not yet achieved its full stated architecture. Prompt, renderer,
+router, and factory convergence hold, but the one-chrome-coordinator exit
+condition fails because per-skin anchoring/fronting mechanics remain in both
+controllers. The audit therefore stops P17.06 before publication; Phase 18 does
+not yet have the promised chrome boundary, independently of the later
 three-shape daily-driver soak gate.
 
 ## Follow-up
 
 - Complete and record the Phase 18 transition soak across Own, Minimalist, and
   Combined before `/soa execute phase-18`.
+- Resolve the P17.03 completeness defect in an approved implementation slice:
+  move the retained reposition/front mechanics behind `ChromeFlockCoordinator`
+  while preserving the two cadence/z-order behaviors documented in P17.03.
 - Add an automated closeout assertion that shared panel-handler assignments
   occur only in `wirePanelActions` and retired protocol names have zero app and
   contract hits.
