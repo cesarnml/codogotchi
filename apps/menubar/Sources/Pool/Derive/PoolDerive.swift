@@ -253,6 +253,22 @@ enum PoolDerive {
 			}
 		}
 
+		// An origin that held slot occupants on a prior tick but has ZERO
+		// session-cap candidates this tick (every session-shaped render key
+		// for that origin vanished from the snapshot entirely, not merely
+		// evicted by the cap) never runs the per-origin loop above, so it
+		// never reaches the slot-occupancy resync a few lines up. With no
+		// surviving candidates, selection.rendered for that origin would
+		// trivially be empty, so its entire slice is cleared here directly;
+		// otherwise these stale occupants leak forever and can be
+		// double-counted the next time the origin re-acquires candidates.
+		let originsWithCandidatesThisTick = Set(sessionCapKeysByOrigin.keys)
+		let staleOccupantOrigins = Set(memory.slotOccupants.map(\.origin))
+			.subtracting(originsWithCandidatesThisTick)
+		for origin in staleOccupantOrigins {
+			memory.slotOccupants = memory.slotOccupants.filter { $0.origin != origin }
+		}
+
 		// A hidden key that genuinely loses the cap fight (P15.07-QC) must
 		// not linger in `userHiddenWindowKeys` — otherwise the menu keeps
 		// offering "Show <pet>" for a session that no longer holds a slot.
@@ -274,6 +290,18 @@ enum PoolDerive {
 		let torndownKeys = previousKeys.subtracting(visibleFinalKeys)
 		for key in torndownKeys where key.isSessionKeyed {
 			guard let identity = memory.windowSessionIdentities.removeValue(forKey: key) else { continue }
+			// Refresh the allocator's unlimited/bounded mode for this identity's
+			// origin against the CURRENT tick's customization before releasing —
+			// not just relying on the per-origin cap-selection loop above, which
+			// only runs for origins with candidates this tick. An origin whose
+			// cap flips bounded<->unlimited on the very same tick all its
+			// candidates disappear would otherwise release under whatever mode
+			// was left over from a prior tick: incorrectly free-listing a number
+			// (if now-unlimited) or incorrectly discarding a reusable number (if
+			// now-bounded).
+			let cap = resolvedSessionCap(for: identity.origin, customization: customization)
+			memory.sessionNumberAllocator.setUnlimited(
+				cap == CustomizationSnapshot.unlimitedSessionCap, origin: identity.origin)
 			memory.sessionNumberAllocator.release(origin: identity.origin, sessionId: identity.sessionId)
 		}
 

@@ -493,6 +493,97 @@ final class PoolDeriveSessionCapSelectionTests: XCTestCase {
 		XCTAssertEqual(desired.pendingSessionKeys, ["claude_code:newcomer"])
 	}
 
+	/// Subagent-review fix: an origin that had a rendered session on one tick
+	/// but has ZERO session-cap candidates the next (every render key for
+	/// that origin vanished from the snapshot entirely, not merely evicted by
+	/// the cap) never runs the per-origin cap-selection loop iteration for
+	/// that origin, so it must still get its entire `slotOccupants` slice
+	/// cleared rather than leaking the stale occupant forever.
+	func test_zeroCandidateOriginClearsSlotOccupantsSlice() {
+		var memory = PoolMemory()
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
+		var desired: DesiredWindows
+		(desired, memory) = tick(
+			["claude_code:a": makeSnapshot(state: .idle, updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization, currentTime: t0, memory: memory)
+		XCTAssertEqual(memory.slotOccupants, ["claude_code:a"])
+
+		// Next tick: the origin's sole session vanishes from the snapshot
+		// entirely — zero session-cap candidates for "claude_code" this tick.
+		let t1 = t0.addingTimeInterval(1)
+		(desired, memory) = tick(
+			[:], customization: customization, currentTime: t1, memory: memory)
+
+		XCTAssertTrue(
+			memory.slotOccupants.isEmpty,
+			"an origin with zero candidates this tick must have its entire slotOccupants slice "
+				+ "cleared, not left as a phantom occupant forever")
+		_ = desired
+	}
+
+	/// Subagent-review fix (bounded→unlimited): if an origin's cap flips to
+	/// Unlimited on the SAME tick every one of its candidates disappears
+	/// (zero candidates this tick, so the per-origin loop never runs for it),
+	/// the allocator's unlimited/bounded mode must still be refreshed against
+	/// the CURRENT tick's customization before the teardown release — not
+	/// left at whatever mode a prior tick set. Otherwise release would use
+	/// the stale bounded mode and incorrectly free-list the number.
+	func test_capFlipBoundedToUnlimitedRefreshesAllocatorModeBeforeZeroCandidateTeardown() {
+		var memory = PoolMemory()
+		let identity = RenderKeyIdentity(origin: "claude_code", sessionId: "s1")
+		let number = memory.sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
+		XCTAssertEqual(number, 1)
+		memory.windowSessionIdentities["claude_code:s1"] = identity
+		memory.previousDesiredWindowKeys.insert("claude_code:s1")
+
+		// The cap flips to Unlimited (0) AND the session disappears from the
+		// snapshot entirely, in the same tick — a teardown-only tick with no
+		// candidates for "claude_code" at all.
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 0])
+		let t1 = t0.addingTimeInterval(1)
+		(_, memory) = tick([:], customization: customization, currentTime: t1, memory: memory)
+
+		XCTAssertNil(memory.windowSessionIdentities["claude_code:s1"])
+		let nextNumber = memory.sessionNumberAllocator.assign(origin: "claude_code", sessionId: "s2")
+		XCTAssertEqual(
+			nextNumber, 2,
+			"under the now-Unlimited mode the released number must never be reused — a stale "
+				+ "bounded mode left over from before the cap flip would incorrectly free-list it, "
+				+ "letting the next assign wrongly reuse number 1")
+	}
+
+	/// Subagent-review fix (unlimited→bounded): the mirror-image direction —
+	/// an origin's cap flips to bounded on the same tick every candidate
+	/// disappears; the allocator must refresh to bounded mode before
+	/// releasing so the freed number returns to the free list for reuse,
+	/// rather than being discarded under a stale Unlimited mode.
+	func test_capFlipUnlimitedToBoundedRefreshesAllocatorModeBeforeZeroCandidateTeardown() {
+		var memory = PoolMemory()
+		memory.sessionNumberAllocator.setUnlimited(true, origin: "claude_code")
+		let identity = RenderKeyIdentity(origin: "claude_code", sessionId: "s1")
+		let number = memory.sessionNumberAllocator.assign(origin: identity.origin, sessionId: identity.sessionId)
+		XCTAssertEqual(number, 1)
+		memory.windowSessionIdentities["claude_code:s1"] = identity
+		memory.previousDesiredWindowKeys.insert("claude_code:s1")
+
+		// The cap flips to bounded (2) AND the session disappears from the
+		// snapshot entirely, in the same tick.
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 2])
+		let t1 = t0.addingTimeInterval(1)
+		(_, memory) = tick([:], customization: customization, currentTime: t1, memory: memory)
+
+		XCTAssertNil(memory.windowSessionIdentities["claude_code:s1"])
+		let nextNumber = memory.sessionNumberAllocator.assign(origin: "claude_code", sessionId: "s2")
+		XCTAssertEqual(
+			nextNumber, 1,
+			"under the now-bounded mode the released number must return to the free list and be "
+				+ "reused by the very next assign — a stale Unlimited mode left over from before the "
+				+ "cap flip would have discarded it instead")
+	}
+
 	/// Pruned-origin promotion restriction: once an origin is armed by a
 	/// manual prune, only an in-flight session may newly promote into a
 	/// freed slot — a merely-held idle sibling must not backfill it.
