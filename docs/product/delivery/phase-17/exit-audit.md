@@ -27,20 +27,32 @@ Audited branch: `agents/p17-06-closeout-exit-audit-dogfood-dmg-retrospective`
 - `WindowActionRouter` exclusively owns the session/combined/plain-origin
   targeting policy for attention dismissal and Force Idle, with focused tests.
 
-## 3. One chrome coordinator — FAIL (phase stop condition)
+## 3. One chrome coordinator — PASS (after in-ticket fix, developer-approved)
 
-- Own and Minimalist each construct `ChromeFlockCoordinator`, and panel-instance
-  lifecycle plus drag/right-click routing are centralized there.
-- The approved exit condition does not hold for anchoring/fronting. Both
-  controllers still reach through `existing*Panel` accessors and directly call
-  `reposition(...)` / `orderFrontRegardless()` in their live re-anchor and
-  presentation paths. P17.03's Rationale explicitly retained those paths to
-  preserve the front-on-content-change versus reposition-only-live-update
-  distinction, even though its Outcome and Refactor sections required deleting
-  every per-shape anchoring/fronting path.
-- This is a code completeness defect, not an audit-wording issue. Per P17.06's
-  stop rule, the phase cannot proceed to publication until the coordinator owns
-  those mechanics or the approved phase contract is explicitly changed.
+- **History:** the first audit pass recorded this condition as FAIL — both
+  controllers reached through `ChromeFlockCoordinator.existing*Panel` accessors
+  and directly called `reposition(...)` / `orderFrontRegardless()` in their
+  live re-anchor and presentation paths, a retained scope cut from P17.03. The
+  developer dispositioned the stop on 2026-07-12: close the gap inside P17.06
+  rather than amend the contract or defer to post-closeout triage.
+- **Fix (`[subagent-review]` commit):** the coordinator now owns reposition-only
+  live variants (`liveReposition{AnimationBadge,AttentionBubble,
+  ConflictBubbleOwn,ConflictBubbleMinimalist,GateBadgeOwn,HUD,Tombstone,
+  RegenMeter}`) and the HUD lifecycle façades (`ensureHUDVisible`, `fadeInHUD`,
+  `fadeOutHUD`, `hideHUDImmediately`, `flashHUD`, `isPointInsideHUD`,
+  `setHUDRingHovered`, `updateHUDRingHover`). The front-on-content-change
+  versus reposition-only-live-update distinction P17.03 preserved is now
+  encoded in the coordinator's own API instead of leaking panel instances.
+  `repositionHUD` no longer returns the panel, so presentation acts cannot
+  bypass the coordinator via its return value.
+- **Structural evidence (tip of the P17.06 branch):**
+  - `grep -rn "existing.*Panel" apps/menubar/Sources --include="*.swift" | grep -v ChromeFlockCoordinator.swift` → **0 hits**; the seven `existing*Panel` accessors are deleted, making controller-side direct panel manipulation unrepresentable.
+  - `grep -rn "\.reposition(" FloatingPetPanelController.swift MinimalistPanelController.swift` → **0 hits**.
+  - `orderFrontRegardless` in the two controllers → exactly 2 hits, both fronting the **host** pet panel / strip itself (`FloatingPetPanelController.swift:204`, `MinimalistPanelController.swift:212`) — the host window is not one of the seven chrome panel types the coordinator owns.
+  - All seven chrome panel types (`AnimationBadgePanel`, `GateBadgePanel`, `AttentionBubblePanel`, `SpeechBubblePanel`, `RPGHUDPanel`, `TombstonePanel`, `RegenMeterPanel`) are instantiated **only** inside `ChromeFlockCoordinator.swift` (7/7 instantiation sites).
+- Behavior verbatim: live paths still never create or front a panel; content-
+  change paths front exactly as before. Verified by the full suite (Condition 5
+  rerun below covers the post-fix tip).
 
 ## 4. Capability matrix matches code — PASS
 

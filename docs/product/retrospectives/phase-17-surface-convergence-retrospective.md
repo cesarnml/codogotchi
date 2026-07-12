@@ -66,20 +66,27 @@ audit proved controller-owned anchoring/fronting paths survived P17.03.
 
 ## Net assessment
 
-The phase has not yet achieved its full stated architecture. Prompt, renderer,
-router, and factory convergence hold, but the one-chrome-coordinator exit
-condition fails because per-skin anchoring/fronting mechanics remain in both
-controllers. The audit therefore stops P17.06 before publication; Phase 18 does
-not yet have the promised chrome boundary, independently of the later
-three-shape daily-driver soak gate.
+The phase achieved its full stated architecture, in two beats. Prompt,
+renderer, router, and factory convergence held at the first audit pass; the
+one-chrome-coordinator condition initially failed because per-skin
+anchoring/fronting mechanics remained in both controllers (a retained P17.03
+scope cut). The audit stopped P17.06 before publication, the developer
+dispositioned the stop as an approved in-ticket scope expansion (2026-07-12),
+and the fix moved the live re-anchor and HUD lifecycle mechanics behind
+`ChromeFlockCoordinator`, deleting the `existing*Panel` accessors so the
+compiler now enforces the boundary. All six exit conditions hold at the
+published tip; only the three-shape daily-driver soak gate remains open for
+Phase 18 execution.
 
 ## Follow-up
 
 - Complete and record the Phase 18 transition soak across Own, Minimalist, and
   Combined before `/soa execute phase-18`.
-- Resolve the P17.03 completeness defect in an approved implementation slice:
-  move the retained reposition/front mechanics behind `ChromeFlockCoordinator`
-  while preserving the two cadence/z-order behaviors documented in P17.03.
+- ~~Resolve the P17.03 completeness defect~~ — done inside P17.06 (developer-
+  approved stop disposition): live re-anchor + HUD lifecycle mechanics moved
+  behind `ChromeFlockCoordinator`, `existing*Panel` accessors deleted, both
+  cadence/z-order behaviors (front-on-content-change vs.
+  reposition-only-live-update) preserved as named coordinator API.
 - Add an automated closeout assertion that shared panel-handler assignments
   occur only in `wirePanelActions` and retired protocol names have zero app and
   contract hits.
