@@ -17,7 +17,7 @@ import AppKit
 /// clipped repaints when a dismiss and a combined-window chip swap resized the
 /// same panel in one tick. With two panels neither failure mode is reachable.
 @MainActor
-final class MinimalistPanelController: PanelManaging {
+final class MinimalistPanelController: PanelActionHandling {
 	private enum Layout {
 		static let height: CGFloat = 58
 		/// Extra vertical room for the `PlatformSessionBadge` row, only added
@@ -72,7 +72,7 @@ final class MinimalistPanelController: PanelManaging {
 	/// Called when the user activates the badge's right-click "Hide panel"
 	/// affordance. Mirrors `FloatingPetPanelController.onHideFloatingPet`; the app
 	/// wires this to hide this window via the window pool.
-	var onHidePanel: (() -> Void)?
+	var onHideWindowRequested: (() -> Void)?
 	/// Called when the user activates the badge's right-click "Force Idle"
 	/// affordance (only offered while non-idle). The app wires this to rewrite
 	/// this origin's `state.d/` slice back to idle.
@@ -102,7 +102,7 @@ final class MinimalistPanelController: PanelManaging {
 	/// Fired when the user activates the badge's right-click "Pet Mode"
 	/// affordance. Wired by the caller (`MenubarApp`) to persist the mode
 	/// switch to customization.json — mirrors Own mode's `onSwitchToMinimalist`.
-	var onSwitchToPetMode: (() -> Void)?
+	var onModeSwitchRequested: (() -> Void)?
 	/// Fired on each tick of the badge's right-click "Panel Size" slider
 	/// (`isFinal` marks the tick ending the drag gesture). Wired by the
 	/// caller (`MenubarApp`) to persist the global `minimalist_badge_scale` —
@@ -136,7 +136,7 @@ final class MinimalistPanelController: PanelManaging {
 		}
 		// Right-click "Hide panel" affordance on the badge (chip or activity pill).
 		badgeView.onHidePanelRequested = { [weak self] in
-			self?.onHidePanel?()
+			self?.onHideWindowRequested?()
 		}
 		// Double-click the platform chip to jump to the driving app, mirroring
 		// the attention bubble's Focus button.
@@ -174,7 +174,7 @@ final class MinimalistPanelController: PanelManaging {
 		}
 		// Right-click "Pet Mode" affordance — back to the full pet renderer.
 		badgeView.onPetModeRequested = { [weak self] in
-			self?.onSwitchToPetMode?()
+			self?.onModeSwitchRequested?()
 		}
 		// Right-click "Panel Size" slider: live-apply the scale to this
 		// strip immediately for direct feedback (sibling strips follow on their
@@ -420,4 +420,3 @@ final class MinimalistPanelController: PanelManaging {
 		onAttentionDismissed?()
 	}
 }
-
