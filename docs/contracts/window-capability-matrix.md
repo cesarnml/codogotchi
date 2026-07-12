@@ -15,8 +15,8 @@ Mid-phase changes to this matrix (missed affordances discovered during P17.02–
 
 ## Shape definitions
 
-- **Own** — `PlatformMode.own`. Rendered by `FloatingPetController` + `FloatingPetPanelController` + `FloatingPetInteractionView`, conforming to `FloatingPetPanelManaging`.
-- **Minimalist** — `PlatformMode.minimalist`. Rendered by `MinimalistWindowController` + `MinimalistPanelController` + `MinimalistBadgeView`, conforming to `MinimalistPanelManaging`.
+- **Own** — `PlatformMode.own`. Rendered by `FloatingPetController` + `FloatingPetPanelController` + `FloatingPetInteractionView`, conforming to the shared `PanelManaging` renderer protocol and `PanelActionHandling` action surface.
+- **Minimalist** — `PlatformMode.minimalist`. Rendered by `MinimalistWindowController` + `MinimalistPanelController` + `MinimalistBadgeView`, conforming to the same shared `PanelManaging` renderer protocol and `PanelActionHandling` action surface.
 - **Combined** — `WindowKey.combined`. **Not a third renderer.** It is a shared render slot that all `.combined`-mode platform origins fold into. It routes through the Own factory when `combinedMinimalistEnabled == false` (default) or the Minimalist factory when the user has toggled combined-minimalist on (`FloatingPetWindowPool.swift:834-849`). Rows below therefore mostly read as "Combined = whichever of Own/Minimalist it's currently routed through," except where `.combined` is explicitly special-cased in code (flagged per row).
 
 ---
@@ -54,11 +54,11 @@ Source: `FloatingPetInteractionView.presentHidePrompt` (Own), `MinimalistBadgeVi
 
 ## 2. Panel-managing protocols
 
-Source: `FloatingPetController.swift` (`FloatingPetPanelManaging` lines 71-115, `MinimalistPanelManaging` lines 302-332).
+Source: `FloatingPetController.swift` (`PanelManaging` and `PanelActionHandling`).
 
 | # | Capability | Own | Minimalist | Combined | proposed | disposition |
 |---|---|---|---|---|---|---|
-| R2.1 | Protocol conformance | `FloatingPetPanelManaging` via `FloatingPetPanelController`, wrapped by `FloatingPetController` | `MinimalistPanelManaging` via `MinimalistPanelController`, wrapped by `MinimalistWindowController` | Inherits routed shape's protocol — no `WindowKey`-level branching inside either protocol or its conformers | intentional | intentional |
+| R2.1 | Protocol conformance | Shared `PanelManaging` + `PanelActionHandling` via `FloatingPetPanelController`, wrapped by `FloatingPetController` | Shared `PanelManaging` + `PanelActionHandling` via `MinimalistPanelController`, wrapped by `MinimalistWindowController` | Inherits the routed skin through the same renderer/action protocols; `WindowKey` targeting stays in `WindowActionRouter` | intentional | intentional |
 | R2.2 | `apply(state:visualMode:)` (sprite-scene state) | Present | **Absent from protocol** — no sprite scene concept | Present only when routed to Own | intentional | intentional |
 | R2.3 | `applyRPGState` / `setRPGHUDEnabled` / `setHUDDemoActive` / `setHUDPinned` | Present, full RPG HUD lifecycle | **Absent from protocol.** `MinimalistWindowController.applyRPGState` is an explicit no-op with comment "Minimalist mode intentionally has no sprite and no RPG HUD" | Present only when routed to Own | intentional (explicitly documented in code) | intentional |
 | R2.4 | `setInteraction` (drag-interaction state) | Present | Absent from protocol | Present only when routed to Own | intentional | intentional |
