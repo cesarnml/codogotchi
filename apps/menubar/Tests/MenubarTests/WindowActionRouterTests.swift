@@ -74,15 +74,12 @@ final class WindowActionRouterTests: XCTestCase {
 		return (router, resets, clears)
 	}
 
-	/// Runs an async writer-backed router action and waits briefly for the
-	/// background queue to finish, mirroring `StateJsonWriterTests`' pattern
-	/// but without a completion hook on the router API itself.
-	private func settle() {
-		let expectation = expectation(description: "settle")
-		DispatchQueue.global(qos: .userInitiated).async {
-			DispatchQueue.main.async { expectation.fulfill() }
-		}
-		wait(for: [expectation], timeout: 5)
+	/// Runs an async router action and blocks until its completion fires,
+	/// mirroring `StateJsonWriterTests`' `runDismissAttention` pattern.
+	private func runAndWait(_ action: (@escaping () -> Void) -> Void) {
+		let done = expectation(description: "router action")
+		action { done.fulfill() }
+		wait(for: [done], timeout: 5)
 	}
 
 	// MARK: - resolveWindowOrigins
@@ -110,8 +107,7 @@ final class WindowActionRouterTests: XCTestCase {
 		writeSlice("cursor:s1.json", in: dir)
 		let (router, resets, _) = makeRouter(dir: dir)
 
-		router.handleAttentionDismissed(for: .origin("claude_code"))
-		settle()
+		runAndWait { router.handleAttentionDismissed(for: .origin("claude_code"), completion: $0) }
 
 		XCTAssertNil(readSlice("claude_code:s1.json", in: dir)!["attention"])
 		XCTAssertNotNil(readSlice("cursor:s1.json", in: dir)!["attention"], "sibling origin must be untouched")
@@ -126,8 +122,7 @@ final class WindowActionRouterTests: XCTestCase {
 		let (router, resets, clears) = makeRouter(dir: dir)
 		let key = WindowKey.session(origin: "claude_code", id: "s1")
 
-		router.handleAttentionDismissed(for: key)
-		settle()
+		runAndWait { router.handleAttentionDismissed(for: key, completion: $0) }
 
 		XCTAssertNil(readSlice("claude_code:s1.json", in: dir)!["attention"])
 		XCTAssertNil(
@@ -145,8 +140,7 @@ final class WindowActionRouterTests: XCTestCase {
 		writeSlice("codex:s1.json", in: dir)
 		let (router, _, _) = makeRouter(dir: dir, combinedOrigins: ["claude_code", "cursor"])
 
-		router.handleAttentionDismissed(for: .combined)
-		settle()
+		runAndWait { router.handleAttentionDismissed(for: .combined, completion: $0) }
 
 		XCTAssertNil(readSlice("claude_code:s1.json", in: dir)!["attention"])
 		XCTAssertNil(readSlice("cursor:s1.json", in: dir)!["attention"])
@@ -161,8 +155,7 @@ final class WindowActionRouterTests: XCTestCase {
 		writeSlice("cursor:s1.json", in: dir, activityState: "implementing", attention: false)
 		let (router, _, _) = makeRouter(dir: dir)
 
-		router.handleForceIdle(for: .origin("claude_code"))
-		settle()
+		runAndWait { router.handleForceIdle(for: .origin("claude_code"), completion: $0) }
 
 		XCTAssertEqual(readSlice("claude_code:s1.json", in: dir)!["activity_state"] as? String, "idle")
 		XCTAssertEqual(
@@ -177,8 +170,7 @@ final class WindowActionRouterTests: XCTestCase {
 		let (router, resets, _) = makeRouter(dir: dir)
 		let key = WindowKey.session(origin: "claude_code", id: "s1")
 
-		router.handleForceIdle(for: key)
-		settle()
+		runAndWait { router.handleForceIdle(for: key, completion: $0) }
 
 		XCTAssertEqual(readSlice("claude_code:s1.json", in: dir)!["activity_state"] as? String, "idle")
 		XCTAssertEqual(
@@ -194,8 +186,7 @@ final class WindowActionRouterTests: XCTestCase {
 		writeSlice("codex:s1.json", in: dir, activityState: "implementing", attention: false)
 		let (router, _, _) = makeRouter(dir: dir, combinedOrigins: ["claude_code", "cursor"])
 
-		router.handleForceIdle(for: .combined)
-		settle()
+		runAndWait { router.handleForceIdle(for: .combined, completion: $0) }
 
 		XCTAssertEqual(readSlice("claude_code:s1.json", in: dir)!["activity_state"] as? String, "idle")
 		XCTAssertEqual(readSlice("cursor:s1.json", in: dir)!["activity_state"] as? String, "idle")

@@ -47,6 +47,12 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// renderer at a time.
 	var livePollingDriver: LivePollingDriver?
 
+	/// Owns the session/combined/plain-origin targeting policy for
+	/// `onAttentionDismissed` / `onForceIdle`, shared by the own-window and
+	/// minimalist-window factories so that policy is expressed exactly once
+	/// (P17.05). Constructed once pool assets are available.
+	var windowActionRouter: WindowActionRouter?
+
 	/// Held strongly so the periodic `state.d/` prune `Timer` survives. Nil in
 	/// demo mode (the sandboxed fixture dir is not pruned).
 	var slicePruneScheduler: SlicePruneScheduler?
@@ -214,6 +220,23 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			self.codexPet = codexPet
 			let resolver = PetAssetResolver()
 			self.petAssetResolver = resolver
+			// Closures capture `self` weakly and read `floatingPetWindowPool`
+			// lazily — safe even though the pool below is constructed after
+			// the router, because these bodies only run once the pool (and
+			// the window factories that use the router) exist.
+			let router = WindowActionRouter(
+				stateDir: { config.pollingTarget.path },
+				resetPromptTimer: { [weak self] key in
+					self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: key)
+				},
+				combinedModeOrigins: { [weak self] in
+					self?.floatingPetWindowPool?.combinedModeOrigins() ?? []
+				},
+				clearAttentionBubbles: { [weak self] key in
+					self?.floatingPetWindowPool?.clearAttentionBubbles(sharingOriginWith: key)
+				}
+			)
+			self.windowActionRouter = router
 			let pool = FloatingPetWindowPool(
 				windowFactory: { [weak self] origin, petId in
 					guard let self else {
@@ -257,56 +280,20 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					controller.onVisibilityChanged = { [weak self] _ in
 						self?.updateAppNapOptOut()
 					}
-					// Persist the dismiss/focus so the next poll tick does not re-read
-					// the still-present `attention` and re-show the bubble. Focus/dismiss
-					// on a session-keyed window can only act on the platform app as a
-					// whole (no window-level API names a specific agent thread), so it
-					// idles every sibling session's slice for that origin, not just the
-					// clicked one, and clears their bubbles immediately rather than
-					// waiting a poll tick. A plain-origin or combined window has no
-					// single session to name, so it clears the winner slice per origin.
 					let stateDir = config.pollingTarget.path
+					// Targeting policy for both handlers below lives in
+					// `WindowActionRouter` (P17.05) — see its doc comments
+					// for the session/combined/plain-origin asymmetries.
 					panel.onAttentionDismissed = { [weak self] in
-						// Reset the pool-owned prompt timer before the on-disk rewrite:
-						// the reset's real-current-time stamp is what stops a next-tick
-						// poll of the pre-rewrite slice from restarting the timer.
-						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
-						if let identity = origin.sessionIdentity {
-							StateJsonWriter.dismissAllSessionsAttention(at: stateDir, origin: identity.origin)
-							self?.floatingPetWindowPool?.clearAttentionBubbles(sharingOriginWith: origin)
-						} else {
-							StateJsonWriter.dismissAttention(
-								at: stateDir,
-								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin.origin]
-							)
-						}
+						self?.windowActionRouter?.handleAttentionDismissed(for: origin)
 					}
-					// Right-click "Force Idle" escape hatch: rewrite this pet's displayed
-					// slice back to idle so a stuck (rate-limited / manually-stopped)
-					// animation clears. A session-keyed window targets exactly its own
-					// slice — never a sibling session's, which right-clicking Force Idle
-					// used to reset if that sibling happened to be the freshest slice for
-					// the origin. A combined window folds several origins into one pet, so
-					// it resets exactly that combined set; a plain own window resets just
-					// its origin's winner slice. Never all slices — that idles unrelated
-					// pets and resurrects aged-out ones by refreshing their mtimes.
 					// Also clears this window's own SOA badges (ticket/gate) and
 					// conflict speech bubble — they're driven by separate
-					// .gate.json/.context.json polling state that the state.d/
-					// idle rewrite above never touches, so without this the stuck
-					// badge/bubble would survive the "escape hatch" click.
+					// .gate.json/.context.json polling state that the router's
+					// state.d/ idle rewrite never touches, so without this the
+					// stuck badge/bubble would survive the "escape hatch" click.
 					panel.onForceIdle = { [weak self, weak panel] in
-						// Pool-tracker reset first — see onAttentionDismissed above.
-						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
-						if let identity = origin.sessionIdentity {
-							StateJsonWriter.forceIdle(
-								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
-						} else {
-							StateJsonWriter.forceIdle(
-								at: stateDir,
-								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin.origin]
-							)
-						}
+						self?.windowActionRouter?.handleForceIdle(for: origin)
 						panel?.applyGateBadge(content: nil)
 						panel?.applyConflictBubble(nil)
 					}
@@ -446,46 +433,19 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 						// tab re-read the file for every pixel of the drag.
 						self?.customizationStore.setMinimalistBadgeScale(scale, notify: isFinal)
 					}
-					// Focus/dismiss on a session-keyed minimalist badge can only act on
-					// the platform app as a whole, so it idles every sibling session's
-					// slice for that origin (not just the clicked one) and clears their
-					// bubbles immediately; the combined-minimalist window folds several
-					// origins into one badge, so it scopes both writes to that combined
-					// set (or the single plain origin).
+					// Targeting policy for both handlers below (session-keyed
+					// badge vs. combined vs. plain origin) lives in
+					// `WindowActionRouter` (P17.05), shared verbatim with the
+					// Own-mode factory above.
 					panel.onAttentionDismissed = { [weak self] in
-						// Reset the pool-owned prompt timer before the on-disk rewrite:
-						// the reset's real-current-time stamp is what stops a next-tick
-						// poll of the pre-rewrite slice from restarting the timer.
-						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
-						if let identity = origin.sessionIdentity {
-							StateJsonWriter.dismissAllSessionsAttention(at: stateDir, origin: identity.origin)
-							self?.floatingPetWindowPool?.clearAttentionBubbles(sharingOriginWith: origin)
-						} else {
-							StateJsonWriter.dismissAttention(
-								at: stateDir,
-								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin.origin]
-							)
-						}
+						self?.windowActionRouter?.handleAttentionDismissed(for: origin)
 					}
-					// Right-click "Force Idle" escape hatch on the minimalist badge,
-					// mirroring Own mode: a session-keyed badge resets exactly its own
-					// slice, never a fresher sibling session's; otherwise resets the
-					// combined set for the combined window, or just this origin.
 					// Also clears this window's own SOA badges (ticket/gate) and
 					// conflict speech bubble — see the matching Own-mode comment
-					// above for why the state.d/ idle rewrite alone can't do this.
+					// above for why the router's state.d/ idle rewrite alone can't
+					// do this.
 					panel.onForceIdle = { [weak self, weak panel] in
-						// Pool-tracker reset first — see onAttentionDismissed above.
-						self?.floatingPetWindowPool?.resetPromptTimer(forWindowKey: origin)
-						if let identity = origin.sessionIdentity {
-							StateJsonWriter.forceIdle(
-								at: stateDir, origin: identity.origin, sessionId: identity.sessionId)
-						} else {
-							StateJsonWriter.forceIdle(
-								at: stateDir,
-								origins: self?.resolveWindowOrigins(windowKey: origin) ?? [origin.origin]
-							)
-						}
+						self?.windowActionRouter?.handleForceIdle(for: origin)
 						panel?.applyGateBadge(content: nil)
 						panel?.applyConflictBubble(nil)
 					}
