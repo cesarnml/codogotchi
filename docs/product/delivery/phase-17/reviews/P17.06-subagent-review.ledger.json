@@ -33,6 +33,24 @@
       "primaryAgent": "unknown",
       "runnerSelfReport": null,
       "fallbackFrom": null
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "4509bd74b02dd5c2c66c0c1fa844f2eaae3d503a",
+      "outcome": "patched",
+      "completedAt": "2026-07-12T11:28:59.958Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [
+        "ad9fe0ef765838f7710be0dc813ff995369bf1ab",
+        "441f24f2270e30c1e57698fb6e6d9d4132af2ec4",
+        "029df6a3800a85dca16a8c496746ab3006f0d4e2"
+      ],
+      "schemaVersion": 1,
+      "primaryAgent": "unknown",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
     }
   ]
 }
