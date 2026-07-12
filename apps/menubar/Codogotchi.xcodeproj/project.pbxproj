@@ -47,6 +47,7 @@
 		2DE5757A1AB31EA244306A07 /* CodogotchiFolders.swift in Sources */ = {isa = PBXBuildFile; fileRef = C24E41079FB3603E2C64AAF9 /* CodogotchiFolders.swift */; };
 		2E2D4A6F8E45BCA89918B7F1 /* FloatingPetInteractionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEE399EF550E69D66FBC271D /* FloatingPetInteractionView.swift */; };
 		2E47A674904203BF5704C95A /* SessionSelectionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BBC3DE729053A5A25EFCF7 /* SessionSelectionPolicyTests.swift */; };
+		302E6C20FF8BA024E94C485A /* PoolMemoryUserActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6037ACAC28B6369F04607D /* PoolMemoryUserActions.swift */; };
 		3278D5B8A5BF524A956FECEC /* FloatingInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */; };
 		38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */; };
 		3996ADE8B389AEB45AAB6827 /* RPGHUDPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C041CB2EE71340F3F263BFB /* RPGHUDPreviewView.swift */; };
@@ -57,6 +58,7 @@
 		43791C4A0AB326A9F055049C /* GateBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE11B737B6F0D401A7F9696 /* GateBadgeView.swift */; };
 		44C2550A80D96292C3200AA3 /* BadgeRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614CFF95A1D23539328DD341 /* BadgeRowView.swift */; };
 		46A42463FFCE9411B5B6A383 /* RpgStateReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21EAF55FDD0C6277E3CCB83F /* RpgStateReader.swift */; };
+		478BB8239A09C07C502308A3 /* PoolMemorySessionAllocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 661B3634E79B69AA992401CC /* PoolMemorySessionAllocatorTests.swift */; };
 		48039C0D158ED5BFA3835793 /* PetAssetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBEEA897349417D8DCF805AF /* PetAssetResolver.swift */; };
 		48A2772A0D6A58669286E5F9 /* ConflictBubbleTargetSelectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E19594796A8315FCBDF3BD /* ConflictBubbleTargetSelectorTests.swift */; };
 		492E8762693554F3FC19185E /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B29FA358FF8C6C74B85325 /* SettingsWindowController.swift */; };
@@ -137,6 +139,7 @@
 		A94729EE4E31C8A57629486A /* RPGHUDViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78115EE1CE4F0AFD41CC1231 /* RPGHUDViewModelTests.swift */; };
 		AAC66A3D20F70AA3BC1608C5 /* RenderKeyResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B86CEF42917F1F47CF4166F3 /* RenderKeyResolver.swift */; };
 		AD267BA7C6B0CD027737CB3A /* GateBadgePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1203CF2C4FF29C31534A7CF /* GateBadgePanel.swift */; };
+		ADF691D854E688C06E562FC9 /* SessionNumberAllocatorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A93F4C1345C915EADBB6C51 /* SessionNumberAllocatorState.swift */; };
 		B06C74474A2E6AC6365223CA /* TabStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE2082F8FBBB4E484C347FC /* TabStripView.swift */; };
 		B20913FC5559EE95F7E4E2BA /* PetImportHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */; };
 		B2E987D4266CDD1A1AC3AF04 /* CustomizationJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EED7E5C1185B639D5786A2E2 /* CustomizationJsonReaderTests.swift */; };
@@ -297,9 +300,11 @@
 		5F486C5A7F91BAF4B1E38E58 /* AppBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrapTests.swift; sourceTree = "<group>"; };
 		614CFF95A1D23539328DD341 /* BadgeRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeRowView.swift; sourceTree = "<group>"; };
 		61ADDBCA1AB46B4CC695D70A /* CustomizationJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationJsonReader.swift; sourceTree = "<group>"; };
+		661B3634E79B69AA992401CC /* PoolMemorySessionAllocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolMemorySessionAllocatorTests.swift; sourceTree = "<group>"; };
 		6660BA8D585465422C1ABA1A /* PromptTimerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTimerTests.swift; sourceTree = "<group>"; };
 		69AAB6A6C7C3D72625092383 /* RPGMiniRingIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGMiniRingIconView.swift; sourceTree = "<group>"; };
 		6A41D03348B33BB814D7233A /* FloatingInteraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingInteraction.swift; sourceTree = "<group>"; };
+		6A93F4C1345C915EADBB6C51 /* SessionNumberAllocatorState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNumberAllocatorState.swift; sourceTree = "<group>"; };
 		6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetImportHelperTests.swift; sourceTree = "<group>"; };
 		72DE062B5722F00B659A555C /* CodogotchiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodogotchiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		73377920B0941E9C1C4DE4FF /* ConfigBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigBootstrap.swift; sourceTree = "<group>"; };
@@ -327,6 +332,7 @@
 		8B308CD35F0C1360F241121D /* PoolDeriveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolDeriveTests.swift; sourceTree = "<group>"; };
 		8BB58C3C8994A38F9FE444EE /* TransitionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionLog.swift; sourceTree = "<group>"; };
 		8C5496B13380891C32935ABE /* StateJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonReader.swift; sourceTree = "<group>"; };
+		8C6037ACAC28B6369F04607D /* PoolMemoryUserActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolMemoryUserActions.swift; sourceTree = "<group>"; };
 		8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingInteractionTests.swift; sourceTree = "<group>"; };
 		8DBC88DE074DC11652453ADE /* PetTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetTabView.swift; sourceTree = "<group>"; };
 		8E2899DD8851B86633D4BB28 /* PetThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetThumbnail.swift; sourceTree = "<group>"; };
@@ -429,6 +435,7 @@
 				1A729378681BEE16B8D2F9AF /* PoolDerivePurityGateTests.swift */,
 				B73D6177E10BF41D1D77DF16 /* PoolDeriveSelectionTests.swift */,
 				8B308CD35F0C1360F241121D /* PoolDeriveTests.swift */,
+				661B3634E79B69AA992401CC /* PoolMemorySessionAllocatorTests.swift */,
 			);
 			path = Derive;
 			sourceTree = "<group>";
@@ -729,7 +736,9 @@
 				52B98FC35F71CC460885451E /* DesiredWindows.swift */,
 				819A2B3D937015B5265A289C /* PoolDerive.swift */,
 				A6C7773EAF8CC26653E52350 /* PoolMemory.swift */,
+				8C6037ACAC28B6369F04607D /* PoolMemoryUserActions.swift */,
 				FC0153CA2F32DC0733909BE8 /* PoolTickInput.swift */,
+				6A93F4C1345C915EADBB6C51 /* SessionNumberAllocatorState.swift */,
 			);
 			path = Derive;
 			sourceTree = "<group>";
@@ -940,6 +949,7 @@
 				8F1F8583F4FEFC28BD92B6AC /* PlatformSessionBadge.swift in Sources */,
 				88AF785A8F00279AB57E164F /* PoolDerive.swift in Sources */,
 				CFDE87CF42EBDA584FE72651 /* PoolMemory.swift in Sources */,
+				302E6C20FF8BA024E94C485A /* PoolMemoryUserActions.swift in Sources */,
 				7F4F10C69F24643131BEF475 /* PoolTickInput.swift in Sources */,
 				65E8894467BC8BA03C4A15A9 /* PromptTimer.swift in Sources */,
 				6A6E965676C08DCF5EA44900 /* PromptTimerChipView.swift in Sources */,
@@ -959,6 +969,7 @@
 				5BE414B5F01BD917B60E917C /* SessionLabelStore.swift in Sources */,
 				7F5CE1C2A38EDF6923CF9D29 /* SessionLifecycle.swift in Sources */,
 				96B8F67F61C130F416843455 /* SessionNumberAllocator.swift in Sources */,
+				ADF691D854E688C06E562FC9 /* SessionNumberAllocatorState.swift in Sources */,
 				F1DA9A5DDE53EE242990A3C5 /* SessionPruner.swift in Sources */,
 				68485B3B8680FFE11827FF76 /* SessionRowView.swift in Sources */,
 				E40D5C583288F2DC593AC880 /* SessionSelectionPolicy.swift in Sources */,
@@ -1032,6 +1043,7 @@
 				FD665AC2568C40ADDD61281B /* PoolDerivePurityGateTests.swift in Sources */,
 				76D1DF2AA36664A0B3993245 /* PoolDeriveSelectionTests.swift in Sources */,
 				5887637BC646221531D0202F /* PoolDeriveTests.swift in Sources */,
+				478BB8239A09C07C502308A3 /* PoolMemorySessionAllocatorTests.swift in Sources */,
 				CFD5C0AE22C996C03621521C /* PromptTimerTests.swift in Sources */,
 				A94729EE4E31C8A57629486A /* RPGHUDViewModelTests.swift in Sources */,
 				A4DE38B2FAB835D924339D92 /* RPGTabViewModelTests.swift in Sources */,
