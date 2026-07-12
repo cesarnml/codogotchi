@@ -17,7 +17,7 @@ import AppKit
 /// clipped repaints when a dismiss and a combined-window chip swap resized the
 /// same panel in one tick. With two panels neither failure mode is reachable.
 @MainActor
-final class MinimalistPanelController: MinimalistPanelManaging {
+final class MinimalistPanelController: PanelManaging {
 	private enum Layout {
 		static let height: CGFloat = 58
 		/// Extra vertical room for the `PlatformSessionBadge` row, only added

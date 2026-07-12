@@ -68,8 +68,14 @@ extension FloatingPetWindowControlling {
 	func updateIdleEscalationConfig(_ config: IdleEscalationConfig) {}
 }
 
+/// Unified interface for a floating-pet panel renderer, covering both the
+/// full "Own"-mode panel (`FloatingPetPanelController`) and the compact
+/// "Minimalist" strip (`MinimalistPanelController`) — one renderer
+/// interface, two skins. Members outside a conformer's shape get a
+/// default no-op via the extension below, so neither renderer is forced
+/// to implement members that don't apply to it.
 @MainActor
-protocol FloatingPetPanelManaging: AnyObject {
+protocol PanelManaging: AnyObject {
 	func show(frame: CGRect)
 	func hide()
 	func apply(state: ActivityState, visualMode: VisualMode)
@@ -85,38 +91,58 @@ protocol FloatingPetPanelManaging: AnyObject {
 	func setHUDPinned(_ pinned: Bool)
 	func setInteraction(_ interaction: FloatingInteraction?)
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
-	/// Assigned session number for this panel (nil clears the session badge row).
+	/// Assigned session number for this window (nil clears the session badge row).
 	func applySessionNumber(_ number: Int?)
-	/// User-set rename label for this session, or `nil` to fall back to "Session N".
+	/// User-set rename label for this session (from `SessionLabelStore`), or
+	/// `nil` to fall back to "Session N". No-op for plain-origin/"combined"
+	/// windows, mirroring `applySessionNumber`.
 	func applySessionLabel(_ label: String?)
-	/// Last submitted prompt for this exact session, shown as a delayed hover tooltip.
+	/// Last submitted prompt for this exact session, shown as a delayed hover
+	/// tooltip on the session badge. `nil`/empty clears the tooltip.
 	func applySessionTooltip(_ summary: String?)
 	/// Reversible P15.08 conflict-bubble presentation; `nil` hides it.
 	func applyConflictBubble(_ payload: ConflictBubblePayload?)
 	/// Live-updates the idle-escalation thresholds for this panel's scene.
 	func updateIdleEscalationConfig(_ config: IdleEscalationConfig)
+	func applyActivity(_ state: ActivityState)
+	func applyPromptSummary(_ summary: String)
+	func applyBadgeScale(_ scale: Double)
 }
 
-extension FloatingPetPanelManaging {
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {}
+extension PanelManaging {
+	// Floating-only members: default no-ops so MinimalistPanelController
+	// (which has no sprite, RPG HUD, interaction, or idle-escalation concept)
+	// isn't forced to implement them.
+	func apply(state: ActivityState, visualMode: VisualMode) {}
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
-	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
-	func applyGateBadge(content: GateBadgeContent?) {}
-	func applyPlatform(origin: String?) {}
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {}
 	func setRPGHUDEnabled(_ enabled: Bool) {}
 	func setHUDDemoActive(_ active: Bool) {}
 	func setHUDPinned(_ pinned: Bool) {}
+	func setInteraction(_ interaction: FloatingInteraction?) {}
+	func updateIdleEscalationConfig(_ config: IdleEscalationConfig) {}
+
+	// Minimalist-only members: default no-ops so FloatingPetPanelController
+	// (which renders a sprite, not a compact strip) isn't forced to implement them.
+	func applyActivity(_ state: ActivityState) {}
+	func applyPromptSummary(_ summary: String) {}
+	func applyBadgeScale(_ scale: Double) {}
+
+	// Shared members with default no-ops (kept for convenience; both
+	// conformers implement these directly).
+	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {}
+	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
+	func applyGateBadge(content: GateBadgeContent?) {}
+	func applyPlatform(origin: String?) {}
 	func applySessionNumber(_ number: Int?) {}
 	func applySessionLabel(_ label: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
-	func updateIdleEscalationConfig(_ config: IdleEscalationConfig) {}
 }
 
 @MainActor
 final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, FloatingPetWindowControlling {
-	private let panel: FloatingPetPanelManaging
+	private let panel: PanelManaging
 	private let visibleFrameProvider: () -> CGRect
 	private let saveState: (FloatingAppState) throws -> Void
 	private var state: FloatingAppState
@@ -128,7 +154,7 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 	var onVisibilityChanged: ((Bool) -> Void)?
 
 	init(
-		panel: FloatingPetPanelManaging,
+		panel: PanelManaging,
 		visibleFrameProvider: @escaping () -> CGRect,
 		saveState: @escaping (FloatingAppState) throws -> Void = AppStateStore.save,
 		notificationCenter: NotificationCenter = .default,
@@ -300,41 +326,9 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 }
 
 @MainActor
-protocol MinimalistPanelManaging: AnyObject {
-	func show(frame: CGRect)
-	func hide()
-	func applyPlatform(origin: String?)
-	func applyActivity(_ state: ActivityState)
-	/// Pool-computed prompt-timer status for display (see `PromptTimerTracker`).
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?)
-	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
-	func applyPromptSummary(_ summary: String)
-	func applyBadgeScale(_ scale: Double)
-	func applyGateBadge(content: GateBadgeContent?)
-	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
-	/// Assigned session number for this strip (nil clears the session badge row).
-	func applySessionNumber(_ number: Int?)
-	/// User-set rename label for this session (from `SessionLabelStore`), or
-	/// `nil` to fall back to "Session N". No-op for plain-origin/"combined"
-	/// windows, mirroring `applySessionNumber`.
-	func applySessionLabel(_ label: String?)
-	/// Last submitted prompt for this exact session, shown as a delayed hover
-	/// tooltip on the session badge. `nil`/empty clears the tooltip.
-	func applySessionTooltip(_ summary: String?)
-	/// Reversible P15.08 conflict-bubble presentation; `nil` hides it.
-	func applyConflictBubble(_ payload: ConflictBubblePayload?)
-}
-
-extension MinimalistPanelManaging {
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {}
-	func applySessionLabel(_ label: String?) {}
-	func applySessionTooltip(_ summary: String?) {}
-}
-
-@MainActor
 final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	private let origin: WindowKey
-	private let panel: MinimalistPanelManaging
+	private let panel: PanelManaging
 	private let visibleFrameProvider: () -> CGRect
 	private let saveState: (FloatingAppState) throws -> Void
 	private let notificationCenter: NotificationCenter
@@ -352,7 +346,7 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 
 	init(
 		origin: WindowKey,
-		panel: MinimalistPanelManaging,
+		panel: PanelManaging,
 		visibleFrameProvider: @escaping () -> CGRect,
 		saveState: @escaping (FloatingAppState) throws -> Void = AppStateStore.save,
 		notificationCenter: NotificationCenter = .default,
