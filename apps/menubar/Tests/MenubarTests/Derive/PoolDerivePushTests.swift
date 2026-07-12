@@ -1,0 +1,114 @@
+import XCTest
+
+@testable import Codogotchi
+
+private func pushSnapshot(
+	state: ActivityState = .implementing,
+	updated: String,
+	origin: String? = nil
+) -> StateSnapshot {
+	StateSnapshot(
+		schemaVersion: EXPECTED_STATE_SCHEMA_VERSION,
+		activityState: state,
+		updatedAt: updated,
+		sourceEvent: origin.map { SourceEvent(origin: $0, kind: "tool", name: nil) },
+		attention: nil)
+}
+
+private func pushCustomization(
+	modes: [String: PlatformMode] = [:],
+	sessionPets: [String: Bool] = [:],
+	monochrome: Bool = false
+) -> CustomizationSnapshot {
+	CustomizationSnapshot(
+		platformModes: modes, idleDismissTtlSeconds: 300,
+		menubarIconMonochrome: monochrome, combinedMinimalistEnabled: false,
+		minimalistBadgeScale: 1, sessionPetsEnabled: sessionPets,
+		idleImpatientSeconds: 300, idleFrustratedSeconds: 600)
+}
+
+private func pushTick(
+	_ states: [WindowKey: StateSnapshot],
+	identities: [WindowKey: RenderKeyIdentity] = [:],
+	customization: CustomizationSnapshot,
+	memory: PoolMemory,
+	labels: [WindowKey: String] = [:],
+	titles: [WindowKey: String] = [:],
+	summaries: [WindowKey: String] = [:],
+	hudMode: PetConfig.RPGHUDMode = .mostRecent
+) -> (DesiredWindows, PoolMemory) {
+	PoolDerive.derive(
+		input: PoolTickInput(
+			snapshot: PerPlatformSnapshot(
+				perPlatform: states, gateBadges: [:], rpgSnapshot: .safeDefault,
+				renderKeyIdentities: identities),
+			customization: customization, assignments: .safeDefault,
+			currentTime: Date(timeIntervalSinceReferenceDate: 0),
+			sessionLabels: labels, knownSessionTitles: titles,
+			sessionPromptSummaries: summaries, hudMode: hudMode),
+		memory: memory)
+}
+
+@MainActor
+final class PoolDerivePushTests: XCTestCase {
+	func testCombinedWinnerUsesFreshestUpdateAndIdleUsesCombinedDefaults() {
+		let customization = pushCustomization(modes: ["codex": .combined, "cursor": .combined])
+		let (desired, _) = pushTick(
+			[
+				"codex:a": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex"),
+				"cursor:b": pushSnapshot(state: .idle, updated: "2026-07-01T10:00:01.000Z", origin: "cursor"),
+			], customization: customization, memory: PoolMemory())
+		XCTAssertEqual(desired.windows[.combined]?.activityState, .idle)
+		XCTAssertEqual(desired.windows[.combined]?.platformChip, "combined")
+		XCTAssertEqual(desired.windows[.combined]?.sessionLabel, "Combined")
+	}
+
+	func testDirectPayloadPrecedenceAndMissingTitleRequest() {
+		let key: WindowKey = "codex:abc"
+		let identity = RenderKeyIdentity(origin: "codex", sessionId: "abc")
+		let customization = pushCustomization(sessionPets: ["codex": true])
+		let (desired, _) = pushTick(
+			[key: pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
+			identities: [key: identity], customization: customization, memory: PoolMemory(),
+			summaries: [key: "Refactor the renderer"])
+		XCTAssertEqual(desired.windows[key]?.sessionNumber, 1)
+		XCTAssertEqual(desired.windows[key]?.sessionLabel, "Session 1")
+		XCTAssertEqual(desired.windows[key]?.sessionTooltip, "Refactor the renderer")
+		XCTAssertEqual(desired.titleResolutionRequests, [identity])
+
+		let (renamed, _) = pushTick(
+			[key: pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
+			identities: [key: identity], customization: customization, memory: PoolMemory(),
+			labels: [key: "My task"], titles: [key: "Generated title"])
+		XCTAssertEqual(renamed.windows[key]?.sessionLabel, "My task")
+		XCTAssertTrue(renamed.titleResolutionRequests.isEmpty)
+	}
+
+	func testHudBearerStaysStickyAcrossBackgroundUpdate() {
+		let customization = pushCustomization()
+		var memory = PoolMemory()
+		var desired: DesiredWindows
+		(desired, memory) = pushTick(
+			["codex": pushSnapshot(updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization, memory: memory)
+		XCTAssertTrue(desired.windows["codex"]?.hudEnabled == true)
+		(desired, _) = pushTick(
+			[
+				"codex": pushSnapshot(updated: "2026-07-01T10:00:00.000Z"),
+				"cursor": pushSnapshot(updated: "2026-07-01T10:00:01.000Z"),
+			], customization: customization, memory: memory)
+		XCTAssertTrue(desired.windows["codex"]?.hudEnabled == true)
+		XCTAssertFalse(desired.windows["cursor"]?.hudEnabled == true)
+	}
+
+	func testMonochromeAndIdleEscalationOutputsArePureInputDerived() {
+		var memory = PoolMemory()
+		let customization = pushCustomization(monochrome: true)
+		let (desired, next) = pushTick([:], customization: customization, memory: memory)
+		XCTAssertEqual(desired.monochromeChanged, true)
+		XCTAssertEqual(desired.idleEscalationConfig.impatientAfter, 300)
+		memory = next
+		let (unchanged, _) = pushTick([:], customization: customization, memory: memory)
+		XCTAssertNil(unchanged.monochromeChanged)
+	}
+}
