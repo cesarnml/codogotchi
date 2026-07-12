@@ -266,6 +266,173 @@ final class FloatingInteractionTests: XCTestCase {
 			"rows must be separated by exactly rowSpacing with no overlap")
 	}
 
+	// MARK: - Shared prompt item builder (P17.02)
+	//
+	// Table-driven against `docs/contracts/window-capability-matrix.md` §1:
+	// per-shape differences are expressed only as `FloatingPetPromptCapabilities`
+	// fields (never a shape-identity boolean), and Combined is not a distinct
+	// row here — it inherits whichever shape's capabilities it is routed
+	// through, so only Own and Minimalist rows are exercised.
+
+	private func noopPromptHandlers() -> FloatingPetPromptHandlers {
+		FloatingPetPromptHandlers(
+			forceIdle: {}, rename: {}, syncLabel: {}, prune: {},
+			modeSwitch: {}, panelSize: {}, hideAllOtherPets: {}, hideThis: {}
+		)
+	}
+
+	private func ownPromptCapabilities(
+		offersForceIdle: Bool = false,
+		sessionLabel: String? = nil,
+		hasActiveSession: Bool = false
+	) -> FloatingPetPromptCapabilities {
+		FloatingPetPromptCapabilities(
+			offersForceIdle: offersForceIdle,
+			sessionLabel: sessionLabel,
+			hasActiveSession: hasActiveSession,
+			modeSwitchTitle: FloatingPetHidePrompt.minimalistModeTitle,
+			offersPanelSize: false,
+			hideItemTitle: FloatingPetHidePrompt.title
+		)
+	}
+
+	private func minimalistPromptCapabilities(
+		offersForceIdle: Bool = false,
+		sessionLabel: String? = nil,
+		hasActiveSession: Bool = false
+	) -> FloatingPetPromptCapabilities {
+		FloatingPetPromptCapabilities(
+			offersForceIdle: offersForceIdle,
+			sessionLabel: sessionLabel,
+			hasActiveSession: hasActiveSession,
+			modeSwitchTitle: FloatingPetHidePrompt.petModeTitle,
+			offersPanelSize: true,
+			hideItemTitle: FloatingPetHidePrompt.panelTitle
+		)
+	}
+
+	func testOwnBuilderMinimalCapabilitiesProducesUnconditionalItemsOnly() {
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: ownPromptCapabilities(), handlers: noopPromptHandlers())
+		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.minimalistModeTitle,
+			FloatingPetHidePrompt.hideAllOtherPetsTitle,
+			FloatingPetHidePrompt.title,
+		])
+	}
+
+	func testOwnBuilderOffersForceIdleFirst() {
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: ownPromptCapabilities(offersForceIdle: true), handlers: noopPromptHandlers())
+		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.forceIdleTitle,
+			FloatingPetHidePrompt.minimalistModeTitle,
+			FloatingPetHidePrompt.hideAllOtherPetsTitle,
+			FloatingPetHidePrompt.title,
+		])
+	}
+
+	func testOwnBuilderPlainOriginLabelOffersRenameOnly() {
+		// R1.4/R1.5: a labeled-but-not-session-keyed window (plain-origin or
+		// combined) offers Rename but not Sync Label / Prune.
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: ownPromptCapabilities(sessionLabel: "codex"), handlers: noopPromptHandlers())
+		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.renameTitle,
+			FloatingPetHidePrompt.minimalistModeTitle,
+			FloatingPetHidePrompt.hideAllOtherPetsTitle,
+			FloatingPetHidePrompt.title,
+		])
+	}
+
+	func testOwnBuilderSessionKeyedOffersRenameSyncLabelAndPrune() {
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: ownPromptCapabilities(sessionLabel: "Session 3", hasActiveSession: true),
+			handlers: noopPromptHandlers())
+		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.renameTitle,
+			FloatingPetHidePrompt.syncLabelTitle,
+			FloatingPetHidePrompt.pruneTitle,
+			FloatingPetHidePrompt.minimalistModeTitle,
+			FloatingPetHidePrompt.hideAllOtherPetsTitle,
+			FloatingPetHidePrompt.title,
+		])
+	}
+
+	func testOwnBuilderNeverOffersPanelSize() {
+		// R1.7: Own has no analogous size concept.
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: ownPromptCapabilities(
+				offersForceIdle: true, sessionLabel: "x", hasActiveSession: true),
+			handlers: noopPromptHandlers())
+		XCTAssertFalse(items.map(\.title).contains(FloatingPetHidePrompt.panelSizeTitle))
+	}
+
+	func testMinimalistBuilderMinimalCapabilitiesIncludesUnconditionalPanelSize() {
+		// R1.7: Minimalist offers Panel Size… unconditionally.
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: minimalistPromptCapabilities(), handlers: noopPromptHandlers())
+		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.petModeTitle,
+			FloatingPetHidePrompt.panelSizeTitle,
+			FloatingPetHidePrompt.hideAllOtherPetsTitle,
+			FloatingPetHidePrompt.panelTitle,
+		])
+	}
+
+	func testMinimalistBuilderOffersForceIdleFirst() {
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: minimalistPromptCapabilities(offersForceIdle: true),
+			handlers: noopPromptHandlers())
+		XCTAssertEqual(items.first?.title, FloatingPetHidePrompt.forceIdleTitle)
+	}
+
+	func testMinimalistBuilderSessionKeyedOffersRenameSyncLabelAndPrune() {
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: minimalistPromptCapabilities(sessionLabel: "Session 2", hasActiveSession: true),
+			handlers: noopPromptHandlers())
+		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.renameTitle,
+			FloatingPetHidePrompt.syncLabelTitle,
+			FloatingPetHidePrompt.pruneTitle,
+			FloatingPetHidePrompt.petModeTitle,
+			FloatingPetHidePrompt.panelSizeTitle,
+			FloatingPetHidePrompt.hideAllOtherPetsTitle,
+			FloatingPetHidePrompt.panelTitle,
+		])
+	}
+
+	func testMinimalistBuilderUsesHidePanelTitleNotHidePet() {
+		// R1.9: cosmetic title-only difference; same last-item semantics.
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: minimalistPromptCapabilities(), handlers: noopPromptHandlers())
+		XCTAssertEqual(items.last?.title, FloatingPetHidePrompt.panelTitle)
+		XCTAssertFalse(items.map(\.title).contains(FloatingPetHidePrompt.title))
+	}
+
+	func testBuilderActivatingEachItemInvokesOnlyItsOwnHandlerInOrder() {
+		var fired: [String] = []
+		let handlers = FloatingPetPromptHandlers(
+			forceIdle: { fired.append("forceIdle") },
+			rename: { fired.append("rename") },
+			syncLabel: { fired.append("syncLabel") },
+			prune: { fired.append("prune") },
+			modeSwitch: { fired.append("modeSwitch") },
+			panelSize: { fired.append("panelSize") },
+			hideAllOtherPets: { fired.append("hideAllOtherPets") },
+			hideThis: { fired.append("hideThis") }
+		)
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: minimalistPromptCapabilities(
+				offersForceIdle: true, sessionLabel: "x", hasActiveSession: true),
+			handlers: handlers)
+		for item in items { item.onActivate() }
+		XCTAssertEqual(fired, [
+			"forceIdle", "rename", "syncLabel", "prune", "modeSwitch", "panelSize", "hideAllOtherPets",
+			"hideThis",
+		])
+	}
+
 	// MARK: - Prompt coordinator (single active prompt across panels)
 
 	func testCoordinatorDismissesOtherOwnerWhenPresentingElsewhere() {
