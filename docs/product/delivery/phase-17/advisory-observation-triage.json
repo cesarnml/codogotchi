@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-07-12T11:45:43.482Z",
+  "summary": {
+    "total": 7,
+    "patched": 3,
+    "rejected": 4,
+    "already-covered": 0,
+    "requires-human-review": 0
+  },
+  "dispositions": [
+    {
+      "disposition": "patched",
+      "rationale": "Added an explicit boundary-contract unit case proving that active session identity without a label offers Sync Label and Prune but not Rename; production pairing remains unchanged.",
+      "patch": {
+        "commitSha": "b690a568",
+        "files": [
+          "apps/menubar/Tests/MenubarTests/FloatingInteractionTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.02-subagent-review.report.md",
+        "ticketId": "P17.02"
+      },
+      "observation": "`FloatingPetPromptBuilder` intentionally allows `hasActiveSession: true` with `sessionLabel: nil`, producing Sync Label and Prune without Rename. Current production state resolution does not appear to construct that combination, so it is not a blocking finding; a precondition, normalized effective label gate, or explicit unit case would make the boundary contract clearer for future callers."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Completed the exact ordered-array assertions for the remaining Own and Minimalist capability rows, including Force Idle, panel-size absence, and the skin-specific hide title.",
+      "patch": {
+        "commitSha": "b690a568",
+        "files": [
+          "apps/menubar/Tests/MenubarTests/FloatingInteractionTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.02-subagent-review.report.md",
+        "ticketId": "P17.02"
+      },
+      "observation": "The ten new builder tests do not literally satisfy the ticket’s “table-driven exact titles and order for each shape × capability row” claim. `testMinimalistBuilderOffersForceIdleFirst` checks only the first title, `testOwnBuilderNeverOffersPanelSize` checks only absence, and `testMinimalistBuilderUsesHidePanelTitleNotHidePet` checks only the last/absent title. There is also no Minimalist plain-origin/Combined labeled-but-not-session-keyed exact-array case. Consider replacing these with a table of complete capability rows and expected ordered arrays."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Updated matrix rows R2.2 through R2.4 to describe the merged PanelManaging protocol and its Minimalist no-op defaults accurately.",
+      "patch": {
+        "commitSha": "b690a568",
+        "files": ["docs/contracts/window-capability-matrix.md"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.04-subagent-review.report.md",
+        "ticketId": "P17.04"
+      },
+      "observation": "`docs/contracts/window-capability-matrix.md` §2 is structurally stale after the merge. The shape definitions, source note, and R2.1 still name `FloatingPetPanelManaging` and `MinimalistPanelManaging`; R2.2–R2.5 say Floating-only members are “absent from protocol” for Minimalist, while `PanelManaging` now declares those members and supplies Minimalist no-op defaults. Runtime capability behavior remains consistent with the matrix, but the contract’s description of how that distinction is represented is no longer factual."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The suite already asserts persisted output and reset calls for every action and WindowKey shape, including live combined-origin expansion. The noted cases are optional test-strength enhancements and comment precision concerns, not evidence of an invariant violation.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.05-subagent-review.report.md",
+        "ticketId": "P17.05"
+      },
+      "observation": "`WindowActionRouterTests.swift` asserts final writes and reset calls, but its comments overstate direct ordering coverage: no injected reset closure checks that the target file is still unchanged when reset runs. The suite also only supplies completion, uses an immutable combined-origin fixture, and omits the documented `.origin(\"combined\")` edge. These are test-strength gaps, not evidence that the implementation violates an invariant."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "This is an explicitly disclosed and developer-approved scope reduction in the ticket rationale, not an undisclosed defect. The landed router owns the duplicated attention and Force Idle targeting policy; broadening the refactor post-closeout would be scope drift.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.05-subagent-review.report.md",
+        "ticketId": "P17.05"
+      },
+      "observation": "The literal Outcome in `docs/product/delivery/phase-17/ticket-05-router-factory-collapse.md` requires two factories to collapse into one parameterized factory and says the router owns the other `onX` bodies. The implementation retains two factories, leaves non-targeting handlers inline, and leaves Show targeting in `MenubarApp.resolveWindowOrigins`. The Rationale accurately and explicitly records this scope reduction, so it is disclosed spec deviation rather than a demonstrated correctness bug."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The exit audit records the exact verification commands, result, and test count. Raw local command logs are ephemeral build output and are not a required durable product or delivery artifact for this phase.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.06-subagent-review.report.md",
+        "ticketId": "P17.06"
+      },
+      "observation": "The behavior-bar section records pass claims but does not link durable logs or artifacts. Its wording about the final publication gate being rerun is weaker evidence than the otherwise exact test-count claim."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The helper is the sole assignment site for all nine strongly typed PanelActionHandling slots, both factories call it, and prompt-handler dispatch is behavior-tested. A full MenubarApp factory integration harness would be a broader testing-infrastructure project without a demonstrated missing or swapped handler.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-17/reviews/P17.06-subagent-review.report.md",
+        "ticketId": "P17.06"
+      },
+      "observation": "The refactor’s most important new contract—both skins reaching all nine handlers exclusively through `wirePanelActions`—has no behavioral test. Existing prompt, router, and pool tests would not detect a helper slot accidentally omitted, swapped, or left unwired in one factory."
+    }
+  ]
+}
