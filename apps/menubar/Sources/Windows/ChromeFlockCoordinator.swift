@@ -310,10 +310,6 @@ final class ChromeFlockCoordinator {
 		return hud
 	}
 
-	func hideHUDImmediately() {
-		rpgHUDPanel?.hideImmediately()
-	}
-
 	private func rpgHUDPanelInstance() -> RPGHUDPanel {
 		if let existing = rpgHUDPanel { return existing }
 		let panel = RPGHUDPanel()
