@@ -42,8 +42,11 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `WindowActionRouterTests` failed to compile (`Cannot find type 'WindowActionRouter' in scope`) before the router existed; once it existed, `testForceIdleSessionKeyedResetsExactlyItsOwnSliceNeverAFresherSibling` flaked once on an unbounded async wait (see Deferred) before the completion-based fix.
+
+Why this path: `WindowActionRouter` owns exactly the two duplicated handlers whose bodies branch on `WindowKey` shape — `onAttentionDismissed` and `onForceIdle` — ported verbatim (including the session-fan-out / exact-slice / combined-set / never-all-slices asymmetries and the prompt-timer-before-rewrite ordering) from the pre-existing closures. Both the own-window and minimalist-window factories construct one shared router instance and delegate to it, so the targeting policy and its explanatory comments now exist exactly once instead of twice.
+
+Alternative considered: collapsing the own-window and minimalist-window factories into one literal `panel.onX = { router.handle(.x, for: key) }`-style parameterized factory (per the ticket's outcome wording) was rejected for this pass — `FloatingPetPanelController` and `MinimalistPanelController` are distinct concrete types with no shared action protocol, and unifying them was a materially larger, riskier change than this ticket's core ask (router-owned targeting policy, verified by unit tests). The two factories remain, but every duplicated *targeting* body inside them — the highest-risk lines per Review Focus — now delegates to the router; no parallel comment block describing dismiss/force-idle targeting survives.
+
+Deferred: full single-factory unification across the own/minimalist controller types (would need a shared panel-action protocol — out of scope here); routing the non-targeting `onX` handlers (rename, sync label, prune, hide-all-other, mode-switch, open-settings) through the router — these have no `WindowKey`-shape branching to centralize, so leaving them inline is not policy duplication. `WindowActionRouterTests` initially waited on a fixed dispatch-queue round trip after the router's fire-and-forget async write; because `StateJsonWriter`'s target queue and the test's wait queue are independent, this raced and flaked. Fixed by adding an optional `completion` parameter to the router's two handlers (default `nil`, no behavior change for production call sites) and awaiting it via `XCTestExpectation` in tests.
+Contract note: none.
