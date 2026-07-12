@@ -135,6 +135,7 @@ struct PoolMemory: Equatable {
 	var lastMenubarIconMonochrome: Bool?
 	var activeConflictBubbleTargets: [String: WindowKey] = [:]
 	var conflictBubbleLastShownAt: [String: Date] = [:]
+	var previousCombinedWindow: DesiredWindow?
 
 	init() {}
 }

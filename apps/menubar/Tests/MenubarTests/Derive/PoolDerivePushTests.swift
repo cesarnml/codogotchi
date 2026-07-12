@@ -63,6 +63,32 @@ final class PoolDerivePushTests: XCTestCase {
 		XCTAssertEqual(desired.windows[.combined]?.sessionLabel, "Combined")
 	}
 
+	func testCombinedTransientGapRetainsLastActiveWindowAndTimer() {
+		let customization = pushCustomization(modes: ["codex": .combined])
+		var memory = PoolMemory()
+		var desired: DesiredWindows
+		(desired, memory) = pushTick(
+			["codex:a": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
+			customization: customization, memory: memory)
+		XCTAssertNotNil(desired.windows[.combined]?.promptTimerStatus)
+		(desired, memory) = pushTick([:], customization: customization, memory: memory)
+		XCTAssertNotNil(desired.windows[.combined], "last-active combined survives a transient empty poll")
+
+		let own = pushCustomization(modes: ["codex": .own])
+		(desired, memory) = pushTick([:], customization: own, memory: memory)
+		XCTAssertNil(desired.windows[.combined], "mode-switch-away is unconditional, unlike a transient gap")
+		XCTAssertNil(memory.promptTimers[.combined])
+	}
+
+	func testSourceLessActiveCombinedStillUsesCombinedLabel() {
+		let customization = pushCustomization(modes: ["codex": .combined])
+		let (desired, _) = pushTick(
+			["codex:a": pushSnapshot(updated: "2026-07-01T10:00:00.000Z")],
+			customization: customization, memory: PoolMemory())
+		XCTAssertNil(desired.windows[.combined]?.platformChip)
+		XCTAssertEqual(desired.windows[.combined]?.sessionLabel, "Combined")
+	}
+
 	func testDirectPayloadPrecedenceAndMissingTitleRequest() {
 		let key: WindowKey = "codex:abc"
 		let identity = RenderKeyIdentity(origin: "codex", sessionId: "abc")

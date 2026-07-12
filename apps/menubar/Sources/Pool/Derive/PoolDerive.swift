@@ -161,6 +161,24 @@ enum PoolDerive {
 
 		// Step 6: fold surviving render keys into their desired window keys.
 		let foldedGroups = Dictionary(grouping: survivingRenderKeys, by: desiredWindowKey)
+		let combinedModeConfigured = customization.platformModes.values.contains(.combined)
+		func freshestEntry(in keys: [WindowKey]) -> (key: WindowKey, state: StateSnapshot)? {
+			keys.compactMap { key in visibleEntries[key].map { (key, $0) } }.max { lhs, rhs in
+				let left = StateJsonReader.parseISO8601Date(lhs.state.updatedAt) ?? .distantPast
+				let right = StateJsonReader.parseISO8601Date(rhs.state.updatedAt) ?? .distantPast
+				if left != right { return left < right }
+				return lhs.key.rawValue < rhs.key.rawValue
+			}
+		}
+		let combinedWinner = freshestEntry(in: foldedGroups[.combined] ?? [])
+		if let winner = combinedWinner?.state {
+			memory.promptTimers[.combined, default: PromptTimerTracker()].observe(
+				state: winner.activityState, updatedAt: winner.updatedAt,
+				sourceEvent: winner.sourceEvent, attention: winner.attention, now: currentTime)
+		} else if !combinedModeConfigured {
+			memory.promptTimers.removeValue(forKey: .combined)
+			memory.previousCombinedWindow = nil
+		}
 
 		// Session-keyed render keys whose fold preserved their own shape —
 		// session-pets is genuinely on for their origin and they are not
@@ -173,7 +191,15 @@ enum PoolDerive {
 		// Non-cap-selected groups (plain-origin fold, combined fold, or an
 		// already-origin-shaped key even with session-pets on) are always
 		// admitted whole.
-		let nonCapWindowKeys = Set(foldedGroups.keys).subtracting(sessionCapCandidates)
+		var nonCapWindowKeys = Set(foldedGroups.keys).subtracting(sessionCapCandidates)
+		// Legacy Step 8 transient-gap branch: while combined mode remains configured,
+		// retain the last-active shared window across a one-tick empty poll.
+		if foldedGroups[.combined] == nil, combinedModeConfigured,
+			previousKeys.contains(.combined),
+			memory.lastActiveRenderKey.map(desiredWindowKey) == .combined
+		{
+			nonCapWindowKeys.insert(.combined)
+		}
 
 		// Step 6a2 (enabling direction only): a plain window desired LAST
 		// tick that is no longer desired THIS tick, now that session-pets is
@@ -345,7 +371,9 @@ enum PoolDerive {
 		var windows: [WindowKey: DesiredWindow] = [:]
 		var titleRequests: [RenderKeyIdentity] = []
 		for key in visibleFinalKeys.sorted(by: { $0.rawValue < $1.rawValue }) {
-			var window = DesiredWindow(key: key)
+			var window = key == .combined
+				? (memory.previousCombinedWindow ?? DesiredWindow(key: key))
+				: DesiredWindow(key: key)
 			window.isMinimalist =
 				key == .combined
 				? customization.combinedMinimalistEnabled
@@ -354,19 +382,10 @@ enum PoolDerive {
 
 			let winnerEntry: (key: WindowKey, state: StateSnapshot)? =
 				if key == .combined {
-					foldedGroups[.combined]?
-						.compactMap { renderKey in visibleEntries[renderKey].map { (renderKey, $0) } }
-						.max { lhs, rhs in
-							let left = StateJsonReader.parseISO8601Date(lhs.state.updatedAt) ?? .distantPast
-							let right = StateJsonReader.parseISO8601Date(rhs.state.updatedAt) ?? .distantPast
-							if left != right { return left < right }
-							return lhs.key.rawValue < rhs.key.rawValue
-						}
+					combinedWinner
 				} else {
 					visibleEntries[key].map { (key, $0) }
-						?? foldedGroups[key]?.compactMap { renderKey in
-							visibleEntries[renderKey].map { (renderKey, $0) }
-						}.max { $0.state.updatedAt < $1.state.updatedAt }
+						?? freshestEntry(in: foldedGroups[key] ?? [])
 				}
 
 			if let winnerEntry {
@@ -391,7 +410,7 @@ enum PoolDerive {
 			window.sessionNumber = memory.sessionNumbers[key]
 			window.sessionTooltip = key.isSessionKeyed ? input.sessionPromptSummaries[key] : nil
 			if key == .combined {
-				let fallback = window.platformChip == "combined"
+				let fallback = window.platformChip == nil || window.platformChip == "combined"
 					? "Combined" : window.platformChip.flatMap { PlatformAttribution(origin: $0)?.displayName }
 				window.sessionLabel = input.sessionLabels[key] ?? fallback
 			} else {
@@ -453,6 +472,7 @@ enum PoolDerive {
 			uniqueKeysWithValues: visibleFinalKeys.filter { $0 != .combined }.map { ($0, mode(forWindowKey: $0)) })
 
 		memory.previousDesiredWindowKeys = visibleFinalKeys
+		memory.previousCombinedWindow = windows[.combined]
 
 		var desired = DesiredWindows()
 		desired.windows = windows
