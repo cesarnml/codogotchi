@@ -1,79 +1,73 @@
-# Phase 09 — Extended Platform Hooks
+# Phase 09 — Review Loop Hardening
 
-> Deliver native Codogotchi hook integration for GitHub Copilot (VS Code agent + CLI) and Google Antigravity, with truthful `source_origin`, per-platform tool classification, platform logo badges, and doc-derived fixture tests.
+Status: Delivered — ticket stack squash-merged to `main` (PRs [#30](https://github.com/cesarnml/son-of-anton/pull/30), [#31](https://github.com/cesarnml/son-of-anton/pull/31), [#32](https://github.com/cesarnml/son-of-anton/pull/32)); retrospective at [phase-09-review-loop-hardening-retrospective.md](../../retrospectives/phase-09-review-loop-hardening-retrospective.md).
+
+> Closes two quality-gate gaps: vendor billing noise that escalates PRs to `needs_patch`, and a TDD red gate that accepts a "[red]" commit subject without verifying any test actually failed.
 
 ## Epic
 
-Product plan: [phase-09-extended-platform-hooks.md](../../plans/phase-09-extended-platform-hooks.md)
-Draft: [phase-09-extended-platform-hooks.md](../../drafts/phase-09-extended-platform-hooks.md)
+[docs/product/plans/phase-09-review-pipeline-reliability.md](../../plans/phase-09-review-pipeline-reliability.md)
 
 ## Product contract
 
-When this phase is complete, a developer can run `codogotchi hooks install --platform vscode` or `--platform antigravity` and see the menubar pet animate with the **correct** `source_origin` (`vscode` / `antigravity`, never `claude_code`) and meaningful activity states during real file edits and test runs on those platforms. The animation badge and attention bubble show the correct platform logo for all five supported origins. `hooks install` stays idempotent across five platforms, and a published parity matrix explains native vs bridge paths and why OpenCode is deferred.
+When this phase is complete:
+
+- A PR whose only external review comments are vendor billing/account-limit messages produces `outcome: "clean"` with no manual intervention.
+- An agent cannot pass the `post-red` gate by writing a `[red]` commit subject without running a failing test; the orchestrator verifies the test run exited non-zero before advancing to `red_complete`.
+- A branch touching only `.json` files is classified as doc-only and skips `post-red`, subagent review, and PR review gates — consistent with `.md`-only branches today.
+- `post-verify` warns (non-blocking) when the working tree has uncommitted changes.
+- `bun run ci` is green.
 
 ## Grill-Me decisions locked
 
-- **Keep both platforms in one phase** → both Copilot and Antigravity publish complete hook schemas with example payloads; adapters are built from docs and validated empirically through real usage, so the old "no code before fixtures" gate is unnecessary.
-- **VS Code Agent = Copilot, one surface** → not split; the support language is "VS Code"; adapter normalizes both Copilot payload dialects.
-- **Canonical `source_origin: vscode`, `copilot` accepted as alias** → matches support language and the existing `hooksStatus` placeholder key.
-- **Both platforms validated by the developer through real usage** → land with doc-derived fixtures + CI green; patch any schema drift post-land; real captures are not a pre-merge blocker.
-- **Single-user, no backward-compat** → no bridge detect/warn/migrate code; the `.claude/settings.json` bridge gets a one-line caveat only.
-- **Logo badges added as committed scope** → the two supplied SVGs wired into the existing badge component (Claude/Codex/Cursor already done).
-- **Antigravity `PostToolUse` = error→`errored`, else neutral; no stepIdx Pre/Post correlation** → `PreToolUse` does all tool classification; correlation machinery dropped as unnecessary for animation.
-- **Installer writes user-level config only** (`~/.copilot/hooks/`, `~/.gemini/config/`); repo-level surfaces (`​.github/hooks/`, workspace `.agents/hooks.json`) documented as manual opt-in → matches the existing `homedir()`-rooted install model.
-- **4 tickets, stacked** → foundation, VS Code end-to-end, Antigravity end-to-end, docs+retrospective.
-- **Retrospective: required** → multi-platform adapter work regresses on schema drift; Antigravity is structurally different (no prompt event, `fullyIdle` terminal, no PostToolUse tool name).
+- **`post-red` enforcement level → hard gate** — `post-verify` throws `WorkflowContractError` if ticket status is `in_progress` and branch is not doc-only. Warn-only would not close the loophole; consistent with how `subagent-review` gates `open-pr`.
+- **Billing noise heuristic → bot login + no fenced code block** — body-text matching is fragile (billing copy changes); bot account login is structural. The no-code-block guard handles `coderabbitai`, which also posts walkthroughs — but those are `kind: "summary"` by the fetcher and never reach this pre-filter.
+- **`.json` in doc-only → included** — config-only branches (cspell, orchestrator, renovate) should skip code-quality gates. The `&&` guard prevents false positives: a ticket touching `.json` + `.ts` is still classified as code.
+- **Red commits for docs tickets → skip via runtime diff, not `Type:` field** — agents can mis-declare `Type: docs` on code tickets; the diff cannot lie.
 
 ## Ticket Order
 
-1. `P9.01 Platform foundation: origin enum + logo badges`
-2. `P9.02 VS Code (Copilot) native hooks end-to-end`
-3. `P9.03 Antigravity native hooks end-to-end`
-4. `P9.04 Parity matrix, runbook, and retrospective`
+1. `P9.01 Billing Noise Pre-filter`
+2. `P9.02 TDD Gate Hardening`
+3. `P9.03 Exit Hygiene & Template Fixes`
 
 ## Ticket Files
 
-- `ticket-01-platform-foundation-enum-badges.md`
-- `ticket-02-vscode-copilot-hooks.md`
-- `ticket-03-antigravity-hooks.md`
-- `ticket-04-parity-matrix-runbook-retrospective.md`
+- `ticket-01-billing-noise-filter.md`
+- `ticket-02-tdd-gate-hardening.md`
+- `ticket-03-exit-hygiene.md`
 
 ## Exit Condition
 
-A reviewer can demonstrate: (1) after `hooks install --platform vscode`, a real Copilot session logs `source_origin: vscode` and shows `implementing`/`running-tests` on a real edit + test command; (2) after `hooks install --platform antigravity`, a real Antigravity session logs `source_origin: antigravity` with correct states and a correct `fullyIdle` terminal; (3) all five `source_origin` values render their correct platform logo in the animation badge and attention bubble; (4) `hooks install` run twice duplicates no entries across five platforms; (5) doc-seeded fixture/classification tests pass in CI without network; (6) the parity matrix is published with OpenCode deferred and the bridge caveat documented.
+All three tickets merged to main. `bun run ci` green. A replay of the P4.01 triage scenario (Qodo billing comment) produces `clean`, not `needs_patch`. `post-red` on a code ticket without a failing test exits non-zero. A branch touching only `cspell.json` is classified doc-only. Retrospective written.
 
 ## CI Baseline
 
-> Baseline recorded: 2026-06-02 — **`bun run ci:quiet` PASS** (biome 263 files; `bun test` 324 pass / 0 fail; `xcodebuild` mac:test 410 pass / 0 fail — `** TEST SUCCEEDED **`).
->
-> Two pre-existing breakages were fixed before this baseline (commits `5f36844`, `59d4a6e`), both unrelated to phase-09:
-> - **`bun test` EMFILE**: `scripts/package-dmg.sh` left an `Applications -> /Applications` symlink in `build/dmg-staging/` inside the repo tree; bun's root-CWD scan followed it into `/Applications` and exhausted file descriptors. Fixed by staging in a `mktemp` dir outside the repo with trap cleanup.
-> - **`mac:test` failure**: `LivePollingTests.testFileNotFoundRendersIdleDesaturated…` asserted `.desaturated` after commit `9262e2e` deliberately switched the missing-file render to full-color `.normal`. Test updated to match shipped behavior.
+> Baseline recorded: 2026-05-14 — **pass** (0 errors, `bun run ci` exit 0)
 
 ## Review Rules
 
-- Tickets must be merged in order (T01 foundation blocks T02–T04).
+- Tickets must be merged in order.
 - Each ticket PR must pass CI before the next ticket starts.
-- Pre-existing CI failures documented in **CI Baseline** do not block a ticket; newly introduced failures do.
+- Pre-existing CI failures documented in **CI Baseline** above do not block a ticket; newly introduced failures do.
+- P9.02 touches `types.ts` and `cli-runner.ts`; P9.03 also touches `cli-runner.ts` — if sequencing shifts, verify no merge conflict on that file.
 
 ## Explicit Deferrals
 
-- **OpenCode** plugin integration (in-process TypeScript plugins, not shell hooks) — future plugin-SDK phase.
-- **Repo-level config surfaces** (`​.github/hooks/`, workspace `.agents/hooks.json`) — documented as manual opt-in; installer writes user-level only.
-- **Antigravity policy/injection behaviors** (`decision: deny/ask`, `permissionOverrides`, `PreInvocation`/`PostInvocation` `injectSteps`) — Codogotchi stays observational.
-- **XP/sync JSONL ingestion** for Copilot/Antigravity — separate cold-path epic.
-- **Cloud sandbox / Managed Agents** hook subsets — document degradation only.
-- **RPG phases 10–14** — no dependency.
+- `post-red` failure attribution (which tests failed, line counts) — only "at least one test failed" is asserted.
+- Review artifact atomic commit with `advance` — requires boundary model changes, future phase.
+- `.yaml`/`.yml` in `isLocalBranchDocOnly` — same rationale as `.json`, scope creep here.
+- Full programmatic subagent review execution — major architectural investment, future phase.
+- `reconcile-late-review` finalize-path automation — manual workaround is functional and documented.
 
 ## Stop Conditions
 
-- A platform's real-usage validation reveals the published schema is wrong in a way that changes ticket scope (capture the drift, pause, reconcile).
-- Broken CI that cannot be resolved within ticket scope.
+- Broken CI that cannot be resolved within the ticket scope.
 - Ambiguous triage where the right action is genuinely unclear.
+- State machine change in P9.02 produces unexpected transitions in existing delivery state fixtures.
 
 ## Phase Closeout
 
 Retrospective: required
-Why: Multi-platform adapter work regresses easily when upstream hook schemas drift, and Antigravity is not "the same adapter pattern" (no prompt event, `Stop.fullyIdle` terminal signal, `PostToolUse` carries no tool name). Capture the build-from-docs + empirical-usage-validation playbook and any Copilot/Antigravity schema churn found during delivery.
-Trigger: Developer approval of final PR merge.
-Artifact: `docs/product/retrospectives/phase-09-extended-platform-hooks-retrospective.md`
+Why: Phase introduces a new status in the delivery state machine (`red_complete`), a new CLI command (`post-red`), a hard gate in `post-verify`, and a doc-only classification expansion — all durable changes to the orchestrator contract worth documenting.
+Trigger: Developer approval of final P9.03 PR merge.

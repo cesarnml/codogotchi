@@ -1,7 +1,0 @@
-{
-  "conversationId": "0000-antigravity-fixture-session",
-  "workspacePaths": ["/redacted/workspace"],
-  "hook_event_name": "PostToolUse",
-  "stepIdx": 2,
-  "error": "exit status 1"
-}

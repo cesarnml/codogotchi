@@ -1,5 +1,7 @@
 {
   "defaultBranch": "main",
+  "deliveryBaseBranch": "main",
+  "closeoutBranch": "main",
   "planRoot": "docs",
   "runtime": "bun",
   "packageManager": "bun",
@@ -9,22 +11,10 @@
     "prReview": "disabled"
   },
   "prReviewAgents": [
-    {
-      "login": "coderabbitai",
-      "name": "coderabbit",
-      "resolveThreads": true
-    },
-    {
-      "login": "Copilot",
-      "name": "copilot",
-      "resolveThreads": true
-    }
+    { "login": "coderabbitai", "name": "coderabbit", "resolveThreads": true },
+    { "login": "Copilot", "name": "copilot", "resolveThreads": true }
   ],
   "subagentRunner": "codex-cli",
   "primaryAgent": "claude",
-  "codogotchi": {
-    "enabled": true
-  },
-  "deliveryBaseBranch": "v3_preview",
-  "closeoutBranch": "v3_preview"
+  "codogotchi": { "enabled": true }
 }

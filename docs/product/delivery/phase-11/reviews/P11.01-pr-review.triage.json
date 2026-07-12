@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-06-07T03:10:48.350Z",
+  "recordedAt": "2026-05-19T17:33:17.065Z",
   "outcome": "skipped",
   "note": "PR review disabled by policy",
   "prBodyRefresh": {
-    "attemptedAt": "2026-06-07T03:10:51.106Z",
+    "attemptedAt": "2026-05-19T17:33:20.042Z",
     "status": "updated"
   }
 }

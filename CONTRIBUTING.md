@@ -1,183 +1,108 @@
-# Contributing to Codogotchi
+# Contributing to Son of Anton
 
-This is the developer reference. If you just want to *use* Codogotchi, see the [README](README.md) — download the app, drag it to Applications, done. This document is for building from source, working on the macOS app, or understanding the internals.
+Thanks for your interest. Son of Anton is a delivery orchestrator — the codebase is the same tool it uses to ship itself, so the best way to understand a contribution is to run the workflow end to end at least once before changing it.
 
-First time in the codebase? Read [START-HERE.md](START-HERE.md) for the mental model. All participation is covered by the [Code of Conduct](CODE_OF_CONDUCT.md).
+**New here?** Read [How Son of Anton Works — A Newcomer's Mental Model](docs/how-son-of-anton-works.md) first. It builds the mental model (no prior knowledge assumed) and maps every concept to where it lives in the code, so the rest of this guide makes sense.
 
----
+By participating, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md). New here or contributing through a course? It opens with a short note for you.
 
-## Architecture at a glance
+## Prerequisites
 
-Codogotchi is a platform-agnostic XP/animation layer for AI coding agents.
+- [Bun](https://bun.sh) ≥ 1.0
+- [Claude Code](https://claude.ai/code) (or another agent that reads `AGENTS.md`)
+- A GitHub account with `gh` CLI configured
 
-- A **hook binary** writes a closed-enum animation-state vocabulary to `~/.codogotchi/state.json` on every agent lifecycle event (Claude Code / Codex / Cursor / Copilot / Antigravity).
-- The **macOS app** (`apps/menubar/`, Swift + SpriteKit) reads `state.json` and renders the pet — a static hero frame on the menu bar and an optional fully-animated floating desktop pet.
-- An **XP / Health / Loot engine** (TypeScript, Bun) computes progression. It runs locally by default; cloud sync (Convex) is opt-in.
-- The `.app` bundles its own `codogotchi` binary, so end users never touch a CLI or PATH.
+## Setup
 
-The app owns all writes (hook install/update/remove, onboarding, pet selection). The CLI is a read/diagnostic surface plus internal subprocesses the app spawns.
+```bash
+git clone https://github.com/cesarnml/son-of-anton.git
+cd son-of-anton
+bun install
+bun run ci          # format check + lint + tests — should all pass on a clean clone
+```
 
 ## Repo layout
 
 ```
-packages/
-  cli/        # codogotchi + codogotchi-hook bins (Bun-only)
-  cli-npm/    # minimal public `codogotchi` npm package (add/status/--version)
-  engine/     # XP / Health / Loot pure logic + Bun-only sources/
-  contracts/  # zod + types: IPC, signals, SoA event feed
-  pets/       # pet-package validator + canonical repack
-convex/       # Convex schema, mutations, HTTP action
-apps/
-  menubar/    # Codogotchi macOS app — menu bar + floating pet (Swift / SpriteKit)
-plugins/
-  hatch-codogotchi/  # AI spritesheet generation skills + scripts
-web/          # codogotchi.app site (Astro)
-docs/
-  contracts/  # animation-state-vocabulary, soa-event-feed, convex-deployment
-  product/    # plans, delivery, retrospectives
-  runbooks/   # validation runbooks, scheduled-sync install
+tools/delivery/     core orchestrator logic (TypeScript)
+scripts/            bun entry points (deliver.ts, closeout-stack.ts, etc.)
+tests/              bun:test test suite
+docs/template/      delivery workflow docs the orchestrator reads at runtime
+  delivery/         orchestrator internals: TDD workflow, PR templates, review templates
+  overview/         start-here.md — read this before working on orchestrator behavior
+.agents/            agent-facing skills and delivery state
+  skills/           Claude Code skills used in orchestrated delivery
+notes/              design stance docs and proposals (public/ is checked in)
 ```
 
-## Build from source
+## Dev commands
 
-```bash
-bun install
-bun run mac:build
-open "$(find ~/Library/Developer/Xcode/DerivedData -name 'Codogotchi.app' -path '*/Build/Products/*' | head -1)"
-```
+| Command          | What it does                                        |
+| ---------------- | --------------------------------------------------- |
+| `bun run format` | Biome + Prettier — **run this before every commit** |
+| `bun run verify` | Format check + lint (no writes)                     |
+| `bun run ci`     | Full check: verify + tests                          |
+| `bun test`       | Tests only                                          |
 
-On first launch the app seeds Maew (`~/.codogotchi/pets/maew/`), presents the **Welcome to Codogotchi** consent sheet, and installs hooks on approval. See [`docs/runbooks/phase-08-lite-install.md`](docs/runbooks/phase-08-lite-install.md) for the full validation walk-through.
+**Format before you stage.** The CI enforces it. If you commit without formatting first, the next CI run rewrites the file and leaves a dirty tree.
 
-## Development
+## Making a change
 
-```bash
-bun install
-bun test                       # engine tests (fast)
-bun run verify:quiet           # biome check (lint + format)
-bun run spellcheck             # cspell
-bun run ci:quiet               # publication gate (verify + spellcheck + mac:test)
-bun run mac:build              # macOS app — xcodebuild
-bun run mac:test               # macOS app — xcodebuild test
-```
+1. **Read `docs/template/overview/start-here.md`** before touching orchestrator behavior. It describes the four gates and how delivery state flows.
+2. Fork the repo and create a branch from `main`.
+3. Make your change. For anything touching orchestrator logic, add or update a test in `tests/`.
+4. Run `bun run format`, then `bun run ci`. Fix anything that fails.
+5. Open a PR.
 
-`mac:build` / `mac:test` shell out to `xcodebuild` against `apps/menubar/Codogotchi.xcodeproj`. `bun run ci` chains `mac:test` after biome + cspell so Swift failures gate the same place TS regressions do. `apps/**` is excluded from biome and from cspell's non-md scan; only `mac:test` crosses that boundary. See [`docs/product/plans/phase-02-as-shipped-ci-macos-tests.md`](docs/product/plans/phase-02-as-shipped-ci-macos-tests.md) for the divergence from the original TS-only CI plan.
+## Commit style
 
-Multi-ticket delivery is driven via the Son-of-Anton orchestrator under `.son-of-anton/`. See `AGENTS.md` for skill triggers and `.son-of-anton/docs/template/delivery/delivery-orchestrator.md` for the command surface.
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): `type(scope): description`.
 
-## The macOS app
-
-`apps/menubar/` is an `LSUIElement` menu bar agent with an optional float-on-top desktop pet and a Settings window (General / Pet / Developer / RPG / About tabs).
-
-- **Settings → General** — the only user-facing surface for Install / Update / Remove hooks.
-- **Settings → Pet** — per-platform pet assignment: a Default slot (applies everywhere unassigned) plus optional per-platform overrides for each of the 5 platforms. Assignments persist to `~/.codogotchi/assignments.json` (schema_version 1). Installed pets enumerated from `~/.codogotchi/pets/`.
-- **Settings → RPG** — heart-HUD toggle and local progression controls.
-- **Settings → Developer** — live `state.json`, `gate.json`, last-5 transitions, schema version, Cursor-bridge explainer (read-only).
-- Menu items: **Settings…**, **Show/Hide Floating Pet**, **Open log folder**, **Reveal pet folder**, **Quit**.
-
-Per-platform pet identity is resolved from `~/.codogotchi/assignments.json` (`schema_version: 1`). The file has a mandatory `default` key and optional per-platform overrides (`claude_code`, `vscode`, `codex`, `cursor`, `antigravity`). Each key holds a pet ID string. Absent or invalid files fall back to `"maew"` as the Default. The one-time migration seed reads `config.json`'s `pet` key (if present) and writes it as `assignments.default` on first launch after upgrade. `CODOGOTCHI_HOME` overrides the config root and is the test-isolation mechanism.
-
-**Demo mode** (`CODOGOTCHI_DEMO=1` or `--demo`) cycles activity states from a fixture without touching live `state.json`. Developer QA tool only — not a user-facing feature.
-
-## CLI surface (diagnostic / internal)
-
-The public CLI is trimmed to read/diagnostic commands. Hook management and onboarding live in **Settings → General** (app-owned). `setup`, `hooks install`, and `hooks uninstall` are still callable internally (the app spawns them) but are hidden from `--help`.
+Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`.
 
 ```
-codogotchi rpg                                Cloud/social enrollment (handle + Convex); local RPG is on by default
-codogotchi hooks status [--json]              Per-platform hook install + firing status
-codogotchi status                             Cached profile, HP, recent loot — requires rpg_enabled
-codogotchi sync                               One sync cycle — requires rpg_enabled
-codogotchi loot [--limit N] [--tier T]        Loot history — requires rpg_enabled
-codogotchi config get|set|list                Read/write/dump config (secrets redacted)
-codogotchi vacation on|off|status             Pause/resume HP decay
+feat(tdd): add refactor-review subagent gate
+fix(reconciliation): handle missing ledger rows on skipped tickets
+docs(template): clarify post-red trigger conditions
 ```
 
-| Env var | Default | Effect |
-|---|---|---|
-| `CODOGOTCHI_HOME` | `~/.codogotchi` | Config / cache / log root |
-| `CODOGOTCHI_USER_ROOT` | OS home | Home dir used for hook installation |
+Keep the subject line under 72 characters. No period at the end.
 
-The public npm `codogotchi` package (`packages/cli-npm`) is a **separate, minimal node build** over the bare name — only `add`, `status`, `--version`. App-owned write commands are not exposed. Installs are no-overwrite by default (`--force` to override) and re-validated against the pet contract before landing.
+## Pull requests
 
-## Platform hooks
+- One logical change per PR.
+- The PR title should follow the same Conventional Commit format as your commits.
+- If your change affects the delivery workflow, update the relevant doc in `docs/template/delivery/`.
+- If your change affects user-visible commands or behavior, update `README.md` and `docs/template/overview/start-here.md`.
 
-Native hooks for all five platforms install via **Settings → General → Install hooks** (or `codogotchi hooks install --platform <name>` internally). Restart the editor afterward.
+There is no formal review SLA. Smaller, focused PRs move faster.
 
-| Platform | `source_origin` | Hook file |
-|---|---|---|
-| Claude Code | `claude_code` | `~/.claude/settings.json` |
-| Codex | `codex` | Codex hooks |
-| Cursor | `cursor` | `~/.cursor/hooks.json` |
-| GitHub Copilot (VS Code) | `vscode` | `~/.copilot/hooks/codogotchi.json` |
-| Google Antigravity | `antigravity` | `~/.gemini/config/hooks.json` |
+## What "advisory" means in this repo
 
-`codogotchi hooks status` reports each platform's install + firing state. The canonical Copilot origin is `vscode` (`copilot` is accepted as a `CODOGOTCHI_ORIGIN` alias in manual overrides, but the installer always writes `vscode`).
+Several tools in the orchestrator run as "advisory" subagents — they report findings but do not commit or modify files. If you are building on the orchestrator, keep that invariant: subagent runners are stdout-only. The primary agent adjudicates and decides what to apply.
 
-**Bridge fallback:** if native hooks for Cursor/VS Code aren't installed but Claude Code hooks are, tool calls may route through the Claude Code bridge and report `source_origin: "claude_code"` (mislabeled). Prefer native install. `hooks status` reports `bridge` in that case.
+## Picking an issue (difficulty points)
 
-See the [platform parity matrix](docs/runbooks/phase-09-platform-parity.md) for full event sets, config paths, tool-name mappings, and support levels.
+Issues are labeled with a difficulty estimate on a Fibonacci scale, so you can match an issue to your comfort level. Higher is harder — it reflects breadth, design judgment, and how much of the codebase you have to hold in your head, not just lines of code.
 
-## Where data lives
-
-| Path | Owner | Purpose |
-| --- | --- | --- |
-| `~/.codogotchi/config.json` | app / `config` | Credentials, health knobs |
-| `~/.codogotchi/assignments.json` | app | Per-platform pet assignment (Default + 5 platform overrides) |
-| `~/.codogotchi/profile.json` | `sync` | Local cache of Convex profile |
-| `~/.codogotchi/state.json` | `codogotchi-hook` | Animation state for renderers (closed 19-state enum) |
-| `~/.codogotchi/gate.json` | Son-of-Anton | Active delivery-gate state (`expires_at`-bounded) |
-| `~/.codogotchi/app-state.json` | app | Floating pet visibility, position, size |
-| `~/.codogotchi/state-transitions.log` | app | NDJSON log of state changes + heartbeats |
-| `~/.codogotchi/sync.log` | `sync` | Per-source success / failure (rotated) |
-| `~/.codogotchi/pets/<name>/` | app / user | Pet assets (`pet.json`, `spritesheet.webp`, lite-basic / lite-enhanced / soa sheets) |
-| Convex `profiles`, `loot_events`, `users` | server | Canonical cloud state |
-
-## Health semantics
-
-Knobs in `~/.codogotchi/config.json`:
-
-- `health.weekend_decay` — when `false` (default), HP doesn't drop Sat/Sun (local tz).
-- `health.grace_days` — days of inactivity before HP starts decaying.
-- `health.vacation_until` — ISO date through which HP decay is suspended (`codogotchi vacation on`).
-
-## Pet gallery & publishing
-
-[`codogotchi.app/gallery`](https://codogotchi.app/gallery) is the community marketplace. Pets install into `${CODOGOTCHI_HOME:-~/.codogotchi}/pets/<pet-id>/`, ready to pick in **Settings → Pet**. Publishing requires sign-in at [`/upload`](https://codogotchi.app/upload); every upload is server-validated, stripped to an allowlist, and re-packed into a canonical zip — the trust boundary is at upload. Minimum bar: a **Codex + Lite-Basic** pet (use [`hatch-codogotchi`](plugins/hatch-codogotchi/README.md) to generate one). Operators can unlist instantly; takedowns go to admin@codogotchi.app.
-
-## How to actually get involved
-
-Reading the architecture is step one. Here's how to turn that into a merged PR.
-
-1. **Fork the repo and clone your fork.** `bun install`, then `bun run ci:quiet` — should pass clean.
-2. **Pick an issue sized to your comfort level** (see the difficulty scale below), or open one yourself if you found a gap while reading [START-HERE.md](START-HERE.md) or the [dev guide](https://codogotchi.app).
-3. **Branch from `main`.** Make your change; add/update a test if you touched `packages/engine/` or `packages/contracts/`; run `bun run ci:quiet` (and `bun run mac:test` if you touched `apps/menubar/`) before opening the PR.
-4. **Open a PR.** One logical change per PR. Reference the issue it closes.
-5. **Design questions before code.** If your idea reshapes a contract (`state.d/`, `customization.json`, `assignments.json`) or touches more than one of the five pieces, open an issue (or comment on the [v3 roadmap discussion](https://github.com/cesarnml/codogotchi/discussions)) first — a brief discussion before a PR saves everyone time.
-
-### Picking an issue (difficulty points)
-
-Issues are labeled with a difficulty estimate on a Fibonacci scale, so you can match an issue to your comfort level. Higher is harder — it reflects breadth and design judgment, not just lines of code.
-
-| Label | Meaning |
-| --- | --- |
-| `difficulty: 1` | Trivial — a one-liner or typo fix. |
-| `difficulty: 2` | Easy — a focused change with a clear pattern to copy. |
-| `difficulty: 3` | Moderate — the sweet spot; some breadth or judgment. |
+| Label           | Meaning                                                 |
+| --------------- | ------------------------------------------------------- |
+| `difficulty: 1` | Trivial — a one-liner or typo fix.                      |
+| `difficulty: 2` | Easy — a focused change with a clear pattern to copy.   |
+| `difficulty: 3` | Moderate — the sweet spot; some breadth or judgment.    |
 | `difficulty: 5` | Involved — touches multiple areas or needs design care. |
-| `difficulty: 8` | Hard — architectural; not a first issue. |
+| `difficulty: 8` | Hard — architectural; not a first issue.                |
 
-No issue is rated above `8`. **If you're new, start with a `2` or `3`.** Save the `5`s and `8`s for after you've landed one.
+No issue is rated above `8`. **If you're new, start with a `2` or `3`** — that's the sweet spot for a satisfying first contribution. Save the `5`s and `8`s for after you've landed one. Browse open issues by difficulty:
 
 ```bash
 gh issue list --label "difficulty: 2"
 gh issue list --label "difficulty: 3"
 ```
 
-`good first issue` is also in play for anything cross-cutting with `difficulty: 1`–`2`. `art` is for pet sprite/animation work — no Swift required.
+## Getting oriented
 
-## Contracts to read before extending
-
-- [`docs/contracts/animation-state-vocabulary.md`](docs/contracts/animation-state-vocabulary.md) — closed-enum state vocabulary the hook writes and the app reads (Swift `StateJsonReader`).
-- [`docs/contracts/soa-event-feed.md`](docs/contracts/soa-event-feed.md) — NDJSON event feed Son-of-Anton emits for delivery-gate signals.
-- [`docs/contracts/convex-deployment.md`](docs/contracts/convex-deployment.md) — deployment topology.
-- [Spritesheet reference](https://codogotchi.app/docs/spritesheet) — the four-tier pet contract (Codex / Lite-Basic / Lite-Enhanced / SoA).
+- **New to the workflow?** Start with the README, then `docs/template/overview/start-here.md`.
+- **Working on orchestrator internals?** Read `docs/template/delivery/delivery-orchestrator.md` before touching `tools/delivery/`.
+- **Proposing a design change?** Open an issue first. Design decisions for the orchestrator are load-bearing — a brief discussion before a PR saves everyone time.
+- **Questions?** Open an issue with the `question` label.
