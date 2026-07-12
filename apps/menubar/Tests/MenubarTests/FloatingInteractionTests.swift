@@ -387,6 +387,21 @@ final class FloatingInteractionTests: XCTestCase {
 		XCTAssertEqual(items.first?.title, FloatingPetHidePrompt.forceIdleTitle)
 	}
 
+	func testMinimalistBuilderPlainOriginLabelOffersRenameOnly() {
+		// R1.4/R1.5: a labeled-but-not-session-keyed strip (plain-origin or
+		// combined routed to Minimalist) offers Rename but not Sync Label /
+		// Prune. Mirrors testOwnBuilderPlainOriginLabelOffersRenameOnly.
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: minimalistPromptCapabilities(sessionLabel: "codex"), handlers: noopPromptHandlers())
+		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.renameTitle,
+			FloatingPetHidePrompt.petModeTitle,
+			FloatingPetHidePrompt.panelSizeTitle,
+			FloatingPetHidePrompt.hideAllOtherPetsTitle,
+			FloatingPetHidePrompt.panelTitle,
+		])
+	}
+
 	func testMinimalistBuilderSessionKeyedOffersRenameSyncLabelAndPrune() {
 		let items = FloatingPetPromptBuilder.items(
 			capabilities: minimalistPromptCapabilities(sessionLabel: "Session 2", hasActiveSession: true),

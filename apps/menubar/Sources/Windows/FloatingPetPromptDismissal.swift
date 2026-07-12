@@ -24,6 +24,21 @@ final class FloatingPetPromptDismissal {
 
 	init() {}
 
+	/// Defensive backstop: `weak var owner` is already `nil` by the time an
+	/// owning view's own `deinit` body runs (Swift zeroes weak references to
+	/// `self` before `self`'s `deinit` executes — confirmed empirically, not
+	/// merely assumed), so a caller that only calls `uninstall()` from its
+	/// `deinit` would otherwise leak the `NSEvent` monitors and the
+	/// `NotificationCenter` observer forever: nothing else releases them, and
+	/// each dead monitor keeps firing (as a harmless `[weak self]` no-op) on
+	/// every future mouse/keyboard event app-wide. `uninstall()` itself no
+	/// longer gates monitor teardown on `owner` being non-nil (see below), so
+	/// this deinit is belt-and-braces for any caller that skips an explicit
+	/// `uninstall()` call entirely.
+	deinit {
+		uninstall()
+	}
+
 	/// Registers `owner` with `FloatingPetPromptCoordinator.shared` (so a
 	/// right-click on a different panel dismisses this one) and installs the
 	/// dismiss-on-click-away/keyboard/resign-active monitors. `panel` is the
@@ -77,9 +92,20 @@ final class FloatingPetPromptDismissal {
 
 	/// Tears down monitors and clears the coordinator's active-owner
 	/// registration. Safe to call when nothing is installed.
+	///
+	/// Deliberately does NOT gate monitor/observer teardown on `owner` being
+	/// non-nil: `owner` is a weak reference that is already `nil` by the time
+	/// a caller's own `deinit` invokes this method (see the `deinit` note
+	/// above), but the `NSEvent` monitor tokens and `NotificationCenter`
+	/// observer token are independent of `owner` and must still be released.
+	/// Only the coordinator hand-off — which requires a live owner identity
+	/// to compare against — is skipped when `owner` is already gone; the
+	/// coordinator holds its own `weak var activeOwner`, so that registration
+	/// self-clears once the same deallocation completes.
 	func uninstall() {
-		guard let owner else { return }
-		FloatingPetPromptCoordinator.shared.didDismiss(owner: owner)
+		if let owner {
+			FloatingPetPromptCoordinator.shared.didDismiss(owner: owner)
+		}
 
 		if let didResignActiveObserver {
 			NotificationCenter.default.removeObserver(didResignActiveObserver)
