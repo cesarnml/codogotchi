@@ -47,8 +47,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: compile failure in `PoolDeriveTests`/`PoolDerivePurityGateTests` referencing the not-yet-existing `PoolMemory`/`PoolTickInput`/`DesiredWindows`/`PoolDerive` types (`xcodebuild ... test` — "Cannot find type 'DesiredWindows' in scope").
+Why this path: `PoolMemory` carries only the fields Steps 1–5b and the eligibility-bounding block need (`lastSeenAt`, `firstSeenAt`, `lastUpdatedAt`, `lastActiveRenderKey`, `hudBearingRenderKey`) — the smallest value type that faithfully transcribes the tracked logic without inventing behavior the tests don't pin down.
+Alternative considered: modeling every `FloatingPetWindowPool` stored property (slot occupancy, prompt timers, session-number free lists, conflict-bubble rate limiter, ...) in `PoolMemory` now, for full field-by-field parity in one pass. Rejected: those fields belong to selection (P18.02) and pushes (P18.03) logic this ticket explicitly does not implement (`Do not implement selection ... or pushes — placeholders only`), and `SessionNumberAllocator`/`ConflictBubbleRateLimiter` are reference/non-`Equatable` types today — folding them into an `Equatable` `PoolMemory` before their consuming logic exists would either force a premature value-type rewrite of those helpers or leave dead fields with no test coverage.
+Deferred: selection state (`slotOccupants`, `prunedOrigins`, `userHiddenWindowKeys`, `windowSpawnedModes`, `combinedWindowIsMinimalist`, `evictedSessionFrames`) → P18.02. Push-spec state (`promptTimers`, `windowSessionIdentities`, `activeConflictBubbleTargets`, conflict-bubble rate-limiter state, the on-disk title-resolution cache) → P18.03, per the title-resolution effect-seam decision (Grill-Me decision 3) which keeps title caching in the impure shell rather than `PoolMemory`. `DesiredWindows`/`DesiredWindow` carry the full eventual field set as placeholders (per plan decision 3) so P18.02/P18.03 extend rather than reshape; `derive` always returns an empty `DesiredWindows` this ticket.
+Contract note: none — ticket metadata (`Type: refactor`, `Scope: menubar`, `Red: required`) matched the work as scoped.

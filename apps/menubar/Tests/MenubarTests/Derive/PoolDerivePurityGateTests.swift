@@ -13,11 +13,12 @@ import XCTest
 final class PoolDerivePurityGateTests: XCTestCase {
 	private var deriveDirectory: URL {
 		// This file lives at .../Tests/MenubarTests/Derive/PoolDerivePurityGateTests.swift.
-		// Sources/Pool/Derive is a sibling of Tests two levels up.
+		// Sources/Pool/Derive is a sibling of Tests three levels up.
 		URL(fileURLWithPath: #file)
 			.deletingLastPathComponent()  // Derive/
 			.deletingLastPathComponent()  // MenubarTests/
 			.deletingLastPathComponent()  // Tests/
+			.deletingLastPathComponent()  // apps/menubar/
 			.appendingPathComponent("Sources/Pool/Derive")
 	}
 
