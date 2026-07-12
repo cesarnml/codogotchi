@@ -194,6 +194,7 @@
 		EDFFAD8F83BE0E484D996FCB /* SettingsTabModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05EB20E9AD12E7E2765C3217 /* SettingsTabModelTests.swift */; };
 		EE071EA62AB42A9DABC39334 /* RPGMiniXPBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A6FFFD67B63F20FFC62E746 /* RPGMiniXPBadgeView.swift */; };
 		F1DA9A5DDE53EE242990A3C5 /* SessionPruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03729513F99DF25322B23561 /* SessionPruner.swift */; };
+		F2EA43A5B75ECFE9E29AF732 /* SurfaceConvergenceInvariantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0EEF669E881C6590FC19FC /* SurfaceConvergenceInvariantTests.swift */; };
 		F3A4343C001908110A748CD7 /* AnimationLabelPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9E9356DD0466C7E29F5783 /* AnimationLabelPillView.swift */; };
 		F82F0F3BD0350BC38F97CA27 /* StateJsonWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */; };
 		F834B238A8C60F6570A8907E /* SessionLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 471826711A4C1A9B3C87ECF6 /* SessionLifecycleTests.swift */; };
@@ -257,6 +258,7 @@
 		36558142C9BA2BEABDDCA036 /* PetImportHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetImportHelper.swift; sourceTree = "<group>"; };
 		37BBC3DE729053A5A25EFCF7 /* SessionSelectionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSelectionPolicyTests.swift; sourceTree = "<group>"; };
 		3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonWriterTests.swift; sourceTree = "<group>"; };
+		3B0EEF669E881C6590FC19FC /* SurfaceConvergenceInvariantTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceConvergenceInvariantTests.swift; sourceTree = "<group>"; };
 		3BAC0E973502BF1A8691836E /* WindowActionRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowActionRouter.swift; sourceTree = "<group>"; };
 		3D25A5BC6A9880AD71D04A83 /* FloatingPetHidePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetHidePrompt.swift; sourceTree = "<group>"; };
 		40C0B908B205CD27328B8354 /* RPGProgressBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGProgressBarView.swift; sourceTree = "<group>"; };
@@ -486,6 +488,7 @@
 				990E625C075B2CA262A804B1 /* StateDirectoryListingTests.swift */,
 				9E5A328D013E03984657DE8F /* StateJsonReaderTests.swift */,
 				3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */,
+				3B0EEF669E881C6590FC19FC /* SurfaceConvergenceInvariantTests.swift */,
 				5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */,
 				DC69F56318CF5679B36BC371 /* WindowActionRouterTests.swift */,
 				DFAAE832D91C20A69CA7D80B /* WindowKeyTests.swift */,
@@ -1005,6 +1008,7 @@
 				1A454FA87E78F1B590355F43 /* StateDirectoryListingTests.swift in Sources */,
 				C4F4151A25F6ED0D587172FD /* StateJsonReaderTests.swift in Sources */,
 				F82F0F3BD0350BC38F97CA27 /* StateJsonWriterTests.swift in Sources */,
+				F2EA43A5B75ECFE9E29AF732 /* SurfaceConvergenceInvariantTests.swift in Sources */,
 				E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */,
 				756CD4993E0950C3ACB78E88 /* WindowActionRouterTests.swift in Sources */,
 				9188D02613B670C3AA3D6E05 /* WindowKeyTests.swift in Sources */,

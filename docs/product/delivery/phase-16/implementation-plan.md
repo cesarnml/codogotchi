@@ -55,8 +55,8 @@ No user-visible change — that is the contract. When this phase is complete a d
 All seven conditions from the product plan hold on `v3_preview`, with evidence recorded in P16.07:
 
 1. No Swift file at `apps/menubar/Sources/` root; every file lives in one of the six layer directories; project builds via xcodegen with no code changes attributable to the moves.
-2. `FloatingPetPanel.swift` and `SettingsWindowController.swift` no longer exist; contents are type-per-file extractions with unchanged signatures (access-widening excepted).
-3. `grep -rn '"combined"' apps/menubar/Sources` hits only `WindowKey` parse/serialize sites and test fixtures; zero policy-site string checks; the colon-split sites are gone.
+2. `FloatingPetPanel.swift` no longer exists; the former panel and settings god-files are type-per-file extractions with unchanged signatures (access-widening excepted), while `Settings/SettingsWindowController.swift` remains as the intentionally slim orchestration-only controller described by P16.03.
+3. `WindowKey.swift` owns all `WindowKey` parse/serialize and policy branching, with zero ad hoc colon splitting or raw-string key policy elsewhere; separate `"combined"` literals remain valid only at the `PlatformAttribution` and assignment-origin persistence boundaries documented by P16.04/P16.07.
 4. `SessionLifecycle` exists with a single classifier; `SessionsTabViewModel` and menubar tiering consume it.
 5. Exactly one write path to `customization.json` in the app target.
 6. Full existing suite green; `bun run verify` and `bun run ci:quiet` pass.

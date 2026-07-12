@@ -6,8 +6,9 @@ Phase 17 delivered the approved capability matrix and the stacked P17.01–P17.0
 branches/PRs: shared prompt construction and dismissal, one chrome-flock
 coordinator component, one renderer protocol, one targeting router, one shared
 panel action-wiring path, the exit audit, and a locally installed dogfood DMG.
-PRs #169–#173 contain P17.01–P17.05; P17.06 remains blocked because the exit
-audit proved controller-owned anchoring/fronting paths survived P17.03.
+PRs #169–#174 contain P17.01–P17.06. P17.06 initially stopped because the exit
+audit proved controller-owned anchoring/fronting paths survived P17.03; the
+developer-approved in-ticket correction closed that gap before publication.
 
 ## What went well
 
@@ -80,17 +81,21 @@ Phase 18 execution.
 
 ## Follow-up
 
-- Complete and record the Phase 18 transition soak across Own, Minimalist, and
-  Combined before `/soa execute phase-18`.
+- ~~Complete and record the Phase 18 transition soak across Own, Minimalist,
+  and Combined before `/soa execute phase-18`~~ — completed by the developer on
+  2026-07-12 with no regressions identified.
 - ~~Resolve the P17.03 completeness defect~~ — done inside P17.06 (developer-
   approved stop disposition): live re-anchor + HUD lifecycle mechanics moved
   behind `ChromeFlockCoordinator`, `existing*Panel` accessors deleted, both
   cadence/z-order behaviors (front-on-content-change vs.
   reposition-only-live-update) preserved as named coordinator API.
-- Add an automated closeout assertion that shared panel-handler assignments
+- ~~Add an automated closeout assertion that shared panel-handler assignments
   occur only in `wirePanelActions` and retired protocol names have zero app and
-  contract hits.
+  contract hits~~ — covered by `SurfaceConvergenceInvariantTests`.
 - Fix handoff generation so consumer repo paths and resume commands cannot
-  drift from authoritative delivery state.
+  drift from authoritative delivery state. The patch is prepared in the
+  upstream `cesarnml/son-of-anton` repository; the consumer subtree update is
+  intentionally deferred until that upstream change lands.
 
-_Created: 2026-07-12. P17.06 PR pending._
+_Created: 2026-07-12. Updated after P17.06 landed on `v3_preview` and the Phase
+18 transition soak completed._
