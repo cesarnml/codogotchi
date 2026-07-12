@@ -72,6 +72,7 @@
 		588624B3B7B400E50C961066 /* HookRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F078A9D14984485EB28AC9 /* HookRowView.swift */; };
 		58A715CD06913CC033DA019A /* FloatingPetWindowPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5CF055F2A0C9DD84F4F026A /* FloatingPetWindowPool.swift */; };
 		595CC685C452AE0EA1EB9E2F /* PerSessionReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBBC8A9F0A42DAF1E086D27A /* PerSessionReaderTests.swift */; };
+		59E6748B45FAB395638DCE99 /* FloatingPetPromptDismissal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92F7C601B6A2F543E0A4A246 /* FloatingPetPromptDismissal.swift */; };
 		5B8D08B5B584C695EB75E553 /* SessionLabelStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970D0D22D956516B6FAF0632 /* SessionLabelStoreTests.swift */; };
 		5BE414B5F01BD917B60E917C /* SessionLabelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A99294D27E5D1862559FCA2 /* SessionLabelStore.swift */; };
 		5ED2ED3F249FA9CB7F314F94 /* FloatingInteractionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45AA3E424EA09D77F47D6C1F /* FloatingInteractionPolicy.swift */; };
@@ -87,6 +88,7 @@
 		686F220636F60BF638F4588B /* RPGHUDViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B45875058BDB67738967BE7A /* RPGHUDViewModel.swift */; };
 		68A45AC229C671EE01A9DEAC /* PerPlatformSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B41CAA48264D60619035FE /* PerPlatformSnapshot.swift */; };
 		692DB55B96C40097202445F2 /* PlatformAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44643FE5868DCD56DDF5F1E2 /* PlatformAttribution.swift */; };
+		69FAC7752922A70F4943791A /* FloatingPetPromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9C3594285193B88B858A1C8 /* FloatingPetPromptBuilder.swift */; };
 		6A6E965676C08DCF5EA44900 /* PromptTimerChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D8D2C351C51A43AE40A1A6 /* PromptTimerChipView.swift */; };
 		6A78A39CED185B02C213FE62 /* MenuItemsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */; };
 		6BE7F6EA53A623C22C0B98E5 /* RPGHUDIconTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6858ADF75A07FF4C263F283 /* RPGHUDIconTileView.swift */; };
@@ -309,6 +311,7 @@
 		8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingInteractionTests.swift; sourceTree = "<group>"; };
 		8DBC88DE074DC11652453ADE /* PetTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetTabView.swift; sourceTree = "<group>"; };
 		8E2899DD8851B86633D4BB28 /* PetThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetThumbnail.swift; sourceTree = "<group>"; };
+		92F7C601B6A2F543E0A4A246 /* FloatingPetPromptDismissal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetPromptDismissal.swift; sourceTree = "<group>"; };
 		9310785E0303F2C6627ADAE4 /* ConflictBubbleRateLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubbleRateLimiter.swift; sourceTree = "<group>"; };
 		933225DDA49AB5637263654E /* MinimalistBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinimalistBadgeView.swift; sourceTree = "<group>"; };
 		93F078A9D14984485EB28AC9 /* HookRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookRowView.swift; sourceTree = "<group>"; };
@@ -334,6 +337,7 @@
 		A8A8D4BFA46121B6684F74F5 /* AnimationBadgeChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationBadgeChrome.swift; sourceTree = "<group>"; };
 		A977437677E31BB6CF62E58C /* FloatingPetWindowPoolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetWindowPoolTests.swift; sourceTree = "<group>"; };
 		A99F6A33E762533EA412019B /* ConflictBubblePayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubblePayload.swift; sourceTree = "<group>"; };
+		A9C3594285193B88B858A1C8 /* FloatingPetPromptBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetPromptBuilder.swift; sourceTree = "<group>"; };
 		AA22D5D2131753BBC81766B8 /* SessionNumberAllocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNumberAllocator.swift; sourceTree = "<group>"; };
 		AB2EB6CC13A81EBCFDAF037F /* DemoCycleDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoCycleDriver.swift; sourceTree = "<group>"; };
 		AC5C744A6A25DDB45C495A36 /* SessionLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLifecycle.swift; sourceTree = "<group>"; };
@@ -547,7 +551,9 @@
 				AEE399EF550E69D66FBC271D /* FloatingPetInteractionView.swift */,
 				D574C8088D0CC53510729EAA /* FloatingPetOverlayView.swift */,
 				22CB181AE0D1FF3EE2035186 /* FloatingPetPanelController.swift */,
+				A9C3594285193B88B858A1C8 /* FloatingPetPromptBuilder.swift */,
 				8780B208D0E108DA773D3287 /* FloatingPetPromptCoordinator.swift */,
+				92F7C601B6A2F543E0A4A246 /* FloatingPetPromptDismissal.swift */,
 				3351EB8DFFDD6E8E9263B6A8 /* FloatingPetPromptItem.swift */,
 				E2120EF41902AB522F5AC969 /* GateBadgeLayout.swift */,
 				D1203CF2C4FF29C31534A7CF /* GateBadgePanel.swift */,
@@ -837,7 +843,9 @@
 				2E2D4A6F8E45BCA89918B7F1 /* FloatingPetInteractionView.swift in Sources */,
 				C290EE1287F115D6FCFA05D8 /* FloatingPetOverlayView.swift in Sources */,
 				CA717B4026463DF504612273 /* FloatingPetPanelController.swift in Sources */,
+				69FAC7752922A70F4943791A /* FloatingPetPromptBuilder.swift in Sources */,
 				11206CBC485103EA118341AB /* FloatingPetPromptCoordinator.swift in Sources */,
+				59E6748B45FAB395638DCE99 /* FloatingPetPromptDismissal.swift in Sources */,
 				D0829C6BFE047F8829080BE5 /* FloatingPetPromptItem.swift in Sources */,
 				21B73048740BFD4E98BB56CB /* FloatingPetScene.swift in Sources */,
 				58A715CD06913CC033DA019A /* FloatingPetWindowPool.swift in Sources */,
