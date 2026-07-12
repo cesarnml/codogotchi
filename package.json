@@ -1,49 +1,33 @@
 {
-  "name": "codogotchi",
-  "license": "MIT",
-  "module": "index.ts",
-  "type": "module",
+  "name": "son-of-anton",
+  "version": "0.1.0",
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
+  "type": "module",
   "scripts": {
-    "sync": "bash .son-of-anton/scripts/soa-sync.sh",
-    "deliver": "bun run .son-of-anton/scripts/deliver.ts",
-    "closeout-stack": "bun run .son-of-anton/scripts/closeout-stack.ts",
-    "build:binaries": "bash scripts/build-binaries.sh",
-    "format": "biome format --write .",
-    "format:quiet": "biome format --write . --log-level=error",
-    "lint": "biome lint --write .",
-    "lint:quiet": "biome lint --write . --log-level=error",
-    "check": "biome check --write .",
-    "verify": "biome check .",
-    "verify:quiet": "biome check . --log-level=error",
-    "test": "bun test packages convex",
-    "ci": "bun run verify && bun run test && bun run mac:test",
-    "ci:quiet": "bun run verify:quiet && bun run test && bun run mac:test",
-    "mac:build": "xcodebuild -project apps/menubar/Codogotchi.xcodeproj -scheme Codogotchi build",
-    "mac:test": "xcodebuild -project apps/menubar/Codogotchi.xcodeproj -scheme Codogotchi test"
-  },
-  "dependencies": {
-    "@auth/core": "^0.37.0",
-    "@codogotchi/contracts": "workspace:*",
-    "@codogotchi/engine": "workspace:*",
-    "@codogotchi/pets": "workspace:*",
-    "@convex-dev/auth": "^0.0.93",
-    "@oslojs/crypto": "^1.0.1",
-    "image-size": "^1.2.1",
-    "jszip": "^3.10.1",
-    "resend": "^6.12.4"
+    "deliver": "bun run ./scripts/deliver.ts",
+    "closeout-stack": "bun run ./scripts/closeout-stack.ts",
+    "sync": "bash scripts/soa-sync.sh",
+    "format": "biome format --write && prettier --write .",
+    "format:check": "biome format && prettier --check .",
+    "lint": "eslint .",
+    "lint:quiet": "eslint . --quiet",
+    "verify": "bun run format:check && bun run lint",
+    "verify:quiet": "prettier --check . --log-level warn && bun run lint:quiet",
+    "ci": "bun run verify && bun test",
+    "ci:quiet": "bun run verify:quiet && bun test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
+    "@eslint/js": "^10.0.1",
     "@types/bun": "latest",
-    "convex": "^1.17.0",
-    "convex-test": "^0.0.52",
-    "jose": "^6.2.3"
+    "@types/node": "^25.9.1",
+    "eslint": "^10.3.0",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.59.2"
   },
-  "peerDependencies": {
-    "typescript": "^5"
+  "engines": {
+    "bun": ">=1.0.0"
   }
 }

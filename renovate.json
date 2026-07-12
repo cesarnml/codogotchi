@@ -1,45 +1,13 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    "helpers:pinGitHubActionDigests",
-    ":dependencyDashboard",
-    ":prHourlyLimit2",
-    ":prConcurrentLimit10"
-  ],
-  "schedule": ["before 6am on monday"],
-  "ignorePaths": [".son-of-anton/**", "**/node_modules/**"],
-  "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["before 6am on monday"]
+  "extends": ["config:recommended"],
+  "schedule": ["every weekend"],
+  "timezone": "Asia/Bangkok",
+  "major": {
+    "enabled": false
   },
-  "packageRules": [
-    {
-      "description": "Hold all major upgrades behind manual approval on the Dependency Dashboard",
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true,
-      "addLabels": ["major"]
-    },
-    {
-      "description": "Batch non-major devDependency updates into one PR",
-      "matchDepTypes": ["devDependencies"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "devDependencies (non-major)"
-    },
-    {
-      "description": "Batch GitHub Actions updates",
-      "matchManagers": ["github-actions"],
-      "groupName": "github-actions"
-    },
-    {
-      "description": "Keep the Convex stack in lockstep",
-      "matchPackageNames": [
-        "convex",
-        "convex-test",
-        "@auth/core",
-        "/^@convex-dev//"
-      ],
-      "groupName": "convex"
-    }
-  ]
+  "patch": {
+    "automerge": true
+  },
+  "assignees": ["cesarnml"]
 }

@@ -1,8 +1,0 @@
-{
-  "session_id": "0000-codex-fixture-session",
-  "rollout_path": "/redacted/codex/rollout.jsonl",
-  "cwd": "/redacted/workspace",
-  "turn_id": "0000-codex-fixture-turn",
-  "hook_event_name": "user_prompt_submit",
-  "prompt": "Refactor the auth module to use the new token store"
-}

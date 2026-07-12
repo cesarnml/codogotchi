@@ -1,86 +1,88 @@
-# Phase 15 — Per-Session Pets (Pet Per Active Agent Thread)
+# Phase 15 — Codogotchi Gate Event Emission
 
-> Render one pet panel per active agent session (`session_id`) on a platform in Own and Minimalist modes, gated behind an opt-in per-platform setting, with per-session labeling, rename, aging, capacity, and a conflict signal.
+> Connect the unconnected wire: add the SoA-side writer that appends NDJSON lines to `.soa/events.ndjson` at recognized gate points so the codogotchi hook binary can finally pick up explicit orchestrator signals.
 
 ## Epic
 
-Product plan: [`docs/product/plans/phase-15.md`](../../plans/phase-15.md). Decision source of truth: [`notes/private/phase-15-per-session-pet-extension-kickoff.md`](../../../../notes/private/phase-15-per-session-pet-extension-kickoff.md).
+Standalone phase. Source product plan: [`docs/product/plans/phase-15-codogotchi-gate-event-emission.md`](../../plans/phase-15-codogotchi-gate-event-emission.md). Codogotchi alignment cross-repo draft: [`notes/public/codogotchi-alignment-draft.md`](../../../../notes/public/codogotchi-alignment-draft.md). Retrospective: [`docs/product/retrospectives/phase-15-codogotchi-gate-event-emission-retrospective.md`](../../retrospectives/phase-15-codogotchi-gate-event-emission-retrospective.md).
 
 ## Product contract
 
-When this phase is complete, a user can open Settings > Platform Settings, enable **Session Pets** for a platform in Own or Minimalist mode (cap defaulting to 3), run three concurrent agent sessions on that platform, and see three pet panels appear labeled "Session 1/2/3", each rendering that platform's assigned (or Default) pet. Renaming a panel (right-click → rename, ≤24 chars) sticks for that session's lifetime; hovering its animation badge after a short delay surfaces that thread's last submitted prompt. Manually pruning a session (right-click → Prune Session) destroys the panel and deletes its state, freeing its number back to a per-platform pool so the next new session reclaims the lowest free number. Pushing past the cap de-renders an idle/standby panel before an active one; when every remaining panel is actively working a rate-limited bubble appears on the longest-lived panel and deep-links to Settings, and the blocked session pops into a real panel the instant a slot frees. Flipping the platform to Minimalist swaps pet panels for badge strips carrying the same per-session labels. A user who upgrades and never touches the new setting sees exactly what they saw before. The app version reads 2.2.0; no DMG is cut this phase.
+After Phase 15 ships, running any of these delivery commands in a consumer repo with `codogotchi.enabled` (default) appends the correct event line to `.soa/events.ndjson` within the same command invocation:
+
+- `deliver start <ticket>` → `ticket_started`
+- `deliver advance` (transition to `in_progress`) → `ticket_started`
+- `deliver advance` (transition to `done`) → `ticket_completed`
+- `deliver open-pr` (review window real) → `pr_review_window_opened`
+- `deliver record-review` / `poll-review` / `triage-ticket` (outcome=clean) → `review_clean_recorded`
+- Subagent spawn → `subagent_invoked`
+
+All emits are best-effort: a write failure never aborts a delivery command. Setting `codogotchi.enabled: false` in `orchestrator.config.json` suppresses all writes — no `.soa/` directory is created.
 
 ## Grill-Me decisions locked
 
-- **Composite `origin:session_id` window key with an explicit collapse** → the reader emits full per-session granularity `[origin:session_id → StateSnapshot]` and a pure `resolveRenderKeys` step reduces it to the render set by mode + setting. Combined origins fold to `"combined"`; Own/Minimalist with session-pets-off fold each origin's sessions to the last-writer-wins winner keyed by plain `origin`; Own/Minimalist with session-pets-on keep each `origin:session_id` as its own key. The pool keys windows by this resolved key **uniformly** — the "session-enabled?" branch lives in exactly one place (key derivation). Rationale: this is the day-one architecture; collapsed keys are byte-identical to today's keys, so the existing pool invariants (last-active immunity, TTL clock, hide-set, gate-badge join) and their tests become the regression net.
-- **`session-labels.json` is a Swift-owned sidecar** → rename persists `{ "origin:session_id": "label" }` in a new app-owned file, read-merge-written by the app. No CLI change; the `state.d` slice stays CLI-single-writer, avoiding a two-writer race. The CLI `writeSliceAtomic` full-overwrite would have stripped/clobbered a label written into the slice, so the slice is not a viable host. Rationale: the label is UI state the CLI never reads — keeping it app-side is the correct boundary, not tech debt.
-- **Session number free-list is in-memory** → a per-platform lowest-free-number allocator, rebuilt at launch. Durable identity is the persisted rename label; the auto-number is a disposable default whose cross-restart stability is low value and not worth a second persisted store to reconcile.
-- **Cap eviction is a reversible de-render, not a delete** → when an origin has more live session slices than its cap, the pool renders the top-N by priority and holds the rest as pending. The held session's slice stays on disk (the CLI writes it regardless), so blocked-session tracking needs no new persistence — it is the pool's in-memory selection policy. Promotion fires the instant a rendered slot frees. Only manual Prune and TTL actually delete.
-- **Eviction priority** (most- → least-evictable, grounded against `ActivityState.swift`): `idle`/`standby` → `errored` → `waiting_for_input` → any in-flight active state (never auto-evicted).
-- **Blocked signal is the P15.07 ↔ P15.08 seam** → the selection policy (P15.07) emits an "all-remaining-active, newcomer blocked" signal; the conflict bubble (P15.08) consumes it. Separate render surface and test strategy.
-- **Scan consolidation in scope as P15.02**; **version-only bump to 2.2.0**, no DMG this phase.
-- **`session_cap` representation** → stored as `Int` in `customization.json` with `0` = Unlimited (1 is not offered, so 0 is a free sentinel); absent-but-enabled resolves to the default 3. `customization.json` stays `schema_version: 1` (additive, unknown values already tolerated).
-- **No state-schema lockstep change** → `STATE_JSON_SCHEMA_VERSION` / `EXPECTED_STATE_SCHEMA_VERSION` are untouched this phase.
+| Decision                                                                                                     | Rationale                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `subagent_invoked` emits in `cli-runner.ts` (not `subagent-runner.ts`), using `worktreePath` as project root | Spawn site lives in `cli-runner.ts` ~line 907; `subagent-runner.ts` is a pure utilities module with no I/O       |
+| `review_clean_recorded` emits on all three paths (`record-review`, `poll-review`, `triage-ticket`)           | A late clean review is semantically identical to a direct clean record; skipping triage path creates a dead spot |
+| Exit scoped to SoA write-path verification only                                                              | End-to-end animation verification belongs in a codogotchi-side phase, not Phase 15                               |
+| `orchestrator.config.json` gains `codogotchi: { enabled: boolean }`, default enabled                         | Operator escape hatch; opt-out default preserves happy path for existing users                                   |
+| Writer module + config gate land together in P15.01                                                          | Foundation must be atomic — writer is meaningless without the gate it consults                                   |
+| All three `review_clean_recorded` paths in one ticket (P15.04)                                               | Parallel code; splitting triples ceremony for negligible incremental value                                       |
+| Dedicated final docs ticket (P15.06)                                                                         | Clean separation; correct `skip_doc_only` subagent-review flow; retrospective slot                               |
+| Filesystem-level integration tests against tmp dirs                                                          | Proves the actual contract codogotchi consumes; matches existing `pN-NN.test.ts` pattern                         |
+| No dedicated e2e smoke ticket                                                                                | Per-ticket coverage is sufficient; no realistic inter-command propagation bug surface                            |
+| Strict linear stack                                                                                          | Cleaner orchestrator state machine; simpler `closeout-stack`                                                     |
+| `orchestrator.config.json` in this repo untouched                                                            | Respects default-enabled semantics; avoids implying the field is required                                        |
 
 ## Ticket Order
 
-1. `P15.01 Contracts: customization.json session-pets fields`
-2. `P15.02 Refactor: consolidate state.d directory scans`
-3. `P15.03 Per-session reader + resolveRenderKeys collapse`
-4. `P15.04 Pool per-session window fan-out`
-5. `P15.05 PlatformSessionBadge + in-memory free-list numbering`
-6. `P15.06 Rename + last-prompt tooltip`
-7. `P15.07 Selection policy: cap, eviction, prune, session-keyed TTL`
-8. `P15.08 Conflict bubble + rate limit + Settings deep-link`
-9. `P15.09 Settings > Platform Settings UI`
-10. `P15.10 Docs sweep + v2.2.0 bump + retrospective`
+1. `P15.01 Add soa-event-feed.ts writer + codogotchi.enabled config gate`
+2. `P15.02 Emit ticket_started + ticket_completed`
+3. `P15.03 Emit pr_review_window_opened`
+4. `P15.04 Emit review_clean_recorded across record/poll/triage paths`
+5. `P15.05 Emit subagent_invoked at runner pre-spawn`
+6. `P15.06 Phase 15 docs + retrospective`
 
 ## Ticket Files
 
-- `ticket-01-contracts-session-pets-fields.md`
-- `ticket-02-consolidate-state-scans.md`
-- `ticket-03-per-session-reader-resolve.md`
-- `ticket-04-pool-per-session-fanout.md`
-- `ticket-05-session-badge-numbering.md`
-- `ticket-06-rename-tooltip.md`
-- `ticket-07-selection-policy-prune-ttl.md`
-- `ticket-08-conflict-bubble.md`
-- `ticket-09-settings-platform-settings-ui.md`
-- `ticket-10-docs-retrospective.md`
+- `ticket-01-soa-event-feed-writer-and-codogotchi-config-gate.md`
+- `ticket-02-emit-ticket-started-and-ticket-completed.md`
+- `ticket-03-emit-pr-review-window-opened.md`
+- `ticket-04-emit-review-clean-recorded.md`
+- `ticket-05-emit-subagent-invoked.md`
+- `ticket-06-phase-15-docs-and-retrospective.md`
 
 ## Exit Condition
 
-A developer opens Settings > Platform Settings, enables session pets for a platform in Own mode (cap defaulting to 3), runs three concurrent agent sessions on that platform, and watches three pet panels appear labeled "Session 1/2/3", each rendering that platform's pet. Renaming a panel (≤24 chars) sticks for that session; hovering its animation badge surfaces the thread's last prompt. Pruning a session frees its number back to the pool, and the next new session reclaims the lowest free number. Pushing past the cap yields an idle/standby panel before an active one; when all three are actively working, a rate-limited bubble appears on the longest-lived panel and deep-links to Settings, and the blocked session pops in the moment one finishes. Flipping the platform to Minimalist swaps the pet panels for badge strips carrying the same per-session labels. A user who simply upgrades and never touches the new setting sees exactly what they saw before. The app version reads 2.2.0.
+Phase 15 is done when running the SoA delivery commands in a consumer repo with `codogotchi.enabled` produces the correct NDJSON lines in `.soa/events.ndjson`, each line parses as valid JSON matching the codogotchi schema, all delivery commands exit zero even when the write would fail, setting `codogotchi.enabled: false` produces no `.soa/` directory, and the codogotchi alignment cross-repo draft is committed under `notes/public/`.
 
 ## CI Baseline
 
-> Recorded at phase start (`445ccb36`, the SHA where P15.01 branches from main): `bun run ci:quiet` **PASSED** — 704 tests, 0 failures. Pre-existing failure count: **0**. Any CI failure introduced by a Phase 15 ticket is therefore newly introduced and blocks that ticket.
-
 ## Review Rules
 
-- Tickets must be merged in order.
+- Tickets must be merged in order (strict linear stack).
 - Each ticket PR must pass CI before the next ticket starts.
 - Pre-existing CI failures documented in **CI Baseline** above do not block a ticket; newly introduced failures do.
-- P15.03 must feed the pool a byte-identical per-origin render set (session-pets-off collapse) — every existing `FloatingPetWindowPoolTests` case must still pass unchanged. A green existing suite is the gate for the composite-key foundation.
+- Subagent review policy follows repo default (`skip_doc_only`); P15.06 docs ticket auto-skips subagent review.
 
 ## Explicit Deferrals
 
-- **Session-scoped pet identity ("pet collection per platform")** — distinct pets per session. No `assignments.json` `scope` field is added; all session panels on a platform render the same pet.
-- **Session-linked SoA gate/ticket badges** — per-session SoA gate/animation attribution across codogotchi + upstream `cesarnml/son-of-anton`. SoA gate/badges continue to resolve per-platform this phase; explicit post-Phase-15 follow-up shaped by the retrospective.
-- **Combined-mode session-count signal** — rejected outright, not parked.
-- **True session-end detection** — TTL + manual prune is the accepted reaping contract; no new cross-platform "session ended" signal.
-- **DMG / notarized release** — version-only bump this phase; the dmg is a separate human-gated ritual.
-- **CLI slice schema changes** — the CLI stays out of Phase 15; the label lives in the Swift-owned sidecar.
+- `verification_failed`, `risky_diff_detected`, `flow_state_entered`, `stage_advanced` — all four contract events with no current SoA-side gate point.
+- File rotation / truncation handling on the SoA side (codogotchi consumer handles inode reset).
+- Cross-repo fan-out (one events file per project root).
+- Live codogotchi end-to-end animation verification (belongs in a codogotchi-side phase, scoped by the cross-repo draft).
 
 ## Stop Conditions
 
 - Broken CI that cannot be resolved within the ticket scope.
-- P15.03's collapse feeding a non-byte-identical render set (existing pool tests regress) — stop and reconcile before P15.04.
-- Ambiguous eviction/priority behavior where the right action against real `ActivityState` values is genuinely unclear.
+- Discovery that an emit site has no clean integration test path (would block Red discipline).
+- Discovery that the codogotchi contract document is not actually current after all (would force a contract negotiation).
+- Ambiguous triage where the right action is genuinely unclear.
 
 ## Phase Closeout
 
 Retrospective: required
-Why: Phase 15 introduces the first session-scoped lifecycle (free-list numbering, per-session rename persistence, priority eviction, rate-limited conflict bubble) and deliberately leaves a named cross-repo follow-up (session-linked SoA gate attribution). Durable learning and downstream assumptions are likely.
-Trigger: Developer approval of final PR merge.
-Artifact: `docs/product/retrospectives/phase-15-per-session-pets-retrospective.md`
+Why: This phase establishes the durable integration boundary between SoA and codogotchi. The emit pattern, config gate, and file format chosen here are the baseline all four deferred events will inherit. A retrospective captures what held, what didn't, and what the deferred events will need — directly feeding codogotchi Phase 2 planning.
+Trigger: Developer approval of P15.06 final PR merge.
+Artifact: `docs/product/retrospectives/phase-15-codogotchi-gate-event-emission-retrospective.md`

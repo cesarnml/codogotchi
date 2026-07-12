@@ -1,1 +1,0 @@
-See https://codogotchi.app/llms.txt for the LLM-readable site summary.
