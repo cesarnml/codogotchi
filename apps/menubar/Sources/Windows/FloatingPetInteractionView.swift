@@ -25,10 +25,7 @@ final class FloatingPetInteractionView: NSView {
 	private var isReconfiguringTracking = false
 	private var resizeCursorPushed = false
 	private var localMouseMonitor: Any?
-	private var globalMouseMonitor: Any?
-	private var globalKeyboardMonitor: Any?
-	private var hidePromptLocalMouseMonitor: Any?
-	private var hidePromptDismissObservers: [NSObjectProtocol] = []
+	private let promptDismissal = FloatingPetPromptDismissal()
 	private var pointerInsideFrame = false
 	private var affordanceHoverActive = false
 	private var hidePromptPanel: FloatingPetHidePromptPanel?
@@ -153,7 +150,7 @@ final class FloatingPetInteractionView: NSView {
 
 	deinit {
 		removeLocalMouseMonitor()
-		removeHidePromptDismissObservers()
+		promptDismissal.uninstall()
 	}
 
 	override func updateTrackingAreas() {
@@ -470,73 +467,46 @@ final class FloatingPetInteractionView: NSView {
 	func presentHidePrompt(anchorInScreen: CGPoint, localPoint: CGPoint) {
 		dismissHidePrompt()
 		guard let window else { return }
-		FloatingPetPromptCoordinator.shared.willPresent(owner: self) { [weak self] in
-			self?.dismissHidePrompt()
-		}
-		var items: [FloatingPetPromptItem] = []
-		// Escape hatch when the pet is stuck mid-animation (rate-limited or
-		// manually-stopped prompt): sits above "Hide pet" as the primary action.
-		if isForceIdleAvailable {
-			items.append(
-				FloatingPetPromptItem(title: FloatingPetHidePrompt.forceIdleTitle) { [weak self] in
-					self?.dismissHidePrompt()
-					self?.forceIdleHandler?()
-				})
-		}
-		// Offered whenever the window is showing a session-label badge at all —
-		// a session-keyed window's own "Session N" default, or a plain-origin/
-		// combined window's platform-name default (P?? unification) — not
-		// just a session-keyed one. Sits above "Hide pet".
-		if currentSessionLabel != nil {
-			items.append(
-				FloatingPetPromptItem(title: FloatingPetHidePrompt.renameTitle) { [weak self] in
-					self?.dismissHidePrompt()
-					self?.presentRenameAlert()
-				})
-		}
-		// Only offered on an actual session-keyed window — a plain-origin/
-		// combined window has no session id to resolve a platform title for.
-		// Sits directly below "Rename…", grouping the two label actions;
-		// non-destructive, so it fires immediately on click like Rename does
-		// once its (separate) text-entry alert is confirmed.
-		if hasActiveSessionBadge {
-			items.append(
-				FloatingPetPromptItem(title: FloatingPetHidePrompt.syncLabelTitle) { [weak self] in
-					self?.dismissHidePrompt()
-					self?.syncLabelHandler?()
-				})
-		}
-		// Destroys backing session state (slice, free-list number), so unlike
-		// Rename this stays restricted to an actual session-keyed window —
-		// a plain-origin/combined window has no session to prune. Destructive,
-		// so it sits above "Hide pet" but requires a confirmation alert rather
-		// than firing immediately on click.
-		if hasActiveSessionBadge {
-			items.append(
-				FloatingPetPromptItem(title: FloatingPetHidePrompt.pruneTitle) { [weak self] in
-					self?.dismissHidePrompt()
-					self?.presentPruneConfirmation()
-				})
-		}
-		// Mode switch to the compact badge strip. Sits directly above "Hide pet"
-		// — like Hide it acts on the window's chrome, not the session's state.
-		items.append(
-			FloatingPetPromptItem(title: FloatingPetHidePrompt.minimalistModeTitle) { [weak self] in
+		let capabilities = FloatingPetPromptCapabilities(
+			offersForceIdle: isForceIdleAvailable,
+			sessionLabel: currentSessionLabel,
+			hasActiveSession: hasActiveSessionBadge,
+			modeSwitchTitle: FloatingPetHidePrompt.minimalistModeTitle,
+			offersPanelSize: false,
+			hideItemTitle: FloatingPetHidePrompt.title
+		)
+		let handlers = FloatingPetPromptHandlers(
+			forceIdle: { [weak self] in
+				self?.dismissHidePrompt()
+				self?.forceIdleHandler?()
+			},
+			rename: { [weak self] in
+				self?.dismissHidePrompt()
+				self?.presentRenameAlert()
+			},
+			syncLabel: { [weak self] in
+				self?.dismissHidePrompt()
+				self?.syncLabelHandler?()
+			},
+			prune: { [weak self] in
+				self?.dismissHidePrompt()
+				self?.presentPruneConfirmation()
+			},
+			modeSwitch: { [weak self] in
 				self?.dismissHidePrompt()
 				self?.minimalistModeHandler?()
-			})
-		// Offered unconditionally, directly above "Hide pet" — the last
-		// action before the pet's own hide.
-		items.append(
-			FloatingPetPromptItem(title: FloatingPetHidePrompt.hideAllOtherPetsTitle) { [weak self] in
+			},
+			panelSize: {},
+			hideAllOtherPets: { [weak self] in
 				self?.dismissHidePrompt()
 				self?.hideAllOtherPetsHandler?()
-			})
-		items.append(
-			FloatingPetPromptItem(title: FloatingPetHidePrompt.title) { [weak self] in
+			},
+			hideThis: { [weak self] in
 				self?.dismissHidePrompt()
 				self?.hideFloatingPetHandler?()
-			})
+			}
+		)
+		let items = FloatingPetPromptBuilder.items(capabilities: capabilities, handlers: handlers)
 		let promptSize = FloatingPetHidePrompt.stackSize(titles: items.map(\.title))
 		let visibleFrame = window.screen?.visibleFrame ?? visibleFrameProvider()
 		let screenFrame = FloatingPetHidePrompt.screenFrame(
@@ -547,7 +517,9 @@ final class FloatingPetInteractionView: NSView {
 		let panel = FloatingPetHidePromptPanel(frame: screenFrame, items: items)
 		panel.orderFrontRegardless()
 		hidePromptPanel = panel
-		installHidePromptDismissObservers()
+		promptDismissal.install(owner: self, panel: panel) { [weak self] in
+			self?.dismissHidePrompt()
+		}
 	}
 
 	/// Presents a modal text-entry alert for renaming this session. Trims and
@@ -606,96 +578,9 @@ final class FloatingPetInteractionView: NSView {
 	}
 
 	private func dismissHidePrompt() {
-		FloatingPetPromptCoordinator.shared.didDismiss(owner: self)
+		promptDismissal.uninstall()
 		hidePromptPanel?.orderOut(nil)
 		hidePromptPanel = nil
-		removeHidePromptDismissObservers()
-	}
-
-	private func installHidePromptDismissObservers() {
-		removeHidePromptDismissObservers()
-		guard let window else { return }
-
-		hidePromptDismissObservers.append(
-			NotificationCenter.default.addObserver(
-				forName: NSWindow.didResignKeyNotification,
-				object: window,
-				queue: .main
-			) { [weak self] _ in
-				self?.dismissHidePrompt()
-			}
-		)
-		hidePromptDismissObservers.append(
-			NotificationCenter.default.addObserver(
-				forName: NSApplication.didResignActiveNotification,
-				object: nil,
-				queue: .main
-			) { [weak self] _ in
-				self?.dismissHidePrompt()
-			}
-		)
-
-		globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
-			matching: [.leftMouseDown, .rightMouseDown]
-		) { [weak self] event in
-			Task { @MainActor in
-				self?.handleGlobalMouseDownWhileHidePromptVisible(event)
-			}
-		}
-
-		// In-app half of "any click away dismisses": global monitors only
-		// report other applications' events, so a click on a sibling pet, a
-		// Minimalist strip, or the menubar icon would strand this prompt
-		// without a local monitor. Dismissal is synchronous (not
-		// Task-deferred) — the monitor fires before the event dispatches, and
-		// a deferred dismissal would land after a right-click's re-present
-		// and tear down the new prompt instead of the old one.
-		hidePromptLocalMouseMonitor = NSEvent.addLocalMonitorForEvents(
-			matching: [.leftMouseDown, .rightMouseDown]
-		) { [weak self] event in
-			if let self, event.window !== self.hidePromptPanel {
-				self.dismissHidePrompt()
-			}
-			return event
-		}
-
-		// Dismiss on any keyboard input (including Cmd+Tab / Alt+Tab system
-		// switchers) so the pill never lingers over the UI while the user is
-		// changing apps/windows.
-		globalKeyboardMonitor = NSEvent.addGlobalMonitorForEvents(
-			matching: [.keyDown, .keyUp, .flagsChanged]
-		) { [weak self] _ in
-			Task { @MainActor in
-				self?.dismissHidePrompt()
-			}
-		}
-	}
-
-	private func removeHidePromptDismissObservers() {
-		for observer in hidePromptDismissObservers {
-			NotificationCenter.default.removeObserver(observer)
-		}
-		hidePromptDismissObservers.removeAll()
-		if let globalMouseMonitor {
-			NSEvent.removeMonitor(globalMouseMonitor)
-			self.globalMouseMonitor = nil
-		}
-		if let hidePromptLocalMouseMonitor {
-			NSEvent.removeMonitor(hidePromptLocalMouseMonitor)
-			self.hidePromptLocalMouseMonitor = nil
-		}
-		if let globalKeyboardMonitor {
-			NSEvent.removeMonitor(globalKeyboardMonitor)
-			self.globalKeyboardMonitor = nil
-		}
-	}
-
-	private func handleGlobalMouseDownWhileHidePromptVisible(_ event: NSEvent) {
-		guard let hidePromptPanel else { return }
-		if event.window === hidePromptPanel {
-			return
-		}
-		dismissHidePrompt()
 	}
 
 	private func removeLocalMouseMonitor() {

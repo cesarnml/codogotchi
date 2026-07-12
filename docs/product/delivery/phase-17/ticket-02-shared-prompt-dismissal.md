@@ -43,8 +43,37 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `FloatingInteractionTests` table-driven builder tests referencing
+`FloatingPetPromptBuilder`/`FloatingPetPromptCapabilities`/
+`FloatingPetPromptHandlers` — none of those types existed yet, so the suite
+failed to compile.
+
+Why this path: two convergence seams, not one — (1) a pure
+`FloatingPetPromptBuilder.items(capabilities:handlers:)` producing
+`[FloatingPetPromptItem]`, parameterized by a `FloatingPetPromptCapabilities`
+struct whose fields map 1:1 to named matrix rows (`offersForceIdle`,
+`sessionLabel`, `hasActiveSession`, `modeSwitchTitle`, `offersPanelSize`,
+`hideItemTitle`) rather than a shape-identity boolean; and (2) a
+`FloatingPetPromptDismissal` class (adjacent to `FloatingPetPromptCoordinator`
+in `Windows/`) owning the global-mouse/local-mouse/global-keyboard/
+resign-active monitor stack, reused by all three surfaces that previously
+hand-rolled it: `FloatingPetInteractionView`'s hide prompt, `MinimalistBadgeView`'s
+hide prompt, and `MinimalistBadgeView`'s panel-size pill — "the bug fixed
+three times" the ticket's Review Focus calls out. `NSWindow.didResignKeyNotification`
+(R1.11, confirmed dead code — both panels are non-activating and never become
+key) was dropped from the shared stack rather than carried forward.
+
+Alternative considered: a `shape: .own | .minimalist` enum parameter on the
+builder instead of named capability fields. Rejected — it re-encodes shape
+identity as a boolean/enum, which the ticket's Review Focus explicitly
+prohibits ("no boolean soup that re-encodes shape identity"), and it would
+make a future capability that varies independently of shape (none exist
+today, but the matrix format anticipates them) awkward to express.
+
+Deferred: nothing — all 33 matrix rows for §1 (prompt items) were
+dispositioned `intentional` with none `bug`, so there is no drift-restoration
+commit in this ticket. `MinimalistPanelController`/`FloatingPetPanelController`
+chrome-flock convergence stays out of scope per the ticket order (P17.03).
+
+Contract note: none — `Type: refactor`, `Scope: menubar`, `Red: required` all
+matched the actual work.
