@@ -56,14 +56,19 @@ extension PoolMemory {
 	/// into the freed slot requires the promoted session to be in-flight,
 	/// never a merely-held idle sibling) and clear every per-key bookkeeping
 	/// map a fresh session at that key should not inherit stale state from:
-	/// `previousDesiredWindowKeys`, `windowSpawnedModes`, `promptTimers`.
-	/// Deliberately does NOT release the session number directly (unlike
-	/// `hiding`) — `windowSessionIdentities` is left untouched so `derive`'s
-	/// own teardown-diff pass releases it next tick using the identity
-	/// captured at assign time, exactly like any other teardown; releasing
-	/// it here too would double-release nothing (a no-op) but removing the
-	/// captured identity here WITHOUT releasing would leak the number
-	/// forever, which this deliberately avoids. (2) the shell's paired
+	/// `previousDesiredWindowKeys`, `windowSpawnedModes`, `promptTimers`. Also
+	/// releases the session number directly here, exactly like `hiding(_:)`
+	/// does — unlike a hide, a prune removes the key's membership evidence
+	/// from `previousDesiredWindowKeys` immediately, out-of-band from
+	/// `derive`'s own diff. If the release were left for `derive`'s next
+	/// teardown-diff pass instead, a key already absent from
+	/// `previousDesiredWindowKeys` (removed by this very call) would compute
+	/// `torndownKeys = previousKeys.subtracting(visibleFinalKeys)` as empty
+	/// for it — the key is invisible to both sides of that diff — so the
+	/// release-on-teardown path would never fire and the session number
+	/// would leak forever. Releasing here, using the identity captured at
+	/// assign time (never the latest snapshot — see
+	/// `windowSessionIdentities`), closes that gap. (2) the shell's paired
 	/// `SessionPruner.pruneSession` call performs the actual disk/allocator
 	/// side effects.
 	func pruning(_ key: WindowKey) -> PoolMemory {
@@ -72,6 +77,9 @@ extension PoolMemory {
 		memory.windowSpawnedModes.removeValue(forKey: key)
 		memory.promptTimers.removeValue(forKey: key)
 		memory.prunedOrigins.insert(key.origin)
+		if let identity = memory.windowSessionIdentities.removeValue(forKey: key) {
+			memory.sessionNumberAllocator.release(origin: identity.origin, sessionId: identity.sessionId)
+		}
 		return memory
 	}
 

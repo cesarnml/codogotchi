@@ -87,4 +87,33 @@ final class PoolMemorySessionAllocatorTests: XCTestCase {
 			"an Unlimited origin must never reuse a released number — the next session gets the next "
 				+ "monotonic number instead")
 	}
+
+	/// Subagent-review fix: `pruning(_:)` must release the assign-time
+	/// identity IMMEDIATELY, in the same call — not defer to `derive`'s next
+	/// teardown-diff pass. `pruning(_:)` already removes the key from
+	/// `previousDesiredWindowKeys` as part of its own bookkeeping, so once
+	/// that removal has happened, a subsequent `derive` tick can never see
+	/// this key in `previousKeys` again; `torndownKeys =
+	/// previousKeys.subtracting(visibleFinalKeys)` would compute empty for
+	/// it forever, so the release-on-teardown path would never fire and the
+	/// number would leak. This test proves the number is reusable right after
+	/// `pruning(_:)` returns, with no `derive` tick involved at all.
+	func test_pruningReleasesSessionNumberImmediatelyWithoutADeriveTick() {
+		var memory = PoolMemory()
+		memory = assigned(memory)
+		memory.previousDesiredWindowKeys.insert(key)
+
+		memory = memory.pruning(key)
+
+		XCTAssertNil(
+			memory.windowSessionIdentities[key],
+			"pruning must remove the captured identity immediately, in the same call")
+
+		let reassignedNumber = memory.sessionNumberAllocator.assign(origin: "claude_code", sessionId: "s2")
+		XCTAssertEqual(
+			reassignedNumber, 1,
+			"the number freed by pruning must be reusable immediately — proof pruning released it "
+				+ "itself rather than waiting for a derive tick that can never observe this key again "
+				+ "once previousDesiredWindowKeys already excludes it")
+	}
 }
