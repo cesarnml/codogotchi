@@ -56,3 +56,19 @@ left are the mode-switch target and controller identity used to hide the
 current window; Minimalist's panel-size slider remains a named R1.7 capability.
 This is a scope correction to satisfy the already-approved phase exit
 condition, not a user-visible behavior change.
+
+Second closeout audit deviation (developer-approved, 2026-07-12): the
+adversarial subagent review disproved the audit's initial chrome PASS —
+Exit Condition 3 did not hold because both controllers retained direct
+`existing*Panel` reposition/front reaches from P17.03's documented scope
+cut. The developer dispositioned this stop the same way: close the gap
+inside P17.06 (with `/soa tao` deferral named as the rejected
+alternative). The fix gives `ChromeFlockCoordinator` reposition-only
+`liveReposition*` variants plus HUD lifecycle façades, deletes the seven
+`existing*Panel` accessors (controller-side panel manipulation is now
+unrepresentable), and stops `repositionHUD` leaking the panel via its
+return value. Behavior verbatim; full suite green post-fix (1,074 tests,
+0 failures). Deliberate omission: no new unit tests for the one-line
+façade delegations — chrome panel behavior remains out of unit-test
+scope per the phase plan's "not unit-testable without heavy scaffolding"
+decision; the full-suite behavior bar is the guard.
