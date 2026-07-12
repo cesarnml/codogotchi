@@ -3,7 +3,16 @@ import Foundation
 
 // MARK: - Layout
 
-private enum BubbleLayout {
+/// Anchor math and view-styling constants for `AttentionBubblePanel`. Own
+/// mode and Minimalist mode both call `frame(relativeTo:leadingX:bottomAnchorY:visibleFrame:)`
+/// with their own `leadingX`/`bottomAnchorY` inputs (see
+/// `docs/contracts/window-capability-matrix.md` R3.7) — this type is the
+/// coordinator-consumable, unit-tested home for that shared math. Promoted
+/// out of a file-private `BubbleLayout` enum (P17.03) so it has the same
+/// pure-function + test-coverage shape as its four sibling panel-layout
+/// types (`AnimationBadgeLayout`, `GateBadgeLayout`, `SpeechBubbleLayout`,
+/// `RPGHUDLayout`).
+enum AttentionBubbleLayout {
 	static let minWidth: CGFloat = 200
 	static let maxWidth: CGFloat = 280
 	static let height: CGFloat = 58
@@ -160,7 +169,7 @@ final class AttentionBubblePanel: NSPanel {
 	func reposition(
 		relativeTo petFrame: CGRect, leadingX: CGFloat, bottomAnchorY: CGFloat, visibleFrame: CGRect
 	) {
-		let f = BubbleLayout.frame(
+		let f = AttentionBubbleLayout.frame(
 			relativeTo: petFrame, leadingX: leadingX, bottomAnchorY: bottomAnchorY, visibleFrame: visibleFrame)
 		setFrame(f, display: true)
 		bubbleView.frame = NSRect(origin: .zero, size: f.size)
@@ -359,8 +368,8 @@ private final class AttentionBubbleView: NSView {
 		actionButton.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(actionButton)
 
-		let hPad = BubbleLayout.hPad
-		let vPad = BubbleLayout.vPad
+		let hPad = AttentionBubbleLayout.hPad
+		let vPad = AttentionBubbleLayout.vPad
 
 		NSLayoutConstraint.activate([
 			// background
@@ -386,14 +395,14 @@ private final class AttentionBubbleView: NSView {
 			// close button — hover-only circle, floating over the bubble chrome.
 			dismissButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: hPad - 1),
 			dismissButton.centerYAnchor.constraint(equalTo: summaryLabel.centerYAnchor),
-			dismissButton.widthAnchor.constraint(equalToConstant: BubbleLayout.closeButtonSize),
+			dismissButton.widthAnchor.constraint(equalToConstant: AttentionBubbleLayout.closeButtonSize),
 			dismissButton.heightAnchor.constraint(equalTo: dismissButton.widthAnchor),
 
 			// action button — hover-only pill, right-aligned with the bubble body.
 			actionButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -hPad),
 			actionButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -vPad),
-			actionButton.widthAnchor.constraint(equalToConstant: BubbleLayout.actionButtonWidth),
-			actionButton.heightAnchor.constraint(equalToConstant: BubbleLayout.actionButtonHeight),
+			actionButton.widthAnchor.constraint(equalToConstant: AttentionBubbleLayout.actionButtonWidth),
+			actionButton.heightAnchor.constraint(equalToConstant: AttentionBubbleLayout.actionButtonHeight),
 		])
 
 		applyChromeStyle()
@@ -510,9 +519,9 @@ private final class AttentionBubbleView: NSView {
 	}
 
 	private func applyChromeStyle() {
-		effectView.layer?.cornerRadius = BubbleLayout.cornerRadius
+		effectView.layer?.cornerRadius = AttentionBubbleLayout.cornerRadius
 		effectView.layer?.masksToBounds = true
-		layer?.cornerRadius = BubbleLayout.cornerRadius
+		layer?.cornerRadius = AttentionBubbleLayout.cornerRadius
 		layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
 		layer?.borderWidth = 1
 		layer?.shadowColor = NSColor.black.cgColor
