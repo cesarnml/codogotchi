@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 
 /// One window's fully-specified desired state for a tick — every push
@@ -18,8 +17,12 @@ struct DesiredWindow: Equatable {
 	/// resolves this from `PlatformMode`.
 	var isMinimalist: Bool = false
 	var petId: String = ""
-	/// `nil` for a plain-origin/"combined" window; P18.03 resolves this via
-	/// the session-number allocator.
+	/// `nil` for a plain-origin/"combined" window. The session-number
+	/// allocator itself (assign-on-spawn/release-on-teardown) is P18.02
+	/// scope (`PoolMemory.sessionNumberAllocator`); populating this field
+	/// with the resolved number as a push payload is still P18.03 — this
+	/// ticket only guarantees the allocator's internal state (and the number
+	/// it would hand out) is correct.
 	var sessionNumber: Int?
 	var sessionLabel: String?
 	var sessionTooltip: String?
@@ -33,10 +36,17 @@ struct DesiredWindow: Equatable {
 	var platformChip: String?
 	var hudEnabled: Bool = false
 	var conflictBubble: ConflictBubblePayload?
-	/// Frame this window should adopt from a sibling's session-cap eviction
-	/// or grandfather collapse, or `nil` for the default spawn position.
-	/// P18.02 (frame-inheritance directives).
-	var inheritedFrame: CGRect?
+	/// The window key of the sibling torn down by a session-cap eviction
+	/// (Step 6c) or grandfather collapse (Step 6a2's enabling direction) this
+	/// window should adopt the on-screen frame from, or `nil` for the
+	/// default spawn position. Deliberately a `WindowKey`, never a
+	/// fabricated `CGRect`: this ticket's contract is that `derive` never
+	/// invents frame values — it only records WHICH torn-down window a later
+	/// spawn should inherit from; `apply` (P18.04) reads the actual on-screen
+	/// frame at execution time. Replaces P18.01's placeholder
+	/// `inheritedFrame: CGRect?` — see this ticket's Rationale for why that
+	/// placeholder shape was revised rather than kept.
+	var inheritedFrameFrom: WindowKey?
 
 	init(key: WindowKey) {
 		self.key = key
@@ -49,8 +59,12 @@ struct DesiredWindow: Equatable {
 /// ...), so `apply` and its callers can read one shape instead of going back
 /// through the shell's own dictionaries.
 ///
-/// P18.01's `derive` always returns `DesiredWindows()` (every field at its
-/// default) — see `PoolDerive` for the ticket's exact scope.
+/// P18.01's `derive` always returned `DesiredWindows()` (every field at its
+/// default). P18.02 starts populating `windows` (membership: cap/eviction,
+/// grandfather collapse, mode-transition teardown), `pendingSessionKeys`,
+/// `blockedOrigins`, and `hiddenWindowKeysToPersist` — see `PoolDerive` for
+/// the ticket's exact scope. Push-payload fields on `DesiredWindow` besides
+/// `isMinimalist`/`inheritedFrameFrom` remain P18.03.
 struct DesiredWindows: Equatable {
 	var windows: [WindowKey: DesiredWindow] = [:]
 	var blockedOrigins: Set<String> = []

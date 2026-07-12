@@ -272,14 +272,22 @@ final class PoolDeriveTests: XCTestCase {
 		XCTAssertNil(memory.firstSeenAt["claude_code"])
 	}
 
-	// MARK: Placeholder DesiredWindows contract (P18.01 scope)
+	// MARK: DesiredWindows membership (selection landed in P18.02)
 
-	func testDeriveReturnsEmptyDesiredWindowsThisTicket() {
+	/// P18.01 left `derive` always returning an empty `DesiredWindows` — the
+	/// gate this test originally locked. P18.02 wires selection (Step 6c) and
+	/// the collapse steps (6a/6a2/6b), so `derive` now actually constructs a
+	/// `DesiredWindow` for a visible, non-off-mode, non-hidden, non-TTL-
+	/// expired render key. Push-payload fields on that `DesiredWindow`
+	/// (besides `isMinimalist`/`inheritedFrameFrom`) remain P18.03 scope —
+	/// see `PoolDeriveSelectionTests.swift` for the full P18.02 gap-class
+	/// coverage this ticket adds.
+	func testDeriveConstructsADesiredWindowForAVisibleRenderKey() {
 		let memory = PoolMemory()
 		let (desired, _) = tick(
 			["claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
 			currentTime: t0, memory: memory)
-		// Selection (P18.02) and pushes (P18.03) are not wired yet.
-		XCTAssertTrue(desired.windows.isEmpty)
+		XCTAssertEqual(Set(desired.windows.keys), ["claude_code"])
+		XCTAssertEqual(desired.windows["claude_code"]?.isMinimalist, false)
 	}
 }

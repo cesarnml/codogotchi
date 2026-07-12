@@ -1,0 +1,108 @@
+import Foundation
+
+/// Pure transition functions mirroring `FloatingPetWindowPool`'s out-of-band
+/// user-action methods (Hide/Show, Prune, Hide All Others, Force-Idle timer
+/// reset). Per the phase's Grill-Me decision 2: these are unwired this
+/// ticket (P18.06 wires the shell's stored `PoolMemory` through them) but
+/// each has a documented two-limb contract for that future wiring —
+/// (1) this pure transition updates `PoolMemory` immediately, and (2) the
+/// shell must pair it with the identical immediate window effect
+/// (`setFloatingPetVisible(false)`, etc.) the legacy method performs
+/// synchronously today. Neither limb waits for the next `derive` tick.
+extension PoolMemory {
+	/// Mirrors `FloatingPetWindowPool.setVisible(false, for:)`. Two-limb
+	/// contract: (1) this call — insert into `userHiddenWindowKeys`, drop the
+	/// key from `previousDesiredWindowKeys` (its window is gone), clear its
+	/// spawned-mode bookkeeping, and release any session number using the
+	/// identity captured at assign time (never the latest snapshot — see
+	/// `windowSessionIdentities`); (2) the shell's paired immediate
+	/// `setFloatingPetVisible(false)` call on the real window. Deliberately
+	/// never touches `slotOccupants` (P15.07-QC): hide is concealment, not
+	/// cap release, so a hidden incumbent keeps its slot reserved and
+	/// un-hiding it respawns on the very next tick without competing for a
+	/// new one.
+	func hiding(_ key: WindowKey) -> PoolMemory {
+		var memory = self
+		memory.previousDesiredWindowKeys.remove(key)
+		memory.windowSpawnedModes.removeValue(forKey: key)
+		if let identity = memory.windowSessionIdentities.removeValue(forKey: key) {
+			memory.sessionNumberAllocator.release(origin: identity.origin, sessionId: identity.sessionId)
+		}
+		memory.userHiddenWindowKeys.insert(key)
+		return memory
+	}
+
+	/// Mirrors `FloatingPetWindowPool.setVisible(true, for:)`. Two-limb
+	/// contract: (1) this call — clear the hidden flag AND drop `lastSeenAt`
+	/// so the next `derive` tick re-seeds a full TTL grace window (the exact
+	/// fix for the "Show is a silent no-op" bug: without dropping this clock,
+	/// respawn hinges on the refreshed slice winning the last-active
+	/// election, which a concurrently-working sibling session's newer
+	/// `updated_at` wins instead); (2) the shell has no immediate window
+	/// effect to pair here — re-spawn is left to the next `derive` tick, same
+	/// as the legacy method's own comment ("Re-spawn is handled by the next
+	/// update() tick").
+	func showing(_ key: WindowKey) -> PoolMemory {
+		var memory = self
+		memory.userHiddenWindowKeys.remove(key)
+		memory.lastSeenAt.removeValue(forKey: key)
+		return memory
+	}
+
+	/// Mirrors `FloatingPetWindowPool.pruneSession`'s in-memory bookkeeping
+	/// (the on-disk slice/sidecar deletion itself stays an impure effect for
+	/// a later ticket to wire). Two-limb contract: (1) this call — arm the
+	/// origin permanently for the process lifetime (so a future promotion
+	/// into the freed slot requires the promoted session to be in-flight,
+	/// never a merely-held idle sibling) and clear every per-key bookkeeping
+	/// map a fresh session at that key should not inherit stale state from:
+	/// `previousDesiredWindowKeys`, `windowSpawnedModes`, `promptTimers`.
+	/// Deliberately does NOT release the session number directly (unlike
+	/// `hiding`) — `windowSessionIdentities` is left untouched so `derive`'s
+	/// own teardown-diff pass releases it next tick using the identity
+	/// captured at assign time, exactly like any other teardown; releasing
+	/// it here too would double-release nothing (a no-op) but removing the
+	/// captured identity here WITHOUT releasing would leak the number
+	/// forever, which this deliberately avoids. (2) the shell's paired
+	/// `SessionPruner.pruneSession` call performs the actual disk/allocator
+	/// side effects.
+	func pruning(_ key: WindowKey) -> PoolMemory {
+		var memory = self
+		memory.previousDesiredWindowKeys.remove(key)
+		memory.windowSpawnedModes.removeValue(forKey: key)
+		memory.promptTimers.removeValue(forKey: key)
+		memory.prunedOrigins.insert(key.origin)
+		return memory
+	}
+
+	/// Mirrors `FloatingPetWindowPool.hideAllOtherWindows(keepVisible:)`.
+	/// Two-limb contract: (1) this call — apply the exact same transition
+	/// `hiding(_:)` performs to every key in `desiredKeys` except `keeping`,
+	/// batched; (2) the shell's paired immediate
+	/// `setFloatingPetVisible(false)` call on each of those real windows.
+	/// `desiredKeys` is the caller's current desired-window membership (the
+	/// pure analogue of iterating `windows.keys`), since `PoolMemory` itself
+	/// does not store which windows are currently open beyond
+	/// `previousDesiredWindowKeys`.
+	func hidingAllOthers(keeping: WindowKey, among desiredKeys: Set<WindowKey>) -> PoolMemory {
+		var memory = self
+		for key in desiredKeys where key != keeping {
+			memory = memory.hiding(key)
+		}
+		return memory
+	}
+
+	/// Mirrors `FloatingPetWindowPool.resetPromptTimer(forWindowKey:)`. A
+	/// live user action (Force Idle, attention-bubble dismiss) that stamps
+	/// the pool-owned prompt timer with the real current time so a
+	/// subsequent stale-slice poll cannot restart it. Two-limb contract: (1)
+	/// this call — reset the tracker if one exists for `key`; (2) the
+	/// shell's paired panel-side "clear displayed status immediately" effect
+	/// (`WindowActionRouter`'s callers already do this before the on-disk
+	/// rewrite settles).
+	func resettingPromptTimer(for key: WindowKey) -> PoolMemory {
+		var memory = self
+		memory.promptTimers[key]?.reset()
+		return memory
+	}
+}
