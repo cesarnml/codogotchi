@@ -43,8 +43,8 @@ Red: skip
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: N/A — `Red: skip` per ticket metadata; deletion + packaging + docs, regression net is the existing 900+ suite and the purity gate, both unmodified and green after this ticket (`bun run ci:quiet`: 628 bun tests + 1146 mac tests, 0 failures).
+Why this path: deleted in dependency order (shadow-only files → `LegacyPoolEngine`/`PoolEngine` → dead test premises) as a single coherent commit rather than an artificial multi-commit split, because `LegacyPoolEngine` itself references `NoOpStubWindowController`, so the two halves are not independently compilable/green.
+Alternative considered: splitting into two commits (shadow-support-file deletion, then engine deletion) to match the ticket's Green guidance literally — rejected because the intermediate state would not compile, violating "keeping the suite green at each commit."
+Deferred: none from ticket scope. Explicitly out of ticket scope and not attempted: the v4 hook-stamped `prompt_started_at` architecture, reader/writer disk-contract changes, and public release/notarization/Sparkle (all named phase-level deferrals in `implementation-plan.md`).
+Contract note: **binding stop condition not independently verified.** The implementation plan's P18.06→P18.07 gate requires the reversed-shadow rare-branch checklist to be exercised on the dogfood daily driver with zero unexplained divergences before this ticket's deletion begins, and normally requires a divergence-log disposition table per this ticket's own Review Focus section. No soak-summary doc or divergence log exists under this phase's delivery directory. The developer was asked directly and explicitly answered "No, waive the gate anyway" during the delivery session, accepting the residual risk and stating unexpected behavior will be patched after `v3_preview` lands. Recorded honestly in `docs/product/delivery/phase-18/exit-audit.md` §5 as developer-waived, not as a false PASS.
