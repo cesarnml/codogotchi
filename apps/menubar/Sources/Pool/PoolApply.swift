@@ -54,7 +54,10 @@ enum PoolApply {
 		}
 
 		for (key, window) in diff.toUpdate {
-			guard let controller = controllers[key] else { continue }
+			guard let controller = controllers[key] else {
+				assertionFailure("PoolApply.apply: toUpdate has no live controller for \(key) — caller state is inconsistent with the diff")
+				continue
+			}
 			push(window, key: key, to: controller)
 		}
 	}
