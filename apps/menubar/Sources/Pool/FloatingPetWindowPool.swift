@@ -1655,6 +1655,12 @@ final class FloatingPetWindowPool {
 		let legacyWindowFactory: WindowFactory = engine == .new ? { _, _ in NoOpStubWindowController() } : windowFactory
 		let legacyMinimalistWindowFactory: MinimalistWindowFactory? =
 			engine == .new ? { _ in NoOpStubWindowController() } : minimalistWindowFactory
+		// Load once, share the SAME loaded set with both engines — subagent-review
+		// finding: `legacy` previously got a hardcoded `{ [] }` loader when the new
+		// engine is authoritative, so on a launch with a persisted hidden window the
+		// new engine correctly suppressed it while the shadow spawned a stub for it
+		// anyway, reporting a phantom membership divergence for every hidden key.
+		let loadedHiddenKeys = engine == .new ? hiddenKeysLoader() : []
 		self.legacy = LegacyPoolEngine(
 			assignmentsReader: assignmentsReader,
 			customizationReader: customizationReader,
@@ -1665,14 +1671,16 @@ final class FloatingPetWindowPool {
 			sessionTitleReader: sessionTitleReader,
 			retrievedSessionTitleReader: retrievedSessionTitleReader,
 			retrievedSessionTitleWriter: retrievedSessionTitleWriter,
-			hiddenKeysLoader: engine == .new ? { [] } : hiddenKeysLoader,
+			hiddenKeysLoader: engine == .new ? { loadedHiddenKeys } : hiddenKeysLoader,
+			// The shadow must never write through — `hiddenKeysSaver` stays inert for
+			// it either way (only the real engine's saver is authoritative).
 			hiddenKeysSaver: engine == .new ? { _ in } : hiddenKeysSaver,
 			now: now,
 			idleEscalationEnvironment: idleEscalationEnvironment,
 			shadowDivergenceHandler: shadowDivergenceHandler
 		)
 		if engine == .new {
-			primaryMemory.userHiddenWindowKeys = hiddenKeysLoader()
+			primaryMemory.userHiddenWindowKeys = loadedHiddenKeys
 		}
 	}
 
@@ -1903,6 +1911,10 @@ final class FloatingPetWindowPool {
 			// respawn push the next time this key is desired (no controller to
 			// push to, no spawn triggered either).
 			primaryDesiredWindows.removeValue(forKey: key)
+			// `sessionDisplayLabel`/other `lastDesired`-backed readers must not
+			// keep returning this key's stale last-tick label after an
+			// out-of-band teardown (subagent-review finding).
+			lastDesired.windows.removeValue(forKey: key)
 		}
 		hiddenKeysSaver(primaryMemory.userHiddenWindowKeys)
 	}
@@ -1917,6 +1929,7 @@ final class FloatingPetWindowPool {
 			primaryWindows[key]?.setFloatingPetVisible(false)
 			primaryWindows.removeValue(forKey: key)
 			primaryDesiredWindows.removeValue(forKey: key)
+			lastDesired.windows.removeValue(forKey: key)
 		}
 		hiddenKeysSaver(primaryMemory.userHiddenWindowKeys)
 	}
@@ -1935,6 +1948,7 @@ final class FloatingPetWindowPool {
 		primaryWindows[windowKey]?.setFloatingPetVisible(false)
 		primaryWindows.removeValue(forKey: windowKey)
 		primaryDesiredWindows.removeValue(forKey: windowKey)
+		lastDesired.windows.removeValue(forKey: windowKey)
 		// `primaryMemory.pruning(windowKey)` above already released the session
 		// number from `primaryMemory.sessionNumberAllocator` (a value type) —
 		// `SessionPruner` requires the legacy reference-type allocator only for

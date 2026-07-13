@@ -25,6 +25,12 @@ extension PoolMemory {
 		var memory = self
 		memory.previousDesiredWindowKeys.remove(key)
 		memory.windowSpawnedModes.removeValue(forKey: key)
+		// Immediate, not "correct by next tick": `derive`'s own torndownKeys
+		// pass also clears this, but that only runs on the NEXT tick — a
+		// caller reading `sessionNumber(forWindowKey:)` between this call and
+		// the next `update()` must not see a number that was just released
+		// (subagent-review finding).
+		memory.sessionNumbers.removeValue(forKey: key)
 		if let identity = memory.windowSessionIdentities.removeValue(forKey: key) {
 			memory.sessionNumberAllocator.release(origin: identity.origin, sessionId: identity.sessionId)
 		}
@@ -77,6 +83,9 @@ extension PoolMemory {
 		memory.windowSpawnedModes.removeValue(forKey: key)
 		memory.promptTimers.removeValue(forKey: key)
 		memory.prunedOrigins.insert(key.origin)
+		// Immediate, not "correct by next tick" — see `hiding(_:)`'s identical
+		// note (subagent-review finding).
+		memory.sessionNumbers.removeValue(forKey: key)
 		if let identity = memory.windowSessionIdentities.removeValue(forKey: key) {
 			memory.sessionNumberAllocator.release(origin: identity.origin, sessionId: identity.sessionId)
 		}
