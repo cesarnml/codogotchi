@@ -72,6 +72,15 @@ final class FloatingPetPanelController: PanelActionHandling {
 	/// recomputes the label each second while the status reports running.
 	private var promptTimerStatus: PromptTimerStatus?
 	private var promptTimerHeartbeat: Timer?
+	/// Latest presentation pushed via `applyPromptTimerPresentation` (P18.04's
+	/// already-rendered path). Kept separate from `promptTimerStatus` (raw)
+	/// so a subsequent `repositionAndShowAnimationBadge()` call triggered by
+	/// an unrelated push (e.g. `applyPlatform`, `applySessionNumber`) renders
+	/// this instead of clobbering it with `promptTimerStatus?.presentation()`
+	/// — `promptTimerStatus` never gets updated on this path, so without this
+	/// override every later same-tick reposition would silently erase the
+	/// pushed presentation.
+	private var promptTimerPresentationOverride: PromptTimerPresentation?
 	/// Fired with the trimmed/capped label the user commits via the
 	/// right-click rename affordance. Wired by the caller (`MenubarApp`) to
 	/// persist to `SessionLabelStore` — this panel never writes the sidecar.
@@ -645,7 +654,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
-			promptTimer: promptTimerStatus?.presentation(),
+			promptTimer: promptTimerPresentationOverride ?? promptTimerStatus?.presentation(),
 			sessionNumber: currentSessionNumber,
 			sessionLabel: currentSessionLabel,
 			sessionTooltip: currentSessionTooltip,
@@ -700,35 +709,29 @@ final class FloatingPetPanelController: PanelActionHandling {
 
 	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
 		promptTimerStatus = status
+		promptTimerPresentationOverride = nil
 		syncPromptTimerHeartbeat()
 		repositionAndShowAnimationBadge()
 	}
 
 	/// `PoolApply` (P18.04)'s already-rendered equivalent of
-	/// `applyPromptTimerStatus`. Forwards the given presentation directly to
-	/// the badge reposition call rather than deriving one from
-	/// `promptTimerStatus` — this path is still unwired into the live tick
-	/// (P18.05), so it deliberately does not participate in this
-	/// controller's own heartbeat-driven ticking (`syncPromptTimerHeartbeat`):
-	/// once wired, per-tick redraws come from `PoolDerive` recomputing a
-	/// fresh `PromptTimerPresentation` every tick, not from a local `Timer`.
+	/// `applyPromptTimerStatus`. Stores the presentation as an override so
+	/// this and every subsequent same-tick `repositionAndShowAnimationBadge()`
+	/// call (from `applyPlatform`, `applySessionNumber`, etc.) renders it
+	/// instead of clobbering it with a stale `promptTimerStatus?.presentation()`
+	/// — this path is still unwired into the live tick (P18.05), so it
+	/// deliberately does not participate in this controller's own
+	/// heartbeat-driven ticking (`syncPromptTimerHeartbeat`): once wired,
+	/// per-tick redraws come from `PoolDerive` recomputing a fresh
+	/// `PromptTimerPresentation` every tick, not from a local `Timer`.
 	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
-		guard isPanelShown else { return }
-		chromeCoordinator.repositionAnimationBadge(
-			label: animationBadgeLabel,
-			platform: currentPlatform,
-			inFlight: animationBadgeInFlight,
-			promptTimer: presentation,
-			sessionNumber: currentSessionNumber,
-			sessionLabel: currentSessionLabel,
-			sessionTooltip: currentSessionTooltip,
-			relativeTo: lastPanelFrame,
-			visibleFrame: visibleFrameProvider()
-		)
+		promptTimerPresentationOverride = presentation
+		repositionAndShowAnimationBadge()
 	}
 
 	private func resetPromptTimer() {
 		promptTimerStatus = nil
+		promptTimerPresentationOverride = nil
 		promptTimerHeartbeat?.invalidate()
 		promptTimerHeartbeat = nil
 		chromeCoordinator.liveRepositionAnimationBadge(

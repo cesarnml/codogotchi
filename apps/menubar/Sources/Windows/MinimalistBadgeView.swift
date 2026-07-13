@@ -11,6 +11,8 @@ final class MinimalistBadgeView: NSView {
 	private static let rowSpacing: CGFloat = 4
 
 	private let animationBadge = AnimationBadgeView(frame: .zero)
+	/// Test-observable rendered state — see `AnimationBadgeView.currentPromptTimer`.
+	var renderedPromptTimerPresentation: PromptTimerPresentation? { animationBadge.currentPromptTimer }
 	private let sessionBadge = PlatformSessionBadge(frame: .zero)
 	private let badgeStack = NSStackView()
 	private let outerStack = NSStackView()
@@ -100,7 +102,7 @@ final class MinimalistBadgeView: NSView {
 			text: activity.displayLabel,
 			platform: platform,
 			inFlight: activity.isInFlight,
-			promptTimer: promptTimerStatus?.presentation(),
+			promptTimer: promptTimerPresentationOverride ?? promptTimerStatus?.presentation(),
 			metrics: metrics
 		)
 		sessionBadge.configure(
@@ -111,26 +113,28 @@ final class MinimalistBadgeView: NSView {
 
 	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
 		promptTimerStatus = status
+		promptTimerPresentationOverride = nil
 		animationBadge.configurePromptTimer(status?.presentation())
 		syncPromptTimerHeartbeat()
 	}
 
 	/// `PoolApply` (P18.04)'s already-rendered equivalent of
-	/// `applyPromptTimerStatus`: forwards `presentation` straight to
-	/// `animationBadge.configurePromptTimer(_:)` — the same renderer call
-	/// `applyPromptTimerStatus` makes after deriving a presentation from its
-	/// raw `PromptTimerStatus` — without re-deriving anything, since only the
-	/// rendered label/isRunning pair is available here. Deliberately does
-	/// not touch `promptTimerStatus`/the heartbeat: this path is still
-	/// unwired into the live tick (P18.05); once wired, ticking comes from
-	/// `PoolDerive` recomputing a fresh presentation every tick rather than
-	/// this view's local `Timer`.
+	/// `applyPromptTimerStatus`: stores `presentation` as an override so this
+	/// and every subsequent same-tick `configureBadge` call (triggered by an
+	/// unrelated push) renders it instead of clobbering it with a stale
+	/// `promptTimerStatus?.presentation()`. Deliberately does not touch
+	/// `promptTimerStatus`/the heartbeat: this path is still unwired into the
+	/// live tick (P18.05); once wired, ticking comes from `PoolDerive`
+	/// recomputing a fresh presentation every tick rather than this view's
+	/// local `Timer`.
 	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
+		promptTimerPresentationOverride = presentation
 		animationBadge.configurePromptTimer(presentation)
 	}
 
 	func resetPromptTimer() {
 		promptTimerStatus = nil
+		promptTimerPresentationOverride = nil
 		promptTimerHeartbeat?.invalidate()
 		promptTimerHeartbeat = nil
 		animationBadge.configurePromptTimer(nil)
@@ -149,6 +153,14 @@ final class MinimalistBadgeView: NSView {
 	/// recomputes the label each second while the status reports running.
 	private var promptTimerStatus: PromptTimerStatus?
 	private var promptTimerHeartbeat: Timer?
+	/// Latest presentation pushed via `applyPromptTimerPresentation` (P18.04's
+	/// already-rendered path). Kept separate from `promptTimerStatus` (raw)
+	/// so a subsequent `configureBadge` call triggered by an unrelated push
+	/// renders this instead of clobbering it with
+	/// `promptTimerStatus?.presentation()` — `promptTimerStatus` never gets
+	/// updated on this path, so without this override every later same-tick
+	/// `configureBadge` would silently erase the pushed presentation.
+	private var promptTimerPresentationOverride: PromptTimerPresentation?
 
 	private func syncPromptTimerHeartbeat() {
 		guard promptTimerStatus?.isRunning == true else {
