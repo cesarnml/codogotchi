@@ -441,6 +441,46 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   `HOME`), but worth a small standalone fix if sandboxed manual testing of
   this app becomes routine.
 
+### `unconditional-directory-listing-trusts-externally-populated-tree`
+- **Seen:** 1× — `codogotchi-40` (attributed to phase-11, gallery/marketplace,
+  where the Codex-import listing shipped). `PetTabViewModel`'s Codex-pet
+  enumeration (`directoryNames(in:)` over `~/.codex/pets`) trusted every
+  subdirectory as a pet, tolerant of a missing/malformed `pet.json` by design
+  so genuine pets with slightly off manifests still got a thumbnail attempt.
+  That tolerance meant a directory belonging to an entirely different feature
+  — `.hatch-runs`, a scratch/run-log location the hatch spritesheet pipeline
+  writes into the same `~/.codex/pets` tree — rendered as a bogus importable
+  pet card with a fabricated display name and a dead spritesheet link. Found
+  only by the developer looking at their real, long-lived `~/.codex/pets`
+  directory in the running app; no test fixture in the suite had ever
+  populated that directory with anything other than valid pets.
+- **Proposed clause:** *"When a feature enumerates a directory (or other
+  namespace) that is populated by an EXTERNAL or UNRELATED process — not
+  exclusively by this feature's own writer — validate each entry against the
+  feature's actual shape contract (required fields present, referenced
+  resource exists) before treating it as a first-class item, rather than
+  trusting 'is a directory' / 'exists' alone. A missing-file fallback that's
+  correct for a slightly-malformed instance of the target type is NOT the
+  same guarantee as excluding instances of a completely different type."*
+- **Relationship to `hide-toggle-conflated-with-pool-slot-release`/
+  `side-effect-call-dropped-or-mis-targeted-in-refactor`:** a different root
+  cause (no refactor or second feature touched this code path — the
+  vulnerability was present at initial ship) but the same detection lever:
+  only reachable by dogfooding the real, organically-populated filesystem
+  state, not by diff review or the existing test suite, since test fixtures
+  universally control their own directory contents.
+- **Caveat that blocks naive promotion:** single instance, and the "external
+  process pollutes a shared directory" precondition is narrower than most
+  promoted classes — it requires two unrelated features to share exactly one
+  filesystem namespace (here, `~/.codex/pets` is both the Codex-pet source of
+  truth AND the hatch pipeline's scratch location). Needs ≥1 more occurrence,
+  ideally in a different shared-namespace pairing, before promoting a
+  standing review-prompt clause.
+- **Status:** WAITING — single instance. Worth flagging early because the
+  "trust every directory entry" shape is easy to reintroduce anywhere the app
+  enumerates a filesystem location it doesn't exclusively own (gallery
+  install dirs, hook directories, per-platform state.d roots).
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
