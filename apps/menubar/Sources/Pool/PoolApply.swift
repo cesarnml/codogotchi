@@ -50,12 +50,12 @@ enum PoolApply {
 			if let frame = adoptedFrames[key] {
 				controller.adoptFrame(frame)
 			}
-			push(window, to: controller)
+			push(window, key: key, to: controller)
 		}
 
 		for (key, window) in diff.toUpdate {
 			guard let controller = controllers[key] else { continue }
-			push(window, to: controller)
+			push(window, key: key, to: controller)
 		}
 	}
 
@@ -68,7 +68,7 @@ enum PoolApply {
 	/// - `petId` / `replacePets(codexPet:codogotchiPet:)` — resolving a pet
 	///   id into concrete `CodexPet`/`CodogotchiPet` assets is outside
 	///   `DesiredWindow`'s data (needs a pet catalog lookup); deferred.
-	private static func push(_ window: DesiredWindow, to controller: FloatingPetWindowControlling) {
+	private static func push(_ window: DesiredWindow, key: WindowKey, to controller: FloatingPetWindowControlling) {
 		controller.apply(state: window.activityState, visualMode: .normal)
 		controller.applyPromptTimerPresentation(window.promptTimerStatus)
 		controller.applyAttention(payload: window.attention, sourceEvent: window.attentionSourceEvent)
@@ -81,7 +81,13 @@ enum PoolApply {
 			activeMinutes: window.rpgSnapshot.activeMinutes,
 			hudEnabled: window.hudEnabled
 		)
-		controller.applySessionNumber(window.sessionNumber)
+		// The combined window is never session-keyed — mirrors
+		// `LegacyPoolEngine`'s own combined-window push site, which never calls
+		// `applySessionNumber` at all (unlike a direct key, where it's always
+		// called, even to push `nil`).
+		if key != .combined {
+			controller.applySessionNumber(window.sessionNumber)
+		}
 		controller.applySessionLabel(window.sessionLabel)
 		controller.applySessionTooltip(window.sessionTooltip)
 		controller.applyConflictBubble(window.conflictBubble)

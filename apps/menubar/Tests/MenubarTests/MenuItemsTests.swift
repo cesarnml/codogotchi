@@ -49,10 +49,26 @@ final class MenuItemsTests: XCTestCase {
 		renderKeyIdentities: [WindowKey: RenderKeyIdentity] = [:],
 		sessionLabelReader: @escaping SessionLabelReader = { _ in nil },
 		sessionTitleReader: @escaping SessionTitleReader = { _, _ in nil },
-		retrievedSessionTitleReader: @escaping RetrievedSessionTitleReader = { _ in nil }
+		retrievedSessionTitleReader: @escaping RetrievedSessionTitleReader = { _ in nil },
+		// P18.06: `derive` re-derives (never trusts) whether a key should be
+		// session-shaped from `sessionPetsEnabled`, mirroring
+		// `resolveRenderKeys`'s own fold rule exactly (see `PoolDerive
+		// .desiredWindowKey`'s doc) — unlike the legacy pipeline, which never
+		// re-checks a render key's shape once handed one. A caller feeding a
+		// raw `.session(...)` key directly into `perPlatform` (bypassing
+		// `resolveRenderKeys`, as this helper does) must also enable
+		// session-pets for that key's origin, or `derive` correctly folds it
+		// down to plain-origin — the same combination a real
+		// `resolveRenderKeys` pass would never produce in the first place.
+		sessionPetsEnabledOrigins: Set<String> = []
 	) -> FloatingPetWindowPool {
+		let customization = CustomizationSnapshot(
+			platformModes: [:], idleDismissTtlSeconds: 300, menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false, minimalistBadgeScale: 1.0,
+			sessionPetsEnabled: Dictionary(uniqueKeysWithValues: sessionPetsEnabledOrigins.map { ($0, true) }),
+			sessionCap: [:], idleImpatientSeconds: 300, idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
 		let pool = FloatingPetWindowPool(
-			customizationReader: { .safeDefault },
+			customizationReader: { customization },
 			windowFactory: { _, _ in StubWindow() },
 			sessionLabelReader: sessionLabelReader,
 			sessionTitleReader: sessionTitleReader,
@@ -435,7 +451,8 @@ final class MenuItemsTests: XCTestCase {
 			origins: ["cursor", sessionKey],
 			renderKeyIdentities: [
 				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
-			]
+			],
+			sessionPetsEnabledOrigins: ["claude_code"]
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
@@ -452,7 +469,8 @@ final class MenuItemsTests: XCTestCase {
 			renderKeyIdentities: [
 				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
 			],
-			sessionLabelReader: { key in key.rawValue == sessionKey ? "Refactor Sprint" : nil }
+			sessionLabelReader: { key in key.rawValue == sessionKey ? "Refactor Sprint" : nil },
+			sessionPetsEnabledOrigins: ["claude_code"]
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
@@ -469,7 +487,8 @@ final class MenuItemsTests: XCTestCase {
 			renderKeyIdentities: [
 				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "codex", sessionId: "s1")
 			],
-			retrievedSessionTitleReader: { key in key.rawValue == sessionKey ? "Rename testing prompts" : nil }
+			retrievedSessionTitleReader: { key in key.rawValue == sessionKey ? "Rename testing prompts" : nil },
+			sessionPetsEnabledOrigins: ["codex"]
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
@@ -487,7 +506,8 @@ final class MenuItemsTests: XCTestCase {
 				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "codex", sessionId: "s1")
 			],
 			sessionLabelReader: { key in key.rawValue == sessionKey ? "Manual label" : nil },
-			retrievedSessionTitleReader: { key in key.rawValue == sessionKey ? "Rename testing prompts" : nil }
+			retrievedSessionTitleReader: { key in key.rawValue == sessionKey ? "Rename testing prompts" : nil },
+			sessionPetsEnabledOrigins: ["codex"]
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
