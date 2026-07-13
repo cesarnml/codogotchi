@@ -704,6 +704,29 @@ final class FloatingPetPanelController: PanelActionHandling {
 		repositionAndShowAnimationBadge()
 	}
 
+	/// `PoolApply` (P18.04)'s already-rendered equivalent of
+	/// `applyPromptTimerStatus`. Forwards the given presentation directly to
+	/// the badge reposition call rather than deriving one from
+	/// `promptTimerStatus` — this path is still unwired into the live tick
+	/// (P18.05), so it deliberately does not participate in this
+	/// controller's own heartbeat-driven ticking (`syncPromptTimerHeartbeat`):
+	/// once wired, per-tick redraws come from `PoolDerive` recomputing a
+	/// fresh `PromptTimerPresentation` every tick, not from a local `Timer`.
+	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
+		guard isPanelShown else { return }
+		chromeCoordinator.repositionAnimationBadge(
+			label: animationBadgeLabel,
+			platform: currentPlatform,
+			inFlight: animationBadgeInFlight,
+			promptTimer: presentation,
+			sessionNumber: currentSessionNumber,
+			sessionLabel: currentSessionLabel,
+			sessionTooltip: currentSessionTooltip,
+			relativeTo: lastPanelFrame,
+			visibleFrame: visibleFrameProvider()
+		)
+	}
+
 	private func resetPromptTimer() {
 		promptTimerStatus = nil
 		promptTimerHeartbeat?.invalidate()

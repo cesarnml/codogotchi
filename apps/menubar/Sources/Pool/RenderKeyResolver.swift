@@ -7,7 +7,7 @@ import Foundation
 /// the session component on their own, so this identity is carried alongside the
 /// render map to recover the winning `(origin, session_id)` for downstream
 /// labeling (session badges, tooltips) in later Phase 15 tickets.
-struct RenderKeyIdentity: Equatable {
+struct RenderKeyIdentity: Hashable {
 	let origin: String
 	let sessionId: String
 }
