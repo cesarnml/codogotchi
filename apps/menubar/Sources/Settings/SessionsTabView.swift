@@ -28,31 +28,25 @@ final class SessionsTabView: NSView {
 
 	func reload(viewModel: SessionsTabViewModel) {
 		self.viewModel = viewModel
-		// setupViews() below swaps in a brand-new documentView, which resets
-		// the clip view to origin (0,0) — the *bottom* of an un-flipped
-		// document view, not the top. Every Show/Hide/Prune action rebuilds
-		// via reload(), so without restoring this the scrollbar would jerk to
-		// the bottom on every single action.
+		// setupViews() below swaps in a brand-new documentView. Every
+		// Show/Hide/Prune action rebuilds via reload(), so without restoring
+		// scroll position the view would jerk back to the top of the list on
+		// every single action.
 		//
-		// (P18-QC) Preserving the raw absolute origin.y isn't enough on its
-		// own: a Prune/Hide action can shrink the document's total height,
-		// and in this bottom-left-origin coordinate system a pinned absolute
-		// Y then measures from a different point relative to the (now
-		// shorter) content — the visible rows appeared to collapse downward
-		// instead of the remaining rows sliding up to fill the gap. Anchor
-		// by distance from the TOP of the document instead, which stays
-		// correct regardless of how much content above/below the viewport
-		// changed.
+		// (P18-QC) contentStack is a `FlippedStackView` (top-down
+		// coordinates), so origin.y already measures distance from the top
+		// of the document directly — just clamp it to the new document's
+		// valid scroll range, since a Prune action can shrink the document
+		// height enough that the old origin.y would otherwise point past
+		// the end of the (now shorter) content.
 		let visibleHeight = scrollView.contentView.bounds.height
-		let oldDocumentHeight = scrollView.documentView?.frame.height ?? 0
-		let distanceFromTop =
-			oldDocumentHeight - visibleHeight - scrollView.contentView.bounds.origin.y
+		let savedOriginY = scrollView.contentView.bounds.origin.y
 		NSLayoutConstraint.deactivate(constraints)
 		subviews.forEach { $0.removeFromSuperview() }
 		setupViews()
 		layoutSubtreeIfNeeded()
 		let newDocumentHeight = scrollView.documentView?.frame.height ?? 0
-		let newOriginY = max(0, newDocumentHeight - visibleHeight - distanceFromTop)
+		let newOriginY = min(savedOriginY, max(0, newDocumentHeight - visibleHeight))
 		scrollView.contentView.scroll(
 			to: NSPoint(x: scrollView.contentView.bounds.origin.x, y: newOriginY))
 		scrollView.reflectScrolledClipView(scrollView.contentView)
@@ -153,7 +147,15 @@ final class SessionsTabView: NSView {
 		ttlRow.translatesAutoresizingMaskIntoConstraints = false
 		card.addSubview(ttlRow)
 
-		let contentStack = NSStackView()
+		// (P18-QC) A plain NSStackView is not flipped, so used directly as
+		// documentView its top-down layout renders bottom-anchored: when the
+		// stack is shorter than the visible clip area, AppKit pins the
+		// stack's bottom to the clip view's bottom, leaving empty space
+		// ABOVE the content — the tab looked permanently "collapsed
+		// downward," even on first launch before any Show/Hide/Prune ever
+		// ran reload(). FlippedStackView (already used by PetTabView for the
+		// same reason) fixes this.
+		let contentStack = FlippedStackView()
 		contentStack.orientation = .vertical
 		contentStack.alignment = .leading
 		contentStack.spacing = 16
