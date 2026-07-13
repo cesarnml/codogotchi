@@ -893,23 +893,34 @@ final class FloatingPetWindowPool {
 					let winner = winnerEntry.state
 					if windows[.combined] == nil {
 						let useMinimalist = currentCustomization.combinedMinimalistEnabled
-						let rawController: FloatingPetWindowControlling
+						// P18.05: a missing `minimalistWindowFactory` must only
+						// skip THIS spawn, never `return` out of `update()` —
+						// doing so previously also skipped the old pipeline's
+						// Step 9 RPG-push epilogue and `runShadowTick` for the
+						// entire tick, leaving `shadowMemory` stale into the
+						// next one. `windows[.combined]` simply stays nil (the
+						// same no-spawn outcome the per-key branch reaches via
+						// `continue`); every `windows[.combined]?...` push
+						// below safely no-ops on the nil optional.
+						var rawController: FloatingPetWindowControlling?
 						if useMinimalist {
-							guard let minimalistWindowFactory else {
+							if let minimalistWindowFactory {
+								rawController = minimalistWindowFactory(.combined)
+							} else {
 								NSLog("FloatingPetWindowPool: combined-minimalist mode requires a minimalistWindowFactory")
-								return
 							}
-							rawController = minimalistWindowFactory(.combined)
 						} else {
 							let petId = currentAssignments.resolve(origin: "combined")
 							rawController = windowFactory(.combined, petId)
 						}
-						// P18.05: see the direct-key spawn site above.
-						let controller: FloatingPetWindowControlling =
-							RecordingFloatingPetWindowControllingProxy(wrapping: rawController, key: .combined)
-						controller.setFloatingPetVisible(true)
-						windows[.combined] = controller
-						combinedWindowIsMinimalist = useMinimalist
+						if let rawController {
+							// P18.05: see the direct-key spawn site above.
+							let controller: FloatingPetWindowControlling =
+								RecordingFloatingPetWindowControllingProxy(wrapping: rawController, key: .combined)
+							controller.setFloatingPetVisible(true)
+							windows[.combined] = controller
+							combinedWindowIsMinimalist = useMinimalist
+						}
 					}
 					windows[.combined]?.apply(state: winner.activityState, visualMode: .normal)
 					windows[.combined]?.applyPromptTimerStatus(promptTimers[.combined]?.currentStatus())
@@ -1089,7 +1100,7 @@ final class FloatingPetWindowPool {
 				promptTimerStatus: promptTimerStatus, rpgSnapshot: snapshot.rpgSnapshot)
 		}
 
-		let fingerprint = ShadowTickFingerprint.make(snapshot: snapshot, currentTime: currentTime)
+		let fingerprint = ShadowTickFingerprint.make(input: input)
 		let divergences = PoolShadowComparator.compare(
 			old: reconstructedOld, new: desired, tickFingerprint: fingerprint)
 		if !divergences.isEmpty {
