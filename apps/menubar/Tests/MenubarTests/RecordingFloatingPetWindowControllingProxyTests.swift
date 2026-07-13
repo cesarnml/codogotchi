@@ -48,13 +48,18 @@ final class RecordingFloatingPetWindowControllingProxyTests: XCTestCase {
 		var appliedIdleEscalationConfigs: [IdleEscalationConfig] = []
 		var appliedRPGStates: [(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool)] =
 			[]
+		var appliedPromptTimerStatuses: [PromptTimerStatus?] = []
+		var appliedPromptTimerPresentations: [PromptTimerPresentation?] = []
 
 		func setFloatingPetVisible(_ visible: Bool) {
 			isFloatingPetVisible = visible
 			setVisibleCalls.append(visible)
 		}
 		func apply(state: ActivityState, visualMode: VisualMode) { appliedStates.append((state, visualMode)) }
-		func applyPromptTimerStatus(_ status: PromptTimerStatus?) {}
+		func applyPromptTimerStatus(_ status: PromptTimerStatus?) { appliedPromptTimerStatuses.append(status) }
+		func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
+			appliedPromptTimerPresentations.append(presentation)
+		}
 		func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {
 			appliedRPGStates.append((halfHearts, levelFraction, level, activeMinutes, hudEnabled))
 		}
@@ -81,6 +86,8 @@ final class RecordingFloatingPetWindowControllingProxyTests: XCTestCase {
 
 		proxy.setFloatingPetVisible(true)
 		proxy.apply(state: .implementing, visualMode: .normal)
+		proxy.applyPromptTimerStatus(PromptTimerStatus(startedAt: Date(timeIntervalSince1970: 0), endedAt: nil))
+		proxy.applyPromptTimerPresentation(PromptTimerPresentation(label: "0:05", isRunning: true))
 		proxy.applyAttention(
 			payload: AttentionPayload(createdAt: nil, expiresAt: nil, summary: "s", reasonKind: "r"),
 			sourceEvent: SourceEvent(origin: "claude_code", kind: "tool", name: nil))
@@ -97,6 +104,8 @@ final class RecordingFloatingPetWindowControllingProxyTests: XCTestCase {
 		XCTAssertEqual(wrapped.setVisibleCalls, [true])
 		XCTAssertEqual(wrapped.appliedStates.count, 1)
 		XCTAssertEqual(wrapped.appliedStates.first?.0, .implementing)
+		XCTAssertEqual(wrapped.appliedPromptTimerStatuses.first ?? nil, PromptTimerStatus(startedAt: Date(timeIntervalSince1970: 0), endedAt: nil))
+		XCTAssertEqual(wrapped.appliedPromptTimerPresentations.first ?? nil, PromptTimerPresentation(label: "0:05", isRunning: true))
 		XCTAssertEqual(wrapped.appliedAttention.first?.0?.summary, "s")
 		XCTAssertEqual(wrapped.appliedGateBadges.first ?? nil, GateBadgeContent(ticketId: "P18.04", gate: "red_tdd"))
 		XCTAssertEqual(wrapped.appliedPlatforms.first ?? nil, "claude_code")
@@ -160,5 +169,21 @@ final class RecordingFloatingPetWindowControllingProxyTests: XCTestCase {
 		XCTAssertEqual(proxy.recordedCalls.count, 2)
 		XCTAssertEqual(proxy.recordedCalls.first, .apply(state: .implementing, visualMode: .normal))
 		XCTAssertEqual(proxy.recordedCalls.last, .sessionLabel("Session 1"))
+	}
+
+	func testRecordsBothPromptTimerPushShapes() {
+		let key: WindowKey = "claude_code"
+		let wrapped = InertController()
+		let proxy = RecordingFloatingPetWindowControllingProxy(wrapping: wrapped, key: key)
+		let status = PromptTimerStatus(startedAt: Date(timeIntervalSince1970: 0), endedAt: nil)
+		let presentation = PromptTimerPresentation(label: "0:05", isRunning: true)
+
+		proxy.applyPromptTimerStatus(status)
+		proxy.applyPromptTimerPresentation(presentation)
+
+		XCTAssertEqual(
+			proxy.recordedCalls, [.promptTimerStatus(status), .promptTimerPresentation(presentation)],
+			"the raw old-pipeline push and the P18.04 presentation push must both be recorded, in call order, "
+				+ "so the shadow comparator can see the old pipeline's prompt-timer push")
 	}
 }

@@ -16,7 +16,11 @@ final class AnimationBadgeView: NSView {
 	private var currentSessionNumber: Int?
 	private var currentSessionLabel: String?
 	private var currentSessionTooltip: String?
-	private var currentPromptTimer: PromptTimerPresentation?
+	/// `private(set)` (not `private`) so tests can observe the presentation
+	/// that actually reached rendering, distinct from asserting on an
+	/// internal override field a caller might set without it surviving to
+	/// `applyPromptTimerView()` (see P18.04's promptTimerPresentationOverride fix).
+	private(set) var currentPromptTimer: PromptTimerPresentation?
 
 	/// Forwards a right-click anywhere on the chip/pill/session-badge stack up
 	/// to `AnimationBadgePanel`, which converts it to a screen anchor. `nil`

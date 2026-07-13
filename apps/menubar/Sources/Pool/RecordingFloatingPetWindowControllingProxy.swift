@@ -9,6 +9,7 @@ import Foundation
 enum RecordedPush: Equatable {
 	case visibility(Bool)
 	case apply(state: ActivityState, visualMode: VisualMode)
+	case promptTimerStatus(PromptTimerStatus?)
 	case promptTimerPresentation(PromptTimerPresentation?)
 	case rpgState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool)
 	case attention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
@@ -66,6 +67,7 @@ final class RecordingFloatingPetWindowControllingProxy: FloatingPetWindowControl
 	}
 
 	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
+		recordedCalls.append(.promptTimerStatus(status))
 		wrapped.applyPromptTimerStatus(status)
 	}
 
