@@ -91,6 +91,7 @@
 		61E9DE2A91231473078CC77A /* SlicePrunerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3889340A4D00B900836757F /* SlicePrunerTests.swift */; };
 		62D778DA5516412C76C11F35 /* AnimationBadgeLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124C682E22EB94C0A689B2C3 /* AnimationBadgeLayout.swift */; };
 		63754B7B5AB02BDF9FF9953E /* LegacyStateFileCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F671C56394833C823D8585D /* LegacyStateFileCleanupTests.swift */; };
+		65C8F4D6E775337721F7A63A /* FloatingPetWindowPoolShadowTickTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9873974840B5D7D895A1B1B5 /* FloatingPetWindowPoolShadowTickTests.swift */; };
 		65E8894467BC8BA03C4A15A9 /* PromptTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D4D0F64AA1A5C04FED5213 /* PromptTimer.swift */; };
 		6652D39E58A4B10CCBEA0351 /* FloatingPetController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C74564777AB5E8D0E7BB7DC1 /* FloatingPetController.swift */; };
 		66B5C50B58C2A0D21B2D59A6 /* AssignmentsJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B088460D34832B339123365F /* AssignmentsJsonReaderTests.swift */; };
@@ -359,6 +360,7 @@
 		940773DC46C73D897DB1A638 /* PetAssetResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetAssetResolverTests.swift; sourceTree = "<group>"; };
 		955975966FD7379ECF343793 /* FloatingPetHidePromptTintView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetHidePromptTintView.swift; sourceTree = "<group>"; };
 		970D0D22D956516B6FAF0632 /* SessionLabelStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLabelStoreTests.swift; sourceTree = "<group>"; };
+		9873974840B5D7D895A1B1B5 /* FloatingPetWindowPoolShadowTickTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FloatingPetWindowPoolShadowTickTests.swift; sourceTree = "<group>"; };
 		990E625C075B2CA262A804B1 /* StateDirectoryListingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateDirectoryListingTests.swift; sourceTree = "<group>"; };
 		9917CBDCCF88795D0341543F /* AssignmentsJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentsJsonReader.swift; sourceTree = "<group>"; };
 		9B3DDB292A731BB7FA920429 /* SettingsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsController.swift; sourceTree = "<group>"; };
@@ -554,6 +556,7 @@
 				DC69F56318CF5679B36BC371 /* WindowActionRouterTests.swift */,
 				DFAAE832D91C20A69CA7D80B /* WindowKeyTests.swift */,
 				33E5D2C7B590C0550C757948 /* Derive */,
+				9873974840B5D7D895A1B1B5 /* FloatingPetWindowPoolShadowTickTests.swift */,
 			);
 			path = MenubarTests;
 			sourceTree = "<group>";
@@ -788,8 +791,6 @@
 				A8BE0DFA2C96A55FC2BF8BB1 /* PBXTargetDependency */,
 			);
 			name = CodogotchiTests;
-			packageProductDependencies = (
-			);
 			productName = CodogotchiTests;
 			productReference = 72DE062B5722F00B659A555C /* CodogotchiTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -807,8 +808,6 @@
 			dependencies = (
 			);
 			name = Codogotchi;
-			packageProductDependencies = (
-			);
 			productName = Codogotchi;
 			productReference = D1679B814BC300DCA60C6A97 /* Codogotchi.app */;
 			productType = "com.apple.product-type.application";
@@ -1108,6 +1107,7 @@
 				E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */,
 				756CD4993E0950C3ACB78E88 /* WindowActionRouterTests.swift in Sources */,
 				9188D02613B670C3AA3D6E05 /* WindowKeyTests.swift in Sources */,
+				65C8F4D6E775337721F7A63A /* FloatingPetWindowPoolShadowTickTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
