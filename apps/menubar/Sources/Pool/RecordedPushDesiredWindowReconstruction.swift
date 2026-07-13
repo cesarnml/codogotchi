@@ -34,15 +34,29 @@ import Foundation
 ///   consults to exempt this field rather than treat it as a real
 ///   divergence every time a fresh spawn inherits a frame).
 enum RecordedPushDesiredWindowReconstruction {
+	/// `baseline` is the PREVIOUS tick's reconstruction for this key (or a
+	/// fresh `DesiredWindow(key:)` for a key seen for the first time) —
+	/// divergence-policy fix (codogotchi-42): a tick with zero recorded
+	/// pushes for a still-live key (e.g. the `.combined` transient-gap tick,
+	/// where the real old-pipeline window is deliberately left untouched, not
+	/// reset) previously reconstructed as an all-default `DesiredWindow`,
+	/// reporting a phantom "old shows idle/empty" divergence against
+	/// `PoolDerive`'s `memory.previousCombinedWindow` carry-forward — even
+	/// though the two real windows were showing identical, unchanged
+	/// content. Seeding from `baseline` and only overwriting fields this
+	/// tick's pushes actually touched makes the reconstruction track what the
+	/// real old-pipeline window is actually displaying, matching `derive`'s
+	/// own carry-forward semantics.
 	static func reconstruct(
 		key: WindowKey,
 		pushes: [RecordedPush],
 		isMinimalist: Bool,
 		petId: String,
 		promptTimerStatus: PromptTimerPresentation?,
-		rpgSnapshot: RpgSnapshot
+		rpgSnapshot: RpgSnapshot,
+		baseline: DesiredWindow
 	) -> DesiredWindow {
-		var window = DesiredWindow(key: key)
+		var window = baseline
 		window.isMinimalist = isMinimalist
 		window.petId = petId
 		window.promptTimerStatus = promptTimerStatus

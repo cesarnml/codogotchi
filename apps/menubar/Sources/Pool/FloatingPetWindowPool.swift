@@ -277,6 +277,14 @@ final class FloatingPetWindowPool {
 	/// Review Focus on isolation.
 	private var shadowMemory = PoolMemory()
 
+	/// The previous tick's `RecordedPushDesiredWindowReconstruction` output
+	/// per key, carried forward as next tick's baseline — divergence-policy
+	/// fix (codogotchi-42). A key present here but torn down (removed from
+	/// `windows`) this tick is dropped by `runShadowTick`'s own key iteration
+	/// (`for (key, controller) in windows`), so this never leaks a stale
+	/// reconstruction for a window that no longer exists.
+	private var previousReconstructedOld: [WindowKey: DesiredWindow] = [:]
+
 	/// Invoked with a non-empty divergence batch once per tick that produces
 	/// one. Production default logs to NSLog + the on-disk shadow log
 	/// (`ShadowDivergenceLogger`); tests inject a capturing closure instead.
@@ -450,7 +458,12 @@ final class FloatingPetWindowPool {
 		)
 		let eligibleForElection = lastUpdatedAt.filter { eligibleKeys.contains($0.key) }
 		if !eligibleForElection.isEmpty {
-			lastActiveRenderKey = eligibleForElection.max(by: { $0.value < $1.value })?.key
+			// Tie-break on `key.rawValue` (never bare `max(by:)`, whose result on
+			// a tie depends on this Dictionary's internal hash-bucket layout,
+			// not a canonical rule) — mirrors `PoolDerive.freshestEntry(in:)`.
+			lastActiveRenderKey = eligibleForElection.max { lhs, rhs in
+				lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key.rawValue < rhs.key.rawValue
+			}?.key
 		}
 
 		// Step 3b: elect hudBearingRenderKey ("Show HUD on Most Recent Pet").
@@ -465,7 +478,10 @@ final class FloatingPetWindowPool {
 				false
 			}
 		if !holderStillInFlight, !eligibleForElection.isEmpty {
-			hudBearingRenderKey = eligibleForElection.max(by: { $0.value < $1.value })?.key
+			// Same canonical tie-break as `lastActiveRenderKey` above.
+			hudBearingRenderKey = eligibleForElection.max { lhs, rhs in
+				lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key.rawValue < rhs.key.rawValue
+			}?.key
 		}
 
 		// Bound firstSeenAt/lastSeenAt/lastUpdatedAt to the same eligibility
@@ -737,7 +753,20 @@ final class FloatingPetWindowPool {
 			activeConflictBubbleTargets.removeValue(forKey: origin)
 		}
 
-		// Step 7: spawn / update directly-keyed windows
+		// Step 7: spawn / update directly-keyed windows.
+		//
+		// Split into two passes over `directKeys` (release-all, then
+		// assign-all) rather than one interleaved pass — divergence-policy fix
+		// (codogotchi-42): a single sorted pass released and assigned session
+		// numbers key-by-key, so a session number freed by TTL/cap-eviction
+		// only became available to a same-tick new spawn if the freed key
+		// happened to sort BEFORE the spawning key by `rawValue`; otherwise the
+		// spawn grabbed the next monotonic number instead of the just-freed
+		// one, and the freed number sat unused until the following tick.
+		// `PoolDerive` already frees every torn-down key before assigning any
+		// fresh key in the same tick (see its own `torndownKeys`/`freshKeys`
+		// passes) — this mirrors that ordering so both pipelines agree on
+		// which number a same-tick spawn receives.
 		var computedTtlDismissedKeys: Set<WindowKey> = []
 		for renderKey in directKeys {
 			guard let state = visibleEntries[renderKey] else { continue }
@@ -784,6 +813,14 @@ final class FloatingPetWindowPool {
 				}
 				continue
 			}
+		}
+		for renderKey in directKeys {
+			guard let state = visibleEntries[renderKey] else { continue }
+			// Pass 1 above already released and tore down every TTL-expired or
+			// cap-pending key; re-derive the same two predicates here (pure,
+			// no side effects) to skip them in this assign/spawn pass.
+			if isTTLExpired(windowKey: renderKey) { continue }
+			if pendingWindowKeys.contains(renderKey) { continue }
 			// User-hidden: do not re-spawn until the user explicitly shows the pet.
 			if userHiddenWindowKeys.contains(renderKey) { continue }
 			// Pet identity and mode are per-ORIGIN: every session window of a platform
@@ -1097,8 +1134,10 @@ final class FloatingPetWindowPool {
 			let promptTimerStatus = promptTimers[key]?.presentation(now: currentTime)
 			reconstructedOld[key] = RecordedPushDesiredWindowReconstruction.reconstruct(
 				key: key, pushes: proxy.recordedCalls, isMinimalist: isMinimalist, petId: petId,
-				promptTimerStatus: promptTimerStatus, rpgSnapshot: snapshot.rpgSnapshot)
+				promptTimerStatus: promptTimerStatus, rpgSnapshot: snapshot.rpgSnapshot,
+				baseline: previousReconstructedOld[key] ?? DesiredWindow(key: key))
 		}
+		previousReconstructedOld = reconstructedOld
 
 		let fingerprint = ShadowTickFingerprint.make(input: input)
 		let divergences = PoolShadowComparator.compare(
