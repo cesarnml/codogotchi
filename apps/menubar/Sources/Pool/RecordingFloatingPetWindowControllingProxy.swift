@@ -41,7 +41,8 @@ final class RecordingFloatingPetWindowControllingProxy: FloatingPetWindowControl
 	private let key: WindowKey
 	private let liveFrameLookup: ((WindowKey) -> CGRect?)?
 
-	/// Every push recorded since this proxy was created, in call order.
+	/// Every push recorded since this proxy was created, or since the last
+	/// `resetRecording()`, in call order.
 	private(set) var recordedCalls: [RecordedPush] = []
 
 	init(
@@ -145,5 +146,15 @@ final class RecordingFloatingPetWindowControllingProxy: FloatingPetWindowControl
 	func updateIdleEscalationConfig(_ config: IdleEscalationConfig) {
 		recordedCalls.append(.idleEscalationConfig(config))
 		wrapped.updateIdleEscalationConfig(config)
+	}
+
+	/// Clears `recordedCalls`, keeping the wrapped controller and key intact.
+	/// P18.05's shadow tick calls this once per `FloatingPetWindowPool.update()`
+	/// tick, before the old pipeline pushes anything, so a reconstructed
+	/// `DesiredWindow` reflects only THIS tick's pushes — mirroring
+	/// `PoolDerive`'s own per-tick "recompute desired state from scratch"
+	/// contract rather than leaking a stale push from an earlier tick forward.
+	func resetRecording() {
+		recordedCalls.removeAll()
 	}
 }

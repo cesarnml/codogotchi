@@ -4,7 +4,7 @@ import Foundation
 /// Exactly one today (Grill-Me decision 3's title-seam delay) — a new
 /// exemption must be added here explicitly, never pattern-matched loosely
 /// against arbitrary field names (see the ticket's Review Focus).
-enum ShadowCompareExemption: CaseIterable, Equatable {
+enum ShadowCompareExemption: CaseIterable, Hashable {
 	/// A freshly-resolved session title lags ~1 tick behind the old
 	/// (synchronous) pipeline, since `derive` only signals "resolution in
 	/// flight" via `DesiredWindows.titleResolutionRequests` and `apply`
@@ -12,6 +12,17 @@ enum ShadowCompareExemption: CaseIterable, Equatable {
 	/// Scoped to exactly the `sessionLabel` field on a key with an in-flight
 	/// request this tick — never a loose "any sessionLabel mismatch is fine."
 	case titleResolutionDelay
+
+	/// P18.05's pre-cutover "old" side is reconstructed from
+	/// `RecordingFloatingPetWindowControllingProxy`'s recorded pushes, which
+	/// only ever record a spawn's *resolved* `CGRect` (via `adoptFrame`),
+	/// never the structural donor `WindowKey` `PoolDerive` emits as
+	/// `inheritedFrameFrom` — there is no old-pipeline call that expresses
+	/// "which window this one inherited its frame from" as data. Scoped to
+	/// exactly the `inheritedFrameFrom` field, and only when the
+	/// reconstructed old side is `nil` (the only value it can ever take) —
+	/// never a loose "any inheritedFrameFrom mismatch is fine."
+	case frameProvenanceUnavailableFromRecordedPushes
 }
 
 /// One field-level shadow-compare mismatch: what changed, on which window,
@@ -121,7 +132,12 @@ enum PoolShadowComparator {
 		if old.conflictBubble != new.conflictBubble {
 			record("conflictBubble", describeOptional(old.conflictBubble), describeOptional(new.conflictBubble))
 		}
-		if old.inheritedFrameFrom != new.inheritedFrameFrom {
+		if old.inheritedFrameFrom != new.inheritedFrameFrom, old.inheritedFrameFrom != nil {
+			// `old.inheritedFrameFrom == nil` is exempt
+			// (`.frameProvenanceUnavailableFromRecordedPushes`) — the
+			// reconstructed old side can never carry a non-nil value, so
+			// comparing it against a genuine `new` donor key would be a
+			// permanent false divergence, not a real one.
 			record(
 				"inheritedFrameFrom", describeWindowKey(old.inheritedFrameFrom),
 				describeWindowKey(new.inheritedFrameFrom))

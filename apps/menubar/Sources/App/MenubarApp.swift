@@ -361,7 +361,8 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					RetrievedSessionTitleStore.setTitle(title, for: key.rawValue)
 				},
 				hiddenKeysLoader: { AppStateStore.loadHiddenWindowKeys() },
-				hiddenKeysSaver: { try? AppStateStore.saveHiddenWindowKeys($0) }
+				hiddenKeysSaver: { try? AppStateStore.saveHiddenWindowKeys($0) },
+				shadowDivergenceHandler: { ShadowDivergenceLogger.log($0) }
 			)
 			pool.onMonochromeChanged = { [weak item] isMonochrome in
 				if let button = item?.button { Self.applyMenubarIcon(to: button, monochrome: isMonochrome) }

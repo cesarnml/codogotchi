@@ -132,8 +132,14 @@ final class PoolShadowComparatorTests: XCTestCase {
 
 	// MARK: - Exemption enumeration (named, not pattern-matched)
 
-	func testExactlyOneNamedExemptionIsEnumerated() {
-		XCTAssertEqual(ShadowCompareExemption.allCases.count, 1)
-		XCTAssertEqual(ShadowCompareExemption.allCases.first, .titleResolutionDelay)
+	func testExactlyTwoNamedExemptionsAreEnumerated() {
+		// P18.05 adds `.frameProvenanceUnavailableFromRecordedPushes` alongside
+		// P18.04's `.titleResolutionDelay` — both named and enumerated here,
+		// never pattern-matched loosely against arbitrary field names (see
+		// `PoolShadowComparator`'s own doc comment).
+		XCTAssertEqual(ShadowCompareExemption.allCases.count, 2)
+		XCTAssertEqual(
+			Set(ShadowCompareExemption.allCases),
+			[.titleResolutionDelay, .frameProvenanceUnavailableFromRecordedPushes])
 	}
 }

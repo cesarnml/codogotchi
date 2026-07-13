@@ -35,6 +35,7 @@
 		24EA6CB979AAB31E81C44EFC /* MinimalistPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E40A4BCCFACDCAA4D8EB136E /* MinimalistPanelController.swift */; };
 		25296F59318459AC7DF83336 /* AttentionBubblePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195864BAFD9024E422A5CDF7 /* AttentionBubblePanel.swift */; };
 		252D3E5EACB7EED9A3F079EB /* PetAssetResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 940773DC46C73D897DB1A638 /* PetAssetResolverTests.swift */; };
+		2547B96B3C614CAB2F8C5D86 /* ShadowTickFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923AD525C26567AE6F314B96 /* ShadowTickFingerprint.swift */; };
 		2665D1F382445B0E92A89EB5 /* HalfHeartDecayEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 472AAFBA7353AE003A97B397 /* HalfHeartDecayEngine.swift */; };
 		28158B37144FCCB29480D853 /* RPGProgressBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40C0B908B205CD27328B8354 /* RPGProgressBarView.swift */; };
 		287A42FE2975BFC9F941A6E6 /* SettingsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3DDB292A731BB7FA920429 /* SettingsController.swift */; };
@@ -58,6 +59,7 @@
 		3FBC13E4B9A0AC33B73BBA8F /* WindowActionRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAC0E973502BF1A8691836E /* WindowActionRouter.swift */; };
 		4121304416B4360FAF08294C /* MenubarMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EEE8949FDE061D125E5EB7D /* MenubarMenu.swift */; };
 		430CAFACBB46008FC2F3AAF7 /* ConfigFileWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0726E3AFB7210BA52BF1ACFD /* ConfigFileWriterTests.swift */; };
+		433824406F528AD5C6229FAE /* RecordedPushDesiredWindowReconstruction.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF3248248D074B22A9EF1E5F /* RecordedPushDesiredWindowReconstruction.swift */; };
 		43791C4A0AB326A9F055049C /* GateBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE11B737B6F0D401A7F9696 /* GateBadgeView.swift */; };
 		44C2550A80D96292C3200AA3 /* BadgeRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614CFF95A1D23539328DD341 /* BadgeRowView.swift */; };
 		46A42463FFCE9411B5B6A383 /* RpgStateReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21EAF55FDD0C6277E3CCB83F /* RpgStateReader.swift */; };
@@ -138,6 +140,7 @@
 		99C8B80FE0466C9BB1B58C51 /* BundledMaewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E7256729C3F274DFB3A5204 /* BundledMaewTests.swift */; };
 		9AC96FCF34BDC5818BF0E1B2 /* FloatingPetHidePromptTintView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955975966FD7379ECF343793 /* FloatingPetHidePromptTintView.swift */; };
 		9FF94A8F1636E73C24BE4846 /* SettingsTabModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F91F037388E6AEB00DBBC86A /* SettingsTabModel.swift */; };
+		A0F475003C87707E319C1A16 /* ShadowDivergenceLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B693F10ECEB9743CF5CF31 /* ShadowDivergenceLogger.swift */; };
 		A4DE38B2FAB835D924339D92 /* RPGTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 073E1DA7FD402C40CFEA5439 /* RPGTabViewModelTests.swift */; };
 		A7EE9A463FF230338BEA765A /* ActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8A1C529AE9116E412788CF /* ActionButton.swift */; };
 		A8D2FD9DA4CBDFDB018AF971 /* LegacyStateFileCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82CC030BC8806022DB8BBA8B /* LegacyStateFileCleanup.swift */; };
@@ -252,6 +255,7 @@
 		11293EAA084837CB406C76BB /* CodogotchiPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiPet.swift; sourceTree = "<group>"; };
 		11F5A99124B6688B4832CB4C /* AnimationBadgePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationBadgePanel.swift; sourceTree = "<group>"; };
 		124C682E22EB94C0A689B2C3 /* AnimationBadgeLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationBadgeLayout.swift; sourceTree = "<group>"; };
+		12B693F10ECEB9743CF5CF31 /* ShadowDivergenceLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShadowDivergenceLogger.swift; sourceTree = "<group>"; };
 		12FBBDE3DDE80E6CF81054CE /* RetrievedSessionTitleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievedSessionTitleStore.swift; sourceTree = "<group>"; };
 		1445A1864D6A3164B047FB24 /* AttentionSubtitleFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttentionSubtitleFormattingTests.swift; sourceTree = "<group>"; };
 		14570954EC4AB5F26AFE2173 /* SettingsWindowOpenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowOpenTests.swift; sourceTree = "<group>"; };
@@ -353,6 +357,7 @@
 		8DBC88DE074DC11652453ADE /* PetTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetTabView.swift; sourceTree = "<group>"; };
 		8E2899DD8851B86633D4BB28 /* PetThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetThumbnail.swift; sourceTree = "<group>"; };
 		8E384447ABBA3DED123BA674 /* RecordingFloatingPetWindowControllingProxyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingFloatingPetWindowControllingProxyTests.swift; sourceTree = "<group>"; };
+		923AD525C26567AE6F314B96 /* ShadowTickFingerprint.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShadowTickFingerprint.swift; sourceTree = "<group>"; };
 		92F7C601B6A2F543E0A4A246 /* FloatingPetPromptDismissal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetPromptDismissal.swift; sourceTree = "<group>"; };
 		9310785E0303F2C6627ADAE4 /* ConflictBubbleRateLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubbleRateLimiter.swift; sourceTree = "<group>"; };
 		933225DDA49AB5637263654E /* MinimalistBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinimalistBadgeView.swift; sourceTree = "<group>"; };
@@ -396,6 +401,7 @@
 		B86CEF42917F1F47CF4166F3 /* RenderKeyResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderKeyResolver.swift; sourceTree = "<group>"; };
 		B8F15B1B99434EA9F9005052 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		BC2EC51845CF105F01A1BBE4 /* SessionNumberAllocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNumberAllocatorTests.swift; sourceTree = "<group>"; };
+		BF3248248D074B22A9EF1E5F /* RecordedPushDesiredWindowReconstruction.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecordedPushDesiredWindowReconstruction.swift; sourceTree = "<group>"; };
 		BFE11B737B6F0D401A7F9696 /* GateBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateBadgeView.swift; sourceTree = "<group>"; };
 		C1805A0BD2255F37C552E1A4 /* CustomizationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationStore.swift; sourceTree = "<group>"; };
 		C24E41079FB3603E2C64AAF9 /* CodogotchiFolders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiFolders.swift; sourceTree = "<group>"; };
@@ -479,6 +485,8 @@
 				3BAC0E973502BF1A8691836E /* WindowActionRouter.swift */,
 				77AD5E672E750D5D5DC5CED8 /* WindowKey.swift */,
 				EA34521973DACD4ADF70D6E9 /* Derive */,
+				BF3248248D074B22A9EF1E5F /* RecordedPushDesiredWindowReconstruction.swift */,
+				12B693F10ECEB9743CF5CF31 /* ShadowDivergenceLogger.swift */,
 			);
 			path = Pool;
 			sourceTree = "<group>";
@@ -772,6 +780,7 @@
 				8C6037ACAC28B6369F04607D /* PoolMemoryUserActions.swift */,
 				FC0153CA2F32DC0733909BE8 /* PoolTickInput.swift */,
 				6A93F4C1345C915EADBB6C51 /* SessionNumberAllocatorState.swift */,
+				923AD525C26567AE6F314B96 /* ShadowTickFingerprint.swift */,
 			);
 			path = Derive;
 			sourceTree = "<group>";
@@ -1025,6 +1034,9 @@
 				CE9190882611899407182DC2 /* TransitionLog.swift in Sources */,
 				3FBC13E4B9A0AC33B73BBA8F /* WindowActionRouter.swift in Sources */,
 				2D82A09D121559AB1DDB275E /* WindowKey.swift in Sources */,
+				2547B96B3C614CAB2F8C5D86 /* ShadowTickFingerprint.swift in Sources */,
+				433824406F528AD5C6229FAE /* RecordedPushDesiredWindowReconstruction.swift in Sources */,
+				A0F475003C87707E319C1A16 /* ShadowDivergenceLogger.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

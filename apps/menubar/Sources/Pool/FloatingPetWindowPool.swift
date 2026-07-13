@@ -267,6 +267,32 @@ final class FloatingPetWindowPool {
 	/// uses this to toggle `NSImage.isTemplate` on the status-item button.
 	var onMonochromeChanged: ((Bool) -> Void)?
 
+	// MARK: - P18.05: shadow tick
+
+	/// Threaded `PoolMemory` for the shadow engine. The imperative pipeline
+	/// above remains authoritative and drives every real window; this is
+	/// `PoolDerive`'s own fold state, advanced every tick from the identical
+	/// tick input the old pipeline just consumed. Never read by anything
+	/// that affects `windows` or any controller call — see this ticket's
+	/// Review Focus on isolation.
+	private var shadowMemory = PoolMemory()
+
+	/// Invoked with a non-empty divergence batch once per tick that produces
+	/// one. Production default logs to NSLog + the on-disk shadow log
+	/// (`ShadowDivergenceLogger`); tests inject a capturing closure instead.
+	/// Never influences the driving pipeline — only ever called with data
+	/// already computed for this tick, after every real controller push has
+	/// already happened.
+	private let shadowDivergenceHandler: ([DivergenceRecord]) -> Void
+
+	/// Test-only hook: when non-nil, applied to the `PoolTickInput` the
+	/// shadow tick builds for `PoolDerive` — never to the input the old
+	/// pipeline itself consumes. Lets `FloatingPetWindowPoolShadowTickTests`
+	/// seed a deliberate, controlled disagreement between the two pipelines
+	/// without touching any production code path. Always `nil` outside
+	/// tests.
+	var shadowTickInputPerturbation: ((PoolTickInput) -> PoolTickInput)?
+
 	init(
 		assignmentsReader: @escaping AssignmentsReader = {
 			AssignmentsJsonReader.read(at: CodogotchiFolders.assignmentsPath())
@@ -308,7 +334,28 @@ final class FloatingPetWindowPool {
 		hiddenKeysLoader: @escaping () -> Set<WindowKey> = { [] },
 		hiddenKeysSaver: @escaping (Set<WindowKey>) -> Void = { _ in },
 		now: @escaping () -> Date = { Date() },
-		idleEscalationEnvironment: [String: String] = ProcessInfo.processInfo.environment
+		idleEscalationEnvironment: [String: String] = ProcessInfo.processInfo.environment,
+		// No production-disk/NSLog default, mirroring
+		// `hiddenKeysLoader`/`hiddenKeysSaver`/`retrievedSessionTitleReader`/
+		// `retrievedSessionTitleWriter` above: wiring the shadow tick into
+		// every `update()` call means this default runs underneath the
+		// ENTIRE pre-existing `FloatingPetWindowPoolTests` suite, which does
+		// not sandbox `CODOGOTCHI_HOME` — a real-disk/NSLog default here
+		// would spam the developer's actual `~/.codogotchi/logs/` and
+		// console on every divergence a still-maturing `derive` engine
+		// (P18.01–P18.04) produces against any of hundreds of pre-existing
+		// scenarios that have nothing to do with this ticket. Also
+		// deliberately NOT a hard `assert()`: the same reasoning applies —
+		// an unconditional `assert(divergences.isEmpty)` here would crash
+		// unrelated tests. See this ticket's Rationale ("Contract note") for
+		// the specific divergence classes this surfaced and why they're
+		// deferred to the pre-cutover soak rather than fixed here.
+		// Production wiring (`ShadowDivergenceLogger.log`) happens
+		// explicitly in `MenubarApp`; a caller that wants a loud,
+		// assert-style test signal (this file's own
+		// `FloatingPetWindowPoolShadowTickTests`) supplies its own handler
+		// and asserts on the captured records via XCTest.
+		shadowDivergenceHandler: @escaping ([DivergenceRecord]) -> Void = { _ in }
 	) {
 		self.assignmentsReader = assignmentsReader
 		self.customizationReader = customizationReader
@@ -322,6 +369,7 @@ final class FloatingPetWindowPool {
 		self.hiddenKeysSaver = hiddenKeysSaver
 		self.now = now
 		self.idleEscalationEnvironment = idleEscalationEnvironment
+		self.shadowDivergenceHandler = shadowDivergenceHandler
 		// Restore user-hidden window keys across app restarts. Keys for pets that
 		// have since TTL-expired are harmless here: the spawn gate at Step 7 only
 		// ever consults this set for keys already surviving this tick's TTL/mode
@@ -331,6 +379,13 @@ final class FloatingPetWindowPool {
 	}
 
 	func update(snapshot: PerPlatformSnapshot) {
+		// P18.05 shadow tick: clear each proxy's push log before the old
+		// pipeline pushes anything this tick, so the reconstruction at the
+		// end of this method reflects only THIS tick's pushes.
+		for controller in windows.values {
+			(controller as? RecordingFloatingPetWindowControllingProxy)?.resetRecording()
+		}
+
 		// Read customization and assignments fresh on every tick so Settings writes take effect within one second.
 		let prevMonochrome = currentCustomization.menubarIconMonochrome
 		currentCustomization = customizationReader()
@@ -737,16 +792,21 @@ final class FloatingPetWindowPool {
 			if windows[renderKey] == nil {
 				let petId = currentAssignments.resolve(origin: origin)
 				assignSessionNumber(forWindowKey: renderKey)
-				let controller: FloatingPetWindowControlling
+				let rawController: FloatingPetWindowControlling
 				if mode(for: origin) == .minimalist {
 					guard let minimalistWindowFactory else {
 						NSLog("FloatingPetWindowPool: minimalist mode requires a minimalistWindowFactory for \(renderKey)")
 						continue
 					}
-					controller = minimalistWindowFactory(renderKey)
+					rawController = minimalistWindowFactory(renderKey)
 				} else {
-					controller = windowFactory(renderKey, petId)
+					rawController = windowFactory(renderKey, petId)
 				}
+				// P18.05: wrap every real controller in a transparent
+				// recording proxy so the shadow tick can reconstruct this
+				// tick's push payload — see this file's `update()` epilogue.
+				let controller: FloatingPetWindowControlling =
+					RecordingFloatingPetWindowControllingProxy(wrapping: rawController, key: renderKey)
 				controller.setFloatingPetVisible(true)
 				windows[renderKey] = controller
 				windowSpawnedModes[renderKey] = mode(for: origin)
@@ -833,17 +893,20 @@ final class FloatingPetWindowPool {
 					let winner = winnerEntry.state
 					if windows[.combined] == nil {
 						let useMinimalist = currentCustomization.combinedMinimalistEnabled
-						let controller: FloatingPetWindowControlling
+						let rawController: FloatingPetWindowControlling
 						if useMinimalist {
 							guard let minimalistWindowFactory else {
 								NSLog("FloatingPetWindowPool: combined-minimalist mode requires a minimalistWindowFactory")
 								return
 							}
-							controller = minimalistWindowFactory(.combined)
+							rawController = minimalistWindowFactory(.combined)
 						} else {
 							let petId = currentAssignments.resolve(origin: "combined")
-							controller = windowFactory(.combined, petId)
+							rawController = windowFactory(.combined, petId)
 						}
+						// P18.05: see the direct-key spawn site above.
+						let controller: FloatingPetWindowControlling =
+							RecordingFloatingPetWindowControllingProxy(wrapping: rawController, key: .combined)
 						controller.setFloatingPetVisible(true)
 						windows[.combined] = controller
 						combinedWindowIsMinimalist = useMinimalist
@@ -944,6 +1007,94 @@ final class FloatingPetWindowPool {
 				hudEnabled: hudEnabled
 			)
 		}
+
+		// P18.05: run the shadow tick strictly AFTER every real controller
+		// push above — never interleaved with the driving pipeline, and
+		// never able to influence it (the shadow only ever reads `self`'s
+		// already-final tick state and writes to `shadowMemory`, never to
+		// `windows` or any controller).
+		runShadowTick(snapshot: snapshot, visibleEntries: visibleEntries, currentTime: currentTime, hudMode: hudMode)
+	}
+
+	/// Runs `PoolDerive` against the identical tick input the old pipeline
+	/// above just consumed, reconstructs the old pipeline's actual per-window
+	/// push behavior from each surviving window's recording proxy, and
+	/// compares the two. Log-only: a thrown error or unexpected shape here
+	/// must never break the tick — every lookup below is a safe optional
+	/// read, and the only side effects are advancing `shadowMemory` and
+	/// invoking `shadowDivergenceHandler`, neither of which can affect
+	/// `windows`, any controller, or anything persisted to disk by the old
+	/// pipeline.
+	private func runShadowTick(
+		snapshot: PerPlatformSnapshot,
+		visibleEntries: [WindowKey: StateSnapshot],
+		currentTime: Date,
+		hudMode: PetConfig.RPGHUDMode
+	) {
+		// Every read/effect-seam value `derive` might consult for a key this
+		// tick — built from the SAME reader closures the old pipeline itself
+		// holds, read fresh (never a second, independently-computed value)
+		// for the render keys the old pipeline observed this tick plus
+		// "combined" (Review Focus: "readers must be invoked once and fanned
+		// out, or invoked identically").
+		var sessionLabels: [WindowKey: String] = [:]
+		var knownSessionTitles: [WindowKey: String] = [:]
+		var sessionPromptSummaries: [WindowKey: String] = [:]
+		var keysNeedingInput = Set(visibleEntries.keys)
+		keysNeedingInput.insert(.combined)
+		for key in keysNeedingInput {
+			if let label = sessionLabelReader(key) {
+				sessionLabels[key] = label
+			}
+			// Read-only: the already-resolved in-memory/on-disk cache only —
+			// never `sessionTitleReader`, which performs a fresh
+			// directory-walk/subprocess resolution as a side effect. A key
+			// the old pipeline hasn't resolved yet correctly falls through
+			// to `derive`'s own `titleResolutionRequests` seam instead.
+			if let title = resolvedSessionTitles[key] ?? retrievedSessionTitleReader(key) {
+				knownSessionTitles[key] = title
+			}
+			if key.isSessionKeyed, let summary = sessionPromptSummaryReader(key) {
+				sessionPromptSummaries[key] = summary
+			}
+		}
+
+		var input = PoolTickInput(
+			snapshot: snapshot,
+			customization: currentCustomization,
+			assignments: currentAssignments,
+			currentTime: currentTime,
+			idleEscalationEnvironment: idleEscalationEnvironment,
+			sessionLabels: sessionLabels,
+			knownSessionTitles: knownSessionTitles,
+			sessionPromptSummaries: sessionPromptSummaries,
+			hudMode: hudMode
+		)
+		if let perturbation = shadowTickInputPerturbation {
+			input = perturbation(input)
+		}
+
+		let (desired, newMemory) = PoolDerive.derive(input: input, memory: shadowMemory)
+		shadowMemory = newMemory
+
+		var reconstructedOld: [WindowKey: DesiredWindow] = [:]
+		for (key, controller) in windows {
+			guard let proxy = controller as? RecordingFloatingPetWindowControllingProxy else { continue }
+			let isMinimalist =
+				key == .combined ? (combinedWindowIsMinimalist ?? false) : (windowSpawnedModes[key] == .minimalist)
+			let petId = currentAssignments.resolve(origin: key == .combined ? "combined" : key.origin)
+			let promptTimerStatus = promptTimers[key]?.presentation(now: currentTime)
+			reconstructedOld[key] = RecordedPushDesiredWindowReconstruction.reconstruct(
+				key: key, pushes: proxy.recordedCalls, isMinimalist: isMinimalist, petId: petId,
+				promptTimerStatus: promptTimerStatus, rpgSnapshot: snapshot.rpgSnapshot)
+		}
+
+		let fingerprint = ShadowTickFingerprint.make(snapshot: snapshot, currentTime: currentTime)
+		let divergences = PoolShadowComparator.compare(
+			old: reconstructedOld, new: desired, tickFingerprint: fingerprint)
+		if !divergences.isEmpty {
+			shadowDivergenceHandler(divergences)
+		}
 	}
 
 	/// Returns true when the window for the given key is currently in `windows`.
@@ -958,6 +1109,11 @@ final class FloatingPetWindowPool {
 	/// stale and cannot restart the timer.
 	func resetPromptTimer(forWindowKey key: WindowKey) {
 		promptTimers[key]?.reset()
+		// P18.05: pair every out-of-band user-action mutation with the
+		// identical pure `PoolMemory` transition, applied immediately (never
+		// deferred to the next `derive` tick) — see this ticket's Outcome
+		// and `PoolMemoryUserActions`'s two-limb contract.
+		shadowMemory = shadowMemory.resettingPromptTimer(for: key)
 	}
 
 	/// Hides or shows the window for the given key.
@@ -967,6 +1123,11 @@ final class FloatingPetWindowPool {
 	/// release, so a hidden session keeps its slot reserved and un-hiding it
 	/// respawns on the very next tick without competing for a new one.
 	func setVisible(_ visible: Bool, for key: WindowKey) {
+		// P18.05: pair this out-of-band user action with the identical pure
+		// `PoolMemory` transition, applied immediately — see
+		// `PoolMemoryUserActions.hiding(_:)`/`showing(_:)`'s two-limb
+		// contract.
+		shadowMemory = visible ? shadowMemory.showing(key) : shadowMemory.hiding(key)
 		if visible {
 			userHiddenWindowKeys.remove(key)
 			// Restart the in-memory idle-TTL clock alongside the on-disk
@@ -1004,6 +1165,13 @@ final class FloatingPetWindowPool {
 	func hideAllOtherWindows(keepVisible: WindowKey) {
 		let others = windows.keys.filter { $0 != keepVisible }
 		guard !others.isEmpty else { return }
+		// P18.05: pair this batched out-of-band user action with the
+		// identical pure `PoolMemory` transition, applied immediately —
+		// see `PoolMemoryUserActions.hidingAllOthers(keeping:among:)`.
+		// `Set(windows.keys)` (the pre-mutation membership below) is the
+		// "caller's current desired-window membership" that transition
+		// documents itself as needing.
+		shadowMemory = shadowMemory.hidingAllOthers(keeping: keepVisible, among: Set(windows.keys))
 		for key in others {
 			windows[key]?.setFloatingPetVisible(false)
 			windows.removeValue(forKey: key)
@@ -1083,6 +1251,10 @@ final class FloatingPetWindowPool {
 		guard windowKey.isSessionKeyed,
 			let identity = windowSessionIdentities[windowKey] ?? currentRenderKeyIdentities[windowKey]
 		else { return }
+		// P18.05: pair this out-of-band user action with the identical pure
+		// `PoolMemory` transition, applied immediately — see
+		// `PoolMemoryUserActions.pruning(_:)`.
+		shadowMemory = shadowMemory.pruning(windowKey)
 		windows[windowKey]?.setFloatingPetVisible(false)
 		windows.removeValue(forKey: windowKey)
 		windowSpawnedModes.removeValue(forKey: windowKey)
