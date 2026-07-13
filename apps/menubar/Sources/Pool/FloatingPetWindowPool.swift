@@ -1541,17 +1541,70 @@ enum PoolEngine: Equatable {
 	case legacy
 }
 
-/// P18.06 coordinator: selects which pipeline is authoritative for real
-/// windows (`activeEngine`) and forwards every public call to
-/// `LegacyPoolEngine`, the preserved pre-cutover implementation. Stage 1 of
-/// the cutover (this commit): pure delegation, zero behavior change — every
-/// call forwards 1:1 regardless of `activeEngine`. The composed
-/// derive/diff/apply path becomes authoritative in a later commit on this
-/// same ticket.
+/// P18.06 coordinator: selects which pipeline drives real windows
+/// (`activeEngine`).
+///
+/// Default (`activeEngine == .new`): `derive` → `PoolDiff` → `PoolApply`
+/// drives real controllers (`primaryWindows`/`primaryMemory`); `legacy` still
+/// runs every tick, unchanged, but constructed with stub controllers
+/// (`NoOpStubWindowController`) so its imperative decisions land on nothing
+/// real — it becomes the shadow, and its own existing `runShadowTick`
+/// (comparing its decisions against an independently-threaded
+/// `PoolDerive` call) keeps producing the same divergence signal it always
+/// has, now informative for the reversed direction instead of the forward
+/// one.
+///
+/// Rollback (`CODOGOTCHI_POOL_ENGINE=legacy`): `legacy` drives real
+/// controllers exactly as before P18.06; the coordinator's own
+/// `primaryWindows`/`primaryMemory` path never runs.
 @MainActor
 final class FloatingPetWindowPool {
 	let activeEngine: PoolEngine
 	private let legacy: LegacyPoolEngine
+
+	// MARK: - New-engine driving state (populated only when activeEngine == .new)
+
+	private var primaryMemory = PoolMemory()
+	private var primaryWindows: [WindowKey: FloatingPetWindowControlling] = [:]
+	private var primaryDesiredWindows: [WindowKey: DesiredWindow] = [:]
+	/// A dismissed window's live frame, captured the tick it's torn down and
+	/// consumed the tick a later spawn inherits it (`inheritedFrameFrom`).
+	/// `PoolApply.apply`'s own donor-frame lookup only resolves a donor still
+	/// present in `controllers` — correct for same-tick eviction+respawn, but
+	/// `PoolMemory.evictedFrameDirectives` can legitimately queue a donor
+	/// across several ticks (its own key already torn down and gone from
+	/// `primaryWindows`), so this survives across ticks where `PoolApply`'s
+	/// in-tick lookup cannot. Mirrors `LegacyPoolEngine.evictedSessionFrames`,
+	/// which stores the resolved `CGRect` value up front for the same reason —
+	/// `PoolDerive` itself cannot hold a `CGRect` at all (purity gate).
+	private var evictedFrameSnapshots: [WindowKey: CGRect] = [:]
+	private var lastDesired = DesiredWindows()
+	private var lastAppliedIdleEscalationConfig: IdleEscalationConfig?
+
+	// MARK: - Reader/config copies, so the new engine can drive independently of `legacy`
+
+	private let assignmentsReader: AssignmentsReader
+	private let customizationReader: CustomizationReader
+	private let windowFactory: WindowFactory
+	private let minimalistWindowFactory: MinimalistWindowFactory?
+	private let sessionLabelReader: SessionLabelReader
+	private let sessionPromptSummaryReader: SessionPromptSummaryReader
+	private let sessionTitleReader: SessionTitleReader
+	private let retrievedSessionTitleReader: RetrievedSessionTitleReader
+	private let retrievedSessionTitleWriter: RetrievedSessionTitleWriter
+	private let hiddenKeysSaver: (Set<WindowKey>) -> Void
+	private let now: () -> Date
+	private let idleEscalationEnvironment: [String: String]
+	private var currentAssignments: AssignmentsSnapshot = .safeDefault
+
+	var onMonochromeChanged: ((Bool) -> Void)? {
+		get { legacy.onMonochromeChanged }
+		set { legacy.onMonochromeChanged = newValue }
+	}
+	var shadowTickInputPerturbation: ((PoolTickInput) -> PoolTickInput)? {
+		get { legacy.shadowTickInputPerturbation }
+		set { legacy.shadowTickInputPerturbation = newValue }
+	}
 
 	init(
 		assignmentsReader: @escaping AssignmentsReader = {
@@ -1581,56 +1634,293 @@ final class FloatingPetWindowPool {
 		/// construction — never re-read by `update()`.
 		poolEngineEnvironment: [String: String] = ProcessInfo.processInfo.environment
 	) {
-		self.activeEngine = poolEngineEnvironment["CODOGOTCHI_POOL_ENGINE"] == "legacy" ? .legacy : .new
+		let engine: PoolEngine = poolEngineEnvironment["CODOGOTCHI_POOL_ENGINE"] == "legacy" ? .legacy : .new
+		self.activeEngine = engine
+		self.assignmentsReader = assignmentsReader
+		self.customizationReader = customizationReader
+		self.windowFactory = windowFactory
+		self.minimalistWindowFactory = minimalistWindowFactory
+		self.sessionLabelReader = sessionLabelReader
+		self.sessionPromptSummaryReader = sessionPromptSummaryReader
+		self.sessionTitleReader = sessionTitleReader
+		self.retrievedSessionTitleReader = retrievedSessionTitleReader
+		self.retrievedSessionTitleWriter = retrievedSessionTitleWriter
+		self.hiddenKeysSaver = hiddenKeysSaver
+		self.now = now
+		self.idleEscalationEnvironment = idleEscalationEnvironment
+		// `legacy` becomes the shadow when the new engine is authoritative: it
+		// still runs every tick and still makes every real decision, but those
+		// decisions land on inert stubs instead of real windows — see this
+		// class's doc comment.
+		let legacyWindowFactory: WindowFactory = engine == .new ? { _, _ in NoOpStubWindowController() } : windowFactory
+		let legacyMinimalistWindowFactory: MinimalistWindowFactory? =
+			engine == .new ? { _ in NoOpStubWindowController() } : minimalistWindowFactory
 		self.legacy = LegacyPoolEngine(
 			assignmentsReader: assignmentsReader,
 			customizationReader: customizationReader,
-			windowFactory: windowFactory,
-			minimalistWindowFactory: minimalistWindowFactory,
+			windowFactory: legacyWindowFactory,
+			minimalistWindowFactory: legacyMinimalistWindowFactory,
 			sessionLabelReader: sessionLabelReader,
 			sessionPromptSummaryReader: sessionPromptSummaryReader,
 			sessionTitleReader: sessionTitleReader,
 			retrievedSessionTitleReader: retrievedSessionTitleReader,
 			retrievedSessionTitleWriter: retrievedSessionTitleWriter,
-			hiddenKeysLoader: hiddenKeysLoader,
-			hiddenKeysSaver: hiddenKeysSaver,
+			hiddenKeysLoader: engine == .new ? { [] } : hiddenKeysLoader,
+			hiddenKeysSaver: engine == .new ? { _ in } : hiddenKeysSaver,
 			now: now,
 			idleEscalationEnvironment: idleEscalationEnvironment,
 			shadowDivergenceHandler: shadowDivergenceHandler
 		)
+		if engine == .new {
+			primaryMemory.userHiddenWindowKeys = hiddenKeysLoader()
+		}
 	}
 
-	// MARK: - Forwarding surface (Stage 1: 1:1 delegation to `legacy`)
+	// MARK: - update()
 
-	var resolvedIdleEscalationConfig: IdleEscalationConfig { legacy.resolvedIdleEscalationConfig }
-	var blockedOrigins: Set<String> { legacy.blockedOrigins }
-	var pendingSessionKeys: Set<WindowKey> { legacy.pendingSessionKeys }
-	var ttlDismissedWindowKeys: Set<WindowKey> { legacy.ttlDismissedWindowKeys }
-	var activeOrigins: [WindowKey] { legacy.activeOrigins }
-	var hiddenWindowKeys: [WindowKey] { legacy.hiddenWindowKeys }
+	func update(snapshot: PerPlatformSnapshot) {
+		guard activeEngine == .new else {
+			legacy.update(snapshot: snapshot)
+			return
+		}
+		currentAssignments = assignmentsReader()
+		let customization = customizationReader()
+		let currentTime = now()
+
+		var sessionLabels: [WindowKey: String] = [:]
+		var knownSessionTitles: [WindowKey: String] = [:]
+		var sessionPromptSummaries: [WindowKey: String] = [:]
+		var keysNeedingInput = Set(snapshot.perPlatform.keys)
+		keysNeedingInput.insert(.combined)
+		for key in keysNeedingInput {
+			if let label = sessionLabelReader(key) { sessionLabels[key] = label }
+			// In-memory cache first — mirrors `LegacyPoolEngine.resolveSessionTitle`
+			// exactly: a title resolved earlier this process run must never be
+			// re-fetched, and the disk reader closure is not required to be
+			// stateful (production wiring reads a real on-disk cache; tests often
+			// inject a bare `{ _ in nil }`).
+			if let title = primaryMemory.resolvedSessionTitles[key] ?? retrievedSessionTitleReader(key) {
+				knownSessionTitles[key] = title
+			}
+			if key.isSessionKeyed, let summary = sessionPromptSummaryReader(key) {
+				sessionPromptSummaries[key] = summary
+			}
+		}
+
+		let input = PoolTickInput(
+			snapshot: snapshot, customization: customization, assignments: currentAssignments,
+			currentTime: currentTime, idleEscalationEnvironment: idleEscalationEnvironment,
+			sessionLabels: sessionLabels, knownSessionTitles: knownSessionTitles,
+			sessionPromptSummaries: sessionPromptSummaries, hudMode: PetConfig.resolvedRPGHUDMode())
+
+		let (desired, newMemory) = PoolDerive.derive(input: input, memory: primaryMemory)
+		primaryMemory = newMemory
+
+		// Title resolution: read-through the on-disk cache, resolve+write-through
+		// on a miss — mirrors `LegacyPoolEngine.resolveSessionTitle` exactly, via
+		// the same reader/writer closures.
+		let resolvedTitles = PoolApply.resolveTitles(
+			requests: desired.titleResolutionRequests,
+			readCachedTitle: { [retrievedSessionTitleReader] identity in
+				retrievedSessionTitleReader(.session(origin: identity.origin, id: identity.sessionId))
+			},
+			resolveTitle: { [sessionTitleReader] identity in
+				sessionTitleReader(identity.origin, identity.sessionId)
+			},
+			writeCachedTitle: { [retrievedSessionTitleWriter] identity, title in
+				retrievedSessionTitleWriter(.session(origin: identity.origin, id: identity.sessionId), title)
+			})
+		// Feed straight into the in-memory cache `derive` itself consults
+		// (`primaryMemory.resolvedSessionTitles`) — mirrors
+		// `LegacyPoolEngine.resolveSessionTitle`'s own synchronous
+		// resolve-then-cache. Without this, a title resolved via the call
+		// above is invisible to `derive` until the disk reader closure independently
+		// reflects it, which a stateless test double (or a slow write) never
+		// does — the in-memory cache must be the source of truth on the very
+		// next tick, not just the disk.
+		for (identity, title) in resolvedTitles {
+			primaryMemory.resolvedSessionTitles[.session(origin: identity.origin, id: identity.sessionId)] = title
+		}
+
+		// A window desired as minimalist with no injected `minimalistWindowFactory`
+		// must fail closed (skip spawning entirely), matching
+		// `LegacyPoolEngine`'s own "no fallback to the pet/HUD factory" — never
+		// silently render it through the wrong renderer. `PoolApply.apply`'s
+		// spawn closure returns non-optional, so the filtering happens here,
+		// before either engine ever sees the key.
+		var diff = PoolDiff.diff(desired: desired, current: primaryDesiredWindows)
+		if minimalistWindowFactory == nil {
+			for (key, window) in diff.toSpawn where window.isMinimalist {
+				NSLog("FloatingPetWindowPool: minimalist mode requires a minimalistWindowFactory for \(key)")
+				diff.toSpawn.removeValue(forKey: key)
+			}
+			for (key, window) in diff.toUpdate where window.isMinimalist {
+				diff.toUpdate.removeValue(forKey: key)
+				diff.toDismiss.insert(key)
+			}
+		}
+
+		// Snapshot which windows already existed BEFORE this tick's spawns —
+		// mirrors `LegacyPoolEngine`'s own ordering (its idle-escalation-config
+		// push loop runs before Step 7's spawns, since a window spawning THIS
+		// tick already starts current via `resolvedIdleEscalationConfig`, not
+		// an explicit push): a freshly-spawned window must never also receive
+		// a redundant `updateIdleEscalationConfig` call in the same tick.
+		let alreadyOpenKeys = Set(primaryWindows.keys)
+		let configChangedThisTick = desired.idleEscalationConfig != lastAppliedIdleEscalationConfig
+		lastAppliedIdleEscalationConfig = desired.idleEscalationConfig
+
+		// Capture every about-to-be-dismissed window's live frame BEFORE
+		// `apply` removes its controller — the cross-tick half of the frame-
+		// inheritance fix; see `evictedFrameSnapshots`'s doc comment.
+		for key in diff.toDismiss {
+			if let frame = primaryWindows[key]?.currentFrame {
+				evictedFrameSnapshots[key] = frame
+			}
+		}
+
+		PoolApply.apply(diff: diff, controllers: &primaryWindows) { [windowFactory, minimalistWindowFactory] key, window in
+			if window.isMinimalist, let minimalistWindowFactory {
+				return minimalistWindowFactory(key)
+			}
+			return windowFactory(key, window.petId ?? "")
+		}
+
+		// Fallback for a donor already gone BEFORE this tick started (cross-
+		// tick eviction→respawn gap) — skip any donor dismissed THIS tick:
+		// `PoolApply.apply`'s own in-tick lookup (donor still in `controllers`
+		// when the spawn runs, captured before its own teardown loop) already
+		// resolved and applied those; calling `adoptFrame` again here would
+		// double-push the same frame.
+		for (key, window) in diff.toSpawn {
+			guard let donorKey = window.inheritedFrameFrom, !diff.toDismiss.contains(donorKey) else { continue }
+			guard let controller = primaryWindows[key] else { continue }
+			guard let snapshot = evictedFrameSnapshots.removeValue(forKey: donorKey) else { continue }
+			controller.adoptFrame(snapshot)
+		}
+		// Bounded by `PoolMemory.evictedFrameDirectives`'s own FIFO draining —
+		// a donor key already claimed by a spawn is removed above; a donor
+		// key still queued (not yet claimed) must survive here for a later
+		// tick, so this only prunes keys no live directive can still reach.
+		let reachableDonorKeys = Set(primaryMemory.evictedFrameDirectives.values.flatMap { $0 })
+		evictedFrameSnapshots = evictedFrameSnapshots.filter { reachableDonorKeys.contains($0.key) }
+
+		// `current` for next tick's diff: exactly the keys that actually have a
+		// real controller after `apply` — excludes any key `PoolApply` was
+		// never asked to spawn/update above (the fail-closed filter).
+		primaryDesiredWindows = desired.windows.filter { primaryWindows[$0.key] != nil }
+
+		if configChangedThisTick {
+			for key in alreadyOpenKeys {
+				primaryWindows[key]?.updateIdleEscalationConfig(desired.idleEscalationConfig)
+			}
+		}
+		if let monochromeChanged = desired.monochromeChanged {
+			onMonochromeChanged?(monochromeChanged)
+		}
+		if let hiddenToPersist = desired.hiddenWindowKeysToPersist {
+			hiddenKeysSaver(hiddenToPersist)
+		}
+		lastDesired = desired
+
+		// `legacy` still runs, driving stub controllers — see this class's doc
+		// comment. Its own `runShadowTick` keeps comparing its decisions against
+		// an independently-threaded `derive` call exactly as before.
+		legacy.update(snapshot: snapshot)
+	}
+
+	// MARK: - Public surface: engine-conditional reads
+
+	var resolvedIdleEscalationConfig: IdleEscalationConfig {
+		activeEngine == .new ? lastDesired.idleEscalationConfig : legacy.resolvedIdleEscalationConfig
+	}
+	var blockedOrigins: Set<String> { activeEngine == .new ? lastDesired.blockedOrigins : legacy.blockedOrigins }
+	var pendingSessionKeys: Set<WindowKey> {
+		activeEngine == .new ? lastDesired.pendingSessionKeys : legacy.pendingSessionKeys
+	}
+	var ttlDismissedWindowKeys: Set<WindowKey> {
+		activeEngine == .new ? lastDesired.ttlDismissedWindowKeys : legacy.ttlDismissedWindowKeys
+	}
+	var activeOrigins: [WindowKey] {
+		activeEngine == .new
+			? Array(primaryWindows.keys).sorted { $0.rawValue < $1.rawValue } : legacy.activeOrigins
+	}
+	var hiddenWindowKeys: [WindowKey] {
+		activeEngine == .new
+			? Array(primaryMemory.userHiddenWindowKeys).sorted { $0.rawValue < $1.rawValue } : legacy.hiddenWindowKeys
+	}
+	/// Pure read of `assignments.json`'s Default slot, independent of which
+	/// engine drives — both read the identical `assignmentsReader` fresh.
 	var defaultPetId: String { legacy.defaultPetId }
-	var onMonochromeChanged: ((Bool) -> Void)? {
-		get { legacy.onMonochromeChanged }
-		set { legacy.onMonochromeChanged = newValue }
-	}
-	var shadowTickInputPerturbation: ((PoolTickInput) -> PoolTickInput)? {
-		get { legacy.shadowTickInputPerturbation }
-		set { legacy.shadowTickInputPerturbation = newValue }
-	}
-
+	/// Pure customization read, independent of which engine drives.
 	func combinedModeOrigins() -> [String] { legacy.combinedModeOrigins() }
 	static func modeSwitchOrigin(forWindowKey key: WindowKey) -> String? {
 		LegacyPoolEngine.modeSwitchOrigin(forWindowKey: key)
 	}
-	func update(snapshot: PerPlatformSnapshot) { legacy.update(snapshot: snapshot) }
-	func isActive(for key: WindowKey) -> Bool { legacy.isActive(for: key) }
-	func resetPromptTimer(forWindowKey key: WindowKey) { legacy.resetPromptTimer(forWindowKey: key) }
-	func setVisible(_ visible: Bool, for key: WindowKey) { legacy.setVisible(visible, for: key) }
-	func hideAllOtherWindows(keepVisible: WindowKey) { legacy.hideAllOtherWindows(keepVisible: keepVisible) }
-	func controller(for key: WindowKey) -> FloatingPetWindowControlling? { legacy.controller(for: key) }
-	func pruneHiddenKeysWithoutBackingSlice(stateDirectory: String) {
-		legacy.pruneHiddenKeysWithoutBackingSlice(stateDirectory: stateDirectory)
+	func isActive(for key: WindowKey) -> Bool {
+		activeEngine == .new ? primaryWindows[key] != nil : legacy.isActive(for: key)
 	}
+	func controller(for key: WindowKey) -> FloatingPetWindowControlling? {
+		activeEngine == .new ? primaryWindows[key] : legacy.controller(for: key)
+	}
+	func sessionNumber(forWindowKey key: WindowKey) -> Int? {
+		activeEngine == .new ? primaryMemory.sessionNumbers[key] : legacy.sessionNumber(forWindowKey: key)
+	}
+	/// Pure read of `SessionLabelStore`, independent of which engine drives.
+	func sessionLabel(forWindowKey key: WindowKey) -> String? { legacy.sessionLabel(forWindowKey: key) }
+	func sessionDisplayLabel(forWindowKey key: WindowKey, origin: String? = nil) -> String? {
+		guard activeEngine == .new else { return legacy.sessionDisplayLabel(forWindowKey: key, origin: origin) }
+		return lastDesired.windows[key]?.sessionLabel
+	}
+	static func defaultSessionLabel(forOrigin origin: String) -> String? {
+		LegacyPoolEngine.defaultSessionLabel(forOrigin: origin)
+	}
+	/// Pure read of `PromptAttentionReader`, independent of which engine drives.
+	func sessionPromptSummary(forWindowKey key: WindowKey) -> String? {
+		legacy.sessionPromptSummary(forWindowKey: key)
+	}
+
+	// MARK: - User actions: `legacy` always runs (becomes the shadow's paired
+	// effect when the new engine drives); the new engine's own real-window
+	// effect only applies when it is authoritative.
+
+	func resetPromptTimer(forWindowKey key: WindowKey) {
+		legacy.resetPromptTimer(forWindowKey: key)
+		guard activeEngine == .new else { return }
+		primaryMemory.promptTimers[key]?.reset()
+	}
+
+	func setVisible(_ visible: Bool, for key: WindowKey) {
+		legacy.setVisible(visible, for: key)
+		guard activeEngine == .new else { return }
+		primaryMemory = visible ? primaryMemory.showing(key) : primaryMemory.hiding(key)
+		if !visible {
+			primaryWindows[key]?.setFloatingPetVisible(false)
+			primaryWindows.removeValue(forKey: key)
+			// `PoolDiff.diff` treats a key present in both `desired` and
+			// `current` as an update, not a spawn — leaving a stale entry here
+			// after removing the real controller above would silently drop the
+			// respawn push the next time this key is desired (no controller to
+			// push to, no spawn triggered either).
+			primaryDesiredWindows.removeValue(forKey: key)
+		}
+		hiddenKeysSaver(primaryMemory.userHiddenWindowKeys)
+	}
+
+	func hideAllOtherWindows(keepVisible: WindowKey) {
+		legacy.hideAllOtherWindows(keepVisible: keepVisible)
+		guard activeEngine == .new else { return }
+		let others = primaryWindows.keys.filter { $0 != keepVisible }
+		guard !others.isEmpty else { return }
+		primaryMemory = primaryMemory.hidingAllOthers(keeping: keepVisible, among: Set(primaryWindows.keys))
+		for key in others {
+			primaryWindows[key]?.setFloatingPetVisible(false)
+			primaryWindows.removeValue(forKey: key)
+			primaryDesiredWindows.removeValue(forKey: key)
+		}
+		hiddenKeysSaver(primaryMemory.userHiddenWindowKeys)
+	}
+
 	func pruneSession(
 		windowKey: WindowKey,
 		stateDirectory: String,
@@ -1640,22 +1930,59 @@ final class FloatingPetWindowPool {
 		legacy.pruneSession(
 			windowKey: windowKey, stateDirectory: stateDirectory, labelPath: labelPath,
 			retrievedTitlePath: retrievedTitlePath)
+		guard activeEngine == .new, let identity = windowKey.sessionIdentity else { return }
+		primaryMemory = primaryMemory.pruning(windowKey)
+		primaryWindows[windowKey]?.setFloatingPetVisible(false)
+		primaryWindows.removeValue(forKey: windowKey)
+		primaryDesiredWindows.removeValue(forKey: windowKey)
+		// `primaryMemory.pruning(windowKey)` above already released the session
+		// number from `primaryMemory.sessionNumberAllocator` (a value type) —
+		// `SessionPruner` requires the legacy reference-type allocator only for
+		// its own disk-deletion side effects, so a fresh throwaway instance is
+		// passed here: its `.release` call is a guaranteed no-op (nothing was
+		// ever assigned on it), never double-releasing the real number.
+		SessionPruner.pruneSession(
+			windowKey: windowKey.rawValue, origin: identity.origin, sessionId: identity.sessionId,
+			stateDirectory: stateDirectory, allocator: SessionNumberAllocator(),
+			labelPath: labelPath, retrievedTitlePath: retrievedTitlePath)
 	}
+
 	func replacePet(origin: String, codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
 		legacy.replacePet(origin: origin, codexPet: codexPet, codogotchiPet: codogotchiPet)
+		guard activeEngine == .new else { return }
+		for key in primaryWindows.keys where key.origin == origin || (key == .combined) {
+			primaryWindows[key]?.replacePets(codexPet: codexPet, codogotchiPet: codogotchiPet)
+		}
 	}
+
 	func clearAttentionBubbles(sharingOriginWith windowKey: WindowKey) {
 		legacy.clearAttentionBubbles(sharingOriginWith: windowKey)
+		guard activeEngine == .new else { return }
+		let owningOrigin = windowKey.origin
+		for key in primaryWindows.keys where key.origin == owningOrigin {
+			primaryWindows[key]?.applyAttention(payload: nil, sourceEvent: nil)
+		}
 	}
-	func sessionNumber(forWindowKey key: WindowKey) -> Int? { legacy.sessionNumber(forWindowKey: key) }
-	func sessionLabel(forWindowKey key: WindowKey) -> String? { legacy.sessionLabel(forWindowKey: key) }
-	func sessionDisplayLabel(forWindowKey key: WindowKey, origin: String? = nil) -> String? {
-		legacy.sessionDisplayLabel(forWindowKey: key, origin: origin)
-	}
-	static func defaultSessionLabel(forOrigin origin: String) -> String? {
-		LegacyPoolEngine.defaultSessionLabel(forOrigin: origin)
-	}
-	func sessionPromptSummary(forWindowKey key: WindowKey) -> String? {
-		legacy.sessionPromptSummary(forWindowKey: key)
+
+	func pruneHiddenKeysWithoutBackingSlice(stateDirectory: String) {
+		legacy.pruneHiddenKeysWithoutBackingSlice(stateDirectory: stateDirectory)
+		guard activeEngine == .new, !primaryMemory.userHiddenWindowKeys.isEmpty else { return }
+		let names = (try? FileManager.default.contentsOfDirectory(atPath: stateDirectory)) ?? []
+		var liveOrigins: Set<String> = []
+		var liveSessionKeys: Set<WindowKey> = []
+		for name in names {
+			guard let (origin, sessionId) = StateJsonReader.parseSliceFilename(name) else { continue }
+			liveOrigins.insert(origin)
+			liveSessionKeys.insert(.session(origin: origin, id: sessionId))
+		}
+		let combinedOrigins = Set(combinedModeOrigins())
+		let survivors = primaryMemory.userHiddenWindowKeys.filter { key in
+			if key == .combined { return !liveOrigins.isDisjoint(with: combinedOrigins) }
+			if key.isSessionKeyed { return liveSessionKeys.contains(key) }
+			return liveOrigins.contains(key.origin)
+		}
+		guard survivors.count != primaryMemory.userHiddenWindowKeys.count else { return }
+		primaryMemory.userHiddenWindowKeys = survivors
+		hiddenKeysSaver(primaryMemory.userHiddenWindowKeys)
 	}
 }

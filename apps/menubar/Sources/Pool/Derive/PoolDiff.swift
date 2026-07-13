@@ -37,8 +37,21 @@ enum PoolDiff {
 		var result = WindowDiff()
 
 		for (key, window) in desired.windows {
-			if current[key] != nil {
-				result.toUpdate[key] = window
+			if let currentWindow = current[key] {
+				// `isMinimalist` is a spawn-time factory choice, never itself
+				// pushed to an existing controller (see `PoolApply.push`'s own
+				// doc) — a key whose desired shape flips own/minimalist keeps
+				// the same `WindowKey` (unlike a combined-mode fold, which
+				// changes the key entirely), so membership alone can't detect
+				// it. Route it through dismiss+spawn instead of a same-controller
+				// update, mirroring the legacy pipeline's own Step 6b
+				// (`windowSpawnedModes[key] != mode(forWindowKey:)`).
+				if currentWindow.isMinimalist != window.isMinimalist {
+					result.toDismiss.insert(key)
+					result.toSpawn[key] = window
+				} else {
+					result.toUpdate[key] = window
+				}
 			} else {
 				result.toSpawn[key] = window
 			}
