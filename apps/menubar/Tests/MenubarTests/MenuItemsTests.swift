@@ -47,9 +47,9 @@ final class MenuItemsTests: XCTestCase {
 	private func makePool(
 		origins: [String],
 		renderKeyIdentities: [WindowKey: RenderKeyIdentity] = [:],
-		sessionLabelReader: @escaping FloatingPetWindowPool.SessionLabelReader = { _ in nil },
-		sessionTitleReader: @escaping FloatingPetWindowPool.SessionTitleReader = { _, _ in nil },
-		retrievedSessionTitleReader: @escaping FloatingPetWindowPool.RetrievedSessionTitleReader = { _ in nil }
+		sessionLabelReader: @escaping SessionLabelReader = { _ in nil },
+		sessionTitleReader: @escaping SessionTitleReader = { _, _ in nil },
+		retrievedSessionTitleReader: @escaping RetrievedSessionTitleReader = { _ in nil }
 	) -> FloatingPetWindowPool {
 		let pool = FloatingPetWindowPool(
 			customizationReader: { .safeDefault },

@@ -20,27 +20,33 @@ import Foundation
 ///   `ttlSeconds`, UNLESS that window is the last-active one.
 /// - The last-active window (most-recently-updated render key across all
 ///   active keys) is never dismissed by TTL regardless of elapsed time.
+typealias WindowFactory = (WindowKey, String) -> FloatingPetWindowControlling
+typealias MinimalistWindowFactory = (WindowKey) -> FloatingPetWindowControlling
+typealias CustomizationReader = () -> CustomizationSnapshot
+typealias AssignmentsReader = () -> AssignmentsSnapshot
+/// Reads a session's rename label given its window key.
+typealias SessionLabelReader = (WindowKey) -> String?
+/// Reads a session's last submitted prompt given its window key.
+typealias SessionPromptSummaryReader = (WindowKey) -> String?
+/// Reads a session's platform-auto-generated thread title given its
+/// `(origin, session_id)` identity, or `nil` when unsupported/unresolved.
+typealias SessionTitleReader = (String, String) -> String?
+/// Reads a session's previously-resolved thread title from the on-disk
+/// cache, given its window key, or `nil` when never cached. Consulted
+/// BEFORE `sessionTitleReader` so a relaunch doesn't repeat the disk/
+/// subprocess cost of the original resolution.
+typealias RetrievedSessionTitleReader = (WindowKey) -> String?
+/// Persists a freshly-resolved thread title to the on-disk cache, given
+/// its window key.
+typealias RetrievedSessionTitleWriter = (WindowKey, String) -> Void
+
+/// P18.06: the pre-cutover imperative pipeline, preserved verbatim as the
+/// rollback/shadow engine — see `FloatingPetWindowPool` (the thin
+/// coordinator now in front of this class) for the engine-selection
+/// contract. Every property, method, and doc comment below is otherwise
+/// unchanged from the pre-P18.06 `FloatingPetWindowPool`.
 @MainActor
-final class FloatingPetWindowPool {
-	typealias WindowFactory = (WindowKey, String) -> FloatingPetWindowControlling
-	typealias MinimalistWindowFactory = (WindowKey) -> FloatingPetWindowControlling
-	typealias CustomizationReader = () -> CustomizationSnapshot
-	typealias AssignmentsReader = () -> AssignmentsSnapshot
-	/// Reads a session's rename label given its window key.
-	typealias SessionLabelReader = (WindowKey) -> String?
-	/// Reads a session's last submitted prompt given its window key.
-	typealias SessionPromptSummaryReader = (WindowKey) -> String?
-	/// Reads a session's platform-auto-generated thread title given its
-	/// `(origin, session_id)` identity, or `nil` when unsupported/unresolved.
-	typealias SessionTitleReader = (String, String) -> String?
-	/// Reads a session's previously-resolved thread title from the on-disk
-	/// cache, given its window key, or `nil` when never cached. Consulted
-	/// BEFORE `sessionTitleReader` so a relaunch doesn't repeat the disk/
-	/// subprocess cost of the original resolution.
-	typealias RetrievedSessionTitleReader = (WindowKey) -> String?
-	/// Persists a freshly-resolved thread title to the on-disk cache, given
-	/// its window key.
-	typealias RetrievedSessionTitleWriter = (WindowKey, String) -> Void
+final class LegacyPoolEngine {
 
 	private let assignmentsReader: AssignmentsReader
 	private let customizationReader: CustomizationReader
@@ -1523,5 +1529,133 @@ final class FloatingPetWindowPool {
 				.values.max()
 		}
 		return lastSeenAt[key]
+	}
+}
+
+/// Which pipeline drives real windows this process launch. Read once at
+/// startup from `CODOGOTCHI_POOL_ENGINE` — never re-read mid-run (P18.06's
+/// Outcome: "read once at startup, no runtime toggling"). `.legacy` is the
+/// rollback path.
+enum PoolEngine: Equatable {
+	case new
+	case legacy
+}
+
+/// P18.06 coordinator: selects which pipeline is authoritative for real
+/// windows (`activeEngine`) and forwards every public call to
+/// `LegacyPoolEngine`, the preserved pre-cutover implementation. Stage 1 of
+/// the cutover (this commit): pure delegation, zero behavior change — every
+/// call forwards 1:1 regardless of `activeEngine`. The composed
+/// derive/diff/apply path becomes authoritative in a later commit on this
+/// same ticket.
+@MainActor
+final class FloatingPetWindowPool {
+	let activeEngine: PoolEngine
+	private let legacy: LegacyPoolEngine
+
+	init(
+		assignmentsReader: @escaping AssignmentsReader = {
+			AssignmentsJsonReader.read(at: CodogotchiFolders.assignmentsPath())
+		},
+		customizationReader: @escaping CustomizationReader = {
+			CustomizationJsonReader.read(at: CodogotchiFolders.customizationPath())
+		},
+		windowFactory: @escaping WindowFactory,
+		minimalistWindowFactory: MinimalistWindowFactory? = nil,
+		sessionLabelReader: @escaping SessionLabelReader = { SessionLabelStore.label(for: $0.rawValue) },
+		sessionPromptSummaryReader: @escaping SessionPromptSummaryReader = {
+			PromptAttentionReader.summary(forSessionKey: $0.rawValue)
+		},
+		sessionTitleReader: @escaping SessionTitleReader = { origin, sessionId in
+			SessionTitleResolver.title(forOrigin: origin, sessionId: sessionId)
+		},
+		retrievedSessionTitleReader: @escaping RetrievedSessionTitleReader = { _ in nil },
+		retrievedSessionTitleWriter: @escaping RetrievedSessionTitleWriter = { _, _ in },
+		hiddenKeysLoader: @escaping () -> Set<WindowKey> = { [] },
+		hiddenKeysSaver: @escaping (Set<WindowKey>) -> Void = { _ in },
+		now: @escaping () -> Date = { Date() },
+		idleEscalationEnvironment: [String: String] = ProcessInfo.processInfo.environment,
+		shadowDivergenceHandler: @escaping ([DivergenceRecord]) -> Void = { _ in },
+		/// `CODOGOTCHI_POOL_ENGINE=legacy` selects the rollback path; any other
+		/// value (including absent) selects the new engine. Read once here, at
+		/// construction — never re-read by `update()`.
+		poolEngineEnvironment: [String: String] = ProcessInfo.processInfo.environment
+	) {
+		self.activeEngine = poolEngineEnvironment["CODOGOTCHI_POOL_ENGINE"] == "legacy" ? .legacy : .new
+		self.legacy = LegacyPoolEngine(
+			assignmentsReader: assignmentsReader,
+			customizationReader: customizationReader,
+			windowFactory: windowFactory,
+			minimalistWindowFactory: minimalistWindowFactory,
+			sessionLabelReader: sessionLabelReader,
+			sessionPromptSummaryReader: sessionPromptSummaryReader,
+			sessionTitleReader: sessionTitleReader,
+			retrievedSessionTitleReader: retrievedSessionTitleReader,
+			retrievedSessionTitleWriter: retrievedSessionTitleWriter,
+			hiddenKeysLoader: hiddenKeysLoader,
+			hiddenKeysSaver: hiddenKeysSaver,
+			now: now,
+			idleEscalationEnvironment: idleEscalationEnvironment,
+			shadowDivergenceHandler: shadowDivergenceHandler
+		)
+	}
+
+	// MARK: - Forwarding surface (Stage 1: 1:1 delegation to `legacy`)
+
+	var resolvedIdleEscalationConfig: IdleEscalationConfig { legacy.resolvedIdleEscalationConfig }
+	var blockedOrigins: Set<String> { legacy.blockedOrigins }
+	var pendingSessionKeys: Set<WindowKey> { legacy.pendingSessionKeys }
+	var ttlDismissedWindowKeys: Set<WindowKey> { legacy.ttlDismissedWindowKeys }
+	var activeOrigins: [WindowKey] { legacy.activeOrigins }
+	var hiddenWindowKeys: [WindowKey] { legacy.hiddenWindowKeys }
+	var defaultPetId: String { legacy.defaultPetId }
+	var onMonochromeChanged: ((Bool) -> Void)? {
+		get { legacy.onMonochromeChanged }
+		set { legacy.onMonochromeChanged = newValue }
+	}
+	var shadowTickInputPerturbation: ((PoolTickInput) -> PoolTickInput)? {
+		get { legacy.shadowTickInputPerturbation }
+		set { legacy.shadowTickInputPerturbation = newValue }
+	}
+
+	func combinedModeOrigins() -> [String] { legacy.combinedModeOrigins() }
+	static func modeSwitchOrigin(forWindowKey key: WindowKey) -> String? {
+		LegacyPoolEngine.modeSwitchOrigin(forWindowKey: key)
+	}
+	func update(snapshot: PerPlatformSnapshot) { legacy.update(snapshot: snapshot) }
+	func isActive(for key: WindowKey) -> Bool { legacy.isActive(for: key) }
+	func resetPromptTimer(forWindowKey key: WindowKey) { legacy.resetPromptTimer(forWindowKey: key) }
+	func setVisible(_ visible: Bool, for key: WindowKey) { legacy.setVisible(visible, for: key) }
+	func hideAllOtherWindows(keepVisible: WindowKey) { legacy.hideAllOtherWindows(keepVisible: keepVisible) }
+	func controller(for key: WindowKey) -> FloatingPetWindowControlling? { legacy.controller(for: key) }
+	func pruneHiddenKeysWithoutBackingSlice(stateDirectory: String) {
+		legacy.pruneHiddenKeysWithoutBackingSlice(stateDirectory: stateDirectory)
+	}
+	func pruneSession(
+		windowKey: WindowKey,
+		stateDirectory: String,
+		labelPath: String = SessionLabelStore.path(),
+		retrievedTitlePath: String = RetrievedSessionTitleStore.path()
+	) {
+		legacy.pruneSession(
+			windowKey: windowKey, stateDirectory: stateDirectory, labelPath: labelPath,
+			retrievedTitlePath: retrievedTitlePath)
+	}
+	func replacePet(origin: String, codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
+		legacy.replacePet(origin: origin, codexPet: codexPet, codogotchiPet: codogotchiPet)
+	}
+	func clearAttentionBubbles(sharingOriginWith windowKey: WindowKey) {
+		legacy.clearAttentionBubbles(sharingOriginWith: windowKey)
+	}
+	func sessionNumber(forWindowKey key: WindowKey) -> Int? { legacy.sessionNumber(forWindowKey: key) }
+	func sessionLabel(forWindowKey key: WindowKey) -> String? { legacy.sessionLabel(forWindowKey: key) }
+	func sessionDisplayLabel(forWindowKey key: WindowKey, origin: String? = nil) -> String? {
+		legacy.sessionDisplayLabel(forWindowKey: key, origin: origin)
+	}
+	static func defaultSessionLabel(forOrigin origin: String) -> String? {
+		LegacyPoolEngine.defaultSessionLabel(forOrigin: origin)
+	}
+	func sessionPromptSummary(forWindowKey key: WindowKey) -> String? {
+		legacy.sessionPromptSummary(forWindowKey: key)
 	}
 }
