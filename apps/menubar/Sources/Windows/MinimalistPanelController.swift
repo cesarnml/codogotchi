@@ -244,6 +244,14 @@ final class MinimalistPanelController: PanelActionHandling {
 		applyBadge()
 	}
 
+	/// `PoolApply` (P18.04)'s already-rendered equivalent — see
+	/// `FloatingPetPanelController.applyPromptTimerPresentation`'s doc for
+	/// why this forwards directly rather than deriving from a raw status.
+	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
+		badgeView.applyPromptTimerPresentation(presentation)
+		applyBadge()
+	}
+
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
 		currentAttention = payload?.isExpired() == true ? nil : payload
 		currentSourceEvent = sourceEvent

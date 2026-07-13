@@ -54,6 +54,7 @@
 		394EF322D2F327D2C0A6197C /* PoolDiffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB31FFE2C6961A7721A7F30D /* PoolDiffTests.swift */; };
 		3996ADE8B389AEB45AAB6827 /* RPGHUDPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C041CB2EE71340F3F263BFB /* RPGHUDPreviewView.swift */; };
 		3B94CBC8F0510C0545FF7EB9 /* AboutViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EC260ED23DDA79BF1888FA /* AboutViewModel.swift */; };
+		3C56000FC80F76768AF09E9D /* PoolApply.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FA73312C57946DF99F5455C /* PoolApply.swift */; };
 		3FBC13E4B9A0AC33B73BBA8F /* WindowActionRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAC0E973502BF1A8691836E /* WindowActionRouter.swift */; };
 		4121304416B4360FAF08294C /* MenubarMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EEE8949FDE061D125E5EB7D /* MenubarMenu.swift */; };
 		430CAFACBB46008FC2F3AAF7 /* ConfigFileWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0726E3AFB7210BA52BF1ACFD /* ConfigFileWriterTests.swift */; };
@@ -66,6 +67,7 @@
 		48A2772A0D6A58669286E5F9 /* ConflictBubbleTargetSelectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E19594796A8315FCBDF3BD /* ConflictBubbleTargetSelectorTests.swift */; };
 		492E8762693554F3FC19185E /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B29FA358FF8C6C74B85325 /* SettingsWindowController.swift */; };
 		49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */; };
+		4A3234699DF122BEAAAC8DE6 /* PoolDiff.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9ED9A9F1E43BD0B859A5CC9 /* PoolDiff.swift */; };
 		4CF7B4E9BB0B729EBD3FA961 /* PoolShadowComparatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86835D25DA9EC8CD1FAB76B1 /* PoolShadowComparatorTests.swift */; };
 		4E396E0BDA1970BE10A6445E /* PetConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC52A5E5FCFD36451530C9CE /* PetConfig.swift */; };
 		4EF5166A016D9F70390B8829 /* GeneralTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A2902FB13A70CEF8221A21A /* GeneralTabViewModelTests.swift */; };
@@ -142,6 +144,7 @@
 		A93D73A2FFD804C3C3D48CD0 /* DemoConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C34F80A449B6C9EAA2C37B /* DemoConfig.swift */; };
 		A94729EE4E31C8A57629486A /* RPGHUDViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78115EE1CE4F0AFD41CC1231 /* RPGHUDViewModelTests.swift */; };
 		AAC66A3D20F70AA3BC1608C5 /* RenderKeyResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B86CEF42917F1F47CF4166F3 /* RenderKeyResolver.swift */; };
+		ACD114596BF183718D89F80A /* RecordingFloatingPetWindowControllingProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71EA26697A1D8F300F8D1B5E /* RecordingFloatingPetWindowControllingProxy.swift */; };
 		AD267BA7C6B0CD027737CB3A /* GateBadgePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1203CF2C4FF29C31534A7CF /* GateBadgePanel.swift */; };
 		ADF691D854E688C06E562FC9 /* SessionNumberAllocatorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A93F4C1345C915EADBB6C51 /* SessionNumberAllocatorState.swift */; };
 		B06C74474A2E6AC6365223CA /* TabStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE2082F8FBBB4E484C347FC /* TabStripView.swift */; };
@@ -197,6 +200,7 @@
 		E34E1FC2397F088D1B352B5C /* RPGMiniRingIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69AAB6A6C7C3D72625092383 /* RPGMiniRingIconView.swift */; };
 		E40D5C583288F2DC593AC880 /* SessionSelectionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F252B3C5E2C4512BEF298E0 /* SessionSelectionPolicy.swift */; };
 		E7CDC70CCECC39A3E3511A13 /* AboutTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739A5B92AC38A1366A5AA520 /* AboutTabView.swift */; };
+		E84C0722C309D7DD93627D17 /* PoolShadowComparator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6AE180ECE9B47FC5EC24FC8 /* PoolShadowComparator.swift */; };
 		E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */; };
 		E8ED1C90E2D5DFEE6140C26B /* DeveloperTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753D06BA7617A23E1D9A4113 /* DeveloperTabViewModel.swift */; };
 		E8F5637F5C520B780E4D73D3 /* CodogotchiFoldersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FA942D11A38DA6F0B232D9 /* CodogotchiFoldersTests.swift */; };
@@ -312,6 +316,7 @@
 		6A41D03348B33BB814D7233A /* FloatingInteraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingInteraction.swift; sourceTree = "<group>"; };
 		6A93F4C1345C915EADBB6C51 /* SessionNumberAllocatorState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNumberAllocatorState.swift; sourceTree = "<group>"; };
 		6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetImportHelperTests.swift; sourceTree = "<group>"; };
+		71EA26697A1D8F300F8D1B5E /* RecordingFloatingPetWindowControllingProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingFloatingPetWindowControllingProxy.swift; sourceTree = "<group>"; };
 		72DE062B5722F00B659A555C /* CodogotchiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodogotchiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		73377920B0941E9C1C4DE4FF /* ConfigBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigBootstrap.swift; sourceTree = "<group>"; };
 		739A5B92AC38A1366A5AA520 /* AboutTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutTabView.swift; sourceTree = "<group>"; };
@@ -325,6 +330,7 @@
 		7A99294D27E5D1862559FCA2 /* SessionLabelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLabelStore.swift; sourceTree = "<group>"; };
 		7AC107DCBD46F0F6DBA5B3B6 /* maew */ = {isa = PBXFileReference; lastKnownFileType = folder; name = maew; path = Fixtures/maew; sourceTree = SOURCE_ROOT; };
 		7D0B6066DEB36E24086A2094 /* ReloadActivePetResponsivenessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReloadActivePetResponsivenessTests.swift; sourceTree = "<group>"; };
+		7FA73312C57946DF99F5455C /* PoolApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolApply.swift; sourceTree = "<group>"; };
 		80A2153BFE3815F040C90CFB /* AnimationBadgePanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationBadgePanelTests.swift; sourceTree = "<group>"; };
 		80E19594796A8315FCBDF3BD /* ConflictBubbleTargetSelectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubbleTargetSelectorTests.swift; sourceTree = "<group>"; };
 		815A1F6AB8504430784C0CB7 /* PlatformSessionBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformSessionBadge.swift; sourceTree = "<group>"; };
@@ -366,6 +372,7 @@
 		A496F7E9628847810149FE6C /* CodexPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPet.swift; sourceTree = "<group>"; };
 		A5B29FA358FF8C6C74B85325 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		A63889677CF9025B4EC26F44 /* HooksStatusSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HooksStatusSnapshot.swift; sourceTree = "<group>"; };
+		A6AE180ECE9B47FC5EC24FC8 /* PoolShadowComparator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolShadowComparator.swift; sourceTree = "<group>"; };
 		A6C7773EAF8CC26653E52350 /* PoolMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolMemory.swift; sourceTree = "<group>"; };
 		A7D230DC047669EB40D929E1 /* ConflictBubbleRateLimiterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubbleRateLimiterTests.swift; sourceTree = "<group>"; };
 		A8A8D4BFA46121B6684F74F5 /* AnimationBadgeChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationBadgeChrome.swift; sourceTree = "<group>"; };
@@ -393,6 +400,7 @@
 		C4178FC9C08DC67BF3B23050 /* SpeechBubblePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechBubblePanel.swift; sourceTree = "<group>"; };
 		C74564777AB5E8D0E7BB7DC1 /* FloatingPetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetController.swift; sourceTree = "<group>"; };
 		C94D224E9A29C67C87885DF2 /* SessionTitleResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTitleResolver.swift; sourceTree = "<group>"; };
+		C9ED9A9F1E43BD0B859A5CC9 /* PoolDiff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolDiff.swift; sourceTree = "<group>"; };
 		CB255569CEB14B591E936A83 /* GeneralTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTabView.swift; sourceTree = "<group>"; };
 		CB4F6F5EFBD5019B61748BA5 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		CDD6E7C7F1B5DFAFCB23B372 /* FloatingPetScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetScene.swift; sourceTree = "<group>"; };
@@ -458,6 +466,9 @@
 				F5CF055F2A0C9DD84F4F026A /* FloatingPetWindowPool.swift */,
 				5D6A87B12C5C352984BFCCC7 /* LockstepPolicy.swift */,
 				44643FE5868DCD56DDF5F1E2 /* PlatformAttribution.swift */,
+				7FA73312C57946DF99F5455C /* PoolApply.swift */,
+				A6AE180ECE9B47FC5EC24FC8 /* PoolShadowComparator.swift */,
+				71EA26697A1D8F300F8D1B5E /* RecordingFloatingPetWindowControllingProxy.swift */,
 				B86CEF42917F1F47CF4166F3 /* RenderKeyResolver.swift */,
 				AC5C744A6A25DDB45C495A36 /* SessionLifecycle.swift */,
 				0F252B3C5E2C4512BEF298E0 /* SessionSelectionPolicy.swift */,
@@ -750,6 +761,7 @@
 			children = (
 				52B98FC35F71CC460885451E /* DesiredWindows.swift */,
 				819A2B3D937015B5265A289C /* PoolDerive.swift */,
+				C9ED9A9F1E43BD0B859A5CC9 /* PoolDiff.swift */,
 				A6C7773EAF8CC26653E52350 /* PoolMemory.swift */,
 				8C6037ACAC28B6369F04607D /* PoolMemoryUserActions.swift */,
 				FC0153CA2F32DC0733909BE8 /* PoolTickInput.swift */,
@@ -962,9 +974,12 @@
 				692DB55B96C40097202445F2 /* PlatformAttribution.swift in Sources */,
 				7E2C0BDEA3AFE0C443B55F2A /* PlatformChipView.swift in Sources */,
 				8F1F8583F4FEFC28BD92B6AC /* PlatformSessionBadge.swift in Sources */,
+				3C56000FC80F76768AF09E9D /* PoolApply.swift in Sources */,
 				88AF785A8F00279AB57E164F /* PoolDerive.swift in Sources */,
+				4A3234699DF122BEAAAC8DE6 /* PoolDiff.swift in Sources */,
 				CFDE87CF42EBDA584FE72651 /* PoolMemory.swift in Sources */,
 				302E6C20FF8BA024E94C485A /* PoolMemoryUserActions.swift in Sources */,
+				E84C0722C309D7DD93627D17 /* PoolShadowComparator.swift in Sources */,
 				7F4F10C69F24643131BEF475 /* PoolTickInput.swift in Sources */,
 				65E8894467BC8BA03C4A15A9 /* PromptTimer.swift in Sources */,
 				6A6E965676C08DCF5EA44900 /* PromptTimerChipView.swift in Sources */,
@@ -978,6 +993,7 @@
 				28158B37144FCCB29480D853 /* RPGProgressBarView.swift in Sources */,
 				89111DC256531C6E539D3A1A /* RPGTabView.swift in Sources */,
 				19AA3BDBDFB7696E7578AD0C /* RPGTabViewModel.swift in Sources */,
+				ACD114596BF183718D89F80A /* RecordingFloatingPetWindowControllingProxy.swift in Sources */,
 				AAC66A3D20F70AA3BC1608C5 /* RenderKeyResolver.swift in Sources */,
 				C6262A26295AA1B037EE560F /* RetrievedSessionTitleStore.swift in Sources */,
 				46A42463FFCE9411B5B6A383 /* RpgStateReader.swift in Sources */,
