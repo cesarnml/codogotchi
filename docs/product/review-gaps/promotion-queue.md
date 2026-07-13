@@ -440,6 +440,13 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   gap, not a shipped-behavior defect — production always runs with a single
   `HOME`), but worth a small standalone fix if sandboxed manual testing of
   this app becomes routine.
+- **Unrelated finding, not part of this class:** while dogfooding the P18.05
+  pre-cutover shadow soak checklist live, the developer noticed an occasional
+  small delay in the Combined → Own/Minimalist panel transition. Not
+  reproduced as a hard defect (everything else in the checklist checked out),
+  no ledger row filed, no fix attempted — flagged here only so a future pass
+  has a pointer if it recurs or turns out to matter more than a cosmetic
+  frame or two of transition lag.
 
 ### `unconditional-directory-listing-trusts-externally-populated-tree`
 - **Seen:** 1× — `codogotchi-40` (attributed to phase-11, gallery/marketplace,
