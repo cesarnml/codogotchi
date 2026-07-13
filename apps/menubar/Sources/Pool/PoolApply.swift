@@ -81,10 +81,9 @@ enum PoolApply {
 			activeMinutes: window.rpgSnapshot.activeMinutes,
 			hudEnabled: window.hudEnabled
 		)
-		// The combined window is never session-keyed — mirrors
-		// `LegacyPoolEngine`'s own combined-window push site, which never calls
-		// `applySessionNumber` at all (unlike a direct key, where it's always
-		// called, even to push `nil`).
+		// The combined window is never session-keyed — its push site never
+		// calls `applySessionNumber` at all (unlike a direct key, where it's
+		// always called, even to push `nil`).
 		if key != .combined {
 			controller.applySessionNumber(window.sessionNumber)
 		}
