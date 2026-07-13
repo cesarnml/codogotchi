@@ -291,13 +291,14 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 								app.customizationStore.setCombinedMinimalistEnabled(true)
 							}
 						},
-						hideWindow: { [weak controller] app in
-							guard let controller else { return }
-							if let key = app.floatingPetWindowPool?.activeOrigins.first(where: {
-								app.floatingPetWindowPool?.controller(for: $0) === controller
-							}) {
-								app.floatingPetWindowPool?.setVisible(false, for: key)
-							}
+						hideWindow: { app in
+							// P18.05: target the already-known render key directly
+							// rather than identity-comparing `pool.controller(for:)`
+							// against a captured raw controller — the pool now
+							// stores a `RecordingFloatingPetWindowControllingProxy`
+							// wrapping this controller, so that comparison would
+							// never match.
+							app.floatingPetWindowPool?.setVisible(false, for: origin)
 						}
 					)
 					return controller
@@ -345,13 +346,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 								app.customizationStore.setCombinedMinimalistEnabled(false)
 							}
 						},
-						hideWindow: { [weak controller] app in
-							guard let controller else { return }
-							if let key = app.floatingPetWindowPool?.activeOrigins.first(where: {
-								app.floatingPetWindowPool?.controller(for: $0) === controller
-							}) {
-								app.floatingPetWindowPool?.setVisible(false, for: key)
-							}
+						hideWindow: { app in
+							// P18.05: see the direct-key factory's `hideWindow`
+							// above — target the known render key directly.
+							app.floatingPetWindowPool?.setVisible(false, for: origin)
 						}
 					)
 					return controller
@@ -742,9 +740,18 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// inspection. In multi-pet mode targets the first active pool window.
 	@MainActor
 	private func startHUDDemo() {
+		// P18.05: `pool.controller(for:)` now returns a
+		// `RecordingFloatingPetWindowControllingProxy` wrapping the real
+		// controller, so a direct `as? FloatingPetController` cast would
+		// always fail — unwrap through the proxy's `underlyingController`
+		// first, falling back to the raw value for any controller that
+		// isn't wrapped.
 		guard let pool = floatingPetWindowPool,
 			let origin = pool.activeOrigins.first,
-			let controller = pool.controller(for: origin) as? FloatingPetController
+			let raw = pool.controller(for: origin),
+			let controller =
+				((raw as? RecordingFloatingPetWindowControllingProxy)?.underlyingController ?? raw)
+				as? FloatingPetController
 		else {
 			NSLog("MenubarApp: HUD demo requested but no pool window is active")
 			return

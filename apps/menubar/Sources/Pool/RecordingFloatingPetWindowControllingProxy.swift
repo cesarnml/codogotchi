@@ -55,6 +55,15 @@ final class RecordingFloatingPetWindowControllingProxy: FloatingPetWindowControl
 		self.liveFrameLookup = liveFrameLookup
 	}
 
+	/// The concrete controller this proxy forwards to. `windows[key]` now
+	/// stores the proxy rather than the concrete `FloatingPetController` /
+	/// `MinimalistWindowController`, so any call site that needs to identity-
+	/// compare or downcast to a concrete controller type (e.g. the HUD demo,
+	/// which requires real `FloatingPetController` state) must unwrap through
+	/// here rather than casting `pool.controller(for:)` directly — recording
+	/// stays internal to the proxy either way.
+	var underlyingController: FloatingPetWindowControlling { wrapped }
+
 	var isFloatingPetVisible: Bool { wrapped.isFloatingPetVisible }
 
 	func setFloatingPetVisible(_ visible: Bool) {
