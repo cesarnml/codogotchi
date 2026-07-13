@@ -1,18 +1,17 @@
 import Foundation
 
-/// Log-only sink for shadow-compare divergences (Grill-Me decision 4):
-/// `NSLog` plus a bounded on-disk log at
-/// `~/.codogotchi/logs/shadow-divergence.log`. Never throws, never fatal — a
-/// divergence here is diagnostic signal for the pre-cutover soak, not a
-/// crash; `FloatingPetWindowPoolTests`/soak assertions on `assert()`
-/// (compiled out in Release, active in Debug/test builds) are the loud
-/// signal, this is the quiet one.
+/// Log-only sink for `PoolShadowComparator.compare` divergences (Grill-Me
+/// decision 4): `NSLog` plus a bounded on-disk log at
+/// `~/.codogotchi/logs/shadow-divergence.log`. Never throws, never fatal.
+/// The comparator and this logger are retained (Phase 18 closeout) purely as
+/// standalone, directly-tested utilities — nothing in production wires them
+/// into `FloatingPetWindowPool.update()` any longer; see
+/// `docs/product/delivery/phase-18/ticket-07-deletion-closeout.md`.
 ///
 /// Each line carries `DivergenceRecord.tickFingerprint` — a replayable
-/// tick-input fingerprint (see `ShadowTickFingerprint`) — plus the exact
-/// field-level mismatch, so a real divergence found during the soak can be
-/// turned into a regression test straight from the log line (Review Focus:
-/// "are they actually replayable?").
+/// tick-input fingerprint — plus the exact field-level mismatch, so a real
+/// divergence a caller finds can be turned into a regression test straight
+/// from the log line.
 ///
 /// Log hygiene (Review Focus): bounded file growth via a hard size-based
 /// rotation, and no sensitive content — `sessionLabel`/`sessionTooltip`

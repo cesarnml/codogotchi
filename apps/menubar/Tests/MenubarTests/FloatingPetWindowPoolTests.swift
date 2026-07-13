@@ -150,26 +150,6 @@ private func makeResolvedSnapshot(
 @MainActor
 final class FloatingPetWindowPoolTests: XCTestCase {
 
-    // MARK: - P18.06: engine selection
-
-    func testDefaultEngineSelectionIsNewEngineDrivesOldShadows() {
-        let pool = FloatingPetWindowPool(
-            customizationReader: { makeCustomization() },
-            windowFactory: { _, _ in StubWindowController() },
-            poolEngineEnvironment: [:]
-        )
-        XCTAssertEqual(pool.activeEngine, .new, "default (no CODOGOTCHI_POOL_ENGINE) must select the new engine")
-    }
-
-    func testLegacyEnvVarSelectsOldEngineAsAuthoritative() {
-        let pool = FloatingPetWindowPool(
-            customizationReader: { makeCustomization() },
-            windowFactory: { _, _ in StubWindowController() },
-            poolEngineEnvironment: ["CODOGOTCHI_POOL_ENGINE": "legacy"]
-        )
-        XCTAssertEqual(pool.activeEngine, .legacy, "CODOGOTCHI_POOL_ENGINE=legacy must select the old engine")
-    }
-
     // MARK: - Spawn / activeOrigins
 
     func testTwoOriginSnapshotSpawnsTwoWindows() {
@@ -3095,15 +3075,9 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			perSession: ["codex:s1": makeSnapshot(updated: "2026-07-01T10:00:02.000Z")],
 			customization: customization
 		))
-		// P18.06: 2, not 1 — the shadow (`legacy`, still running every tick
-		// with stub controllers so its divergence signal stays informative)
-		// independently resolves the same title through this same injected
-		// `sessionTitleReader` closure via its own imperative logic, once.
-		// Temporary: this doubling exists only for the P18.06→P18.07 soak
-		// window and disappears entirely once P18.07 deletes the old
-		// pipeline. What this test actually guards — no re-fetch on a later
-		// tick once resolved — still holds: it's 2 total, not 2-per-tick.
-		XCTAssertEqual(readerCallCount, 2)
+		// P18.07: the old pipeline (and its shadow doubling of this call) is
+		// deleted — exactly one resolution, on the first tick, never re-fetched.
+		XCTAssertEqual(readerCallCount, 1)
 		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Locate session auto label")
 	}
 
@@ -3167,16 +3141,12 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			customization: customization
 		))
 
-		// P18.06: 2, not 1 — the shadow (`legacy`) independently resolves and
-		// writes through the same title via this same injected
-		// `retrievedSessionTitleWriter` closure, once. Temporary: only for the
-		// P18.06→P18.07 soak window (see the sibling "not re-fetched" test's
-		// comment). What this test actually guards — no re-write on a LATER
-		// tick once resolved — still holds: both writes land on the first
-		// tick, none on the second.
-		XCTAssertEqual(writtenEntries.count, 2, "the write-through must happen once per engine, not every tick")
-		XCTAssertEqual(writtenEntries.map(\.0), ["codex:s1", "codex:s1"])
-		XCTAssertEqual(writtenEntries.map(\.1), ["Locate session auto label", "Locate session auto label"])
+		// P18.07: the old pipeline (and its shadow doubling of this call) is
+		// deleted — exactly one write-through, on the first tick, none on the
+		// second.
+		XCTAssertEqual(writtenEntries.count, 1, "the write-through must happen exactly once, not every tick")
+		XCTAssertEqual(writtenEntries.map(\.0), ["codex:s1"])
+		XCTAssertEqual(writtenEntries.map(\.1), ["Locate session auto label"])
 	}
 
 	/// Mirrors `testSessionKeyedWindowWithSidecarLabelDisplaysItInsteadOfSessionN`

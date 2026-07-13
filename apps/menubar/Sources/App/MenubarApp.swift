@@ -292,12 +292,6 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 							}
 						},
 						hideWindow: { app in
-							// P18.05: target the already-known render key directly
-							// rather than identity-comparing `pool.controller(for:)`
-							// against a captured raw controller — the pool now
-							// stores a `RecordingFloatingPetWindowControllingProxy`
-							// wrapping this controller, so that comparison would
-							// never match.
 							app.floatingPetWindowPool?.setVisible(false, for: origin)
 						}
 					)
@@ -347,8 +341,6 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 							}
 						},
 						hideWindow: { app in
-							// P18.05: see the direct-key factory's `hideWindow`
-							// above — target the known render key directly.
 							app.floatingPetWindowPool?.setVisible(false, for: origin)
 						}
 					)
@@ -359,8 +351,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					RetrievedSessionTitleStore.setTitle(title, for: key.rawValue)
 				},
 				hiddenKeysLoader: { AppStateStore.loadHiddenWindowKeys() },
-				hiddenKeysSaver: { try? AppStateStore.saveHiddenWindowKeys($0) },
-				shadowDivergenceHandler: { ShadowDivergenceLogger.log($0) }
+				hiddenKeysSaver: { try? AppStateStore.saveHiddenWindowKeys($0) }
 			)
 			pool.onMonochromeChanged = { [weak item] isMonochrome in
 				if let button = item?.button { Self.applyMenubarIcon(to: button, monochrome: isMonochrome) }
@@ -740,18 +731,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// inspection. In multi-pet mode targets the first active pool window.
 	@MainActor
 	private func startHUDDemo() {
-		// P18.05: `pool.controller(for:)` now returns a
-		// `RecordingFloatingPetWindowControllingProxy` wrapping the real
-		// controller, so a direct `as? FloatingPetController` cast would
-		// always fail — unwrap through the proxy's `underlyingController`
-		// first, falling back to the raw value for any controller that
-		// isn't wrapped.
 		guard let pool = floatingPetWindowPool,
 			let origin = pool.activeOrigins.first,
-			let raw = pool.controller(for: origin),
-			let controller =
-				((raw as? RecordingFloatingPetWindowControllingProxy)?.underlyingController ?? raw)
-				as? FloatingPetController
+			let controller = pool.controller(for: origin) as? FloatingPetController
 		else {
 			NSLog("MenubarApp: HUD demo requested but no pool window is active")
 			return

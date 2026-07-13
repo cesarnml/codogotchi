@@ -24,17 +24,14 @@ enum RecordedPush: Equatable {
 }
 
 /// Forwards every `FloatingPetWindowControlling` call to a wrapped
-/// controller while logging each push (in call order) for the shadow
-/// comparator. Runs in both shadow directions (Grill-Me decision 4):
-///
-/// - **Pre-cutover** (P18.05): wraps the real controller the old pipeline
-///   already drives, so the new engine's shadow run observes the same
-///   pushes without double-driving the window.
-/// - **Post-cutover, reversed** (P18.06): wraps a no-op stub (no real
-///   window), with `liveFrameLookup` reading `currentFrame` through to
-///   whichever controller the (now-live) new engine actually spawned for
-///   `key` — so the reversed shadow's `currentFrame` reads still see a real
-///   on-screen frame rather than the stub's inert `.zero`.
+/// controller while logging each push (in call order), for use with
+/// `PoolShadowComparator`. Retained (Phase 18 closeout) as a standalone,
+/// directly-tested utility only — nothing in production wraps a real
+/// controller in this proxy any longer; see
+/// `docs/product/delivery/phase-18/ticket-07-deletion-closeout.md`. The
+/// `liveFrameLookup` seam supports wrapping a no-op stub whose `currentFrame`
+/// reads through to a real controller by key instead of the stub's own inert
+/// `.zero`.
 @MainActor
 final class RecordingFloatingPetWindowControllingProxy: FloatingPetWindowControlling {
 	private let wrapped: FloatingPetWindowControlling
@@ -55,13 +52,9 @@ final class RecordingFloatingPetWindowControllingProxy: FloatingPetWindowControl
 		self.liveFrameLookup = liveFrameLookup
 	}
 
-	/// The concrete controller this proxy forwards to. `windows[key]` now
-	/// stores the proxy rather than the concrete `FloatingPetController` /
-	/// `MinimalistWindowController`, so any call site that needs to identity-
-	/// compare or downcast to a concrete controller type (e.g. the HUD demo,
-	/// which requires real `FloatingPetController` state) must unwrap through
-	/// here rather than casting `pool.controller(for:)` directly — recording
-	/// stays internal to the proxy either way.
+	/// The concrete controller this proxy forwards to — lets a caller wrapping
+	/// a real controller downcast to a concrete controller type without the
+	/// proxy itself getting in the way.
 	var underlyingController: FloatingPetWindowControlling { wrapped }
 
 	var isFloatingPetVisible: Bool { wrapped.isFloatingPetVisible }
@@ -157,12 +150,9 @@ final class RecordingFloatingPetWindowControllingProxy: FloatingPetWindowControl
 		wrapped.updateIdleEscalationConfig(config)
 	}
 
-	/// Clears `recordedCalls`, keeping the wrapped controller and key intact.
-	/// P18.05's shadow tick calls this once per `FloatingPetWindowPool.update()`
-	/// tick, before the old pipeline pushes anything, so a reconstructed
-	/// `DesiredWindow` reflects only THIS tick's pushes — mirroring
-	/// `PoolDerive`'s own per-tick "recompute desired state from scratch"
-	/// contract rather than leaking a stale push from an earlier tick forward.
+	/// Clears `recordedCalls`, keeping the wrapped controller and key intact —
+	/// so a caller driving several ticks against the same proxy can isolate
+	/// each tick's pushes.
 	func resetRecording() {
 		recordedCalls.removeAll()
 	}
