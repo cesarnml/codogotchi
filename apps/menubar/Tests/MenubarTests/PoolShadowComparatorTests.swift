@@ -130,6 +130,44 @@ final class PoolShadowComparatorTests: XCTestCase {
 		XCTAssertEqual(divergences.first?.fieldPath, "sessionLabel")
 	}
 
+	// MARK: - Membership divergence (P18.05 subagent-review fix)
+
+	func testOldOnlyKeyProducesAMembershipDivergence() {
+		// A window the old pipeline still has open, but the new engine no
+		// longer produces, is exactly the class of bug shadow-compare exists
+		// to catch — it must never be silently dropped.
+		var desired = DesiredWindows()
+		desired.windows = [:]
+
+		let divergences = PoolShadowComparator.compare(
+			old: ["claude:s1": window("claude:s1")], new: desired, tickFingerprint: "tick-old-only")
+
+		XCTAssertEqual(divergences.count, 1)
+		let record = try! XCTUnwrap(divergences.first)
+		XCTAssertEqual(record.windowKey, "claude:s1")
+		XCTAssertEqual(record.fieldPath, "membership")
+		XCTAssertEqual(record.oldValue, "present")
+		XCTAssertEqual(record.newValue, "absent")
+	}
+
+	func testNewOnlyKeyProducesAMembershipDivergence() {
+		// A window the new engine spawns that the old pipeline never had —
+		// a spurious window — is equally consequential and must also be
+		// reported.
+		var desired = DesiredWindows()
+		desired.windows = ["claude:s1": window("claude:s1")]
+
+		let divergences = PoolShadowComparator.compare(
+			old: [:], new: desired, tickFingerprint: "tick-new-only")
+
+		XCTAssertEqual(divergences.count, 1)
+		let record = try! XCTUnwrap(divergences.first)
+		XCTAssertEqual(record.windowKey, "claude:s1")
+		XCTAssertEqual(record.fieldPath, "membership")
+		XCTAssertEqual(record.oldValue, "absent")
+		XCTAssertEqual(record.newValue, "present")
+	}
+
 	// MARK: - Exemption enumeration (named, not pattern-matched)
 
 	func testExactlyTwoNamedExemptionsAreEnumerated() {

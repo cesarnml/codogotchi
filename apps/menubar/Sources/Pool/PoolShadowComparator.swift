@@ -36,10 +36,13 @@ struct DivergenceRecord: Equatable {
 	let newValue: String
 }
 
-/// Field-level comparator between the old pipeline's recorded per-window
-/// push behavior (captured via `RecordingFloatingPetWindowControllingProxy`,
-/// represented here as a `[WindowKey: DesiredWindow]` — see this file's
-/// test-file scope note) and the new engine's `DesiredWindows` output.
+/// Field-level and membership comparator between the old pipeline's recorded
+/// per-window push behavior (captured via
+/// `RecordingFloatingPetWindowControllingProxy`, represented here as a
+/// `[WindowKey: DesiredWindow]` — see this file's test-file scope note) and
+/// the new engine's `DesiredWindows` output. A key present on only one side
+/// (a missing or spurious window) is reported as a `"membership"`
+/// `DivergenceRecord`, distinct from the field-level comparisons below.
 ///
 /// Frame-inheritance directives are compared structurally (which `WindowKey`
 /// a spawn inherits from), never as resolved `CGRect` values — there is no
@@ -56,10 +59,22 @@ enum PoolShadowComparator {
 		let keys = Set(old.keys).union(new.windows.keys)
 		for key in keys.sorted(by: { $0.rawValue < $1.rawValue }) {
 			guard let oldWindow = old[key], let newWindow = new.windows[key] else {
-				// A key present on only one side is a membership divergence,
-				// not a field-level one — out of this comparator's scope
-				// (the decision-set half of the contract; see this file's
-				// test-file scope note and this ticket's Rationale).
+				// P18.05: a key present on only one side IS a divergence — a
+				// missing or spurious window is exactly the class of bug
+				// shadow-compare exists to catch, so it must produce a
+				// record rather than being silently skipped. `fieldPath`
+				// "membership" distinguishes this from the field-level
+				// divergences below.
+				let oldPresent = old[key] != nil
+				let newPresent = new.windows[key] != nil
+				divergences.append(
+					DivergenceRecord(
+						tickFingerprint: tickFingerprint,
+						windowKey: key,
+						fieldPath: "membership",
+						oldValue: oldPresent ? "present" : "absent",
+						newValue: newPresent ? "present" : "absent"
+					))
 				continue
 			}
 
@@ -110,7 +125,12 @@ enum PoolShadowComparator {
 				"promptTimerStatus", describeOptional(old.promptTimerStatus), describeOptional(new.promptTimerStatus))
 		}
 		if old.attention != new.attention {
-			record("attention", describeOptional(old.attention), describeOptional(new.attention))
+			// P18.05: `AttentionPayload.summary` is user-facing free text (a
+			// submitted prompt's summary), unlike the other structural
+			// fields compared here — redact it at the source, before it
+			// ever reaches a `DivergenceRecord`, rather than relying on the
+			// disk/NSLog sink to redact a raw struct dump downstream.
+			record("attention", describeAttention(old.attention), describeAttention(new.attention))
 		}
 		if old.attentionSourceEvent != new.attentionSourceEvent {
 			record(
@@ -159,6 +179,19 @@ enum PoolShadowComparator {
 	private static func describeOptional(_ value: Any?) -> String {
 		guard let value else { return "nil" }
 		return String(describing: value)
+	}
+
+	/// Structural description of an `AttentionPayload` divergence value with
+	/// `summary` (user-facing free text) redacted to a length indicator —
+	/// every other field is safe bounded metadata (timestamps, a reason
+	/// enum-ish string) and is retained verbatim so the divergence record
+	/// stays useful for debugging.
+	private static func describeAttention(_ payload: AttentionPayload?) -> String {
+		guard let payload else { return "nil" }
+		let summary = payload.summary.map { "<redacted:\($0.count)ch>" } ?? "nil"
+		return "AttentionPayload(createdAt: \(describeOptional(payload.createdAt)), "
+			+ "expiresAt: \(describeOptional(payload.expiresAt)), summary: \(summary), "
+			+ "reasonKind: \(describeOptional(payload.reasonKind)))"
 	}
 
 	private static func describeWindowKey(_ key: WindowKey?) -> String {
