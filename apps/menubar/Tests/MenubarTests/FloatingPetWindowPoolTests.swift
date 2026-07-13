@@ -150,6 +150,26 @@ private func makeResolvedSnapshot(
 @MainActor
 final class FloatingPetWindowPoolTests: XCTestCase {
 
+    // MARK: - P18.06: engine selection
+
+    func testDefaultEngineSelectionIsNewEngineDrivesOldShadows() {
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in StubWindowController() },
+            poolEngineEnvironment: [:]
+        )
+        XCTAssertEqual(pool.activeEngine, .new, "default (no CODOGOTCHI_POOL_ENGINE) must select the new engine")
+    }
+
+    func testLegacyEnvVarSelectsOldEngineAsAuthoritative() {
+        let pool = FloatingPetWindowPool(
+            customizationReader: { makeCustomization() },
+            windowFactory: { _, _ in StubWindowController() },
+            poolEngineEnvironment: ["CODOGOTCHI_POOL_ENGINE": "legacy"]
+        )
+        XCTAssertEqual(pool.activeEngine, .legacy, "CODOGOTCHI_POOL_ENGINE=legacy must select the old engine")
+    }
+
     // MARK: - Spawn / activeOrigins
 
     func testTwoOriginSnapshotSpawnsTwoWindows() {
