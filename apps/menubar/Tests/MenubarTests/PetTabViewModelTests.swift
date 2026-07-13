@@ -31,7 +31,11 @@ final class PetTabViewModelTests: XCTestCase {
 		for id in codex {
 			let dir = codexRoot.appendingPathComponent(id)
 			try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-			try! Data("{}".utf8).write(to: dir.appendingPathComponent("pet.json"))
+			// Codex-side pets are only surfaced when they look like real pets — write a
+			// full valid manifest + spritesheet so fixtures pass the importable-listing filter.
+			let json = #"{"id":"\#(id)","displayName":"\#(id)","spritesheetPath":"spritesheet.webp"}"#
+			try! Data(json.utf8).write(to: dir.appendingPathComponent("pet.json"))
+			try! Data("fakewebp".utf8).write(to: dir.appendingPathComponent("spritesheet.webp"))
 		}
 		for id in canonical {
 			let dir = canonicalRoot.appendingPathComponent(id)

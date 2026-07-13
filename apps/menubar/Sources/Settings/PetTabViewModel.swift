@@ -84,16 +84,8 @@ final class PetTabViewModel {
 	func allPetIds() -> [String] {
 		var ids = Set<String>()
 		ids.insert(DEFAULT_PET_NAME)
-		let fm = FileManager.default
-		for root in [codexPetsRoot, canonicalPetsRoot] {
-			guard let contents = try? fm.contentsOfDirectory(
-				at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [])
-			else { continue }
-			for url in contents {
-				let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-				if isDir { ids.insert(url.lastPathComponent) }
-			}
-		}
+		ids.formUnion(directoryNames(in: canonicalPetsRoot))
+		ids.formUnion(validCodexPetIds())
 		return ids.sorted()
 	}
 
@@ -108,7 +100,7 @@ final class PetTabViewModel {
 	/// importable.
 	func catalog() -> [PetCatalogEntry] {
 		let canonicalIds = Set(directoryNames(in: canonicalPetsRoot))
-		let codexIds = Set(directoryNames(in: codexPetsRoot))
+		let codexIds = Set(validCodexPetIds())
 		var ids = canonicalIds.union(codexIds)
 		ids.insert(DEFAULT_PET_NAME)
 
@@ -219,7 +211,34 @@ final class PetTabViewModel {
 		}
 	}
 
+	/// Codex pet IDs whose directory actually looks like a pet: a `pet.json`
+	/// with non-empty `id`/`displayName`/`spritesheetPath` fields (valid under
+	/// both the v1 and v2 manifest schema — v2 adds `spriteVersionNumber`/`kind`
+	/// but keeps the same `spritesheetPath` string field), and a spritesheet
+	/// file that actually exists at the referenced path. Filters out
+	/// non-pet directories under `~/.codex/pets` (e.g. `.hatch-runs`,
+	/// `.DS_Store`-adjacent scratch dirs) that would otherwise show up as
+	/// bogus importable cards.
+	private func validCodexPetIds() -> [String] {
+		directoryNames(in: codexPetsRoot).filter { isValidPetDirectory(codexPetsRoot.appendingPathComponent($0)) }
+	}
+
+	private func isValidPetDirectory(_ directory: URL) -> Bool {
+		let url = directory.appendingPathComponent("pet.json")
+		guard let data = try? Data(contentsOf: url) else { return false }
+		let decoder = JSONDecoder()
+		decoder.keyDecodingStrategy = .convertFromSnakeCase
+		guard let meta = try? decoder.decode(PetMetadataJSON.self, from: data),
+			let id = meta.id, !id.isEmpty,
+			let displayName = meta.displayName, !displayName.isEmpty,
+			let spritesheetPath = meta.spritesheetPath, !spritesheetPath.isEmpty
+		else { return false }
+		let sheetURL = directory.appendingPathComponent(spritesheetPath)
+		return FileManager.default.fileExists(atPath: sheetURL.path)
+	}
+
 	private struct PetMetadataJSON: Decodable {
+		let id: String?
 		let displayName: String?
 		let description: String?
 		let spritesheetPath: String?

@@ -34,9 +34,13 @@ final class PetTabLayoutTests: XCTestCase {
 	private func makePet(_ id: String, in root: URL, description: String) {
 		let dir = root.appendingPathComponent(id)
 		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-		let json: [String: String] = ["id": id, "displayName": id, "description": description]
+		let json: [String: String] = [
+			"id": id, "displayName": id, "description": description,
+			"spritesheetPath": "spritesheet.webp",
+		]
 		let data = try! JSONSerialization.data(withJSONObject: json)
 		try! data.write(to: dir.appendingPathComponent("pet.json"))
+		try! Data("fakewebp".utf8).write(to: dir.appendingPathComponent("spritesheet.webp"))
 	}
 
 	private func views(in root: NSView, identifier: String) -> [NSView] {
