@@ -33,11 +33,28 @@ final class SessionsTabView: NSView {
 		// document view, not the top. Every Show/Hide/Prune action rebuilds
 		// via reload(), so without restoring this the scrollbar would jerk to
 		// the bottom on every single action.
-		let savedScrollOrigin = scrollView.contentView.bounds.origin
+		//
+		// (P18-QC) Preserving the raw absolute origin.y isn't enough on its
+		// own: a Prune/Hide action can shrink the document's total height,
+		// and in this bottom-left-origin coordinate system a pinned absolute
+		// Y then measures from a different point relative to the (now
+		// shorter) content — the visible rows appeared to collapse downward
+		// instead of the remaining rows sliding up to fill the gap. Anchor
+		// by distance from the TOP of the document instead, which stays
+		// correct regardless of how much content above/below the viewport
+		// changed.
+		let visibleHeight = scrollView.contentView.bounds.height
+		let oldDocumentHeight = scrollView.documentView?.frame.height ?? 0
+		let distanceFromTop =
+			oldDocumentHeight - visibleHeight - scrollView.contentView.bounds.origin.y
 		NSLayoutConstraint.deactivate(constraints)
 		subviews.forEach { $0.removeFromSuperview() }
 		setupViews()
-		scrollView.contentView.scroll(to: savedScrollOrigin)
+		layoutSubtreeIfNeeded()
+		let newDocumentHeight = scrollView.documentView?.frame.height ?? 0
+		let newOriginY = max(0, newDocumentHeight - visibleHeight - distanceFromTop)
+		scrollView.contentView.scroll(
+			to: NSPoint(x: scrollView.contentView.bounds.origin.x, y: newOriginY))
 		scrollView.reflectScrolledClipView(scrollView.contentView)
 		needsLayout = true
 	}
