@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-07-13T19:11:02.017Z",
+  "summary": {
+    "total": 15,
+    "patched": 4,
+    "rejected": 2,
+    "already-covered": 7,
+    "requires-human-review": 2
+  },
+  "dispositions": [
+    {
+      "disposition": "already-covered",
+      "rationale": "P18.01's own Rationale (ticket-01-derive-skeleton.md, appended correction line) already folds this observation into the Deferred paragraph: promptTimers itself (and the .combined exemption that depends on it) is explicitly deferred to P18.03, which subsequently implemented it — PoolMemory.promptTimers now exists and is observed for the combined winner (see PoolDerive.swift, commit 82f05123).",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.01-subagent-review.report.md",
+        "ticketId": "P18.01"
+      },
+      "observation": "`docs/product/delivery/phase-18/ticket-01-derive-skeleton.md` says the eligibility bounding includes the `.combined` prompt-timer exemption, while `PoolDerive.swift` bounds only `firstSeenAt`, `lastSeenAt`, and `lastUpdatedAt`; `PoolMemory` contains no prompt-timer state. The Rationale defers `promptTimers` to P18.03, but does not explicitly acknowledge this Outcome-level behavior deferral."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Ticket-01's Rationale was updated (appended correction line) to explicitly state both flagged fields are folded into the Deferred paragraph. Verified in current code: PoolMemory.resolvedSessionTitles now exists (landed in P18.03/P18.04's title-resolution work) and FloatingPetWindowPool.lastAppliedIdleEscalationConfig remains a documented shell-owned field, matching the ticket's own P18.01-derive-unwired scope note that this could not break runtime behavior at the time.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.01-subagent-review.report.md",
+        "ticketId": "P18.01"
+      },
+      "observation": "The same ticket’s Review Focus asks for every cross-tick mutable policy field to have a home or documented shell-owned reason. The Rationale covers the specifically named selection fields and several push fields, but is not a complete field-by-field disposition: for example, the live pool’s in-memory `resolvedSessionTitles` and `lastAppliedIdleEscalationConfig` are not explicitly addressed. This does not break P18.01 runtime behavior because derive is unwired, but the documentation overstates the completeness of its deferred-field list."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Fixed pre-merge: PoolDerive.derive now separately clears the entire slotOccupants slice for any origin with existing occupants but zero candidates this tick, so the full-per-origin-slice-replacement contract now holds unconditionally. Documented in ticket-02-derive-selection.md's Rationale under 'Correction (subagent-review patch)', with regression test test_zeroCandidateOriginClearsSlotOccupantsSlice.",
+      "patch": {
+        "commitSha": "13d5cd43571fdae4284c2232ae3caf9274ac900e",
+        "files": [
+          "apps/menubar/Sources/Pool/Derive/PoolDerive.swift",
+          "apps/menubar/Sources/Pool/Derive/PoolMemoryUserActions.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.02-subagent-review.report.md",
+        "ticketId": "P18.02"
+      },
+      "observation": "`docs/product/delivery/phase-18/ticket-02-derive-selection.md:58` says the implementation provides full per-origin slice replacement. The code only provides that replacement for origins with at least one current candidate. Update this claim after fixing the zero-candidate path so P18.05 does not treat the current behavior as confirmed."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Report itself classifies this as 'contract wording/test-organization drift rather than a demonstrated production defect.' The named XCTest methods in PoolDeriveSelectionTests.swift are structural and behavior-specific and already lock each Phase-15-QC gap class by name; they just aren't literally a table/row harness. No behavior gap, not worth a doc rewrite.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.02-subagent-review.report.md",
+        "ticketId": "P18.02"
+      },
+      "observation": "The ticket Outcome calls for “named table-driven tests,” but `PoolDeriveSelectionTests.swift` uses separate named XCTest methods rather than a table/row harness. Assertions are structural and behavior-specific, so this is contract wording/test-organization drift rather than a demonstrated production defect."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "Genuine, narrow test-coverage gap: the title-precedence test only exercises rename-over-simultaneous-known-title, not cached known-title precedence or platform fallback independently. Low risk to add but requires the developer (or a follow-up ticket) to confirm the exact precedence contract for the two untested paths before writing assertions, so this isn't guessed. Bundling with the sibling P18.03 test-coverage gap above as a single follow-up decision.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.03-subagent-review.report.md",
+        "ticketId": "P18.03"
+      },
+      "observation": "The test named for title precedence verifies rename over a simultaneously supplied known title, but does not independently test cached known-title precedence or platform fallback."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "The underlying behavioral gap (Actionable findings 1-4 in the same report: transient-gap teardown, unobserved shared combined timer, non-deterministic tie-break, missing Combined-label fallback) was fully patched pre-merge in commit 82f05123, which added the transient-gap branch, wired memory.promptTimers[.combined] observation via a shared freshestEntry() helper with deterministic key-rawValue tie-break, and fixed the platformChip nil fallback. New tests testCombinedTransientGapRetainsLastActiveWindowAndTimer and testSourceLessActiveCombinedStillUsesCombinedLabel cover exactly this. The doc claim is now accurate.",
+      "patch": {
+        "commitSha": "82f05123cd893d2025e851afe48222cfa383112c",
+        "files": [
+          "apps/menubar/Sources/Pool/Derive/PoolDerive.swift",
+          "apps/menubar/Sources/Pool/Derive/PoolMemory.swift",
+          "apps/menubar/Tests/MenubarTests/Derive/PoolDerivePushTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.03-subagent-review.report.md",
+        "ticketId": "P18.03"
+      },
+      "observation": "The ticket and `PoolDerive` step map claim the three combined Step 8 branches and every Steps 7–9 controller policy were transcribed, but the transient-gap branch and shared-timer observation are absent. This is documentation drift; the behavioral consequences are already reported above."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "The four principal defects this table gap was hiding (transient-gap teardown, unobserved timer, non-deterministic tie-break, missing label fallback) are now fixed and covered by two targeted regression tests (commit 82f05123), but the full failing-table matrix the ticket originally called for (conflict rate-limit/re-home, timer observation while hidden/capped/TTL'd, tie hazards, combined teardown) was never built out as a comprehensive suite — only the specific bugs found were tested. Phase 18 has already cut over to production, so this is now pure test-hardening rather than a live defect. Developer should decide whether this warrants a dedicated P18-QC test-coverage ticket or is acceptable residual risk given the targeted tests that do exist.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.03-subagent-review.report.md",
+        "ticketId": "P18.03"
+      },
+      "observation": "The ticket explicitly calls for failing tables covering conflict rate-limit/re-home, timer observation while hidden/capped/TTL’d, tie hazards, and combined teardown. The added test file does not contain those rows, allowing the principal defects to pass."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Ticket-04's Rationale 'Deferred' paragraph already explicitly names and justifies both gaps: resolveTitles's output has 'no live caller exists yet, so there is nothing to fold into,' and the comparator's decision-set half (membership, spawned modes, etc.) is deferred with an explicit reason. The Outcome section itself is intentionally not edited post-hoc per this repo's ticket-template convention (Rationale is the append-only correction channel) — the disclosure already exists, just not in the Outcome bullets themselves.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.04-subagent-review.report.md",
+        "ticketId": "P18.04"
+      },
+      "observation": "`docs/product/delivery/phase-18/ticket-04-diff-apply-comparator.md` retains Outcome promises that the implementation does not satisfy: feeding resolved titles into next-tick memory, comparing extracted decision sets against `PoolMemory`, asserting under debug, and emitting log records. The Rationale explicitly defers these behaviors, so the document currently contains conflicting contract statements."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added assertionFailure in PoolApply.apply's toUpdate loop when controllers[key] is nil, matching the observation's own suggested fix — makes upstream controller-table drift visible in debug builds instead of silently dropping a whole window's pushes, with no change to release behavior (the guard-continue still applies).",
+      "patch": {
+        "commitSha": "5024a71e",
+        "files": ["apps/menubar/Sources/Pool/PoolApply.swift"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.04-subagent-review.report.md",
+        "ticketId": "P18.04"
+      },
+      "observation": "`PoolApply.apply` silently skips a missing update controller. Valid output from `PoolDiff` should prevent this when caller state is consistent, but a debug assertion would make upstream controller-table drift visible instead of suppressing a whole window’s pushes."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The report's own text calls this 'acceptable for best-effort behavior.' resolveTitles's String? return type is the same cache-then-resolve-then-write-through shape as the pre-existing FloatingPetWindowPool.resolveSessionTitle it mirrors (per ticket-04's Rationale); adding failure-vs-absent telemetry would be a scope expansion beyond this ticket's mandate, not a defect fix.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.04-subagent-review.report.md",
+        "ticketId": "P18.04"
+      },
+      "observation": "`PoolApply.resolveTitles` intentionally cannot distinguish resolver failure from a genuine absent title because its resolver returns `String?`. This is acceptable for best-effort behavior but leaves no failure telemetry."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Confirmed by code inspection: PoolApply.apply does call controller.applyPromptTimerPresentation(window.promptTimerStatus), but the completeness test never set desired.promptTimerStatus and MockController didn't even implement applyPromptTimerPresentation (silently inherited the protocol extension's no-op default), so the test could not have caught a regression in that field's wiring. Added tracking array + implementation to MockController and a value + assertion to the completeness test.",
+      "patch": {
+        "commitSha": "5024a71e",
+        "files": ["apps/menubar/Tests/MenubarTests/PoolApplyTests.swift"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.04-subagent-review.report.md",
+        "ticketId": "P18.04"
+      },
+      "observation": "The focused test command completed successfully: 20 tests, zero failures. Its push-completeness test omits `promptTimerStatus`, allowing the minimalist rendering defect to pass."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Ticket-05's Rationale explicitly disposes of this: 'pre-existing, previously-disclosed limitation ... outside this fix pass's scope.' NSLog still preserves divergence signal even when disk persistence silently fails, so this is a diagnostic-logger hardening gap, not a production defect — already flagged and consciously deferred rather than missed.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.05-subagent-review.report.md",
+        "ticketId": "P18.05"
+      },
+      "observation": "`ShadowDivergenceLogger.appendToDisk` suppresses directory creation, rotation, open, and write failures without an explicit disk-failure message. The preceding `NSLog` preserves divergence signal, so this is not total silent loss, but a dogfood run can permanently lose its replay log without indicating that persistence failed."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Ticket-05's Rationale confirms this was fixed in the same pass: 'The PoolShadowComparator file-level comment describing membership comparison as \"out of this comparator's scope\" was stale after fix (3) and has been updated in place.' Fix (3) is the membership-divergence-reporting fix landed in commit a63887e0/46c6a97d, which also updated the stale comment.",
+      "patch": {
+        "commitSha": "a63887e0",
+        "files": ["apps/menubar/Sources/Pool/PoolShadowComparator.swift"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.05-subagent-review.report.md",
+        "ticketId": "P18.05"
+      },
+      "observation": "The `PoolShadowComparator` comments still describe membership and decision-set comparison as out of scope, despite P18.05’s Outcome saying the comparator diffs both pipelines every tick. This documentation accurately reflects current code but exposes an unresolved contract gap."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Ticket-05's Rationale note explicitly names this exact limitation as a 'pre-existing, previously-disclosed limitation (see \"Deferred\" above and the ShadowCompareExemption doc comments) outside this fix pass's scope.'",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.05-subagent-review.report.md",
+        "ticketId": "P18.05"
+      },
+      "observation": "The named frame-provenance exemption makes the documented structural frame comparison impossible in the actual shadow-tick direction: reconstructed old values are always nil, so every real new-side donor directive is exempt. The Rationale discloses this limitation."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Ticket-05's Rationale already has a 'Not acted on (Advisory Observations, non-blocking)' note addressing this exact point: the doc-vs-code drift is already explained under 'Alternative considered' as a disclosed, deliberate scope decision (XCTest assertions in two ticket-specific tests substitute for a runtime debug assertion), not an oversight.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-18/reviews/P18.05-subagent-review.report.md",
+        "ticketId": "P18.05"
+      },
+      "observation": "The ticket Outcome says divergences assert in tests/debug builds, while `FloatingPetWindowPool` defaults to a no-op handler in every build. The Rationale explains the pragmatic reason, but XCTest assertions in two ticket-specific tests are not equivalent to a runtime debug assertion. This is a disclosed scope gap, not merely an implementation-detail deviation."
+    }
+  ]
+}
