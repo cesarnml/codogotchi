@@ -96,7 +96,12 @@ enum PoolDerive {
 		)
 		let eligibleForElection = memory.lastUpdatedAt.filter { eligibleKeys.contains($0.key) }
 		if !eligibleForElection.isEmpty {
-			memory.lastActiveRenderKey = eligibleForElection.max(by: { $0.value < $1.value })?.key
+			// Tie-break on `key.rawValue` (never bare `max(by:)`, whose result on
+			// a tie depends on this Dictionary's internal hash-bucket layout,
+			// not a canonical rule) — mirrors `freshestEntry(in:)` below.
+			memory.lastActiveRenderKey = eligibleForElection.max { lhs, rhs in
+				lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key.rawValue < rhs.key.rawValue
+			}?.key
 		}
 
 		// Step 3b: elect hudBearingRenderKey ("Show HUD on Most Recent Pet").
@@ -110,7 +115,10 @@ enum PoolDerive {
 				false
 			}
 		if !holderStillInFlight, !eligibleForElection.isEmpty {
-			memory.hudBearingRenderKey = eligibleForElection.max(by: { $0.value < $1.value })?.key
+			// Same canonical tie-break as `lastActiveRenderKey` above.
+			memory.hudBearingRenderKey = eligibleForElection.max { lhs, rhs in
+				lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key.rawValue < rhs.key.rawValue
+			}?.key
 		}
 
 		// Bound the tracked clocks to the eligibility window computed above —
