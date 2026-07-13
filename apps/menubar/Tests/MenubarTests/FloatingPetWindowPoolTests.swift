@@ -2429,6 +2429,45 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			"the pruned session's number must be released back to the free list")
 	}
 
+	/// (P18-QC regression) Prune must destroy an actively-rendered session
+	/// window even when the tick's `renderKeyIdentities` map has no entry for
+	/// it — `makePerPlatformSnapshot` (unlike `makeResolvedSnapshot`) never
+	/// populates that map, matching the real gap between `perPlatform`
+	/// (drives spawn) and `renderKeyIdentities` (a separate parallel map)
+	/// that made manual Prune a silent no-op in production.
+	func testPruneSessionSucceedsWhenRenderKeyIdentitiesHasNoEntryForAnActiveSession() {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("pool-prune-no-identity-\(UUID().uuidString)", isDirectory: true)
+		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: dir) }
+		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code:s1.json"))
+
+		var stub: StubWindowController?
+		let pool = FloatingPetWindowPool(
+			customizationReader: { makeCustomization(sessionPetsEnabled: ["claude_code": true]) },
+			windowFactory: { _, _ in
+				let c = StubWindowController()
+				stub = c
+				return c
+			}
+		)
+		// Deliberately bypasses `resolveRenderKeys`/`makeResolvedSnapshot`, so
+		// `renderKeyIdentities` stays empty even though the session-keyed
+		// window is actively rendered — the exact shape production hit.
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"claude_code:s1": makeSnapshot(updated: "2026-07-01T10:00:00.000Z")
+		]))
+		XCTAssertTrue(pool.isActive(for: "claude_code:s1"))
+
+		pool.pruneSession(windowKey: "claude_code:s1", stateDirectory: dir.path)
+
+		XCTAssertEqual(stub?.isFloatingPetVisible, false, "the panel must be torn down")
+		XCTAssertFalse(pool.isActive(for: "claude_code:s1"))
+		XCTAssertFalse(
+			FileManager.default.fileExists(atPath: dir.appendingPathComponent("claude_code:s1.json").path),
+			"the slice must be deleted")
+	}
+
 	/// (4 review focus) Prune is a no-op for a plain-origin (session-pets off)
 	/// or "combined" window — those are never session-keyed.
 	func testPruneSessionIsNoOpForNonSessionKeyedWindow() {

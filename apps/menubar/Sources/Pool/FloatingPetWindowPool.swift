@@ -1259,9 +1259,20 @@ final class FloatingPetWindowPool {
 		labelPath: String = SessionLabelStore.path(),
 		retrievedTitlePath: String = RetrievedSessionTitleStore.path()
 	) {
-		guard windowKey.isSessionKeyed,
-			let identity = windowSessionIdentities[windowKey] ?? currentRenderKeyIdentities[windowKey]
-		else { return }
+		// (P18-QC) `origin`/`sessionId` come straight from `windowKey` itself,
+		// not `windowSessionIdentities`/`currentRenderKeyIdentities`. Those
+		// dictionaries exist to recover the winning session for a
+		// plain-origin/"combined" key, which folds several sessions and loses
+		// that information on its own (see `RenderKeyIdentity`'s doc comment)
+		// — but a `.session` key already carries both components verbatim, so
+		// routing through a same-tick dictionary lookup for this case added
+		// an unnecessary failure mode: an actively-rendered session whose
+		// entry was momentarily absent from that tick's identity map (the two
+		// are populated separately — `perPlatform` drives spawn/teardown,
+		// `renderKeyIdentities` is a parallel map from the same resolver
+		// pass) made manual Prune a silent no-op with no window ever torn
+		// down and no error surfaced.
+		guard let identity = windowKey.sessionIdentity else { return }
 		// P18.05: pair this out-of-band user action with the identical pure
 		// `PoolMemory` transition, applied immediately — see
 		// `PoolMemoryUserActions.pruning(_:)`.
