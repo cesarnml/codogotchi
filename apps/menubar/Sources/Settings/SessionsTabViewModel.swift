@@ -251,14 +251,35 @@ final class SessionsTabViewModel {
 		refresh()
 	}
 
-	/// Deletes one row's backing slice file outright.
+	/// Deletes one row's backing slice file outright, without refreshing —
+	/// the shared primitive behind `prune(row:)` and the bulk Live/Archived
+	/// prune actions, which each own their own single trailing `refresh()`
+	/// rather than one per row.
 	@MainActor
-	func prune(row: SessionRow) {
+	private func deleteSlice(for row: SessionRow) {
 		let filename =
 			row.sessionId.map { "\(WindowKey.session(origin: row.origin, id: $0).rawValue).json" }
 			?? "\(row.origin).json"
 		let path = (stateDirectoryPath as NSString).appendingPathComponent(filename)
 		try? FileManager.default.removeItem(atPath: path)
+	}
+
+	/// Deletes one row's backing slice file outright.
+	@MainActor
+	func prune(row: SessionRow) {
+		deleteSlice(for: row)
+		refresh()
+	}
+
+	/// Deletes every Live row's backing slice file outright — the "Prune All
+	/// Live" bulk action, mirroring `pruneArchivedNow()`'s ungated raw
+	/// deletion since Live rows (fresh but not rendered) have no pool window
+	/// to tear down through `pruneSession`.
+	@MainActor
+	func pruneAllLive() {
+		for row in liveRows {
+			deleteSlice(for: row)
+		}
 		refresh()
 	}
 
@@ -272,6 +293,35 @@ final class SessionsTabViewModel {
 	@MainActor
 	func pruneActive(row: SessionRow) {
 		pool?.pruneSession(windowKey: row.id, stateDirectory: stateDirectoryPath)
+		refresh()
+	}
+
+	/// Prunes every session-keyed Active row through the pool's
+	/// `pruneSession` — the "Prune All Active" bulk action. Skips
+	/// plain-origin/"combined" Active rows, mirroring the per-row Prune
+	/// button's `row.sessionId != nil` gate: those aren't sessions to prune,
+	/// they're the platform's own always-present window.
+	@MainActor
+	func pruneAllActive() {
+		for row in activeRows where row.sessionId != nil {
+			pool?.pruneSession(windowKey: row.id, stateDirectory: stateDirectoryPath)
+		}
+		refresh()
+	}
+
+	/// Prunes every row across all three tiers in one pass — the top-level
+	/// "Prune All Sessions" affordance. Composes the same per-tier primitives
+	/// `pruneAllActive()`/`pruneAllLive()`/`pruneArchivedNow()` use, with a
+	/// single trailing `refresh()` rather than three.
+	@MainActor
+	func pruneAllSessions() {
+		for row in activeRows where row.sessionId != nil {
+			pool?.pruneSession(windowKey: row.id, stateDirectory: stateDirectoryPath)
+		}
+		for row in liveRows {
+			deleteSlice(for: row)
+		}
+		SlicePruner.prune(at: stateDirectoryPath, maxAge: self.liveTTL)
 		refresh()
 	}
 }

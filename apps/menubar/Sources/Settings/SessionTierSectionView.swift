@@ -7,7 +7,7 @@ final class SessionTierSectionView: NSView {
 		tint: NSColor,
 		rows: [SessionRow],
 		emptyText: String,
-		bulkAction: (title: String, action: () -> Void)?,
+		bulkActions: [(title: String, action: () -> Void)],
 		onShow: ((SessionRow) -> Void)?,
 		onHide: ((SessionRow) -> Void)?,
 		onPrune: ((SessionRow) -> Void)?
@@ -16,7 +16,7 @@ final class SessionTierSectionView: NSView {
 		translatesAutoresizingMaskIntoConstraints = false
 		setup(
 			title: title, iconSymbol: iconSymbol, tint: tint, rows: rows, emptyText: emptyText,
-			bulkAction: bulkAction, onShow: onShow, onHide: onHide, onPrune: onPrune)
+			bulkActions: bulkActions, onShow: onShow, onHide: onHide, onPrune: onPrune)
 	}
 
 	@available(*, unavailable)
@@ -28,7 +28,7 @@ final class SessionTierSectionView: NSView {
 		tint: NSColor,
 		rows: [SessionRow],
 		emptyText: String,
-		bulkAction: (title: String, action: () -> Void)?,
+		bulkActions: [(title: String, action: () -> Void)],
 		onShow: ((SessionRow) -> Void)?,
 		onHide: ((SessionRow) -> Void)?,
 		onPrune: ((SessionRow) -> Void)?
@@ -45,11 +45,21 @@ final class SessionTierSectionView: NSView {
 		let titleLabel = settingsSectionTitle("\(title) (\(rows.count))")
 		addSubview(titleLabel)
 
-		var bulkButton: NSButton?
-		if let bulkAction {
-			let button = ActionButton(title: bulkAction.title, tint: tint, action: bulkAction.action)
-			addSubview(button)
-			bulkButton = button
+		// A section may offer more than one bulk action (e.g. Live's "Show
+		// All Live" + "Prune All Live"), laid out as a trailing horizontal
+		// row of buttons rather than the single trailing button earlier
+		// sections (Archived) used alone.
+		var bulkActionsStack: NSStackView?
+		if !bulkActions.isEmpty {
+			let buttons = bulkActions.map { entry in
+				ActionButton(title: entry.title, tint: tint, action: entry.action)
+			}
+			let stack = NSStackView(views: buttons)
+			stack.orientation = .horizontal
+			stack.spacing = 8
+			stack.translatesAutoresizingMaskIntoConstraints = false
+			addSubview(stack)
+			bulkActionsStack = stack
 		}
 
 		let rowsStack = NSStackView()
@@ -86,12 +96,12 @@ final class SessionTierSectionView: NSView {
 			rowsStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12),
 		])
 
-		if let bulkButton {
+		if let bulkActionsStack {
 			NSLayoutConstraint.activate([
-				bulkButton.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
-				bulkButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+				bulkActionsStack.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
+				bulkActionsStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
 				titleLabel.trailingAnchor.constraint(
-					lessThanOrEqualTo: bulkButton.leadingAnchor, constant: -12),
+					lessThanOrEqualTo: bulkActionsStack.leadingAnchor, constant: -12),
 			])
 		}
 	}

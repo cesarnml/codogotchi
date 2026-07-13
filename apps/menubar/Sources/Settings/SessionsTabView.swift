@@ -122,16 +122,34 @@ final class SessionsTabView: NSView {
 			ttlDivider.heightAnchor.constraint(equalToConstant: 26),
 		])
 
+		// A third divider ahead of the top-level "Prune All Sessions" escape
+		// hatch, matching ttlDivider's same visual treatment.
+		let pruneAllDivider = NSView()
+		pruneAllDivider.translatesAutoresizingMaskIntoConstraints = false
+		pruneAllDivider.wantsLayer = true
+		pruneAllDivider.layer?.backgroundColor = SettingsTheme.cardBorder.cgColor
+		NSLayoutConstraint.activate([
+			pruneAllDivider.widthAnchor.constraint(equalToConstant: 1),
+			pruneAllDivider.heightAnchor.constraint(equalToConstant: 26),
+		])
+
+		let pruneAllSessionsButton = ActionButton(
+			title: "Prune All Sessions", tint: .systemRed,
+			action: { [weak self] in self?.pruneAllSessions() })
+
 		let ttlRow = NSStackView(views: [
 			archiveLabel, archiveAfterIdlePicker, ttlDivider, pruneLabel, pruneArchivedPicker,
+			pruneAllDivider, pruneAllSessionsButton,
 		])
 		ttlRow.orientation = .horizontal
 		ttlRow.alignment = .centerY
 		ttlRow.spacing = 12
-		// Generous breathing room on both sides of the divider so the two
-		// groups read as separate settings, not one run-on control strip.
+		// Generous breathing room on both sides of each divider so every
+		// group reads as a separate setting, not one run-on control strip.
 		ttlRow.setCustomSpacing(28, after: archiveAfterIdlePicker)
 		ttlRow.setCustomSpacing(28, after: ttlDivider)
+		ttlRow.setCustomSpacing(28, after: pruneArchivedPicker)
+		ttlRow.setCustomSpacing(28, after: pruneAllDivider)
 		ttlRow.translatesAutoresizingMaskIntoConstraints = false
 		card.addSubview(ttlRow)
 
@@ -147,7 +165,9 @@ final class SessionsTabView: NSView {
 			tint: .systemGreen,
 			rows: viewModel.activeRows,
 			emptyText: "No pets are currently shown or hidden.",
-			bulkAction: nil,
+			bulkActions: viewModel.activeRows.contains(where: { $0.sessionId != nil })
+				? [("Prune All Active", { [weak self] in self?.pruneAllActive() })]
+				: [],
 			onShow: { [weak self] row in self?.show(row) },
 			onHide: { [weak self] row in self?.hide(row) },
 			onPrune: { [weak self] row in self?.pruneActive(row) }
@@ -155,15 +175,18 @@ final class SessionsTabView: NSView {
 		contentStack.addArrangedSubview(activeSection)
 		activeSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
 
+		var liveBulkActions: [(title: String, action: () -> Void)] = []
+		if !viewModel.liveRows.isEmpty {
+			liveBulkActions.append(("Show All Live", { [weak self] in self?.showAllLive() }))
+			liveBulkActions.append(("Prune All Live", { [weak self] in self?.pruneAllLive() }))
+		}
 		let liveSection = SessionTierSectionView(
 			title: "Live",
 			iconSymbol: "clock.fill",
 			tint: .systemYellow,
 			rows: viewModel.liveRows,
 			emptyText: "No sessions are waiting to be resumed.",
-			bulkAction: viewModel.liveRows.isEmpty
-				? nil
-				: ("Show All Live", { [weak self] in self?.showAllLive() }),
+			bulkActions: liveBulkActions,
 			onShow: { [weak self] row in self?.show(row) },
 			onHide: nil,
 			onPrune: nil
@@ -177,9 +200,9 @@ final class SessionsTabView: NSView {
 			tint: .secondaryLabelColor,
 			rows: viewModel.archivedRows,
 			emptyText: "Nothing has gone stale in the last 24 hours.",
-			bulkAction: viewModel.archivedRows.isEmpty
-				? nil
-				: ("Prune All Archived", { [weak self] in self?.pruneAllArchived() }),
+			bulkActions: viewModel.archivedRows.isEmpty
+				? []
+				: [("Prune All Archived", { [weak self] in self?.pruneAllArchived() })],
 			onShow: { [weak self] row in self?.show(row) },
 			onHide: nil,
 			onPrune: { [weak self] row in self?.prune(row) }
@@ -265,6 +288,11 @@ final class SessionsTabView: NSView {
 		reload(viewModel: viewModel)
 	}
 
+	private func pruneAllLive() {
+		viewModel.pruneAllLive()
+		reload(viewModel: viewModel)
+	}
+
 	private func pruneAllArchived() {
 		viewModel.pruneArchivedNow()
 		reload(viewModel: viewModel)
@@ -278,18 +306,22 @@ final class SessionsTabView: NSView {
 	/// Same confirmation contract as the right-click "Prune Session" alert
 	/// (`FloatingPetPanel.presentPruneConfirmation`): skipped entirely once
 	/// `features.skip_prune_confirmation` is set, otherwise a destructive
-	/// "Prune"/"Cancel" alert with a "Do not show this warning again."
-	/// checkbox that persists the skip.
-	private func pruneActive(_ row: SessionRow) {
+	/// alert with a "Do not show this warning again." checkbox that persists
+	/// the skip. Shared by the single-row Active prune and both bulk
+	/// Active-touching actions ("Prune All Active", "Prune All Sessions") —
+	/// Live/Archived rows are already non-rendered/idle, so their bulk
+	/// actions skip confirmation, matching the pre-existing "Prune All
+	/// Archived" affordance.
+	private func confirmDestructivePrune(
+		messageText: String, informativeText: String, onConfirm: () -> Void
+	) {
 		guard !PetConfig.resolvedSkipPruneConfirmation() else {
-			viewModel.pruneActive(row: row)
-			reload(viewModel: viewModel)
+			onConfirm()
 			return
 		}
 		let alert = NSAlert()
-		alert.messageText = "Prune Session"
-		alert.informativeText =
-			"This destroys the panel and its session data. This cannot be undone."
+		alert.messageText = messageText
+		alert.informativeText = informativeText
 		alert.addButton(withTitle: "Prune")
 		alert.addButton(withTitle: "Cancel")
 		alert.buttons.first?.hasDestructiveAction = true
@@ -301,8 +333,42 @@ final class SessionsTabView: NSView {
 		if skipCheckbox.state == .on {
 			try? PetConfig.write(skipPruneConfirmation: true, to: PetConfig.configURL())
 		}
-		viewModel.pruneActive(row: row)
-		reload(viewModel: viewModel)
+		onConfirm()
+	}
+
+	private func pruneActive(_ row: SessionRow) {
+		confirmDestructivePrune(
+			messageText: "Prune Session",
+			informativeText: "This destroys the panel and its session data. This cannot be undone."
+		) { [weak self] in
+			guard let self else { return }
+			viewModel.pruneActive(row: row)
+			reload(viewModel: viewModel)
+		}
+	}
+
+	private func pruneAllActive() {
+		confirmDestructivePrune(
+			messageText: "Prune All Active Sessions",
+			informativeText:
+				"This destroys every active session's panel and session data. This cannot be undone."
+		) { [weak self] in
+			guard let self else { return }
+			viewModel.pruneAllActive()
+			reload(viewModel: viewModel)
+		}
+	}
+
+	private func pruneAllSessions() {
+		confirmDestructivePrune(
+			messageText: "Prune All Sessions",
+			informativeText:
+				"This destroys every Active, Live, and Archived session's data across every tier. This cannot be undone."
+		) { [weak self] in
+			guard let self else { return }
+			viewModel.pruneAllSessions()
+			reload(viewModel: viewModel)
+		}
 	}
 }
 
