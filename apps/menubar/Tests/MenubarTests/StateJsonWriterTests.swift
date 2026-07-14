@@ -688,4 +688,111 @@ final class StateJsonWriterTests: XCTestCase {
 		runRefreshForShow(dir: dir, origin: "claude_code", sessionId: "missing")
 		XCTAssertNil(readSlice("claude_code:missing.json", in: dir))
 	}
+
+	// MARK: - Force Idle / dismiss clear turn stamps, preserve session_started_at (P20.02 — [red])
+	//
+	// Force Idle is the escape hatch for a pet stuck on a stale in-flight
+	// state; if it leaves `prompt_started_at` stamped, the tracker's next
+	// hydrate from disk resurrects a running clock on an idle slice — the
+	// "immortal chip" class of bug this ticket's Review Focus calls out.
+	// `session_started_at` records when the *session file* was born, not the
+	// current turn, so it must survive every idle rewrite unlike the other
+	// three turn clocks.
+
+	func testForceIdleClearsTurnStampsButPreservesSessionStartedAt() {
+		let dir = makeStateDir()
+		writeSlice(
+			"codex:session1.json", in: dir,
+			json: [
+				"schema_version": 10,
+				"activity_state": "errored",
+				"source_event": ["origin": "codex"],
+				"prompt_started_at": "2026-07-07T01:00:00.000Z",
+				"session_started_at": "2026-07-06T23:00:00.000Z",
+				"errored_since": "2026-07-07T01:04:00.000Z",
+				"turn_ended_at": "2026-07-07T01:04:00.000Z",
+			])
+
+		runForceIdle(dir: dir, origins: ["codex"])
+
+		let result = readSlice("codex:session1.json", in: dir)!
+		XCTAssertEqual(result["activity_state"] as? String, "idle")
+		XCTAssertNil(result["prompt_started_at"], "Force Idle must clear prompt_started_at")
+		XCTAssertNil(result["errored_since"], "Force Idle must clear errored_since")
+		XCTAssertNil(result["turn_ended_at"], "Force Idle must clear turn_ended_at")
+		XCTAssertEqual(
+			result["session_started_at"] as? String, "2026-07-06T23:00:00.000Z",
+			"session_started_at records the session's birth, not the turn — it must survive Force Idle")
+	}
+
+	func testForceIdleWithExactSessionClearsTurnStampsButPreservesSessionStartedAt() {
+		let dir = makeStateDir()
+		writeSlice(
+			"codex:exact.json", in: dir,
+			json: [
+				"schema_version": 10,
+				"activity_state": "thinking",
+				"source_event": ["origin": "codex"],
+				"prompt_started_at": "2026-07-07T01:00:00.000Z",
+				"session_started_at": "2026-07-06T23:00:00.000Z",
+			])
+
+		runForceIdle(dir: dir, origin: "codex", sessionId: "exact")
+
+		let result = readSlice("codex:exact.json", in: dir)!
+		XCTAssertEqual(result["activity_state"] as? String, "idle")
+		XCTAssertNil(result["prompt_started_at"], "Force Idle must clear prompt_started_at")
+		XCTAssertEqual(
+			result["session_started_at"] as? String, "2026-07-06T23:00:00.000Z",
+			"session_started_at must survive the exact-session Force Idle variant")
+	}
+
+	func testDismissAttentionClearsTurnStampsButPreservesSessionStartedAt() {
+		let dir = makeStateDir()
+		writeSlice(
+			"claude_code:session1.json", in: dir,
+			json: [
+				"schema_version": 10,
+				"activity_state": "waiting_for_input",
+				"source_event": ["origin": "claude_code"],
+				"attention": ["message": "look at me"],
+				"prompt_started_at": "2026-07-07T01:00:00.000Z",
+				"session_started_at": "2026-07-06T23:00:00.000Z",
+				"turn_ended_at": "2026-07-07T01:03:00.000Z",
+			])
+
+		runDismissAttention(dir: dir, origins: ["claude_code"])
+
+		let result = readSlice("claude_code:session1.json", in: dir)!
+		XCTAssertEqual(result["activity_state"] as? String, "idle")
+		XCTAssertNil(result["turn_ended_at"], "dismissAttention's idle rewrite must clear turn_ended_at")
+		XCTAssertNil(result["prompt_started_at"], "dismissAttention's idle rewrite must clear prompt_started_at")
+		XCTAssertEqual(
+			result["session_started_at"] as? String, "2026-07-06T23:00:00.000Z",
+			"session_started_at must survive dismissAttention's idle rewrite")
+	}
+
+	func testDismissAllSessionsAttentionClearsTurnStampsButPreservesSessionStartedAtForEverySession() {
+		let dir = makeStateDir()
+		writeSlice(
+			"claude_code:old.json", in: dir,
+			json: [
+				"schema_version": 10,
+				"activity_state": "waiting_for_input",
+				"updated_at": "2026-07-01T10:00:00Z",
+				"attention": ["kind": "needs_input"],
+				"source_event": ["origin": "claude_code"],
+				"errored_since": "2026-07-01T09:59:00Z",
+				"session_started_at": "2026-07-01T09:00:00Z",
+			])
+
+		runDismissAllSessionsAttention(dir: dir, origin: "claude_code")
+
+		let result = readSlice("claude_code:old.json", in: dir)!
+		XCTAssertEqual(result["activity_state"] as? String, "idle")
+		XCTAssertNil(result["errored_since"], "dismissAllSessionsAttention must clear errored_since")
+		XCTAssertEqual(
+			result["session_started_at"] as? String, "2026-07-01T09:00:00Z",
+			"session_started_at must survive dismissAllSessionsAttention's idle rewrite")
+	}
 }

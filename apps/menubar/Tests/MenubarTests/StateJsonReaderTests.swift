@@ -448,6 +448,15 @@ final class StateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(expected, 9)
 	}
 
+	// MARK: - Schema v10 sticky stamps (P20.02 — [red])
+
+	func testExpectedSchemaVersionIs10() {
+		// [red] v10 adds four optional sticky ISO-8601 clocks to the slice
+		// contract (prompt_started_at, session_started_at, errored_since,
+		// turn_ended_at); the renderer must bump its expected version to match.
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 10)
+	}
+
 	func testV5PayloadDecodesLevelHalfHeartsAndLevelFraction() throws {
 		// [red] a v5 payload must decode level, level_fraction, half_hearts onto the snapshot
 		let tmp = FileManager.default.temporaryDirectory
@@ -730,5 +739,99 @@ final class SliceDirReaderTests: XCTestCase {
 			XCTFail("expected success, got \(result)"); return
 		}
 		XCTAssertEqual(snapshot.activityState, .implementing)
+	}
+
+	// MARK: - Schema v10 sticky stamps (P20.02 — [red])
+	//
+	// A v10 slice may carry four optional sticky ISO-8601 clocks. `StateSnapshot`
+	// (the pool-facing model every reader entry point returns) must decode them
+	// when present and default to nil when absent — the decode boundary
+	// `PromptTimerTracker.observe` and Force Idle both depend on.
+
+	func testReadDirectoryDecodesAllFourStickyStampsWhenPresent() {
+		let dir = makeTempSliceDir(slices: [
+			(
+				"codex:ses-stamps.json",
+				#"""
+				{
+				  "activity_state": "errored",
+				  "updated_at": "2026-07-07T01:05:00.000Z",
+				  "source_event": { "origin": "codex", "kind": "tool_use", "name": "Bash" },
+				  "prompt_started_at": "2026-07-07T01:00:00.000Z",
+				  "session_started_at": "2026-07-06T23:00:00.000Z",
+				  "errored_since": "2026-07-07T01:04:30.000Z",
+				  "turn_ended_at": "2026-07-07T01:05:00.000Z"
+				}
+				"""#
+			)
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.promptStartedAt, "2026-07-07T01:00:00.000Z")
+		XCTAssertEqual(snapshot.sessionStartedAt, "2026-07-06T23:00:00.000Z")
+		XCTAssertEqual(snapshot.erroredSince, "2026-07-07T01:04:30.000Z")
+		XCTAssertEqual(snapshot.turnEndedAt, "2026-07-07T01:05:00.000Z")
+	}
+
+	func testReadDirectoryStickyStampsAbsentDecodeAsNil() {
+		let dir = makeTempSliceDir(slices: [
+			("codex:ses-nostamps.json", sliceJSON(activityState: "implementing")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertNil(snapshot.promptStartedAt)
+		XCTAssertNil(snapshot.sessionStartedAt)
+		XCTAssertNil(snapshot.erroredSince)
+		XCTAssertNil(snapshot.turnEndedAt)
+	}
+
+	func testReadPerPlatformDirectoryDecodesStickyStamps() {
+		let dir = makeTempSliceDir(slices: [
+			(
+				"claude_code:ses-005.json",
+				#"""
+				{
+				  "activity_state": "thinking",
+				  "updated_at": "2026-07-07T01:00:00.000Z",
+				  "source_event": { "origin": "claude_code", "kind": "tool_use", "name": "Read" },
+				  "prompt_started_at": "2026-07-07T00:59:00.000Z"
+				}
+				"""#
+			)
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readPerPlatformDirectory(at: dir.path)
+		guard case .success(let snapshots) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshots["claude_code"]?.promptStartedAt, "2026-07-07T00:59:00.000Z")
+	}
+
+	func testReadPerSessionDirectoryDecodesStickyStamps() {
+		let dir = makeTempSliceDir(slices: [
+			(
+				"claude_code:ses-006.json",
+				#"""
+				{
+				  "activity_state": "standby",
+				  "updated_at": "2026-07-07T01:00:00.000Z",
+				  "source_event": { "origin": "claude_code", "kind": "tool_use", "name": "Read" },
+				  "turn_ended_at": "2026-07-07T00:59:50.000Z"
+				}
+				"""#
+			)
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readPerSessionDirectory(at: dir.path)
+		guard case .success(let snapshots) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshots["claude_code:ses-006"]?.turnEndedAt, "2026-07-07T00:59:50.000Z")
 	}
 }
