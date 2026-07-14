@@ -588,6 +588,62 @@ final class MenuItemsTests: XCTestCase {
 			"Show on a Live row must restart the dismiss-TTL clock, same as an Active Show")
 	}
 
+	func testLivePetShowTargetsHiddenCombinedWindow() throws {
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "codex:one.json", in: dir, age: 30)
+		try writeSlice(named: "codex:two.json", in: dir, age: 60)
+		let customization = CustomizationSnapshot(
+			platformModes: ["codex": .combined], idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false, combinedMinimalistEnabled: true,
+			minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": true],
+			sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+			idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindow() })
+		pool.setVisible(false, for: .combined)
+		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+		var refreshed: [WindowKey] = []
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel,
+			refreshTtlForShow: { refreshed.append($0) })
+		let menu = builder.build()
+		let liveItem = try XCTUnwrap(menu.items.first { $0.title == MenubarMenu.livePetsTitle })
+		let rowItem = try XCTUnwrap(liveItem.submenu?.items.first)
+
+		_ = (rowItem.target as AnyObject?)?.perform(rowItem.action!, with: rowItem)
+
+		XCTAssertFalse(pool.hiddenWindowKeys.contains(.combined))
+		XCTAssertEqual(refreshed, [.combined])
+	}
+
+	func testShowAllPetsIncludesHiddenCombinedTargetRepresentedByLiveRows() throws {
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "codex:one.json", in: dir, age: 30)
+		try writeSlice(named: "codex:two.json", in: dir, age: 60)
+		let customization = CustomizationSnapshot(
+			platformModes: ["codex": .combined], idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false, combinedMinimalistEnabled: true,
+			minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": true],
+			sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+			idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindow() })
+		pool.setVisible(false, for: .combined)
+		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+		var refreshed: [WindowKey] = []
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel,
+			refreshTtlForShow: { refreshed.append($0) })
+		_ = builder.build()
+
+		builder.showAllPets(nil)
+
+		XCTAssertFalse(pool.hiddenWindowKeys.contains(.combined))
+		XCTAssertEqual(refreshed, [.combined])
+	}
+
 	func testLivePetsSubmenuShowsDisabledPlaceholderWhenEmpty() {
 		let builder = MenubarMenu(terminate: {})
 		let menu = builder.build()

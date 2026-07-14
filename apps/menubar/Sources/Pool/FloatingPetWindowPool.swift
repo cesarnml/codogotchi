@@ -310,6 +310,15 @@ final class FloatingPetWindowPool {
 			.filter { $0.value == .combined }
 			.map(\.key)
 	}
+	/// Resolves a session/origin row to the window key rendered by the current
+	/// fold configuration. Show actions originate from state.d rows, but those
+	/// rows may be folded into a plain-origin or Combined window.
+	func renderedWindowKey(for renderKey: WindowKey) -> WindowKey {
+		let customization = customizationReader()
+		if customization.platformModes[renderKey.origin] == .combined { return .combined }
+		if customization.sessionPetsEnabled[renderKey.origin] ?? false { return renderKey }
+		return .origin(renderKey.origin)
+	}
 	/// Platform origin whose `platform_modes` entry the right-click mode-switch
 	/// affordance (Pet Mode ↔ Minimalist Mode) should rewrite for the window
 	/// keyed `key`, or `nil` for the `.combined` window — that one flips

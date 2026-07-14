@@ -258,16 +258,18 @@ final class MenubarMenu: NSObject {
 	@MainActor
 	@objc func showAllPets(_ sender: Any?) {
 		guard let pool = floatingPetPool else { return }
-		// Scoped to exactly what "Active Pets" displays (hidden keys <2h old)
-		// when a view model is wired, not every raw hidden key: bulk-showing
-		// a session the Active list doesn't even list would silently reach
-		// further than what the user can see is about to happen.
-		let keys: [WindowKey]
+		// Scoped to fresh rows the menu represents (Active + Live) when a view
+		// model is wired, not every raw hidden key. Resolve source session rows
+		// to their actual folded targets before intersecting hidden windows.
+		let keys: Set<WindowKey>
 		if let viewModel = sessionsTabViewModel {
 			viewModel.refresh()
-			keys = viewModel.activeRows.filter { !$0.isShown }.map(\.id)
+			let representedTargets = Set(
+				(viewModel.activeRows.filter { !$0.isShown } + viewModel.liveRows)
+					.map { pool.renderedWindowKey(for: $0.id) })
+			keys = representedTargets.intersection(pool.hiddenWindowKeys)
 		} else {
-			keys = pool.hiddenWindowKeys
+			keys = Set(pool.hiddenWindowKeys)
 		}
 		for key in keys {
 			// Restart each key's dismiss-TTL clock before un-hiding, or a key
@@ -455,9 +457,12 @@ final class MenubarMenu: NSObject {
 			let item = sender as? NSMenuItem,
 			let key = item.representedObject as? WindowKey
 		else { return }
+		// A state.d row may fold into a plain-origin or Combined window. Show
+		// the rendered target rather than clearing the source row's hidden flag.
+		let renderedKey = pool.renderedWindowKey(for: key)
 		// Restart the dismiss-TTL clock before un-hiding — see showAllPets.
-		refreshTtlForShow?(key)
-		pool.setVisible(true, for: key)
+		refreshTtlForShow?(renderedKey)
+		pool.setVisible(true, for: renderedKey)
 		refreshFloatingPetMenuItemTitle()
 	}
 
