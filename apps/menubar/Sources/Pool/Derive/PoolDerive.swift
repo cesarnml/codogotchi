@@ -382,6 +382,7 @@ enum PoolDerive {
 			var window = key == .combined
 				? (memory.previousCombinedWindow ?? DesiredWindow(key: key))
 				: DesiredWindow(key: key)
+			window.resolvedIdentity = key
 			window.isMinimalist =
 				key == .combined
 				? customization.combinedMinimalistEnabled
@@ -397,6 +398,7 @@ enum PoolDerive {
 				}
 
 			if let winnerEntry {
+				window.resolvedIdentity = winnerEntry.key
 				let state = winnerEntry.state
 				window.activityState = state.activityState
 				window.attention = state.attention
@@ -417,21 +419,22 @@ enum PoolDerive {
 			window.rpgSnapshot = snapshot.rpgSnapshot
 			window.sessionNumber = memory.sessionNumbers[key]
 			window.sessionTooltip = key.isSessionKeyed ? input.sessionPromptSummaries[key] : nil
-			if key == .combined {
-				let fallback = window.platformChip == nil || window.platformChip == "combined"
-					? "Combined" : window.platformChip.flatMap { PlatformAttribution(origin: $0)?.displayName }
-				window.sessionLabel = input.sessionLabels[key] ?? fallback
-			} else {
-				if let known = input.knownSessionTitles[key] { memory.resolvedSessionTitles[key] = known }
-				let fallback = memory.resolvedSessionTitles[key]
-					?? memory.sessionNumbers[key].map { "Session \($0)" }
-					?? PlatformAttribution(origin: key.origin)?.displayName
-				window.sessionLabel = input.sessionLabels[key] ?? fallback
-				if key.isSessionKeyed, memory.resolvedSessionTitles[key] == nil,
-					let identity = snapshot.renderKeyIdentities[key]
-				{
-					titleRequests.append(identity)
-				}
+			let resolvedIdentity = window.resolvedIdentity
+			if let known = input.knownSessionTitles[resolvedIdentity] {
+				memory.resolvedSessionTitles[resolvedIdentity] = known
+			}
+			let fallback = memory.resolvedSessionTitles[resolvedIdentity]
+				?? memory.sessionNumbers[resolvedIdentity].map { "Session \($0)" }
+				?? (key == .combined
+					? (window.platformChip == nil || window.platformChip == "combined"
+						? "Combined"
+						: window.platformChip.flatMap { PlatformAttribution(origin: $0)?.displayName })
+					: PlatformAttribution(origin: resolvedIdentity.origin)?.displayName)
+			window.sessionLabel = input.sessionLabels[resolvedIdentity] ?? fallback
+			if resolvedIdentity.isSessionKeyed, memory.resolvedSessionTitles[resolvedIdentity] == nil,
+				let identity = snapshot.renderKeyIdentities[resolvedIdentity]
+			{
+				titleRequests.append(identity)
 			}
 			switch input.hudMode {
 			case .all: window.hudEnabled = true
