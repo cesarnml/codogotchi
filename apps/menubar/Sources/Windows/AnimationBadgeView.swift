@@ -9,6 +9,12 @@ final class AnimationBadgeView: NSView {
 	private let promptTimerView = PromptTimerChipView(frame: .zero)
 	private let stackView = NSStackView()
 	private let sessionBadge = PlatformSessionBadge(frame: .zero)
+	/// Small, fixed, non-renamable badge naming this window's mode (P19.04) —
+	/// visually and functionally distinct from `sessionBadge`, which is
+	/// user-renamable. No right-click/rename affordance is wired to it.
+	private let modeIndicatorLabel = NSTextField(labelWithString: "")
+	/// Test-observable rendered text, `nil` while hidden.
+	private(set) var currentModeIndicatorText: String?
 	private let outerStack = NSStackView()
 	private var metrics = GateBadgeLayout.metrics(
 		for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160)
@@ -97,6 +103,14 @@ final class AnimationBadgeView: NSView {
 		sessionBadge.isHidden = true
 		promptTimerView.isHidden = true
 
+		modeIndicatorLabel.font = .systemFont(ofSize: 9, weight: .medium)
+		modeIndicatorLabel.textColor = .tertiaryLabelColor
+		modeIndicatorLabel.isSelectable = false
+		modeIndicatorLabel.isEditable = false
+		modeIndicatorLabel.isBezeled = false
+		modeIndicatorLabel.drawsBackground = false
+		modeIndicatorLabel.isHidden = true
+
 		outerStack.orientation = .vertical
 		// `.leading` (not `.centerX`) pins the session badge row's leading edge to
 		// the chip+pill row's leading edge (the platform chip, when present)
@@ -110,6 +124,7 @@ final class AnimationBadgeView: NSView {
 		addSubview(outerStack)
 		outerStack.addArrangedSubview(stackView)
 		outerStack.addArrangedSubview(sessionBadge)
+		outerStack.addArrangedSubview(modeIndicatorLabel)
 		NSLayoutConstraint.activate([
 			outerStack.leadingAnchor.constraint(equalTo: leadingAnchor),
 			outerStack.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -154,6 +169,18 @@ final class AnimationBadgeView: NSView {
 		layoutSubtreeIfNeeded()
 	}
 
+	/// Shows/hides and labels the mode-indicator row. `nil` hides it
+	/// entirely — this badge only ever appears for a fold window
+	/// (`resolvedIdentity != key`), never for a genuinely solo one (P19.04).
+	/// Kept separate from `configure()` (like `configurePromptTimer`) so an
+	/// unrelated same-tick `configure()` call never clobbers it.
+	func configureModeIndicator(_ text: String?) {
+		currentModeIndicatorText = text
+		modeIndicatorLabel.stringValue = text ?? ""
+		modeIndicatorLabel.isHidden = text == nil
+		layoutSubtreeIfNeeded()
+	}
+
 	/// Shows/hides and labels the session badge row beneath the chip + pill
 	/// row. A session-keyed window (`number` non-`nil`) shows "Session N"
 	/// unless renamed; a plain-origin/combined window (`number` `nil`) now
@@ -174,6 +201,10 @@ final class AnimationBadgeView: NSView {
 		if !sessionBadge.isHidden {
 			size.width = max(size.width, sessionBadge.intrinsicContentSize.width)
 			size.height += 4 + sessionBadge.intrinsicContentSize.height
+		}
+		if !modeIndicatorLabel.isHidden {
+			size.width = max(size.width, modeIndicatorLabel.intrinsicContentSize.width)
+			size.height += 4 + modeIndicatorLabel.intrinsicContentSize.height
 		}
 		return size
 	}

@@ -74,6 +74,7 @@ final class ChromeFlockCoordinator {
 		sessionNumber: Int? = nil,
 		sessionLabel: String? = nil,
 		sessionTooltip: String? = nil,
+		modeIndicator: String? = nil,
 		relativeTo petFrame: CGRect,
 		visibleFrame: CGRect
 	) {
@@ -85,6 +86,7 @@ final class ChromeFlockCoordinator {
 			sessionNumber: sessionNumber,
 			sessionLabel: sessionLabel,
 			sessionTooltip: sessionTooltip,
+			modeIndicator: modeIndicator,
 			relativeTo: petFrame,
 			visibleFrame: visibleFrame
 		)
@@ -109,6 +111,7 @@ final class ChromeFlockCoordinator {
 		sessionNumber: Int? = nil,
 		sessionLabel: String? = nil,
 		sessionTooltip: String? = nil,
+		modeIndicator: String? = nil,
 		relativeTo petFrame: CGRect,
 		visibleFrame: CGRect
 	) -> AnimationBadgePanel {
@@ -121,6 +124,7 @@ final class ChromeFlockCoordinator {
 			sessionNumber: sessionNumber,
 			sessionLabel: sessionLabel,
 			sessionTooltip: sessionTooltip,
+			modeIndicator: modeIndicator,
 			relativeTo: petFrame,
 			visibleFrame: visibleFrame
 		)

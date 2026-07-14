@@ -66,6 +66,7 @@ final class AnimationBadgePanel: NSPanel {
 		sessionNumber: Int? = nil,
 		sessionLabel: String? = nil,
 		sessionTooltip: String? = nil,
+		modeIndicator: String? = nil,
 		relativeTo petFrame: CGRect,
 		visibleFrame: CGRect
 	) {
@@ -77,6 +78,7 @@ final class AnimationBadgePanel: NSPanel {
 			metrics: AnimationBadgeLayout.metrics(for: petFrame)
 		)
 		badgeView.configureSessionNumber(sessionNumber, label: sessionLabel, tooltip: sessionTooltip)
+		badgeView.configureModeIndicator(modeIndicator)
 		let size = badgeView.preferredSize
 		let frame = AnimationBadgeLayout.frame(
 			relativeTo: petFrame,

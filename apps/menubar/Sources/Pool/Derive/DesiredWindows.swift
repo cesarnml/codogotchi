@@ -37,6 +37,13 @@ struct DesiredWindow: Equatable {
 	/// right-click Prune menu item and its destructive-action confirmation
 	/// alert (P19.03); never computed for anything else.
 	var foldedSessionDisplay: String?
+	/// Small, fixed, non-renamable text naming this window's mode — the
+	/// resolved session's platform display name for a folded `.origin`, or
+	/// "Combined" for `.combined` — or `nil` when `resolvedIdentity == key`
+	/// (a genuinely solo window has nothing to disambiguate). Distinct from
+	/// `foldedSessionDisplay`: that feeds the Prune menu/alert copy only,
+	/// this feeds a visible always-on badge (P19.04).
+	var modeIndicatorBadge: String?
 	var sessionTooltip: String?
 	var activityState: ActivityState = .idle
 	var promptTimerStatus: PromptTimerPresentation?

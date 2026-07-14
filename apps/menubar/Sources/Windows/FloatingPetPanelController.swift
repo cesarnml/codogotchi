@@ -68,6 +68,12 @@ final class FloatingPetPanelController: PanelActionHandling {
 	/// Last submitted prompt for this session, shown as a delayed hover
 	/// tooltip on the session badge.
 	private var currentSessionTooltip: String?
+	/// Small, fixed, non-renamable badge naming this window's mode — the
+	/// resolved session's platform display name for a folded `.origin`, or
+	/// "Combined" for `.combined` — or `nil` for a genuinely solo window
+	/// (P19.04). Mirrored so a later `repositionAndShowAnimationBadge()` call
+	/// triggered by an unrelated push doesn't clear it.
+	private var currentModeIndicatorBadge: String?
 	/// Latest prompt-timer status pushed by the pool (which owns the tracker —
 	/// see `PromptTimerTracker`). This panel only renders it; the heartbeat
 	/// recomputes the label each second while the status reports running.
@@ -396,6 +402,12 @@ final class FloatingPetPanelController: PanelActionHandling {
 		(panel?.contentView as? FloatingPetInteractionView)?.foldedSessionDisplay = display
 	}
 
+	func applyModeIndicatorBadge(_ text: String?) {
+		guard currentModeIndicatorBadge != text else { return }
+		currentModeIndicatorBadge = text
+		repositionAndShowAnimationBadge()
+	}
+
 	func applySessionTooltip(_ summary: String?) {
 		guard currentSessionTooltip != summary else { return }
 		currentSessionTooltip = summary
@@ -667,6 +679,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			sessionNumber: currentSessionNumber,
 			sessionLabel: currentSessionLabel,
 			sessionTooltip: currentSessionTooltip,
+			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
@@ -751,6 +764,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			sessionNumber: currentSessionNumber,
 			sessionLabel: currentSessionLabel,
 			sessionTooltip: currentSessionTooltip,
+			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)
@@ -820,6 +834,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			sessionNumber: currentSessionNumber,
 			sessionLabel: currentSessionLabel,
 			sessionTooltip: currentSessionTooltip,
+			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider()
 		)

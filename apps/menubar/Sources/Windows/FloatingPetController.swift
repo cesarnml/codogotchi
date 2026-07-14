@@ -46,6 +46,12 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	/// or `nil` for a genuinely solo window (P19.03). Feeds the Prune menu
 	/// item and its confirmation alert only.
 	func applyFoldedSessionDisplay(_ display: String?)
+	/// Small, fixed, non-renamable badge naming this window's mode — the
+	/// resolved session's platform display name for a folded `.origin`, or
+	/// "Combined" for `.combined` — or `nil` for a genuinely solo window
+	/// (P19.04). Visually and functionally distinct from the renamable
+	/// session-label badge; never wired to a rename gesture.
+	func applyModeIndicatorBadge(_ text: String?)
 	/// Last submitted prompt for this exact session, shown as a delayed hover
 	/// tooltip on the session badge. `nil`/empty clears the tooltip.
 	func applySessionTooltip(_ summary: String?)
@@ -79,6 +85,7 @@ extension FloatingPetWindowControlling {
 	func applyHasActiveSession(_ hasActiveSession: Bool) {}
 	func applySessionLabel(_ label: String?) {}
 	func applyFoldedSessionDisplay(_ display: String?) {}
+	func applyModeIndicatorBadge(_ text: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
 	var currentFrame: CGRect { .zero }
@@ -125,6 +132,12 @@ protocol PanelManaging: AnyObject {
 	/// or `nil` for a genuinely solo window (P19.03). Feeds the Prune menu
 	/// item and its confirmation alert only.
 	func applyFoldedSessionDisplay(_ display: String?)
+	/// Small, fixed, non-renamable badge naming this window's mode — the
+	/// resolved session's platform display name for a folded `.origin`, or
+	/// "Combined" for `.combined` — or `nil` for a genuinely solo window
+	/// (P19.04). Visually and functionally distinct from the renamable
+	/// session-label badge; never wired to a rename gesture.
+	func applyModeIndicatorBadge(_ text: String?)
 	/// Last submitted prompt for this exact session, shown as a delayed hover
 	/// tooltip on the session badge. `nil`/empty clears the tooltip.
 	func applySessionTooltip(_ summary: String?)
@@ -167,6 +180,7 @@ extension PanelManaging {
 	func applyHasActiveSession(_ hasActiveSession: Bool) {}
 	func applySessionLabel(_ label: String?) {}
 	func applyFoldedSessionDisplay(_ display: String?) {}
+	func applyModeIndicatorBadge(_ text: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
 }
