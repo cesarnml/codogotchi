@@ -25,7 +25,7 @@ final class HookRowView: NSView {
 		if let attribution = platformAttribution(forBadgeKey: row.originKey) {
 			iconView.image = NSImage(named: attribution.assetName)
 		}
-		iconView.contentTintColor = Self.iconTint(forOriginKey: row.originKey)
+		iconView.contentTintColor = platformIconTint(forBadgeKey: row.originKey)
 
 		let nameLabel = NSTextField(labelWithString: row.name)
 		nameLabel.font = .systemFont(ofSize: 13, weight: .medium)
@@ -80,25 +80,6 @@ final class HookRowView: NSView {
 				divider.bottomAnchor.constraint(equalTo: bottomAnchor),
 				divider.heightAnchor.constraint(equalToConstant: 1),
 			])
-		}
-	}
-
-	/// Brand-ish tint per platform so the template logo assets read distinctly
-	/// (mockup treatment) instead of a uniform monochrome column.
-	private static func iconTint(forOriginKey key: String) -> NSColor {
-		switch key {
-		case "claude_code":
-			return NSColor(srgbRed: 0.85, green: 0.47, blue: 0.34, alpha: 1)  // Anthropic clay
-		case "codex":
-			return NSColor(srgbRed: 0.06, green: 0.64, blue: 0.50, alpha: 1)  // OpenAI green
-		case "vscode":
-			return NSColor(srgbRed: 0.00, green: 0.48, blue: 0.80, alpha: 1)  // VS Code blue
-		case "cursor":
-			return NSColor(calibratedWhite: 0.78, alpha: 1)  // Cursor slate
-		case "antigravity":
-			return NSColor(srgbRed: 0.545, green: 0.361, blue: 0.965, alpha: 1)  // "AI" violet
-		default:
-			return .labelColor
 		}
 	}
 

@@ -521,7 +521,7 @@ final class PetTabView: NSView, NSSearchFieldDelegate {
 	}
 
 	private func makePlatformIconPill(key: String) -> NSView {
-		let tint: NSColor = key == "default" ? .systemGreen : .secondaryLabelColor
+		let tint = platformIconTint(forBadgeKey: key)
 		let container = NSView()
 		container.wantsLayer = true
 		container.layer?.cornerRadius = 5

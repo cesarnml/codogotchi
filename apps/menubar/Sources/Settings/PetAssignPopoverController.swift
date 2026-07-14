@@ -57,7 +57,7 @@ final class PetAssignPopoverController: NSViewController {
 		if let attr = platformAttribution(forBadgeKey: key) {
 			iconView.image = NSImage(named: attr.assetName)
 		}
-		iconView.contentTintColor = .labelColor
+		iconView.contentTintColor = platformIconTint(forBadgeKey: key)
 
 		let label = NSTextField(labelWithString: badgeDisplayName(key))
 		label.font = .systemFont(ofSize: 13)

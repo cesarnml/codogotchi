@@ -277,9 +277,9 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertFalse(menu.items[trailingIndex(7, petItemCount: Self.singleRowSectionCount)].isEnabled)
 	}
 
-	func testSettingsItemInvokesOpenSettingsCallback() {
-		var settingsOpenCount = 0
-		let builder = MenubarMenu(terminate: {}, openSettings: { _ in settingsOpenCount += 1 })
+	func testSettingsItemInvokesOpenSettingsWithGeneralTab() {
+		var openedTab: SettingsTab??
+		let builder = MenubarMenu(terminate: {}, openSettings: { openedTab = $0 })
 		let menu = builder.build()
 		let settingsIndex = trailingIndex(8, petItemCount: Self.singleRowSectionCount)
 		let settingsItem = menu.items[settingsIndex]
@@ -290,7 +290,7 @@ final class MenuItemsTests: XCTestCase {
 			return XCTFail("Settings menu item must have an action and target")
 		}
 		_ = target.perform(action, with: settingsItem)
-		XCTAssertEqual(settingsOpenCount, 1)
+		XCTAssertEqual(openedTab, .general)
 	}
 
 	func testSettingsItemIsDisabledWhenCallbackIsNil() {

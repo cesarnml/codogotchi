@@ -70,6 +70,27 @@ func platformAttribution(forBadgeKey key: String) -> PlatformAttribution? {
 	}
 }
 
+/// Shared brand palette for platform logos across General and Pet settings.
+/// Keep these colors centralized so cards, popovers, and hook rows do not drift.
+func platformIconTint(forBadgeKey key: String) -> NSColor {
+	switch key {
+	case "default":
+		return NSColor(srgbRed: 0.90, green: 0.13, blue: 0.63, alpha: 1)  // AI fuchsia
+	case "claude_code":
+		return NSColor(srgbRed: 0.85, green: 0.47, blue: 0.34, alpha: 1)  // Anthropic clay
+	case "codex":
+		return NSColor(srgbRed: 0.06, green: 0.64, blue: 0.50, alpha: 1)  // OpenAI green
+	case "vscode":
+		return NSColor(srgbRed: 0.00, green: 0.48, blue: 0.80, alpha: 1)  // VS Code blue
+	case "cursor":
+		return .systemRed
+	case "antigravity":
+		return NSColor(srgbRed: 0.545, green: 0.361, blue: 0.965, alpha: 1)  // AI violet
+	default:
+		return .labelColor
+	}
+}
+
 var assignBtnKey: UInt8 = 0
 var importBtnKey: UInt8 = 2
 

@@ -236,7 +236,7 @@ final class MenubarMenu: NSObject {
 	}
 
 	@objc func openSettingsAction(_ sender: Any?) {
-		openSettings?(nil)
+		openSettings?(.general)
 	}
 
 	@objc func openPetSettingsAction(_ sender: Any?) {
