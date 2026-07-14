@@ -1214,6 +1214,125 @@ export async function writeSliceAtomic(
   await rename(tmp, target);
 }
 
+/** Optional sticky clocks read-merged across full slice overwrites (v10). */
+type StickyStamps = {
+  prompt_started_at?: string;
+  session_started_at?: string;
+  errored_since?: string;
+  turn_ended_at?: string;
+};
+
+const STICKY_STAMP_KEYS = [
+  "prompt_started_at",
+  "session_started_at",
+  "errored_since",
+  "turn_ended_at",
+] as const;
+
+type PriorStickyRead =
+  | { status: "absent" }
+  | { status: "ok"; stamps: StickyStamps }
+  | { status: "corrupt" };
+
+/** Loose ISO-8601-with-offset check so invalid prior stamps are dropped, not
+ * forwarded into the outgoing Zod parse (which would freeze all later writes). */
+function isOffsetDatetime(value: string): boolean {
+  if (Number.isNaN(Date.parse(value))) return false;
+  return /(?:[Zz]|[+-]\d{2}:\d{2})$/.test(value);
+}
+
+/**
+ * Prior-stamp read for merge. Distinguishes missing file (first create) from
+ * unreadable/corrupt JSON so we never overwrite a damaged slice with reset
+ * clocks. Tolerates pre-v10 slices (schema_version 9, missing stamp keys).
+ */
+async function readPriorStickyStamps(
+  home: string,
+  origin: SourceEventOrigin,
+  sessionId: string,
+): Promise<PriorStickyRead> {
+  let raw: string;
+  try {
+    raw = await readFile(sliceFilePath(home, origin, sessionId), "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return { status: "absent" };
+    }
+    return { status: "corrupt" };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { status: "corrupt" };
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { status: "corrupt" };
+  }
+  const obj = parsed as Record<string, unknown>;
+  const stamps: StickyStamps = {};
+  for (const key of STICKY_STAMP_KEYS) {
+    const value = obj[key];
+    if (typeof value === "string" && isOffsetDatetime(value)) {
+      stamps[key] = value;
+    }
+  }
+  return { status: "ok", stamps };
+}
+
+/**
+ * Apply lifecycle edge rules for sticky stamps. Mid-turn tool ticks preserve
+ * turn-start and session-birth; only named edges set/clear.
+ */
+export function mergeStickyStamps(args: {
+  prior: StickyStamps;
+  activityState: ActivityState;
+  sourceKind: SourceEventKind;
+  nowIso: string;
+  hasAttention: boolean;
+}): StickyStamps {
+  const stamps: StickyStamps = { ...args.prior };
+
+  // Session birth: first write of this session file sets session_started_at.
+  if (stamps.session_started_at === undefined) {
+    stamps.session_started_at = args.nowIso;
+  }
+
+  if (args.activityState === "idle") {
+    delete stamps.prompt_started_at;
+    delete stamps.errored_since;
+    delete stamps.turn_ended_at;
+    return stamps;
+  }
+
+  if (
+    args.sourceKind === "prompt_submit" ||
+    args.sourceKind === "session_start"
+  ) {
+    stamps.prompt_started_at = args.nowIso;
+    delete stamps.turn_ended_at;
+    delete stamps.errored_since;
+    return stamps;
+  }
+
+  if (args.activityState === "errored") {
+    if (stamps.errored_since === undefined) {
+      stamps.errored_since = args.nowIso;
+    }
+    return stamps;
+  }
+
+  if (args.activityState === "standby" && args.hasAttention) {
+    if (stamps.turn_ended_at === undefined) {
+      stamps.turn_ended_at = args.nowIso;
+    }
+    return stamps;
+  }
+
+  // Mid-turn and other non-edge writes: preserve prior sticky fields as-is.
+  return stamps;
+}
+
 // See the Antigravity trailing-step guard in runHook. The window covers the
 // observed ~1-2s gap between a turn's Stop and its trailing step event, with
 // margin for a loaded machine; it errs small so a genuine rapid-fire next
@@ -1634,15 +1753,51 @@ export async function runHook(
       // this hides a real failure with no signal — tracked for quality-control.
     }
 
+    const sliceSessionId = sessionId ?? "default";
+    const priorRead = await readPriorStickyStamps(
+      opts.home,
+      origin,
+      sliceSessionId,
+    );
+    // Fail closed: never overwrite a corrupt/unreadable slice with reset clocks.
+    if (priorRead.status === "corrupt") {
+      await writeCounters(opts.home, {
+        read_run: classified.readRun,
+      });
+      return;
+    }
+    const priorStamps =
+      priorRead.status === "ok" ? priorRead.stamps : ({} as StickyStamps);
+    const nowIso = opts.now.toISOString();
+    const sticky = mergeStickyStamps({
+      prior: priorStamps,
+      activityState,
+      sourceKind: classified.sourceEvent.kind,
+      nowIso,
+      hasAttention: attention !== undefined,
+    });
+
     const slice: SliceEntry = {
       schema_version: STATE_JSON_SCHEMA_VERSION,
       origin,
-      session_id: sessionId ?? "default",
+      session_id: sliceSessionId,
       activity_state: activityState,
-      updated_at: opts.now.toISOString(),
+      updated_at: nowIso,
       source_event: sourceEvent,
       ...(attention !== undefined && { attention }),
       ...(toolCommand !== undefined && { tool_command: toolCommand }),
+      ...(sticky.prompt_started_at !== undefined && {
+        prompt_started_at: sticky.prompt_started_at,
+      }),
+      ...(sticky.session_started_at !== undefined && {
+        session_started_at: sticky.session_started_at,
+      }),
+      ...(sticky.errored_since !== undefined && {
+        errored_since: sticky.errored_since,
+      }),
+      ...(sticky.turn_ended_at !== undefined && {
+        turn_ended_at: sticky.turn_ended_at,
+      }),
     };
 
     // Point of no return for v7 migration data: writeSliceAtomic overwrites the

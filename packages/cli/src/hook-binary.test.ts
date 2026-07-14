@@ -1135,7 +1135,7 @@ describe("runHook", () => {
       { home, now: FIXED_NOW },
     );
     const state = readState(home);
-    expect(state.schema_version).toBe(9);
+    expect(state.schema_version).toBe(10);
     expect(state.activity_state).toBe("editing");
     expect(state.updated_at).toBe(FIXED_NOW.toISOString());
     expect(state.source_event.name).toBe("Edit");
@@ -1362,7 +1362,7 @@ describe("runHook", () => {
       now: FIXED_NOW,
     });
     const state = readState(home);
-    expect(state.schema_version).toBe(9);
+    expect(state.schema_version).toBe(10);
     expect(state.activity_state).toBe("standby");
   });
 
@@ -2469,7 +2469,7 @@ describe("runHook v5 local RPG fields", () => {
     );
     const state = readState(home);
     const rpg = readRpgState(home);
-    expect(state.schema_version).toBe(9);
+    expect(state.schema_version).toBe(10);
     expect(rpg.level).toBe(EXPECTED_LEVEL);
     expect(rpg.level_fraction as number).toBeCloseTo(
       EXPECTED_LEVEL_FRACTION,
@@ -2530,7 +2530,7 @@ describe("runHook v5 local RPG fields", () => {
     );
     const state = readState(home);
     const rpg = readRpgState(home);
-    expect(state.schema_version).toBe(9);
+    expect(state.schema_version).toBe(10);
     expect(rpg.level).toBeDefined();
     expect(rpg.half_hearts).toBeDefined();
     expect(rpg.last_activity_at).toBeDefined();
@@ -2604,7 +2604,7 @@ describe("slice-directory writer (P12.02 red)", () => {
     const expected = sliceFilePath(home, "claude_code", sessionId);
     expect(existsSync(expected)).toBe(true);
     const slice = JSON.parse(readFileSync(expected, "utf8"));
-    expect(slice.schema_version).toBe(9);
+    expect(slice.schema_version).toBe(10);
     expect(slice.origin).toBe("claude_code");
     expect(slice.session_id).toBe(sessionId);
     expect(slice.activity_state).toBeDefined();
@@ -2887,5 +2887,264 @@ describe("slice-directory writer (P12.02 red)", () => {
     } finally {
       rmSync(nonGitRoot, { recursive: true, force: true });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P20.01 sticky slice stamps — read-merge + edge set/clear
+// ---------------------------------------------------------------------------
+describe("sticky slice stamps (P20.01)", () => {
+  let home: string;
+
+  beforeEach(async () => {
+    home = mkdtempSync(join(tmpdir(), "codogotchi-stamps-"));
+    await mkdir(home, { recursive: true });
+    writeFileSync(
+      join(home, ".codogotchi.json"),
+      JSON.stringify({ rpg_enabled: false }),
+      "utf8",
+    );
+  });
+
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  function readSlice(
+    origin: string,
+    sessionId: string,
+  ): Record<string, unknown> {
+    return JSON.parse(
+      readFileSync(sliceFilePath(home, origin, sessionId), "utf8"),
+    ) as Record<string, unknown>;
+  }
+
+  it("writes schema_version 10 on hook write", async () => {
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: "stamp-schema",
+      },
+      { home, now: FIXED_NOW },
+    );
+    expect(readSlice("claude_code", "stamp-schema").schema_version).toBe(10);
+  });
+
+  it("sets session_started_at only on first slice create", async () => {
+    const sessionId = "stamp-session-birth";
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: FIXED_NOW },
+    );
+    const first = readSlice("claude_code", sessionId);
+    expect(first.session_started_at).toBe(FIXED_NOW.toISOString());
+
+    const later = new Date(FIXED_NOW.getTime() + 30_000);
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: later },
+    );
+    const second = readSlice("claude_code", sessionId);
+    expect(second.session_started_at).toBe(FIXED_NOW.toISOString());
+    expect(second.updated_at).toBe(later.toISOString());
+  });
+
+  it("sets prompt_started_at on prompt submit and clears turn_ended_at and errored_since", async () => {
+    const sessionId = "stamp-prompt-submit";
+    // Seed a prior turn with terminal stamps.
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: FIXED_NOW },
+    );
+    await runHook(
+      {
+        hook_event_name: "Stop",
+        session_id: sessionId,
+      } as HookInput,
+      { home, now: new Date(FIXED_NOW.getTime() + 10_000) },
+    );
+    await runHook(
+      {
+        hook_event_name: "StopFailure",
+        error: "rate_limit",
+        session_id: sessionId,
+      } as HookInput,
+      { home, now: new Date(FIXED_NOW.getTime() + 20_000) },
+    );
+
+    const submitAt = new Date(FIXED_NOW.getTime() + 60_000);
+    await runHook(
+      {
+        hook_event_name: "UserPromptSubmit",
+        session_id: sessionId,
+      } as HookInput,
+      { home, now: submitAt },
+    );
+    const slice = readSlice("claude_code", sessionId);
+    expect(slice.prompt_started_at).toBe(submitAt.toISOString());
+    expect(slice.turn_ended_at).toBeUndefined();
+    expect(slice.errored_since).toBeUndefined();
+  });
+
+  it("preserves prompt_started_at and session_started_at across a mid-turn PreToolUse write", async () => {
+    const sessionId = "stamp-mid-turn";
+    const submitAt = FIXED_NOW;
+    await runHook(
+      {
+        hook_event_name: "UserPromptSubmit",
+        session_id: sessionId,
+      } as HookInput,
+      { home, now: submitAt },
+    );
+    const afterSubmit = readSlice("claude_code", sessionId);
+    expect(afterSubmit.prompt_started_at).toBe(submitAt.toISOString());
+    expect(afterSubmit.session_started_at).toBe(submitAt.toISOString());
+
+    const toolAt = new Date(FIXED_NOW.getTime() + 5_000);
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: toolAt },
+    );
+    const afterTool = readSlice("claude_code", sessionId);
+    expect(afterTool.prompt_started_at).toBe(submitAt.toISOString());
+    expect(afterTool.session_started_at).toBe(submitAt.toISOString());
+    expect(afterTool.updated_at).toBe(toolAt.toISOString());
+  });
+
+  it("sets errored_since on first transition to errored and preserves on later errored ticks", async () => {
+    const sessionId = "stamp-errored";
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: FIXED_NOW },
+    );
+    const firstErrorAt = new Date(FIXED_NOW.getTime() + 10_000);
+    await runHook(
+      {
+        hook_event_name: "StopFailure",
+        error: "rate_limit",
+        session_id: sessionId,
+      } as HookInput,
+      { home, now: firstErrorAt },
+    );
+    expect(readSlice("claude_code", sessionId).errored_since).toBe(
+      firstErrorAt.toISOString(),
+    );
+
+    const secondErrorAt = new Date(FIXED_NOW.getTime() + 20_000);
+    await runHook(
+      {
+        hook_event_name: "StopFailure",
+        error: "server_error",
+        session_id: sessionId,
+      } as HookInput,
+      { home, now: secondErrorAt },
+    );
+    const slice = readSlice("claude_code", sessionId);
+    expect(slice.errored_since).toBe(firstErrorAt.toISOString());
+    expect(slice.updated_at).toBe(secondErrorAt.toISOString());
+  });
+
+  it("sets turn_ended_at on standby with attention", async () => {
+    const sessionId = "stamp-standby";
+    await runHook(
+      {
+        hook_event_name: "UserPromptSubmit",
+        session_id: sessionId,
+      } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+    const stopAt = new Date(FIXED_NOW.getTime() + 15_000);
+    await runHook(
+      {
+        hook_event_name: "Stop",
+        session_id: sessionId,
+      } as HookInput,
+      { home, now: stopAt },
+    );
+    const slice = readSlice("claude_code", sessionId);
+    expect(slice.activity_state).toBe("standby");
+    expect(slice.attention).toBeDefined();
+    expect(slice.turn_ended_at).toBe(stopAt.toISOString());
+  });
+
+  it("clears prompt_started_at, errored_since, and turn_ended_at on idle", async () => {
+    const sessionId = "stamp-idle-clear";
+    await runHook(
+      {
+        hook_event_name: "UserPromptSubmit",
+        session_id: sessionId,
+      } as HookInput,
+      { home, now: FIXED_NOW },
+    );
+    await runHook(
+      {
+        hook_event_name: "Stop",
+        session_id: sessionId,
+      } as HookInput,
+      { home, now: new Date(FIXED_NOW.getTime() + 5_000) },
+    );
+    const idleAt = new Date(FIXED_NOW.getTime() + 10_000);
+    await runHook(
+      {
+        hook_event_name: "PostToolUseFailure",
+        is_interrupt: true,
+        session_id: sessionId,
+      } as HookInput,
+      { home, now: idleAt },
+    );
+    const slice = readSlice("claude_code", sessionId);
+    expect(slice.activity_state).toBe("idle");
+    expect(slice.prompt_started_at).toBeUndefined();
+    expect(slice.errored_since).toBeUndefined();
+    expect(slice.turn_ended_at).toBeUndefined();
+    // Session birth survives idle.
+    expect(slice.session_started_at).toBe(FIXED_NOW.toISOString());
+  });
+
+  it("does not overwrite a corrupt prior slice with reset sticky clocks", async () => {
+    const sessionId = "stamp-corrupt-prior";
+    const path = sliceFilePath(home, "claude_code", sessionId);
+    mkdirSync(sliceDirPath(home), { recursive: true });
+    const corruptBody = "{not-valid-json";
+    writeFileSync(path, corruptBody, "utf8");
+
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: FIXED_NOW },
+    );
+
+    expect(readFileSync(path, "utf8")).toBe(corruptBody);
   });
 });
