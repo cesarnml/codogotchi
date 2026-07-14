@@ -448,6 +448,20 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   has a pointer if it recurs or turns out to matter more than a cosmetic
   frame or two of transition lag.
 
+### `protocol-default-noop-swallows-adapter-forward`
+- **Seen:** 1× ledgered — `codogotchi-46` (P19 mode chip). Same shape already
+  documented in-tree by `MinimalistWindowControllerTests.testForwardsSessionLabelAndTooltipToPanel`
+  (P15.06 session-label forward), which predated this ledger class.
+- **Proposed clause:** *"When a push protocol adds a new `apply*` member with a
+  protocol-extension default no-op, enumerate every adapter between the pusher
+  and the leaf renderer (window controller → panel, pool stub → real panel) and
+  require an explicit forward plus a regression that asserts the leaf received
+  the value. Default no-ops make missing forwards compile and let outer-stub
+  unit tests stay green while production silently drops the push."*
+- **Status:** WAITING — single ledgered instance; promote after ≥1 more
+  occurrence (or treat the P15.06 regression comment as the second sighting
+  once that older gap is backfilled into the ledger).
+
 ### `unconditional-directory-listing-trusts-externally-populated-tree`
 - **Seen:** 1× — `codogotchi-40` (attributed to phase-11, gallery/marketplace,
   where the Codex-import listing shipped). `PetTabViewModel`'s Codex-pet
