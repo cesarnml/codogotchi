@@ -38,13 +38,7 @@ final class SessionRowView: NSView {
 		label.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(label)
 
-		let statusText: String
-		switch row.tier {
-		case .active: statusText = row.isShown ? "Shown" : "Hidden"
-		case .live: statusText = "Idle \(Self.relativeAge(row.ageSeconds))"
-		case .archived: statusText = "Quiet \(Self.relativeAge(row.ageSeconds))"
-		}
-		let statusLabel = NSTextField(labelWithString: statusText)
+		let statusLabel = NSTextField(labelWithString: Self.subtitleText(for: row))
 		statusLabel.font = .systemFont(ofSize: 11)
 		statusLabel.textColor = .secondaryLabelColor
 		statusLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -135,6 +129,26 @@ final class SessionRowView: NSView {
 		if hours < 24 { return "\(hours)h ago" }
 		let days = Int(seconds / 86400)
 		return "\(days)d ago"
+	}
+
+	/// Builds a row's status line: the tier's existing base text (`Shown`/
+	/// `Hidden` for Active, `Idle <age>` for Live, `Quiet <age>` for Archived)
+	/// plus a `Started · <age>` fragment appended when `row.sessionStartedAt`
+	/// is present and parses — combined onto the same line rather than a
+	/// second row (P20.03). Omits the Started fragment entirely, leaving the
+	/// base text unchanged, when the stamp is missing or unparseable: never
+	/// fabricated from `updated_at`.
+	static func subtitleText(for row: SessionRow, now: Date = Date()) -> String {
+		let base: String
+		switch row.tier {
+		case .active: base = row.isShown ? "Shown" : "Hidden"
+		case .live: base = "Idle \(relativeAge(row.ageSeconds))"
+		case .archived: base = "Quiet \(relativeAge(row.ageSeconds))"
+		}
+		guard let sessionStartedAt = row.sessionStartedAt,
+			let startedDate = StateJsonReader.parseISO8601Date(sessionStartedAt)
+		else { return base }
+		return "\(base) · Started · \(relativeAge(now.timeIntervalSince(startedDate)))"
 	}
 }
 
