@@ -1,6 +1,6 @@
 # Phase 20: Sticky Slice Timestamps
 
-**Delivery status:** Approved and decomposed — delivery plan at `docs/product/delivery/phase-20/implementation-plan.md` (4 tickets). Awaiting preflight.
+**Delivery status:** Delivery complete — all 4 tickets shipped (P20.01 [PR #186](https://github.com/cesarnml/codogotchi/pull/186), P20.02 [PR #187](https://github.com/cesarnml/codogotchi/pull/187), P20.03 [PR #188](https://github.com/cesarnml/codogotchi/pull/188), P20.04 docs/retrospective this PR). Retrospective at `docs/product/retrospectives/phase-20-sticky-slice-timestamps-retrospective.md`. Awaiting developer review and `closeout-stack`.
 
 ## TL;DR
 
