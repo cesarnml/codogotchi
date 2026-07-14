@@ -436,14 +436,30 @@ enum PoolDerive {
 			if let known = input.knownSessionTitles[resolvedIdentity] {
 				memory.resolvedSessionTitles[resolvedIdentity] = known
 			}
-			let fallback = memory.resolvedSessionTitles[resolvedIdentity]
+			// Platform-only / Combined windows always own a fixed, non-renamable
+			// mode chip ("Codex" / "Combined"). Session-keyed windows do not —
+			// their `PlatformSessionBadge` is the only identity chrome.
+			switch key {
+			case .combined:
+				window.modeIndicatorBadge = "Combined"
+			case .origin(let origin):
+				window.modeIndicatorBadge = PlatformAttribution(origin: origin)?.displayName
+			case .session:
+				window.modeIndicatorBadge = nil
+			}
+			// Session-label fallback must never reuse the mode-chip copy. Fold /
+			// platform-only windows fall through to rename → LLM title →
+			// "Session N", and omit the badge until one of those exists so the
+			// mode chip stays the sole Combined/platform signal.
+			let sessionFallback = memory.resolvedSessionTitles[resolvedIdentity]
 				?? memory.sessionNumbers[resolvedIdentity].map { "Session \($0)" }
-				?? (key == .combined
-					? (window.platformChip == nil || window.platformChip == "combined"
-						? "Combined"
-						: window.platformChip.flatMap { PlatformAttribution(origin: $0)?.displayName })
-					: PlatformAttribution(origin: resolvedIdentity.origin)?.displayName)
-			window.sessionLabel = input.sessionLabels[resolvedIdentity] ?? fallback
+			let platformFallback =
+				window.modeIndicatorBadge == nil
+				? PlatformAttribution(origin: resolvedIdentity.origin)?.displayName
+				: nil
+			window.sessionLabel = input.sessionLabels[resolvedIdentity]
+				?? sessionFallback
+				?? platformFallback
 			if key != resolvedIdentity, let label = window.sessionLabel {
 				let platformName = PlatformAttribution(origin: resolvedIdentity.origin)?.displayName
 				window.foldedSessionDisplay =
@@ -452,9 +468,6 @@ enum PoolDerive {
 					} else {
 						label
 					}
-			}
-			if key != resolvedIdentity {
-				window.modeIndicatorBadge = key == .combined ? "Combined" : PlatformAttribution(origin: key.origin)?.displayName
 			}
 			if resolvedIdentity.isSessionKeyed, memory.resolvedSessionTitles[resolvedIdentity] == nil,
 				let identity = snapshot.renderKeyIdentities[resolvedIdentity]

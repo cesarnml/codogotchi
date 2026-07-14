@@ -349,12 +349,14 @@ final class MenubarMenu: NSObject {
 		let active = pool.activeOrigins.map {
 			SessionRow(
 				id: $0, origin: $0.origin, sessionId: nil,
-				displayLabel: $0.rawValue, tier: .active, isShown: true, ageSeconds: 0)
+				displayLabel: $0.rawValue, tier: .active, isShown: true, ageSeconds: 0,
+				canShow: true)
 		}
 		let hidden = pool.hiddenWindowKeys.map {
 			SessionRow(
 				id: $0, origin: $0.origin, sessionId: nil,
-				displayLabel: $0.rawValue, tier: .active, isShown: false, ageSeconds: 0)
+				displayLabel: $0.rawValue, tier: .active, isShown: false, ageSeconds: 0,
+				canShow: true)
 		}
 		return active + hidden
 	}

@@ -13,13 +13,14 @@ final class MinimalistBadgeView: NSView {
 	private let animationBadge = AnimationBadgeView(frame: .zero)
 	/// Test-observable rendered state — see `AnimationBadgeView.currentPromptTimer`.
 	var renderedPromptTimerPresentation: PromptTimerPresentation? { animationBadge.currentPromptTimer }
+	private let modeIndicatorBadge = PlatformSessionBadge(frame: .zero)
 	private let sessionBadge = PlatformSessionBadge(frame: .zero)
-	/// Test-observable rendered state — see
-	/// `AnimationBadgeView.currentModeIndicatorText`. The mode-indicator badge
-	/// itself is rendered by the embedded `animationBadge`, not a second
-	/// element here, so `MinimalistBadgeView` and Own mode's
-	/// `AnimationBadgePanel` share one implementation (P19.04).
-	var renderedModeIndicatorBadge: String? { animationBadge.currentModeIndicatorText }
+	private let identityStack = NSStackView()
+	/// Test-observable rendered mode-chip text (`nil` while hidden). Own mode
+	/// renders the same chip inside `AnimationBadgeView`; Minimalist owns a
+	/// sibling chip on the identity row left of `sessionBadge` so activity
+	/// chrome stays a single row.
+	private(set) var renderedModeIndicatorBadge: String?
 	private let badgeStack = NSStackView()
 	private let outerStack = NSStackView()
 	private var currentMetrics = GateBadgeLayout.metrics(scale: 1.0)
@@ -114,6 +115,8 @@ final class MinimalistBadgeView: NSView {
 		sessionBadge.configure(
 			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,
 			metrics: metrics)
+		modeIndicatorBadge.configure(
+			number: nil, label: renderedModeIndicatorBadge, tooltip: nil, metrics: metrics)
 		syncPromptTimerHeartbeat()
 	}
 
@@ -210,19 +213,19 @@ final class MinimalistBadgeView: NSView {
 		foldedSessionDisplay = display
 	}
 
-	/// Shows/hides and labels the mode-indicator row. `nil` hides it
-	/// entirely — this badge only ever appears for a fold window
-	/// (`resolvedIdentity != key`), never for a genuinely solo one (P19.04).
+	/// Shows/hides and labels the fixed mode chip left of the session-label
+	/// badge. `nil` hides it — session-keyed windows never set one.
 	func applyModeIndicatorBadge(_ text: String?) {
-		animationBadge.configureModeIndicator(text)
+		renderedModeIndicatorBadge = text
+		modeIndicatorBadge.configure(number: nil, label: text, tooltip: nil, metrics: currentMetrics)
 	}
 
-	/// Width the badge content needs plus horizontal padding. When the session
+	/// Width the badge content needs plus horizontal padding. When the identity
 	/// row is visible, the wider of the two rows drives the panel width.
 	var badgePreferredWidth: CGFloat {
 		var width = animationBadge.preferredSize.width
-		if !sessionBadge.isHidden {
-			width = max(width, sessionBadge.intrinsicContentSize.width)
+		if !modeIndicatorBadge.isHidden || !sessionBadge.isHidden {
+			width = max(width, identityStack.fittingSize.width)
 		}
 		return width + Self.hPad * 2
 	}
@@ -501,18 +504,24 @@ final class MinimalistBadgeView: NSView {
 		badgeStack.spacing = 8
 		badgeStack.addArrangedSubview(animationBadge)
 
+		modeIndicatorBadge.isHidden = true
 		sessionBadge.isHidden = true
+		identityStack.orientation = .horizontal
+		identityStack.alignment = .centerY
+		identityStack.spacing = 6
+		identityStack.addArrangedSubview(modeIndicatorBadge)
+		identityStack.addArrangedSubview(sessionBadge)
 
 		outerStack.orientation = .vertical
 		// `.leading` (not `.centerX`) keeps the chip+pill row pinned at `hPad` from
-		// the panel's left edge regardless of the session badge row's width — see
+		// the panel's left edge regardless of the identity row's width — see
 		// the matching note on `AnimationBadgeView.outerStack`.
 		outerStack.alignment = .leading
 		outerStack.spacing = Self.rowSpacing
 		outerStack.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(outerStack)
 		outerStack.addArrangedSubview(badgeStack)
-		outerStack.addArrangedSubview(sessionBadge)
+		outerStack.addArrangedSubview(identityStack)
 		NSLayoutConstraint.activate([
 			outerStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.hPad),
 			outerStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -Self.hPad),

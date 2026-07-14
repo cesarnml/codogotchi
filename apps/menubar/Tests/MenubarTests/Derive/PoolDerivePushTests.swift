@@ -135,7 +135,7 @@ final class PoolDerivePushTests: XCTestCase {
 		XCTAssertEqual(desired.windows[.combined]?.sessionLabel, "Cursor task")
 	}
 
-	func testCombinedWinnerUsesFreshestUpdateAndIdleUsesCombinedDefaults() {
+	func testCombinedWinnerUsesFreshestUpdateAndIdleUsesCombinedModeChip() {
 		let customization = pushCustomization(modes: ["codex": .combined, "cursor": .combined])
 		let (desired, _) = pushTick(
 			[
@@ -144,7 +144,10 @@ final class PoolDerivePushTests: XCTestCase {
 			], customization: customization, memory: PoolMemory())
 		XCTAssertEqual(desired.windows[.combined]?.activityState, .idle)
 		XCTAssertEqual(desired.windows[.combined]?.platformChip, "combined")
-		XCTAssertEqual(desired.windows[.combined]?.sessionLabel, "Combined")
+		XCTAssertEqual(desired.windows[.combined]?.modeIndicatorBadge, "Combined")
+		XCTAssertNil(
+			desired.windows[.combined]?.sessionLabel,
+			"idle Combined must not reuse mode-chip copy as the session label")
 	}
 
 	func testCombinedTransientGapRetainsLastActiveWindowAndTimer() {
@@ -166,13 +169,14 @@ final class PoolDerivePushTests: XCTestCase {
 		XCTAssertNil(memory.promptTimers[.combined])
 	}
 
-	func testSourceLessActiveCombinedStillUsesCombinedLabel() {
+	func testSourceLessActiveCombinedKeepsModeChipWithoutSessionLabelFallback() {
 		let customization = pushCustomization(modes: ["codex": .combined])
 		let (desired, _) = pushTick(
 			["codex:a": pushSnapshot(updated: "2026-07-01T10:00:00.000Z")],
 			customization: customization, memory: PoolMemory())
 		XCTAssertNil(desired.windows[.combined]?.platformChip)
-		XCTAssertEqual(desired.windows[.combined]?.sessionLabel, "Combined")
+		XCTAssertEqual(desired.windows[.combined]?.modeIndicatorBadge, "Combined")
+		XCTAssertNil(desired.windows[.combined]?.sessionLabel)
 	}
 
 	func testDirectPayloadPrecedenceAndMissingTitleRequest() {
@@ -224,12 +228,12 @@ final class PoolDerivePushTests: XCTestCase {
 		XCTAssertNil(desired.windows[key]?.modeIndicatorBadge)
 	}
 
-	func testModeIndicatorBadgeAbsentForSoloDefaultSentinelOrigin() {
+	func testModeIndicatorBadgeAlwaysShowsPlatformNameForPlatformOnlyOrigin() {
 		let (desired, _) = pushTick(
 			["codex": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
 			customization: pushCustomization(), memory: PoolMemory())
 
-		XCTAssertNil(desired.windows[.origin("codex")]?.modeIndicatorBadge)
+		XCTAssertEqual(desired.windows[.origin("codex")]?.modeIndicatorBadge, "Codex")
 	}
 
 	func testModeIndicatorBadgeShowsPlatformNameForOriginFoldWithMultipleSessions() {
@@ -242,6 +246,7 @@ final class PoolDerivePushTests: XCTestCase {
 			labels: ["codex:old": "Old task", "codex:new": "New task"])
 
 		XCTAssertEqual(desired.windows[.origin("codex")]?.modeIndicatorBadge, "Codex")
+		XCTAssertEqual(desired.windows[.origin("codex")]?.sessionLabel, "New task")
 	}
 
 	func testModeIndicatorBadgeShowsCombinedTextForCombinedWindow() {

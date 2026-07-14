@@ -680,15 +680,19 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			panel?.applyGateBadge(content: nil)
 			panel?.applyConflictBubble(nil)
 		}
-		panel.onRenameRequested = { newLabel in
-			SessionLabelStore.setLabel(newLabel, for: origin.rawValue)
+		panel.onRenameRequested = { [weak self] newLabel in
+			let identityKey =
+				self?.floatingPetWindowPool?.resolvedIdentity(forWindowKey: origin) ?? origin
+			SessionLabelStore.setLabel(newLabel, for: identityKey.rawValue)
 		}
-		panel.onSyncLabelRequested = {
-			guard let identity = origin.sessionIdentity,
+		panel.onSyncLabelRequested = { [weak self] in
+			let identityKey =
+				self?.floatingPetWindowPool?.resolvedIdentity(forWindowKey: origin) ?? origin
+			guard let identity = identityKey.sessionIdentity,
 				let title = SessionTitleResolver.title(
 					forOrigin: identity.origin, sessionId: identity.sessionId)
 			else { return }
-			SessionLabelStore.setLabelExemptFromCap(title, for: origin.rawValue)
+			SessionLabelStore.setLabelExemptFromCap(title, for: identityKey.rawValue)
 		}
 		panel.onPruneRequested = { [weak self] in
 			self?.floatingPetWindowPool?.pruneSession(

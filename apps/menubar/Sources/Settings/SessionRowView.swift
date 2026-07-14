@@ -63,11 +63,11 @@ final class SessionRowView: NSView {
 					trailingButtons.append(
 						ActionButton(title: "Hide", tint: .secondaryLabelColor) { onHide(row) })
 				}
-			} else if let onShow {
+			} else if row.canShow, let onShow {
 				trailingButtons.append(ActionButton(title: "Show", tint: .systemBlue) { onShow(row) })
 			}
 		} else {
-			if let onShow {
+			if row.canShow, let onShow {
 				trailingButtons.append(ActionButton(title: "Show", tint: .systemBlue) { onShow(row) })
 			}
 			if let onPrune {

@@ -42,6 +42,11 @@ struct SessionRow: Identifiable {
 	/// user-hidden but still resurrectable (Show is the available action).
 	let isShown: Bool
 	let ageSeconds: TimeInterval
+	/// Whether Show would surface *this* slice's own window (session pets on)
+	/// or the fold window this slice currently owns (sessions off / Combined).
+	/// False when Show would only unhide a shared fold already displaying a
+	/// different winner — a no-op from the user's POV.
+	let canShow: Bool
 }
 
 /// Backs the Settings → Sessions tab: a disk scan of `state.d/` bucketed into
@@ -143,6 +148,11 @@ final class SessionsTabViewModel {
 			let renderedKey = pool?.renderedWindowKey(for: key) ?? key
 			let resolvedIdentity = pool?.resolvedIdentity(forWindowKey: renderedKey)
 			let ownsRenderedTarget = resolvedIdentity.map { $0 == key } ?? (renderedKey == key)
+			// Show is only honest when this slice owns its render target (or *is*
+			// the target). Sessions-off / Combined Live siblings of the current
+			// fold winner cannot be surfaced without changing winner election —
+			// offering Show there is a silent no-op.
+			let canShow = renderedKey == key || ownsRenderedTarget
 			let isRendered = activeWindowKeys.contains(key)
 				|| (ownsRenderedTarget && activeWindowKeys.contains(renderedKey))
 			let isHiddenByUser = hiddenWindowKeys.contains(key)
@@ -175,18 +185,18 @@ final class SessionsTabViewModel {
 					active.append(
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-							tier: .active, isShown: true, ageSeconds: age))
+							tier: .active, isShown: true, ageSeconds: age, canShow: canShow))
 				} else if isHiddenByUser {
 					pendingShowKeys.remove(key)
 					active.append(
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-							tier: .active, isShown: false, ageSeconds: age))
+							tier: .active, isShown: false, ageSeconds: age, canShow: canShow))
 				} else if isPendingShow {
 					active.append(
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-							tier: .active, isShown: true, ageSeconds: age))
+							tier: .active, isShown: true, ageSeconds: age, canShow: canShow))
 				} else {
 					// Hidden by the "Hide Idle Pet After" idle-dismiss TTL rather
 					// than by the user — same Active (hidden) treatment: the pet is
@@ -196,18 +206,18 @@ final class SessionsTabViewModel {
 					active.append(
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-							tier: .active, isShown: false, ageSeconds: age))
+							tier: .active, isShown: false, ageSeconds: age, canShow: canShow))
 				}
 			case .live:
 				live.append(
 					SessionRow(
 						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-						tier: .live, isShown: false, ageSeconds: age))
+						tier: .live, isShown: false, ageSeconds: age, canShow: canShow))
 			case .archived:
 				archived.append(
 					SessionRow(
 						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-						tier: .archived, isShown: false, ageSeconds: age))
+						tier: .archived, isShown: false, ageSeconds: age, canShow: canShow))
 			}
 		}
 
@@ -237,13 +247,15 @@ final class SessionsTabViewModel {
 		refresh()
 	}
 
-	/// Show-and-resurrect every Live row.
+	/// Show-and-resurrect every Live row whose Show action can honestly
+	/// surface that slice (session-keyed window, or fold ownership).
 	@MainActor
 	func showAllLive() {
-		for row in liveRows {
-			refreshTtlForShow(row.id)
+		for row in liveRows where row.canShow {
+			let renderedKey = pool?.renderedWindowKey(for: row.id) ?? row.id
+			refreshTtlForShow(renderedKey)
 			pendingShowKeys.insert(row.id)
-			pool?.setVisible(true, for: row.id)
+			pool?.setVisible(true, for: renderedKey)
 		}
 		refresh()
 	}

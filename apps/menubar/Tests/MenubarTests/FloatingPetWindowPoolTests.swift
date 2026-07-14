@@ -16,6 +16,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     var appliedSessionNumbers: [Int?] = []
 	var appliedHasActiveSessions: [Bool] = []
     var appliedSessionLabels: [String?] = []
+    var appliedModeIndicatorBadges: [String?] = []
     var appliedSessionTooltips: [String?] = []
     var appliedConflictBubbles: [ConflictBubblePayload?] = []
     /// Settable so a test can simulate "this window is currently at frame X"
@@ -42,6 +43,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     func applySessionNumber(_ number: Int?) { appliedSessionNumbers.append(number) }
 	func applyHasActiveSession(_ hasActiveSession: Bool) { appliedHasActiveSessions.append(hasActiveSession) }
     func applySessionLabel(_ label: String?) { appliedSessionLabels.append(label) }
+    func applyModeIndicatorBadge(_ text: String?) { appliedModeIndicatorBadges.append(text) }
     func applySessionTooltip(_ summary: String?) { appliedSessionTooltips.append(summary) }
     func applyConflictBubble(_ payload: ConflictBubblePayload?) { appliedConflictBubbles.append(payload) }
     func updateIdleEscalationConfig(_ config: IdleEscalationConfig) { appliedIdleEscalationConfigs.append(config) }
@@ -2672,9 +2674,13 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			"the folded combined window must keep the idle ⭐ Default badge behavior"
 		)
 		XCTAssertEqual(
-			stubs["combined"]?.appliedSessionLabels.last ?? nil, "Combined",
-			"the session-label badge names the window itself (\"Combined\"), distinct from"
-				+ " the platform chip's ⭐ \"Default\" pet-assignment text"
+			stubs["combined"]?.appliedModeIndicatorBadges.last ?? nil, "Combined",
+			"the fixed mode chip names the fold (\"Combined\"), distinct from any session label"
+		)
+		XCTAssertNil(
+			stubs["combined"]?.appliedSessionLabels.last ?? nil,
+			"without a rename/LLM title the session-label badge stays empty so it"
+				+ " does not duplicate the Combined mode chip"
 		)
 	}
 
@@ -3045,10 +3051,11 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(stubs["codex"]?.appliedSessionLabels.last ?? nil, "My Codex")
 	}
 
-	// Without a sidecar rename, a plain-origin window falls back to the
-	// platform's own display name — it has no "Session N" of its own to fall
-	// back to the way a session-keyed window does.
-	func testPlainOriginWindowWithoutSidecarLabelFallsBackToPlatformDisplayName() {
+	// Without a sidecar rename or LLM title, a sessions-off platform-only
+	// window keeps the platform display name on the fixed mode chip — the
+	// session-label badge stays empty until a real session title exists, so
+	// it never duplicates the mode chip.
+	func testPlainOriginWindowWithoutSidecarLabelUsesModeChipNotSessionLabel() {
 		var stubs: [WindowKey: StubWindowController] = [:]
 		let customization = makeCustomization(sessionPetsEnabled: ["codex": false])
 		let pool = FloatingPetWindowPool(
@@ -3066,7 +3073,8 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			],
 			customization: customization
 		))
-		XCTAssertEqual(stubs["codex"]?.appliedSessionLabels.last ?? nil, "Codex")
+		XCTAssertEqual(stubs["codex"]?.appliedModeIndicatorBadges.last ?? nil, "Codex")
+		XCTAssertNil(stubs["codex"]?.appliedSessionLabels.last ?? nil)
 	}
 
 	// MARK: - Session title resolution (platform auto-generated thread titles)

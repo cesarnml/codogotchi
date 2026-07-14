@@ -9,10 +9,11 @@ final class AnimationBadgeView: NSView {
 	private let promptTimerView = PromptTimerChipView(frame: .zero)
 	private let stackView = NSStackView()
 	private let sessionBadge = PlatformSessionBadge(frame: .zero)
-	/// Small, fixed, non-renamable badge naming this window's mode (P19.04) —
-	/// visually and functionally distinct from `sessionBadge`, which is
-	/// user-renamable. No right-click/rename affordance is wired to it.
-	private let modeIndicatorLabel = NSTextField(labelWithString: "")
+	/// Fixed, non-renamable fold/platform-only identity chip (P19.04 / QC) —
+	/// same frosted chrome as `sessionBadge`, but never wired to Rename.
+	/// Lives to the LEFT of `sessionBadge` on the identity row.
+	private let modeIndicatorBadge = PlatformSessionBadge(frame: .zero)
+	private let identityStack = NSStackView()
 	/// Test-observable rendered text, `nil` while hidden.
 	private(set) var currentModeIndicatorText: String?
 	private let outerStack = NSStackView()
@@ -101,18 +102,17 @@ final class AnimationBadgeView: NSView {
 		stackView.addArrangedSubview(pillView)
 
 		sessionBadge.isHidden = true
+		modeIndicatorBadge.isHidden = true
 		promptTimerView.isHidden = true
 
-		modeIndicatorLabel.font = .systemFont(ofSize: 9, weight: .medium)
-		modeIndicatorLabel.textColor = .tertiaryLabelColor
-		modeIndicatorLabel.isSelectable = false
-		modeIndicatorLabel.isEditable = false
-		modeIndicatorLabel.isBezeled = false
-		modeIndicatorLabel.drawsBackground = false
-		modeIndicatorLabel.isHidden = true
+		identityStack.orientation = .horizontal
+		identityStack.alignment = .centerY
+		identityStack.spacing = 6
+		identityStack.addArrangedSubview(modeIndicatorBadge)
+		identityStack.addArrangedSubview(sessionBadge)
 
 		outerStack.orientation = .vertical
-		// `.leading` (not `.centerX`) pins the session badge row's leading edge to
+		// `.leading` (not `.centerX`) pins the identity row's leading edge to
 		// the chip+pill row's leading edge (the platform chip, when present)
 		// regardless of which row is wider. `.centerX` would let a wide session
 		// label re-center the narrower chip+pill row within the view, shifting it
@@ -123,8 +123,7 @@ final class AnimationBadgeView: NSView {
 		outerStack.translatesAutoresizingMaskIntoConstraints = false
 		addSubview(outerStack)
 		outerStack.addArrangedSubview(stackView)
-		outerStack.addArrangedSubview(sessionBadge)
-		outerStack.addArrangedSubview(modeIndicatorLabel)
+		outerStack.addArrangedSubview(identityStack)
 		NSLayoutConstraint.activate([
 			outerStack.leadingAnchor.constraint(equalTo: leadingAnchor),
 			outerStack.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -146,6 +145,7 @@ final class AnimationBadgeView: NSView {
 		self.metrics = metrics
 		currentPromptTimer = promptTimer
 		stackView.spacing = metrics.interBadgeSpacing
+		identityStack.spacing = max(6, metrics.interBadgeSpacing)
 		pillView.configure(text: text, inFlight: inFlight, metrics: metrics)
 		if let platform {
 			chipView.configure(platform: platform, metrics: metrics)
@@ -160,6 +160,8 @@ final class AnimationBadgeView: NSView {
 		sessionBadge.configure(
 			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,
 			metrics: metrics)
+		modeIndicatorBadge.configure(
+			number: nil, label: currentModeIndicatorText, tooltip: nil, metrics: metrics)
 		layoutSubtreeIfNeeded()
 	}
 
@@ -169,24 +171,22 @@ final class AnimationBadgeView: NSView {
 		layoutSubtreeIfNeeded()
 	}
 
-	/// Shows/hides and labels the mode-indicator row. `nil` hides it
-	/// entirely — this badge only ever appears for a fold window
-	/// (`resolvedIdentity != key`), never for a genuinely solo one (P19.04).
-	/// Kept separate from `configure()` (like `configurePromptTimer`) so an
-	/// unrelated same-tick `configure()` call never clobbers it.
+	/// Shows/hides and labels the mode-indicator chip to the left of the
+	/// session-label badge. `nil` hides it entirely — this chip only ever
+	/// appears for platform-only / Combined windows, never for session-keyed
+	/// ones. Kept separate from `configure()` (like `configurePromptTimer`) so
+	/// an unrelated same-tick `configure()` call never clobbers it.
 	func configureModeIndicator(_ text: String?) {
 		currentModeIndicatorText = text
-		modeIndicatorLabel.stringValue = text ?? ""
-		modeIndicatorLabel.isHidden = text == nil
+		modeIndicatorBadge.configure(number: nil, label: text, tooltip: nil, metrics: metrics)
 		layoutSubtreeIfNeeded()
 	}
 
-	/// Shows/hides and labels the session badge row beneath the chip + pill
-	/// row. A session-keyed window (`number` non-`nil`) shows "Session N"
-	/// unless renamed; a plain-origin/combined window (`number` `nil`) now
-	/// also shows a badge — the pool's platform-name default, or the user's
-	/// rename — via `label` (P?? unification). The row hides only when both
-	/// are `nil`.
+	/// Shows/hides and labels the session badge to the right of the mode chip
+	/// when both are present. A session-keyed window (`number` non-`nil`) shows
+	/// "Session N" unless renamed; a platform-only/Combined window shows the
+	/// winning session's rename / LLM title / "Session N" via `label`. The row
+	/// hides only when both number and label are `nil`.
 	func configureSessionNumber(_ number: Int?, label: String? = nil, tooltip: String? = nil) {
 		currentSessionNumber = number
 		currentSessionLabel = label
@@ -198,13 +198,12 @@ final class AnimationBadgeView: NSView {
 	var preferredSize: CGSize {
 		layoutSubtreeIfNeeded()
 		var size = stackView.fittingSize
-		if !sessionBadge.isHidden {
-			size.width = max(size.width, sessionBadge.intrinsicContentSize.width)
-			size.height += 4 + sessionBadge.intrinsicContentSize.height
-		}
-		if !modeIndicatorLabel.isHidden {
-			size.width = max(size.width, modeIndicatorLabel.intrinsicContentSize.width)
-			size.height += 4 + modeIndicatorLabel.intrinsicContentSize.height
+		let identityVisible = !modeIndicatorBadge.isHidden || !sessionBadge.isHidden
+		if identityVisible {
+			size.width = max(size.width, identityStack.fittingSize.width)
+			size.height += 4 + max(
+				modeIndicatorBadge.isHidden ? 0 : modeIndicatorBadge.intrinsicContentSize.height,
+				sessionBadge.isHidden ? 0 : sessionBadge.intrinsicContentSize.height)
 		}
 		return size
 	}
@@ -239,4 +238,3 @@ final class AnimationBadgeView: NSView {
 		}
 	}
 }
-
