@@ -79,6 +79,7 @@ final class SessionsTabView: NSView {
 		archiveLabel.translatesAutoresizingMaskIntoConstraints = false
 
 		archiveAfterIdlePicker.translatesAutoresizingMaskIntoConstraints = false
+		archiveAfterIdlePicker.removeAllItems()
 		for preset in ArchiveSessionAfterIdleTTL.allCases {
 			archiveAfterIdlePicker.addItem(withTitle: preset.label)
 			archiveAfterIdlePicker.lastItem?.representedObject = preset
@@ -95,6 +96,7 @@ final class SessionsTabView: NSView {
 		pruneLabel.translatesAutoresizingMaskIntoConstraints = false
 
 		pruneArchivedPicker.translatesAutoresizingMaskIntoConstraints = false
+		pruneArchivedPicker.removeAllItems()
 		for preset in PruneArchivedSessionsTTL.allCases {
 			pruneArchivedPicker.addItem(withTitle: preset.label)
 			pruneArchivedPicker.lastItem?.representedObject = preset
@@ -131,9 +133,31 @@ final class SessionsTabView: NSView {
 			title: "Prune All Sessions", tint: .systemRed,
 			action: { [weak self] in self?.pruneAllSessions() })
 
+		let refreshDivider = NSView()
+		refreshDivider.translatesAutoresizingMaskIntoConstraints = false
+		refreshDivider.wantsLayer = true
+		refreshDivider.layer?.backgroundColor = SettingsTheme.cardBorder.cgColor
+		NSLayoutConstraint.activate([
+			refreshDivider.widthAnchor.constraint(equalToConstant: 1),
+			refreshDivider.heightAnchor.constraint(equalToConstant: 26),
+		])
+
+		let refreshButton = NSButton(title: "Refresh", target: self, action: #selector(refreshSessions))
+		refreshButton.translatesAutoresizingMaskIntoConstraints = false
+		refreshButton.image = NSImage(
+			systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh Sessions")
+		refreshButton.imagePosition = .imageLeading
+		refreshButton.bezelStyle = .texturedRounded
+		refreshButton.toolTip = "Refresh Sessions"
+		refreshButton.setAccessibilityLabel("Refresh Sessions")
+		NSLayoutConstraint.activate([
+			refreshButton.heightAnchor.constraint(equalToConstant: 36),
+			refreshButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 88),
+		])
+
 		let ttlRow = NSStackView(views: [
 			archiveLabel, archiveAfterIdlePicker, ttlDivider, pruneLabel, pruneArchivedPicker,
-			pruneAllDivider, pruneAllSessionsButton,
+			pruneAllDivider, pruneAllSessionsButton, refreshDivider, refreshButton,
 		])
 		ttlRow.orientation = .horizontal
 		ttlRow.alignment = .centerY
@@ -144,6 +168,8 @@ final class SessionsTabView: NSView {
 		ttlRow.setCustomSpacing(28, after: ttlDivider)
 		ttlRow.setCustomSpacing(28, after: pruneArchivedPicker)
 		ttlRow.setCustomSpacing(28, after: pruneAllDivider)
+		ttlRow.setCustomSpacing(28, after: pruneAllSessionsButton)
+		ttlRow.setCustomSpacing(28, after: refreshDivider)
 		ttlRow.translatesAutoresizingMaskIntoConstraints = false
 		card.addSubview(ttlRow)
 
@@ -242,17 +268,22 @@ final class SessionsTabView: NSView {
 			note.leadingAnchor.constraint(equalTo: title.leadingAnchor),
 			note.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
-			// Even 16pt above and below the control row so it sits centered
+			// Even 20pt above and below the control row so it sits centered
 			// between the header note and the tier sections.
-			ttlRow.topAnchor.constraint(equalTo: note.bottomAnchor, constant: 16),
+			ttlRow.topAnchor.constraint(equalTo: note.bottomAnchor, constant: 20),
 			ttlRow.leadingAnchor.constraint(equalTo: note.leadingAnchor),
 			ttlRow.trailingAnchor.constraint(lessThanOrEqualTo: card.trailingAnchor, constant: -20),
 
-			scrollView.topAnchor.constraint(equalTo: ttlRow.bottomAnchor, constant: 16),
+			scrollView.topAnchor.constraint(equalTo: ttlRow.bottomAnchor, constant: 20),
 			scrollView.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
 			scrollView.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 			scrollView.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
 		])
+	}
+
+	@objc private func refreshSessions() {
+		viewModel.refresh()
+		reload(viewModel: viewModel)
 	}
 
 	@objc private func archiveAfterIdlePickerChanged(_ sender: NSPopUpButton) {
