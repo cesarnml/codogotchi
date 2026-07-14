@@ -1,0 +1,22 @@
+{
+  "ticket": "P19.03",
+  "invocations": [
+    {
+      "runnerKind": "claude-cli",
+      "reviewedHeadSha": "3d30b18f7e2d8bc649899ef883d2501c0efa096c",
+      "outcome": "skipped",
+      "completedAt": "2026-07-14T07:47:00.420Z",
+      "terminatedReason": "runner_failed",
+      "rawOutput": "docs/product/delivery/phase-19/reviews/P19.03-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-19/reviews/P19.03-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}
