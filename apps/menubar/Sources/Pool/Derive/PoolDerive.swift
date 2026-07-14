@@ -82,6 +82,9 @@ enum PoolDerive {
 				updatedAt: state.updatedAt,
 				sourceEvent: state.sourceEvent,
 				attention: state.attention,
+				promptStartedAt: state.promptStartedAt,
+				erroredSince: state.erroredSince,
+				turnEndedAt: state.turnEndedAt,
 				now: currentTime
 			)
 		}
@@ -182,7 +185,9 @@ enum PoolDerive {
 		if let winner = combinedWinner?.state {
 			memory.promptTimers[.combined, default: PromptTimerTracker()].observe(
 				state: winner.activityState, updatedAt: winner.updatedAt,
-				sourceEvent: winner.sourceEvent, attention: winner.attention, now: currentTime)
+				sourceEvent: winner.sourceEvent, attention: winner.attention,
+				promptStartedAt: winner.promptStartedAt, erroredSince: winner.erroredSince,
+				turnEndedAt: winner.turnEndedAt, now: currentTime)
 		} else if !combinedModeConfigured {
 			memory.promptTimers.removeValue(forKey: .combined)
 			memory.previousCombinedWindow = nil

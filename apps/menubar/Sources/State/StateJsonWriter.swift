@@ -302,11 +302,25 @@ enum StateJsonWriter {
 			var root = winner.root
 			root["activity_state"] = "idle"
 			root.removeValue(forKey: "attention")
+			clearTurnStamps(&root)
 			guard let out = try? JSONSerialization.data(
 				withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
 			else { continue }
 			try? out.write(to: winner.url, options: .atomic)
 		}
+	}
+
+	/// Clears the three P20.01 sticky *turn* clocks (`prompt_started_at`,
+	/// `errored_since`, `turn_ended_at`) the same way `PromptTimerTracker.reset()`
+	/// clears its in-memory equivalents, so a subsequent poll of the rewritten
+	/// idle slice cannot resurrect a running or frozen chip from a stale stamp
+	/// (the "immortal chip" class of bug). Deliberately leaves
+	/// `session_started_at` untouched — it records when the session *file* was
+	/// born, not the current turn, and must survive every idle rewrite.
+	private static func clearTurnStamps(_ root: inout [String: Any]) {
+		root.removeValue(forKey: "prompt_started_at")
+		root.removeValue(forKey: "errored_since")
+		root.removeValue(forKey: "turn_ended_at")
 	}
 
 	/// Rewrites exactly the `origin:sessionId.json` slice back to idle. Unlike
@@ -340,6 +354,7 @@ enum StateJsonWriter {
 		else { return }
 		root["activity_state"] = "idle"
 		root.removeValue(forKey: "attention")
+		clearTurnStamps(&root)
 		guard let out = try? JSONSerialization.data(
 			withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
 		else { return }
@@ -377,6 +392,7 @@ enum StateJsonWriter {
 			else { continue }
 			root["activity_state"] = "idle"
 			root.removeValue(forKey: "attention")
+			clearTurnStamps(&root)
 			guard let out = try? JSONSerialization.data(
 				withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
 			else { continue }

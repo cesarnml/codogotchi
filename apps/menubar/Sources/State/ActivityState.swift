@@ -188,6 +188,26 @@ struct StateSnapshot: Equatable {
 	/// and is in the future the renderer plays the revive celebration. Absent for
 	/// ≤v5 payloads — defaults to nil.
 	let reviveUntil: String?
+	/// v10 sticky clocks (P20.01/P20.02). Raw ISO 8601 strings, carried through
+	/// verbatim — parsing to `Date` happens at the point of use (`PromptTimerTracker`,
+	/// the future Settings > Sessions "Started" subtitle). All four are optional
+	/// and independently nil-able: a ≤v9 payload, or any payload the hook did not
+	/// stamp, omits some or all of them, and every consumer falls back to today's
+	/// `updated_at` heuristics when a stamp it needs is absent.
+	///
+	/// `promptStartedAt` — when the current in-flight turn began.
+	let promptStartedAt: String?
+	/// `sessionStartedAt` — when this session file was first born; unlike the
+	/// other three, this one is NOT a turn clock and survives Force Idle / any
+	/// other idle rewrite of the slice.
+	let sessionStartedAt: String?
+	/// `erroredSince` — when the slice entered its current uninterrupted errored
+	/// run; the tracker freezes 60s after this stamp rather than after whichever
+	/// poll tick happened to first observe the errored state.
+	let erroredSince: String?
+	/// `turnEndedAt` — when the current turn's clock froze/ended (e.g. entering
+	/// standby with an active attention bubble).
+	let turnEndedAt: String?
 
 	init(
 		schemaVersion: Int,
@@ -201,7 +221,11 @@ struct StateSnapshot: Equatable {
 		halfHearts: Int = 6,
 		activeMinutes: Int = 0,
 		lastActivityAt: String? = nil,
-		reviveUntil: String? = nil
+		reviveUntil: String? = nil,
+		promptStartedAt: String? = nil,
+		sessionStartedAt: String? = nil,
+		erroredSince: String? = nil,
+		turnEndedAt: String? = nil
 	) {
 		self.schemaVersion = schemaVersion
 		self.activityState = activityState
@@ -215,6 +239,10 @@ struct StateSnapshot: Equatable {
 		self.activeMinutes = activeMinutes
 		self.lastActivityAt = lastActivityAt
 		self.reviveUntil = reviveUntil
+		self.promptStartedAt = promptStartedAt
+		self.sessionStartedAt = sessionStartedAt
+		self.erroredSince = erroredSince
+		self.turnEndedAt = turnEndedAt
 	}
 }
 
