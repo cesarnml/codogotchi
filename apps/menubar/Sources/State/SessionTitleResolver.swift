@@ -122,11 +122,14 @@ enum SessionTitleResolver {
 	// MARK: - Cursor (best-guess mapping)
 
 	/// `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
-	/// — a SQLite key/value store; its `composer.composerHeaders` row holds
-	/// a JSON registry of every chat thread ("composer"), each carrying its
-	/// own auto-generated `name` once titled. Read via the system `sqlite3`
-	/// CLI (already how this app shells out to helper binaries elsewhere)
-	/// rather than linking libsqlite3 directly.
+	/// — Cursor's SQLite store of chat/agent threads ("composers"). Newer
+	/// Cursor builds (Agents / Glass sidebar) persist titles in a first-class
+	/// `composerHeaders` table (`composerId` PK, `value` JSON with `name`);
+	/// older builds kept a single `ItemTable` blob at key
+	/// `composer.composerHeaders` (`allComposers[].name`). Prefer the table,
+	/// then fall back to the legacy blob so both eras resolve. Read via the
+	/// system `sqlite3` CLI (already how this app shells out to helper
+	/// binaries elsewhere) rather than linking libsqlite3 directly.
 	///
 	/// Cursor's hook payload's `conversation_id` — Codogotchi's `session_id`
 	/// for this origin — is assumed to be the same id as `composerId` here:
@@ -143,12 +146,62 @@ enum SessionTitleResolver {
 		sqliteBinaryPath: String = "/usr/bin/sqlite3"
 	) -> String? {
 		guard FileManager.default.fileExists(atPath: databasePath) else { return nil }
+		return cursorTitleFromComposerHeadersTable(
+			sessionId: sessionId,
+			databasePath: databasePath,
+			sqliteBinaryPath: sqliteBinaryPath
+		) ?? cursorTitleFromItemTableBlob(
+			sessionId: sessionId,
+			databasePath: databasePath,
+			sqliteBinaryPath: sqliteBinaryPath
+		)
+	}
+
+	/// Newer Cursor: `composerHeaders` rows keyed by `composerId`.
+	static func cursorTitleFromComposerHeadersTable(
+		sessionId: String,
+		databasePath: String,
+		sqliteBinaryPath: String = "/usr/bin/sqlite3"
+	) -> String? {
+		let escapedSessionId = sessionId.replacingOccurrences(of: "'", with: "''")
+		guard
+			let data = sqliteQuery(
+				databasePath: databasePath,
+				sqliteBinaryPath: sqliteBinaryPath,
+				sql: "SELECT value FROM composerHeaders WHERE composerId='\(escapedSessionId)';"
+			),
+			let header = try? JSONDecoder().decode(CursorComposerHeader.self, from: data)
+		else { return nil }
+		return nonEmpty(header.name)
+	}
+
+	/// Legacy Cursor: single `ItemTable` registry blob.
+	static func cursorTitleFromItemTableBlob(
+		sessionId: String,
+		databasePath: String,
+		sqliteBinaryPath: String = "/usr/bin/sqlite3"
+	) -> String? {
+		guard
+			let data = sqliteQuery(
+				databasePath: databasePath,
+				sqliteBinaryPath: sqliteBinaryPath,
+				sql: "SELECT value FROM ItemTable WHERE key='composer.composerHeaders';"
+			),
+			let registry = try? JSONDecoder().decode(CursorComposerHeaders.self, from: data)
+		else { return nil }
+		return registry.allComposers
+			.first { $0.composerId == sessionId }
+			.flatMap { nonEmpty($0.name) }
+	}
+
+	private static func sqliteQuery(
+		databasePath: String,
+		sqliteBinaryPath: String,
+		sql: String
+	) -> Data? {
 		let process = Process()
 		process.executableURL = URL(fileURLWithPath: sqliteBinaryPath)
-		process.arguments = [
-			databasePath,
-			"SELECT value FROM ItemTable WHERE key='composer.composerHeaders';",
-		]
+		process.arguments = [databasePath, sql]
 		let stdoutPipe = Pipe()
 		process.standardOutput = stdoutPipe
 		process.standardError = Pipe()
@@ -159,12 +212,8 @@ enum SessionTitleResolver {
 		}
 		let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
 		process.waitUntilExit()
-		guard process.terminationStatus == 0,
-			let registry = try? JSONDecoder().decode(CursorComposerHeaders.self, from: data)
-		else { return nil }
-		return registry.allComposers
-			.first { $0.composerId == sessionId }
-			.flatMap { nonEmpty($0.name) }
+		guard process.terminationStatus == 0, !data.isEmpty else { return nil }
+		return data
 	}
 
 	private struct CursorComposerHeaders: Decodable {

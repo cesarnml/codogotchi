@@ -113,7 +113,8 @@ final class SessionTitleResolverTests: XCTestCase {
 
 	// MARK: - Cursor (best-guess composerId mapping)
 
-	private func makeCursorDatabase(allComposersJSON: String) throws -> String {
+	/// Legacy Cursor: `ItemTable` blob at `composer.composerHeaders`.
+	private func makeCursorItemTableDatabase(allComposersJSON: String) throws -> String {
 		let dbPath = tempDirectory() + "/state.vscdb"
 		let payload = #"{"allComposers":\#(allComposersJSON)}"#
 		let sql = """
@@ -128,8 +129,89 @@ final class SessionTitleResolverTests: XCTestCase {
 		return dbPath
 	}
 
-	func testCursorTitleFindsMatchingComposerName() throws {
-		let dbPath = try makeCursorDatabase(
+	/// Newer Cursor (Agents/Glass): first-class `composerHeaders` table.
+	private func makeCursorComposerHeadersTableDatabase(
+		composerId: String,
+		headerJSON: String
+	) throws -> String {
+		let dbPath = tempDirectory() + "/state.vscdb"
+		let sql = """
+			CREATE TABLE composerHeaders (
+				composerId TEXT PRIMARY KEY,
+				workspaceId TEXT,
+				createdAt INTEGER,
+				lastUpdatedAt INTEGER,
+				isArchived INTEGER,
+				isSubagent INTEGER,
+				recency INTEGER,
+				checkpointAt INTEGER,
+				value TEXT
+			);
+			INSERT INTO composerHeaders(composerId, value) VALUES (
+				'\(composerId.replacingOccurrences(of: "'", with: "''"))',
+				'\(headerJSON.replacingOccurrences(of: "'", with: "''"))'
+			);
+			"""
+		let process = Process()
+		process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+		process.arguments = [dbPath, sql]
+		try process.run()
+		process.waitUntilExit()
+		return dbPath
+	}
+
+	/// Both stores present — table should win for the shared composerId.
+	private func makeCursorDualStoreDatabase(
+		tableComposerId: String,
+		tableHeaderJSON: String,
+		allComposersJSON: String
+	) throws -> String {
+		let dbPath = tempDirectory() + "/state.vscdb"
+		let payload = #"{"allComposers":\#(allComposersJSON)}"#
+		let sql = """
+			CREATE TABLE ItemTable(key TEXT UNIQUE, value TEXT);
+			INSERT INTO ItemTable(key, value) VALUES ('composer.composerHeaders', '\(payload.replacingOccurrences(of: "'", with: "''"))');
+			CREATE TABLE composerHeaders (
+				composerId TEXT PRIMARY KEY,
+				workspaceId TEXT,
+				createdAt INTEGER,
+				lastUpdatedAt INTEGER,
+				isArchived INTEGER,
+				isSubagent INTEGER,
+				recency INTEGER,
+				checkpointAt INTEGER,
+				value TEXT
+			);
+			INSERT INTO composerHeaders(composerId, value) VALUES (
+				'\(tableComposerId.replacingOccurrences(of: "'", with: "''"))',
+				'\(tableHeaderJSON.replacingOccurrences(of: "'", with: "''"))'
+			);
+			"""
+		let process = Process()
+		process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+		process.arguments = [dbPath, sql]
+		try process.run()
+		process.waitUntilExit()
+		return dbPath
+	}
+
+	func testCursorTitleFindsMatchingComposerNameFromComposerHeadersTable() throws {
+		let dbPath = try makeCursorComposerHeadersTableDatabase(
+			composerId: "a2a79121-7521-4494-8adf-eb2cbbf10160",
+			headerJSON:
+				#"{"type":"head","composerId":"a2a79121-7521-4494-8adf-eb2cbbf10160","name":"LLM session label location"}"#
+		)
+		defer { try? FileManager.default.removeItem(atPath: dbPath) }
+
+		XCTAssertEqual(
+			SessionTitleResolver.cursorTitle(
+				sessionId: "a2a79121-7521-4494-8adf-eb2cbbf10160", databasePath: dbPath),
+			"LLM session label location"
+		)
+	}
+
+	func testCursorTitleFallsBackToItemTableBlobWhenComposerHeadersTableAbsent() throws {
+		let dbPath = try makeCursorItemTableDatabase(
 			allComposersJSON: #"[{"composerId":"14394ae7-e345","name":"Locate session auto label"}]"#
 		)
 		defer { try? FileManager.default.removeItem(atPath: dbPath) }
@@ -140,9 +222,27 @@ final class SessionTitleResolverTests: XCTestCase {
 		)
 	}
 
+	func testCursorTitlePrefersComposerHeadersTableOverStaleItemTableBlob() throws {
+		let dbPath = try makeCursorDualStoreDatabase(
+			tableComposerId: "3b1bd01c-fbce-48de-8fa9-1ea4dff0014e",
+			tableHeaderJSON:
+				#"{"type":"head","composerId":"3b1bd01c-fbce-48de-8fa9-1ea4dff0014e","name":"Phase 20 decompose"}"#,
+			allComposersJSON:
+				#"[{"composerId":"3b1bd01c-fbce-48de-8fa9-1ea4dff0014e","name":"Stale blob title"}]"#
+		)
+		defer { try? FileManager.default.removeItem(atPath: dbPath) }
+
+		XCTAssertEqual(
+			SessionTitleResolver.cursorTitle(
+				sessionId: "3b1bd01c-fbce-48de-8fa9-1ea4dff0014e", databasePath: dbPath),
+			"Phase 20 decompose"
+		)
+	}
+
 	func testCursorTitleReturnsNilWhenComposerHasNoNameYet() throws {
-		let dbPath = try makeCursorDatabase(
-			allComposersJSON: #"[{"composerId":"14394ae7-e345"}]"#
+		let dbPath = try makeCursorComposerHeadersTableDatabase(
+			composerId: "14394ae7-e345",
+			headerJSON: #"{"type":"head","composerId":"14394ae7-e345"}"#
 		)
 		defer { try? FileManager.default.removeItem(atPath: dbPath) }
 
@@ -150,8 +250,9 @@ final class SessionTitleResolverTests: XCTestCase {
 	}
 
 	func testCursorTitleReturnsNilWhenNoComposerIdMatches() throws {
-		let dbPath = try makeCursorDatabase(
-			allComposersJSON: #"[{"composerId":"other","name":"Unrelated"}]"#
+		let dbPath = try makeCursorComposerHeadersTableDatabase(
+			composerId: "other",
+			headerJSON: #"{"type":"head","composerId":"other","name":"Unrelated"}"#
 		)
 		defer { try? FileManager.default.removeItem(atPath: dbPath) }
 
