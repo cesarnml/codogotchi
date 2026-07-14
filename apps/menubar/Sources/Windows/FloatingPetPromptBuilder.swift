@@ -25,8 +25,9 @@ struct FloatingPetPromptCapabilities {
 	/// R1.9 — "Hide pet" (Own) or "Hide panel" (Minimalist); same semantics,
 	/// cosmetic title only.
 	var hideItemTitle: String
-	/// Resolved-session identity text for a fold window (P19.03), or `nil`
-	/// for a genuinely solo window — see `FloatingPetHidePrompt.pruneMenuTitle`.
+	/// Legacy fold-identity string still pushed from derive; ignored by
+	/// `FloatingPetHidePrompt.pruneMenuTitle` now that panel badges carry the
+	/// same identity (P19.04).
 	var foldedSessionDisplay: String?
 }
 

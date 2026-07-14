@@ -18,15 +18,17 @@ enum FloatingPetHidePrompt {
 	/// (slice, free-list number, rename label) — the same end-state as
 	/// automatic TTL expiry.
 	static let pruneTitle = "Prune Session"
-	/// Prune's menu item / confirmation-alert title: the bare `pruneTitle` for
-	/// a genuinely solo window, or `pruneTitle` suffixed with the resolved
-	/// session's `"(<platform> · <label>)"` identity for a fold window
-	/// (`resolvedIdentity != key` — origin-folded with 2+ real sessions, or
-	/// Combined) so the user knows what's about to be removed before
-	/// confirming (P19.03).
-	static func pruneMenuTitle(foldedSessionDisplay: String?) -> String {
-		guard let foldedSessionDisplay else { return pruneTitle }
-		return "\(pruneTitle) (\(foldedSessionDisplay))"
+	/// Prune's menu item / confirmation-alert title.
+	///
+	/// Always the bare `pruneTitle`. P19.03 appended
+	/// `"(<platform> · <label>)"` for fold windows (`resolvedIdentity != key`)
+	/// so users knew which session they'd remove; P19.04's mode-indicator badge
+	/// plus the live session-label chip now show that identity on the panel
+	/// itself (sessions-off Own/Minimalist and Combined), so the expansion is
+	/// redundant. The `foldedSessionDisplay` parameter is retained so call sites
+	/// stay unchanged; it is no longer interpolated into the title.
+	static func pruneMenuTitle(foldedSessionDisplay _: String?) -> String {
+		pruneTitle
 	}
 	/// Title for the right-click "Sync Label" affordance, offered only on a
 	/// session-keyed window (mirrors Prune Session's gating): re-fetches the

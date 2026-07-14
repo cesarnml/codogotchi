@@ -2,9 +2,9 @@ import XCTest
 
 @testable import Codogotchi
 
-/// P19.03 — the Prune menu item names the resolved session's identity for a
-/// fold window (`resolvedIdentity != key`), and stays the existing bare form
-/// for a genuinely solo window (`resolvedIdentity == key`).
+/// Prune menu copy: fold windows used to expand with
+/// `"(platform · label)"` (P19.03); that expansion is retired now that
+/// mode/session badges already surface the same identity on the panel.
 final class FloatingPetPromptBuilderTests: XCTestCase {
 	private func makeCapabilities(
 		hasActiveSession: Bool = true,
@@ -31,11 +31,12 @@ final class FloatingPetPromptBuilderTests: XCTestCase {
 		items.first { $0.title.hasPrefix("Prune") }?.title
 	}
 
-	func testFoldWindowPruneTitleIncludesResolvedSessionIdentity() {
-		let capabilities = makeCapabilities(foldedSessionDisplay: "Claude Code · refactor the diff module")
+	func testFoldWindowPruneTitleStaysBareWhenBadgesCarryIdentity() {
+		let capabilities = makeCapabilities(
+			foldedSessionDisplay: "Claude Code · refactor the diff module")
 		let items = FloatingPetPromptBuilder.items(capabilities: capabilities, handlers: noopHandlers())
 
-		XCTAssertEqual(pruneTitle(from: items), "Prune Session (Claude Code · refactor the diff module)")
+		XCTAssertEqual(pruneTitle(from: items), FloatingPetHidePrompt.pruneTitle)
 	}
 
 	func testNonFoldWindowPruneTitleStaysBare() {
@@ -45,13 +46,12 @@ final class FloatingPetPromptBuilderTests: XCTestCase {
 		XCTAssertEqual(pruneTitle(from: items), FloatingPetHidePrompt.pruneTitle)
 	}
 
-	func testPruneMenuTitleHelperFormatsFoldedDisplay() {
+	func testPruneMenuTitleHelperIgnoresFoldedDisplay() {
 		XCTAssertEqual(
 			FloatingPetHidePrompt.pruneMenuTitle(foldedSessionDisplay: "Codex · fix flaky test"),
-			"Prune Session (Codex · fix flaky test)")
-	}
-
-	func testPruneMenuTitleHelperStaysBareWithoutFoldedDisplay() {
-		XCTAssertEqual(FloatingPetHidePrompt.pruneMenuTitle(foldedSessionDisplay: nil), "Prune Session")
+			FloatingPetHidePrompt.pruneTitle)
+		XCTAssertEqual(
+			FloatingPetHidePrompt.pruneMenuTitle(foldedSessionDisplay: nil),
+			FloatingPetHidePrompt.pruneTitle)
 	}
 }
