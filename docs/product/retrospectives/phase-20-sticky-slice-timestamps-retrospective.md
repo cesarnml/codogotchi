@@ -37,4 +37,4 @@ The phase achieved its forcing-function goal: `state.d` slices now carry durable
 - Reconcile `docs/product/delivery/phase-20/implementation-plan.md`'s `ticketBoundaryMode: gated` Review Rule against the `cook` mode actually recorded in delivery state before this phase is cited as a template for a future phase's Review Rules section.
 - No further stamp-related follow-up is needed for the deferred scope (session-end tombstones, in-app hook-mismatch UX, Stats-tab clocks) — those remain intentional deferrals per the phase plan, not gaps this phase left behind by accident.
 
-_Created: 2026-07-14. PRs #186, #187, #188 open, stacked, awaiting developer review and `closeout-stack`; P20.04 (this retrospective) pending its own PR._
+_Created: 2026-07-14. PRs #186, #187, #188, #189 open, stacked, awaiting developer review and `closeout-stack`._
