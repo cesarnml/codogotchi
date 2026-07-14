@@ -204,6 +204,9 @@ enum PoolDerive {
 		// retain the last-active shared window across a one-tick empty poll.
 		if foldedGroups[.combined] == nil, combinedModeConfigured,
 			previousKeys.contains(.combined),
+			memory.previousCombinedWindow.map({
+				customization.platformModes[$0.resolvedIdentity.origin] == .combined
+			}) == true,
 			memory.lastActiveRenderKey.map(desiredWindowKey) == .combined
 		{
 			nonCapWindowKeys.insert(.combined)

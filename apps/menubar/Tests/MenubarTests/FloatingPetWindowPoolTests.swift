@@ -437,6 +437,41 @@ final class FloatingPetWindowPoolTests: XCTestCase {
         )
     }
 
+    /// Phase-18 QC regression: pre-folding stores `.combined` as the active
+    /// render key, so transient-gap retention must consult the previous
+    /// winner's real origin. An unrelated inactive platform remaining
+    /// configured Combined must not pin the stale displayed winner.
+    func testCombinedWinnerMovingToMinimalistDismissesCombinedWhileAnotherPlatformRemainsConfiguredCombined() {
+        var customization = makeCustomization(platformModes: [
+            "codex": .combined,
+            "cursor": .combined,
+        ])
+        let pool = FloatingPetWindowPool(
+            customizationReader: { customization },
+            windowFactory: { _, _ in StubWindowController() },
+            minimalistWindowFactory: { _ in StubWindowController() }
+        )
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["codex:sess-1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
+            customization: customization
+        ))
+        XCTAssertEqual(pool.activeOrigins, ["combined"])
+
+        customization = makeCustomization(platformModes: [
+            "codex": .minimalist,
+            "cursor": .combined,
+        ])
+        pool.update(snapshot: makeResolvedSnapshot(
+            perSession: ["codex:sess-1": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")],
+            customization: customization
+        ))
+
+        XCTAssertEqual(
+            pool.activeOrigins, ["codex"],
+            "the stale combined window must disappear when its displayed winner leaves Combined"
+        )
+    }
+
     /// Phase-15 QC regression: same transition as
     /// `testOwnToCombinedCollapsesPreviousWindowImmediately` above, but fed
     /// the PRE-FOLDED shape the production driver actually emits since
