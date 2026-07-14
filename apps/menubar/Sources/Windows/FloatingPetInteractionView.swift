@@ -61,6 +61,11 @@ final class FloatingPetInteractionView: NSView {
 	/// unification). `nil` only when the badge is hidden entirely. Prefills
 	/// the rename alert's text field and gates whether "Rename…" is offered.
 	var currentSessionLabel: String?
+	/// "<platform> · <label>" naming the resolved session this window folds,
+	/// or `nil` for a genuinely solo window (P19.03) — feeds the Prune menu
+	/// item and its confirmation alert only, so a solo window's bare
+	/// "Prune Session" text stays unchanged.
+	var foldedSessionDisplay: String?
 	/// Fired with the trimmed/capped label the user commits via the
 	/// right-click "Rename" affordance. Not fired when the user cancels or
 	/// commits an empty/whitespace-only label.
@@ -473,7 +478,8 @@ final class FloatingPetInteractionView: NSView {
 			hasActiveSession: hasActiveSessionBadge,
 			modeSwitchTitle: FloatingPetHidePrompt.minimalistModeTitle,
 			offersPanelSize: false,
-			hideItemTitle: FloatingPetHidePrompt.title
+			hideItemTitle: FloatingPetHidePrompt.title,
+			foldedSessionDisplay: foldedSessionDisplay
 		)
 		let handlers = FloatingPetPromptHandlers(
 			forceIdle: { [weak self] in
@@ -556,7 +562,7 @@ final class FloatingPetInteractionView: NSView {
 			return
 		}
 		let alert = NSAlert()
-		alert.messageText = "Prune Session"
+		alert.messageText = FloatingPetHidePrompt.pruneMenuTitle(foldedSessionDisplay: foldedSessionDisplay)
 		alert.informativeText =
 			"This destroys the panel and its session data. This cannot be undone."
 		alert.addButton(withTitle: "Prune")

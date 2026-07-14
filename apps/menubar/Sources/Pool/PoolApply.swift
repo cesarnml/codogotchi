@@ -92,6 +92,7 @@ enum PoolApply {
 		}
 		controller.applyHasActiveSession(window.hasActiveSession)
 		controller.applySessionLabel(window.sessionLabel)
+		controller.applyFoldedSessionDisplay(window.foldedSessionDisplay)
 		controller.applySessionTooltip(window.sessionTooltip)
 		controller.applyConflictBubble(window.conflictBubble)
 	}

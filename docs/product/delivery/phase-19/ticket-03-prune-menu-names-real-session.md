@@ -40,8 +40,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `FloatingPetPromptBuilderTests` (new file) — compile-red on `FloatingPetPromptCapabilities.foldedSessionDisplay` and `FloatingPetHidePrompt.pruneMenuTitle(foldedSessionDisplay:)`, neither of which existed yet.
+Why this path: `DesiredWindow` already carries `resolvedIdentity` and a per-tick-resolved `sessionLabel` (P19.01/P19.02) keyed off it, but no view ever learns whether a window is actually folding another identity (`key != resolvedIdentity`) — only `currentSessionLabel`, which is populated the same way for a genuinely solo window too, so it can't disambiguate "no fold" by itself. The smallest fix computes one new formatted field, `DesiredWindow.foldedSessionDisplay` ("`<platform> · <label>`", `nil` when not folding), in `PoolDerive` right after `sessionLabel` is resolved — reusing the exact `resolvedIdentity`/`sessionLabel`/`PlatformAttribution` data those prior tickets already produce — and threads it through the existing `applySessionLabel`-shaped push pipeline (`PoolApply` → `FloatingPetWindowControlling`/`PanelManaging` protocols → `FloatingPetPanelController`/`MinimalistPanelController` → view) to both Own and Minimalist. `FloatingPetHidePrompt.pruneMenuTitle(foldedSessionDisplay:)` is one pure formatter shared by the menu item (`FloatingPetPromptBuilder`) and both `presentPruneConfirmation()` alert bodies, so the two surfaces can never drift.
+Alternative considered: computing the fold/platform/label text directly in each view from `currentSessionLabel` plus a new plain `Bool` "isFold" flag was rejected — it would require the same platform-name-vs-label dedup logic to live in two views instead of once in `PoolDerive`, and `currentSessionLabel` already conflates "resolved label" with "own label" so a `Bool` alone wouldn't carry the platform name needed for the ticket's example text.
+Deferred: the mode-indicator badge (P19.04, unaffected — reads its own visibility rule off `resolvedIdentity != key`, unrelated to this ticket's text); any change to the confirmation alert's mechanics (skip-confirmation preference, button structure) — untouched.
+Contract note: none — `Type: feat`, `Scope: menubar`, `Red: required` all matched the ticket doc.
