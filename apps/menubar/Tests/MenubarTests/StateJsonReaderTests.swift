@@ -860,4 +860,52 @@ final class SliceDirReaderTests: XCTestCase {
 		}
 		XCTAssertEqual(snapshots["claude_code:ses-006"]?.turnEndedAt, "2026-07-07T00:59:50.000Z")
 	}
+
+	// MARK: - readSessionStartedAt (P20.03 — [red])
+	//
+	// Settings > Sessions' "Started" subtitle needs the durable
+	// `session_started_at` stamp for a single slice file without paying for a
+	// full `StateSnapshot` decode per row on every `SessionsTabViewModel.refresh()`
+	// pass. Missing file, malformed JSON, and an absent field must all resolve
+	// to `nil` — never fabricated from `updated_at`.
+
+	func testReadSessionStartedAtReturnsStampWhenPresent() throws {
+		let dir = makeTempSliceDir(slices: [
+			(
+				"codex:ses-started.json",
+				#"""
+				{
+				  "activity_state": "idle",
+				  "updated_at": "2026-07-07T01:05:00.000Z",
+				  "session_started_at": "2026-07-06T23:00:00.000Z"
+				}
+				"""#
+			)
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let path = dir.appendingPathComponent("codex:ses-started.json").path
+		XCTAssertEqual(StateJsonReader.readSessionStartedAt(atPath: path), "2026-07-06T23:00:00.000Z")
+	}
+
+	func testReadSessionStartedAtReturnsNilWhenFieldAbsent() throws {
+		let dir = makeTempSliceDir(slices: [
+			("codex:ses-nostamp.json", sliceJSON(activityState: "idle")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let path = dir.appendingPathComponent("codex:ses-nostamp.json").path
+		XCTAssertNil(StateJsonReader.readSessionStartedAt(atPath: path))
+	}
+
+	func testReadSessionStartedAtReturnsNilForMissingFile() {
+		XCTAssertNil(StateJsonReader.readSessionStartedAt(atPath: "/tmp/codogotchi-does-not-exist.json"))
+	}
+
+	func testReadSessionStartedAtReturnsNilForMalformedJson() throws {
+		let dir = makeTempSliceDir(slices: [
+			("codex:ses-malformed.json", "not valid json"),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let path = dir.appendingPathComponent("codex:ses-malformed.json").path
+		XCTAssertNil(StateJsonReader.readSessionStartedAt(atPath: path))
+	}
 }
