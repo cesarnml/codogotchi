@@ -14,13 +14,15 @@ import AppKit
 /// showable pet:
 ///
 /// - A disabled **"Active Pets"** header, then one Show/Hide item per
-///   `.active` row — rendered right now, or hidden (by the user or by the
-///   "Hide Idle Pet After" idle-dismiss TTL) with a slice still inside the
-///   reader's 2h fresh window. A single row collapses to a plain
-///   "Show Pet"/"Hide Pet" title; multiple rows carry per-pet names.
-/// - **"Live Pets ▸"**: `.live` rows minus cap-pending keys — fresh but
-///   unrendered and not merely concealed (platform mode off, or folded into
-///   Combined). Real per-row "Show" actions.
+///   **rendered panel** (sessions-off / Combined folds collapse every
+///   active slice for that fold into a single "Show/Hide Combined Panel" or
+///   "Show/Hide {Platform} Panel" row). Sessions-on stays one item per
+///   session thread ("Show/Hide {Platform} - {label} Pet"). A lone
+///   sessions-on row still collapses to plain "Show Pet"/"Hide Pet".
+/// - **"Live Pets ▸"**: `.live` rows that can honestly surface a window
+///   (`canShow`) minus cap-pending keys. Fold siblings under sessions-off /
+///   Combined are omitted — Show cannot change the fold winner, so offering
+///   them was a misleading no-op.
 /// - **"Capped Sessions ▸"**: `.live` rows held back by the per-origin
 ///   session cap (`FloatingPetWindowPool.pendingSessionKeys`). Status-only
 ///   rows (a "Show" would be a silent no-op — the cap partition ignores the
@@ -266,8 +268,11 @@ final class MenubarMenu: NSObject {
 			viewModel.refresh()
 			let representedTargets = Set(
 				(viewModel.activeRows.filter { !$0.isShown } + viewModel.liveRows)
-					.map { pool.renderedWindowKey(for: $0.id) })
-			keys = representedTargets.intersection(pool.hiddenWindowKeys)
+					.map { pool.renderedWindowKey(for: $0.id) }
+			).union(
+				pool.hiddenWindowKeys.filter { pool.usesPanelAffordance(for: $0) }
+			)
+			keys = representedTargets.intersection(Set(pool.hiddenWindowKeys))
 		} else {
 			keys = Set(pool.hiddenWindowKeys)
 		}
@@ -304,8 +309,22 @@ final class MenubarMenu: NSObject {
 		let activeRows: [SessionRow] = sessionsTabViewModel?.activeRows ?? fallbackActiveRows()
 		let liveRows: [SessionRow] = sessionsTabViewModel?.liveRows ?? []
 		let pendingKeys = floatingPetPool?.pendingSessionKeys ?? []
-		let liveOnly = liveRows.filter { !pendingKeys.contains($0.id) }
+		// Live Shows must be able to surface a real window. Sessions-off /
+		// Combined fold siblings keep `canShow == false` — Settings already
+		// omits their Show button; the menubar matches that gate.
+		let liveOnly = liveRows.filter { !pendingKeys.contains($0.id) && $0.canShow }
 		let cappedOnly = liveRows.filter { pendingKeys.contains($0.id) }
+		var projectedActive = projectActiveMenuRows(activeRows)
+		var representedTargets = Set(
+			projectedActive.map { floatingPetPool?.renderedWindowKey(for: $0.actionKey) ?? $0.actionKey })
+		let hiddenPanels = supplementalHiddenPanelRows(excluding: representedTargets)
+		projectedActive.append(contentsOf: hiddenPanels)
+		representedTargets.formUnion(hiddenPanels.map(\.actionKey))
+		projectedActive.append(
+			contentsOf: supplementalUnrenderedPanelRows(
+				from: liveRows.filter { !pendingKeys.contains($0.id) },
+				excluding: representedTargets))
+		projectedActive.sort { $0.actionKey.rawValue < $1.actionKey.rawValue }
 
 		var items: [NSMenuItem] = []
 
@@ -313,15 +332,17 @@ final class MenubarMenu: NSObject {
 		header.isEnabled = false
 		items.append(header)
 
-		if activeRows.isEmpty {
+		if projectedActive.isEmpty {
 			// No pool, or no windows/hidden keys at all: disabled placeholder.
 			let item = NSMenuItem(title: Self.showFloatingPetTitle, action: nil, keyEquivalent: "")
 			item.isEnabled = false
 			items.append(item)
-		} else if activeRows.count == 1 {
-			items.append(activePetMenuItem(for: activeRows[0], titlePrefix: activeRows[0].sessionId != nil))
+		} else if projectedActive.count == 1 {
+			let row = projectedActive[0]
+			let titlePrefix = !row.usesPanelAffordance && row.sessionId != nil
+			items.append(activePetMenuItem(for: row, titlePrefix: titlePrefix))
 		} else {
-			for row in activeRows {
+			for row in projectedActive {
 				items.append(activePetMenuItem(for: row, titlePrefix: true))
 			}
 		}
@@ -337,6 +358,92 @@ final class MenubarMenu: NSObject {
 			items.forEach { menu.addItem($0) }
 		}
 		petItemCount = items.count
+	}
+
+	/// One menubar Active row per rendered panel. Sessions-off / Combined
+	/// folds many slice rows into a single panel affordance; sessions-on keeps
+	/// one row per session thread.
+	@MainActor
+	private func projectActiveMenuRows(_ rows: [SessionRow]) -> [ActiveMenuRow] {
+		guard let pool = floatingPetPool, sessionsTabViewModel != nil else {
+			return rows.map {
+				ActiveMenuRow(
+					actionKey: $0.id, origin: $0.origin, sessionId: $0.sessionId,
+					displayLabel: $0.displayLabel, isShown: $0.isShown,
+					usesPanelAffordance: false)
+			}
+		}
+		var groups: [WindowKey: [SessionRow]] = [:]
+		for row in rows {
+			groups[pool.renderedWindowKey(for: row.id), default: []].append(row)
+		}
+		return groups.keys.sorted { $0.rawValue < $1.rawValue }.compactMap { renderedKey in
+			guard let members = groups[renderedKey], !members.isEmpty else { return nil }
+			let representative =
+				members.first(where: { $0.isShown && $0.canShow })
+				?? members.first(where: \.canShow)
+				?? members[0]
+			return ActiveMenuRow(
+				actionKey: representative.id,
+				origin: representative.origin,
+				sessionId: representative.sessionId,
+				displayLabel: representative.displayLabel,
+				isShown: members.contains(where: \.isShown),
+				usesPanelAffordance: pool.usesPanelAffordance(for: representative.id))
+		}
+	}
+
+	/// After `setVisible(false)`, the pool drops `lastDesired` for that panel, so
+	/// no slice still "owns" the fold and Active would otherwise go empty —
+	/// leaving only misleading Live Shows. Re-surface each hidden Combined /
+	/// sessions-off panel as an honest Active affordance.
+	@MainActor
+	private func supplementalHiddenPanelRows(excluding existing: Set<WindowKey>) -> [ActiveMenuRow] {
+		guard let pool = floatingPetPool, sessionsTabViewModel != nil else { return [] }
+		return pool.hiddenWindowKeys.compactMap { hiddenKey -> ActiveMenuRow? in
+			let target = pool.renderedWindowKey(for: hiddenKey)
+			guard !existing.contains(target) else { return nil }
+			guard pool.usesPanelAffordance(for: hiddenKey) else { return nil }
+			return ActiveMenuRow(
+				actionKey: target,
+				origin: target.origin,
+				sessionId: nil,
+				displayLabel: "",
+				isShown: false,
+				usesPanelAffordance: true)
+		}
+	}
+
+	/// Fresh sessions-off / Combined slices that never owned a rendered panel
+	/// land in Live with `canShow == false`. Promote their fold target to an
+	/// Active "Show … Panel" row instead of a per-session Live Show.
+	@MainActor
+	private func supplementalUnrenderedPanelRows(
+		from liveRows: [SessionRow],
+		excluding existing: Set<WindowKey>
+	) -> [ActiveMenuRow] {
+		guard let pool = floatingPetPool, sessionsTabViewModel != nil else { return [] }
+		var bestRowByTarget: [WindowKey: SessionRow] = [:]
+		for row in liveRows {
+			guard pool.usesPanelAffordance(for: row.id) else { continue }
+			let target = pool.renderedWindowKey(for: row.id)
+			guard !existing.contains(target) else { continue }
+			if let current = bestRowByTarget[target] {
+				if row.canShow && !current.canShow { bestRowByTarget[target] = row }
+			} else {
+				bestRowByTarget[target] = row
+			}
+		}
+		return bestRowByTarget.keys.sorted { $0.rawValue < $1.rawValue }.map { target in
+			let row = bestRowByTarget[target]!
+			return ActiveMenuRow(
+				actionKey: row.canShow ? row.id : target,
+				origin: target == .combined ? row.origin : target.origin,
+				sessionId: nil,
+				displayLabel: "",
+				isShown: false,
+				usesPanelAffordance: true)
+		}
 	}
 
 	/// Reconstructs the old pool-only (no view model) active/hidden row set,
@@ -362,24 +469,49 @@ final class MenubarMenu: NSObject {
 	}
 
 	@MainActor
-	private func activePetMenuItem(for row: SessionRow, titlePrefix: Bool) -> NSMenuItem {
+	private func activePetMenuItem(for row: ActiveMenuRow, titlePrefix: Bool) -> NSMenuItem {
 		let item: NSMenuItem
 		if row.isShown {
-			let title = titlePrefix ? "Hide \(displayName(for: row)) Pet" : Self.hideFloatingPetTitle
-			item = NSMenuItem(title: title, action: #selector(hideFloatingPetForOrigin(_:)), keyEquivalent: "")
+			item = NSMenuItem(
+				title: activeAffordanceTitle(verb: "Hide", row: row, titlePrefix: titlePrefix),
+				action: #selector(hideFloatingPetForOrigin(_:)),
+				keyEquivalent: "")
 		} else {
-			let title = titlePrefix ? "Show \(displayName(for: row)) Pet" : Self.showFloatingPetTitle
-			item = NSMenuItem(title: title, action: #selector(showFloatingPetForKey(_:)), keyEquivalent: "")
+			item = NSMenuItem(
+				title: activeAffordanceTitle(verb: "Show", row: row, titlePrefix: titlePrefix),
+				action: #selector(showFloatingPetForKey(_:)),
+				keyEquivalent: "")
 		}
 		item.target = self
-		item.representedObject = row.id
+		item.representedObject = row.actionKey
 		return item
 	}
 
-	/// Sessions fresh within the reader's 2h window but not rendered — mode
-	/// disabled or folded into Combined. Each row offers a real "Show":
-	/// unlike a capped session, nothing here is blocked by rank/cap
-	/// contention, so un-hiding actually resurrects it.
+	@MainActor
+	private func activeAffordanceTitle(verb: String, row: ActiveMenuRow, titlePrefix: Bool) -> String {
+		if row.usesPanelAffordance {
+			guard let pool = floatingPetPool else {
+				return titlePrefix ? "\(verb) \(platformDisplayName(for: row.origin)) Panel" : "\(verb) Pet"
+			}
+			switch pool.renderedWindowKey(for: row.actionKey) {
+			case .combined:
+				return "\(verb) Combined Panel"
+			case .origin(let origin):
+				return "\(verb) \(platformDisplayName(for: origin)) Panel"
+			case .session(_, _):
+				return "\(verb) \(platformDisplayName(for: row.origin)) Panel"
+			}
+		}
+		if titlePrefix {
+			return "\(verb) \(displayName(for: row)) Pet"
+		}
+		return verb == "Hide" ? Self.hideFloatingPetTitle : Self.showFloatingPetTitle
+	}
+
+	/// Sessions fresh within the reader's 2h window but not rendered — and
+	/// able to honestly surface a window (`canShow`). Cap-pending rows are
+	/// split out into Capped Sessions; sessions-off / Combined fold siblings
+	/// never appear here.
 	@MainActor
 	private func makeLivePetsItem(rows: [SessionRow]) -> NSMenuItem {
 		let item = NSMenuItem(title: Self.livePetsTitle, action: nil, keyEquivalent: "")
@@ -491,6 +623,16 @@ final class MenubarMenu: NSObject {
 	}
 
 	@MainActor
+	private func displayName(for row: ActiveMenuRow) -> String {
+		// No view model → fall back to the pool/key path used by older tests
+		// (session number, rename, platform-only origin name).
+		guard sessionsTabViewModel != nil else { return displayName(for: row.actionKey) }
+		let platformName = platformDisplayName(for: row.origin)
+		guard !row.displayLabel.isEmpty, row.displayLabel != platformName else { return platformName }
+		return "\(platformName) - \(row.displayLabel)"
+	}
+
+	@MainActor
 	private func displayName(for row: SessionRow) -> String {
 		guard sessionsTabViewModel != nil else { return displayName(for: row.id) }
 		let platformName = platformDisplayName(for: row.origin)
@@ -509,6 +651,17 @@ final class MenubarMenu: NSObject {
 		default: return origin.replacingOccurrences(of: "_", with: " ").capitalized
 		}
 	}
+}
+
+/// One Active menubar affordance after folding sessions-off / Combined rows
+/// onto their rendered panel target.
+private struct ActiveMenuRow {
+	let actionKey: WindowKey
+	let origin: String
+	let sessionId: String?
+	let displayLabel: String
+	let isShown: Bool
+	let usesPanelAffordance: Bool
 }
 
 extension MenubarMenu: NSMenuDelegate {

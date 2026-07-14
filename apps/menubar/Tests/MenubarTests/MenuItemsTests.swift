@@ -561,9 +561,8 @@ final class MenuItemsTests: XCTestCase {
 	}
 
 	func testLivePetsSubmenuListsFreshUnrenderedSessionsWithShowActions() throws {
-		// A fresh slice that is neither rendered nor hidden (e.g. its platform
-		// is folded into Combined, or it never spawned) is Live: reachable via
-		// the Live Pets submenu with a real Show action.
+		// Sessions-off: a fresh unrendered slice promotes to Active as a panel
+		// affordance ("Show Codex Panel"), not a per-thread Live Show.
 		let dir = try makeTempStateDir()
 		try writeSlice(named: "codex:live-one.json", in: dir, age: 60)
 		let pool = makePool(origins: [])
@@ -574,18 +573,14 @@ final class MenuItemsTests: XCTestCase {
 			refreshTtlForShow: { refreshed.append($0) })
 		let menu = builder.build()
 
-		guard let liveItem = menu.items.first(where: { $0.title == MenubarMenu.livePetsTitle }),
-			let submenu = liveItem.submenu
-		else {
-			return XCTFail("menu must carry a Live Pets item with a submenu")
-		}
-		let rowItem = submenu.items.first { ($0.representedObject as? WindowKey) == "codex:live-one" }
-		XCTAssertNotNil(rowItem, "the live session must have a submenu row; got \(submenu.items.map(\.title))")
+		let showItem = try XCTUnwrap(
+			menu.items.first { $0.title == "Show Codex Panel" },
+			"sessions-off unrendered slice must surface under Active; got \(menu.items.map(\.title))")
+		let liveItem = try XCTUnwrap(menu.items.first { $0.title == MenubarMenu.livePetsTitle })
+		XCTAssertEqual(liveItem.submenu?.items.map(\.title), [MenubarMenu.noLivePetsTitle])
 
-		_ = (rowItem!.target as AnyObject?)?.perform(rowItem!.action!, with: rowItem!)
-		XCTAssertEqual(
-			refreshed, [.origin("codex")],
-			"Show on a Live row must refresh the platform's rendered window key")
+		_ = (showItem.target as AnyObject?)?.perform(showItem.action!, with: showItem)
+		XCTAssertEqual(refreshed, [.origin("codex")])
 	}
 
 	func testFoldedWinnerStaysActiveAndAllSlicesKeepSessionLabels() throws {
@@ -626,15 +621,108 @@ final class MenuItemsTests: XCTestCase {
 			XCTAssertEqual(viewModel.activeRows.map(\.displayLabel), ["Current winner"], "mode \(mode)")
 			XCTAssertEqual(viewModel.liveRows.map(\.id), ["codex:older"], "mode \(mode)")
 			XCTAssertEqual(viewModel.liveRows.map(\.displayLabel), ["Older thread"], "mode \(mode)")
+			XCTAssertEqual(viewModel.liveRows.map(\.canShow), [false], "mode \(mode)")
 
 			let menu = MenubarMenu(
 				terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel
 			).build()
-			XCTAssertTrue(menu.items.contains { $0.title == "Hide Codex - Current winner Pet" }, "mode \(mode)")
+			let expectedActive =
+				mode == .combined ? "Hide Combined Panel" : "Hide Codex Panel"
+			XCTAssertTrue(
+				menu.items.contains { $0.title == expectedActive },
+				"mode \(mode): expected \(expectedActive); got \(menu.items.map(\.title))")
 			let liveItem = try XCTUnwrap(menu.items.first { $0.title == MenubarMenu.livePetsTitle })
 			let liveMenu = try XCTUnwrap(liveItem.submenu)
-			XCTAssertTrue(liveMenu.items.contains { $0.title == "Show Codex - Older thread Pet" }, "mode \(mode)")
+			XCTAssertEqual(
+				liveMenu.items.map(\.title), [MenubarMenu.noLivePetsTitle],
+				"sessions-off fold siblings must not appear under Live Pets; mode \(mode)")
+			XCTAssertFalse(liveItem.isEnabled, "mode \(mode)")
 		}
+	}
+
+	func testSessionsOnKeepsPerThreadActiveAndLiveTitles() throws {
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "codex:winner.json", in: dir, age: 30)
+		try writeSlice(named: "codex:older.json", in: dir, age: 60)
+		let customization = CustomizationSnapshot(
+			platformModes: ["codex": .own], idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false, combinedMinimalistEnabled: false,
+			minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": true],
+			sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+			idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+		let titles: [WindowKey: String] = [
+			"codex:winner": "Current winner",
+			"codex:older": "Older thread",
+		]
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindow() },
+			retrievedSessionTitleReader: { titles[$0] })
+		// Only the winner is rendered; the older slice stays Live so the
+		// sessions-on menubar still offers a per-thread Show under Live Pets.
+		let perSession: [String: StateSnapshot] = [
+			"codex:winner": StateSnapshot(
+				schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .implementing,
+				updatedAt: "2026-07-01T10:00:01.000Z", sourceEvent: nil, attention: nil),
+		]
+		let resolution = resolveRenderKeys(perSession: perSession, customization: customization)
+		pool.update(snapshot: PerPlatformSnapshot(
+			perPlatform: resolution.states, gateBadges: [:], rpgSnapshot: .safeDefault,
+			renderKeyIdentities: resolution.identities))
+
+		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+		let menu = MenubarMenu(
+			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel
+		).build()
+
+		XCTAssertTrue(menu.items.contains { $0.title == "Hide Codex - Current winner Pet" })
+		let liveItem = try XCTUnwrap(menu.items.first { $0.title == MenubarMenu.livePetsTitle })
+		let liveMenu = try XCTUnwrap(liveItem.submenu)
+		XCTAssertTrue(liveMenu.items.contains { $0.title == "Show Codex - Older thread Pet" })
+	}
+
+	func testHiddenCombinedPanelShowsUnderActiveNotLive() throws {
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "codex:one.json", in: dir, age: 30)
+		try writeSlice(named: "codex:two.json", in: dir, age: 60)
+		let customization = CustomizationSnapshot(
+			platformModes: ["codex": .combined], idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false, combinedMinimalistEnabled: true,
+			minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": false],
+			sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+			idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindow() })
+		let perSession: [String: StateSnapshot] = [
+			"codex:one": StateSnapshot(
+				schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .implementing,
+				updatedAt: "2026-07-01T10:00:01.000Z", sourceEvent: nil, attention: nil),
+			"codex:two": StateSnapshot(
+				schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .idle,
+				updatedAt: "2026-07-01T10:00:00.000Z", sourceEvent: nil, attention: nil),
+		]
+		let resolution = resolveRenderKeys(perSession: perSession, customization: customization)
+		pool.update(snapshot: PerPlatformSnapshot(
+			perPlatform: resolution.states, gateBadges: [:], rpgSnapshot: .safeDefault,
+			renderKeyIdentities: resolution.identities))
+		pool.setVisible(false, for: .combined)
+		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+		var refreshed: [WindowKey] = []
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel,
+			refreshTtlForShow: { refreshed.append($0) })
+		let menu = builder.build()
+		let showItem = try XCTUnwrap(
+			menu.items.first { $0.title == "Show Combined Panel" },
+			"hidden Combined must surface under Active as a panel affordance; got \(menu.items.map(\.title))")
+		let liveItem = try XCTUnwrap(menu.items.first { $0.title == MenubarMenu.livePetsTitle })
+		XCTAssertEqual(liveItem.submenu?.items.map(\.title), [MenubarMenu.noLivePetsTitle])
+
+		_ = (showItem.target as AnyObject?)?.perform(showItem.action!, with: showItem)
+
+		XCTAssertFalse(pool.hiddenWindowKeys.contains(.combined))
+		XCTAssertEqual(refreshed, [.combined])
 	}
 
 	func testLivePetShowTargetsHiddenCombinedWindow() throws {
@@ -657,10 +745,11 @@ final class MenuItemsTests: XCTestCase {
 			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel,
 			refreshTtlForShow: { refreshed.append($0) })
 		let menu = builder.build()
-		let liveItem = try XCTUnwrap(menu.items.first { $0.title == MenubarMenu.livePetsTitle })
-		let rowItem = try XCTUnwrap(liveItem.submenu?.items.first)
+		// Combined always folds — even when sessionPetsEnabled is true in the
+		// fixture — so the honest affordance is Active "Show Combined Panel".
+		let showItem = try XCTUnwrap(menu.items.first { $0.title == "Show Combined Panel" })
 
-		_ = (rowItem.target as AnyObject?)?.perform(rowItem.action!, with: rowItem)
+		_ = (showItem.target as AnyObject?)?.perform(showItem.action!, with: showItem)
 
 		XCTAssertFalse(pool.hiddenWindowKeys.contains(.combined))
 		XCTAssertEqual(refreshed, [.combined])

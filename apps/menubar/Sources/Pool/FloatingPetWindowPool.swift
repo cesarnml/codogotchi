@@ -314,10 +314,25 @@ final class FloatingPetWindowPool {
 	/// fold configuration. Show actions originate from state.d rows, but those
 	/// rows may be folded into a plain-origin or Combined window.
 	func renderedWindowKey(for renderKey: WindowKey) -> WindowKey {
+		if case .combined = renderKey { return .combined }
 		let customization = customizationReader()
 		if customization.platformModes[renderKey.origin] == .combined { return .combined }
 		if customization.sessionPetsEnabled[renderKey.origin] ?? false { return renderKey }
 		return .origin(renderKey.origin)
+	}
+
+	/// Menubar Active affordances for sessions-off / Combined folds name the
+	/// **panel** ("Hide Combined Panel") rather than a session thread. Session
+	/// pets stay on the per-thread "Hide {Platform} - {label} Pet" path.
+	func usesPanelAffordance(for renderKey: WindowKey) -> Bool {
+		switch renderedWindowKey(for: renderKey) {
+		case .combined: return true
+		case .session: return false
+		case .origin(let origin):
+			let customization = customizationReader()
+			if customization.platformModes[origin] == .combined { return true }
+			return !(customization.sessionPetsEnabled[origin] ?? false)
+		}
 	}
 	/// The state.d slice identity currently driving a rendered window. Folded
 	/// origin/Combined keys are presentation targets; their winner remains a
