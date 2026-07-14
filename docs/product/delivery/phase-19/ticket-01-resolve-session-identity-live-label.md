@@ -42,8 +42,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: The new PoolDerivePushTests did not compile because DesiredWindow had no resolvedIdentity field.
+Why this path: Added the identity as an additive DesiredWindow field, assigned it from the already-elected winner, and reused that key for existing label/title resolution paths.
+Alternative considered: Changing WindowKey to encode the resolved identity was rejected because its rawValue serialization contract must remain stable.
+Deferred: Prune targeting and menu copy remain for P19.02/P19.03; the mode badge remains for P19.04.
+Contract note: No deviation from the ticket metadata contract.

@@ -10,6 +10,10 @@ import Foundation
 /// P18.04 may therefore apply it mechanically without policy decisions.
 struct DesiredWindow: Equatable {
 	let key: WindowKey
+	/// The render key whose state and label are currently represented by this
+	/// window. Folded windows use their elected winner; non-folded windows use
+	/// their own key.
+	var resolvedIdentity: WindowKey
 	/// `true` when this window should use the minimalist renderer. P18.02
 	/// resolves this from `PlatformMode`.
 	var isMinimalist: Bool = false
@@ -48,6 +52,7 @@ struct DesiredWindow: Equatable {
 
 	init(key: WindowKey) {
 		self.key = key
+		self.resolvedIdentity = key
 	}
 }
 
