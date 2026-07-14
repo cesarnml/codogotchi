@@ -16,6 +16,7 @@ import { globalAggregate, type StateJsonV1 } from "@codogotchi/contracts";
 import {
   classifyEvent,
   type HookInput,
+  mergeStickyStamps,
   runHook,
   shellCommandSegments,
   sliceDirPath,
@@ -3146,5 +3147,167 @@ describe("sticky slice stamps (P20.01)", () => {
     );
 
     expect(readFileSync(path, "utf8")).toBe(corruptBody);
+  });
+
+  it("preserves valid sticky stamps when upgrading a v9 slice to v10", async () => {
+    const sessionId = "stamp-v9-upgrade";
+    const path = sliceFilePath(home, "claude_code", sessionId);
+    mkdirSync(sliceDirPath(home), { recursive: true });
+    const priorStarted = "2026-05-18T14:00:00.000Z";
+    const priorPrompt = "2026-05-18T14:05:00.000Z";
+    writeFileSync(
+      path,
+      JSON.stringify({
+        schema_version: 9,
+        origin: "claude_code",
+        session_id: sessionId,
+        activity_state: "editing",
+        updated_at: priorPrompt,
+        source_event: {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Edit",
+          at: priorPrompt,
+        },
+        prompt_started_at: priorPrompt,
+        session_started_at: priorStarted,
+      }),
+      "utf8",
+    );
+
+    const later = new Date(FIXED_NOW.getTime() + 30_000);
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: later },
+    );
+
+    const slice = readSlice("claude_code", sessionId);
+    expect(slice.schema_version).toBe(10);
+    expect(slice.session_started_at).toBe(priorStarted);
+    expect(slice.prompt_started_at).toBe(priorPrompt);
+    expect(slice.updated_at).toBe(later.toISOString());
+  });
+
+  it("drops invalid prior datetime stamps instead of freezing later writes", async () => {
+    const sessionId = "stamp-invalid-prior-datetime";
+    const path = sliceFilePath(home, "claude_code", sessionId);
+    mkdirSync(sliceDirPath(home), { recursive: true });
+    const priorUpdated = "2026-05-18T14:50:00.000Z";
+    writeFileSync(
+      path,
+      JSON.stringify({
+        schema_version: 10,
+        origin: "claude_code",
+        session_id: sessionId,
+        activity_state: "editing",
+        updated_at: priorUpdated,
+        source_event: {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Edit",
+        },
+        prompt_started_at: "not-a-real-datetime",
+        session_started_at: "also-bad",
+      }),
+      "utf8",
+    );
+
+    const later = new Date(FIXED_NOW.getTime() + 15_000);
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: later },
+    );
+
+    const slice = readSlice("claude_code", sessionId);
+    expect(slice.schema_version).toBe(10);
+    expect(slice.updated_at).toBe(later.toISOString());
+    // Invalid prior stamps were dropped; session birth is re-seeded on this write.
+    expect(slice.session_started_at).toBe(later.toISOString());
+    expect(slice.prompt_started_at).toBeUndefined();
+  });
+});
+
+describe("mergeStickyStamps unit edges (P20 TAO)", () => {
+  const nowIso = "2026-07-14T10:00:00.000Z";
+
+  it("clears turn clocks on idle while preserving session_started_at", () => {
+    const out = mergeStickyStamps({
+      prior: {
+        session_started_at: "2026-07-14T09:00:00.000Z",
+        prompt_started_at: "2026-07-14T09:30:00.000Z",
+        errored_since: "2026-07-14T09:40:00.000Z",
+        turn_ended_at: "2026-07-14T09:50:00.000Z",
+      },
+      activityState: "idle",
+      sourceKind: "cli",
+      nowIso,
+      hasAttention: false,
+    });
+    expect(out.session_started_at).toBe("2026-07-14T09:00:00.000Z");
+    expect(out.prompt_started_at).toBeUndefined();
+    expect(out.errored_since).toBeUndefined();
+    expect(out.turn_ended_at).toBeUndefined();
+  });
+
+  it("retains turn_ended_at when errored follows standby", () => {
+    const out = mergeStickyStamps({
+      prior: {
+        session_started_at: "2026-07-14T09:00:00.000Z",
+        prompt_started_at: "2026-07-14T09:30:00.000Z",
+        turn_ended_at: "2026-07-14T09:45:00.000Z",
+      },
+      activityState: "errored",
+      sourceKind: "sync_response",
+      nowIso,
+      hasAttention: false,
+    });
+    expect(out.turn_ended_at).toBe("2026-07-14T09:45:00.000Z");
+    expect(out.errored_since).toBe(nowIso);
+    expect(out.prompt_started_at).toBe("2026-07-14T09:30:00.000Z");
+  });
+
+  it("sets turn_ended_at on standby with attention only once", () => {
+    const first = mergeStickyStamps({
+      prior: {
+        session_started_at: "2026-07-14T09:00:00.000Z",
+        prompt_started_at: "2026-07-14T09:30:00.000Z",
+      },
+      activityState: "standby",
+      sourceKind: "sync_response",
+      nowIso,
+      hasAttention: true,
+    });
+    expect(first.turn_ended_at).toBe(nowIso);
+
+    const later = "2026-07-14T10:01:00.000Z";
+    const second = mergeStickyStamps({
+      prior: first,
+      activityState: "standby",
+      sourceKind: "sync_response",
+      nowIso: later,
+      hasAttention: true,
+    });
+    expect(second.turn_ended_at).toBe(nowIso);
+  });
+
+  it("seeds session_started_at on first write when prior has none", () => {
+    const out = mergeStickyStamps({
+      prior: {},
+      activityState: "editing",
+      sourceKind: "tool_use",
+      nowIso,
+      hasAttention: false,
+    });
+    expect(out.session_started_at).toBe(nowIso);
   });
 });
