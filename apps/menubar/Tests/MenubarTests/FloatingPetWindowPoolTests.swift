@@ -2575,6 +2575,36 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			FileManager.default.fileExists(atPath: dir.appendingPathComponent("claude_code:a.json").path))
 	}
 
+	func testFoldedOriginWithoutResolvedIdentityDoesNotOfferOrPerformPrune() {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("pool-prune-unresolved-origin-\(UUID().uuidString)", isDirectory: true)
+		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: dir) }
+		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code.json"))
+
+		var stub: StubWindowController?
+		let currentTime = Date()
+		let pool = FloatingPetWindowPool(
+			customizationReader: { makeCustomization() },
+			windowFactory: { _, _ in
+				let controller = StubWindowController()
+				stub = controller
+				return controller
+			},
+			now: { currentTime }
+		)
+		let now = ISO8601DateFormatter().string(from: currentTime)
+		pool.update(snapshot: makePerPlatformSnapshot([
+			"claude_code": makeSnapshot(updated: now)
+		]))
+		XCTAssertEqual(stub?.appliedHasActiveSessions.last, false)
+
+		pool.pruneSession(windowKey: "claude_code", stateDirectory: dir.path)
+
+		XCTAssertTrue(pool.isActive(for: "claude_code"))
+		XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("claude_code.json").path))
+	}
+
 	/// (4 combined coverage) Combined-mode sessions must never be cap-partitioned
 	/// — they always fold to the single shared window regardless of
 	/// `sessionCap`, and keep the combined window's idle ⭐ Default badge

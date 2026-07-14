@@ -47,3 +47,5 @@ Why this path: Resolve the click-time target from `lastDesired`, translate the d
 Alternative considered: Re-shaping `WindowKey` to embed a folded session was rejected because its raw value is a persistence contract; inferring the winner again during the click was rejected because P19.01 already made the elected identity desired-window data.
 Deferred: Prune confirmation/menu copy remains P19.03; the mode indicator remains P19.04.
 Contract note: Production `PerPlatformSnapshot` values are already render-key-collapsed, so P19.01's direct derive fixtures did not exercise the parallel `renderKeyIdentities` lookup. This ticket completes that required seam by converting the recorded winning identity back to the resolved `WindowKey` and reading its live label. Type and scope metadata remain compliant.
+
+Subagent-review follow-up: A missing identity-map entry no longer fabricates a default-session capability, intentional Combined transient retention preserves its previous resolved winner, and prune bookkeeping arms the resolved origin rather than the display key. Own-mode controllers also retain the capability across content-view rebuilds.

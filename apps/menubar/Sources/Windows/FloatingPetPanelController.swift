@@ -61,6 +61,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 	/// `nil` for a plain-origin/combined window. Drives the `PlatformSessionBadge`
 	/// row beneath the platform chip + animation badge.
 	private var currentSessionNumber: Int?
+	private var currentHasActiveSession = false
 	/// User-set rename label for this session (P15.06), or `nil` to fall back
 	/// to "Session N".
 	private var currentSessionLabel: String?
@@ -380,6 +381,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 	}
 
 	func applyHasActiveSession(_ hasActiveSession: Bool) {
+		currentHasActiveSession = hasActiveSession
 		(panel?.contentView as? FloatingPetInteractionView)?.hasActiveSessionBadge = hasActiveSession
 	}
 
@@ -930,7 +932,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			self?.resetPromptTimer()
 			self?.onForceIdle?()
 		}
-		view.hasActiveSessionBadge = currentSessionNumber != nil
+		view.hasActiveSessionBadge = currentHasActiveSession
 		view.currentSessionLabel = currentSessionLabel
 		view.renameHandler = { [weak self] newLabel in
 			self?.currentSessionLabel = newLabel

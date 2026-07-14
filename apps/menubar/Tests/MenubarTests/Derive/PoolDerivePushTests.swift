@@ -157,6 +157,8 @@ final class PoolDerivePushTests: XCTestCase {
 		XCTAssertNotNil(desired.windows[.combined]?.promptTimerStatus)
 		(desired, memory) = pushTick([:], customization: customization, memory: memory)
 		XCTAssertNotNil(desired.windows[.combined], "last-active combined survives a transient empty poll")
+		XCTAssertEqual(desired.windows[.combined]?.resolvedIdentity, "codex:a")
+		XCTAssertEqual(desired.windows[.combined]?.hasActiveSession, true)
 
 		let own = pushCustomization(modes: ["codex": .own])
 		(desired, memory) = pushTick([:], customization: own, memory: memory)
