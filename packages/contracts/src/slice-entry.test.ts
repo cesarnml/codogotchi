@@ -91,6 +91,40 @@ describe("sliceEntrySchema — validator", () => {
     };
     expect(() => sliceEntrySchema.parse(payloadWithHp)).toThrow();
   });
+
+  // v10: optional sticky ISO-8601 clocks on the slice.
+  it("accepts a v10 slice without any stamp fields", () => {
+    expect(() => sliceEntrySchema.parse(makeSlice())).not.toThrow();
+  });
+
+  it("accepts optional ISO-8601 stamp fields on a v10 slice", () => {
+    expect(() =>
+      sliceEntrySchema.parse({
+        ...makeSlice(),
+        prompt_started_at: "2026-06-28T00:00:00.000Z",
+        session_started_at: "2026-06-28T00:00:00.000Z",
+        errored_since: "2026-06-28T00:01:00.000Z",
+        turn_ended_at: "2026-06-28T00:02:00.000Z",
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects unknown stamp-like keys (strict)", () => {
+    const payload = {
+      ...makeSlice(),
+      promptStartedAt: "2026-06-28T00:00:00.000Z",
+    };
+    expect(() => sliceEntrySchema.parse(payload)).toThrow();
+  });
+
+  it("rejects invalid datetime on prompt_started_at", () => {
+    expect(() =>
+      sliceEntrySchema.parse({
+        ...makeSlice(),
+        prompt_started_at: "not-a-datetime",
+      }),
+    ).toThrow();
+  });
 });
 
 describe("globalAggregate — empty set", () => {

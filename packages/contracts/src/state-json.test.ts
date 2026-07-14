@@ -21,8 +21,8 @@ const baseV1Payload = {
 };
 
 describe("STATE_JSON_SCHEMA_VERSION", () => {
-  it("is 9 after the v9 hp/hp_overlay removal", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(9);
+  it("is 10 after the v10 sticky stamp bump", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(10);
   });
 });
 
@@ -167,8 +167,8 @@ describe("schema v5 — RPG progression fields (P10.03)", () => {
     last_activity_at: "2026-06-03T00:00:00.000Z",
   };
 
-  it("STATE_JSON_SCHEMA_VERSION is 9", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(9);
+  it("STATE_JSON_SCHEMA_VERSION is 10", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(10);
   });
 
   it("parseStateJson accepts a v5 payload with all four new fields", () => {
@@ -312,20 +312,25 @@ describe("forward-compat refusal", () => {
     expect(() => parseStateJson(payload)).not.toThrow();
   });
 
-  it("accepts schema_version 9 (now current)", () => {
+  it("accepts schema_version 9 (backward compat)", () => {
     const payload = { ...baseV1Payload, schema_version: 9 };
     expect(() => parseStateJson(payload)).not.toThrow();
   });
 
-  it("rejects schema_version 10 (one ahead of v9)", () => {
+  it("accepts schema_version 10 (now current)", () => {
     const payload = { ...baseV1Payload, schema_version: 10 };
+    expect(() => parseStateJson(payload)).not.toThrow();
+  });
+
+  it("rejects schema_version 11 (one ahead of v10)", () => {
+    const payload = { ...baseV1Payload, schema_version: 11 };
     expect(() => parseStateJson(payload)).toThrow();
   });
 });
 
 describe("schema v4 vocabulary", () => {
-  it("STATE_JSON_SCHEMA_VERSION is 9 (v4 vocabulary still tested below)", () => {
-    expect(STATE_JSON_SCHEMA_VERSION).toBe(9);
+  it("STATE_JSON_SCHEMA_VERSION is 10 (v4 vocabulary still tested below)", () => {
+    expect(STATE_JSON_SCHEMA_VERSION).toBe(10);
   });
 
   it("v4 hook states are members of ACTIVITY_STATES", () => {
@@ -384,10 +389,19 @@ describe("schema v4 vocabulary", () => {
     expect(() => parseStateJson(payload)).not.toThrow();
   });
 
-  it("parseStateJson accepts schema_version 9 (now current — no hp fields)", () => {
+  it("parseStateJson accepts schema_version 9 (backward compat — no hp fields)", () => {
     const payload = {
       ...baseV1Payload,
       schema_version: 9,
+      activity_state: "idle",
+    };
+    expect(() => parseStateJson(payload)).not.toThrow();
+  });
+
+  it("parseStateJson accepts schema_version 10 (now current — sticky stamps optional)", () => {
+    const payload = {
+      ...baseV1Payload,
+      schema_version: 10,
       activity_state: "idle",
     };
     expect(() => parseStateJson(payload)).not.toThrow();
