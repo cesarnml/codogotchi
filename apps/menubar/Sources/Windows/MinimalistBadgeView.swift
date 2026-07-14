@@ -8,7 +8,7 @@ final class MinimalistBadgeView: NSView {
 	/// entry point can left-align the ticket/gate badge to the same leading
 	/// edge the chip+pill row sits at, rather than centering it on the strip.
 	static let hPad: CGFloat = 10
-	private static let rowSpacing: CGFloat = 4
+	static let rowSpacing: CGFloat = 4
 
 	private let animationBadge = AnimationBadgeView(frame: .zero)
 	/// Test-observable rendered state — see `AnimationBadgeView.currentPromptTimer`.

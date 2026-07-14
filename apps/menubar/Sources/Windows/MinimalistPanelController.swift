@@ -20,16 +20,12 @@ import AppKit
 final class MinimalistPanelController: PanelActionHandling {
 	private enum Layout {
 		static let height: CGFloat = 58
-		/// Extra vertical room for the `PlatformSessionBadge` row, only added
-		/// when a session number is actually assigned to this panel (i.e. the
-		/// window is session-keyed and session-pets is on) — a plain-origin
-		/// Minimalist strip never grows. `AttentionBubblePanel.reposition`
-		/// anchors off this panel's actual on-screen frame
-		/// (`AttentionBubbleLayout.frame`: `y = petFrame.minY - gapBelowPet - height`),
-		/// so growing the badge panel's height naturally pushes the bubble down
-		/// without a separate offset constant.
+		/// Floor for the identity-row (mode chip + session label) reserve —
+		/// scaled badge metrics may require more; see `panelHeight`.
 		static let sessionRowExtraHeight: CGFloat = 26
 		static let minBadgeWidth: CGFloat = 80
+		/// Vertical inset around the stacked badge content inside the strip.
+		static let contentVerticalInset: CGFloat = 8
 	}
 
 	private let visibleFrameProvider: () -> CGRect
@@ -49,21 +45,37 @@ final class MinimalistPanelController: PanelActionHandling {
 	private var currentGateBadge: GateBadgeContent?
 	/// Session number assigned to this window by `FloatingPetWindowPool`, or
 	/// `nil` for a plain-origin/combined window. Non-nil grows the panel to
-	/// make room for the `PlatformSessionBadge` row.
+	/// make room for the identity row (`modeIndicator` + `PlatformSessionBadge`).
 	private var currentSessionNumber: Int?
 	/// User-set rename label for this session (P15.06), or `nil` to fall back
 	/// to "Session N".
 	private var currentSessionLabel: String?
+	/// Fixed Combined / platform-name chip for fold windows. Non-nil (along
+	/// with a session number or session label) grows `panelHeight` so the
+	/// identity row is not clipped by the activity-only strip height.
+	private var currentModeIndicatorBadge: String?
 	/// Last submitted prompt for this session, shown as a delayed hover
 	/// tooltip on the session badge.
 	private var currentSessionTooltip: String?
 	/// Badge metrics driven by the user's "PlatformChip and AnimationBadge Size"
 	/// slider in Settings > Customization. Updated via applyBadgeScale(_:).
 	private var currentBadgeMetrics = GateBadgeLayout.metrics(scale: 1.0)
-	/// Panel height for the current tick — base height, or base + the session
-	/// row's extra height while a session number is assigned.
+	/// True when the identity row under the activity chip+pill is populated.
+	private var hasIdentityRow: Bool {
+		currentSessionNumber != nil
+			|| !(currentSessionLabel ?? "").isEmpty
+			|| !(currentModeIndicatorBadge ?? "").isEmpty
+	}
+	/// Panel height for the current tick. Always tall enough for the activity
+	/// strip; when a mode/session identity row is present, reserve room sized
+	/// to the current badge metrics (Large slider must not clip Combined /
+	/// platform chips).
 	private var panelHeight: CGFloat {
-		currentSessionNumber != nil ? Layout.height + Layout.sessionRowExtraHeight : Layout.height
+		guard hasIdentityRow else { return Layout.height }
+		let identityExtra = max(
+			Layout.sessionRowExtraHeight,
+			currentBadgeMetrics.badgeHeight + MinimalistBadgeView.rowSpacing)
+		return Layout.height + identityExtra
 	}
 	private var frameChangeHandler: ((CGRect) -> Void)?
 	private var isShown = false
@@ -295,7 +307,10 @@ final class MinimalistPanelController: PanelActionHandling {
 	}
 
 	func applyModeIndicatorBadge(_ text: String?) {
+		guard currentModeIndicatorBadge != text else { return }
+		currentModeIndicatorBadge = text
 		badgeView.applyModeIndicatorBadge(text)
+		applyBadge()
 	}
 
 	func applySessionTooltip(_ summary: String?) {

@@ -62,4 +62,18 @@ final class MinimalistBadgeViewTests: XCTestCase {
 
 		XCTAssertNil(badge.renderedModeIndicatorBadge, "nil text must hide the badge, not just clear its string")
 	}
+
+	func testModeIndicatorWidensPreferredWidthBeyondActivityRow() {
+		let badge = MinimalistBadgeView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))
+		let metrics = GateBadgeLayout.metrics(scale: 1.0)
+		badge.configureBadge(platform: nil, activity: .idle, metrics: metrics)
+		let widthWithoutMode = badge.badgePreferredWidth
+
+		badge.applyModeIndicatorBadge("Combined")
+		badge.configureBadge(platform: nil, activity: .idle, metrics: metrics)
+
+		XCTAssertGreaterThan(
+			badge.badgePreferredWidth, widthWithoutMode,
+			"a populated mode chip must widen the strip so Combined/platform text is not clipped")
+	}
 }
