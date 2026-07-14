@@ -61,6 +61,7 @@ private final class StubMinimalistPanel: PanelManaging {
 	var gateBadge: GateBadgeContent?
 	var sessionNumber: Int?
 	var sessionLabel: String?
+	var modeIndicatorBadge: String?
 	var sessionTooltip: String?
 
 	func show(frame: CGRect) { visible = true }
@@ -76,6 +77,7 @@ private final class StubMinimalistPanel: PanelManaging {
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) { frameChangeHandler = handler }
 	func applySessionNumber(_ number: Int?) { sessionNumber = number }
 	func applySessionLabel(_ label: String?) { sessionLabel = label }
+	func applyModeIndicatorBadge(_ text: String?) { modeIndicatorBadge = text }
 	func applySessionTooltip(_ summary: String?) { sessionTooltip = summary }
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
 }
@@ -3079,6 +3081,104 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 
 	// MARK: - Session title resolution (platform auto-generated thread titles)
 
+	/// Fresh sessions-off Combined (the production `resolveRenderKeys` shape):
+	/// identity lives under `.combined`, but the winning session label must
+	/// still resolve via the platform title reader within one tick — without
+	/// requiring a sessions-on detour to warm the cache.
+	func testCombinedSessionsOffResolvesWinningSessionTitleWithoutSessionsOnDetour() {
+		var stubs: [WindowKey: StubWindowController] = [:]
+		let customization = makeCustomization(
+			platformModes: ["cursor": .combined],
+			combinedMinimalistEnabled: true)
+		var readerCalls: [(String, String)] = []
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in
+				XCTFail("Combined minimalist must use minimalistWindowFactory")
+				return StubWindowController()
+			},
+			minimalistWindowFactory: { key in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { origin, sessionId in
+				readerCalls.append((origin, sessionId))
+				return origin == "cursor" && sessionId == "fresh-uuid"
+					? "Immediate inaction request" : nil
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"cursor:fresh-uuid": makeSnapshot(
+					updated: "2026-07-01T10:00:00.000Z",
+					sourceEvent: SourceEvent(origin: "cursor", kind: "tool", name: nil)),
+			],
+			customization: customization))
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"cursor:fresh-uuid": makeSnapshot(
+					updated: "2026-07-01T10:00:01.000Z",
+					sourceEvent: SourceEvent(origin: "cursor", kind: "tool", name: nil)),
+			],
+			customization: customization))
+
+		XCTAssertEqual(readerCalls.count, 1)
+		XCTAssertEqual(readerCalls.first?.0, "cursor")
+		XCTAssertEqual(readerCalls.first?.1, "fresh-uuid")
+		XCTAssertEqual(
+			stubs[.combined]?.appliedSessionLabels.last ?? nil,
+			"Immediate inaction request")
+		XCTAssertEqual(stubs[.combined]?.appliedModeIndicatorBadges.last ?? nil, "Combined")
+	}
+
+	/// Same fresh-prompt path for Minimalist with sessions off (plain-origin fold).
+	func testMinimalistSessionsOffResolvesWinningSessionTitleWithoutSessionsOnDetour() {
+		var stubs: [WindowKey: StubWindowController] = [:]
+		let customization = makeCustomization(platformModes: ["cursor": .minimalist])
+		var readerCalls: [(String, String)] = []
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in
+				XCTFail("Minimalist must use minimalistWindowFactory")
+				return StubWindowController()
+			},
+			minimalistWindowFactory: { key in
+				let c = StubWindowController()
+				stubs[key] = c
+				return c
+			},
+			sessionLabelReader: { _ in nil },
+			sessionTitleReader: { origin, sessionId in
+				readerCalls.append((origin, sessionId))
+				return origin == "cursor" && sessionId == "fresh-uuid"
+					? "Immediate inaction request" : nil
+			}
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"cursor:fresh-uuid": makeSnapshot(
+					updated: "2026-07-01T10:00:00.000Z",
+					sourceEvent: SourceEvent(origin: "cursor", kind: "tool", name: nil)),
+			],
+			customization: customization))
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"cursor:fresh-uuid": makeSnapshot(
+					updated: "2026-07-01T10:00:01.000Z",
+					sourceEvent: SourceEvent(origin: "cursor", kind: "tool", name: nil)),
+			],
+			customization: customization))
+
+		XCTAssertEqual(readerCalls.count, 1)
+		XCTAssertEqual(readerCalls.first?.0, "cursor")
+		XCTAssertEqual(readerCalls.first?.1, "fresh-uuid")
+		XCTAssertEqual(
+			stubs[.origin("cursor")]?.appliedSessionLabels.last ?? nil,
+			"Immediate inaction request")
+	}
+
 	// A session-keyed window with no sidecar rename prefers the platform's
 	// own resolved thread title over the numeric "Session N" fallback — a
 	// friendlier default when the coding-agent platform already titled it.
@@ -3662,5 +3762,35 @@ final class MinimalistWindowControllerTests: XCTestCase {
 
 		XCTAssertEqual(panel.sessionLabel, "Refactor pass")
 		XCTAssertEqual(panel.sessionTooltip, "Fix the login bug")
+	}
+
+	/// Same class of bug as `testForwardsSessionLabelAndTooltipToPanel`: Combined /
+	/// platform-only windows derive a fixed mode chip, but PoolApply was calling
+	/// `applyModeIndicatorBadge` on a controller that inherited the protocol
+	/// default no-op — so sessions-off Minimalist strips never showed
+	/// "Combined" / "Cursor" even though derive + the panel path were correct.
+	func testForwardsModeIndicatorBadgeToPanel() {
+		let panel = StubMinimalistPanel()
+		let controller = MinimalistWindowController(
+			origin: "combined",
+			panel: panel,
+			visibleFrameProvider: { CGRect(x: 0, y: 0, width: 800, height: 600) },
+			saveState: { _ in },
+			initialState: FloatingAppState(
+				isFloatingPetVisible: false,
+				frame: CGRect(x: 20, y: 20, width: 240, height: 64),
+				onboardingCompletedAt: nil,
+				lastHookActivityAt: nil,
+				hooksStatus: nil,
+				installedHookVersion: nil
+			),
+			promptSummaryProvider: { _ in "" }
+		)
+
+		controller.applyModeIndicatorBadge("Combined")
+		controller.applySessionLabel("Cursor task")
+
+		XCTAssertEqual(panel.modeIndicatorBadge, "Combined")
+		XCTAssertEqual(panel.sessionLabel, "Cursor task")
 	}
 }

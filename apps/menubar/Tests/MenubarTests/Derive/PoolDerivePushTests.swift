@@ -114,6 +114,37 @@ final class PoolDerivePushTests: XCTestCase {
 		XCTAssertTrue(cached.titleResolutionRequests.isEmpty)
 	}
 
+	/// Production `resolveRenderKeys` keys identities by the *fold* key
+	/// (`.origin` / `.combined`), not the winning session key. Title
+	/// resolution must still request the winner's LLM title on a fresh
+	/// sessions-off prompt — otherwise the session-label badge stays empty
+	/// until the user toggles sessions on (which caches the title) and back.
+	func testSessionsOffOriginFoldRequestsTitleWhenIdentityKeyedByFold() {
+		let fold: WindowKey = .origin("cursor")
+		let identity = RenderKeyIdentity(origin: "cursor", sessionId: "fresh-uuid")
+		let customization = pushCustomization(modes: ["cursor": .minimalist])
+		let (desired, _) = pushTick(
+			[fold: pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "cursor")],
+			identities: [fold: identity], customization: customization, memory: PoolMemory())
+
+		XCTAssertEqual(desired.windows[fold]?.resolvedIdentity, "cursor:fresh-uuid")
+		XCTAssertEqual(desired.titleResolutionRequests, [identity])
+		XCTAssertNil(desired.windows[fold]?.sessionLabel)
+	}
+
+	func testSessionsOffCombinedFoldRequestsTitleWhenIdentityKeyedByFold() {
+		let identity = RenderKeyIdentity(origin: "cursor", sessionId: "fresh-uuid")
+		let customization = pushCustomization(modes: ["cursor": .combined])
+		let (desired, _) = pushTick(
+			[.combined: pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "cursor")],
+			identities: [.combined: identity], customization: customization, memory: PoolMemory())
+
+		XCTAssertEqual(desired.windows[.combined]?.resolvedIdentity, "cursor:fresh-uuid")
+		XCTAssertEqual(desired.windows[.combined]?.modeIndicatorBadge, "Combined")
+		XCTAssertEqual(desired.titleResolutionRequests, [identity])
+		XCTAssertNil(desired.windows[.combined]?.sessionLabel)
+	}
+
 	func testResolvedIdentityForSoloDefaultOriginFallsBackToOwnKey() {
 		let (desired, _) = pushTick(
 			["codex": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],

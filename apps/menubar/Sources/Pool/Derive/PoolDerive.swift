@@ -469,10 +469,15 @@ enum PoolDerive {
 						label
 					}
 			}
-			if resolvedIdentity.isSessionKeyed, memory.resolvedSessionTitles[resolvedIdentity] == nil,
-				let identity = snapshot.renderKeyIdentities[resolvedIdentity]
+			// Title requests key off resolvedIdentity's (origin, sessionId), not
+			// `renderKeyIdentities[resolvedIdentity]`. Production identities are
+			// keyed by the fold render key (`.origin` / `.combined` when
+			// sessions are off), so a map lookup under the session key misses
+			// and a fresh Combined/Minimalist prompt never fetches its LLM title.
+			if case .session(let origin, let id) = resolvedIdentity,
+				memory.resolvedSessionTitles[resolvedIdentity] == nil
 			{
-				titleRequests.append(identity)
+				titleRequests.append(RenderKeyIdentity(origin: origin, sessionId: id))
 			}
 			switch input.hudMode {
 			case .all: window.hudEnabled = true

@@ -344,6 +344,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 		panel.applyFoldedSessionDisplay(display)
 	}
 
+	func applyModeIndicatorBadge(_ text: String?) {
+		panel.applyModeIndicatorBadge(text)
+	}
+
 	func applySessionTooltip(_ summary: String?) {
 		panel.applySessionTooltip(summary)
 	}
@@ -559,6 +563,10 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 
 	func applyFoldedSessionDisplay(_ display: String?) {
 		panel.applyFoldedSessionDisplay(display)
+	}
+
+	func applyModeIndicatorBadge(_ text: String?) {
+		panel.applyModeIndicatorBadge(text)
 	}
 
 	func applySessionTooltip(_ summary: String?) {
