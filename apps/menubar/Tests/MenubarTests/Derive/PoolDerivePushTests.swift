@@ -51,6 +51,40 @@ private func pushTick(
 
 @MainActor
 final class PoolDerivePushTests: XCTestCase {
+	func testResolvedIdentityTracksOriginFoldWinnerAndLiveLabel() {
+		let customization = pushCustomization()
+		let (desired, _) = pushTick(
+			[
+				"codex:old": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex"),
+				"codex:new": pushSnapshot(updated: "2026-07-01T10:00:01.000Z", origin: "codex"),
+			], customization: customization, memory: PoolMemory(),
+			labels: ["codex:old": "Old task", "codex:new": "New task"])
+
+		XCTAssertEqual(desired.windows[.origin("codex")]?.resolvedIdentity, "codex:new")
+		XCTAssertEqual(desired.windows[.origin("codex")]?.sessionLabel, "New task")
+	}
+
+	func testResolvedIdentityForSoloDefaultOriginFallsBackToOwnKey() {
+		let (desired, _) = pushTick(
+			["codex": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
+			customization: pushCustomization(), memory: PoolMemory())
+
+		XCTAssertEqual(desired.windows[.origin("codex")]?.resolvedIdentity, .origin("codex"))
+	}
+
+	func testResolvedIdentityTracksCombinedWinnerAndLiveLabel() {
+		let customization = pushCustomization(modes: ["codex": .combined, "cursor": .combined])
+		let (desired, _) = pushTick(
+			[
+				"codex:a": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex"),
+				"cursor:b": pushSnapshot(updated: "2026-07-01T10:00:01.000Z", origin: "cursor"),
+			], customization: customization, memory: PoolMemory(),
+			labels: ["codex:a": "Codex task", "cursor:b": "Cursor task"])
+
+		XCTAssertEqual(desired.windows[.combined]?.resolvedIdentity, "cursor:b")
+		XCTAssertEqual(desired.windows[.combined]?.sessionLabel, "Cursor task")
+	}
+
 	func testCombinedWinnerUsesFreshestUpdateAndIdleUsesCombinedDefaults() {
 		let customization = pushCustomization(modes: ["codex": .combined, "cursor": .combined])
 		let (desired, _) = pushTick(
