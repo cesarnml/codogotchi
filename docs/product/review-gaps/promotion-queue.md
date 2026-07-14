@@ -502,6 +502,27 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   enumerates a filesystem location it doesn't exclusively own (gallery
   install dirs, hook directories, per-platform state.d roots).
 
+### `overlay-defers-host-chrome-refresh-until-dismiss`
+- **Seen:** 1× hard recurrence chain — `codogotchi-25` introduced the
+  persistent assign `NSPopover` that only rebuilt pet-card badge pills in
+  `popoverDidClose`; `codogotchi-47` is the dogfood gap where floating-panel
+  live-swap updated immediately on toggle but card logo pills / Default border
+  stayed stale until click-away.
+- **Proposed clause:** *"When a transient overlay (popover/menu/sheet) mutates
+  shared model state that already drives other live surfaces, enumerate every
+  host chrome element that mirrors that state (pills, borders, badges, counts)
+  and refresh it on each mutation — not only on overlay dismiss. Dismiss-time
+  rebuild is fine for structural layout, not for assignment/selection feedback
+  the user expects to see while the overlay stays open."*
+- **Caveat that blocks naive promotion:** mostly `qa-gap`-flavored; the
+  dismiss-gated rebuild was intentional and left an explicit comment. Not a
+  clean adversarial-review hit unless the ticket already promised live host
+  chrome (as P14.08 did for floating-panel live-swap but not card pills).
+  Promote only if a second unrelated overlay shows the same "live elsewhere,
+  stale under open overlay" split.
+- **Status:** WAITING — paired with `codogotchi-25` as origin; needs ≥1 more
+  independent occurrence before a standing UI-review clause.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
