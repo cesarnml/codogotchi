@@ -2481,27 +2481,84 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			"the slice must be deleted")
 	}
 
-	/// (4 review focus) Prune is a no-op for a plain-origin (session-pets off)
-	/// or "combined" window — those are never session-keyed.
-	func testPruneSessionIsNoOpForNonSessionKeyedWindow() {
-		var stub: StubWindowController?
-		let customization = makeCustomization()
+	func testPruneSessionRemovesWinningSliceFromFoldedOriginWindow() {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("pool-prune-folded-origin-\(UUID().uuidString)", isDirectory: true)
+		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: dir) }
+		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code:older.json"))
+		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code:winner.json"))
+
+		let customization = makeCustomization(sessionPetsEnabled: ["claude_code": false])
 		let pool = FloatingPetWindowPool(
 			customizationReader: { customization },
-			windowFactory: { _, _ in
-				let c = StubWindowController()
-				stub = c
-				return c
-			}
+			windowFactory: { _, _ in StubWindowController() }
 		)
-		pool.update(snapshot: makePerPlatformSnapshot([
-			"claude_code": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")
-		]))
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:older": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+				"claude_code:winner": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+			], customization: customization))
 
-		pool.pruneSession(windowKey: "claude_code", stateDirectory: "/tmp/does-not-matter")
+		pool.pruneSession(windowKey: "claude_code", stateDirectory: dir.path)
 
-		XCTAssertTrue(pool.isActive(for: "claude_code"), "a plain-origin window must survive an attempted prune")
-		XCTAssertNotEqual(stub?.isFloatingPetVisible, false)
+		XCTAssertFalse(
+			FileManager.default.fileExists(atPath: dir.appendingPathComponent("claude_code:winner.json").path))
+		XCTAssertTrue(
+			FileManager.default.fileExists(atPath: dir.appendingPathComponent("claude_code:older.json").path))
+	}
+
+	func testPruneSessionRemovesDefaultSentinelSliceFromSoloOriginWindow() {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("pool-prune-default-origin-\(UUID().uuidString)", isDirectory: true)
+		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: dir) }
+		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code:default.json"))
+
+		let customization = makeCustomization(sessionPetsEnabled: ["claude_code": false])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:default": makeSnapshot(updated: "2026-06-28T10:00:00.000Z")
+			], customization: customization))
+
+		pool.pruneSession(windowKey: "claude_code", stateDirectory: dir.path)
+
+		XCTAssertFalse(
+			FileManager.default.fileExists(atPath: dir.appendingPathComponent("claude_code:default.json").path))
+	}
+
+	func testPruneSessionRemovesWinningSliceFromCombinedWindow() {
+		let dir = FileManager.default.temporaryDirectory
+			.appendingPathComponent("pool-prune-combined-\(UUID().uuidString)", isDirectory: true)
+		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: dir) }
+		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code:a.json"))
+		try! Data("{}".utf8).write(to: dir.appendingPathComponent("cursor:winner.json"))
+
+		let customization = makeCustomization(platformModes: [
+			"claude_code": .combined,
+			"cursor": .combined,
+		])
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindowController() }
+		)
+		pool.update(snapshot: makeResolvedSnapshot(
+			perSession: [
+				"claude_code:a": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
+				"cursor:winner": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
+			], customization: customization))
+
+		pool.pruneSession(windowKey: .combined, stateDirectory: dir.path)
+
+		XCTAssertFalse(
+			FileManager.default.fileExists(atPath: dir.appendingPathComponent("cursor:winner.json").path))
+		XCTAssertTrue(
+			FileManager.default.fileExists(atPath: dir.appendingPathComponent("claude_code:a.json").path))
 	}
 
 	/// (4 combined coverage) Combined-mode sessions must never be cap-partitioned
