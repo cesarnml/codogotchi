@@ -353,7 +353,11 @@ final class LivePollingDriver {
 				halfHearts: snapshot.halfHearts,
 				activeMinutes: snapshot.activeMinutes,
 				lastActivityAt: snapshot.lastActivityAt,
-				reviveUntil: snapshot.reviveUntil
+				reviveUntil: snapshot.reviveUntil,
+				promptStartedAt: snapshot.promptStartedAt,
+				sessionStartedAt: snapshot.sessionStartedAt,
+				erroredSince: snapshot.erroredSince,
+				turnEndedAt: snapshot.turnEndedAt
 			)
 
 			if let badge = resolveGateBadgeContent(

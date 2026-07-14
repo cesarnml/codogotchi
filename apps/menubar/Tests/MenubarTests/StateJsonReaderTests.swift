@@ -104,11 +104,14 @@ final class StateJsonReaderTests: XCTestCase {
 			return
 		}
 		XCTAssertEqual(got, 99)
-		XCTAssertEqual(expected, 9)
+		XCTAssertEqual(expected, 10)
 	}
 
 	func testExpectedSchemaVersionIs9() {
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 9)
+		// v10 (P20.02) adds four optional sticky stamps; name predates the
+		// bump and is left as-is (matching the `testExpectedSchemaVersionIsV8WasV4`
+		// precedent below) — only the asserted value tracks the current version.
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 10)
 	}
 
 	func testSchemaVersion4ParsesSuccessfullyAfterV4Bump() throws {
@@ -293,8 +296,9 @@ final class StateJsonReaderTests: XCTestCase {
 
 	func testExpectedSchemaVersionIsV8WasV4() {
 		// Updated to v5 in P10.06, v6 for revive_until, v7 for state.d slice
-		// reader, v8 for RPG-fields-out, v9 for hp/hp_overlay-out
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 9)
+		// reader, v8 for RPG-fields-out, v9 for hp/hp_overlay-out, v10 for
+		// sticky stamps-in (P20.02)
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 10)
 	}
 
 	func testTicketStartedIsAValidV4State() {
@@ -355,8 +359,9 @@ final class StateJsonReaderTests: XCTestCase {
 
 	func testExpectedSchemaVersionIsV8WasV5() {
 		// Bumped to v6 for revive_until, v7 for state.d slice reader, v8 for
-		// RPG-fields-out, v9 for hp/hp_overlay-out
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 9)
+		// RPG-fields-out, v9 for hp/hp_overlay-out, v10 for sticky stamps-in
+		// (P20.02)
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 10)
 	}
 
 	func testSchemaVersion6ParsesSuccessfullyAfterV6Bump() throws {
@@ -427,11 +432,14 @@ final class StateJsonReaderTests: XCTestCase {
 		XCTAssertEqual(snapshot.activityState, .idle)
 	}
 
-	func testSchemaVersion10FailsWithSchemaNewer() throws {
-		// v10 is newer than expected (v9) and must be refused.
+	func testSchemaVersion11FailsWithSchemaNewer() throws {
+		// v11 is newer than expected (v10, after the P20.02 bump) and must be
+		// refused. Formerly asserted v10 was refused against an expected of 9;
+		// flipped forward one version by the same bump that made v10 the new
+		// accepted ceiling (testSchemaVersion10ParsesSuccessfullyAfterV10Bump below).
 		let tmp = FileManager.default.temporaryDirectory
-			.appendingPathComponent("schema-v10-\(UUID().uuidString).json")
-		try #"{"schema_version": 10, "activity_state": "idle", "updated_at": "x"}"#
+			.appendingPathComponent("schema-v11-\(UUID().uuidString).json")
+		try #"{"schema_version": 11, "activity_state": "idle", "updated_at": "x"}"#
 			.write(to: tmp, atomically: true, encoding: .utf8)
 		defer { try? FileManager.default.removeItem(at: tmp) }
 
@@ -444,8 +452,34 @@ final class StateJsonReaderTests: XCTestCase {
 			XCTFail("expected schemaNewer, got \(error)")
 			return
 		}
-		XCTAssertEqual(got, 10)
-		XCTAssertEqual(expected, 9)
+		XCTAssertEqual(got, 11)
+		XCTAssertEqual(expected, 10)
+	}
+
+	func testSchemaVersion10ParsesSuccessfullyAfterV10Bump() throws {
+		// v10 is now the expected version; a v10 payload must parse successfully.
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("schema-v10-ok-\(UUID().uuidString).json")
+		try #"{"schema_version": 10, "activity_state": "idle", "updated_at": "2026-07-07T00:00:00.000Z"}"#
+			.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let result = StateJsonReader.read(at: tmp.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)")
+			return
+		}
+		XCTAssertEqual(snapshot.schemaVersion, 10)
+		XCTAssertEqual(snapshot.activityState, .idle)
+	}
+
+	// MARK: - Schema v10 sticky stamps (P20.02 — [red])
+
+	func testExpectedSchemaVersionIs10() {
+		// [red] v10 adds four optional sticky ISO-8601 clocks to the slice
+		// contract (prompt_started_at, session_started_at, errored_since,
+		// turn_ended_at); the renderer must bump its expected version to match.
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 10)
 	}
 
 	func testV5PayloadDecodesLevelHalfHeartsAndLevelFraction() throws {
@@ -713,7 +747,8 @@ final class SliceDirReaderTests: XCTestCase {
 	// MARK: - Schema version
 
 	func testExpectedSchemaVersionIs9() {
-		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 9)
+		// v10 bump (P20.02); name predates it, matching the precedent above.
+		XCTAssertEqual(EXPECTED_STATE_SCHEMA_VERSION, 10)
 	}
 
 	// MARK: - Schema v8 slice (P13.03 — [red])
@@ -730,5 +765,99 @@ final class SliceDirReaderTests: XCTestCase {
 			XCTFail("expected success, got \(result)"); return
 		}
 		XCTAssertEqual(snapshot.activityState, .implementing)
+	}
+
+	// MARK: - Schema v10 sticky stamps (P20.02 — [red])
+	//
+	// A v10 slice may carry four optional sticky ISO-8601 clocks. `StateSnapshot`
+	// (the pool-facing model every reader entry point returns) must decode them
+	// when present and default to nil when absent — the decode boundary
+	// `PromptTimerTracker.observe` and Force Idle both depend on.
+
+	func testReadDirectoryDecodesAllFourStickyStampsWhenPresent() {
+		let dir = makeTempSliceDir(slices: [
+			(
+				"codex:ses-stamps.json",
+				#"""
+				{
+				  "activity_state": "errored",
+				  "updated_at": "2026-07-07T01:05:00.000Z",
+				  "source_event": { "origin": "codex", "kind": "tool_use", "name": "Bash" },
+				  "prompt_started_at": "2026-07-07T01:00:00.000Z",
+				  "session_started_at": "2026-07-06T23:00:00.000Z",
+				  "errored_since": "2026-07-07T01:04:30.000Z",
+				  "turn_ended_at": "2026-07-07T01:05:00.000Z"
+				}
+				"""#
+			)
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshot.promptStartedAt, "2026-07-07T01:00:00.000Z")
+		XCTAssertEqual(snapshot.sessionStartedAt, "2026-07-06T23:00:00.000Z")
+		XCTAssertEqual(snapshot.erroredSince, "2026-07-07T01:04:30.000Z")
+		XCTAssertEqual(snapshot.turnEndedAt, "2026-07-07T01:05:00.000Z")
+	}
+
+	func testReadDirectoryStickyStampsAbsentDecodeAsNil() {
+		let dir = makeTempSliceDir(slices: [
+			("codex:ses-nostamps.json", sliceJSON(activityState: "implementing")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readDirectory(at: dir.path)
+		guard case .success(let snapshot) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertNil(snapshot.promptStartedAt)
+		XCTAssertNil(snapshot.sessionStartedAt)
+		XCTAssertNil(snapshot.erroredSince)
+		XCTAssertNil(snapshot.turnEndedAt)
+	}
+
+	func testReadPerPlatformDirectoryDecodesStickyStamps() {
+		let dir = makeTempSliceDir(slices: [
+			(
+				"claude_code:ses-005.json",
+				#"""
+				{
+				  "activity_state": "thinking",
+				  "updated_at": "2026-07-07T01:00:00.000Z",
+				  "source_event": { "origin": "claude_code", "kind": "tool_use", "name": "Read" },
+				  "prompt_started_at": "2026-07-07T00:59:00.000Z"
+				}
+				"""#
+			)
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readPerPlatformDirectory(at: dir.path)
+		guard case .success(let snapshots) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshots["claude_code"]?.promptStartedAt, "2026-07-07T00:59:00.000Z")
+	}
+
+	func testReadPerSessionDirectoryDecodesStickyStamps() {
+		let dir = makeTempSliceDir(slices: [
+			(
+				"claude_code:ses-006.json",
+				#"""
+				{
+				  "activity_state": "standby",
+				  "updated_at": "2026-07-07T01:00:00.000Z",
+				  "source_event": { "origin": "claude_code", "kind": "tool_use", "name": "Read" },
+				  "turn_ended_at": "2026-07-07T00:59:50.000Z"
+				}
+				"""#
+			)
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let result = StateJsonReader.readPerSessionDirectory(at: dir.path)
+		guard case .success(let snapshots) = result else {
+			XCTFail("expected success, got \(result)"); return
+		}
+		XCTAssertEqual(snapshots["claude_code:ses-006"]?.turnEndedAt, "2026-07-07T00:59:50.000Z")
 	}
 }

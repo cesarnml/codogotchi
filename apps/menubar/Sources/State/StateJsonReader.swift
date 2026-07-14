@@ -5,7 +5,7 @@ import Foundation
 /// is refused; equal or lower versions parse best-effort and tolerate extra
 /// fields. Bump deliberately when the renderer gains support for a newer
 /// schema; do not silently widen.
-let EXPECTED_STATE_SCHEMA_VERSION = 9
+let EXPECTED_STATE_SCHEMA_VERSION = 10
 
 /// Error cases surfaced by `StateJsonReader.read(at:)`.
 ///
@@ -216,7 +216,11 @@ enum StateJsonReader {
 			halfHearts: MAX_HALF_HEARTS,
 			activeMinutes: 0,
 			lastActivityAt: nil,
-			reviveUntil: nil
+			reviveUntil: nil,
+			promptStartedAt: slice.promptStartedAt,
+			sessionStartedAt: slice.sessionStartedAt,
+			erroredSince: slice.erroredSince,
+			turnEndedAt: slice.turnEndedAt
 		)
 		return .success(
 			StateSnapshot(
@@ -231,7 +235,11 @@ enum StateJsonReader {
 				halfHearts: raw.halfHearts,
 				activeMinutes: raw.activeMinutes,
 				lastActivityAt: raw.lastActivityAt,
-				reviveUntil: raw.reviveUntil
+				reviveUntil: raw.reviveUntil,
+				promptStartedAt: raw.promptStartedAt,
+				sessionStartedAt: raw.sessionStartedAt,
+				erroredSince: raw.erroredSince,
+				turnEndedAt: raw.turnEndedAt
 			)
 		)
 	}
@@ -337,7 +345,11 @@ enum StateJsonReader {
 				updatedAt: slice.updatedAt,
 				sourceEvent: slice.sourceEvent,
 				attention: slice.attention,
-				toolCommand: slice.toolCommand
+				toolCommand: slice.toolCommand,
+				promptStartedAt: slice.promptStartedAt,
+				sessionStartedAt: slice.sessionStartedAt,
+				erroredSince: slice.erroredSince,
+				turnEndedAt: slice.turnEndedAt
 			)
 			result[origin] = StateSnapshot(
 				schemaVersion: raw.schemaVersion,
@@ -345,7 +357,11 @@ enum StateJsonReader {
 				updatedAt: raw.updatedAt,
 				sourceEvent: raw.sourceEvent,
 				attention: raw.attention,
-				toolCommand: raw.toolCommand
+				toolCommand: raw.toolCommand,
+				promptStartedAt: raw.promptStartedAt,
+				sessionStartedAt: raw.sessionStartedAt,
+				erroredSince: raw.erroredSince,
+				turnEndedAt: raw.turnEndedAt
 			)
 		}
 		return .success(result)
@@ -467,7 +483,11 @@ enum StateJsonReader {
 				updatedAt: slice.updatedAt,
 				sourceEvent: slice.sourceEvent,
 				attention: slice.attention,
-				toolCommand: slice.toolCommand
+				toolCommand: slice.toolCommand,
+				promptStartedAt: slice.promptStartedAt,
+				sessionStartedAt: slice.sessionStartedAt,
+				erroredSince: slice.erroredSince,
+				turnEndedAt: slice.turnEndedAt
 			)
 			result[key] = StateSnapshot(
 				schemaVersion: raw.schemaVersion,
@@ -475,7 +495,11 @@ enum StateJsonReader {
 				updatedAt: raw.updatedAt,
 				sourceEvent: raw.sourceEvent,
 				attention: raw.attention,
-				toolCommand: raw.toolCommand
+				toolCommand: raw.toolCommand,
+				promptStartedAt: raw.promptStartedAt,
+				sessionStartedAt: raw.sessionStartedAt,
+				erroredSince: raw.erroredSince,
+				turnEndedAt: raw.turnEndedAt
 			)
 		}
 		return .success(result)
@@ -517,14 +541,20 @@ private struct StatePayload: Decodable {
 	let reviveUntil: String??
 }
 
-/// Wire shape for v8 slice files (state.d/<origin>:<session_id>.json).
+/// Wire shape for v8+ slice files (state.d/<origin>:<session_id>.json).
 /// RPG fields moved to `rpg-state.json` in schema v8; `Decodable` silently
 /// ignores them if present in older v7 slices. `origin` and `sessionId` are
 /// carried in the filename and not decoded here (best-effort posture).
+/// v10 adds four optional sticky ISO 8601 clocks (P20.01); all are best-effort
+/// absent on ≤v9 slices and on any v10 slice the hook didn't stamp.
 private struct SlicePayload: Decodable {
 	let activityState: ActivityState
 	let updatedAt: String
 	let sourceEvent: SourceEvent?
 	let attention: AttentionPayload?
 	let toolCommand: String?
+	let promptStartedAt: String?
+	let sessionStartedAt: String?
+	let erroredSince: String?
+	let turnEndedAt: String?
 }

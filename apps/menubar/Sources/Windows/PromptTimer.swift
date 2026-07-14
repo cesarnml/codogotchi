@@ -78,14 +78,33 @@ struct PromptTimerTracker: Equatable {
 		resetAt = now
 	}
 
+	/// - Parameters:
+	///   - promptStartedAt: sticky `prompt_started_at` stamp (P20.01) for the
+	///     current turn, when the slice carries one. Preferred over `updatedAt`
+	///     for the running start time so elapsed stays correct across a mid-turn
+	///     `updated_at` bump that doesn't move the turn's own start clock.
+	///   - erroredSince: sticky `errored_since` stamp. Preferred over the
+	///     tracker's own first-observed-errored heuristic so the 60s grace is
+	///     measured from a durable clock — the same one a relaunched tracker or
+	///     a different window would compute — not from whichever poll tick
+	///     happened to first see the errored state.
+	///   - turnEndedAt: sticky `turn_ended_at` stamp. Preferred over `updatedAt`
+	///     for the standby freeze point.
+	///   All three default to nil and fall back to today's `updatedAt`
+	///   heuristics when the slice doesn't carry them (≤v9 payloads, or a v10
+	///   payload the hook didn't stamp).
 	mutating func observe(
 		state: ActivityState,
 		updatedAt: String,
 		sourceEvent: SourceEvent?,
 		attention: AttentionPayload?,
+		promptStartedAt: String? = nil,
+		erroredSince erroredSinceStamp: String? = nil,
+		turnEndedAt: String? = nil,
 		now: Date = Date()
 	) {
 		let observedAt = StateJsonReader.parseISO8601Date(updatedAt) ?? now
+		let startedAt = promptStartedAt.flatMap(StateJsonReader.parseISO8601Date) ?? observedAt
 		defer { lastObservedState = state }
 
 		// Idle wins over every other signal, including a `session_start`
@@ -102,13 +121,13 @@ struct PromptTimerTracker: Equatable {
 		}
 
 		if sourceEvent?.kind == "session_start" {
-			status = PromptTimerStatus(startedAt: observedAt, endedAt: nil)
+			status = PromptTimerStatus(startedAt: startedAt, endedAt: nil)
 			erroredSince = nil
 			return
 		}
 
 		if state.isInFlight, shouldStartTimer(observedAt: observedAt) {
-			status = PromptTimerStatus(startedAt: observedAt, endedAt: nil)
+			status = PromptTimerStatus(startedAt: startedAt, endedAt: nil)
 			erroredSince = nil
 			return
 		}
@@ -116,7 +135,8 @@ struct PromptTimerTracker: Equatable {
 		guard var current = status, current.endedAt == nil else { return }
 
 		if state == .standby, attention?.isExpired(now: observedAt) != true, attention != nil {
-			current = PromptTimerStatus(startedAt: current.startedAt, endedAt: observedAt)
+			let endedAt = turnEndedAt.flatMap(StateJsonReader.parseISO8601Date) ?? observedAt
+			current = PromptTimerStatus(startedAt: current.startedAt, endedAt: endedAt)
 			status = current
 			erroredSince = nil
 			return
@@ -124,7 +144,7 @@ struct PromptTimerTracker: Equatable {
 
 		if state == .errored {
 			if erroredSince == nil {
-				erroredSince = observedAt
+				erroredSince = erroredSinceStamp.flatMap(StateJsonReader.parseISO8601Date) ?? observedAt
 			}
 			freezeIfErroredTooLong(now: observedAt)
 			return
