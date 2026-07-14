@@ -1229,37 +1229,55 @@ const STICKY_STAMP_KEYS = [
   "turn_ended_at",
 ] as const;
 
+type PriorStickyRead =
+  | { status: "absent" }
+  | { status: "ok"; stamps: StickyStamps }
+  | { status: "corrupt" };
+
+/** Loose ISO-8601-with-offset check so invalid prior stamps are dropped, not
+ * forwarded into the outgoing Zod parse (which would freeze all later writes). */
+function isOffsetDatetime(value: string): boolean {
+  if (Number.isNaN(Date.parse(value))) return false;
+  return /(?:[Zz]|[+-]\d{2}:\d{2})$/.test(value);
+}
+
 /**
- * Best-effort prior-stamp read. Must tolerate pre-v10 slices (schema_version 9
- * and missing stamp keys) — sliceEntrySchema would reject those after the bump.
+ * Prior-stamp read for merge. Distinguishes missing file (first create) from
+ * unreadable/corrupt JSON so we never overwrite a damaged slice with reset
+ * clocks. Tolerates pre-v10 slices (schema_version 9, missing stamp keys).
  */
 async function readPriorStickyStamps(
   home: string,
   origin: SourceEventOrigin,
   sessionId: string,
-): Promise<StickyStamps> {
+): Promise<PriorStickyRead> {
   let raw: string;
   try {
     raw = await readFile(sliceFilePath(home, origin, sessionId), "utf8");
-  } catch {
-    return {};
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return { status: "absent" };
+    }
+    return { status: "corrupt" };
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return {};
+    return { status: "corrupt" };
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return {};
+    return { status: "corrupt" };
   }
   const obj = parsed as Record<string, unknown>;
   const stamps: StickyStamps = {};
   for (const key of STICKY_STAMP_KEYS) {
     const value = obj[key];
-    if (typeof value === "string") stamps[key] = value;
+    if (typeof value === "string" && isOffsetDatetime(value)) {
+      stamps[key] = value;
+    }
   }
-  return stamps;
+  return { status: "ok", stamps };
 }
 
 /**
@@ -1736,11 +1754,20 @@ export async function runHook(
     }
 
     const sliceSessionId = sessionId ?? "default";
-    const priorStamps = await readPriorStickyStamps(
+    const priorRead = await readPriorStickyStamps(
       opts.home,
       origin,
       sliceSessionId,
     );
+    // Fail closed: never overwrite a corrupt/unreadable slice with reset clocks.
+    if (priorRead.status === "corrupt") {
+      await writeCounters(opts.home, {
+        read_run: classified.readRun,
+      });
+      return;
+    }
+    const priorStamps =
+      priorRead.status === "ok" ? priorRead.stamps : ({} as StickyStamps);
     const nowIso = opts.now.toISOString();
     const sticky = mergeStickyStamps({
       prior: priorStamps,

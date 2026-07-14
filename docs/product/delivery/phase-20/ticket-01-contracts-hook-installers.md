@@ -45,3 +45,4 @@ Why this path: bump the shared schema constant, add four optional `.datetime({ o
 Alternative considered: writing stamps only from a sidecar file — rejected; Grill-Me locked on-slice sticky fields so PromptTimer/Sessions can hydrate from the same parse path.
 Deferred: Swift `EXPECTED_STATE_SCHEMA_VERSION` / PromptTimer hydrate / Sessions Started / contract docs vocabulary (P20.02–P20.04). Installer command wiring unchanged — all five platforms already install `codogotchi-hook`; rebuilt binary ships via the existing embed path.
 Contract note: none — metadata `Type: feat` / `Scope: contracts` / `Red: required` match delivery.
+Subagent review: patched fail-closed corrupt-prior read — unreadable prior slice no longer resets sticky clocks on the next write.

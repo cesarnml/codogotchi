@@ -3127,4 +3127,24 @@ describe("sticky slice stamps (P20.01)", () => {
     // Session birth survives idle.
     expect(slice.session_started_at).toBe(FIXED_NOW.toISOString());
   });
+
+  it("does not overwrite a corrupt prior slice with reset sticky clocks", async () => {
+    const sessionId = "stamp-corrupt-prior";
+    const path = sliceFilePath(home, "claude_code", sessionId);
+    mkdirSync(sliceDirPath(home), { recursive: true });
+    const corruptBody = "{not-valid-json";
+    writeFileSync(path, corruptBody, "utf8");
+
+    await runHook(
+      {
+        origin: "claude_code",
+        kind: "tool_use",
+        name: "Edit",
+        session_id: sessionId,
+      },
+      { home, now: FIXED_NOW },
+    );
+
+    expect(readFileSync(path, "utf8")).toBe(corruptBody);
+  });
 });
