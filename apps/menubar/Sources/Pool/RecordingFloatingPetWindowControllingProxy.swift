@@ -113,6 +113,10 @@ final class RecordingFloatingPetWindowControllingProxy: FloatingPetWindowControl
 		wrapped.applySessionNumber(number)
 	}
 
+	func applyHasActiveSession(_ hasActiveSession: Bool) {
+		wrapped.applyHasActiveSession(hasActiveSession)
+	}
+
 	func applySessionLabel(_ label: String?) {
 		recordedCalls.append(.sessionLabel(label))
 		wrapped.applySessionLabel(label)

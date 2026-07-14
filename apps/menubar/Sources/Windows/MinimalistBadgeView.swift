@@ -144,6 +144,7 @@ final class MinimalistBadgeView: NSView {
 	/// Mirrored so a later `configureBadge` (metrics/activity refresh) can
 	/// re-apply them without the caller having to resend them every tick.
 	private var currentSessionNumber: Int?
+	private var hasActiveSession = false
 	/// User-set rename label for this session (P15.06), or `nil` to fall back
 	/// to "Session N". Also prefills the rename alert's text field.
 	private var currentSessionLabel: String?
@@ -189,6 +190,10 @@ final class MinimalistBadgeView: NSView {
 		currentSessionLabel = label
 		currentSessionTooltip = tooltip
 		sessionBadge.configure(number: number, label: label, tooltip: tooltip, metrics: currentMetrics)
+	}
+
+	func applyHasActiveSession(_ hasActiveSession: Bool) {
+		self.hasActiveSession = hasActiveSession
 	}
 
 	/// Width the badge content needs plus horizontal padding. When the session
@@ -300,7 +305,7 @@ final class MinimalistBadgeView: NSView {
 		let capabilities = FloatingPetPromptCapabilities(
 			offersForceIdle: FloatingPetHidePrompt.offersForceIdle(for: currentActivity),
 			sessionLabel: currentSessionLabel,
-			hasActiveSession: currentSessionNumber != nil,
+			hasActiveSession: hasActiveSession,
 			modeSwitchTitle: FloatingPetHidePrompt.petModeTitle,
 			offersPanelSize: true,
 			hideItemTitle: FloatingPetHidePrompt.panelTitle
@@ -493,4 +498,3 @@ final class MinimalistBadgeView: NSView {
 		])
 	}
 }
-

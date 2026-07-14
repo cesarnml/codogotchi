@@ -25,6 +25,10 @@ struct DesiredWindow: Equatable {
 	/// ticket only guarantees the allocator's internal state (and the number
 	/// it would hand out) is correct.
 	var sessionNumber: Int?
+	/// Whether this window currently resolves to a real state.d session and
+	/// should expose session actions, independent of whether it has a numbered
+	/// session-keyed window of its own.
+	var hasActiveSession = false
 	var sessionLabel: String?
 	var sessionTooltip: String?
 	var activityState: ActivityState = .idle

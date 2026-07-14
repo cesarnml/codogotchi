@@ -376,8 +376,11 @@ final class FloatingPetPanelController: PanelActionHandling {
 	func applySessionNumber(_ number: Int?) {
 		guard currentSessionNumber != number else { return }
 		currentSessionNumber = number
-		(panel?.contentView as? FloatingPetInteractionView)?.hasActiveSessionBadge = number != nil
 		repositionAndShowAnimationBadge()
+	}
+
+	func applyHasActiveSession(_ hasActiveSession: Bool) {
+		(panel?.contentView as? FloatingPetInteractionView)?.hasActiveSessionBadge = hasActiveSession
 	}
 
 	func applySessionLabel(_ label: String?) {
@@ -967,4 +970,3 @@ final class FloatingPetPanelController: PanelActionHandling {
 		return view
 	}
 }
-

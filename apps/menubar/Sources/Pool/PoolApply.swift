@@ -90,6 +90,7 @@ enum PoolApply {
 		if key != .combined {
 			controller.applySessionNumber(window.sessionNumber)
 		}
+		controller.applyHasActiveSession(window.hasActiveSession)
 		controller.applySessionLabel(window.sessionLabel)
 		controller.applySessionTooltip(window.sessionTooltip)
 		controller.applyConflictBubble(window.conflictBubble)
