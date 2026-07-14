@@ -294,6 +294,10 @@ final class MinimalistPanelController: PanelActionHandling {
 		badgeView.applyFoldedSessionDisplay(display)
 	}
 
+	func applyModeIndicatorBadge(_ text: String?) {
+		badgeView.applyModeIndicatorBadge(text)
+	}
+
 	func applySessionTooltip(_ summary: String?) {
 		guard currentSessionTooltip != summary else { return }
 		currentSessionTooltip = summary

@@ -14,6 +14,12 @@ final class MinimalistBadgeView: NSView {
 	/// Test-observable rendered state — see `AnimationBadgeView.currentPromptTimer`.
 	var renderedPromptTimerPresentation: PromptTimerPresentation? { animationBadge.currentPromptTimer }
 	private let sessionBadge = PlatformSessionBadge(frame: .zero)
+	/// Test-observable rendered state — see
+	/// `AnimationBadgeView.currentModeIndicatorText`. The mode-indicator badge
+	/// itself is rendered by the embedded `animationBadge`, not a second
+	/// element here, so `MinimalistBadgeView` and Own mode's
+	/// `AnimationBadgePanel` share one implementation (P19.04).
+	var renderedModeIndicatorBadge: String? { animationBadge.currentModeIndicatorText }
 	private let badgeStack = NSStackView()
 	private let outerStack = NSStackView()
 	private var currentMetrics = GateBadgeLayout.metrics(scale: 1.0)
@@ -202,6 +208,13 @@ final class MinimalistBadgeView: NSView {
 
 	func applyFoldedSessionDisplay(_ display: String?) {
 		foldedSessionDisplay = display
+	}
+
+	/// Shows/hides and labels the mode-indicator row. `nil` hides it
+	/// entirely — this badge only ever appears for a fold window
+	/// (`resolvedIdentity != key`), never for a genuinely solo one (P19.04).
+	func applyModeIndicatorBadge(_ text: String?) {
+		animationBadge.configureModeIndicator(text)
 	}
 
 	/// Width the badge content needs plus horizontal padding. When the session

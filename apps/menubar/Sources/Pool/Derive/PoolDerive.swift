@@ -450,6 +450,9 @@ enum PoolDerive {
 						label
 					}
 			}
+			if key != resolvedIdentity {
+				window.modeIndicatorBadge = key == .combined ? "Combined" : PlatformAttribution(origin: key.origin)?.displayName
+			}
 			if resolvedIdentity.isSessionKeyed, memory.resolvedSessionTitles[resolvedIdentity] == nil,
 				let identity = snapshot.renderKeyIdentities[resolvedIdentity]
 			{

@@ -42,11 +42,11 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `MinimalistBadgeViewTests` and `PoolDerivePushTests` failed to compile (`applyModeIndicatorBadge`/`renderedModeIndicatorBadge`/`modeIndicatorBadge` didn't exist yet) — a build-failure red rather than an assertion-failure red, same shape as prior tickets in this phase that add new protocol/view surface.
+Why this path: mirrored the `applyFoldedSessionDisplay` three-site protocol pattern (protocol member + default no-op, `PoolDerive` computation gated on `key != resolvedIdentity`, `PoolApply` push) for the plumbing, then rendered the badge inside the shared `AnimationBadgeView` — embedded directly in `MinimalistBadgeView` and hosted inside Own mode's `AnimationBadgePanel` — so one implementation covers both renderer skins instead of two divergent ones. Kept `configureModeIndicator` as its own method (not folded into `configure()`), mirroring `configurePromptTimer`'s established pattern, so an unrelated same-tick `configure()`/reposition call never clobbers it — the exact clobbering bug P18.04 hit and fixed for prompt-timer presentations.
+Alternative considered: a second, `MinimalistBadgeView`-local text field distinct from `AnimationBadgeView`. Rejected — `MinimalistBadgeView` already embeds `AnimationBadgeView`, so a local duplicate would double-render for Minimalist and still leave Own mode with no visual badge at all, undercutting the ticket's own stated Outcome (badge shown in `FloatingPetPanelController` too).
+Deferred: nothing behavior-relevant. `FloatingPetPanelController.applyModeIndicatorBadge` stores the pushed text and forwards it through the existing `repositionAndShowAnimationBadge`/`liveRepositionAnimationBadge` chain so it survives drag/resize hot-path repositions the same way session number/label already do.
+Contract note: none — `Type: feat`, `Scope: menubar` match the diff.
 
 ## Phase Closeout
 
