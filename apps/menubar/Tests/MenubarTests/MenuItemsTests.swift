@@ -588,6 +588,55 @@ final class MenuItemsTests: XCTestCase {
 			"Show on a Live row must refresh the platform's rendered window key")
 	}
 
+	func testFoldedWinnerStaysActiveAndAllSlicesKeepSessionLabels() throws {
+		for mode in [PlatformMode.own, .combined] {
+			let dir = try makeTempStateDir()
+			try writeSlice(named: "codex:winner.json", in: dir, age: 30)
+			try writeSlice(named: "codex:older.json", in: dir, age: 60)
+			let customization = CustomizationSnapshot(
+				platformModes: ["codex": mode], idleDismissTtlSeconds: 300,
+				menubarIconMonochrome: false, combinedMinimalistEnabled: false,
+				minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": false],
+				sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+				idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+			let titles: [WindowKey: String] = [
+				"codex:winner": "Current winner",
+				"codex:older": "Older thread",
+			]
+			let pool = FloatingPetWindowPool(
+				customizationReader: { customization },
+				windowFactory: { _, _ in StubWindow() },
+				retrievedSessionTitleReader: { titles[$0] })
+			let perSession: [String: StateSnapshot] = [
+				"codex:winner": StateSnapshot(
+					schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .implementing,
+					updatedAt: "2026-07-01T10:00:01.000Z", sourceEvent: nil, attention: nil),
+				"codex:older": StateSnapshot(
+					schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .idle,
+					updatedAt: "2026-07-01T10:00:00.000Z", sourceEvent: nil, attention: nil),
+			]
+			let resolution = resolveRenderKeys(perSession: perSession, customization: customization)
+			pool.update(snapshot: PerPlatformSnapshot(
+				perPlatform: resolution.states, gateBadges: [:], rpgSnapshot: .safeDefault,
+				renderKeyIdentities: resolution.identities))
+
+			let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+			viewModel.refresh()
+			XCTAssertEqual(viewModel.activeRows.map(\.id), ["codex:winner"], "mode \(mode)")
+			XCTAssertEqual(viewModel.activeRows.map(\.displayLabel), ["Current winner"], "mode \(mode)")
+			XCTAssertEqual(viewModel.liveRows.map(\.id), ["codex:older"], "mode \(mode)")
+			XCTAssertEqual(viewModel.liveRows.map(\.displayLabel), ["Older thread"], "mode \(mode)")
+
+			let menu = MenubarMenu(
+				terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel
+			).build()
+			XCTAssertTrue(menu.items.contains { $0.title == "Hide Codex - Current winner Pet" }, "mode \(mode)")
+			let liveItem = try XCTUnwrap(menu.items.first { $0.title == MenubarMenu.livePetsTitle })
+			let liveMenu = try XCTUnwrap(liveItem.submenu)
+			XCTAssertTrue(liveMenu.items.contains { $0.title == "Show Codex - Older thread Pet" }, "mode \(mode)")
+		}
+	}
+
 	func testLivePetShowTargetsHiddenCombinedWindow() throws {
 		let dir = try makeTempStateDir()
 		try writeSlice(named: "codex:one.json", in: dir, age: 30)

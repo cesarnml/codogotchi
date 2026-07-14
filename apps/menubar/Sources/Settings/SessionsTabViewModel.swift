@@ -140,10 +140,16 @@ final class SessionsTabViewModel {
 			let key: WindowKey =
 				isSessionKeyed ? .session(origin: origin, id: parsedSessionId) : .origin(origin)
 
+			let renderedKey = pool?.renderedWindowKey(for: key) ?? key
+			let resolvedIdentity = pool?.resolvedIdentity(forWindowKey: renderedKey)
+			let ownsRenderedTarget = resolvedIdentity.map { $0 == key } ?? (renderedKey == key)
 			let isRendered = activeWindowKeys.contains(key)
+				|| (ownsRenderedTarget && activeWindowKeys.contains(renderedKey))
 			let isHiddenByUser = hiddenWindowKeys.contains(key)
+				|| (ownsRenderedTarget && hiddenWindowKeys.contains(renderedKey))
 			let isPendingShow = pendingShowKeys.contains(key)
 			let isTtlDismissed = ttlDismissedKeys.contains(key)
+				|| (ownsRenderedTarget && ttlDismissedKeys.contains(renderedKey))
 			let lifecycle = SessionLifecycle.classify(
 				age: age,
 				isRendered: isRendered,
@@ -217,16 +223,17 @@ final class SessionsTabViewModel {
 	/// row (whose stale mtime `refreshForShow` re-freshens).
 	@MainActor
 	func show(key: WindowKey) {
-		refreshTtlForShow(key)
+		let renderedKey = pool?.renderedWindowKey(for: key) ?? key
+		refreshTtlForShow(renderedKey)
 		pendingShowKeys.insert(key)
-		pool?.setVisible(true, for: key)
+		pool?.setVisible(true, for: renderedKey)
 		refresh()
 	}
 
 	/// Hides a currently-rendered Active row.
 	@MainActor
 	func hide(key: WindowKey) {
-		pool?.setVisible(false, for: key)
+		pool?.setVisible(false, for: pool?.renderedWindowKey(for: key) ?? key)
 		refresh()
 	}
 

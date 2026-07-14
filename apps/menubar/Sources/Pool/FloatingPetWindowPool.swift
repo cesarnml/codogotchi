@@ -319,6 +319,12 @@ final class FloatingPetWindowPool {
 		if customization.sessionPetsEnabled[renderKey.origin] ?? false { return renderKey }
 		return .origin(renderKey.origin)
 	}
+	/// The state.d slice identity currently driving a rendered window. Folded
+	/// origin/Combined keys are presentation targets; their winner remains a
+	/// session-keyed source identity for lifecycle rows and labels.
+	func resolvedIdentity(forWindowKey key: WindowKey) -> WindowKey? {
+		lastDesired.windows[key]?.resolvedIdentity
+	}
 	/// Platform origin whose `platform_modes` entry the right-click mode-switch
 	/// affordance (Pet Mode ↔ Minimalist Mode) should rewrite for the window
 	/// keyed `key`, or `nil` for the `.combined` window — that one flips
@@ -345,7 +351,14 @@ final class FloatingPetWindowPool {
 	/// so no identity lookup is needed here.
 	func sessionLabel(forWindowKey key: WindowKey) -> String? { sessionLabelReader(key) }
 	func sessionDisplayLabel(forWindowKey key: WindowKey, origin: String? = nil) -> String? {
-		lastDesired.windows[key]?.sessionLabel
+		if let label = lastDesired.windows[key]?.sessionLabel { return label }
+		if let label = lastDesired.windows.values.first(where: { $0.resolvedIdentity == key })?.sessionLabel {
+			return label
+		}
+		return sessionLabelReader(key)
+			?? memory.resolvedSessionTitles[key]
+			?? retrievedSessionTitleReader(key)
+			?? memory.sessionNumbers[key].map { "Session \($0)" }
 	}
 	/// Fallback session-label text for a plain-origin/"combined" window that
 	/// has never been renamed — the platform's own display name (e.g.

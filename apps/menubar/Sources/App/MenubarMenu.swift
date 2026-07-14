@@ -319,7 +319,7 @@ final class MenubarMenu: NSObject {
 			item.isEnabled = false
 			items.append(item)
 		} else if activeRows.count == 1 {
-			items.append(activePetMenuItem(for: activeRows[0], titlePrefix: false))
+			items.append(activePetMenuItem(for: activeRows[0], titlePrefix: activeRows[0].sessionId != nil))
 		} else {
 			for row in activeRows {
 				items.append(activePetMenuItem(for: row, titlePrefix: true))
@@ -363,10 +363,10 @@ final class MenubarMenu: NSObject {
 	private func activePetMenuItem(for row: SessionRow, titlePrefix: Bool) -> NSMenuItem {
 		let item: NSMenuItem
 		if row.isShown {
-			let title = titlePrefix ? "Hide \(displayName(for: row.id)) Pet" : Self.hideFloatingPetTitle
+			let title = titlePrefix ? "Hide \(displayName(for: row)) Pet" : Self.hideFloatingPetTitle
 			item = NSMenuItem(title: title, action: #selector(hideFloatingPetForOrigin(_:)), keyEquivalent: "")
 		} else {
-			let title = titlePrefix ? "Show \(displayName(for: row.id)) Pet" : Self.showFloatingPetTitle
+			let title = titlePrefix ? "Show \(displayName(for: row)) Pet" : Self.showFloatingPetTitle
 			item = NSMenuItem(title: title, action: #selector(showFloatingPetForKey(_:)), keyEquivalent: "")
 		}
 		item.target = self
@@ -389,7 +389,7 @@ final class MenubarMenu: NSObject {
 		} else {
 			for row in rows.sorted(by: { $0.displayLabel < $1.displayLabel }) {
 				let rowItem = NSMenuItem(
-					title: "Show \(displayName(for: row.id)) Pet",
+					title: "Show \(displayName(for: row)) Pet",
 					action: #selector(showFloatingPetForKey(_:)),
 					keyEquivalent: ""
 				)
@@ -420,7 +420,7 @@ final class MenubarMenu: NSObject {
 		} else {
 			for row in rows.sorted(by: { $0.displayLabel < $1.displayLabel }) {
 				let status = NSMenuItem(
-					title: "\(displayName(for: row.id)) — session cap reached",
+					title: "\(displayName(for: row)) — session cap reached",
 					action: nil, keyEquivalent: ""
 				)
 				status.isEnabled = false
@@ -447,7 +447,7 @@ final class MenubarMenu: NSObject {
 			let item = sender as? NSMenuItem,
 			let origin = item.representedObject as? WindowKey
 		else { return }
-		pool.setVisible(false, for: origin)
+		pool.setVisible(false, for: pool.renderedWindowKey(for: origin))
 		refreshFloatingPetMenuItemTitle()
 	}
 
@@ -486,6 +486,14 @@ final class MenubarMenu: NSObject {
 			return "\(platformName) - \(label)"
 		}
 		return platformName
+	}
+
+	@MainActor
+	private func displayName(for row: SessionRow) -> String {
+		guard sessionsTabViewModel != nil else { return displayName(for: row.id) }
+		let platformName = platformDisplayName(for: row.origin)
+		guard !row.displayLabel.isEmpty, row.displayLabel != platformName else { return platformName }
+		return "\(platformName) - \(row.displayLabel)"
 	}
 
 	private func platformDisplayName(for origin: String) -> String {
