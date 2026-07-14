@@ -584,8 +584,8 @@ final class MenuItemsTests: XCTestCase {
 
 		_ = (rowItem!.target as AnyObject?)?.perform(rowItem!.action!, with: rowItem!)
 		XCTAssertEqual(
-			refreshed, ["codex:live-one"],
-			"Show on a Live row must restart the dismiss-TTL clock, same as an Active Show")
+			refreshed, [.origin("codex")],
+			"Show on a Live row must refresh the platform's rendered window key")
 	}
 
 	func testLivePetShowTargetsHiddenCombinedWindow() throws {
