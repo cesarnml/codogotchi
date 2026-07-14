@@ -40,8 +40,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: contract tests failed on `STATE_JSON_SCHEMA_VERSION === 10` and optional stamp field accept; hook tests failed because `runHook` rebuilt slices without sticky fields.
+Why this path: bump the shared schema constant, add four optional `.datetime({ offset: true })` fields on `sliceEntrySchema`, and read-merge prior stamps in `runHook` via `mergeStickyStamps` before each atomic write — smallest change that preserves stamps across full-object overwrites.
+Alternative considered: writing stamps only from a sidecar file — rejected; Grill-Me locked on-slice sticky fields so PromptTimer/Sessions can hydrate from the same parse path.
+Deferred: Swift `EXPECTED_STATE_SCHEMA_VERSION` / PromptTimer hydrate / Sessions Started / contract docs vocabulary (P20.02–P20.04). Installer command wiring unchanged — all five platforms already install `codogotchi-hook`; rebuilt binary ships via the existing embed path.
+Contract note: none — metadata `Type: feat` / `Scope: contracts` / `Red: required` match delivery.
