@@ -645,10 +645,20 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	}
 
 	/// Opt out of App Nap when any pool window is visible; opt back in when all are hidden.
+	///
+	/// `onVisibilityChanged` (which calls this) fires synchronously from inside
+	/// `PoolApply.apply`, while that call still holds an exclusive `inout`
+	/// access on `FloatingPetWindowPool.windows` — the same storage
+	/// `activeOrigins` reads. Reading it in the same call frame is a Swift
+	/// exclusivity violation (fatal at runtime). Deferring to the next run
+	/// loop turn lets `apply` return and release the access first.
 	@MainActor
 	private func updateAppNapOptOut() {
-		let anyVisible = !(floatingPetWindowPool?.activeOrigins.isEmpty ?? true)
-		setFloatingPetAppNapOptOut(active: anyVisible)
+		DispatchQueue.main.async { [weak self] in
+			guard let self else { return }
+			let anyVisible = !(self.floatingPetWindowPool?.activeOrigins.isEmpty ?? true)
+			setFloatingPetAppNapOptOut(active: anyVisible)
+		}
 	}
 
 	/// Wires the action surface shared by Own and Minimalist renderers. Shape
