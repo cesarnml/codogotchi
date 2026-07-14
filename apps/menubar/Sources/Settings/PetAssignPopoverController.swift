@@ -7,6 +7,9 @@ import AppKit
 final class PetAssignPopoverController: NSViewController {
 	private let petId: String
 	private let viewModel: PetTabViewModel
+	/// Fired after each successful assign/unassign so the pet grid can refresh
+	/// badge pills while this popover stays open.
+	var onAssignmentToggled: (() -> Void)?
 	private var rowViews: [String: BadgeRowView] = [:]
 
 	init(petId: String, viewModel: PetTabViewModel) {
@@ -105,5 +108,6 @@ final class PetAssignPopoverController: NSViewController {
 			let nowChecked = updated.contains(k)
 			row.update(isChecked: nowChecked, isDisabled: k == "default" && nowChecked)
 		}
+		onAssignmentToggled?()
 	}
 }

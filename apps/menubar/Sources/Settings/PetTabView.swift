@@ -15,6 +15,7 @@ final class PetTabView: NSView, NSSearchFieldDelegate {
 	/// description labels in the rendered hierarchy.
 	static let cardIdentifier = NSUserInterfaceItemIdentifier("petCard")
 	static let descriptionIdentifier = NSUserInterfaceItemIdentifier("petCardDescription")
+	static let badgePillsIdentifier = NSUserInterfaceItemIdentifier("petCardBadgePills")
 
 	private var viewModel: PetTabViewModel
 	private let onImportPet: (String) -> Void
@@ -39,6 +40,10 @@ final class PetTabView: NSView, NSSearchFieldDelegate {
 	private var lastColumnCount = 0
 	private var currentEntries: [PetCatalogEntry] = []
 	private var activeAssignPopover: NSPopover?
+	/// Live card chrome keyed by pet id so assign toggles can update logo pills
+	/// and the Default border without destroying the popover's anchor button.
+	private var cardViewsByPetId: [String: NSView] = [:]
+	private var pillsRowsByPetId: [String: NSStackView] = [:]
 
 	private let cardSpacing: CGFloat = 12
 	private let minCardWidth: CGFloat = 300
@@ -263,6 +268,8 @@ final class PetTabView: NSView, NSSearchFieldDelegate {
 	}
 
 	private func rebuildGrid() {
+		cardViewsByPetId.removeAll(keepingCapacity: true)
+		pillsRowsByPetId.removeAll(keepingCapacity: true)
 		for view in gridStack.arrangedSubviews {
 			gridStack.removeArrangedSubview(view)
 			view.removeFromSuperview()
@@ -436,6 +443,7 @@ final class PetTabView: NSView, NSSearchFieldDelegate {
 		// rather than stretching descLabel or leaving pills floating high above the bottom.
 		let entryBadges = viewModel.badges(for: entry.id)
 		let pillsRow = makeBadgePillsRow(badges: entryBadges)
+		pillsRow.identifier = PetTabView.badgePillsIdentifier
 		card.addSubview(pillsRow)
 		NSLayoutConstraint.activate([
 			pillsRow.topAnchor.constraint(greaterThanOrEqualTo: descLabel.bottomAnchor, constant: 6),
@@ -458,6 +466,8 @@ final class PetTabView: NSView, NSSearchFieldDelegate {
 		preferRight.priority = .defaultHigh
 		NSLayoutConstraint.activate([leftBottom, rightBottom, preferRight])
 
+		cardViewsByPetId[entry.id] = card
+		pillsRowsByPetId[entry.id] = pillsRow
 		return card
 	}
 
@@ -509,7 +519,7 @@ final class PetTabView: NSView, NSSearchFieldDelegate {
 	}
 
 	/// Horizontal row of compact icon-only badge pills for all badges held by this pet.
-	private func makeBadgePillsRow(badges: Set<String>) -> NSView {
+	private func makeBadgePillsRow(badges: Set<String>) -> NSStackView {
 		let sorted = ASSIGNMENT_BADGE_KEYS.filter { badges.contains($0) }
 		let pills = sorted.map { key -> NSView in makePlatformIconPill(key: key) }
 		let row = NSStackView(views: pills)
@@ -518,6 +528,34 @@ final class PetTabView: NSView, NSSearchFieldDelegate {
 		row.alignment = .centerY
 		row.translatesAutoresizingMaskIntoConstraints = false
 		return row
+	}
+
+	/// Replace arranged pill views to match the current assignment set without
+	/// rebuilding the whole card (keeps the assign-popover anchor intact).
+	private func replaceBadgePills(in row: NSStackView, badges: Set<String>) {
+		for view in row.arrangedSubviews {
+			row.removeArrangedSubview(view)
+			view.removeFromSuperview()
+		}
+		let sorted = ASSIGNMENT_BADGE_KEYS.filter { badges.contains($0) }
+		for key in sorted {
+			row.addArrangedSubview(makePlatformIconPill(key: key))
+		}
+	}
+
+	/// Update logo pills + Default selection border from the live assignment map
+	/// while an assign popover may still be open.
+	func refreshAssignmentChrome() {
+		for (petId, pillsRow) in pillsRowsByPetId {
+			replaceBadgePills(in: pillsRow, badges: viewModel.badges(for: petId))
+		}
+		for (petId, card) in cardViewsByPetId {
+			let isDefault = viewModel.badges(for: petId).contains("default")
+			card.layer?.borderWidth = isDefault ? 2 : 1
+			card.layer?.borderColor =
+				(isDefault ? NSColor.controlAccentColor : SettingsTheme.cardBorder).cgColor
+		}
+		sizeDocumentToFit()
 	}
 
 	private func makePlatformIconPill(key: String) -> NSView {
@@ -576,6 +614,9 @@ final class PetTabView: NSView, NSSearchFieldDelegate {
 		activeAssignPopover = nil
 
 		let vc = PetAssignPopoverController(petId: petId, viewModel: viewModel)
+		vc.onAssignmentToggled = { [weak self] in
+			self?.refreshAssignmentChrome()
+		}
 		let popover = NSPopover()
 		popover.contentViewController = vc
 		popover.behavior = .transient
