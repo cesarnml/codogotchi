@@ -398,7 +398,13 @@ enum PoolDerive {
 				}
 
 			if let winnerEntry {
-				window.resolvedIdentity = winnerEntry.key
+				if let identity = snapshot.renderKeyIdentities[winnerEntry.key] {
+					window.resolvedIdentity = identity.sessionId == "default"
+						? .origin(identity.origin)
+						: .session(origin: identity.origin, id: identity.sessionId)
+				} else {
+					window.resolvedIdentity = winnerEntry.key
+				}
 				let state = winnerEntry.state
 				window.activityState = state.activityState
 				window.attention = state.attention
@@ -418,6 +424,7 @@ enum PoolDerive {
 			window.petId = input.assignments.resolve(origin: key == .combined ? "combined" : key.origin)
 			window.rpgSnapshot = snapshot.rpgSnapshot
 			window.sessionNumber = memory.sessionNumbers[key]
+			window.hasActiveSession = window.resolvedIdentity != .combined
 			window.sessionTooltip = key.isSessionKeyed ? input.sessionPromptSummaries[key] : nil
 			let resolvedIdentity = window.resolvedIdentity
 			if let known = input.knownSessionTitles[resolvedIdentity] {

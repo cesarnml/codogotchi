@@ -42,8 +42,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: Folded-origin, default-sentinel, and Combined prune tests all failed because their backing slices remained on disk.
+Why this path: Resolve the click-time target from `lastDesired`, translate the default sentinel through the existing bare-origin filename convention, and push a separate active-session capability so menu availability is not coupled to session numbering.
+Alternative considered: Re-shaping `WindowKey` to embed a folded session was rejected because its raw value is a persistence contract; inferring the winner again during the click was rejected because P19.01 already made the elected identity desired-window data.
+Deferred: Prune confirmation/menu copy remains P19.03; the mode indicator remains P19.04.
+Contract note: Production `PerPlatformSnapshot` values are already render-key-collapsed, so P19.01's direct derive fixtures did not exercise the parallel `renderKeyIdentities` lookup. This ticket completes that required seam by converting the recorded winning identity back to the resolved `WindowKey` and reading its live label. Type and scope metadata remain compliant.

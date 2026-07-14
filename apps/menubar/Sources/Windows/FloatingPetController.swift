@@ -37,6 +37,7 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	/// "combined" window — session numbering only applies to session-keyed
 	/// windows). Drives the `PlatformSessionBadge` row.
 	func applySessionNumber(_ number: Int?)
+	func applyHasActiveSession(_ hasActiveSession: Bool)
 	/// User-set rename label for this session (from `SessionLabelStore`), or
 	/// `nil` to fall back to "Session N". No-op for plain-origin/"combined"
 	/// windows, mirroring `applySessionNumber`.
@@ -71,6 +72,7 @@ extension FloatingPetWindowControlling {
 	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {}
 	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {}
 	func applySessionNumber(_ number: Int?) {}
+	func applyHasActiveSession(_ hasActiveSession: Bool) {}
 	func applySessionLabel(_ label: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
@@ -109,6 +111,7 @@ protocol PanelManaging: AnyObject {
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void)
 	/// Assigned session number for this window (nil clears the session badge row).
 	func applySessionNumber(_ number: Int?)
+	func applyHasActiveSession(_ hasActiveSession: Bool)
 	/// User-set rename label for this session (from `SessionLabelStore`), or
 	/// `nil` to fall back to "Session N". No-op for plain-origin/"combined"
 	/// windows, mirroring `applySessionNumber`.
@@ -152,6 +155,7 @@ extension PanelManaging {
 	func applyGateBadge(content: GateBadgeContent?) {}
 	func applyPlatform(origin: String?) {}
 	func applySessionNumber(_ number: Int?) {}
+	func applyHasActiveSession(_ hasActiveSession: Bool) {}
 	func applySessionLabel(_ label: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
@@ -302,6 +306,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 
 	func applySessionNumber(_ number: Int?) {
 		panel.applySessionNumber(number)
+	}
+
+	func applyHasActiveSession(_ hasActiveSession: Bool) {
+		panel.applyHasActiveSession(hasActiveSession)
 	}
 
 	func applySessionLabel(_ label: String?) {
@@ -511,6 +519,10 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 
 	func applySessionNumber(_ number: Int?) {
 		panel.applySessionNumber(number)
+	}
+
+	func applyHasActiveSession(_ hasActiveSession: Bool) {
+		panel.applyHasActiveSession(hasActiveSession)
 	}
 
 	func applySessionLabel(_ label: String?) {

@@ -14,6 +14,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     var appliedRPGStates: [(Int, Double, Int, Int, Bool)] = []
     var appliedGateBadges: [GateBadgeContent?] = []
     var appliedSessionNumbers: [Int?] = []
+	var appliedHasActiveSessions: [Bool] = []
     var appliedSessionLabels: [String?] = []
     var appliedSessionTooltips: [String?] = []
     var appliedConflictBubbles: [ConflictBubblePayload?] = []
@@ -39,6 +40,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     func applyPlatform(origin: String?) { appliedPlatforms.append(origin) }
     func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) { replacePetsCallCount += 1 }
     func applySessionNumber(_ number: Int?) { appliedSessionNumbers.append(number) }
+	func applyHasActiveSession(_ hasActiveSession: Bool) { appliedHasActiveSessions.append(hasActiveSession) }
     func applySessionLabel(_ label: String?) { appliedSessionLabels.append(label) }
     func applySessionTooltip(_ summary: String?) { appliedSessionTooltips.append(summary) }
     func applyConflictBubble(_ payload: ConflictBubblePayload?) { appliedConflictBubbles.append(payload) }
@@ -2489,16 +2491,22 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code:older.json"))
 		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code:winner.json"))
 
+		var stub: StubWindowController?
 		let customization = makeCustomization(sessionPetsEnabled: ["claude_code": false])
 		let pool = FloatingPetWindowPool(
 			customizationReader: { customization },
-			windowFactory: { _, _ in StubWindowController() }
+			windowFactory: { _, _ in
+				let controller = StubWindowController()
+				stub = controller
+				return controller
+			}
 		)
 		pool.update(snapshot: makeResolvedSnapshot(
 			perSession: [
 				"claude_code:older": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
 				"claude_code:winner": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
 			], customization: customization))
+		XCTAssertEqual(stub?.appliedHasActiveSessions.last, true)
 
 		pool.pruneSession(windowKey: "claude_code", stateDirectory: dir.path)
 
@@ -2513,7 +2521,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 			.appendingPathComponent("pool-prune-default-origin-\(UUID().uuidString)", isDirectory: true)
 		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 		defer { try? FileManager.default.removeItem(at: dir) }
-		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code:default.json"))
+		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code.json"))
 
 		let customization = makeCustomization(sessionPetsEnabled: ["claude_code": false])
 		let pool = FloatingPetWindowPool(
@@ -2528,7 +2536,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		pool.pruneSession(windowKey: "claude_code", stateDirectory: dir.path)
 
 		XCTAssertFalse(
-			FileManager.default.fileExists(atPath: dir.appendingPathComponent("claude_code:default.json").path))
+			FileManager.default.fileExists(atPath: dir.appendingPathComponent("claude_code.json").path))
 	}
 
 	func testPruneSessionRemovesWinningSliceFromCombinedWindow() {
@@ -2539,19 +2547,25 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code:a.json"))
 		try! Data("{}".utf8).write(to: dir.appendingPathComponent("cursor:winner.json"))
 
+		var stub: StubWindowController?
 		let customization = makeCustomization(platformModes: [
 			"claude_code": .combined,
 			"cursor": .combined,
 		])
 		let pool = FloatingPetWindowPool(
 			customizationReader: { customization },
-			windowFactory: { _, _ in StubWindowController() }
+			windowFactory: { _, _ in
+				let controller = StubWindowController()
+				stub = controller
+				return controller
+			}
 		)
 		pool.update(snapshot: makeResolvedSnapshot(
 			perSession: [
 				"claude_code:a": makeSnapshot(updated: "2026-06-28T10:00:00.000Z"),
 				"cursor:winner": makeSnapshot(updated: "2026-06-28T10:00:01.000Z"),
 			], customization: customization))
+		XCTAssertEqual(stub?.appliedHasActiveSessions.last, true)
 
 		pool.pruneSession(windowKey: .combined, stateDirectory: dir.path)
 
@@ -2943,10 +2957,9 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		XCTAssertEqual(stubs["codex:s1"]?.appliedSessionLabels.last ?? nil, "Session 1")
 	}
 
-	// A plain-origin window (session-pets off) now gets a session-label badge
-	// too (P?? unification): the user's rename, if the sidecar has one for
-	// this exact plain-origin key ("codex", not "codex:s1").
-	func testPlainOriginWindowAppliesItsOwnSidecarLabelWhenReaderHasOne() {
+	// A plain-origin window (session-pets off) reads the winning session's
+	// sidecar label rather than a sticky fold-global key.
+	func testPlainOriginWindowAppliesItsResolvedSessionsSidecarLabelWhenReaderHasOne() {
 		var stubs: [WindowKey: StubWindowController] = [:]
 		let customization = makeCustomization(sessionPetsEnabled: ["codex": false])
 		let pool = FloatingPetWindowPool(
@@ -2956,7 +2969,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 				stubs[key] = c
 				return c
 			},
-			sessionLabelReader: { key in key == "codex" ? "My Codex" : nil }
+			sessionLabelReader: { key in key == "codex:s1" ? "My Codex" : nil }
 		)
 		pool.update(snapshot: makeResolvedSnapshot(
 			perSession: [

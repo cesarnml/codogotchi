@@ -279,6 +279,10 @@ final class MinimalistPanelController: PanelActionHandling {
 		applyBadge()
 	}
 
+	func applyHasActiveSession(_ hasActiveSession: Bool) {
+		badgeView.applyHasActiveSession(hasActiveSession)
+	}
+
 	func applySessionLabel(_ label: String?) {
 		guard currentSessionLabel != label else { return }
 		currentSessionLabel = label

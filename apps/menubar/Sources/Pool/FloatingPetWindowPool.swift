@@ -152,6 +152,12 @@ final class FloatingPetWindowPool {
 		var knownSessionTitles: [WindowKey: String] = [:]
 		var sessionPromptSummaries: [WindowKey: String] = [:]
 		var keysNeedingInput = Set(snapshot.perPlatform.keys)
+		for identity in snapshot.renderKeyIdentities.values {
+			keysNeedingInput.insert(
+				identity.sessionId == "default"
+					? .origin(identity.origin)
+					: .session(origin: identity.origin, id: identity.sessionId))
+		}
 		keysNeedingInput.insert(.combined)
 		for key in keysNeedingInput {
 			if let label = sessionLabelReader(key) { sessionLabels[key] = label }
@@ -407,12 +413,12 @@ final class FloatingPetWindowPool {
 		hiddenKeysSaver(memory.userHiddenWindowKeys)
 	}
 
-	/// Manual "Prune Session" (P15.07, right-click on a session-keyed window):
+	/// Manual "Prune Session" (P15.07, widened in P19.02 to every window
+	/// backed by a resolved session):
 	/// tears down the panel and destroys its state.d slice, free-list number,
 	/// session-labels.json key, and retrieved-session-labels.json cached
 	/// title — the same end-state as automatic TTL expiry plus the orphan
-	/// sweeps. No-op for a plain-origin/"combined" window, since those are
-	/// never session-keyed. `stateDirectory` is the live `state.d/` path
+	/// sweeps. `stateDirectory` is the live `state.d/` path
 	/// (`config.pollingTarget.path`), passed by the caller so this pool never
 	/// hardcodes a filesystem location. `labelPath`/`retrievedTitlePath`
 	/// default to the real sidecar file locations and exist as parameters
@@ -423,7 +429,16 @@ final class FloatingPetWindowPool {
 		labelPath: String = SessionLabelStore.path(),
 		retrievedTitlePath: String = RetrievedSessionTitleStore.path()
 	) {
-		guard let identity = windowKey.sessionIdentity else { return }
+		guard let resolvedIdentity = lastDesired.windows[windowKey]?.resolvedIdentity else { return }
+		let identity: (origin: String, sessionId: String)
+		switch resolvedIdentity {
+		case .session(let origin, let sessionId):
+			identity = (origin, sessionId)
+		case .origin(let origin):
+			identity = (origin, "default")
+		case .combined:
+			return
+		}
 		memory = memory.pruning(windowKey)
 		windows[windowKey]?.setFloatingPetVisible(false)
 		windows.removeValue(forKey: windowKey)
@@ -436,7 +451,7 @@ final class FloatingPetWindowPool {
 		// passed here: its `.release` call is a guaranteed no-op (nothing was
 		// ever assigned on it), never double-releasing the real number.
 		SessionPruner.pruneSession(
-			windowKey: windowKey.rawValue, origin: identity.origin, sessionId: identity.sessionId,
+			windowKey: resolvedIdentity.rawValue, origin: identity.origin, sessionId: identity.sessionId,
 			stateDirectory: stateDirectory, allocator: SessionNumberAllocator(),
 			labelPath: labelPath, retrievedTitlePath: retrievedTitlePath)
 	}
