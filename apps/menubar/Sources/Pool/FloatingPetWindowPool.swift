@@ -429,7 +429,8 @@ final class FloatingPetWindowPool {
 		labelPath: String = SessionLabelStore.path(),
 		retrievedTitlePath: String = RetrievedSessionTitleStore.path()
 	) {
-		guard let resolvedIdentity = lastDesired.windows[windowKey]?.resolvedIdentity else { return }
+		guard let desired = lastDesired.windows[windowKey], desired.hasActiveSession else { return }
+		let resolvedIdentity = desired.resolvedIdentity
 		let identity: (origin: String, sessionId: String)
 		switch resolvedIdentity {
 		case .session(let origin, let sessionId):
@@ -439,7 +440,7 @@ final class FloatingPetWindowPool {
 		case .combined:
 			return
 		}
-		memory = memory.pruning(windowKey)
+		memory = memory.pruning(windowKey, resolvedOrigin: identity.origin)
 		windows[windowKey]?.setFloatingPetVisible(false)
 		windows.removeValue(forKey: windowKey)
 		desiredWindows.removeValue(forKey: windowKey)

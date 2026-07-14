@@ -382,7 +382,9 @@ enum PoolDerive {
 			var window = key == .combined
 				? (memory.previousCombinedWindow ?? DesiredWindow(key: key))
 				: DesiredWindow(key: key)
-			window.resolvedIdentity = key
+			if key != .combined || memory.previousCombinedWindow == nil {
+				window.resolvedIdentity = key
+			}
 			window.isMinimalist =
 				key == .combined
 				? customization.combinedMinimalistEnabled
@@ -398,13 +400,15 @@ enum PoolDerive {
 				}
 
 			if let winnerEntry {
-				if let identity = snapshot.renderKeyIdentities[winnerEntry.key] {
+				let mappedIdentity = snapshot.renderKeyIdentities[winnerEntry.key]
+				if let identity = mappedIdentity {
 					window.resolvedIdentity = identity.sessionId == "default"
 						? .origin(identity.origin)
 						: .session(origin: identity.origin, id: identity.sessionId)
 				} else {
 					window.resolvedIdentity = winnerEntry.key
 				}
+				window.hasActiveSession = mappedIdentity != nil || winnerEntry.key.isSessionKeyed
 				let state = winnerEntry.state
 				window.activityState = state.activityState
 				window.attention = state.attention
@@ -424,7 +428,6 @@ enum PoolDerive {
 			window.petId = input.assignments.resolve(origin: key == .combined ? "combined" : key.origin)
 			window.rpgSnapshot = snapshot.rpgSnapshot
 			window.sessionNumber = memory.sessionNumbers[key]
-			window.hasActiveSession = window.resolvedIdentity != .combined
 			window.sessionTooltip = key.isSessionKeyed ? input.sessionPromptSummaries[key] : nil
 			let resolvedIdentity = window.resolvedIdentity
 			if let known = input.knownSessionTitles[resolvedIdentity] {

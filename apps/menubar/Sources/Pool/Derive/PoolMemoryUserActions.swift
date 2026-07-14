@@ -77,12 +77,12 @@ extension PoolMemory {
 	/// `windowSessionIdentities`), closes that gap. (2) the shell's paired
 	/// `SessionPruner.pruneSession` call performs the actual disk/allocator
 	/// side effects.
-	func pruning(_ key: WindowKey) -> PoolMemory {
+	func pruning(_ key: WindowKey, resolvedOrigin: String? = nil) -> PoolMemory {
 		var memory = self
 		memory.previousDesiredWindowKeys.remove(key)
 		memory.windowSpawnedModes.removeValue(forKey: key)
 		memory.promptTimers.removeValue(forKey: key)
-		memory.prunedOrigins.insert(key.origin)
+		memory.prunedOrigins.insert(resolvedOrigin ?? key.origin)
 		// Immediate, not "correct by next tick" — see `hiding(_:)`'s identical
 		// note (subagent-review finding).
 		memory.sessionNumbers.removeValue(forKey: key)

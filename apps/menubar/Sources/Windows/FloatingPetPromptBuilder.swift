@@ -13,8 +13,9 @@ struct FloatingPetPromptCapabilities {
 	/// independent of `hasActiveSession` (a plain-origin/combined window can
 	/// carry a label without being session-keyed).
 	var sessionLabel: String?
-	/// R1.4/R1.5 gate — an actual session-keyed window (not plain-origin or
-	/// combined); offers Sync Label and Prune Session.
+	/// R1.4/R1.5 gate — the window currently resolves to a real backing
+	/// session, including folded plain-origin and Combined windows; offers
+	/// Sync Label and Prune Session.
 	var hasActiveSession: Bool
 	/// R1.6 — "Minimalist Mode" (Own) or "Pet Mode" (Minimalist).
 	var modeSwitchTitle: String

@@ -655,6 +655,12 @@ final class PoolMemoryUserActionTransitionTests: XCTestCase {
 		XCTAssertNil(memory.windowSpawnedModes["claude_code:s1"])
 	}
 
+	func test_pruningCombinedWindowArmsResolvedOrigin() {
+		let memory = PoolMemory().pruning(.combined, resolvedOrigin: "cursor")
+		XCTAssertTrue(memory.prunedOrigins.contains("cursor"))
+		XCTAssertFalse(memory.prunedOrigins.contains("combined"))
+	}
+
 	/// `hidingAllOthers(keeping:)` mirrors `hideAllOtherWindows`: every
 	/// currently-desired key except the kept one is hidden in one batch.
 	func test_hidingAllOthersHidesEveryDesiredKeyExceptKept() {
