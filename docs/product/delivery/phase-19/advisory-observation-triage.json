@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-07-14T09:27:30.937Z",
+  "summary": {
+    "total": 3,
+    "patched": 0,
+    "rejected": 1,
+    "already-covered": 2,
+    "requires-human-review": 0
+  },
+  "dispositions": [
+    {
+      "disposition": "rejected",
+      "rationale": "This is a successful verification note plus unrelated local Xcode environment warnings, not a product or repository defect requiring a patch.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-19/reviews/P19.01-subagent-review.report.md",
+        "ticketId": "P19.01"
+      },
+      "observation": "The targeted `xcodebuild` run passed all 9 `PoolDerivePushTests` with 0 failures. Xcode emitted unrelated environment warnings about `com.apple.linkd.autoShortcut` and absent optional pet sprite sheets."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Commit 894e2c70 updated FloatingPetPromptCapabilities.hasActiveSession to document folded plain-origin and Combined windows as real backing-session capabilities.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-19/reviews/P19.02-subagent-review.report.md",
+        "ticketId": "P19.02"
+      },
+      "observation": "`FloatingPetPromptCapabilities.hasActiveSession` still documents “actual session-keyed window,” which is now stale because folded origin and Combined windows intentionally qualify."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Commit 894e2c70 added FloatingPetPanelController.currentHasActiveSession, updates it in applyHasActiveSession, and reapplies it when rebuilding the interaction content view.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-19/reviews/P19.02-subagent-review.report.md",
+        "ticketId": "P19.02"
+      },
+      "observation": "The Own controller stores capability only on its current interaction view, unlike the Minimalist badge view’s retained property. Current spawn ordering makes this work, but retaining the value in `FloatingPetPanelController` would prevent a future content-view rebuild from reverting capability to `currentSessionNumber != nil`."
+    }
+  ]
+}
