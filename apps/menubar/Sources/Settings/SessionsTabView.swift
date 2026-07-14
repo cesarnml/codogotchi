@@ -147,7 +147,7 @@ final class SessionsTabView: NSView {
 		refreshButton.image = NSImage(
 			systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh Sessions")
 		refreshButton.imagePosition = .imageLeading
-		refreshButton.bezelStyle = .texturedRounded
+		refreshButton.bezelStyle = .rounded
 		refreshButton.toolTip = "Refresh Sessions"
 		refreshButton.setAccessibilityLabel("Refresh Sessions")
 		NSLayoutConstraint.activate([
