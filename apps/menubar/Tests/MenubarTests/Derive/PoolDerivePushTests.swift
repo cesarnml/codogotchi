@@ -213,6 +213,49 @@ final class PoolDerivePushTests: XCTestCase {
 		XCTAssertFalse(desired.windows["cursor"]?.hudEnabled == true)
 	}
 
+	// MARK: - Mode-indicator badge (P19.04)
+
+	func testModeIndicatorBadgeAbsentForSoloSessionWindow() {
+		let key: WindowKey = "codex:session"
+		let (desired, _) = pushTick(
+			[key: pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
+			customization: pushCustomization(sessionPets: ["codex": true]), memory: PoolMemory())
+
+		XCTAssertNil(desired.windows[key]?.modeIndicatorBadge)
+	}
+
+	func testModeIndicatorBadgeAbsentForSoloDefaultSentinelOrigin() {
+		let (desired, _) = pushTick(
+			["codex": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
+			customization: pushCustomization(), memory: PoolMemory())
+
+		XCTAssertNil(desired.windows[.origin("codex")]?.modeIndicatorBadge)
+	}
+
+	func testModeIndicatorBadgeShowsPlatformNameForOriginFoldWithMultipleSessions() {
+		let customization = pushCustomization()
+		let (desired, _) = pushTick(
+			[
+				"codex:old": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex"),
+				"codex:new": pushSnapshot(updated: "2026-07-01T10:00:01.000Z", origin: "codex"),
+			], customization: customization, memory: PoolMemory(),
+			labels: ["codex:old": "Old task", "codex:new": "New task"])
+
+		XCTAssertEqual(desired.windows[.origin("codex")]?.modeIndicatorBadge, "Codex")
+	}
+
+	func testModeIndicatorBadgeShowsCombinedTextForCombinedWindow() {
+		let customization = pushCustomization(modes: ["codex": .combined, "cursor": .combined])
+		let (desired, _) = pushTick(
+			[
+				"codex:a": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex"),
+				"cursor:b": pushSnapshot(updated: "2026-07-01T10:00:01.000Z", origin: "cursor"),
+			], customization: customization, memory: PoolMemory(),
+			labels: ["codex:a": "Codex task", "cursor:b": "Cursor task"])
+
+		XCTAssertEqual(desired.windows[.combined]?.modeIndicatorBadge, "Combined")
+	}
+
 	func testMonochromeAndIdleEscalationOutputsArePureInputDerived() {
 		var memory = PoolMemory()
 		let customization = pushCustomization(monochrome: true)
