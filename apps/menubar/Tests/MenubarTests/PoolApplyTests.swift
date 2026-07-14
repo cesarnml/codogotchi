@@ -42,6 +42,7 @@ final class PoolApplyTests: XCTestCase {
 		var appliedConflictBubbles: [ConflictBubblePayload?] = []
 		var appliedIdleEscalationConfigs: [IdleEscalationConfig] = []
 		var appliedPromptTimerPresentations: [PromptTimerPresentation?] = []
+		var appliedModeIndicatorBadges: [String?] = []
 		var adoptedFrames: [CGRect] = []
 		/// Settable so a test can simulate "this window is currently at frame
 		/// X" before `apply` reads it as a spawn's frame-inheritance donor.
@@ -67,6 +68,7 @@ final class PoolApplyTests: XCTestCase {
 		func applySessionLabel(_ label: String?) { appliedSessionLabels.append(label) }
 		func applySessionTooltip(_ summary: String?) { appliedSessionTooltips.append(summary) }
 		func applyConflictBubble(_ payload: ConflictBubblePayload?) { appliedConflictBubbles.append(payload) }
+		func applyModeIndicatorBadge(_ text: String?) { appliedModeIndicatorBadges.append(text) }
 		func adoptFrame(_ frame: CGRect) {
 			adoptedFrames.append(frame)
 			currentFrame = frame
@@ -92,6 +94,7 @@ final class PoolApplyTests: XCTestCase {
 		desired.sessionTooltip = "Refactor the diff module"
 		desired.conflictBubble = ConflictBubblePayload(origin: "codex")
 		desired.promptTimerStatus = PromptTimerPresentation(label: "0:12", isRunning: true)
+		desired.modeIndicatorBadge = "Codex"
 
 		let controller = MockController()
 		var controllers: [WindowKey: FloatingPetWindowControlling] = [key: controller]
@@ -117,6 +120,7 @@ final class PoolApplyTests: XCTestCase {
 		XCTAssertEqual(
 			controller.appliedPromptTimerPresentations.last ?? nil,
 			PromptTimerPresentation(label: "0:12", isRunning: true))
+		XCTAssertEqual(controller.appliedModeIndicatorBadges.last ?? nil, "Codex")
 	}
 
 	func testDismissedWindowIsHiddenAndRemovedFromControllers() {

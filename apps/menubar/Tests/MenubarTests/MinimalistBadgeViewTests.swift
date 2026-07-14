@@ -43,4 +43,23 @@ final class MinimalistBadgeViewTests: XCTestCase {
 			"an explicit applyPromptTimerStatus call must clear a stale presentation override, not be shadowed by it"
 		)
 	}
+
+	// MARK: - Mode-indicator badge (P19.04)
+
+	func testModeIndicatorBadgeRendersProvidedText() {
+		let badge = MinimalistBadgeView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))
+
+		badge.applyModeIndicatorBadge("Combined")
+
+		XCTAssertEqual(badge.renderedModeIndicatorBadge, "Combined")
+	}
+
+	func testModeIndicatorBadgeHiddenWhenTextIsNil() {
+		let badge = MinimalistBadgeView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))
+		badge.applyModeIndicatorBadge("Codex")
+
+		badge.applyModeIndicatorBadge(nil)
+
+		XCTAssertNil(badge.renderedModeIndicatorBadge, "nil text must hide the badge, not just clear its string")
+	}
 }
