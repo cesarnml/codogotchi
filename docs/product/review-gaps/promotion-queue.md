@@ -523,6 +523,22 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
 - **Status:** WAITING — paired with `codogotchi-25` as origin; needs ≥1 more
   independent occurrence before a standing UI-review clause.
 
+### `successor-badge-leaves-redundant-menu-disambiguation`
+- **Seen:** 1× — `codogotchi-48` (P19.03 expanded Prune with
+  `"(platform · label)"` for folds; P19.04 added mode/session badges that
+  already show that identity, but the menu formatter kept expanding).
+- **Proposed clause:** *"When a later ticket in the same phase (or a follow-on
+  ticket) adds durable on-panel chrome that owns an identity or disambiguation
+  job previously done by menu/alert copy, revisit every formatter that still
+  interpolates that identity. Prefer retiring redundant parentheticals once
+  the live badge/chip is the source of truth."*
+- **Caveat that blocks naive promotion:** completeness-/planning-flavored,
+  not a clean adversarial-review miss inside a single ticket diff. Needs a
+  second "ticket A invents copy disambiguation → ticket B adds chrome →
+  copy not retired" occurrence before promoting a standing phase-sequencing
+  check.
+- **Status:** WAITING — single instance tied to phase-19 badge follow-through.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
