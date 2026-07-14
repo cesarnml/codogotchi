@@ -395,6 +395,22 @@ enum StateJsonReader {
 		return (origin, session.isEmpty ? "default" : session)
 	}
 
+	/// Lightweight best-effort read of just `session_started_at` from a single
+	/// `state.d/` slice file, bypassing the full `StateSnapshot` decode this
+	/// reader otherwise performs. Settings > Sessions' "Started" subtitle
+	/// (P20.03) needs this durable session-birth stamp for every row
+	/// regardless of tier, without paying for a full slice decode per row on
+	/// every `SessionsTabViewModel.refresh()` pass. Returns `nil` for a
+	/// missing file, malformed JSON, or an absent/null field — the caller's
+	/// contract is "omit when missing," never fabricated from `updated_at`.
+	static func readSessionStartedAt(atPath path: String) -> String? {
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
+		struct Payload: Decodable { let sessionStartedAt: String? }
+		let decoder = JSONDecoder()
+		decoder.keyDecodingStrategy = .convertFromSnakeCase
+		return (try? decoder.decode(Payload.self, from: data))?.sessionStartedAt
+	}
+
 	/// Full per-session granularity: groups fresh `state.d/` slices by the
 	/// `origin:session_id` identity parsed from each filename, applying the same
 	/// stale-TTL filter and `resolveActivityState` treatment as

@@ -47,6 +47,32 @@ struct SessionRow: Identifiable {
 	/// False when Show would only unhide a shared fold already displaying a
 	/// different winner — a no-op from the user's POV.
 	let canShow: Bool
+	/// Raw ISO 8601 `session_started_at` stamp read straight off the slice
+	/// (v10+, best-effort — absent on ≤v9 slices and any v10 slice the hook
+	/// didn't stamp). `nil` renders the row exactly as it did before P20.03:
+	/// never fabricated from `updated_at`. See `SessionRowView.subtitleText`
+	/// for how this becomes the "Started · 2h ago" fragment.
+	let sessionStartedAt: String?
+
+	/// Explicit memberwise init (rather than the compiler-synthesized one) so
+	/// `sessionStartedAt` can default to `nil` for the handful of call sites
+	/// that predate P20.03 (`MenubarMenu.fallbackActiveRows`) without having
+	/// to touch them.
+	init(
+		id: WindowKey, origin: String, sessionId: String?, displayLabel: String,
+		tier: SessionTier, isShown: Bool, ageSeconds: TimeInterval, canShow: Bool,
+		sessionStartedAt: String? = nil
+	) {
+		self.id = id
+		self.origin = origin
+		self.sessionId = sessionId
+		self.displayLabel = displayLabel
+		self.tier = tier
+		self.isShown = isShown
+		self.ageSeconds = ageSeconds
+		self.canShow = canShow
+		self.sessionStartedAt = sessionStartedAt
+	}
 }
 
 /// Backs the Settings → Sessions tab: a disk scan of `state.d/` bucketed into
@@ -111,7 +137,9 @@ final class SessionsTabViewModel {
 
 	/// Re-scans `state.d/` and re-buckets every slice. Cheap enough to call on
 	/// every tab show/select and after every action — one directory listing
-	/// plus a stat per entry, no file contents read.
+	/// plus a stat per entry, plus (P20.03) one lightweight `session_started_at`
+	/// read per surviving candidate for the Sessions "Started" subtitle; no
+	/// other file contents are read.
 	@MainActor
 	func refresh() {
 		guard let listing = StateDirectoryListing.scan(at: stateDirectoryPath) else {
@@ -175,6 +203,8 @@ final class SessionsTabViewModel {
 				?? FloatingPetWindowPool.defaultSessionLabel(forOrigin: origin)
 				?? origin
 			let sessionId = isSessionKeyed ? parsedSessionId : nil
+			let filePath = (stateDirectoryPath as NSString).appendingPathComponent(entry.name)
+			let sessionStartedAt = StateJsonReader.readSessionStartedAt(atPath: filePath)
 
 			switch lifecycle {
 			case .pruned:
@@ -185,18 +215,21 @@ final class SessionsTabViewModel {
 					active.append(
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-							tier: .active, isShown: true, ageSeconds: age, canShow: canShow))
+							tier: .active, isShown: true, ageSeconds: age, canShow: canShow,
+							sessionStartedAt: sessionStartedAt))
 				} else if isHiddenByUser {
 					pendingShowKeys.remove(key)
 					active.append(
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-							tier: .active, isShown: false, ageSeconds: age, canShow: canShow))
+							tier: .active, isShown: false, ageSeconds: age, canShow: canShow,
+							sessionStartedAt: sessionStartedAt))
 				} else if isPendingShow {
 					active.append(
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-							tier: .active, isShown: true, ageSeconds: age, canShow: canShow))
+							tier: .active, isShown: true, ageSeconds: age, canShow: canShow,
+							sessionStartedAt: sessionStartedAt))
 				} else {
 					// Hidden by the "Hide Idle Pet After" idle-dismiss TTL rather
 					// than by the user — same Active (hidden) treatment: the pet is
@@ -206,18 +239,21 @@ final class SessionsTabViewModel {
 					active.append(
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-							tier: .active, isShown: false, ageSeconds: age, canShow: canShow))
+							tier: .active, isShown: false, ageSeconds: age, canShow: canShow,
+							sessionStartedAt: sessionStartedAt))
 				}
 			case .live:
 				live.append(
 					SessionRow(
 						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-						tier: .live, isShown: false, ageSeconds: age, canShow: canShow))
+						tier: .live, isShown: false, ageSeconds: age, canShow: canShow,
+						sessionStartedAt: sessionStartedAt))
 			case .archived:
 				archived.append(
 					SessionRow(
 						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
-						tier: .archived, isShown: false, ageSeconds: age, canShow: canShow))
+						tier: .archived, isShown: false, ageSeconds: age, canShow: canShow,
+						sessionStartedAt: sessionStartedAt))
 			}
 		}
 

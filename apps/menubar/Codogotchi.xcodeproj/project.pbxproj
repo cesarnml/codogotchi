@@ -203,6 +203,7 @@
 		E28014AC2F3B192E3A1BAE57 /* OnboardingControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6F4B753185486F7E7FCCC6 /* OnboardingControllerTests.swift */; };
 		E34E1FC2397F088D1B352B5C /* RPGMiniRingIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69AAB6A6C7C3D72625092383 /* RPGMiniRingIconView.swift */; };
 		E40D5C583288F2DC593AC880 /* SessionSelectionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F252B3C5E2C4512BEF298E0 /* SessionSelectionPolicy.swift */; };
+		E4A075CC32F7BCC2F68D9E8A /* SessionsTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E07D53F415664ED7B332130 /* SessionsTabViewModelTests.swift */; };
 		E7CDC70CCECC39A3E3511A13 /* AboutTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739A5B92AC38A1366A5AA520 /* AboutTabView.swift */; };
 		E84C0722C309D7DD93627D17 /* PoolShadowComparator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6AE180ECE9B47FC5EC24FC8 /* PoolShadowComparator.swift */; };
 		E88FAD21E3543D52D6F693BB /* TransitionLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC62595488CFA83A5ED66AF /* TransitionLogTests.swift */; };
@@ -337,6 +338,7 @@
 		7A99294D27E5D1862559FCA2 /* SessionLabelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLabelStore.swift; sourceTree = "<group>"; };
 		7AC107DCBD46F0F6DBA5B3B6 /* maew */ = {isa = PBXFileReference; lastKnownFileType = folder; name = maew; path = Fixtures/maew; sourceTree = SOURCE_ROOT; };
 		7D0B6066DEB36E24086A2094 /* ReloadActivePetResponsivenessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReloadActivePetResponsivenessTests.swift; sourceTree = "<group>"; };
+		7E07D53F415664ED7B332130 /* SessionsTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsTabViewModelTests.swift; sourceTree = "<group>"; };
 		7FA73312C57946DF99F5455C /* PoolApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolApply.swift; sourceTree = "<group>"; };
 		80A2153BFE3815F040C90CFB /* AnimationBadgePanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationBadgePanelTests.swift; sourceTree = "<group>"; };
 		80E19594796A8315FCBDF3BD /* ConflictBubbleTargetSelectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictBubbleTargetSelectorTests.swift; sourceTree = "<group>"; };
@@ -548,6 +550,7 @@
 				BC2EC51845CF105F01A1BBE4 /* SessionNumberAllocatorTests.swift */,
 				303107572AD40123E3620006 /* SessionPrunerTests.swift */,
 				37BBC3DE729053A5A25EFCF7 /* SessionSelectionPolicyTests.swift */,
+				7E07D53F415664ED7B332130 /* SessionsTabViewModelTests.swift */,
 				292B7AD0DCECA1D78663651D /* SessionTitleResolverTests.swift */,
 				DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */,
 				05EB20E9AD12E7E2765C3217 /* SettingsTabModelTests.swift */,
@@ -1107,6 +1110,7 @@
 				2C2603325AFD009E48F0CEB9 /* SessionPrunerTests.swift in Sources */,
 				2E47A674904203BF5704C95A /* SessionSelectionPolicyTests.swift in Sources */,
 				1F0F22D20D1130ECF37795C8 /* SessionTitleResolverTests.swift in Sources */,
+				E4A075CC32F7BCC2F68D9E8A /* SessionsTabViewModelTests.swift in Sources */,
 				49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */,
 				EDFFAD8F83BE0E484D996FCB /* SettingsTabModelTests.swift in Sources */,
 				7A7D6AF5F7CAC9C273EDC5FF /* SettingsWindowOpenTests.swift in Sources */,
