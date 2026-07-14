@@ -51,6 +51,15 @@ private func pushTick(
 
 @MainActor
 final class PoolDerivePushTests: XCTestCase {
+	func testResolvedIdentityForSessionWindowIsItsOwnKey() {
+		let key: WindowKey = "codex:session"
+		let (desired, _) = pushTick(
+			[key: pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
+			customization: pushCustomization(sessionPets: ["codex": true]), memory: PoolMemory())
+
+		XCTAssertEqual(desired.windows[key]?.resolvedIdentity, key)
+	}
+
 	func testResolvedIdentityTracksOriginFoldWinnerAndLiveLabel() {
 		let customization = pushCustomization()
 		let (desired, _) = pushTick(
@@ -62,6 +71,47 @@ final class PoolDerivePushTests: XCTestCase {
 
 		XCTAssertEqual(desired.windows[.origin("codex")]?.resolvedIdentity, "codex:new")
 		XCTAssertEqual(desired.windows[.origin("codex")]?.sessionLabel, "New task")
+	}
+
+	func testResolvedIdentityAndLabelRotateWithOriginFoldWinner() {
+		let customization = pushCustomization()
+		var memory = PoolMemory()
+		var desired: DesiredWindows
+		(desired, memory) = pushTick(
+			[
+				"codex:old": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex"),
+				"codex:new": pushSnapshot(updated: "2026-07-01T10:00:01.000Z", origin: "codex"),
+			], customization: customization, memory: memory,
+			labels: ["codex:new": "New task"])
+		XCTAssertEqual(desired.windows[.origin("codex")]?.resolvedIdentity, "codex:new")
+
+		(desired, _) = pushTick(
+			[
+				"codex:old": pushSnapshot(updated: "2026-07-01T10:00:03.000Z", origin: "codex"),
+				"codex:new": pushSnapshot(updated: "2026-07-01T10:00:02.000Z", origin: "codex"),
+			], customization: customization, memory: memory,
+			labels: ["codex:old": "Old task"])
+		XCTAssertEqual(desired.windows[.origin("codex")]?.resolvedIdentity, "codex:old")
+		XCTAssertEqual(desired.windows[.origin("codex")]?.sessionLabel, "Old task")
+	}
+
+	func testFoldedWinnerUsesKnownTitleCacheAndTitleRequestIdentity() {
+		let key: WindowKey = "codex:session"
+		let identity = RenderKeyIdentity(origin: "codex", sessionId: "session")
+		let customization = pushCustomization()
+		let (requested, _) = pushTick(
+			[key: pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
+			identities: [key: identity], customization: customization, memory: PoolMemory())
+		XCTAssertEqual(requested.titleResolutionRequests, [identity])
+
+		var memory = PoolMemory()
+		memory.resolvedSessionTitles[key] = "Cached task"
+		let (cached, _) = pushTick(
+			[key: pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
+			identities: [key: identity], customization: customization, memory: memory,
+			titles: [key: "Known task"])
+		XCTAssertEqual(cached.windows[.origin("codex")]?.sessionLabel, "Known task")
+		XCTAssertTrue(cached.titleResolutionRequests.isEmpty)
 	}
 
 	func testResolvedIdentityForSoloDefaultOriginFallsBackToOwnKey() {
