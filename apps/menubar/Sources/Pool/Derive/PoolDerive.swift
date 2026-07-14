@@ -441,6 +441,15 @@ enum PoolDerive {
 						: window.platformChip.flatMap { PlatformAttribution(origin: $0)?.displayName })
 					: PlatformAttribution(origin: resolvedIdentity.origin)?.displayName)
 			window.sessionLabel = input.sessionLabels[resolvedIdentity] ?? fallback
+			if key != resolvedIdentity, let label = window.sessionLabel {
+				let platformName = PlatformAttribution(origin: resolvedIdentity.origin)?.displayName
+				window.foldedSessionDisplay =
+					if let platformName, platformName != label {
+						"\(platformName) · \(label)"
+					} else {
+						label
+					}
+			}
 			if resolvedIdentity.isSessionKeyed, memory.resolvedSessionTitles[resolvedIdentity] == nil,
 				let identity = snapshot.renderKeyIdentities[resolvedIdentity]
 			{

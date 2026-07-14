@@ -149,6 +149,10 @@ final class MinimalistBadgeView: NSView {
 	/// to "Session N". Also prefills the rename alert's text field.
 	private var currentSessionLabel: String?
 	private var currentSessionTooltip: String?
+	/// "<platform> · <label>" naming the resolved session this window folds,
+	/// or `nil` for a genuinely solo window (P19.03) — feeds the Prune menu
+	/// item and its confirmation alert only.
+	private var foldedSessionDisplay: String?
 	/// Latest prompt-timer status pushed by the pool (which owns the tracker —
 	/// see `PromptTimerTracker`). This view only renders it; the heartbeat
 	/// recomputes the label each second while the status reports running.
@@ -194,6 +198,10 @@ final class MinimalistBadgeView: NSView {
 
 	func applyHasActiveSession(_ hasActiveSession: Bool) {
 		self.hasActiveSession = hasActiveSession
+	}
+
+	func applyFoldedSessionDisplay(_ display: String?) {
+		foldedSessionDisplay = display
 	}
 
 	/// Width the badge content needs plus horizontal padding. When the session
@@ -308,7 +316,8 @@ final class MinimalistBadgeView: NSView {
 			hasActiveSession: hasActiveSession,
 			modeSwitchTitle: FloatingPetHidePrompt.petModeTitle,
 			offersPanelSize: true,
-			hideItemTitle: FloatingPetHidePrompt.panelTitle
+			hideItemTitle: FloatingPetHidePrompt.panelTitle,
+			foldedSessionDisplay: foldedSessionDisplay
 		)
 		let handlers = FloatingPetPromptHandlers(
 			forceIdle: { [weak self] in
@@ -397,7 +406,7 @@ final class MinimalistBadgeView: NSView {
 			return
 		}
 		let alert = NSAlert()
-		alert.messageText = "Prune Session"
+		alert.messageText = FloatingPetHidePrompt.pruneMenuTitle(foldedSessionDisplay: foldedSessionDisplay)
 		alert.informativeText =
 			"This destroys the panel and its session data. This cannot be undone."
 		alert.addButton(withTitle: "Prune")

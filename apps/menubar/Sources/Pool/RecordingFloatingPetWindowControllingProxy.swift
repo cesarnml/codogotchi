@@ -17,6 +17,7 @@ enum RecordedPush: Equatable {
 	case platform(String?)
 	case sessionNumber(Int?)
 	case sessionLabel(String?)
+	case foldedSessionDisplay(String?)
 	case sessionTooltip(String?)
 	case conflictBubble(ConflictBubblePayload?)
 	case adoptFrame(CGRect)
@@ -120,6 +121,11 @@ final class RecordingFloatingPetWindowControllingProxy: FloatingPetWindowControl
 	func applySessionLabel(_ label: String?) {
 		recordedCalls.append(.sessionLabel(label))
 		wrapped.applySessionLabel(label)
+	}
+
+	func applyFoldedSessionDisplay(_ display: String?) {
+		recordedCalls.append(.foldedSessionDisplay(display))
+		wrapped.applyFoldedSessionDisplay(display)
 	}
 
 	func applySessionTooltip(_ summary: String?) {

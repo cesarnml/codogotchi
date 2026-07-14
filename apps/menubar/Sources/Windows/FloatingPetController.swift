@@ -42,6 +42,10 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	/// `nil` to fall back to "Session N". No-op for plain-origin/"combined"
 	/// windows, mirroring `applySessionNumber`.
 	func applySessionLabel(_ label: String?)
+	/// "<platform> · <label>" naming the resolved session this window folds,
+	/// or `nil` for a genuinely solo window (P19.03). Feeds the Prune menu
+	/// item and its confirmation alert only.
+	func applyFoldedSessionDisplay(_ display: String?)
 	/// Last submitted prompt for this exact session, shown as a delayed hover
 	/// tooltip on the session badge. `nil`/empty clears the tooltip.
 	func applySessionTooltip(_ summary: String?)
@@ -74,6 +78,7 @@ extension FloatingPetWindowControlling {
 	func applySessionNumber(_ number: Int?) {}
 	func applyHasActiveSession(_ hasActiveSession: Bool) {}
 	func applySessionLabel(_ label: String?) {}
+	func applyFoldedSessionDisplay(_ display: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
 	var currentFrame: CGRect { .zero }
@@ -116,6 +121,10 @@ protocol PanelManaging: AnyObject {
 	/// `nil` to fall back to "Session N". No-op for plain-origin/"combined"
 	/// windows, mirroring `applySessionNumber`.
 	func applySessionLabel(_ label: String?)
+	/// "<platform> · <label>" naming the resolved session this window folds,
+	/// or `nil` for a genuinely solo window (P19.03). Feeds the Prune menu
+	/// item and its confirmation alert only.
+	func applyFoldedSessionDisplay(_ display: String?)
 	/// Last submitted prompt for this exact session, shown as a delayed hover
 	/// tooltip on the session badge. `nil`/empty clears the tooltip.
 	func applySessionTooltip(_ summary: String?)
@@ -157,6 +166,7 @@ extension PanelManaging {
 	func applySessionNumber(_ number: Int?) {}
 	func applyHasActiveSession(_ hasActiveSession: Bool) {}
 	func applySessionLabel(_ label: String?) {}
+	func applyFoldedSessionDisplay(_ display: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
 }
@@ -314,6 +324,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 
 	func applySessionLabel(_ label: String?) {
 		panel.applySessionLabel(label)
+	}
+
+	func applyFoldedSessionDisplay(_ display: String?) {
+		panel.applyFoldedSessionDisplay(display)
 	}
 
 	func applySessionTooltip(_ summary: String?) {
@@ -527,6 +541,10 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 
 	func applySessionLabel(_ label: String?) {
 		panel.applySessionLabel(label)
+	}
+
+	func applyFoldedSessionDisplay(_ display: String?) {
+		panel.applyFoldedSessionDisplay(display)
 	}
 
 	func applySessionTooltip(_ summary: String?) {

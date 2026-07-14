@@ -30,6 +30,13 @@ struct DesiredWindow: Equatable {
 	/// session-keyed window of its own.
 	var hasActiveSession = false
 	var sessionLabel: String?
+	/// "<platform> · <sessionLabel>" (or just one half, when they'd otherwise
+	/// duplicate) naming the resolved session this window is folding, or
+	/// `nil` when `resolvedIdentity == key` — a genuinely solo window, where
+	/// the bare "Prune Session" text is already unambiguous. Feeds the
+	/// right-click Prune menu item and its destructive-action confirmation
+	/// alert (P19.03); never computed for anything else.
+	var foldedSessionDisplay: String?
 	var sessionTooltip: String?
 	var activityState: ActivityState = .idle
 	var promptTimerStatus: PromptTimerPresentation?

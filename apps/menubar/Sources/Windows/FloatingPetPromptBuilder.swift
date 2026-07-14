@@ -25,6 +25,9 @@ struct FloatingPetPromptCapabilities {
 	/// R1.9 — "Hide pet" (Own) or "Hide panel" (Minimalist); same semantics,
 	/// cosmetic title only.
 	var hideItemTitle: String
+	/// Resolved-session identity text for a fold window (P19.03), or `nil`
+	/// for a genuinely solo window — see `FloatingPetHidePrompt.pruneMenuTitle`.
+	var foldedSessionDisplay: String?
 }
 
 /// Activation closures for every possible prompt item. Each closure is
@@ -64,7 +67,9 @@ enum FloatingPetPromptBuilder {
 			items.append(
 				FloatingPetPromptItem(title: FloatingPetHidePrompt.syncLabelTitle, onActivate: handlers.syncLabel))
 			items.append(
-				FloatingPetPromptItem(title: FloatingPetHidePrompt.pruneTitle, onActivate: handlers.prune))
+				FloatingPetPromptItem(
+					title: FloatingPetHidePrompt.pruneMenuTitle(foldedSessionDisplay: capabilities.foldedSessionDisplay),
+					onActivate: handlers.prune))
 		}
 		items.append(
 			FloatingPetPromptItem(title: capabilities.modeSwitchTitle, onActivate: handlers.modeSwitch))

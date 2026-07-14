@@ -18,6 +18,16 @@ enum FloatingPetHidePrompt {
 	/// (slice, free-list number, rename label) — the same end-state as
 	/// automatic TTL expiry.
 	static let pruneTitle = "Prune Session"
+	/// Prune's menu item / confirmation-alert title: the bare `pruneTitle` for
+	/// a genuinely solo window, or `pruneTitle` suffixed with the resolved
+	/// session's `"(<platform> · <label>)"` identity for a fold window
+	/// (`resolvedIdentity != key` — origin-folded with 2+ real sessions, or
+	/// Combined) so the user knows what's about to be removed before
+	/// confirming (P19.03).
+	static func pruneMenuTitle(foldedSessionDisplay: String?) -> String {
+		guard let foldedSessionDisplay else { return pruneTitle }
+		return "\(pruneTitle) (\(foldedSessionDisplay))"
+	}
 	/// Title for the right-click "Sync Label" affordance, offered only on a
 	/// session-keyed window (mirrors Prune Session's gating): re-fetches the
 	/// platform's own current thread title — bypassing the pool's
