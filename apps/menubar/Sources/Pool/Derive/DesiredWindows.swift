@@ -100,7 +100,8 @@ struct DesiredWindows: Equatable {
 	var idleEscalationConfig: IdleEscalationConfig = .production
 	/// `(origin, sessionId)` identities `apply` should resolve a
 	/// platform-auto-generated thread title for — the title-resolution
-	/// effect seam (Grill-Me decision 3). Always empty until P18.03.
+	/// effect seam (Grill-Me decision 3). Populated by `PoolDerive` when a
+	/// folded session still lacks a known platform thread title.
 	var titleResolutionRequests: [RenderKeyIdentity] = []
 
 	init() {}
