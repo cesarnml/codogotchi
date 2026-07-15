@@ -43,7 +43,6 @@ final class PoolApplyTests: XCTestCase {
 		var appliedIdleEscalationConfigs: [IdleEscalationConfig] = []
 		var appliedPromptTimerPresentations: [PromptTimerPresentation?] = []
 		var appliedModeIndicatorBadges: [String?] = []
-		var appliedFoldedSessionDisplays: [String?] = []
 		var adoptedFrames: [CGRect] = []
 		/// Settable so a test can simulate "this window is currently at frame
 		/// X" before `apply` reads it as a spawn's frame-inheritance donor.
@@ -70,7 +69,6 @@ final class PoolApplyTests: XCTestCase {
 		func applySessionTooltip(_ summary: String?) { appliedSessionTooltips.append(summary) }
 		func applyConflictBubble(_ payload: ConflictBubblePayload?) { appliedConflictBubbles.append(payload) }
 		func applyModeIndicatorBadge(_ text: String?) { appliedModeIndicatorBadges.append(text) }
-		func applyFoldedSessionDisplay(_ display: String?) { appliedFoldedSessionDisplays.append(display) }
 		func adoptFrame(_ frame: CGRect) {
 			adoptedFrames.append(frame)
 			currentFrame = frame
@@ -129,8 +127,8 @@ final class PoolApplyTests: XCTestCase {
 		let key: WindowKey = "codex:abc"
 		var desired = DesiredWindow(key: key)
 		desired.activityState = .implementing
-		desired.foldedSessionDisplay = "Codex · refactor the diff module"
 		desired.modeIndicatorBadge = "Codex"
+		desired.sessionLabel = "refactor the diff module"
 
 		let controller = MockController()
 		var controllers: [WindowKey: FloatingPetWindowControlling] = [key: controller]
@@ -142,9 +140,10 @@ final class PoolApplyTests: XCTestCase {
 			return MockController()
 		})
 
-		XCTAssertTrue(
-			controller.appliedFoldedSessionDisplays.isEmpty,
-			"PoolApply must not push foldedSessionDisplay — prune-only leftover deleted in P21.02")
+		let labels = Set(Mirror(reflecting: desired).children.compactMap(\.label))
+		XCTAssertFalse(labels.contains("foldedSessionDisplay"))
+		XCTAssertEqual(controller.appliedModeIndicatorBadges.last ?? nil, "Codex")
+		XCTAssertEqual(controller.appliedSessionLabels.last ?? nil, "refactor the diff module")
 	}
 
 	func testDismissedWindowIsHiddenAndRemovedFromControllers() {

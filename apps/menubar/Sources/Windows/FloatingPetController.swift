@@ -42,10 +42,6 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	/// `nil` to fall back to "Session N". No-op for plain-origin/"combined"
 	/// windows, mirroring `applySessionNumber`.
 	func applySessionLabel(_ label: String?)
-	/// "<platform> · <label>" naming the resolved session this window folds,
-	/// or `nil` for a genuinely solo window (P19.03). Feeds the Prune menu
-	/// item and its confirmation alert only.
-	func applyFoldedSessionDisplay(_ display: String?)
 	/// Small, fixed, non-renamable badge naming this window's mode — the
 	/// resolved session's platform display name for a folded `.origin`, or
 	/// "Combined" for `.combined` — or `nil` for a genuinely solo window
@@ -84,7 +80,6 @@ extension FloatingPetWindowControlling {
 	func applySessionNumber(_ number: Int?) {}
 	func applyHasActiveSession(_ hasActiveSession: Bool) {}
 	func applySessionLabel(_ label: String?) {}
-	func applyFoldedSessionDisplay(_ display: String?) {}
 	func applyModeIndicatorBadge(_ text: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
@@ -128,10 +123,6 @@ protocol PanelManaging: AnyObject {
 	/// `nil` to fall back to "Session N". No-op for plain-origin/"combined"
 	/// windows, mirroring `applySessionNumber`.
 	func applySessionLabel(_ label: String?)
-	/// "<platform> · <label>" naming the resolved session this window folds,
-	/// or `nil` for a genuinely solo window (P19.03). Feeds the Prune menu
-	/// item and its confirmation alert only.
-	func applyFoldedSessionDisplay(_ display: String?)
 	/// Small, fixed, non-renamable badge naming this window's mode — the
 	/// resolved session's platform display name for a folded `.origin`, or
 	/// "Combined" for `.combined` — or `nil` for a genuinely solo window
@@ -179,7 +170,6 @@ extension PanelManaging {
 	func applySessionNumber(_ number: Int?) {}
 	func applyHasActiveSession(_ hasActiveSession: Bool) {}
 	func applySessionLabel(_ label: String?) {}
-	func applyFoldedSessionDisplay(_ display: String?) {}
 	func applyModeIndicatorBadge(_ text: String?) {}
 	func applySessionTooltip(_ summary: String?) {}
 	func applyConflictBubble(_ payload: ConflictBubblePayload?) {}
@@ -338,10 +328,6 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 
 	func applySessionLabel(_ label: String?) {
 		panel.applySessionLabel(label)
-	}
-
-	func applyFoldedSessionDisplay(_ display: String?) {
-		panel.applyFoldedSessionDisplay(display)
 	}
 
 	func applyModeIndicatorBadge(_ text: String?) {
@@ -559,10 +545,6 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 
 	func applySessionLabel(_ label: String?) {
 		panel.applySessionLabel(label)
-	}
-
-	func applyFoldedSessionDisplay(_ display: String?) {
-		panel.applyFoldedSessionDisplay(display)
 	}
 
 	func applyModeIndicatorBadge(_ text: String?) {

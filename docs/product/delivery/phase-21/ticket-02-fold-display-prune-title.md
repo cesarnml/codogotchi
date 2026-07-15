@@ -40,8 +40,22 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+Red first: Mirror absence tests on `DesiredWindow` / `FloatingPetPromptCapabilities`
+plus a PoolApply update path that must not thread fold-display. All three failed
+against the pre-green surface, then passed after E2E removal.
+
+Why this path: Audit of DesiredWindow → derive → PoolApply → protocols →
+Own/Minimalist views → prompt builder / prune alerts confirmed **prune-only**
+consumers (every live read fed `pruneMenuTitle` / prune alert copy). Deleted
+the field, compute, push, protocol members, view storage, and the no-op
+`pruneMenuTitle` wrapper; call sites use bare `pruneTitle`.
+
+Alternative considered: keep the field for a hypothetical future non-prune
+consumer — rejected; phase stop conditions require full delete once audit is
+prune-only, not a half-dead push.
+
+Deferred: timer-protocol surface (P21.03); allocator/Pruner unify (P21.04).
+
+Contract note: behavior freeze — prune affordance gating unchanged; only the
+dead title-expansion parameter path is gone (already returned a constant since
+P19.04).

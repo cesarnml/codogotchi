@@ -465,15 +465,6 @@ enum PoolDerive {
 			window.sessionLabel = input.sessionLabels[resolvedIdentity]
 				?? sessionFallback
 				?? platformFallback
-			if key != resolvedIdentity, let label = window.sessionLabel {
-				let platformName = PlatformAttribution(origin: resolvedIdentity.origin)?.displayName
-				window.foldedSessionDisplay =
-					if let platformName, platformName != label {
-						"\(platformName) · \(label)"
-					} else {
-						label
-					}
-			}
 			// Title requests key off resolvedIdentity's (origin, sessionId), not
 			// `renderKeyIdentities[resolvedIdentity]`. Production identities are
 			// keyed by the fold render key (`.origin` / `.combined` when

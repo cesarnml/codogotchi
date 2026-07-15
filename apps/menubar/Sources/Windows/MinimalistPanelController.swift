@@ -302,10 +302,6 @@ final class MinimalistPanelController: PanelActionHandling {
 		applyBadge()
 	}
 
-	func applyFoldedSessionDisplay(_ display: String?) {
-		badgeView.applyFoldedSessionDisplay(display)
-	}
-
 	func applyModeIndicatorBadge(_ text: String?) {
 		guard currentModeIndicatorBadge != text else { return }
 		currentModeIndicatorBadge = text

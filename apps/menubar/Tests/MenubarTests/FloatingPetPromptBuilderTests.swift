@@ -14,9 +14,7 @@ final class FloatingPetPromptBuilderTests: XCTestCase {
 			hasActiveSession: hasActiveSession,
 			modeSwitchTitle: FloatingPetHidePrompt.minimalistModeTitle,
 			offersPanelSize: false,
-			hideItemTitle: FloatingPetHidePrompt.title,
-			// Red asserts this property is gone; production still has it until green.
-			foldedSessionDisplay: nil
+			hideItemTitle: FloatingPetHidePrompt.title
 		)
 	}
 

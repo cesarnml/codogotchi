@@ -30,18 +30,10 @@ struct DesiredWindow: Equatable {
 	/// session-keyed window of its own.
 	var hasActiveSession = false
 	var sessionLabel: String?
-	/// "<platform> · <sessionLabel>" (or just one half, when they'd otherwise
-	/// duplicate) naming the resolved session this window is folding, or
-	/// `nil` when `resolvedIdentity == key` — a genuinely solo window.
-	/// Still computed and pushed for compatibility; Prune menu/alert copy now
-	/// always uses the bare "Prune Session" string because mode-indicator and
-	/// session-label badges already surface the same identity on-panel.
-	var foldedSessionDisplay: String?
 	/// Small, fixed, non-renamable text naming this window's mode — the
 	/// resolved session's platform display name for a folded `.origin`, or
 	/// "Combined" for `.combined` — or `nil` when `resolvedIdentity == key`
-	/// (a genuinely solo window has nothing to disambiguate). Distinct from
-	/// `foldedSessionDisplay` (legacy fold identity string); this feeds the
+	/// (a genuinely solo window has nothing to disambiguate). Feeds the
 	/// visible always-on mode badge (P19.04).
 	var modeIndicatorBadge: String?
 	var sessionTooltip: String?
