@@ -60,7 +60,7 @@ All six product-plan exit conditions are demonstrably true on `v3_preview`:
 
 ## CI Baseline
 
-> Baseline recorded: _pending — record `bun run ci:quiet` on `v3_preview` immediately before `/soa execute` starts P21.01 and replace this line._
+> Baseline recorded: 2026-07-15 — `bun run ci:quiet` on `v3_preview` @ `5a175c9f` — PASS (biome + packages/convex bun tests + `mac:test`).
 
 ## Review Rules
 
