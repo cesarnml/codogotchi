@@ -736,16 +736,13 @@ final class FloatingPetPanelController: PanelActionHandling {
 		repositionAndShowAnimationBadge()
 	}
 
-	/// `PoolApply` (P18.04)'s already-rendered equivalent of
-	/// `applyPromptTimerStatus`. Stores the presentation as an override so
-	/// this and every subsequent same-tick `repositionAndShowAnimationBadge()`
-	/// call (from `applyPlatform`, `applySessionNumber`, etc.) renders it
-	/// instead of clobbering it with a stale `promptTimerStatus?.presentation()`
-	/// — this path is still unwired into the live tick (P18.05), so it
-	/// deliberately does not participate in this controller's own
-	/// heartbeat-driven ticking (`syncPromptTimerHeartbeat`): once wired,
-	/// per-tick redraws come from `PoolDerive` recomputing a fresh
-	/// `PromptTimerPresentation` every tick, not from a local `Timer`.
+	/// `PoolApply`'s already-rendered push path. Stores the presentation as an
+	/// override so this and every subsequent same-tick
+	/// `repositionAndShowAnimationBadge()` call (from `applyPlatform`,
+	/// `applySessionNumber`, etc.) renders it instead of clobbering it with a
+	/// stale `promptTimerStatus?.presentation()`. Live ticks refresh this via
+	/// `PoolDerive` → `PoolApply`; the local heartbeat remains for the raw
+	/// `applyPromptTimerStatus` / override-clear path.
 	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
 		promptTimerPresentationOverride = presentation
 		repositionAndShowAnimationBadge()

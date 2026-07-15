@@ -38,8 +38,25 @@ Red: skip
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+Red first: `Red: skip` — delete-only + comment scrub; absence proven by post-green
+grep under `apps/menubar` (zero shadow-trio hits) and remaining suite green
+without the three dedicated harness test files.
+
+Why this path: deleted the three Phase-18-retained shadow utilities and their
+orphaned-only tests, regenerated `Codogotchi.xcodeproj` via xcodegen, and
+rewrote five present-tense lies (`DesiredWindows.titleResolutionRequests`,
+`PoolMemory.promptTimers`, `PoolDerive` observe-before-guards note,
+`FloatingPetPanelController` / `MinimalistBadgeView` presentation docs) to
+match the live derive → apply presentation push. `Menubar.xcodeproj` was
+already absent on `v3_preview` — nothing to delete for the husk.
+
+Alternative considered: keeping the recording proxy as a general test double —
+rejected; ticket commits delete-not-relocate, and no production or remaining
+test path required it after Phase 18 closeout.
+
+Deferred: fold-display / prune-title (P21.02); presentation-only protocol
+surface (P21.03); allocator/Pruner unify (P21.04). Historical delivery docs /
+retrospectives that name the trio stay as archaeology.
+
+Contract note: behavior freeze held — no pool update, prune, or timer path
+change beyond comment text and deleted unused utilities.

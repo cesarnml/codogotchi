@@ -75,8 +75,8 @@ enum PoolDerive {
 			// teardown/spawn decision below, so the timer keeps correct time
 			// across hide/show, idle-TTL dismiss, and session-cap de-render —
 			// mirrors `FloatingPetWindowPool`'s "observe before guards"
-			// ordering. Bookkeeping only this ticket: `derive` does not yet
-			// emit `DesiredWindow.promptTimerStatus` (P18.03).
+			// ordering. Later in this tick `derive` emits
+			// `DesiredWindow.promptTimerStatus` from these trackers.
 			memory.promptTimers[renderKey, default: PromptTimerTracker()].observe(
 				state: state.activityState,
 				updatedAt: state.updatedAt,
