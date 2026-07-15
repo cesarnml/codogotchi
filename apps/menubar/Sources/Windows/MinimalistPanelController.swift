@@ -251,8 +251,8 @@ final class MinimalistPanelController: PanelActionHandling {
 		applyBadge()
 	}
 
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
-		badgeView.applyPromptTimerStatus(status)
+	func applyLocalPromptTimerStatus(_ status: PromptTimerStatus?) {
+		badgeView.applyLocalPromptTimerStatus(status)
 		applyBadge()
 	}
 

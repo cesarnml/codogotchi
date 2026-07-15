@@ -40,8 +40,24 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+Red first: `PromptTimerProtocolSurfaceTests` failed while
+`FloatingPetController.swift` still declared `applyPromptTimerStatus` on
+pool-facing protocols.
+
+Why this path: Removed status from `FloatingPetWindowControlling` /
+`PanelManaging` (and window-controller forwards). Kept Own/Minimalist local
+heartbeat + override-clear as `applyLocalPromptTimerStatus` (internal,
+`@testable`-reachable). Retargeted
+`testRawStatusPushTakesOverFromAPriorPresentationOverride`. Live tick remains
+presentation-only via `PoolApply` (already true). Local `Timer` heartbeat left
+intact — no derive-only sub-second change.
+
+Alternative considered: deleting local heartbeat entirely and relying only on
+derive ticks — rejected; ticket freeze / stop condition forbids inventing
+derive-only cadence “fixes” this phase.
+
+Deferred: Own/Minimalist shared persist/timer extraction; Visibility protocol
+merge; allocator/Pruner (P21.04).
+
+Contract note: behavior freeze on elapsed display / wipe / chip visibility —
+protocol surface narrows only.
