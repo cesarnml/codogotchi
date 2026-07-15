@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-07-15T15:01:48.053Z",
+  "summary": {
+    "total": 4,
+    "patched": 1,
+    "rejected": 1,
+    "already-covered": 2,
+    "requires-human-review": 0
+  },
+  "dispositions": [
+    {
+      "disposition": "already-covered",
+      "rationale": "P21.03 (054f3f58) rewrote the PoolApplyTests header while stripping applyPromptTimerStatus from the mock; the stale “PoolApply does not exist yet” archaeology is gone.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-21/reviews/P21.01-subagent-review.report.md",
+        "ticketId": "P21.01"
+      },
+      "observation": "`apps/menubar/Tests/MenubarTests/PoolApplyTests.swift:14` still says “`PoolApply` does not exist yet.” This is stale P18 red-phase archaeology in Tests, outside the ticket’s `Sources/` comment-scrub contract, and does not affect behavior or the stated invariants."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added testPoolFacingProtocolsDoNotDeclareApplyFoldedSessionDisplay — a FloatingPetController.swift source scan for func applyFoldedSessionDisplay(, complementing the DesiredWindow Mirror assertion that could not catch a protocol-only regression.",
+      "patch": {
+        "commitSha": "46ab7ecf0956758ee387a9014294b6d450a0046e",
+        "files": [
+          "apps/menubar/Tests/MenubarTests/FloatingPetPromptBuilderTests.swift"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-21/reviews/P21.02-subagent-review.report.md",
+        "ticketId": "P21.02"
+      },
+      "observation": "The test named `testPoolApplyDoesNotPushFoldedSessionDisplay` cannot independently detect a stale default `applyFoldedSessionDisplay` protocol method because it only reflects `DesiredWindow` and verifies surviving pushes. The current production grep proves the invariant holds, but a future regression that restores only the protocol method could evade this test."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Intentional design note, not a defect: the ticket deliberately kept a narrow declaration-spelling scan; broader conformer compilation already covers protocol-conformance gaps. No code change warranted.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-21/reviews/P21.03-subagent-review.report.md",
+        "ticketId": "P21.03"
+      },
+      "observation": "The new surface test is intentionally a narrow source scan of `FloatingPetController.swift` for the exact removed declaration spelling. Compilation of the broader conformer suites provides the complementary protection against protocol-conformance gaps."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "P21.04 subagent reconciliation (495bcd52) already rewrote the PoolMemoryUserActions comment to “disk-only cleanup (slice + label + retrieved-title)” and asserted SessionPruner never calls .release(.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-21/reviews/P21.04-subagent-review.report.md",
+        "ticketId": "P21.04"
+      },
+      "observation": "[PoolMemoryUserActions.swift](/Users/cesar/code/codogotchi_p21_04/apps/menubar/Sources/Pool/Derive/PoolMemoryUserActions.swift:78) still says `SessionPruner.pruneSession` performs “disk/allocator side effects.” The implementation and ticket rationale now define it as disk-only, so this comment has drifted."
+    }
+  ]
+}
