@@ -4,7 +4,7 @@ import AppKit
 /// animation badge, centered horizontally. Renders the user's rename label
 /// (from `SessionLabelStore`, via `configure(number:label:tooltip:metrics:)`)
 /// when set, else falls back to "Session N" for the number assigned by
-/// `SessionNumberAllocator`. `tooltip` exposes the session's last submitted
+/// `SessionNumberAllocatorState`. `tooltip` exposes the session's last submitted
 /// prompt as a native `NSView.toolTip` (P15.06). Reuses the same frosted
 /// chrome and `GateBadgeLayout.Metrics` scaling as the animation badge pill —
 /// single source of scaling truth.
