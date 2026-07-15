@@ -47,4 +47,23 @@ final class FloatingPetPromptBuilderTests: XCTestCase {
 			labels.contains("foldedSessionDisplay"),
 			"foldedSessionDisplay must be removed from DesiredWindow")
 	}
+
+	/// Source-scan complement to `testPoolApplyDoesNotPushFoldedSessionDisplay`:
+	/// that test only Mirrors `DesiredWindow`. A regression that restores only
+	/// `applyFoldedSessionDisplay` on the pool-facing protocols would evade it.
+	func testPoolFacingProtocolsDoNotDeclareApplyFoldedSessionDisplay() throws {
+		let repoRoot = URL(fileURLWithPath: #filePath)
+			.deletingLastPathComponent() // MenubarTests
+			.deletingLastPathComponent() // Tests
+			.deletingLastPathComponent() // menubar
+			.deletingLastPathComponent() // apps
+			.deletingLastPathComponent() // repository root
+		let source = try String(
+			contentsOf: repoRoot.appendingPathComponent(
+				"apps/menubar/Sources/Windows/FloatingPetController.swift"),
+			encoding: .utf8)
+		XCTAssertFalse(
+			source.contains("func applyFoldedSessionDisplay("),
+			"FloatingPetWindowControlling / PanelManaging must not declare applyFoldedSessionDisplay (P21.02)")
+	}
 }
