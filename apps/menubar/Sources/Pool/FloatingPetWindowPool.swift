@@ -482,15 +482,11 @@ final class FloatingPetWindowPool {
 		windows.removeValue(forKey: windowKey)
 		desiredWindows.removeValue(forKey: windowKey)
 		lastDesired.windows.removeValue(forKey: windowKey)
-		// `memory.pruning(windowKey)` above already released the session
-		// number from `memory.sessionNumberAllocator` (a value type) —
-		// `SessionPruner` requires the legacy reference-type allocator only for
-		// its own disk-deletion side effects, so a fresh throwaway instance is
-		// passed here: its `.release` call is a guaranteed no-op (nothing was
-		// ever assigned on it), never double-releasing the real number.
+		// Number release already happened in `memory.pruning` above —
+		// SessionPruner is disk-only (slice + label + retrieved-title).
 		SessionPruner.pruneSession(
 			windowKey: resolvedIdentity.rawValue, origin: identity.origin, sessionId: identity.sessionId,
-			stateDirectory: stateDirectory, allocator: SessionNumberAllocator(),
+			stateDirectory: stateDirectory,
 			labelPath: labelPath, retrievedTitlePath: retrievedTitlePath)
 	}
 

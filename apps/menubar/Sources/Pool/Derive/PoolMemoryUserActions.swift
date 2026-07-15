@@ -75,8 +75,8 @@ extension PoolMemory {
 	/// would leak forever. Releasing here, using the identity captured at
 	/// assign time (never the latest snapshot — see
 	/// `windowSessionIdentities`), closes that gap. (2) the shell's paired
-	/// `SessionPruner.pruneSession` call performs the actual disk/allocator
-	/// side effects.
+	/// `SessionPruner.pruneSession` call performs the disk-only cleanup
+	/// (slice + label + retrieved-title).
 	func pruning(_ key: WindowKey, resolvedOrigin: String? = nil) -> PoolMemory {
 		var memory = self
 		memory.previousDesiredWindowKeys.remove(key)

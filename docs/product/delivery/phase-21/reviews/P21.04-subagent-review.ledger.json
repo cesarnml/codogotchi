@@ -1,0 +1,54 @@
+{
+  "ticket": "P21.04",
+  "invocations": [
+    {
+      "runnerKind": "codex-cli",
+      "reviewedHeadSha": "8d6ef8bfd66e92096d55a0cd2728732b4b35af24",
+      "outcome": "clean",
+      "completedAt": "2026-07-15T14:32:51.658Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-21/reviews/P21.04-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-21/reviews/P21.04-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "cursor",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "8d6ef8bfd66e92096d55a0cd2728732b4b35af24",
+      "completedAt": "2026-07-15T14:33:32.567Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [
+        "495bcd52"
+      ],
+      "schemaVersion": 1,
+      "primaryAgent": "cursor",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "outcome": "patched"
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "8d6ef8bfd66e92096d55a0cd2728732b4b35af24",
+      "outcome": "patched",
+      "completedAt": "2026-07-15T14:33:37.343Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": [
+        "495bcd523a4d6762478ee8f0993c8fbc31d71fc8"
+      ],
+      "schemaVersion": 1,
+      "primaryAgent": "unknown",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
+    }
+  ]
+}

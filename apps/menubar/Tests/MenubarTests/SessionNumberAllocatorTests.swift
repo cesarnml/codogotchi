@@ -3,12 +3,15 @@ import XCTest
 
 @testable import Codogotchi
 
+/// Migrated from the deleted class `SessionNumberAllocator` onto
+/// `SessionNumberAllocatorState` (P21.04) — same assign/release/reuse/
+/// unlimited semantics, value-type owner used by PoolMemory.
 final class SessionNumberAllocatorTests: XCTestCase {
 
 	// MARK: - Sequential assignment
 
 	func testThreeSessionsGetSequentialNumbers() {
-		let allocator = SessionNumberAllocator()
+		var allocator = SessionNumberAllocatorState()
 
 		let first = allocator.assign(origin: "claude_code", sessionId: "s1")
 		let second = allocator.assign(origin: "claude_code", sessionId: "s2")
@@ -22,7 +25,7 @@ final class SessionNumberAllocatorTests: XCTestCase {
 	// MARK: - Free-list reuse
 
 	func testFreeingThenAddingReusesLowestFreeNumber() {
-		let allocator = SessionNumberAllocator()
+		var allocator = SessionNumberAllocatorState()
 
 		_ = allocator.assign(origin: "claude_code", sessionId: "s1")
 		_ = allocator.assign(origin: "claude_code", sessionId: "s2")
@@ -38,7 +41,7 @@ final class SessionNumberAllocatorTests: XCTestCase {
 	// MARK: - Never renumber a live session
 
 	func testFreeingDoesNotRenumberOtherLiveSessions() {
-		let allocator = SessionNumberAllocator()
+		var allocator = SessionNumberAllocatorState()
 
 		_ = allocator.assign(origin: "claude_code", sessionId: "s1")
 		_ = allocator.assign(origin: "claude_code", sessionId: "s2")
@@ -46,7 +49,6 @@ final class SessionNumberAllocatorTests: XCTestCase {
 
 		allocator.release(origin: "claude_code", sessionId: "s2")
 
-		// Re-querying the still-live sessions must return their original numbers.
 		XCTAssertEqual(allocator.assign(origin: "claude_code", sessionId: "s1"), 1)
 		XCTAssertEqual(allocator.assign(origin: "claude_code", sessionId: "s3"), 3)
 	}
@@ -54,7 +56,7 @@ final class SessionNumberAllocatorTests: XCTestCase {
 	// MARK: - Unlimited never reuses
 
 	func testUnlimitedCapNeverReusesFreedNumbers() {
-		let allocator = SessionNumberAllocator()
+		var allocator = SessionNumberAllocatorState()
 		allocator.setUnlimited(true, origin: "claude_code")
 
 		_ = allocator.assign(origin: "claude_code", sessionId: "s1")
@@ -71,7 +73,7 @@ final class SessionNumberAllocatorTests: XCTestCase {
 	// MARK: - Per-platform independence
 
 	func testNumberingIsPerPlatform() {
-		let allocator = SessionNumberAllocator()
+		var allocator = SessionNumberAllocatorState()
 
 		let claudeFirst = allocator.assign(origin: "claude_code", sessionId: "s1")
 		let cursorFirst = allocator.assign(origin: "cursor", sessionId: "s1")
