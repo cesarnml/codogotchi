@@ -25,10 +25,6 @@ struct FloatingPetPromptCapabilities {
 	/// R1.9 — "Hide pet" (Own) or "Hide panel" (Minimalist); same semantics,
 	/// cosmetic title only.
 	var hideItemTitle: String
-	/// Legacy fold-identity string still pushed from derive; ignored by
-	/// `FloatingPetHidePrompt.pruneMenuTitle` now that panel badges carry the
-	/// same identity (P19.04).
-	var foldedSessionDisplay: String?
 }
 
 /// Activation closures for every possible prompt item. Each closure is
@@ -69,7 +65,7 @@ enum FloatingPetPromptBuilder {
 				FloatingPetPromptItem(title: FloatingPetHidePrompt.syncLabelTitle, onActivate: handlers.syncLabel))
 			items.append(
 				FloatingPetPromptItem(
-					title: FloatingPetHidePrompt.pruneMenuTitle(foldedSessionDisplay: capabilities.foldedSessionDisplay),
+					title: FloatingPetHidePrompt.pruneTitle,
 					onActivate: handlers.prune))
 		}
 		items.append(

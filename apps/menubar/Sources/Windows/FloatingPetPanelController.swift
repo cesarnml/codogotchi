@@ -398,10 +398,6 @@ final class FloatingPetPanelController: PanelActionHandling {
 		repositionAndShowAnimationBadge()
 	}
 
-	func applyFoldedSessionDisplay(_ display: String?) {
-		(panel?.contentView as? FloatingPetInteractionView)?.foldedSessionDisplay = display
-	}
-
 	func applyModeIndicatorBadge(_ text: String?) {
 		guard currentModeIndicatorBadge != text else { return }
 		currentModeIndicatorBadge = text

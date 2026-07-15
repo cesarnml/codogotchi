@@ -123,6 +123,29 @@ final class PoolApplyTests: XCTestCase {
 		XCTAssertEqual(controller.appliedModeIndicatorBadges.last ?? nil, "Codex")
 	}
 
+	func testPoolApplyDoesNotPushFoldedSessionDisplay() {
+		let key: WindowKey = "codex:abc"
+		var desired = DesiredWindow(key: key)
+		desired.activityState = .implementing
+		desired.modeIndicatorBadge = "Codex"
+		desired.sessionLabel = "refactor the diff module"
+
+		let controller = MockController()
+		var controllers: [WindowKey: FloatingPetWindowControlling] = [key: controller]
+		var diff = WindowDiff()
+		diff.toUpdate[key] = desired
+
+		PoolApply.apply(diff: diff, controllers: &controllers, spawn: { _, _ in
+			XCTFail("spawn must not be invoked for an update-only diff")
+			return MockController()
+		})
+
+		let labels = Set(Mirror(reflecting: desired).children.compactMap(\.label))
+		XCTAssertFalse(labels.contains("foldedSessionDisplay"))
+		XCTAssertEqual(controller.appliedModeIndicatorBadges.last ?? nil, "Codex")
+		XCTAssertEqual(controller.appliedSessionLabels.last ?? nil, "refactor the diff module")
+	}
+
 	func testDismissedWindowIsHiddenAndRemovedFromControllers() {
 		let key: WindowKey = "cursor"
 		let controller = MockController()
