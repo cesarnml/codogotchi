@@ -38,8 +38,21 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first:
-Why this path:
-Alternative considered:
-Deferred:
-Contract note:
+Red first: Surface-scan tests failed while SessionPruner still took an allocator,
+the pool still constructed `SessionNumberAllocator()`, and the class file still
+existed under Sources.
+
+Why this path: Strip allocator from Pruner (disk-only); stop throwaway
+construction in `FloatingPetWindowPool.pruneSession`; delete class
+`SessionNumberAllocator`; migrate `SessionNumberAllocatorTests` onto
+`SessionNumberAllocatorState`. Pool grep showed no live production class-
+allocator caller beyond the prune throwaway fiction — proceed. Number release
+remains solely in `memory.pruning` / state type.
+
+Alternative considered: keep a facade class “for naming symmetry” — rejected
+per ticket review focus.
+
+Deferred: flat-gate fallback removal; Own/Minimalist extract.
+
+Contract note: behavior freeze — assign/reuse/unlimited semantics unchanged
+under migrated tests; no double-release (Pruner never releases).

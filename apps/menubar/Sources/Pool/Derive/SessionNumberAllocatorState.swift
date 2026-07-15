@@ -1,9 +1,9 @@
 import Foundation
 
-/// Pure, `Equatable` value-type transcription of `SessionNumberAllocator`
-/// (see `Pool/State/SessionNumberAllocator.swift`) — same per-origin
-/// free-list numbering semantics, but composable inside `PoolMemory` instead
-/// of held as a reference-type side table on `FloatingPetWindowPool`.
+/// Pure, `Equatable` value-type session-number free-list — same per-origin
+/// free-list numbering semantics historically owned by the deleted class
+/// allocator, composable inside `PoolMemory` instead of held as a
+/// reference-type side table on `FloatingPetWindowPool`.
 ///
 /// Each origin gets its own independent numbering sequence starting at 1.
 /// `assign` returns the lowest free number for that origin — either a number
