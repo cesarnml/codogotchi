@@ -43,6 +43,7 @@ final class PoolApplyTests: XCTestCase {
 		var appliedIdleEscalationConfigs: [IdleEscalationConfig] = []
 		var appliedPromptTimerPresentations: [PromptTimerPresentation?] = []
 		var appliedModeIndicatorBadges: [String?] = []
+		var appliedFoldedSessionDisplays: [String?] = []
 		var adoptedFrames: [CGRect] = []
 		/// Settable so a test can simulate "this window is currently at frame
 		/// X" before `apply` reads it as a spawn's frame-inheritance donor.
@@ -69,6 +70,7 @@ final class PoolApplyTests: XCTestCase {
 		func applySessionTooltip(_ summary: String?) { appliedSessionTooltips.append(summary) }
 		func applyConflictBubble(_ payload: ConflictBubblePayload?) { appliedConflictBubbles.append(payload) }
 		func applyModeIndicatorBadge(_ text: String?) { appliedModeIndicatorBadges.append(text) }
+		func applyFoldedSessionDisplay(_ display: String?) { appliedFoldedSessionDisplays.append(display) }
 		func adoptFrame(_ frame: CGRect) {
 			adoptedFrames.append(frame)
 			currentFrame = frame
@@ -121,6 +123,28 @@ final class PoolApplyTests: XCTestCase {
 			controller.appliedPromptTimerPresentations.last ?? nil,
 			PromptTimerPresentation(label: "0:12", isRunning: true))
 		XCTAssertEqual(controller.appliedModeIndicatorBadges.last ?? nil, "Codex")
+	}
+
+	func testPoolApplyDoesNotPushFoldedSessionDisplay() {
+		let key: WindowKey = "codex:abc"
+		var desired = DesiredWindow(key: key)
+		desired.activityState = .implementing
+		desired.foldedSessionDisplay = "Codex · refactor the diff module"
+		desired.modeIndicatorBadge = "Codex"
+
+		let controller = MockController()
+		var controllers: [WindowKey: FloatingPetWindowControlling] = [key: controller]
+		var diff = WindowDiff()
+		diff.toUpdate[key] = desired
+
+		PoolApply.apply(diff: diff, controllers: &controllers, spawn: { _, _ in
+			XCTFail("spawn must not be invoked for an update-only diff")
+			return MockController()
+		})
+
+		XCTAssertTrue(
+			controller.appliedFoldedSessionDisplays.isEmpty,
+			"PoolApply must not push foldedSessionDisplay — prune-only leftover deleted in P21.02")
 	}
 
 	func testDismissedWindowIsHiddenAndRemovedFromControllers() {

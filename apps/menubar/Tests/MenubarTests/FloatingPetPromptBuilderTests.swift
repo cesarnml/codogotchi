@@ -2,13 +2,11 @@ import XCTest
 
 @testable import Codogotchi
 
-/// Prune menu copy: fold windows used to expand with
-/// `"(platform · label)"` (P19.03); that expansion is retired now that
-/// mode/session badges already surface the same identity on the panel.
+/// Prune menu copy uses the bare `pruneTitle`; fold-display threading is
+/// deleted end-to-end (P21.02) now that mode/session badges carry identity.
 final class FloatingPetPromptBuilderTests: XCTestCase {
 	private func makeCapabilities(
-		hasActiveSession: Bool = true,
-		foldedSessionDisplay: String? = nil
+		hasActiveSession: Bool = true
 	) -> FloatingPetPromptCapabilities {
 		FloatingPetPromptCapabilities(
 			offersForceIdle: false,
@@ -17,7 +15,8 @@ final class FloatingPetPromptBuilderTests: XCTestCase {
 			modeSwitchTitle: FloatingPetHidePrompt.minimalistModeTitle,
 			offersPanelSize: false,
 			hideItemTitle: FloatingPetHidePrompt.title,
-			foldedSessionDisplay: foldedSessionDisplay
+			// Red asserts this property is gone; production still has it until green.
+			foldedSessionDisplay: nil
 		)
 	}
 
@@ -31,27 +30,23 @@ final class FloatingPetPromptBuilderTests: XCTestCase {
 		items.first { $0.title.hasPrefix("Prune") }?.title
 	}
 
-	func testFoldWindowPruneTitleStaysBareWhenBadgesCarryIdentity() {
-		let capabilities = makeCapabilities(
-			foldedSessionDisplay: "Claude Code · refactor the diff module")
-		let items = FloatingPetPromptBuilder.items(capabilities: capabilities, handlers: noopHandlers())
-
+	func testPruneMenuTitleIsBareConstant() {
+		let items = FloatingPetPromptBuilder.items(
+			capabilities: makeCapabilities(), handlers: noopHandlers())
 		XCTAssertEqual(pruneTitle(from: items), FloatingPetHidePrompt.pruneTitle)
 	}
 
-	func testNonFoldWindowPruneTitleStaysBare() {
-		let capabilities = makeCapabilities(foldedSessionDisplay: nil)
-		let items = FloatingPetPromptBuilder.items(capabilities: capabilities, handlers: noopHandlers())
-
-		XCTAssertEqual(pruneTitle(from: items), FloatingPetHidePrompt.pruneTitle)
+	func testPromptCapabilitiesHasNoFoldedSessionDisplayProperty() {
+		let labels = Set(Mirror(reflecting: makeCapabilities()).children.compactMap(\.label))
+		XCTAssertFalse(
+			labels.contains("foldedSessionDisplay"),
+			"foldedSessionDisplay must be removed from FloatingPetPromptCapabilities")
 	}
 
-	func testPruneMenuTitleHelperIgnoresFoldedDisplay() {
-		XCTAssertEqual(
-			FloatingPetHidePrompt.pruneMenuTitle(foldedSessionDisplay: "Codex · fix flaky test"),
-			FloatingPetHidePrompt.pruneTitle)
-		XCTAssertEqual(
-			FloatingPetHidePrompt.pruneMenuTitle(foldedSessionDisplay: nil),
-			FloatingPetHidePrompt.pruneTitle)
+	func testDesiredWindowHasNoFoldedSessionDisplayProperty() {
+		let labels = Set(Mirror(reflecting: DesiredWindow(key: "codex")).children.compactMap(\.label))
+		XCTAssertFalse(
+			labels.contains("foldedSessionDisplay"),
+			"foldedSessionDisplay must be removed from DesiredWindow")
 	}
 }
