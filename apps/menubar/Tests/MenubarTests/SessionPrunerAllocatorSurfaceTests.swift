@@ -19,6 +19,9 @@ final class SessionPrunerAllocatorSurfaceTests: XCTestCase {
 		XCTAssertFalse(
 			source.contains("allocator"),
 			"SessionPruner must be disk-only — no allocator parameter or release (P21.04)")
+		XCTAssertFalse(
+			source.contains(".release("),
+			"SessionPruner must never call .release — number release is PoolMemory-only (P21.04)")
 	}
 
 	func testPoolPrunePathDoesNotConstructSessionNumberAllocator() throws {
