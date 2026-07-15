@@ -725,7 +725,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 		repositionAndShowAnimationBadge()
 	}
 
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
+	func applyLocalPromptTimerStatus(_ status: PromptTimerStatus?) {
 		promptTimerStatus = status
 		promptTimerPresentationOverride = nil
 		syncPromptTimerHeartbeat()
@@ -738,7 +738,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 	/// `applySessionNumber`, etc.) renders it instead of clobbering it with a
 	/// stale `promptTimerStatus?.presentation()`. Live ticks refresh this via
 	/// `PoolDerive` → `PoolApply`; the local heartbeat remains for the raw
-	/// `applyPromptTimerStatus` / override-clear path.
+	/// `applyLocalPromptTimerStatus` / override-clear path.
 	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
 		promptTimerPresentationOverride = presentation
 		repositionAndShowAnimationBadge()

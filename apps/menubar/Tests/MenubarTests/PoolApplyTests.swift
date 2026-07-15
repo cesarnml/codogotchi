@@ -11,18 +11,9 @@ import XCTest
 /// execution time), teardown, and per-window pushes straight from
 /// `DesiredWindow` fields ... Zero policy decisions."
 ///
-/// `PoolApply` does not exist yet. Unlike `diff`, `apply` lives OUTSIDE
-/// `Pool/Derive/` (it drives `FloatingPetWindowControlling`, an
-/// `@MainActor`/AppKit-adjacent protocol) — this file is a sibling of
-/// `FloatingPetWindowPoolTests.swift`, matching that convention.
-///
-/// Scope note (see this ticket's Rationale / the delivering agent's report):
-/// `DesiredWindow.promptTimerStatus` is a `PromptTimerPresentation` (P18.03's
-/// already-rendered label/isRunning pair) while
-/// `FloatingPetWindowControlling.applyPromptTimerStatus` currently accepts a
-/// `PromptTimerStatus` (raw startedAt/endedAt). That type mismatch is a real
-/// gap `apply`'s green phase must resolve (new protocol member vs. adapting
-/// the existing one) — deliberately left untested here rather than guessed.
+/// Scope note: `DesiredWindow.promptTimerStatus` is a `PromptTimerPresentation`
+/// and `PoolApply` pushes it via `applyPromptTimerPresentation` only (P21.03
+/// removed raw status from the pool-facing protocols).
 @MainActor
 final class PoolApplyTests: XCTestCase {
 
@@ -51,7 +42,6 @@ final class PoolApplyTests: XCTestCase {
 
 		func setFloatingPetVisible(_ visible: Bool) { isFloatingPetVisible = visible }
 		func apply(state: ActivityState, visualMode: VisualMode) { appliedStates.append((state, visualMode)) }
-		func applyPromptTimerStatus(_ status: PromptTimerStatus?) {}
 		func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
 			appliedPromptTimerPresentations.append(presentation)
 		}

@@ -120,7 +120,7 @@ final class MinimalistBadgeView: NSView {
 		syncPromptTimerHeartbeat()
 	}
 
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
+	func applyLocalPromptTimerStatus(_ status: PromptTimerStatus?) {
 		promptTimerStatus = status
 		promptTimerPresentationOverride = nil
 		animationBadge.configurePromptTimer(status?.presentation())

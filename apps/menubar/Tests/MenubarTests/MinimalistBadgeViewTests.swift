@@ -35,12 +35,12 @@ final class MinimalistBadgeViewTests: XCTestCase {
 		let rawStatus = PromptTimerStatus(startedAt: Date(timeIntervalSince1970: 0), endedAt: nil)
 
 		badge.applyPromptTimerPresentation(staleOverride)
-		badge.applyPromptTimerStatus(rawStatus)
+		badge.applyLocalPromptTimerStatus(rawStatus)
 		badge.configureBadge(platform: nil, activity: .idle, metrics: metrics)
 
 		XCTAssertEqual(
 			badge.renderedPromptTimerPresentation, rawStatus.presentation(),
-			"an explicit applyPromptTimerStatus call must clear a stale presentation override, not be shadowed by it"
+			"an explicit applyLocalPromptTimerStatus call must clear a stale presentation override, not be shadowed by it"
 		)
 	}
 

@@ -13,20 +13,11 @@ protocol FloatingPetVisibilityControlling: AnyObject {
 @MainActor
 protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	func apply(state: ActivityState, visualMode: VisualMode)
-	/// Latest prompt-timer status for this window's render key, computed by the
-	/// pool's `PromptTimerTracker` (the pool owns the tracker so the timer keeps
-	/// correct time while no window exists — see `PromptTimerTracker`). The
-	/// window only displays it.
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?)
-	/// `PoolApply` (P18.04)'s equivalent of `applyPromptTimerStatus`, taking
-	/// the already-rendered `PromptTimerPresentation` `DesiredWindow` carries
-	/// instead of the raw `PromptTimerStatus`: `PoolDerive`'s `PoolMemory`
-	/// (not this protocol's caller) owns the `PromptTimerTracker`, so by the
-	/// time a `DesiredWindow` reaches `apply` only the rendered label/
-	/// isRunning pair is available — reconstructing a fake raw status here
-	/// would fabricate a `startedAt` that was never observed. See this
-	/// ticket's Rationale (Contract note) for why this is a separate method
-	/// rather than a signature change to `applyPromptTimerStatus`.
+	/// Pool-facing prompt-timer push: the already-rendered
+	/// `PromptTimerPresentation` that `DesiredWindow` carries.
+	/// `PoolDerive`'s `PoolMemory` owns the `PromptTimerTracker`, so by the
+	/// time a window reaches `PoolApply` only the rendered label/isRunning
+	/// pair is available.
 	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?)
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
@@ -75,7 +66,6 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 }
 
 extension FloatingPetWindowControlling {
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {}
 	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {}
 	func applySessionNumber(_ number: Int?) {}
 	func applyHasActiveSession(_ hasActiveSession: Bool) {}
@@ -99,12 +89,7 @@ protocol PanelManaging: AnyObject {
 	func show(frame: CGRect)
 	func hide()
 	func apply(state: ActivityState, visualMode: VisualMode)
-	/// Pool-computed prompt-timer status for display (see `PromptTimerTracker`).
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?)
-	/// `PoolApply` (P18.04)'s equivalent, taking an already-rendered
-	/// `PromptTimerPresentation` instead of the raw `PromptTimerStatus` —
-	/// see `FloatingPetWindowControlling.applyPromptTimerPresentation`'s doc
-	/// for why this is a separate method.
+	/// Pool-facing prompt-timer push: already-rendered presentation.
 	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?)
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
@@ -162,7 +147,6 @@ extension PanelManaging {
 
 	// Shared members with default no-ops (kept for convenience; both
 	// conformers implement these directly).
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {}
 	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {}
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 	func applyGateBadge(content: GateBadgeContent?) {}
@@ -292,10 +276,6 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 
 	func apply(state: ActivityState, visualMode: VisualMode) {
 		panel.apply(state: state, visualMode: visualMode)
-	}
-
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
-		panel.applyPromptTimerStatus(status)
 	}
 
 	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
@@ -507,10 +487,6 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		panel.applyBadgeScale(badgeScaleProvider())
 		panel.applyActivity(state)
 		refreshPromptSummary()
-	}
-
-	func applyPromptTimerStatus(_ status: PromptTimerStatus?) {
-		panel.applyPromptTimerStatus(status)
 	}
 
 	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
