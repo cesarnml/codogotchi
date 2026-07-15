@@ -81,7 +81,7 @@ struct CustomizationSnapshot {
 	/// Default per-origin cap when an origin has session-pets enabled but no
 	/// explicit cap has ever been persisted. Single source of truth for the
 	/// consumers that resolve this default (`FloatingPetWindowPool`,
-	/// `SessionNumberAllocator`, `CustomizationTabViewModel`/Settings UI).
+	/// `SessionNumberAllocatorState`, `CustomizationTabViewModel`/Settings UI).
 	static let defaultSessionCap = 3
 	/// Default "Archive Session After Idle" TTL — 2 hours, matching
 	/// `StateJsonReader`'s render-fresh window at the time this became

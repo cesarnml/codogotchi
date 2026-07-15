@@ -1,6 +1,6 @@
 # Phase 21: Post-v3 Cutover Cleanup
 
-**Delivery status:** Approved and decomposed 2026-07-15 — delivery docs at `docs/product/delivery/phase-21/`. Run `/soa preflight phase-21` before `/soa execute`.
+**Delivery status:** Stack delivered 2026-07-15 (PRs #190–#194) — awaiting developer closeout onto `v3_preview`. Delivery docs at `docs/product/delivery/phase-21/`.
 
 ## TL;DR
 
@@ -19,7 +19,7 @@
 
 ---
 
-Phases 17–18 delivered surface convergence and `derive → diff → apply`; Phases 19–20 shipped fold identity and sticky slice clocks on that pipeline. The imperative pool engine and live shadow tick are already deleted (P18.07), but the app still carries shadow utilities in `Sources/Pool`, dual prompt-timer protocol methods, a half-dead fold-display→prune-title pipe, stale ticket comments, an empty pre-rename Xcode project, and a class allocator constructed only so prune can ignore it. Phase 21 is the hygiene pass that clears those leftovers under the same behavior bar as Phase 16 — before Track 2 / further feature work makes them permanent architecture.
+Phases 17–18 delivered surface convergence and `derive → diff → apply`; Phases 19–20 shipped fold identity and sticky slice clocks on that pipeline. After P18.07 the imperative pool engine and live shadow tick were already gone, but the app still carried Phase 18–retained shadow utilities in `Sources/Pool`, dual prompt-timer protocol methods, a half-dead fold-display→prune-title pipe, stale ticket comments, an empty pre-rename Xcode project husk (already absent on `v3_preview` by delivery time), and a class allocator constructed only so prune could ignore it. Phase 21 cleared those leftovers under the same behavior bar as Phase 16.
 
 ## Phase Goal
 

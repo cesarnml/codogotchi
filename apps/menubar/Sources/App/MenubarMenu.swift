@@ -603,7 +603,7 @@ final class MenubarMenu: NSObject {
 	/// Display name for a pet-section window key. Session-keyed keys
 	/// (`origin:session_id`) keep the platform prefix but replace the raw
 	/// session UUID with the user's custom `SessionLabelStore` rename, the
-	/// retrieved platform title, or "Session N" from `SessionNumberAllocator`.
+	/// retrieved platform title, or "Session N" from `SessionNumberAllocatorState`.
 	/// Plain-origin keys (session pets off for that platform) are unaffected.
 	@MainActor
 	private func displayName(for key: WindowKey) -> String {
