@@ -217,7 +217,7 @@ final class SessionsTabView: NSView {
 			bulkActions: liveBulkActions,
 			onShow: { [weak self] row in self?.show(row) },
 			onHide: nil,
-			onPrune: nil
+			onPrune: { [weak self] row in self?.prune(row) }
 		)
 		contentStack.addArrangedSubview(liveSection)
 		liveSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true

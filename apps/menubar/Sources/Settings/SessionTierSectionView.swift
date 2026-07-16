@@ -108,4 +108,5 @@ final class SessionTierSectionView: NSView {
 }
 
 /// One session row: platform icon, display label, a relative-age caption, and
-/// up to two trailing action buttons (Show/Hide, and Prune for Archived rows).
+/// up to two trailing action buttons (Show/Hide, and Prune for Live/Archived
+/// rows).

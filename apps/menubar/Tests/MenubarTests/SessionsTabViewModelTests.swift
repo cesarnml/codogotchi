@@ -10,7 +10,7 @@ import XCTest
 ///    which lifecycle tier the row lands in — the stamp read happens once per
 ///    candidate slice, before tiering branches.
 /// 2. `SessionRowView.subtitleText(for:now:)` renders the relative Started
-///    fragment (`Started · 2h ago`) combined onto the tier's existing status
+///    fragment (`Started 2h ago`) combined onto the tier's existing status
 ///    text as one line when the stamp is present and parseable, and omits it
 ///    entirely — never fabricated from `updated_at` — when the stamp is
 ///    missing or unparseable.
@@ -135,14 +135,14 @@ final class SessionsTabViewModelTests: XCTestCase {
 		let now = Date()
 		let row = makeRow(
 			tier: .active, isShown: true, sessionStartedAt: isoString(now, before: 2 * 60 * 60))
-		XCTAssertEqual(SessionRowView.subtitleText(for: row, now: now), "Shown · Started · 2h ago")
+		XCTAssertEqual(SessionRowView.subtitleText(for: row, now: now), "Shown · Started 2h ago")
 	}
 
 	func testSubtitleCombinesStartedOntoActiveHidden() {
 		let now = Date()
 		let row = makeRow(
 			tier: .active, isShown: false, sessionStartedAt: isoString(now, before: 45 * 60))
-		XCTAssertEqual(SessionRowView.subtitleText(for: row, now: now), "Hidden · Started · 45m ago")
+		XCTAssertEqual(SessionRowView.subtitleText(for: row, now: now), "Hidden · Started 45m ago")
 	}
 
 	func testSubtitleCombinesStartedWithIdleAgeOnLive() {
@@ -150,7 +150,7 @@ final class SessionsTabViewModelTests: XCTestCase {
 		let row = makeRow(
 			tier: .live, ageSeconds: 300, sessionStartedAt: isoString(now, before: 3 * 60 * 60))
 		XCTAssertEqual(
-			SessionRowView.subtitleText(for: row, now: now), "Idle 5m ago · Started · 3h ago")
+			SessionRowView.subtitleText(for: row, now: now), "Idle 5m ago · Started 3h ago")
 	}
 
 	func testSubtitleCombinesStartedWithQuietAgeOnArchived() {
@@ -158,7 +158,7 @@ final class SessionsTabViewModelTests: XCTestCase {
 		let row = makeRow(
 			tier: .archived, ageSeconds: 7200, sessionStartedAt: isoString(now, before: 25 * 60 * 60))
 		XCTAssertEqual(
-			SessionRowView.subtitleText(for: row, now: now), "Quiet 2h ago · Started · 1d ago")
+			SessionRowView.subtitleText(for: row, now: now), "Quiet 2h ago · Started 1d ago")
 	}
 
 	// MARK: Unparseable stamp — treated the same as missing, never crashes

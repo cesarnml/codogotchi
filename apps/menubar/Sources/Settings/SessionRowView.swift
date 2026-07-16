@@ -133,7 +133,7 @@ final class SessionRowView: NSView {
 
 	/// Builds a row's status line: the tier's existing base text (`Shown`/
 	/// `Hidden` for Active, `Idle <age>` for Live, `Quiet <age>` for Archived)
-	/// plus a `Started · <age>` fragment appended when `row.sessionStartedAt`
+	/// plus a `Started <age>` fragment appended when `row.sessionStartedAt`
 	/// is present and parses — combined onto the same line rather than a
 	/// second row (P20.03). Omits the Started fragment entirely, leaving the
 	/// base text unchanged, when the stamp is missing or unparseable: never
@@ -148,7 +148,7 @@ final class SessionRowView: NSView {
 		guard let sessionStartedAt = row.sessionStartedAt,
 			let startedDate = StateJsonReader.parseISO8601Date(sessionStartedAt)
 		else { return base }
-		return "\(base) · Started · \(relativeAge(now.timeIntervalSince(startedDate)))"
+		return "\(base) · Started \(relativeAge(now.timeIntervalSince(startedDate)))"
 	}
 }
 
