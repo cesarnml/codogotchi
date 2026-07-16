@@ -565,6 +565,50 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
 - **Status:** WAITING — single instance from phase-19 panel-affordance
   follow-through.
 
+### `sibling-method-skips-a-key-resolution-step-a-neighbor-already-takes`
+- **Seen:** 1× ledgered — `codogotchi-52` (phase-16, resolved phase-19 QC).
+  `SessionsTabViewModel.show(key:)`/`hide(key:)` already resolve a row's
+  slice-derived `WindowKey` through `pool.renderedWindowKey(for:)` before
+  touching the pool, because a sessions-off fold winner's own key is never
+  the pool's actual render-target key. Three sibling methods in the *same
+  file* — `pruneActive`/`pruneAllActive`/`pruneAllSessions` — pass the raw
+  `row.id` straight into `pool.pruneSession` instead, from the moment
+  `pruneActive` was introduced (P16.05) alongside the very fold-resolution
+  machinery `show`/`hide` correctly use a few methods away. Same recurring
+  shape as `codogotchi-40`/`41` (a caller/callee `WindowKey`-space mismatch
+  on the Prune path specifically) but a different manifestation — that pair
+  fixed the mismatch *inside* `pruneSession`; this one is in the caller,
+  one layer out, in methods that had a correct sibling to copy from and
+  didn't.
+- **Proposed clause:** *"When a class has multiple methods that resolve the
+  same ambiguous identifier (a raw key, an unqualified id) before handing it
+  to a shared lower-level API, and at least one of those methods already
+  performs a resolution step (`renderedWindowKey(for:)`, a canonicalization
+  call, an identity lookup), audit every sibling method touching the same
+  lower-level API for the identical step — do not assume a method 'looks
+  simple enough' to skip what a neighboring method needed. The presence of
+  a correct example in the same file is not protection; it is only found by
+  deliberately diffing the sibling methods against each other, not by
+  reading either one in isolation."*
+- **Relationship to `side-effect-call-dropped-or-mis-targeted-in-refactor`:**
+  a cousin — both are "an old assumption not re-derived / re-applied
+  elsewhere" — but that class is triggered by a REFACTOR moving/replacing an
+  owner; this one has no refactor trigger at all. The correct and incorrect
+  methods were written at the same time, in the same commit (P16.05), with
+  no later change disturbing either — this is a same-commit oversight, not
+  drift introduced by a later change.
+- **Caveat that blocks naive promotion:** single ledgered instance. The
+  "audit sibling methods against each other" lever is a strong completeness
+  check but expensive to apply universally (every class with >1 method
+  touching a shared lower-level API) — needs ≥1 more occurrence to judge
+  whether it is narrow enough (e.g. "specifically WindowKey resolution
+  before a pool call") to state as a targeted clause, or too broad to be
+  actionable as written.
+- **Status:** WAITING — single instance. Promote only after a second
+  same-file "sibling method skips a resolution step a neighbor already
+  takes" occurrence, ideally on a different key/identifier shape than
+  `WindowKey`.
+
 ### `fold-winner-promotion-blocked-by-recency-only-election-and-cap-policy`
 - **Seen:** 1× — observed while scoping a phase-19 QC ask (Sessions panel Live
   rows should offer Show, not just Prune, and Show should be able to promote a
