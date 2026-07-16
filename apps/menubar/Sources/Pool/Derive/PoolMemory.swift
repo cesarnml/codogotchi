@@ -127,6 +127,21 @@ struct PoolMemory: Equatable {
 	/// transition. Mirrors `FloatingPetWindowPool.promptTimers`.
 	var promptTimers: [WindowKey: PromptTimerTracker] = [:]
 
+	/// Last-known winning-session identity per render key, for prompt-timer
+	/// continuity only. A folded render key (`.origin(origin)` with
+	/// sessions off, or `.combined`) can have a DIFFERENT session win it
+	/// tick to tick — `PoolTickInput.snapshot.renderKeyIdentities` names
+	/// whichever session currently does. `PromptTimerTracker.observe`
+	/// only restarts on an idle/session_start/first-observation activity
+	/// transition (see its `shouldStartTimer`); it has no notion of "the
+	/// session behind this render key just changed" and a still-running
+	/// tracker will happily keep reporting the PREVIOUS winner's elapsed
+	/// time through a silent rotation to a different in-flight session.
+	/// `PoolDerive` compares this map against the current tick's resolved
+	/// identity per render key and resets `promptTimers[renderKey]` when
+	/// they diverge, before observing this tick's state.
+	var promptTimerWinnerIdentity: [WindowKey: RenderKeyIdentity] = [:]
+
 	// MARK: - P18.03: push-spec memory
 
 	var sessionNumbers: [WindowKey: Int] = [:]

@@ -95,6 +95,50 @@ final class PoolDerivePushTests: XCTestCase {
 		XCTAssertEqual(desired.windows[.origin("codex")]?.sessionLabel, "Old task")
 	}
 
+	/// Production never feeds `derive` raw per-session keys directly for a
+	/// folded platform — `LivePollingDriver` calls `resolveRenderKeys`
+	/// upstream first, which collapses sessions-off/combined origins down to
+	/// ONE already-folded entry (`.origin(origin)` or `.combined`) before
+	/// `PerPlatformSnapshot` is ever built, carrying `renderKeyIdentities`
+	/// alongside so the winning session behind that unchanged key is still
+	/// knowable. `testResolvedIdentityAndLabelRotateWithOriginFoldWinner`
+	/// above exercises `derive`'s OWN internal re-fold of raw per-session
+	/// keys (a different, also-real input shape — `pool.update()` can be
+	/// called directly with un-folded snapshots too) and happens to work
+	/// even pre-fix, because that shape's `winnerEntry.key` already resolves
+	/// to the actual raw session. This test reproduces the shape that
+	/// exposed the reported bug: the RENDER KEY itself never changes
+	/// (`.origin("codex")` both ticks), only the identity behind it does —
+	/// exactly what a real sessions-off fold winner rotation looks like once
+	/// `resolveRenderKeys` has already run.
+	func testOriginFoldWinnerRotationResetsTimerWhenIdentityChangesUnderAnUnchangedKey() {
+		let customization = pushCustomization()
+		var memory = PoolMemory()
+		let foldedKey: WindowKey = .origin("codex")
+
+		(_, memory) = pushTick(
+			[foldedKey: pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
+			identities: [foldedKey: RenderKeyIdentity(origin: "codex", sessionId: "session-a")],
+			customization: customization, memory: memory)
+		XCTAssertEqual(
+			memory.promptTimers[foldedKey]?.currentStatus()?.startedAt,
+			StateJsonReader.parseISO8601Date("2026-07-01T10:00:00.000Z"))
+
+		// Same key, same in-flight state, but resolveRenderKeys has now
+		// elected a DIFFERENT session as the winner — the pre-fix tracker,
+		// already running under `foldedKey`, would see nothing but ordinary
+		// continuation here and never restart.
+		(_, memory) = pushTick(
+			[foldedKey: pushSnapshot(updated: "2026-07-01T10:05:00.000Z", origin: "codex")],
+			identities: [foldedKey: RenderKeyIdentity(origin: "codex", sessionId: "session-b")],
+			customization: customization, memory: memory)
+
+		XCTAssertEqual(
+			memory.promptTimers[foldedKey]?.currentStatus()?.startedAt,
+			StateJsonReader.parseISO8601Date("2026-07-01T10:05:00.000Z"),
+			"a winner-identity change under the same render key must restart the timer from the new winner's own updatedAt")
+	}
+
 	func testFoldedWinnerUsesKnownTitleCacheAndTitleRequestIdentity() {
 		let key: WindowKey = "codex:session"
 		let identity = RenderKeyIdentity(origin: "codex", sessionId: "session")
@@ -179,6 +223,58 @@ final class PoolDerivePushTests: XCTestCase {
 		XCTAssertNil(
 			desired.windows[.combined]?.sessionLabel,
 			"idle Combined must not reuse mode-chip copy as the session label")
+	}
+
+	/// A prior version of `derive` observed the combined winner's state into
+	/// one tracker shared across every session that has ever won the
+	/// `.combined` slot (`memory.promptTimers[.combined]`). Since
+	/// `PromptTimerTracker` only restarts on an idle/session_start/first-
+	/// observation transition, a still-running shared tracker never noticed
+	/// the underlying winning SESSION had changed on a rotation between two
+	/// different in-flight sessions — the chip kept reporting the previous
+	/// winner's elapsed time under the new winner's name. The fix reads
+	/// `promptTimerStatus` from the winning RAW key's own tracker
+	/// (`memory.promptTimers[winnerEntry.key]`), which Step 2 already
+	/// independently observes for every visible key regardless of fold
+	/// outcome — so `.combined` itself is never a key in `promptTimers` at
+	/// all post-fix.
+	func testCombinedWinnerRotationUsesNewWinnersOwnTimerNotAStaleSharedOne() {
+		let customization = pushCustomization(modes: ["codex": .combined, "cursor": .combined])
+		var memory = PoolMemory()
+
+		// Tick 1: codex:a is the only entry, wins combined, starts its own
+		// tracker running from its own updatedAt.
+		(_, memory) = pushTick(
+			["codex:a": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
+			customization: customization, memory: memory)
+		XCTAssertEqual(
+			memory.promptTimers["codex:a"]?.currentStatus()?.startedAt,
+			StateJsonReader.parseISO8601Date("2026-07-01T10:00:00.000Z"))
+
+		// Tick 2: cursor:b appears with a later updatedAt and becomes the new
+		// combined winner; codex:a is still present (unchanged, still
+		// "running" in its own right) so the OLD shared-tracker code path
+		// would have kept ticking from codex:a's tick-1 start instead of
+		// starting fresh for cursor:b.
+		var desired: DesiredWindows
+		(desired, memory) = pushTick(
+			[
+				"codex:a": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex"),
+				"cursor:b": pushSnapshot(updated: "2026-07-01T10:05:00.000Z", origin: "cursor"),
+			], customization: customization, memory: memory)
+
+		XCTAssertEqual(desired.windows[.combined]?.resolvedIdentity, "cursor:b")
+		XCTAssertNil(
+			memory.promptTimers[.combined],
+			"no tracker should ever be keyed literally .combined post-fix")
+		XCTAssertEqual(
+			memory.promptTimers["cursor:b"]?.currentStatus()?.startedAt,
+			StateJsonReader.parseISO8601Date("2026-07-01T10:05:00.000Z"),
+			"the new winner's timer must start from ITS OWN updatedAt, not codex:a's")
+		XCTAssertEqual(
+			memory.promptTimers["codex:a"]?.currentStatus()?.startedAt,
+			StateJsonReader.parseISO8601Date("2026-07-01T10:00:00.000Z"),
+			"the demoted session keeps its own independent timer untouched")
 	}
 
 	func testCombinedTransientGapRetainsLastActiveWindowAndTimer() {

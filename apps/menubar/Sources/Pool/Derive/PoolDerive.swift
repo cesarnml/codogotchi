@@ -71,6 +71,30 @@ enum PoolDerive {
 			if memory.lastUpdatedAt[renderKey] == nil || stateDate > memory.lastUpdatedAt[renderKey]! {
 				memory.lastUpdatedAt[renderKey] = stateDate
 			}
+			// Fold-winner rotation: `renderKey` here is already the FOLDED
+			// key for `.origin(origin)` (sessions off) and `.combined`
+			// render targets — `resolveRenderKeys` picks whichever session
+			// is freshest for that key upstream, every tick, independently
+			// of this tracker. If the winning identity just changed, the
+			// tracker's own activity-state-driven restart logic won't
+			// necessarily notice (a mid-turn tool_use from the NEW winner
+			// looks like ordinary continuation to a tracker that thinks
+			// it's already running the OLD winner's turn) — reset it so
+			// the observe() call below starts fresh for the new winner's
+			// own `promptStartedAt`, instead of silently keeping the
+			// previous winner's elapsed time running under the new one's
+			// name. A first sighting of `renderKey` (no previous identity
+			// recorded) is not a rotation — `default: PromptTimerTracker()`
+			// below already starts fresh for that case.
+			let winningIdentity = snapshot.renderKeyIdentities[renderKey]
+			if let winningIdentity,
+				let previousIdentity = memory.promptTimerWinnerIdentity[renderKey],
+				previousIdentity != winningIdentity
+			{
+				memory.promptTimers[renderKey] = PromptTimerTracker()
+			}
+			memory.promptTimerWinnerIdentity[renderKey] = winningIdentity
+
 			// Pool-owned prompt timer: observed every tick, BEFORE any
 			// teardown/spawn decision below, so the timer keeps correct time
 			// across hide/show, idle-TTL dismiss, and session-cap de-render —
@@ -130,9 +154,10 @@ enum PoolDerive {
 		memory.firstSeenAt = memory.firstSeenAt.filter { eligibleKeys.contains($0.key) }
 		memory.lastSeenAt = memory.lastSeenAt.filter { eligibleKeys.contains($0.key) }
 		memory.lastUpdatedAt = memory.lastUpdatedAt.filter { eligibleKeys.contains($0.key) }
-		// "combined" is exempt, exactly like the legacy tracker: its eligibility
-		// is per-origin while the tracker is keyed by the literal "combined".
-		memory.promptTimers = memory.promptTimers.filter { eligibleKeys.contains($0.key) || $0.key == .combined }
+		memory.promptTimers = memory.promptTimers.filter { eligibleKeys.contains($0.key) }
+		memory.promptTimerWinnerIdentity = memory.promptTimerWinnerIdentity.filter {
+			eligibleKeys.contains($0.key)
+		}
 
 		// The membership `derive` actually constructed a `DesiredWindow` for
 		// LAST tick — the diff baseline for everything below. Captured before
@@ -181,15 +206,24 @@ enum PoolDerive {
 				return lhs.key.rawValue < rhs.key.rawValue
 			}
 		}
+		// No separate observe() here: `combinedWinner.key` is always a raw
+		// render key already present in `visibleEntries` (that's how
+		// `foldedGroups[.combined]` was built), so Step 2 above already
+		// independently observed `memory.promptTimers[combinedWinner.key]`
+		// — the winning session's OWN tracker, not a tracker shared across
+		// every session that has ever won the combined slot. The
+		// `DesiredWindow` construction below reads `promptTimerStatus` from
+		// `memory.promptTimers[winnerEntry.key]` uniformly (no `.combined`
+		// special case), so a combined-winner rotation naturally switches to
+		// the new winner's own correctly-tracked elapsed time, the same way
+		// the plain-origin fold branch already did. A prior version of this
+		// code observed into one shared `.combined`-keyed tracker instead;
+		// since `PromptTimerTracker` only restarts on an idle/session_start/
+		// first-observation transition, a still-running shared tracker never
+		// noticed the underlying winning session had changed, and the chip
+		// kept reporting the previous winner's elapsed time indefinitely.
 		let combinedWinner = freshestEntry(in: foldedGroups[.combined] ?? [])
-		if let winner = combinedWinner?.state {
-			memory.promptTimers[.combined, default: PromptTimerTracker()].observe(
-				state: winner.activityState, updatedAt: winner.updatedAt,
-				sourceEvent: winner.sourceEvent, attention: winner.attention,
-				promptStartedAt: winner.promptStartedAt, erroredSince: winner.erroredSince,
-				turnEndedAt: winner.turnEndedAt, now: currentTime)
-		} else if !combinedModeConfigured {
-			memory.promptTimers.removeValue(forKey: .combined)
+		if combinedWinner == nil, !combinedModeConfigured {
 			memory.previousCombinedWindow = nil
 		}
 
@@ -422,8 +456,7 @@ enum PoolDerive {
 				window.attention = state.attention
 				window.attentionSourceEvent = state.sourceEvent
 				window.gateBadge = snapshot.gateBadges[winnerEntry.key]
-				window.promptTimerStatus = memory.promptTimers[
-					key == .combined ? .combined : winnerEntry.key]?.presentation(now: currentTime)
+				window.promptTimerStatus = memory.promptTimers[winnerEntry.key]?.presentation(now: currentTime)
 				if key == .combined {
 					window.platformChip = state.activityState == .idle ? "combined" : state.sourceEvent?.origin
 				} else if window.isMinimalist {
