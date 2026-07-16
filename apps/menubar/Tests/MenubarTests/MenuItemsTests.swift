@@ -782,6 +782,36 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(refreshed, [.combined])
 	}
 
+	func testShowAllLivePromotesSessionsOffPanelLikeShowCursorPanel() throws {
+		// Sessions-off Live rows keep canShow == false (they don't own the fold
+		// yet). Menubar "Show Codex Panel" still promotes the fold target;
+		// Settings "Show All Live" must do the same — not silently skip them.
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "codex:live-one.json", in: dir, age: 60)
+		let pool = makePool(origins: [])
+		pool.setVisible(false, for: .origin("codex"))
+		var refreshed: [WindowKey] = []
+		let viewModel = SessionsTabViewModel(
+			stateDirectoryPath: dir, pool: pool,
+			refreshTtlForShow: { refreshed.append($0) })
+		viewModel.refresh()
+
+		XCTAssertEqual(viewModel.liveRows.map(\.id), ["codex:live-one"])
+		XCTAssertEqual(viewModel.liveRows.map(\.canShow), [false])
+		XCTAssertTrue(pool.hiddenWindowKeys.contains(.origin("codex")))
+
+		viewModel.showAllLive()
+
+		XCTAssertFalse(
+			pool.hiddenWindowKeys.contains(.origin("codex")),
+			"Show All Live must un-hide the sessions-off panel target")
+		XCTAssertEqual(refreshed, [.origin("codex")])
+		XCTAssertEqual(
+			viewModel.activeRows.map(\.id), ["codex:live-one"],
+			"winning Live slice must promote to Active via pendingShow bridge")
+		XCTAssertTrue(viewModel.liveRows.isEmpty)
+	}
+
 	func testLivePetsSubmenuShowsDisabledPlaceholderWhenEmpty() {
 		let builder = MenubarMenu(terminate: {})
 		let menu = builder.build()

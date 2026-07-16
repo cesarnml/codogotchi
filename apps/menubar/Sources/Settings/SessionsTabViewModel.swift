@@ -283,16 +283,41 @@ final class SessionsTabViewModel {
 		refresh()
 	}
 
-	/// Show-and-resurrect every Live row whose Show action can honestly
-	/// surface that slice (session-keyed window, or fold ownership).
+	/// Show-and-resurrect every Live row the Settings "Show All Live" bulk
+	/// action can honestly surface:
+	/// - `canShow` rows (session-keyed window, or fold ownership) — same as a
+	///   per-row Show;
+	/// - sessions-off / Combined fold targets that the menubar promotes as
+	///   "Show … Panel" from otherwise `canShow == false` Live rows (see
+	///   `MenubarMenu.supplementalUnrenderedPanelRows`). Without this limb,
+	///   Show All Live is a silent no-op for off-platform panels while
+	///   "Show Cursor Panel" still works.
 	@MainActor
 	func showAllLive() {
+		var promotedTargets: Set<WindowKey> = []
+
 		for row in liveRows where row.canShow {
 			let renderedKey = pool?.renderedWindowKey(for: row.id) ?? row.id
 			refreshTtlForShow(renderedKey)
 			pendingShowKeys.insert(row.id)
 			pool?.setVisible(true, for: renderedKey)
+			promotedTargets.insert(renderedKey)
 		}
+
+		if let pool {
+			// liveRows are age-sorted ascending — first hit per fold target is
+			// the freshest Live slice, matching refreshWinnersForShow's election.
+			for row in liveRows where !row.canShow {
+				guard pool.usesPanelAffordance(for: row.id) else { continue }
+				let target = pool.renderedWindowKey(for: row.id)
+				guard !pool.activeOrigins.contains(target) else { continue }
+				guard promotedTargets.insert(target).inserted else { continue }
+				refreshTtlForShow(target)
+				pendingShowKeys.insert(row.id)
+				pool.setVisible(true, for: target)
+			}
+		}
+
 		refresh()
 	}
 
