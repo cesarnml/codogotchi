@@ -1,0 +1,22 @@
+{
+  "ticket": "P20.03",
+  "invocations": [
+    {
+      "runnerKind": "cursor-cli",
+      "reviewedHeadSha": "34ee2f9ec52e013ed2f91258344a0efc97ad7bb9",
+      "outcome": "skipped",
+      "completedAt": "2026-07-14T14:30:10.743Z",
+      "terminatedReason": "runner_failed",
+      "rawOutput": "docs/product/delivery/phase-20/reviews/P20.03-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-20/reviews/P20.03-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "cursor",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}

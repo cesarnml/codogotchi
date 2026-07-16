@@ -11,7 +11,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	// MARK: - (1) Cap holds the most-evictable session
 
 	func testCapTwoWithIdleAndTwoActiveHoldsTheIdleSession() {
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:idle-one": .idle,
 			"claude_code:active-one": .implementing,
 			"claude_code:active-two": .thinking,
@@ -32,7 +32,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	// MARK: - (2) All-active cap pressure blocks without evicting
 
 	func testCapTwoWithThreeActiveSessionsEmitsBlockedSignalWithoutEvicting() {
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:a": .implementing,
 			"claude_code:b": .thinking,
 			"claude_code:c": .editing,
@@ -80,7 +80,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	func testFourDistinctRanksPartitionAgainstCapInPriorityOrder() {
 		// One session per distinct rank; cap 3 must hold exactly the single
 		// most-evictable (idle) session and render the other three.
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"o:idle": .idle,
 			"o:errored": .errored,
 			"o:waiting": .waitingForInput,
@@ -96,7 +96,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	// MARK: - (5) Unlimited cap
 
 	func testUnlimitedCapNeverHoldsOrEvictsRegardlessOfSessionCount() {
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"o:a": .idle,
 			"o:b": .idle,
 			"o:c": .implementing,
@@ -114,7 +114,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	// MARK: - Incumbent protection
 
 	func testIncumbentActiveSessionIsNeverEvictedByANewcomerActiveSession() {
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:incumbent-a": .implementing,
 			"claude_code:incumbent-b": .thinking,
 			"claude_code:newcomer": .editing,
@@ -136,7 +136,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 		// The user's reported scenario: cap 2, one idle + one in-flight
 		// incumbent, a 3rd in-flight thread starts. With incumbentsProtected,
 		// the idle incumbent must NOT be evicted — the newcomer stays pending.
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:idle-incumbent": .idle,
 			"claude_code:active-incumbent": .implementing,
 			"claude_code:newcomer": .thinking,
@@ -154,7 +154,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	}
 
 	func testIncumbentsProtectedFillsAGenuinelyFreeSlotWithANewcomer() {
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:idle-incumbent": .idle,
 			"claude_code:newcomer": .implementing,
 		]
@@ -171,7 +171,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	}
 
 	func testIncumbentsProtectedDefaultsToFalsePreservingTodaysBehavior() {
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:idle-incumbent": .idle,
 			"claude_code:active-incumbent": .implementing,
 			"claude_code:newcomer": .thinking,
@@ -192,7 +192,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 		// the armed gate still restricts a fresh non-in-flight promotion, since
 		// incumbentsProtected only ever protects existing incumbents — it has
 		// nothing to say about a slot with no incumbent at all.
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:standby-one": .standby,
 		]
 
@@ -212,7 +212,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	func testArmedGateKeepsAFreedSlotEmptyWhenOnlyStandbyCandidateRemains() {
 		// Pruning the active session drops the count to <= cap, so the
 		// pre-QC guard clause would have auto-rendered the standby session.
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:standby-one": .standby,
 		]
 
@@ -227,7 +227,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	}
 
 	func testArmedGatePromotesAnInFlightCandidateIntoAFreedSlot() {
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:active-one": .implementing,
 		]
 
@@ -243,7 +243,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	func testArmedGateNeverDemotesAnAlreadyRenderedIncumbent() {
 		// An incumbent that later idles must stay rendered under the armed
 		// gate — the gate only restricts NEW promotions, not incumbents.
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:incumbent": .idle,
 		]
 
@@ -257,7 +257,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	}
 
 	func testArmedGateDefaultsToUnarmedPreservingPreQCBehavior() {
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:standby-one": .standby,
 		]
 
@@ -271,7 +271,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	// MARK: - Determinism
 
 	func testEqualRankTiesBreakDeterministicallyByWindowKey() {
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:zzz": .idle,
 			"claude_code:aaa": .idle,
 		]
@@ -290,11 +290,11 @@ final class SessionSelectionPolicyTests: XCTestCase {
 		// "aaa" sorts first lexicographically, but "zzz" was updated more
 		// recently — recency must win regardless of session-id ordering, e.g.
 		// on a cold app relaunch where nothing is yet incumbent.
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:aaa": .idle,
 			"claude_code:zzz": .idle,
 		]
-		let updatedAt = [
+		let updatedAt: [WindowKey: String] = [
 			"claude_code:aaa": "2026-07-03T12:15:24.932Z",
 			"claude_code:zzz": "2026-07-03T12:53:20.319Z",
 		]
@@ -308,11 +308,11 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	}
 
 	func testMissingOrUnparseableUpdatedAtSortsAsMostEvictable() {
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:known": .idle,
 			"claude_code:unknown": .idle,
 		]
-		let updatedAt = [
+		let updatedAt: [WindowKey: String] = [
 			"claude_code:known": "2026-07-03T12:15:24.932Z"
 			// "claude_code:unknown" intentionally absent.
 		]
@@ -329,11 +329,11 @@ final class SessionSelectionPolicyTests: XCTestCase {
 		// The newcomer has a fresher timestamp, but the incumbent-protection
 		// rule (checked first) must still win — recency only breaks ties among
 		// equally-incumbent (or equally-newcomer) candidates.
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:incumbent": .idle,
 			"claude_code:newcomer": .idle,
 		]
-		let updatedAt = [
+		let updatedAt: [WindowKey: String] = [
 			"claude_code:incumbent": "2026-07-03T12:00:00.000Z",
 			"claude_code:newcomer": "2026-07-03T12:59:00.000Z",
 		]
@@ -353,7 +353,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 		// Eviction enabled (incumbentsProtected: false) would normally let the
 		// in-flight newcomer bump the idle incumbent. Pinning — the user
 		// explicitly hid this session to revisit it — must override rank.
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:hidden-idle": .idle,
 			"claude_code:newcomer": .implementing,
 		]
@@ -376,11 +376,11 @@ final class SessionSelectionPolicyTests: XCTestCase {
 	func testCapReductionStillTrimsPinnedKeys() {
 		// Pinning protects against passive eviction, not against the user
 		// deliberately lowering the cap below the pinned count.
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:pinned-a": .idle,
 			"claude_code:pinned-b": .idle,
 		]
-		let updatedAt = [
+		let updatedAt: [WindowKey: String] = [
 			"claude_code:pinned-a": "2026-07-03T12:00:00.000Z",
 			"claude_code:pinned-b": "2026-07-03T12:30:00.000Z",
 		]
@@ -402,7 +402,7 @@ final class SessionSelectionPolicyTests: XCTestCase {
 		// when the cap shrinks, the surviving slot must go to the visible
 		// in-flight session — rendering the invisible (hidden) pinned one
 		// instead would show the user nothing while their working pet vanished.
-		let sessions: [String: ActivityState] = [
+		let sessions: [WindowKey: ActivityState] = [
 			"claude_code:pinned-idle": .idle,
 			"claude_code:working": .implementing,
 		]

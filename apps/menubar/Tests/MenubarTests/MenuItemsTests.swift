@@ -46,13 +46,29 @@ final class MenuItemsTests: XCTestCase {
 
 	private func makePool(
 		origins: [String],
-		renderKeyIdentities: [String: RenderKeyIdentity] = [:],
-		sessionLabelReader: @escaping FloatingPetWindowPool.SessionLabelReader = { _ in nil },
-		sessionTitleReader: @escaping FloatingPetWindowPool.SessionTitleReader = { _, _ in nil },
-		retrievedSessionTitleReader: @escaping FloatingPetWindowPool.RetrievedSessionTitleReader = { _ in nil }
+		renderKeyIdentities: [WindowKey: RenderKeyIdentity] = [:],
+		sessionLabelReader: @escaping SessionLabelReader = { _ in nil },
+		sessionTitleReader: @escaping SessionTitleReader = { _, _ in nil },
+		retrievedSessionTitleReader: @escaping RetrievedSessionTitleReader = { _ in nil },
+		// P18.06: `derive` re-derives (never trusts) whether a key should be
+		// session-shaped from `sessionPetsEnabled`, mirroring
+		// `resolveRenderKeys`'s own fold rule exactly (see `PoolDerive
+		// .desiredWindowKey`'s doc) — unlike the legacy pipeline, which never
+		// re-checks a render key's shape once handed one. A caller feeding a
+		// raw `.session(...)` key directly into `perPlatform` (bypassing
+		// `resolveRenderKeys`, as this helper does) must also enable
+		// session-pets for that key's origin, or `derive` correctly folds it
+		// down to plain-origin — the same combination a real
+		// `resolveRenderKeys` pass would never produce in the first place.
+		sessionPetsEnabledOrigins: Set<String> = []
 	) -> FloatingPetWindowPool {
+		let customization = CustomizationSnapshot(
+			platformModes: [:], idleDismissTtlSeconds: 300, menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false, minimalistBadgeScale: 1.0,
+			sessionPetsEnabled: Dictionary(uniqueKeysWithValues: sessionPetsEnabledOrigins.map { ($0, true) }),
+			sessionCap: [:], idleImpatientSeconds: 300, idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
 		let pool = FloatingPetWindowPool(
-			customizationReader: { .safeDefault },
+			customizationReader: { customization },
 			windowFactory: { _, _ in StubWindow() },
 			sessionLabelReader: sessionLabelReader,
 			sessionTitleReader: sessionTitleReader,
@@ -61,7 +77,7 @@ final class MenuItemsTests: XCTestCase {
 		if !origins.isEmpty {
 			let perPlatform = Dictionary(
 				uniqueKeysWithValues: origins.map { origin in
-					(origin, StateSnapshot(
+					(WindowKey(rawValue: origin) ?? .origin(origin), StateSnapshot(
 						schemaVersion: EXPECTED_STATE_SCHEMA_VERSION,
 						activityState: .idle,
 						updatedAt: "2026-06-28T10:00:00.000Z",
@@ -261,9 +277,9 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertFalse(menu.items[trailingIndex(7, petItemCount: Self.singleRowSectionCount)].isEnabled)
 	}
 
-	func testSettingsItemInvokesOpenSettingsCallback() {
-		var settingsOpenCount = 0
-		let builder = MenubarMenu(terminate: {}, openSettings: { _ in settingsOpenCount += 1 })
+	func testSettingsItemInvokesOpenSettingsWithGeneralTab() {
+		var openedTab: SettingsTab??
+		let builder = MenubarMenu(terminate: {}, openSettings: { openedTab = $0 })
 		let menu = builder.build()
 		let settingsIndex = trailingIndex(8, petItemCount: Self.singleRowSectionCount)
 		let settingsItem = menu.items[settingsIndex]
@@ -274,7 +290,7 @@ final class MenuItemsTests: XCTestCase {
 			return XCTFail("Settings menu item must have an action and target")
 		}
 		_ = target.perform(action, with: settingsItem)
-		XCTAssertEqual(settingsOpenCount, 1)
+		XCTAssertEqual(openedTab, .general)
 	}
 
 	func testSettingsItemIsDisabledWhenCallbackIsNil() {
@@ -312,7 +328,7 @@ final class MenuItemsTests: XCTestCase {
 		let pool = makePool(origins: ["claude_code", "cursor"])
 		pool.setVisible(false, for: "claude_code")
 		pool.setVisible(false, for: "cursor")
-		var refreshed: [String] = []
+		var refreshed: [WindowKey] = []
 		let builder = MenubarMenu(
 			terminate: {}, floatingPetPool: pool,
 			refreshTtlForShow: { refreshed.append($0) })
@@ -328,7 +344,7 @@ final class MenuItemsTests: XCTestCase {
 
 	func testShowPetItemRefreshesTtlForExactlyItsOwnKey() {
 		let pool = makePool(origins: ["claude_code", "cursor"])
-		var refreshed: [String] = []
+		var refreshed: [WindowKey] = []
 		let builder = MenubarMenu(
 			terminate: {}, floatingPetPool: pool,
 			refreshTtlForShow: { refreshed.append($0) })
@@ -337,7 +353,7 @@ final class MenuItemsTests: XCTestCase {
 		builder.refreshFloatingPetMenuItemTitle()
 
 		let showItem = menu.items.first {
-			($0.representedObject as? String) == "cursor" && $0.title.hasPrefix("Show")
+			($0.representedObject as? WindowKey) == "cursor" && $0.title.hasPrefix("Show")
 		}
 		XCTAssertNotNil(showItem, "hidden cursor must have a Show item carrying its window key")
 		_ = (showItem!.target as AnyObject?)?.perform(showItem!.action!, with: showItem!)
@@ -399,6 +415,72 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(Set(pool.hiddenWindowKeys), Set(["claude_code", "cursor"]))
 	}
 
+	// MARK: - refreshSessionsTab: menu visibility actions notify Settings →
+	// Sessions so it doesn't go stale until the next manual Refresh click.
+
+	func testShowAllPetsRefreshesSessionsTab() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		pool.setVisible(false, for: "claude_code")
+		var refreshCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshSessionsTab: { refreshCalls += 1 })
+		_ = builder.build()
+
+		builder.showAllPets(nil)
+
+		XCTAssertEqual(refreshCalls, 1)
+	}
+
+	func testHideAllPetsRefreshesSessionsTab() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		var refreshCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshSessionsTab: { refreshCalls += 1 })
+		_ = builder.build()
+
+		builder.hideAllPets(nil)
+
+		XCTAssertEqual(refreshCalls, 1)
+	}
+
+	func testHideFloatingPetForOriginRefreshesSessionsTab() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		var refreshCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshSessionsTab: { refreshCalls += 1 })
+		let menu = builder.build()
+
+		let hideItem = menu.items.first {
+			($0.representedObject as? WindowKey) == "cursor" && $0.title.hasPrefix("Hide")
+		}
+		XCTAssertNotNil(hideItem, "an active cursor pet must carry a Hide item with its window key")
+		_ = (hideItem!.target as AnyObject?)?.perform(hideItem!.action!, with: hideItem!)
+
+		XCTAssertEqual(refreshCalls, 1)
+	}
+
+	func testShowFloatingPetForKeyRefreshesSessionsTab() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		pool.setVisible(false, for: "cursor")
+		var refreshCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshSessionsTab: { refreshCalls += 1 })
+		let menu = builder.build()
+		builder.refreshFloatingPetMenuItemTitle()
+
+		let showItem = menu.items.first {
+			($0.representedObject as? WindowKey) == "cursor" && $0.title.hasPrefix("Show")
+		}
+		XCTAssertNotNil(showItem, "hidden cursor must carry a Show item with its window key")
+		_ = (showItem!.target as AnyObject?)?.perform(showItem!.action!, with: showItem!)
+
+		XCTAssertEqual(refreshCalls, 1)
+	}
+
 	func testHiddenPetEnablesShowPetItem() {
 		// After setVisible(false), the menu must show an enabled "Show Pet" item.
 		let pool = makePool(origins: ["cursor"])
@@ -434,8 +516,9 @@ final class MenuItemsTests: XCTestCase {
 		let pool = makePool(
 			origins: ["cursor", sessionKey],
 			renderKeyIdentities: [
-				sessionKey: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
-			]
+				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
+			],
+			sessionPetsEnabledOrigins: ["claude_code"]
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
@@ -450,9 +533,10 @@ final class MenuItemsTests: XCTestCase {
 		let pool = makePool(
 			origins: ["cursor", sessionKey],
 			renderKeyIdentities: [
-				sessionKey: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
+				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "claude_code", sessionId: "B116CB55-356F-47CB-B61E-DA8F25636A54")
 			],
-			sessionLabelReader: { key in key == sessionKey ? "Refactor Sprint" : nil }
+			sessionLabelReader: { key in key.rawValue == sessionKey ? "Refactor Sprint" : nil },
+			sessionPetsEnabledOrigins: ["claude_code"]
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
@@ -467,9 +551,10 @@ final class MenuItemsTests: XCTestCase {
 		let pool = makePool(
 			origins: ["cursor", sessionKey],
 			renderKeyIdentities: [
-				sessionKey: RenderKeyIdentity(origin: "codex", sessionId: "s1")
+				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "codex", sessionId: "s1")
 			],
-			retrievedSessionTitleReader: { key in key == sessionKey ? "Rename testing prompts" : nil }
+			retrievedSessionTitleReader: { key in key.rawValue == sessionKey ? "Rename testing prompts" : nil },
+			sessionPetsEnabledOrigins: ["codex"]
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
@@ -484,10 +569,11 @@ final class MenuItemsTests: XCTestCase {
 		let pool = makePool(
 			origins: ["cursor", sessionKey],
 			renderKeyIdentities: [
-				sessionKey: RenderKeyIdentity(origin: "codex", sessionId: "s1")
+				WindowKey(rawValue: sessionKey)!: RenderKeyIdentity(origin: "codex", sessionId: "s1")
 			],
-			sessionLabelReader: { key in key == sessionKey ? "Manual label" : nil },
-			retrievedSessionTitleReader: { key in key == sessionKey ? "Rename testing prompts" : nil }
+			sessionLabelReader: { key in key.rawValue == sessionKey ? "Manual label" : nil },
+			retrievedSessionTitleReader: { key in key.rawValue == sessionKey ? "Rename testing prompts" : nil },
+			sessionPetsEnabledOrigins: ["codex"]
 		)
 		let builder = MenubarMenu(terminate: {}, floatingPetPool: pool)
 		let menu = builder.build()
@@ -533,39 +619,315 @@ final class MenuItemsTests: XCTestCase {
 
 		let showTitles = menu.items.filter { $0.title.hasPrefix("Show") }.map(\.title)
 		XCTAssertTrue(
-			menu.items.contains { ($0.representedObject as? String) == "claude_code:fresh" },
+			menu.items.contains { ($0.representedObject as? WindowKey) == "claude_code:fresh" },
 			"the fresh hidden key must keep its Show entry; got \(showTitles)")
 		XCTAssertFalse(
-			menu.items.contains { ($0.representedObject as? String) == "claude_code:stale" },
+			menu.items.contains { ($0.representedObject as? WindowKey) == "claude_code:stale" },
 			"a hidden key past the 2h fresh window must not appear under Active Pets; got \(showTitles)")
 	}
 
 	func testLivePetsSubmenuListsFreshUnrenderedSessionsWithShowActions() throws {
-		// A fresh slice that is neither rendered nor hidden (e.g. its platform
-		// is folded into Combined, or it never spawned) is Live: reachable via
-		// the Live Pets submenu with a real Show action.
+		// Sessions-off: a fresh unrendered slice promotes to Active as a panel
+		// affordance ("Show Codex Panel"), not a per-thread Live Show.
 		let dir = try makeTempStateDir()
 		try writeSlice(named: "codex:live-one.json", in: dir, age: 60)
 		let pool = makePool(origins: [])
 		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
-		var refreshed: [String] = []
+		var refreshed: [WindowKey] = []
 		let builder = MenubarMenu(
 			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel,
 			refreshTtlForShow: { refreshed.append($0) })
 		let menu = builder.build()
 
-		guard let liveItem = menu.items.first(where: { $0.title == MenubarMenu.livePetsTitle }),
-			let submenu = liveItem.submenu
-		else {
-			return XCTFail("menu must carry a Live Pets item with a submenu")
-		}
-		let rowItem = submenu.items.first { ($0.representedObject as? String) == "codex:live-one" }
-		XCTAssertNotNil(rowItem, "the live session must have a submenu row; got \(submenu.items.map(\.title))")
+		let showItem = try XCTUnwrap(
+			menu.items.first { $0.title == "Show Codex Panel" },
+			"sessions-off unrendered slice must surface under Active; got \(menu.items.map(\.title))")
+		let liveItem = try XCTUnwrap(menu.items.first { $0.title == MenubarMenu.livePetsTitle })
+		XCTAssertEqual(liveItem.submenu?.items.map(\.title), [MenubarMenu.noLivePetsTitle])
 
-		_ = (rowItem!.target as AnyObject?)?.perform(rowItem!.action!, with: rowItem!)
+		_ = (showItem.target as AnyObject?)?.perform(showItem.action!, with: showItem)
+		XCTAssertEqual(refreshed, [.origin("codex")])
+	}
+
+	func testFoldedWinnerStaysActiveAndAllSlicesKeepSessionLabels() throws {
+		for mode in [PlatformMode.own, .combined] {
+			let dir = try makeTempStateDir()
+			try writeSlice(named: "codex:winner.json", in: dir, age: 30)
+			try writeSlice(named: "codex:older.json", in: dir, age: 60)
+			let customization = CustomizationSnapshot(
+				platformModes: ["codex": mode], idleDismissTtlSeconds: 300,
+				menubarIconMonochrome: false, combinedMinimalistEnabled: false,
+				minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": false],
+				sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+				idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+			let titles: [WindowKey: String] = [
+				"codex:winner": "Current winner",
+				"codex:older": "Older thread",
+			]
+			let pool = FloatingPetWindowPool(
+				customizationReader: { customization },
+				windowFactory: { _, _ in StubWindow() },
+				retrievedSessionTitleReader: { titles[$0] })
+			let perSession: [String: StateSnapshot] = [
+				"codex:winner": StateSnapshot(
+					schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .implementing,
+					updatedAt: "2026-07-01T10:00:01.000Z", sourceEvent: nil, attention: nil),
+				"codex:older": StateSnapshot(
+					schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .idle,
+					updatedAt: "2026-07-01T10:00:00.000Z", sourceEvent: nil, attention: nil),
+			]
+			let resolution = resolveRenderKeys(perSession: perSession, customization: customization)
+			pool.update(snapshot: PerPlatformSnapshot(
+				perPlatform: resolution.states, gateBadges: [:], rpgSnapshot: .safeDefault,
+				renderKeyIdentities: resolution.identities))
+
+			let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+			viewModel.refresh()
+			XCTAssertEqual(viewModel.activeRows.map(\.id), ["codex:winner"], "mode \(mode)")
+			XCTAssertEqual(viewModel.activeRows.map(\.displayLabel), ["Current winner"], "mode \(mode)")
+			XCTAssertEqual(viewModel.liveRows.map(\.id), ["codex:older"], "mode \(mode)")
+			XCTAssertEqual(viewModel.liveRows.map(\.displayLabel), ["Older thread"], "mode \(mode)")
+			XCTAssertEqual(viewModel.liveRows.map(\.canShow), [false], "mode \(mode)")
+
+			let menu = MenubarMenu(
+				terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel
+			).build()
+			let expectedActive =
+				mode == .combined ? "Hide Combined Panel" : "Hide Codex Panel"
+			XCTAssertTrue(
+				menu.items.contains { $0.title == expectedActive },
+				"mode \(mode): expected \(expectedActive); got \(menu.items.map(\.title))")
+			let liveItem = try XCTUnwrap(menu.items.first { $0.title == MenubarMenu.livePetsTitle })
+			let liveMenu = try XCTUnwrap(liveItem.submenu)
+			XCTAssertEqual(
+				liveMenu.items.map(\.title), [MenubarMenu.noLivePetsTitle],
+				"sessions-off fold siblings must not appear under Live Pets; mode \(mode)")
+			XCTAssertFalse(liveItem.isEnabled, "mode \(mode)")
+		}
+	}
+
+	/// `SessionsTabViewModel.pruneActive`/`pruneAllActive`/`pruneAllSessions`
+	/// called `pool.pruneSession(windowKey: row.id, ...)` directly. For a
+	/// fold winner (sessions off), `row.id` is the slice-derived key
+	/// (`"codex:winner"`), but `pool.pruneSession` guards on
+	/// `lastDesired.windows[windowKey]` — the pool's own render-target key
+	/// space, which for this exact scenario is keyed by `.origin("codex")`
+	/// (own mode) or `.combined` (combined mode), never by the raw session
+	/// key. Passing `row.id` straight through silently no-op'd; the fix
+	/// resolves through `renderedWindowKey(for:)` first, the same step
+	/// `show(key:)`/`hide(key:)` already took.
+	func testPruneAllActiveResolvesFoldWinnerToItsRenderedKey() throws {
+		for mode in [PlatformMode.own, .combined] {
+			let dir = try makeTempStateDir()
+			try writeSlice(named: "codex:winner.json", in: dir, age: 30)
+			try writeSlice(named: "codex:older.json", in: dir, age: 60)
+			let winnerPath = (dir as NSString).appendingPathComponent("codex:winner.json")
+			let customization = CustomizationSnapshot(
+				platformModes: ["codex": mode], idleDismissTtlSeconds: 300,
+				menubarIconMonochrome: false, combinedMinimalistEnabled: false,
+				minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": false],
+				sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+				idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+			let pool = FloatingPetWindowPool(
+				customizationReader: { customization },
+				windowFactory: { _, _ in StubWindow() })
+			let perSession: [String: StateSnapshot] = [
+				"codex:winner": StateSnapshot(
+					schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .implementing,
+					updatedAt: "2026-07-01T10:00:01.000Z", sourceEvent: nil, attention: nil),
+				"codex:older": StateSnapshot(
+					schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .idle,
+					updatedAt: "2026-07-01T10:00:00.000Z", sourceEvent: nil, attention: nil),
+			]
+			let resolution = resolveRenderKeys(perSession: perSession, customization: customization)
+			pool.update(snapshot: PerPlatformSnapshot(
+				perPlatform: resolution.states, gateBadges: [:], rpgSnapshot: .safeDefault,
+				renderKeyIdentities: resolution.identities))
+
+			let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+			viewModel.refresh()
+			XCTAssertEqual(viewModel.activeRows.map(\.id), ["codex:winner"], "mode \(mode)")
+
+			viewModel.pruneAllActive()
+
+			XCTAssertFalse(
+				FileManager.default.fileExists(atPath: winnerPath),
+				"mode \(mode): Prune All Active must delete the fold winner's slice, not silently no-op")
+			XCTAssertTrue(
+				viewModel.activeRows.isEmpty, "mode \(mode): pruned winner must leave Active empty")
+		}
+	}
+
+	func testSessionsOnKeepsPerThreadActiveAndLiveTitles() throws {
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "codex:winner.json", in: dir, age: 30)
+		try writeSlice(named: "codex:older.json", in: dir, age: 60)
+		let customization = CustomizationSnapshot(
+			platformModes: ["codex": .own], idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false, combinedMinimalistEnabled: false,
+			minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": true],
+			sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+			idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+		let titles: [WindowKey: String] = [
+			"codex:winner": "Current winner",
+			"codex:older": "Older thread",
+		]
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindow() },
+			retrievedSessionTitleReader: { titles[$0] })
+		// Only the winner is rendered; the older slice stays Live so the
+		// sessions-on menubar still offers a per-thread Show under Live Pets.
+		let perSession: [String: StateSnapshot] = [
+			"codex:winner": StateSnapshot(
+				schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .implementing,
+				updatedAt: "2026-07-01T10:00:01.000Z", sourceEvent: nil, attention: nil),
+		]
+		let resolution = resolveRenderKeys(perSession: perSession, customization: customization)
+		pool.update(snapshot: PerPlatformSnapshot(
+			perPlatform: resolution.states, gateBadges: [:], rpgSnapshot: .safeDefault,
+			renderKeyIdentities: resolution.identities))
+
+		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+		let menu = MenubarMenu(
+			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel
+		).build()
+
+		XCTAssertTrue(menu.items.contains { $0.title == "Hide Codex - Current winner Pet" })
+		let liveItem = try XCTUnwrap(menu.items.first { $0.title == MenubarMenu.livePetsTitle })
+		let liveMenu = try XCTUnwrap(liveItem.submenu)
+		XCTAssertTrue(liveMenu.items.contains { $0.title == "Show Codex - Older thread Pet" })
+	}
+
+	func testHiddenCombinedPanelShowsUnderActiveNotLive() throws {
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "codex:one.json", in: dir, age: 30)
+		try writeSlice(named: "codex:two.json", in: dir, age: 60)
+		let customization = CustomizationSnapshot(
+			platformModes: ["codex": .combined], idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false, combinedMinimalistEnabled: true,
+			minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": false],
+			sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+			idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindow() })
+		let perSession: [String: StateSnapshot] = [
+			"codex:one": StateSnapshot(
+				schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .implementing,
+				updatedAt: "2026-07-01T10:00:01.000Z", sourceEvent: nil, attention: nil),
+			"codex:two": StateSnapshot(
+				schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .idle,
+				updatedAt: "2026-07-01T10:00:00.000Z", sourceEvent: nil, attention: nil),
+		]
+		let resolution = resolveRenderKeys(perSession: perSession, customization: customization)
+		pool.update(snapshot: PerPlatformSnapshot(
+			perPlatform: resolution.states, gateBadges: [:], rpgSnapshot: .safeDefault,
+			renderKeyIdentities: resolution.identities))
+		pool.setVisible(false, for: .combined)
+		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+		var refreshed: [WindowKey] = []
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel,
+			refreshTtlForShow: { refreshed.append($0) })
+		let menu = builder.build()
+		let showItem = try XCTUnwrap(
+			menu.items.first { $0.title == "Show Combined Panel" },
+			"hidden Combined must surface under Active as a panel affordance; got \(menu.items.map(\.title))")
+		let liveItem = try XCTUnwrap(menu.items.first { $0.title == MenubarMenu.livePetsTitle })
+		XCTAssertEqual(liveItem.submenu?.items.map(\.title), [MenubarMenu.noLivePetsTitle])
+
+		_ = (showItem.target as AnyObject?)?.perform(showItem.action!, with: showItem)
+
+		XCTAssertFalse(pool.hiddenWindowKeys.contains(.combined))
+		XCTAssertEqual(refreshed, [.combined])
+	}
+
+	func testLivePetShowTargetsHiddenCombinedWindow() throws {
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "codex:one.json", in: dir, age: 30)
+		try writeSlice(named: "codex:two.json", in: dir, age: 60)
+		let customization = CustomizationSnapshot(
+			platformModes: ["codex": .combined], idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false, combinedMinimalistEnabled: true,
+			minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": true],
+			sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+			idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindow() })
+		pool.setVisible(false, for: .combined)
+		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+		var refreshed: [WindowKey] = []
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel,
+			refreshTtlForShow: { refreshed.append($0) })
+		let menu = builder.build()
+		// Combined always folds — even when sessionPetsEnabled is true in the
+		// fixture — so the honest affordance is Active "Show Combined Panel".
+		let showItem = try XCTUnwrap(menu.items.first { $0.title == "Show Combined Panel" })
+
+		_ = (showItem.target as AnyObject?)?.perform(showItem.action!, with: showItem)
+
+		XCTAssertFalse(pool.hiddenWindowKeys.contains(.combined))
+		XCTAssertEqual(refreshed, [.combined])
+	}
+
+	func testShowAllPetsIncludesHiddenCombinedTargetRepresentedByLiveRows() throws {
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "codex:one.json", in: dir, age: 30)
+		try writeSlice(named: "codex:two.json", in: dir, age: 60)
+		let customization = CustomizationSnapshot(
+			platformModes: ["codex": .combined], idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false, combinedMinimalistEnabled: true,
+			minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": true],
+			sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+			idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindow() })
+		pool.setVisible(false, for: .combined)
+		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+		var refreshed: [WindowKey] = []
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel,
+			refreshTtlForShow: { refreshed.append($0) })
+		_ = builder.build()
+
+		builder.showAllPets(nil)
+
+		XCTAssertFalse(pool.hiddenWindowKeys.contains(.combined))
+		XCTAssertEqual(refreshed, [.combined])
+	}
+
+	func testShowAllLivePromotesSessionsOffPanelLikeShowCursorPanel() throws {
+		// Sessions-off Live rows keep canShow == false (they don't own the fold
+		// yet). Menubar "Show Codex Panel" still promotes the fold target;
+		// Settings "Show All Live" must do the same — not silently skip them.
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "codex:live-one.json", in: dir, age: 60)
+		let pool = makePool(origins: [])
+		pool.setVisible(false, for: .origin("codex"))
+		var refreshed: [WindowKey] = []
+		let viewModel = SessionsTabViewModel(
+			stateDirectoryPath: dir, pool: pool,
+			refreshTtlForShow: { refreshed.append($0) })
+		viewModel.refresh()
+
+		XCTAssertEqual(viewModel.liveRows.map(\.id), ["codex:live-one"])
+		XCTAssertEqual(viewModel.liveRows.map(\.canShow), [false])
+		XCTAssertTrue(pool.hiddenWindowKeys.contains(.origin("codex")))
+
+		viewModel.showAllLive()
+
+		XCTAssertFalse(
+			pool.hiddenWindowKeys.contains(.origin("codex")),
+			"Show All Live must un-hide the sessions-off panel target")
+		XCTAssertEqual(refreshed, [.origin("codex")])
 		XCTAssertEqual(
-			refreshed, ["codex:live-one"],
-			"Show on a Live row must restart the dismiss-TTL clock, same as an Active Show")
+			viewModel.activeRows.map(\.id), ["codex:live-one"],
+			"winning Live slice must promote to Active via pendingShow bridge")
+		XCTAssertTrue(viewModel.liveRows.isEmpty)
 	}
 
 	func testLivePetsSubmenuShowsDisabledPlaceholderWhenEmpty() {
@@ -624,7 +986,7 @@ final class MenuItemsTests: XCTestCase {
 		let menu = builder.build()
 
 		let activeShowItem = menu.items.first {
-			($0.representedObject as? String) == "claude_code" && $0.title.hasPrefix("Show")
+			($0.representedObject as? WindowKey) == "claude_code" && $0.title.hasPrefix("Show")
 		}
 		XCTAssertNotNil(
 			activeShowItem,
@@ -636,7 +998,7 @@ final class MenuItemsTests: XCTestCase {
 			return XCTFail("menu must carry a Live Pets item with a submenu")
 		}
 		XCTAssertFalse(
-			liveSubmenu.items.contains { ($0.representedObject as? String) == "claude_code" },
+			liveSubmenu.items.contains { ($0.representedObject as? WindowKey) == "claude_code" },
 			"a TTL-dismissed pet is Active (hidden), not Live; got \(liveSubmenu.items.map(\.title))")
 	}
 
@@ -703,7 +1065,7 @@ final class MenuItemsTests: XCTestCase {
 			return XCTFail("menu must carry a Live Pets item with a submenu")
 		}
 		XCTAssertFalse(
-			liveSubmenu.items.contains { ($0.representedObject as? String) == "claude_code:capped" },
+			liveSubmenu.items.contains { ($0.representedObject as? WindowKey) == "claude_code:capped" },
 			"a cap-pending session must appear under Capped Sessions, not Live Pets")
 
 		guard let openItem = submenu.items.first(where: { $0.title == MenubarMenu.openCustomizationTitle }),

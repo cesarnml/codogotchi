@@ -34,9 +34,13 @@ final class PetTabLayoutTests: XCTestCase {
 	private func makePet(_ id: String, in root: URL, description: String) {
 		let dir = root.appendingPathComponent(id)
 		try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-		let json: [String: String] = ["id": id, "displayName": id, "description": description]
+		let json: [String: String] = [
+			"id": id, "displayName": id, "description": description,
+			"spritesheetPath": "spritesheet.webp",
+		]
 		let data = try! JSONSerialization.data(withJSONObject: json)
 		try! data.write(to: dir.appendingPathComponent("pet.json"))
+		try! Data("fakewebp".utf8).write(to: dir.appendingPathComponent("spritesheet.webp"))
 	}
 
 	private func views(in root: NSView, identifier: String) -> [NSView] {
@@ -159,5 +163,78 @@ final class PetTabLayoutTests: XCTestCase {
 				desc!.frame.height, 28,
 				"long description should wrap to multiple lines")
 		}
+	}
+
+	func testAssignmentChromeUpdatesBadgePillsWithoutGridRebuild() throws {
+		let codexRoot = tmp.appendingPathComponent("codex/pets")
+		let canonicalRoot = tmp.appendingPathComponent("codogotchi/pets")
+		try! FileManager.default.createDirectory(at: codexRoot, withIntermediateDirectories: true)
+		try! FileManager.default.createDirectory(
+			at: canonicalRoot, withIntermediateDirectories: true)
+		makePet("mew", in: canonicalRoot, description: "Chinese-inspired companion")
+		makePet("meaw", in: canonicalRoot, description: "Thai-inspired companion")
+
+		let assignmentsURL = tmp.appendingPathComponent("assignments.json")
+		try AssignmentsJsonWriter.write(badge: "cursor", petId: "mew", to: assignmentsURL)
+		let vm = PetTabViewModel(
+			codexPetsRoot: codexRoot,
+			canonicalPetsRoot: canonicalRoot,
+			configURL: tmp.appendingPathComponent("config.json"),
+			assignmentsURL: assignmentsURL
+		)
+
+		let petTab = PetTabView(viewModel: vm, onImportPet: { _ in })
+		petTab.frame = NSRect(x: 0, y: 0, width: 980, height: 640)
+		petTab.layoutSubtreeIfNeeded()
+
+		func pills(forPetId id: String, in root: NSView) -> NSStackView? {
+			let cards = views(in: root, identifier: "petCard")
+			for card in cards {
+				let names = views(in: card, identifier: "petCardDescription")
+					.compactMap { $0 as? NSTextField }
+					.map(\.stringValue)
+				// Cards don't stamp pet id; match via description seed text.
+				let match: Bool
+				switch id {
+				case "mew": match = names.contains(where: { $0.contains("Chinese") })
+				case "meaw": match = names.contains(where: { $0.contains("Thai") })
+				default: match = false
+				}
+				guard match else { continue }
+				return views(in: card, identifier: "petCardBadgePills").first as? NSStackView
+			}
+			return nil
+		}
+
+		guard let mewPillsBefore = pills(forPetId: "mew", in: petTab),
+			let meawPillsBefore = pills(forPetId: "meaw", in: petTab)
+		else {
+			return XCTFail("expected mew and meaw badge pill rows")
+		}
+		XCTAssertEqual(
+			mewPillsBefore.arrangedSubviews.count, 1,
+			"cursor assignment should seed one pill on mew")
+		XCTAssertEqual(
+			meawPillsBefore.arrangedSubviews.count, 0,
+			"meaw starts with no platform pills")
+
+		try vm.assign(badge: "cursor", to: "meaw")
+		// Stale chrome until live refresh — documents the pre-fix lag.
+		XCTAssertEqual(mewPillsBefore.arrangedSubviews.count, 1)
+		XCTAssertEqual(meawPillsBefore.arrangedSubviews.count, 0)
+
+		petTab.refreshAssignmentChrome()
+
+		guard let mewPillsAfter = pills(forPetId: "mew", in: petTab),
+			let meawPillsAfter = pills(forPetId: "meaw", in: petTab)
+		else {
+			return XCTFail("expected mew and meaw badge pill rows after refresh")
+		}
+		XCTAssertEqual(
+			mewPillsAfter.arrangedSubviews.count, 0,
+			"cursor logo must leave mew immediately after refresh")
+		XCTAssertEqual(
+			meawPillsAfter.arrangedSubviews.count, 1,
+			"cursor logo must appear on meaw without dismissing an assign popover")
 	}
 }

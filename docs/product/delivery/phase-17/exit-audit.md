@@ -1,0 +1,89 @@
+# Phase 17 Exit Audit
+
+Audit date: 2026-07-12
+
+Audited branch: `agents/p17-06-closeout-exit-audit-dogfood-dmg-retrospective`
+
+## 1. One prompt system — PASS
+
+- `FloatingPetPromptDismissal` is the sole owner of the global/local mouse,
+  keyboard, and resign-active dismissal observer stack.
+- `FloatingPetPromptBuilder` is the sole production `[FloatingPetPromptItem]`
+  builder. Own and Minimalist retain view-level `presentHidePrompt` entrypoints
+  only to provide their different anchors and named capabilities, as P17.02
+  explicitly requires; neither surface constructs items or owns observers.
+- `FloatingInteractionTests` exercise the exact matrix-driven item order and
+  titles for Own, Minimalist, Combined, and session-keyed capability variants.
+
+## 2. One renderer protocol and action factory — PASS
+
+- The retired `FloatingPetPanelManaging` and `MinimalistPanelManaging` names
+  have zero app-target hits.
+- Both skins conform to `PanelManaging` and `PanelActionHandling`.
+- `MenubarApp.wirePanelActions` is the only assignment site for the nine shared
+  action handlers. The factories pass only the mode-switch target and the
+  controller identity needed to hide the current window. Minimalist's panel
+  size slider remains the intentional R1.7-only capability.
+- `WindowActionRouter` exclusively owns the session/combined/plain-origin
+  targeting policy for attention dismissal and Force Idle, with focused tests.
+
+## 3. One chrome coordinator — PASS (after in-ticket fix, developer-approved)
+
+- **History:** the first audit pass recorded this condition as FAIL — both
+  controllers reached through `ChromeFlockCoordinator.existing*Panel` accessors
+  and directly called `reposition(...)` / `orderFrontRegardless()` in their
+  live re-anchor and presentation paths, a retained scope cut from P17.03. The
+  developer dispositioned the stop on 2026-07-12: close the gap inside P17.06
+  rather than amend the contract or defer to post-closeout triage.
+- **Fix (`[subagent-review]` commit):** the coordinator now owns reposition-only
+  live variants (`liveReposition{AnimationBadge,AttentionBubble,
+  ConflictBubbleOwn,ConflictBubbleMinimalist,GateBadgeOwn,HUD,Tombstone,
+  RegenMeter}`) and the HUD lifecycle façades (`ensureHUDVisible`, `fadeInHUD`,
+  `fadeOutHUD`, `hideHUDImmediately`, `flashHUD`, `isPointInsideHUD`,
+  `setHUDRingHovered`, `updateHUDRingHover`). The front-on-content-change
+  versus reposition-only-live-update distinction P17.03 preserved is now
+  encoded in the coordinator's own API instead of leaking panel instances.
+  `repositionHUD` no longer returns the panel, so presentation acts cannot
+  bypass the coordinator via its return value.
+- **Structural evidence (tip of the P17.06 branch):**
+  - `grep -rn "existing.*Panel" apps/menubar/Sources --include="*.swift" | grep -v ChromeFlockCoordinator.swift` → **0 hits**; the seven `existing*Panel` accessors are deleted, making controller-side direct panel manipulation unrepresentable.
+  - `grep -rn "\.reposition(" FloatingPetPanelController.swift MinimalistPanelController.swift` → **0 hits**.
+  - `orderFrontRegardless` in the two controllers → exactly 2 hits, both fronting the **host** pet panel / strip itself (`FloatingPetPanelController.swift:204`, `MinimalistPanelController.swift:212`) — the host window is not one of the seven chrome panel types the coordinator owns.
+  - All seven chrome panel types (`AnimationBadgePanel`, `GateBadgePanel`, `AttentionBubblePanel`, `SpeechBubblePanel`, `RPGHUDPanel`, `TombstonePanel`, `RegenMeterPanel`) are instantiated **only** inside `ChromeFlockCoordinator.swift` (7/7 instantiation sites).
+- Behavior verbatim: live paths still never create or front a panel; content-
+  change paths front exactly as before. Verified by the full suite (Condition 5
+  rerun below covers the post-fix tip).
+
+## 4. Capability matrix matches code — PASS
+
+- `docs/contracts/window-capability-matrix.md` was checked row by row against
+  the converged prompt, renderer, chrome, and factory surfaces.
+- R2.1 and the matrix preamble now name `PanelManaging` and
+  `PanelActionHandling`; the retired protocol references were stale audit text,
+  not a new capability or behavior amendment.
+- All prompt rows were dispositioned intentional in P17.01/P17.02. No Phase 17
+  drift-restoration commit exists, so no Phase 17 restoration ledger entry is
+  required.
+
+## 5. Behavior bar — PASS
+
+- `bun run verify:quiet`: pass.
+- `bun run mac:build`: pass.
+- `bun run ci:quiet`: pass; `CodogotchiTests.xctest` executed 1,074 tests with
+  zero failures before the final documentation-only audit commit. The final
+  publication gate is rerun after all audit/retrospective files are formatted.
+
+## 6. Local dogfood — PASS for ticket completion
+
+- Packaged with `scripts/package-dmg.sh`; staged bundle verification passed.
+- Artifact: `builds/Codogotchi.dmg`.
+- SHA-256: `a201eca1c89911088f15729f2a2ecf8045f4cf778cf1c55cb081fc64a6ac897d`.
+- Installed to `/Applications/Codogotchi.app`, version 2.7.0 (build 12), and
+  launched from that path. Process inspection confirmed the installed binary
+  running; UI inspection confirmed the live Minimalist strip rendered.
+- No version bump, GitHub release, or download-page change was made.
+
+The longer Phase 18 transition soak is deliberately still open: before Phase
+18 execution, the installed daily-driver build must explicitly exercise Own,
+Minimalist, and Combined with no unexplained regression. That soak is not
+claimed complete by this ticket.

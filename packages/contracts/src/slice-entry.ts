@@ -17,8 +17,9 @@ const attentionSchema = z.object({
 // v8: RPG fields removed from slice; they now live in rpg-state.json.
 // v9: hp/hp_overlay removed — no renderer read them off the slice (the real
 // hp source of truth is profile.json / Convex); they were pure denormalization.
-// .strict() rejects any unknown keys so stale v8 writers that include hp fields
-// are caught at parse time rather than silently accepted.
+// v10: optional sticky ISO-8601 clocks for prompt/session/error/turn freeze.
+// .strict() rejects any unknown keys so stale writers that include removed
+// fields are caught at parse time rather than silently accepted.
 export const sliceEntrySchema = z
   .object({
     schema_version: z.literal(STATE_JSON_SCHEMA_VERSION),
@@ -32,6 +33,10 @@ export const sliceEntrySchema = z
     source_event: sourceEventSchema,
     attention: attentionSchema.optional(),
     tool_command: z.string().optional(),
+    prompt_started_at: z.string().datetime({ offset: true }).optional(),
+    session_started_at: z.string().datetime({ offset: true }).optional(),
+    errored_since: z.string().datetime({ offset: true }).optional(),
+    turn_ended_at: z.string().datetime({ offset: true }).optional(),
   })
   .strict();
 

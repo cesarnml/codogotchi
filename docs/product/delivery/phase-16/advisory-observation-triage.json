@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-07-11T16:52:55.144Z",
+  "summary": {
+    "total": 12,
+    "patched": 4,
+    "rejected": 1,
+    "already-covered": 5,
+    "requires-human-review": 2
+  },
+  "dispositions": [
+    {
+      "disposition": "rejected",
+      "rationale": "Confirmed unchanged from the base implementation (report explicitly says so) and therefore not a P16.04 regression. Loosely-validated colon parsing here is pre-existing GateJsonReader behavior, out of this ticket's scope (FloatingPetWindowPool/RenderKeyResolver public APIs).",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.04-subagent-review.report.md",
+        "ticketId": "P16.04"
+      },
+      "observation": "`GateJsonReader.sessionWindowKey` accepts extra colons as part of the session ID rather than returning `nil`. This is unchanged from the base implementation and therefore not a ticket regression, but it differs from a strict reading of the attack-surface expectation that an “extra colon” should be skipped."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added a doc comment on WindowKey documenting the non-injective rawValue ranges (.origin(\"combined\") vs .combined; colon-bearing ids) as an explicit reserved-value constraint, since no real hook-registered origin/session id can produce either case today.",
+      "patch": {
+        "commitSha": "ea54bc8123f4cdfd0b2e3c56f6946be8bb64d7fb",
+        "files": ["apps/menubar/Sources/Pool/WindowKey.swift"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.04-subagent-review.report.md",
+        "ticketId": "P16.04"
+      },
+      "observation": "`WindowKey` serialization is deliberately non-injective for `.origin(\"combined\")` versus `.combined`, and for associated values containing colons. That ambiguity largely mirrors the old string convention, but direct enum construction now makes otherwise-unrepresentable distinctions possible. Tests currently cover only unambiguous values and would benefit from explicitly documenting these reserved-value constraints."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added testPreP1604FixtureLoadsAllThreeWindowKeyShapes and testSaveAfterPreP1604FixtureLoadPreservesLegacyEntriesByteForByte to AppStateTests.swift: a hand-written raw JSON fixture standing in for a real pre-P16.04 app-state.json (bare origin, origin:sessionID, and literal \"combined\" keys in floating_pet_positions/floating_pet_hidden), loaded and re-saved through today's AppStateStore/WindowKey code, confirming byte-compatible round-trip. Full suite green (1049/1049).",
+      "patch": {
+        "commitSha": "6e59a10b13fa269a361216bfcbcc45ba6ae344e1",
+        "files": [
+          "apps/menubar/Tests/MenubarTests/AppStateTests.swift",
+          "docs/product/delivery/phase-16/ticket-04-windowkey-enum.md"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.04-subagent-review.report.md",
+        "ticketId": "P16.04"
+      },
+      "observation": "No end-to-end pre-P16.04 `app-state.json` fixture test was added. The inspected code is symmetric for ordinary legacy keys, but the upgrade contract currently relies on unit serialization assertions and code inspection rather than a real load-save fixture."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Corrected the ticket-04 Outcome kill-list claim: a literal grep also hits FloatingPetWindowPool.swift for the separate assignment-slot/platform-attribution 'combined' concepts (deliberately out of scope). Appended a correction to the ticket's Rationale section.",
+      "patch": {
+        "commitSha": "ea54bc8123f4cdfd0b2e3c56f6946be8bb64d7fb",
+        "files": ["docs/product/delivery/phase-16/ticket-04-windowkey-enum.md"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.04-subagent-review.report.md",
+        "ticketId": "P16.04"
+      },
+      "observation": "The ticket Outcome says `grep -rn '\"combined\"' apps/menubar/Sources` should hit only `WindowKey` parsing/serialization, persistence/filename boundaries, and fixtures. A literal grep currently finds numerous production occurrences in `FloatingPetWindowPool.swift`, including assignment-slot lookup, applied platform identity, and default-label selection. Most are the separate assignment/platform concepts described by the Rationale rather than window-key policy violations, but the stated literal kill-list claim is not accurate as written."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Corrected SessionLifecycle.swift's file-level doc comment, which claimed the menubar carried its own separate inline clock comparisons pre-refactor. Per the ticket's own Implementation note and repo history, the menubar always delegated to SessionsTabViewModel and never had independent clock logic; only SessionsTabViewModel needed rewiring.",
+      "patch": {
+        "commitSha": "ea54bc8123f4cdfd0b2e3c56f6946be8bb64d7fb",
+        "files": ["apps/menubar/Sources/Pool/SessionLifecycle.swift"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.05-subagent-review.report.md",
+        "ticketId": "P16.05"
+      },
+      "observation": "`apps/menubar/Sources/Pool/SessionLifecycle.swift`: its file-level comment says the classifier replaces inline clock comparisons that the view model and menubar “each used to carry separately.” Repository history shows the menubar already delegated and did not contain a second set of clock comparisons."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Verified against current apps/menubar/Tests/MenubarTests/SessionLifecycleTests.swift: the test is named testConcealedAtLiveTTLBoundaryIsArchived (not \"IsLive\"), asserts .archived, and its comment correctly attributes the \"still-under-TTL side\" to the sibling test testConcealedWithinLiveTTLIsActive. No contradiction exists in the current code; this observation does not reproduce against the merged state.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.05-subagent-review.report.md",
+        "ticketId": "P16.05"
+      },
+      "observation": "`apps/menubar/Tests/MenubarTests/SessionLifecycleTests.swift`: `testConcealedAtLiveTTLBoundaryIsLive` asserts `.archived`, and its comment calls the exact-boundary input “the still-under-TTL side.” The assertion correctly pins behavior, but the test name and comment contradict it."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "Real coverage gap confirmed (no pendingShowKeys-focused test exists in SessionsTabViewModel tests today). Writing a precise regression test for the one-tick respawn gap and simultaneous hidden/pending/TTL-dismissed flag interaction requires view-model async/tick design context beyond a blind patch — developer should decide priority.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.05-subagent-review.report.md",
+        "ticketId": "P16.05"
+      },
+      "observation": "`apps/menubar/Tests/MenubarTests/SessionLifecycleTests.swift`: existing consumer coverage does not directly pin `pendingShowKeys` during the one-tick respawn gap or simultaneous hidden/pending/TTL-dismissed flags. Manual exhaustive comparison protects the current refactor, but a focused view-model test would make invariant 3 machine-checkable."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "ticket-05-session-lifecycle.md's own Rationale/Implementation note (appended before this report was generated) already resolves this: MenubarMenu fully delegates to the shared SessionsTabViewModel instance and required no code change, only SessionsTabViewModel needed rewiring. The doc's own appendix supersedes the earlier imprecise Outcome/Green wording; no further doc edit needed.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.05-subagent-review.report.md",
+        "ticketId": "P16.05"
+      },
+      "observation": "`docs/product/delivery/phase-16/ticket-05-session-lifecycle.md`: Outcome and Green say menubar lifecycle tiering is “rewired,” while the diff leaves `MenubarMenu` unchanged because it already delegates to the shared view model. The appended Rationale resolves the behavioral intent, but the earlier wording remains literally imprecise."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "ticket-06-customization-store.md's 'Subagent review findings' appendix explicitly supersedes this doc-drift note ('Advisory doc-drift notes (CustomizationJsonReader's actual caller list...) are addressed by this section superseding the prior claims; no further doc edit needed beyond this appendix'). The store owning read-merge-write (not being the sole caller) was always the actual outcome requirement.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.06-subagent-review.report.md",
+        "ticketId": "P16.06"
+      },
+      "observation": "`docs/product/delivery/phase-16/ticket-06-customization-store.md:59` says `CustomizationStore` is the sole caller of `CustomizationJsonReader`. Actual source retains direct reads in `FloatingPetWindowPool`, `FloatingPetController`, `LivePollingDriver`, `MenubarApp`, `SessionsTabViewModel`, and the store. The outcome only requires the store to own read-merge-write, so this appears to be documentation drift rather than an invariant failure."
+    },
+    {
+      "disposition": "requires-human-review",
+      "rationale": "SettingsWindowController's customizationTabViewModel/generalViewModel override parameters can currently be backed by a store other than the customizationStore param, and no runtime check enforces identity. No production caller uses the overrides today (verified in source), so this is not a live bug, but whether to remove the override seam or add an identity guard is an API-design tradeoff (testability vs. footgun) for the developer to call.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.06-subagent-review.report.md",
+        "ticketId": "P16.06"
+      },
+      "observation": "`SettingsWindowController` currently receives the shared store correctly from `MenubarApp`, and no current caller injects VM overrides. Nevertheless, its public initializer can accept an override backed by another store while constructing the other adapter from `customizationStore`. Consider removing the overrides or validating/documenting store identity if direct VM injection remains supported."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Already patched in commit 9d9dc6e0: testNotifyFalseSuppressesPublicationButStillPersists now also asserts store.snapshot.idleDismissTtlSeconds, not just the on-disk payload, per this exact advisory note.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.06-subagent-review.report.md",
+        "ticketId": "P16.06"
+      },
+      "observation": "Strengthen `testNotifyFalseSuppressesPublicationButStillPersists` with an assertion against `store.snapshot`; the production code currently behaves correctly, but the explicit Panel Size contract is only partially protected."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "This was in fact a real data-loss bug, not just a doc inaccuracy, and was already fixed in commit 9d9dc6e0 (fix(P16.06): setMode reads platform_modes fresh from disk, not cached snapshot [subagent-review]) with regression test testTwoAdaptersSettingDifferentOriginsInPlatformModesDoNotDropEachOther. The ticket doc's appendix explicitly supersedes the earlier 'never dropped fields' claim for aggregate fields.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-16/reviews/P16.06-subagent-review.report.md",
+        "ticketId": "P16.06"
+      },
+      "observation": "The Rationale at lines 94-99 says distinct stores “never dropped each other’s fields.” That is true for independent top-level keys but false for separate writers replacing different members of aggregate values such as `platform_modes`; the new test exercises only independent top-level fields."
+    }
+  ]
+}

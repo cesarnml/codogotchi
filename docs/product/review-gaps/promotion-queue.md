@@ -24,13 +24,22 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   per-ticket-clause vs phase-integration-pass.
 
 ### `control-signal-starved-by-change-gated-callback`
-- **Seen:** 2× — `codogotchi-01` round-1 (bubble re-anchor hung on the
+- **Seen:** 3× — `codogotchi-01` round-1 (bubble re-anchor hung on the
   persist-on-`mouseUp` handler, so it only fired at drag *end*) and
   `codogotchi-10` (HUD `rpg_hud_enabled` re-read only inside a poll callback
   gated on RPG-value deltas, so a static-stats toggle never applied until
   restart). Note `codogotchi-01`'s `defect_class` string named the *symptom*
   (widget cohesion); this piggyback-starvation pattern lived in its
-  `prompt_lesson`. Both are the same root cause.
+  `prompt_lesson`. Both are the same root cause. 3rd instance
+  (`2e817a9b`, phase-19 QC): right-click Rename/Sync Label wrote
+  `session-labels.json` synchronously, but `SessionsTabViewModel` reads labels
+  through `FloatingPetWindowPool.sessionDisplayLabel`'s `lastDesired` snapshot,
+  which only rebuilds on the next ~1s poll tick — a re-read path gated on an
+  unrelated periodic trigger, not the label's own change. Same fix commit also
+  hit the inverse timing bug (a synchronous refresh racing an *async*
+  `handleForceIdle` background-queue write) — same root cause, opposite
+  direction: the dependent view's re-read must be triggered by the signal's
+  own change, whichever side is slower.
 - **Proposed clause:** *"For any setting, flag, or control signal that must
   affect a running view, identify the single runtime path that re-reads it and
   ask under what condition that path executes. If that trigger is unrelated to
@@ -45,10 +54,10 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   the starving handler's `mouseUp`-only firing was a phase-04 perf decision not
   in the phase-06 bubble diff — so the *demonstrability* varies by how far the
   triggering condition sits from the change under review.
-- **Status:** WAITING at the 2× bar — strongest UI-family candidate so far.
-  One more occurrence (ideally cross-repo) should settle whether it promotes as
-  a per-ticket prompt clause or needs the phase-integration-pass treatment that
-  `compound-widget-cohesion-under-transform` also points at.
+- **Status:** AT THRESHOLD (3×). Ready to promote — decide per-ticket prompt
+  clause vs. the phase-integration-pass treatment that
+  `compound-widget-cohesion-under-transform` also points at before writing the
+  clause into `adversarial-review-template.md`.
 
 ### `side-effect-call-dropped-or-mis-targeted-in-refactor`
 - **Seen:** 3× — `codogotchi-15` (P12): `StateJsonWriter.dismissAttention` was
@@ -440,6 +449,273 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   gap, not a shipped-behavior defect — production always runs with a single
   `HOME`), but worth a small standalone fix if sandboxed manual testing of
   this app becomes routine.
+- **Unrelated finding, not part of this class:** while dogfooding the P18.05
+  pre-cutover shadow soak checklist live, the developer noticed an occasional
+  small delay in the Combined → Own/Minimalist panel transition. Not
+  reproduced as a hard defect (everything else in the checklist checked out),
+  no ledger row filed, no fix attempted — flagged here only so a future pass
+  has a pointer if it recurs or turns out to matter more than a cosmetic
+  frame or two of transition lag.
+
+### `protocol-default-noop-swallows-adapter-forward`
+- **Seen:** 1× ledgered — `codogotchi-46` (P19 mode chip). Same shape already
+  documented in-tree by `MinimalistWindowControllerTests.testForwardsSessionLabelAndTooltipToPanel`
+  (P15.06 session-label forward), which predated this ledger class.
+- **Proposed clause:** *"When a push protocol adds a new `apply*` member with a
+  protocol-extension default no-op, enumerate every adapter between the pusher
+  and the leaf renderer (window controller → panel, pool stub → real panel) and
+  require an explicit forward plus a regression that asserts the leaf received
+  the value. Default no-ops make missing forwards compile and let outer-stub
+  unit tests stay green while production silently drops the push."*
+- **Status:** WAITING — single ledgered instance; promote after ≥1 more
+  occurrence (or treat the P15.06 regression comment as the second sighting
+  once that older gap is backfilled into the ledger).
+
+### `unconditional-directory-listing-trusts-externally-populated-tree`
+- **Seen:** 1× — `codogotchi-40` (attributed to phase-11, gallery/marketplace,
+  where the Codex-import listing shipped). `PetTabViewModel`'s Codex-pet
+  enumeration (`directoryNames(in:)` over `~/.codex/pets`) trusted every
+  subdirectory as a pet, tolerant of a missing/malformed `pet.json` by design
+  so genuine pets with slightly off manifests still got a thumbnail attempt.
+  That tolerance meant a directory belonging to an entirely different feature
+  — `.hatch-runs`, a scratch/run-log location the hatch spritesheet pipeline
+  writes into the same `~/.codex/pets` tree — rendered as a bogus importable
+  pet card with a fabricated display name and a dead spritesheet link. Found
+  only by the developer looking at their real, long-lived `~/.codex/pets`
+  directory in the running app; no test fixture in the suite had ever
+  populated that directory with anything other than valid pets.
+- **Proposed clause:** *"When a feature enumerates a directory (or other
+  namespace) that is populated by an EXTERNAL or UNRELATED process — not
+  exclusively by this feature's own writer — validate each entry against the
+  feature's actual shape contract (required fields present, referenced
+  resource exists) before treating it as a first-class item, rather than
+  trusting 'is a directory' / 'exists' alone. A missing-file fallback that's
+  correct for a slightly-malformed instance of the target type is NOT the
+  same guarantee as excluding instances of a completely different type."*
+- **Relationship to `hide-toggle-conflated-with-pool-slot-release`/
+  `side-effect-call-dropped-or-mis-targeted-in-refactor`:** a different root
+  cause (no refactor or second feature touched this code path — the
+  vulnerability was present at initial ship) but the same detection lever:
+  only reachable by dogfooding the real, organically-populated filesystem
+  state, not by diff review or the existing test suite, since test fixtures
+  universally control their own directory contents.
+- **Caveat that blocks naive promotion:** single instance, and the "external
+  process pollutes a shared directory" precondition is narrower than most
+  promoted classes — it requires two unrelated features to share exactly one
+  filesystem namespace (here, `~/.codex/pets` is both the Codex-pet source of
+  truth AND the hatch pipeline's scratch location). Needs ≥1 more occurrence,
+  ideally in a different shared-namespace pairing, before promoting a
+  standing review-prompt clause.
+- **Status:** WAITING — single instance. Worth flagging early because the
+  "trust every directory entry" shape is easy to reintroduce anywhere the app
+  enumerates a filesystem location it doesn't exclusively own (gallery
+  install dirs, hook directories, per-platform state.d roots).
+
+### `overlay-defers-host-chrome-refresh-until-dismiss`
+- **Seen:** 1× hard recurrence chain — `codogotchi-25` introduced the
+  persistent assign `NSPopover` that only rebuilt pet-card badge pills in
+  `popoverDidClose`; `codogotchi-47` is the dogfood gap where floating-panel
+  live-swap updated immediately on toggle but card logo pills / Default border
+  stayed stale until click-away.
+- **Proposed clause:** *"When a transient overlay (popover/menu/sheet) mutates
+  shared model state that already drives other live surfaces, enumerate every
+  host chrome element that mirrors that state (pills, borders, badges, counts)
+  and refresh it on each mutation — not only on overlay dismiss. Dismiss-time
+  rebuild is fine for structural layout, not for assignment/selection feedback
+  the user expects to see while the overlay stays open."*
+- **Caveat that blocks naive promotion:** mostly `qa-gap`-flavored; the
+  dismiss-gated rebuild was intentional and left an explicit comment. Not a
+  clean adversarial-review hit unless the ticket already promised live host
+  chrome (as P14.08 did for floating-panel live-swap but not card pills).
+  Promote only if a second unrelated overlay shows the same "live elsewhere,
+  stale under open overlay" split.
+- **Status:** WAITING — paired with `codogotchi-25` as origin; needs ≥1 more
+  independent occurrence before a standing UI-review clause.
+
+### `successor-badge-leaves-redundant-menu-disambiguation`
+- **Seen:** 1× — `codogotchi-48` (P19.03 expanded Prune with
+  `"(platform · label)"` for folds; P19.04 added mode/session badges that
+  already show that identity, but the menu formatter kept expanding).
+- **Proposed clause:** *"When a later ticket in the same phase (or a follow-on
+  ticket) adds durable on-panel chrome that owns an identity or disambiguation
+  job previously done by menu/alert copy, revisit every formatter that still
+  interpolates that identity. Prefer retiring redundant parentheticals once
+  the live badge/chip is the source of truth."*
+- **Caveat that blocks naive promotion:** completeness-/planning-flavored,
+  not a clean adversarial-review miss inside a single ticket diff. Needs a
+  second "ticket A invents copy disambiguation → ticket B adds chrome →
+  copy not retired" occurrence before promoting a standing phase-sequencing
+  check.
+- **Status:** WAITING — single instance tied to phase-19 badge follow-through.
+
+### `sibling-surface-misses-new-promotion-limb`
+- **Seen:** 1× — `codogotchi-51` (phase-19 QC: Settings Show All Live vs
+  menubar Show … Panel for sessions-off Live rows).
+- **Proposed clause:** *"When a ticket teaches one UI surface a new promotion
+  / un-hide path for fold or sessions-off panels (especially when
+  `canShow == false` rows are intentionally excluded from per-row Show),
+  enumerate sibling bulk actions on other surfaces (Settings Sessions,
+  Show All Pets) that claim to act on the same Live set and require them to
+  share the new limb or document why they stay narrower."*
+- **Caveat that blocks naive promotion:** completeness-/planning-flavored —
+  the menubar diff alone does not force a reviewer to open
+  `SessionsTabViewModel.showAllLive`. Needs ≥1 more
+  "surface A gains promotion path → surface B bulk twin left on old gate"
+  occurrence before promoting.
+- **Status:** WAITING — single instance from phase-19 panel-affordance
+  follow-through.
+
+### `sibling-method-skips-a-key-resolution-step-a-neighbor-already-takes`
+- **Seen:** 1× ledgered — `codogotchi-52` (phase-16, resolved phase-19 QC).
+  `SessionsTabViewModel.show(key:)`/`hide(key:)` already resolve a row's
+  slice-derived `WindowKey` through `pool.renderedWindowKey(for:)` before
+  touching the pool, because a sessions-off fold winner's own key is never
+  the pool's actual render-target key. Three sibling methods in the *same
+  file* — `pruneActive`/`pruneAllActive`/`pruneAllSessions` — pass the raw
+  `row.id` straight into `pool.pruneSession` instead, from the moment
+  `pruneActive` was introduced (P16.05) alongside the very fold-resolution
+  machinery `show`/`hide` correctly use a few methods away. Same recurring
+  shape as `codogotchi-40`/`41` (a caller/callee `WindowKey`-space mismatch
+  on the Prune path specifically) but a different manifestation — that pair
+  fixed the mismatch *inside* `pruneSession`; this one is in the caller,
+  one layer out, in methods that had a correct sibling to copy from and
+  didn't.
+- **Proposed clause:** *"When a class has multiple methods that resolve the
+  same ambiguous identifier (a raw key, an unqualified id) before handing it
+  to a shared lower-level API, and at least one of those methods already
+  performs a resolution step (`renderedWindowKey(for:)`, a canonicalization
+  call, an identity lookup), audit every sibling method touching the same
+  lower-level API for the identical step — do not assume a method 'looks
+  simple enough' to skip what a neighboring method needed. The presence of
+  a correct example in the same file is not protection; it is only found by
+  deliberately diffing the sibling methods against each other, not by
+  reading either one in isolation."*
+- **Relationship to `side-effect-call-dropped-or-mis-targeted-in-refactor`:**
+  a cousin — both are "an old assumption not re-derived / re-applied
+  elsewhere" — but that class is triggered by a REFACTOR moving/replacing an
+  owner; this one has no refactor trigger at all. The correct and incorrect
+  methods were written at the same time, in the same commit (P16.05), with
+  no later change disturbing either — this is a same-commit oversight, not
+  drift introduced by a later change.
+- **Caveat that blocks naive promotion:** single ledgered instance. The
+  "audit sibling methods against each other" lever is a strong completeness
+  check but expensive to apply universally (every class with >1 method
+  touching a shared lower-level API) — needs ≥1 more occurrence to judge
+  whether it is narrow enough (e.g. "specifically WindowKey resolution
+  before a pool call") to state as a targeted clause, or too broad to be
+  actionable as written.
+- **Status:** WAITING — single instance. Promote only after a second
+  same-file "sibling method skips a resolution step a neighbor already
+  takes" occurrence, ideally on a different key/identifier shape than
+  `WindowKey`.
+
+### `stateful-tracker-keyed-by-render-target-not-occupant-identity`
+- **Seen:** 1× ledgered — `codogotchi-53` (phase-18, resolved phase-19 QC:
+  PromptTimerChip stuck on the previous fold winner's elapsed time).
+  `PoolMemory.promptTimers` is keyed by `WindowKey` — the render TARGET
+  (`.origin(origin)`, `.combined`, or a genuine `.session(...)`). For a
+  folded target, a DIFFERENT session can occupy that same key tick to
+  tick (sessions-off winner rotation, combined-mode winner rotation).
+  `PromptTimerTracker.observe` only restarts on an idle/session_start/
+  first-observation activity transition — it has no notion of occupant
+  identity, so a still-running tracker silently kept reporting the
+  PREVIOUS occupant's elapsed time under the new occupant's name. A
+  second, distinct manifestation of the same root idea shipped in the
+  same commit: `.combined` additionally had its OWN special-cased shared
+  tracker (one instance for every session that ever wins the slot,
+  across ALL origins), compounding the target-vs-occupant conflation
+  with an unnecessary second layer of sharing.
+- **Proposed clause:** *"When a stateful/mutable tracker (a timer, a
+  cache, a debounce clock, a retry counter) is keyed by a render target,
+  slot, or channel that can be occupied by different logical entities
+  over time (a fold winner, a connection-pool slot, a reused buffer),
+  ask: does this tracker's own restart/reset condition include 'the
+  occupant changed', or only 'the occupant's own state changed'? If the
+  tracker only reacts to the occupant's OWN activity signal, a rotation
+  to a new occupant that happens to already be mid-activity (not
+  freshly starting from idle) is invisible to it. The fix is comparing
+  the tracked identity against a durable resolved-identity signal each
+  observation, not adding more activity-state special cases."*
+- **Relationship to `sibling-method-skips-a-key-resolution-step-a-
+  neighbor-already-takes`:** both surfaced in the same QC session, both
+  in pool/fold code, both about winner rotation under sessions-off/
+  combined folding — but that class is about a CALLER forgetting to
+  resolve a key before a function call (a one-shot lookup mismatch);
+  this class is about a STATEFUL tracker's own restart condition being
+  blind to occupant identity across MULTIPLE ticks (a continuity bug,
+  not a lookup bug). Distinct enough to track separately for now.
+- **Caveat that blocks naive promotion:** single ledgered instance. The
+  "stateful tracker keyed by target not occupant" shape is specific to
+  code with a fold/pool/winner-election concept — narrower than most
+  promoted classes — needs ≥1 more occurrence, ideally a non-prompt-
+  timer tracker (a debounce clock, a retry backoff, a cache), before
+  promoting a standing review-prompt clause.
+- **Status:** WAITING — single instance from phase-18 prompt-timer
+  continuity, found via phase-19 QC dogfooding.
+
+### `fold-winner-promotion-blocked-by-recency-only-election-and-cap-policy`
+- **Seen:** 1× — observed while scoping a phase-19 QC ask (Sessions panel Live
+  rows should offer Show, not just Prune, and Show should be able to promote a
+  non-winning sibling into the active slot). No fix attempted; no ledger row.
+- **Observation (not yet a fix — deferred):** `SessionsTabViewModel.canShow`
+  and `showAllLive`'s off-`canShow` promotion branch both explicitly treat
+  "Show a non-winning Live sibling whose fold target already has an active
+  winner" as unsupported — `canShow`'s own comment calls it a no-op that
+  "cannot be surfaced without changing winner election," and `showAllLive`
+  bails via `guard !pool.activeOrigins.contains(target) else { continue }` the
+  moment a winner is already active. Making Show actually promote such a row
+  (demoting the previous winner to Live) is not a bounded fix for two
+  independent reasons: (1) winner election reads as purely recency-based
+  (freshest `updated_at` wins), so naively bumping the target's `updated_at`
+  via `refreshForShow` risks being immediately re-flipped back by the demoted
+  winner on the very next poll tick if that winner is itself still genuinely
+  live — an explicit user Show needs to be durable against that, which likely
+  wants a real pinned-winner override rather than a timestamp trick; (2) the
+  same promotion has to interact correctly with the existing Session Cap /
+  "Evict Session Pets" policy when sessions-enabled is ON and the platform is
+  at capacity — Show may need to trigger eviction of a different session's
+  window, not just win a recency race. These are two separate policies (fold
+  promotion when sessions are off vs. cap-aware eviction when sessions are on)
+  that no current code path unifies.
+- **Relationship to `sibling-surface-misses-new-promotion-limb`:** same code
+  path (`SessionsTabViewModel.canShow`/`showAllLive`), same phase-19
+  promotion-affordance thread — that class is the narrower "surface A vs
+  surface B parity" framing; this is the deeper "can Show ever override an
+  existing winner at all" question underneath it.
+- **Status:** WAITING — no ledger row, no fix attempted, developer explicitly
+  declined `/soa plan` or a follow-up task for now. Flagged here as a pointer
+  for whenever fold-winner/session-cap interaction work is prioritized —
+  needs product-level design (pinned-winner mechanism, cap-aware eviction
+  rules) before any implementation.
+
+### `vestigial-schema-field-mechanically-round-tripped-past-its-consumer`
+- **Seen:** 1× — `codogotchi-49`/`codogotchi-50` investigation (phase-13/15 QC
+  fix for `floating_pet_positions`/`floating_pet_hidden` pruning).
+- **Observation (not yet a fix — deferred, no ledger row):** `app-state.json`'s
+  singular `floating_pet` field (schema-v3 `AppStatePayload.floatingPet`,
+  introduced phase-4 P4.02 before per-origin/per-session windows existed) is
+  still read and written on every `AppStateStore.load`/`save`, but no live pool
+  window (`FloatingPetController`/`MinimalistWindowController`) is ever
+  constructed from its `visible`/`frame` values — every real window goes
+  through the per-origin `loadFrame`/`saveFrame` path instead (added P13).
+  `save()`'s only real caller (`refreshHookStatusCache`) round-trips the field
+  unchanged. It compiles, decodes, and encodes cleanly, so nothing flags it.
+- **Proposed clause:** *"When a later phase adds a per-key/per-scope
+  replacement for a singular top-level state field (single-window →
+  per-origin, global flag → per-session map), check whether the original
+  field still has a live reader that actually drives behavior, or whether it
+  now only survives via a self-preserving round-trip in an unrelated save
+  path. A field that decodes/encodes without error can still be dead weight —
+  compiler and schema-fixture tests can't catch 'unused' the way they catch
+  'malformed'."*
+- **Caveat that blocks naive promotion:** single instance, and the fix
+  (removing a non-optional schema field, deciding v4 migration handling) is
+  larger/riskier than a bounded QC fix — deliberately deferred rather than
+  bundled into `codogotchi-49`/`codogotchi-50`. Needs a second occurrence
+  (or a scoped removal ticket) before promoting past this candidate stage.
+- **Status:** WAITING — no ledger row yet (observation, not a verified fix);
+  candidate future ticket: remove `floating_pet` from `AppStatePayload` and
+  decide the v3→v4 migration/back-compat story.
 
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 

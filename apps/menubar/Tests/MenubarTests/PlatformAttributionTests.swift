@@ -70,4 +70,14 @@ final class PlatformAttributionTests: XCTestCase {
 		XCTAssertEqual(PlatformAttribution.codex.displayName, "Codex")
 		XCTAssertEqual(PlatformAttribution.cursor.displayName, "Cursor")
 	}
+
+	func testPlatformIconPaletteUsesRedForCursorAndFuchsiaForDefault() {
+		XCTAssertEqual(platformIconTint(forBadgeKey: "cursor"), .systemRed)
+
+		let defaultTint = platformIconTint(forBadgeKey: "default").usingColorSpace(.sRGB)
+		XCTAssertNotNil(defaultTint)
+		XCTAssertGreaterThan(defaultTint?.redComponent ?? 0, 0.8)
+		XCTAssertGreaterThan(defaultTint?.blueComponent ?? 0, 0.5)
+		XCTAssertLessThan(defaultTint?.greenComponent ?? 1, 0.3)
+	}
 }

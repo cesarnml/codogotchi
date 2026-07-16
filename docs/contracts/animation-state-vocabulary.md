@@ -1,4 +1,4 @@
-# Animation State Vocabulary (v9)
+# Animation State Vocabulary (v10)
 
 The contract for the data the codogotchi hook binary writes to
 `~/.codogotchi/state.d/<origin>:<session_id>.json` on every relevant Claude Code / Codex / Cursor lifecycle event,
@@ -90,12 +90,107 @@ decodes each file as a `SliceEntry` (see § v7 slice-entry shape below), applies
 - `StateJsonV1` keeps `hp`/`hp_overlay` as `.optional()` (not removed) so v1–v8 payloads written by an older hook binary still parse under the forward-compat policy; `globalAggregate`/`perPlatform` never populate them on the resolved shape.
 - `EXPECTED_STATE_SCHEMA_VERSION = 9` in Swift; `STATE_JSON_SCHEMA_VERSION = 9` in TS CLI.
 
-### Current on-disk slice shape (v9)
+**Phase 20 (P20.01–04) is the v10 bump: four optional sticky ISO-8601 timestamps
+land on the slice** so the PromptTimer chip and Settings > Sessions can show
+correct elapsed/started time across window hide/show, TTL dismiss, fold
+churn, and app relaunch — durability that in-memory trackers keyed off
+`updated_at` cannot provide, since `updated_at` advances on every mid-turn
+tool write and any in-memory tracker is lost when a render key leaves TTL
+eligibility. Key v10 properties:
 
-The § Resolved state shape and § v7 slice-entry shape sections below are kept
-for historical reference (each documents the shape at the version it was
-written) — this section is the authoritative current shape. A v9 slice file
+- Four new optional fields: `prompt_started_at`, `session_started_at`,
+  `errored_since`, `turn_ended_at` — all `.datetime({ offset: true })`,
+  i.e. ISO-8601 with an explicit UTC/offset designator. `sliceEntrySchema`
+  stays `.strict()`; no other keys are added.
+- The hook binary **read-merges** prior sticky stamps on every write (via
+  `mergeStickyStamps` in `packages/cli/src/hook-binary.ts`) instead of
+  rebuilding the slice from scratch — mid-turn tool ticks preserve whatever
+  turn-start and session-birth stamps are already on disk.
+- If the prior on-disk slice is unreadable (corrupt JSON, truncated file, a
+  non-object payload, or a stamp value that isn't a valid offset-datetime
+  string), the hook **fails closed**: it aborts that write entirely rather
+  than persisting freshly-reset clocks over a damaged slice. A missing file
+  (first write for that origin+session) is not corruption — that's the
+  session-birth case below.
+- `EXPECTED_STATE_SCHEMA_VERSION = 10` in Swift; `STATE_JSON_SCHEMA_VERSION = 10` in TS CLI.
+
+#### Set/clear semantics (product level)
+
+These are the only lifecycle edges allowed to set or clear a sticky stamp;
+every other write (mid-turn tool use, unrecognized events) preserves
+whatever is already on disk:
+
+- **Mid-turn tool writes preserve turn-start and session-birth.** A tool-use
+  event in the middle of a turn never rewrites `prompt_started_at` or
+  `session_started_at` — it just carries the prior stamps forward untouched.
+- **`prompt_submit` / `session_start` refresh `prompt_started_at`** to the
+  current write time, and **clear `turn_ended_at`** and **clear
+  `errored_since`** — a new turn starting means any prior freeze is over.
+- **First create sets `session_started_at`.** The first write of a given
+  `state.d/<origin>:<session_id>.json` slice stamps `session_started_at` to
+  that write's timestamp; every later write preserves it unless a genuinely
+  new session file is created (a different `session_id`).
+- **First `errored` sets `errored_since` once.** Entering the `errored`
+  activity state stamps `errored_since` only if it isn't already set —
+  repeated `errored` writes for the same failure streak do not push the
+  clock forward.
+- **`standby` + attention sets `turn_ended_at`** (once, same
+  set-only-if-absent rule as `errored_since`) — this is the hook's signal
+  that the turn cleanly finished and is now waiting on the developer.
+- **Idle / Force Idle clears turn clocks, preserves `session_started_at`.**
+  Any write that resolves to the `idle` activity state — including the
+  menubar's Force Idle / dismiss-attention idle rewrite — clears
+  `prompt_started_at`, `errored_since`, and `turn_ended_at`, but leaves
+  `session_started_at` alone; going idle ends the current turn, not the
+  session.
+- **Errored freeze duration is app-side math, not a hook-written stamp.**
+  The renderer computes the errored freeze window as `errored_since + 60s`
+  (the same 60-second grace the PromptTimer already used pre-v10). The
+  menubar does **not** write `turn_ended_at` when that 60-second threshold
+  elapses — `turn_ended_at` remains exclusively hook-owned, set only on
+  clean `standby` + attention. This keeps the contract single-writer: the
+  hook is the only process that stamps slice files.
+
+### Current on-disk slice shape (v10)
+
+The § Resolved state shape, § v7 slice-entry shape, and § v9 slice shape
+(historical) sections below are kept for historical reference (each
+documents the shape at the version it was written) — this section is the
+authoritative current shape. A v10 slice file
 (`state.d/<origin>:<session_id>.json`) is:
+
+```json
+{
+  "origin": "claude_code",
+  "session_id": "sess-abc123",
+  "activity_state": "testing",
+  "updated_at": "2026-06-03T04:00:01.000Z",
+  "source_event": {
+    "origin": "claude_code",
+    "kind": "tool_use",
+    "name": "Bash"
+  },
+  "tool_command": "bun test packages/contracts",
+  "prompt_started_at": "2026-06-03T03:59:40.000Z",
+  "session_started_at": "2026-06-03T03:50:00.000Z"
+}
+```
+
+Required fields: `origin`, `session_id`, `activity_state`, `updated_at`,
+`source_event`. `attention`, `tool_command`, `prompt_started_at`,
+`session_started_at`, `errored_since`, and `turn_ended_at` are optional.
+`hp`, `hp_overlay`, `level`, `level_fraction`, `half_hearts`,
+`last_activity_at`, and `revive_until` are **not** valid slice keys —
+`sliceEntrySchema` is `.strict()` and rejects them. RPG values live in
+`~/.codogotchi/rpg-state.json`; HP/mood live in `~/.codogotchi/profile.json`.
+
+#### v9 slice shape (historical)
+
+> Historical: documents the shape as of v9, before the Phase 20 sticky-stamp
+> bump. See § Current on-disk slice shape (v10) above for what the schema
+> requires today.
+
+A v9 slice file (`state.d/<origin>:<session_id>.json`) was:
 
 ```json
 {
@@ -113,11 +208,8 @@ written) — this section is the authoritative current shape. A v9 slice file
 ```
 
 Required fields: `origin`, `session_id`, `activity_state`, `updated_at`,
-`source_event`. `attention` and `tool_command` are optional. `hp`, `hp_overlay`,
-`level`, `level_fraction`, `half_hearts`, `last_activity_at`, and `revive_until`
-are **not** valid slice keys — `sliceEntrySchema` is `.strict()` and rejects
-them. RPG values live in `~/.codogotchi/rpg-state.json`; HP/mood live in
-`~/.codogotchi/profile.json`.
+`source_event`. `attention` and `tool_command` were the only optional
+fields prior to the v10 sticky-stamp bump.
 
 ### Forward-compatibility policy
 
@@ -243,7 +335,7 @@ table and bumps `schema_version`.
 
 ## Resolved state shape (v7)
 
-> Historical: documents the shape as of v7. See § Current on-disk slice shape (v9) above for what the schema requires today.
+> Historical: documents the shape as of v7. See § Current on-disk slice shape (v10) above for what the schema requires today.
 
 The renderer collapses `state.d/` slices via `globalAggregate` into a `StateJsonV1` object with `schema_version: 7`. This is the shape the renderer operates on internally — it is not written to disk as a single file. The on-disk format is the slice-entry shape above.
 
@@ -336,7 +428,7 @@ The hook binary creates `state.d/` with `mkdir -p` on first write. Readers must 
 
 ### v7 slice-entry shape (`state.d/<origin>:<session_id>.json`)
 
-> Historical: documents the shape as of v7 (before the v8 RPG-field extraction and the v9 hp/hp_overlay removal). See § Current on-disk slice shape (v9) above.
+> Historical: documents the shape as of v7 (before the v8 RPG-field extraction and the v9 hp/hp_overlay removal). See § Current on-disk slice shape (v10) above.
 
 Each slice file is a JSON object validated against `sliceEntrySchema` in `packages/contracts/src/slice-entry.ts`. The file has **no `schema_version` field** — versioning is implicit in the writer/reader constants.
 

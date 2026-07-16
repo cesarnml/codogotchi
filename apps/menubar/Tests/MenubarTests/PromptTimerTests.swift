@@ -227,6 +227,127 @@ final class PromptTimerTests: XCTestCase {
 		XCTAssertNil(tracker.presentation(now: now))
 	}
 
+	// MARK: - Sticky stamp hydration (P20.02 — [red])
+	//
+	// When the on-disk slice carries the P20.01 sticky stamps, the tracker must
+	// prefer them over the `updated_at`-heuristic start/freeze it falls back to
+	// when stamps are absent (every test above omits stamps and must keep
+	// passing unchanged).
+
+	func testInFlightPrefersPromptStartedAtOverUpdatedAtWhenPresent() {
+		var tracker = PromptTimerTracker()
+
+		// The slice's own updated_at lags behind the sticky prompt_started_at
+		// stamp (a later mid-turn tool write bumped updated_at without touching
+		// the sticky clock) — elapsed must be measured from the stamp.
+		tracker.observe(
+			state: .thinking,
+			updatedAt: "2026-07-07T01:00:10.000Z",
+			sourceEvent: SourceEvent(origin: "codex", kind: "tool_use", name: "Bash"),
+			attention: nil,
+			promptStartedAt: "2026-07-07T01:00:00.000Z"
+		)
+
+		let now = StateJsonReader.parseISO8601Date("2026-07-07T01:00:20.000Z")!
+		XCTAssertEqual(tracker.presentation(now: now)?.label, "0:20")
+		XCTAssertEqual(tracker.presentation(now: now)?.isRunning, true)
+	}
+
+	func testSessionStartPrefersPromptStartedAtOverUpdatedAtWhenPresent() {
+		var tracker = PromptTimerTracker()
+
+		tracker.observe(
+			state: .thinking,
+			updatedAt: "2026-07-07T01:00:10.000Z",
+			sourceEvent: SourceEvent(origin: "codex", kind: "session_start", name: "SessionStart"),
+			attention: nil,
+			promptStartedAt: "2026-07-07T01:00:00.000Z"
+		)
+
+		let now = StateJsonReader.parseISO8601Date("2026-07-07T01:00:20.000Z")!
+		XCTAssertEqual(tracker.presentation(now: now)?.label, "0:20")
+	}
+
+	func testStandbyFreezesAtTurnEndedAtWhenPresentRatherThanUpdatedAt() {
+		var tracker = PromptTimerTracker()
+		tracker.observe(
+			state: .thinking,
+			updatedAt: "2026-07-07T01:00:00.000Z",
+			sourceEvent: SourceEvent(origin: "codex", kind: "session_start", name: "SessionStart"),
+			attention: nil
+		)
+
+		// The standby slice's own updated_at is later than the sticky
+		// turn_ended_at freeze point (a subsequent poll re-wrote updated_at
+		// without moving the turn's own end clock) — the frozen elapsed must
+		// use the stamp, not updated_at.
+		tracker.observe(
+			state: .standby,
+			updatedAt: "2026-07-07T01:02:10.000Z",
+			sourceEvent: SourceEvent(origin: "codex", kind: "session_end", name: "Stop"),
+			attention: attention(expiresAt: "2099-01-01T00:00:00.000Z"),
+			turnEndedAt: "2026-07-07T01:02:03.000Z"
+		)
+
+		let later = StateJsonReader.parseISO8601Date("2026-07-07T01:10:00.000Z")!
+		XCTAssertEqual(tracker.presentation(now: later)?.label, "2:03")
+		XCTAssertEqual(tracker.presentation(now: later)?.isRunning, false)
+	}
+
+	func testErroredFreezesAtErroredSinceStampPlusSixtySecondsWithoutWritingTheSlice() {
+		var tracker = PromptTimerTracker()
+		tracker.observe(
+			state: .thinking,
+			updatedAt: "2026-07-07T01:00:00.000Z",
+			sourceEvent: SourceEvent(origin: "codex", kind: "session_start", name: "SessionStart"),
+			attention: nil
+		)
+
+		// The sticky errored_since stamp predates this poll's own updated_at
+		// (the error began well before this tick observed it) — the 60s grace
+		// must be measured from the stamp, matching a durable clock a relaunch
+		// or fresh tracker would also compute, not from whichever poll tick
+		// happened to first observe the errored state.
+		tracker.observe(
+			state: .errored,
+			updatedAt: "2026-07-07T01:01:50.000Z",
+			sourceEvent: SourceEvent(origin: "codex", kind: "tool_use", name: "Bash"),
+			attention: attention(expiresAt: "2099-01-01T00:00:00.000Z"),
+			erroredSince: "2026-07-07T01:00:20.000Z"
+		)
+
+		// Freeze is 60s after the *stamped* errored_since (01:00:20 + 60s =
+		// 01:01:20), not 60s after this observation's own updated_at.
+		let afterThreshold = StateJsonReader.parseISO8601Date("2026-07-07T01:05:00.000Z")!
+		// PromptTimerTracker is a pure value type with no filesystem access —
+		// freezing here structurally cannot write `turn_ended_at` back to the
+		// slice; only StateJsonWriter's explicit idle-rewrite paths ever touch
+		// disk (see StateJsonWriterTests' Force Idle stamp-clearing tests).
+		XCTAssertEqual(tracker.presentation(now: afterThreshold)?.label, "1:20")
+		XCTAssertEqual(tracker.presentation(now: afterThreshold)?.isRunning, false)
+	}
+
+	func testMissingStampsFallBackToUpdatedAtHeuristics() {
+		// Explicit control: identical to testSessionStartBeginsTimerAtSnapshotTimestamp
+		// but calling the new stamp parameters with nil — the fallback path must
+		// behave exactly like the pre-P20.02 heuristics.
+		var tracker = PromptTimerTracker()
+
+		tracker.observe(
+			state: .thinking,
+			updatedAt: "2026-07-07T01:00:00.000Z",
+			sourceEvent: SourceEvent(origin: "codex", kind: "session_start", name: "SessionStart"),
+			attention: nil,
+			promptStartedAt: nil,
+			erroredSince: nil,
+			turnEndedAt: nil
+		)
+
+		let now = StateJsonReader.parseISO8601Date("2026-07-07T01:00:07.000Z")!
+		XCTAssertEqual(tracker.presentation(now: now)?.label, "0:07")
+		XCTAssertEqual(tracker.presentation(now: now)?.isRunning, true)
+	}
+
 	func testCompactLabelsUseMinutesHoursAndDays() {
 		XCTAssertEqual(PromptTimerPresentation.compactLabel(elapsed: 59), "0:59")
 		XCTAssertEqual(PromptTimerPresentation.compactLabel(elapsed: 754), "12:34")

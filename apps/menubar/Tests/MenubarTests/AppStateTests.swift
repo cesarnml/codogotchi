@@ -362,4 +362,149 @@ final class AppStateTests: XCTestCase {
 			XCTAssertEqual(AppStateStore.loadHiddenWindowKeys(), [])
 		}
 	}
+
+	// MARK: - removeWindowEntries (session-prune cleanup)
+
+	func testRemoveWindowEntriesDeletesBothPositionAndHiddenEntries() throws {
+		try withTempHome { _ in
+			try AppStateStore.saveFrame(
+				CGRect(x: 100, y: 200, width: 160, height: 160), for: .session(origin: "claude_code", id: "s1"))
+			try AppStateStore.saveHiddenWindowKeys([.session(origin: "claude_code", id: "s1")])
+
+			try AppStateStore.removeWindowEntries(for: .session(origin: "claude_code", id: "s1"))
+
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: .session(origin: "claude_code", id: "s1"), visibleFrame: visibleFrame),
+				FloatingFramePolicy.defaultFrame(in: visibleFrame),
+				"pruned session must fall back to the default frame, not a stale one")
+			XCTAssertEqual(AppStateStore.loadHiddenWindowKeys(), [])
+		}
+	}
+
+	func testRemoveWindowEntriesPreservesOtherKeys() throws {
+		try withTempHome { _ in
+			let siblingFrame = CGRect(x: 300, y: 400, width: 140, height: 140)
+			try AppStateStore.saveFrame(siblingFrame, for: .session(origin: "claude_code", id: "s2"))
+			try AppStateStore.saveFrame(
+				CGRect(x: 100, y: 200, width: 160, height: 160), for: .session(origin: "claude_code", id: "s1"))
+			try AppStateStore.saveHiddenWindowKeys([.session(origin: "claude_code", id: "s2")])
+
+			try AppStateStore.removeWindowEntries(for: .session(origin: "claude_code", id: "s1"))
+
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: .session(origin: "claude_code", id: "s2"), visibleFrame: visibleFrame),
+				siblingFrame, "a sibling session's saved frame must survive another session's prune")
+			XCTAssertEqual(AppStateStore.loadHiddenWindowKeys(), [.session(origin: "claude_code", id: "s2")])
+		}
+	}
+
+	func testRemoveWindowEntriesIsSafeWhenNoStateFileExists() throws {
+		try withTempHome { dir in
+			try AppStateStore.removeWindowEntries(for: .origin("cursor"))
+			XCTAssertFalse(
+				FileManager.default.fileExists(atPath: dir.appendingPathComponent("app-state.json").path),
+				"removing entries with no existing state file must not create one")
+		}
+	}
+
+	func testRemoveWindowEntriesIsSafeWhenKeyHasNoEntries() throws {
+		try withTempHome { _ in
+			try AppStateStore.saveFrame(
+				CGRect(x: 100, y: 200, width: 160, height: 160), for: .origin("cursor"))
+
+			try AppStateStore.removeWindowEntries(for: .origin("codex"))
+
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: .origin("cursor"), visibleFrame: visibleFrame),
+				CGRect(x: 100, y: 200, width: 160, height: 160))
+		}
+	}
+
+	// MARK: - Pre-P16.04 fixture round-trip (WindowKey upgrade path)
+
+	/// A real `app-state.json` byte payload as it existed before `WindowKey`
+	/// (P16.04) — `floating_pet_positions`/`floating_pet_hidden` keyed by the
+	/// raw strings the pre-refactor code wrote directly, covering all three
+	/// window-key shapes: a bare origin, an `origin:sessionID` pair, and the
+	/// literal `"combined"` synthetic key. This is not a value round-tripped
+	/// through `WindowKey` by this test — it is hand-written JSON standing in
+	/// for a file an old app version actually wrote, decoded/re-encoded by
+	/// today's code, so a rawValue format drift on upgrade would fail here
+	/// even though it wouldn't show up in the other tests above (which all
+	/// go through `WindowKey`'s own `ExpressibleByStringLiteral` on both ends).
+	private static let preP1604Fixture = #"""
+		{
+		  "schema_version": 3,
+		  "floating_pet": { "visible": true, "frame": { "x": 0, "y": 0, "width": 160, "height": 160 } },
+		  "floating_pet_positions": {
+		    "claude_code": { "x": 10, "y": 20, "width": 160, "height": 160 },
+		    "claude_code:s1": { "x": 30, "y": 40, "width": 150, "height": 150 },
+		    "combined": { "x": 50, "y": 60, "width": 170, "height": 170 }
+		  },
+		  "floating_pet_hidden": {
+		    "claude_code:s1": true,
+		    "cursor": false
+		  }
+		}
+		"""#
+
+	func testPreP1604FixtureLoadsAllThreeWindowKeyShapes() throws {
+		try withTempHome { dir in
+			try writeAppState(Self.preP1604Fixture, in: dir)
+
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: .origin("claude_code"), visibleFrame: visibleFrame),
+				CGRect(x: 10, y: 20, width: 160, height: 160))
+			XCTAssertEqual(
+				AppStateStore.loadFrame(
+					for: .session(origin: "claude_code", id: "s1"), visibleFrame: visibleFrame),
+				CGRect(x: 30, y: 40, width: 150, height: 150))
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: .combined, visibleFrame: visibleFrame),
+				CGRect(x: 50, y: 60, width: 170, height: 170))
+
+			XCTAssertEqual(
+				AppStateStore.loadHiddenWindowKeys(),
+				[.session(origin: "claude_code", id: "s1")],
+				"only the true-valued legacy key should load as hidden; false-valued keys default to visible")
+		}
+	}
+
+	func testSaveAfterPreP1604FixtureLoadPreservesLegacyEntriesByteForByte() throws {
+		try withTempHome { dir in
+			try writeAppState(Self.preP1604Fixture, in: dir)
+
+			try AppStateStore.saveFrame(
+				CGRect(x: 5, y: 6, width: 120, height: 120), for: .origin("codex"))
+
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: .origin("claude_code"), visibleFrame: visibleFrame),
+				CGRect(x: 10, y: 20, width: 160, height: 160),
+				"pre-existing bare-origin entry must survive a save made after loading a legacy file")
+			XCTAssertEqual(
+				AppStateStore.loadFrame(
+					for: .session(origin: "claude_code", id: "s1"), visibleFrame: visibleFrame),
+				CGRect(x: 30, y: 40, width: 150, height: 150),
+				"pre-existing session-keyed entry must survive")
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: .combined, visibleFrame: visibleFrame),
+				CGRect(x: 50, y: 60, width: 170, height: 170),
+				"pre-existing combined entry must survive")
+			XCTAssertEqual(
+				AppStateStore.loadHiddenWindowKeys(), [.session(origin: "claude_code", id: "s1")],
+				"hidden-keys map must survive a saveFrame(_:for:) that only touches floating_pet_positions")
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: .origin("codex"), visibleFrame: visibleFrame),
+				CGRect(x: 5, y: 6, width: 120, height: 120),
+				"the newly saved key must also be present alongside the preserved legacy ones")
+
+			let rawAfterSave = try String(
+				contentsOf: dir.appendingPathComponent("app-state.json"), encoding: .utf8)
+			for legacyKey in ["\"claude_code\"", "\"claude_code:s1\"", "\"combined\""] {
+				XCTAssertTrue(
+					rawAfterSave.contains(legacyKey),
+					"raw-value byte-compatibility: \(legacyKey) must still appear verbatim on disk after the upgrade save")
+			}
+		}
+	}
 }

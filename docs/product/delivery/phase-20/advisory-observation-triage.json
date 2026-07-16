@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-07-14T15:02:50.957Z",
+  "summary": {
+    "total": 8,
+    "patched": 2,
+    "rejected": 2,
+    "already-covered": 4,
+    "requires-human-review": 0
+  },
+  "dispositions": [
+    {
+      "disposition": "already-covered",
+      "rationale": "P20.04 (aec1ff68) updated docs/contracts/animation-state-vocabulary.md with the v10 sticky-stamp contract.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.01-subagent-review.report.md",
+        "ticketId": "P20.01"
+      },
+      "observation": "**`docs/contracts/animation-state-vocabulary.md` still describes v9 slice shape** without sticky fields — P20.04 scope."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "By design: aggregated StateJsonV1 is the render collapse of activity fields. Sticky stamps are per-slice and are consumed from slice files by PromptTimer and Sessions, not via globalAggregate.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.01-subagent-review.report.md",
+        "ticketId": "P20.01"
+      },
+      "observation": "**`globalAggregate` / `sliceToStateJson` strip stamp fields** from aggregated `StateJsonV1`; consistent with current consumers but worth noting for any code path aggregating before reading stamps."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Added direct mergeStickyStamps unit tests covering idle clear, errored-after-standby turn_ended_at retention, standby attention stamp-once, and first-write session birth.",
+      "patch": {
+        "commitSha": "997045960708e3e73324eaaee0ffc41d98f56d0c",
+        "files": ["packages/cli/src/hook-binary.test.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.01-subagent-review.report.md",
+        "ticketId": "P20.01"
+      },
+      "observation": "**`mergeStickyStamps` is exported but has no direct unit tests** — edge ordering (e.g. `errored` after `standby` retaining `turn_ended_at`) is only covered by code inspection and partial integration coverage."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Phase exit and README already document lockstep app + hook refresh as the dogfood requirement; no in-app outdated-hooks nudge was an explicit phase deferral.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.01-subagent-review.report.md",
+        "ticketId": "P20.01"
+      },
+      "observation": "**Installer lockstep is rebuild-dependent:** Refreshing hook registrations without rebuilding the embedded `codogotchi-hook` binary leaves old v9 writer behavior until the app/binary is rebuilt."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "P20.01 fail-closed patch (landed in squash 5c3f1730) added isOffsetDatetime filtering so invalid prior stamp strings are dropped instead of forwarded into Zod, preventing the silent write-freeze path. TAO also added a regression test in 99704596.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.01-subagent-review.report.md",
+        "ticketId": "P20.01"
+      },
+      "observation": "**Invalid prior datetime strings block all subsequent writes silently:** Loose read accepts any `typeof value === \"string\"`; Zod rejects on output; `runHookFromStdin` catches and exits 0. Pet activity can freeze with no user-visible error."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Corrupt-prior fail-closed already covered by the P20.01 subagent patch test; TAO added an explicit v9→v10 stamp-preservation integration test in the same commit.",
+      "patch": {
+        "commitSha": "997045960708e3e73324eaaee0ffc41d98f56d0c",
+        "files": ["packages/cli/src/hook-binary.test.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.01-subagent-review.report.md",
+        "ticketId": "P20.01"
+      },
+      "observation": "**No test for v9→v10 stamp preservation** or corrupt-prior recovery despite being named attack surfaces."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "P20.02 (cbfabe02) bumped EXPECTED_STATE_SCHEMA_VERSION to 10 and decoded the four sticky stamp fields onto SlicePayload/StateSnapshot.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.01-subagent-review.report.md",
+        "ticketId": "P20.01"
+      },
+      "observation": "**Swift menubar still at `EXPECTED_STATE_SCHEMA_VERSION = 9`:** Deferred per ticket; slice directory reader tolerates v10 files for activity/attention but ignores stamp fields until P20.02+."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Intentional first-write contract: the first successful v10 write of a slice stamps session_started_at to that write time. P20.03 correctly omits Started when the field is missing rather than inventing it from updated_at; migration-time birth is accepted semantics, not a defect.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.01-subagent-review.report.md",
+        "ticketId": "P20.01"
+      },
+      "observation": "**v9 unstamped migration fabricates `session_started_at`:** For an existing v9 slice with no stamp keys, the first v10 write sets `session_started_at` to the migration write time. Literal ticket wording (“first write … sets `session_started_at`”) permits this, but it is not the true session birth; P20.03 plans to omit Started when the field is missing rather than infer it."
+    }
+  ]
+}
