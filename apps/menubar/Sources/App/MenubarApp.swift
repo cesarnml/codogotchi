@@ -679,14 +679,26 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			self?.windowActionRouter?.handleAttentionDismissed(for: origin)
 		}
 		panel.onForceIdle = { [weak self, weak panel] in
-			self?.windowActionRouter?.handleForceIdle(for: origin)
 			panel?.applyGateBadge(content: nil)
 			panel?.applyConflictBubble(nil)
+			// `handleForceIdle` writes the slice on a background queue — refreshing
+			// the Sessions tab synchronously here would race the write and often
+			// re-scan the directory before the idle state actually lands on disk.
+			// Wait for its completion (delivered on main) instead.
+			self?.windowActionRouter?.handleForceIdle(for: origin) {
+				self?.settingsWindowController?.refreshSessionsTab()
+			}
 		}
 		panel.onRenameRequested = { [weak self] newLabel in
 			let identityKey =
 				self?.floatingPetWindowPool?.resolvedIdentity(forWindowKey: origin) ?? origin
 			SessionLabelStore.setLabel(newLabel, for: identityKey.rawValue)
+			// `SessionsTabViewModel` reads labels through the pool's `lastDesired`
+			// snapshot (matching what's on-screen), which only refreshes on a
+			// poll tick — force one out-of-band so the Sessions panel doesn't
+			// show the pre-rename label until the next ~1s tick catches up.
+			self?.livePollingDriver?.pollNow()
+			self?.settingsWindowController?.refreshSessionsTab()
 		}
 		panel.onSyncLabelRequested = { [weak self] in
 			let identityKey =
@@ -696,17 +708,23 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 					forOrigin: identity.origin, sessionId: identity.sessionId)
 			else { return }
 			SessionLabelStore.setLabelExemptFromCap(title, for: identityKey.rawValue)
+			// Same stale-cache reasoning as `onRenameRequested` above.
+			self?.livePollingDriver?.pollNow()
+			self?.settingsWindowController?.refreshSessionsTab()
 		}
 		panel.onPruneRequested = { [weak self] in
 			self?.floatingPetWindowPool?.pruneSession(
 				windowKey: origin, stateDirectory: stateDirectory)
+			self?.settingsWindowController?.refreshSessionsTab()
 		}
 		panel.onHideAllOtherPetsRequested = { [weak self] in
 			self?.floatingPetWindowPool?.hideAllOtherWindows(keepVisible: origin)
+			self?.settingsWindowController?.refreshSessionsTab()
 		}
 		panel.onModeSwitchRequested = { [weak self] in
 			guard let self else { return }
 			modeSwitch(self)
+			self.settingsWindowController?.refreshSessionsTab()
 		}
 		panel.onOpenSettingsRequested = { [weak self] in
 			self?.settingsWindowController?.show(tab: .customization)
@@ -715,6 +733,7 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			guard let self else { return }
 			hideWindow(self)
 			self.menuBuilder?.refreshFloatingPetMenuItemTitle()
+			self.settingsWindowController?.refreshSessionsTab()
 		}
 	}
 
