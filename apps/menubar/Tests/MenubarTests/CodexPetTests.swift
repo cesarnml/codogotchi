@@ -196,8 +196,8 @@ final class ActivityStateEnumTests: XCTestCase {
 		XCTAssertEqual(ActivityState(rawValue: "errored"), .errored)
 	}
 
-	func testAllCasesCountIs25() {
-		XCTAssertEqual(ActivityState.allCases.count, 25)
+	func testAllCasesCountIs26() {
+		XCTAssertEqual(ActivityState.allCases.count, 26)
 	}
 }
 

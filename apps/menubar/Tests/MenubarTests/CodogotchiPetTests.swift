@@ -117,15 +117,15 @@ final class CodogotchiPetTests: XCTestCase {
 		XCTAssertEqual(CodogotchiPet.idleFrustratedEnhancedRow.rowIndex, 1)
 	}
 
-	// MARK: - soaRowMap coverage (10 SoA gate states)
+	// MARK: - soaRowMap coverage (11 SoA gate states)
 
-	func testSoaRowMapHasExactly10GateStates() {
-		XCTAssertEqual(CodogotchiPet.soaRowMap.count, 10)
+	func testSoaRowMapHasExactly11GateStates() {
+		XCTAssertEqual(CodogotchiPet.soaRowMap.count, 11)
 	}
 
 	func testSoaRowMapCoversAllGateStates() {
 		let expected: Set<ActivityState> = [
-			.ticketStarted, .redTdd, .greenTdd, .adversarialReview,
+			.ticketStarted, .redTdd, .greenTdd, .refactorTdd, .adversarialReview,
 			.openPr, .pollReview, .reviewClean, .recordReview, .advance, .ticketCompleted,
 		]
 		XCTAssertEqual(Set(CodogotchiPet.soaRowMap.keys), expected)
@@ -147,6 +147,11 @@ final class CodogotchiPetTests: XCTestCase {
 	}
 	func testSoaRowAdversarialReviewIsRow3() {
 		XCTAssertEqual(CodogotchiPet.soaRowMap[.adversarialReview]?.rowIndex, 3)
+	}
+	func testSoaRowRefactorTddReusesAdversarialReviewRow3() {
+		// Deliberate: refactorTdd has no dedicated sheet art, so it reuses the
+		// adversarialReview "review" animation rather than waiting on new frames.
+		XCTAssertEqual(CodogotchiPet.soaRowMap[.refactorTdd]?.rowIndex, 3)
 	}
 	func testSoaRowOpenPrIsRow4() { XCTAssertEqual(CodogotchiPet.soaRowMap[.openPr]?.rowIndex, 4) }
 	func testSoaRowPollReviewIsRow5() {

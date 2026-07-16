@@ -19,7 +19,7 @@ import Foundation
 final class DemoCycleDriver {
 	typealias StateApply = (ActivityState) -> Void
 
-	/// Canonical demo cycle order — all 25 `ActivityState` cases.
+	/// Canonical demo cycle order — all 26 `ActivityState` cases.
 	/// The demo doubles as a manual visual check that every state renders correctly.
 	static let cycle: [(state: ActivityState, fixtureFilename: String)] = [
 		(.idle, "idle.json"),
@@ -40,6 +40,7 @@ final class DemoCycleDriver {
 		(.ticketStarted, "ticket_started.json"),
 		(.redTdd, "red_tdd.json"),
 		(.greenTdd, "green_tdd.json"),
+		(.refactorTdd, "refactor_tdd.json"),
 		(.adversarialReview, "adversarial_review.json"),
 		(.openPr, "open_pr.json"),
 		(.pollReview, "poll_review.json"),

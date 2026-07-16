@@ -71,12 +71,16 @@ final class CodogotchiPet {
 	/// Dedicated 0-HP row on the Lite-Basic sheet.
 	static let ghostBasicRow = RowSpec(rowIndex: 8, frameCount: 8)
 
-	/// SoA-sheet row map: 10 gate states.
+	/// SoA-sheet row map: 11 gate states.
 	/// Row indices match the lifecycle order in codogotchi-8frame-lite-soa-sheet-prompts.md.
+	/// `.refactorTdd` has no dedicated row on the sheet — it deliberately reuses
+	/// `.adversarialReview`'s row 3 (the "review" animation) rather than waiting
+	/// on new art, since both states represent a review-style gate.
 	static let soaRowMap: [ActivityState: RowSpec] = [
 		.ticketStarted: RowSpec(rowIndex: 0, frameCount: 8),
 		.redTdd: RowSpec(rowIndex: 1, frameCount: 8),
 		.greenTdd: RowSpec(rowIndex: 2, frameCount: 8),
+		.refactorTdd: RowSpec(rowIndex: 3, frameCount: 8),
 		.adversarialReview: RowSpec(rowIndex: 3, frameCount: 8),
 		.openPr: RowSpec(rowIndex: 4, frameCount: 8),
 		.pollReview: RowSpec(rowIndex: 5, frameCount: 8),
