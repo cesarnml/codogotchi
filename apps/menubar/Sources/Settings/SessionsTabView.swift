@@ -133,31 +133,9 @@ final class SessionsTabView: NSView {
 			title: "Prune All Sessions", tint: .systemRed,
 			action: { [weak self] in self?.pruneAllSessions() })
 
-		let refreshDivider = NSView()
-		refreshDivider.translatesAutoresizingMaskIntoConstraints = false
-		refreshDivider.wantsLayer = true
-		refreshDivider.layer?.backgroundColor = SettingsTheme.cardBorder.cgColor
-		NSLayoutConstraint.activate([
-			refreshDivider.widthAnchor.constraint(equalToConstant: 1),
-			refreshDivider.heightAnchor.constraint(equalToConstant: 26),
-		])
-
-		let refreshButton = NSButton(title: "Refresh", target: self, action: #selector(refreshSessions))
-		refreshButton.translatesAutoresizingMaskIntoConstraints = false
-		refreshButton.image = NSImage(
-			systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh Sessions")
-		refreshButton.imagePosition = .imageLeading
-		refreshButton.bezelStyle = .rounded
-		refreshButton.toolTip = "Refresh Sessions"
-		refreshButton.setAccessibilityLabel("Refresh Sessions")
-		NSLayoutConstraint.activate([
-			refreshButton.heightAnchor.constraint(equalToConstant: 36),
-			refreshButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 88),
-		])
-
 		let ttlRow = NSStackView(views: [
 			archiveLabel, archiveAfterIdlePicker, ttlDivider, pruneLabel, pruneArchivedPicker,
-			pruneAllDivider, pruneAllSessionsButton, refreshDivider, refreshButton,
+			pruneAllDivider, pruneAllSessionsButton,
 		])
 		ttlRow.orientation = .horizontal
 		ttlRow.alignment = .centerY
@@ -168,8 +146,6 @@ final class SessionsTabView: NSView {
 		ttlRow.setCustomSpacing(28, after: ttlDivider)
 		ttlRow.setCustomSpacing(28, after: pruneArchivedPicker)
 		ttlRow.setCustomSpacing(28, after: pruneAllDivider)
-		ttlRow.setCustomSpacing(28, after: pruneAllSessionsButton)
-		ttlRow.setCustomSpacing(28, after: refreshDivider)
 		ttlRow.translatesAutoresizingMaskIntoConstraints = false
 		card.addSubview(ttlRow)
 
@@ -279,11 +255,6 @@ final class SessionsTabView: NSView {
 			scrollView.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 			scrollView.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
 		])
-	}
-
-	@objc private func refreshSessions() {
-		viewModel.refresh()
-		reload(viewModel: viewModel)
 	}
 
 	@objc private func archiveAfterIdlePickerChanged(_ sender: NSPopUpButton) {

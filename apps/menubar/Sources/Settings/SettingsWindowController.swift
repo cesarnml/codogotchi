@@ -29,6 +29,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 	private let customizationTabViewModel: CustomizationTabViewModel
 	private let sessionsTabViewModel: SessionsTabViewModel
 	private weak var sessionsTab: SessionsTabView?
+	/// Live auto-refresh while the Sessions tab is the one currently on
+	/// screen — started/stopped in lockstep with `tabModel.selected`, never
+	/// left running against another tab or a closed window. See
+	/// `startSessionsAutoRefresh()`.
+	private var sessionsAutoRefreshTimer: Timer?
 
 	private let settingsController: SettingsController
 	private let petImportHelper: PetImportHelper
@@ -125,9 +130,40 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		sessionsTab.reload(viewModel: sessionsTabViewModel)
 	}
 
+	/// Starts (or restarts) a 1Hz `refreshSessionsTab()` heartbeat so a
+	/// visible Sessions tab picks up changes with no explicit trigger — a new
+	/// session appearing, or `SlicePruneScheduler`'s background sweep removing
+	/// a stale one — without the operator switching tabs or clicking Refresh.
+	/// `refreshSessionsTab()` already does its own live disk rescan each call
+	/// (`SessionsTabViewModel.refresh()` re-scans `state.d/` from scratch), so
+	/// this needs no wiring into the poll driver or the prune scheduler
+	/// itself — it is a pure, self-contained pull on a fixed cadence.
+	///
+	/// Deliberately scoped to "Sessions is the tab currently on screen", not
+	/// "the Settings window is open": gating on the whole window would burn a
+	/// wasted rescan every second while the operator is looking at General,
+	/// RPG, or any other tab. Call sites: the initial tab selection in
+	/// `openWindow()` (the `NSTabViewDelegate` isn't wired yet at that exact
+	/// moment) and every subsequent tab change via `tabView(_:didSelect:)`.
+	@MainActor
+	private func startSessionsAutoRefresh() {
+		stopSessionsAutoRefresh()
+		sessionsAutoRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
+			[weak self] _ in
+			Task { @MainActor in self?.refreshSessionsTab() }
+		}
+	}
+
+	@MainActor
+	private func stopSessionsAutoRefresh() {
+		sessionsAutoRefreshTimer?.invalidate()
+		sessionsAutoRefreshTimer = nil
+	}
+
 	// MARK: - NSWindowDelegate
 
 	func windowWillClose(_ notification: Notification) {
+		stopSessionsAutoRefresh()
 		window = nil
 		generalTab = nil
 		petTab = nil
@@ -149,6 +185,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		else { return }
 		tabModel.select(tab)
 		tabStripView?.setSelected(tab)
+		if tab == .sessions {
+			startSessionsAutoRefresh()
+		} else {
+			stopSessionsAutoRefresh()
+		}
 	}
 
 	// MARK: - Private
@@ -298,6 +339,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		tabView.selectTabViewItem(at: tabModel.selected.rawValue)
 		tabStrip.setSelected(tabModel.selected)
 		tabView.delegate = self
+		// The delegate above only catches later tab changes — cover landing
+		// directly on Sessions on this very first open (e.g. `show(tab: .sessions)`
+		// on a window that didn't exist yet, or reopening with Sessions still
+		// selected from a prior session).
+		if tabModel.selected == .sessions {
+			startSessionsAutoRefresh()
+		}
 
 		w.makeKeyAndOrderFront(nil)
 		NSApp.activate(ignoringOtherApps: true)
