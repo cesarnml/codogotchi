@@ -609,6 +609,50 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   takes" occurrence, ideally on a different key/identifier shape than
   `WindowKey`.
 
+### `stateful-tracker-keyed-by-render-target-not-occupant-identity`
+- **Seen:** 1× ledgered — `codogotchi-53` (phase-18, resolved phase-19 QC:
+  PromptTimerChip stuck on the previous fold winner's elapsed time).
+  `PoolMemory.promptTimers` is keyed by `WindowKey` — the render TARGET
+  (`.origin(origin)`, `.combined`, or a genuine `.session(...)`). For a
+  folded target, a DIFFERENT session can occupy that same key tick to
+  tick (sessions-off winner rotation, combined-mode winner rotation).
+  `PromptTimerTracker.observe` only restarts on an idle/session_start/
+  first-observation activity transition — it has no notion of occupant
+  identity, so a still-running tracker silently kept reporting the
+  PREVIOUS occupant's elapsed time under the new occupant's name. A
+  second, distinct manifestation of the same root idea shipped in the
+  same commit: `.combined` additionally had its OWN special-cased shared
+  tracker (one instance for every session that ever wins the slot,
+  across ALL origins), compounding the target-vs-occupant conflation
+  with an unnecessary second layer of sharing.
+- **Proposed clause:** *"When a stateful/mutable tracker (a timer, a
+  cache, a debounce clock, a retry counter) is keyed by a render target,
+  slot, or channel that can be occupied by different logical entities
+  over time (a fold winner, a connection-pool slot, a reused buffer),
+  ask: does this tracker's own restart/reset condition include 'the
+  occupant changed', or only 'the occupant's own state changed'? If the
+  tracker only reacts to the occupant's OWN activity signal, a rotation
+  to a new occupant that happens to already be mid-activity (not
+  freshly starting from idle) is invisible to it. The fix is comparing
+  the tracked identity against a durable resolved-identity signal each
+  observation, not adding more activity-state special cases."*
+- **Relationship to `sibling-method-skips-a-key-resolution-step-a-
+  neighbor-already-takes`:** both surfaced in the same QC session, both
+  in pool/fold code, both about winner rotation under sessions-off/
+  combined folding — but that class is about a CALLER forgetting to
+  resolve a key before a function call (a one-shot lookup mismatch);
+  this class is about a STATEFUL tracker's own restart condition being
+  blind to occupant identity across MULTIPLE ticks (a continuity bug,
+  not a lookup bug). Distinct enough to track separately for now.
+- **Caveat that blocks naive promotion:** single ledgered instance. The
+  "stateful tracker keyed by target not occupant" shape is specific to
+  code with a fold/pool/winner-election concept — narrower than most
+  promoted classes — needs ≥1 more occurrence, ideally a non-prompt-
+  timer tracker (a debounce clock, a retry backoff, a cache), before
+  promoting a standing review-prompt clause.
+- **Status:** WAITING — single instance from phase-18 prompt-timer
+  continuity, found via phase-19 QC dogfooding.
+
 ### `fold-winner-promotion-blocked-by-recency-only-election-and-cap-policy`
 - **Seen:** 1× — observed while scoping a phase-19 QC ask (Sessions panel Live
   rows should offer Show, not just Prune, and Show should be able to promote a
