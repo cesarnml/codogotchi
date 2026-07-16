@@ -274,15 +274,19 @@ bun run deliver --plan <plan-path> triage-advisory-observations --dispositions <
 
 ### `quality-control` (alias: `qc`)
 
-**Trigger:** `/soa quality-control phase-NN: <description>` or `/soa qc phase-NN: <description>`
+**Trigger:** `/soa quality-control phase-NN: <description>` or `/soa qc phase-NN: <description>`.
+`phase-unknown` is accepted in place of `phase-NN` when the operator can't name
+the originating phase up front — the `soa-quality-control` skill resolves it
+via investigation and operator confirmation before recording.
 
 Run the post-phase quality control lane for a small, verified fix that should
 create one review-gap ledger entry.
 
-1. Require the `phase-NN` argument before inspecting or changing files. If it is
-   missing or ambiguous, ask for the exact phase.
+1. Require a phase argument (`phase-NN` or the `phase-unknown` placeholder)
+   before inspecting or changing files. If neither form is given, ask for one.
 2. Invoke the `soa-quality-control` skill. That skill owns fix verification,
-   commit provenance, review-gap ledger capture, and promotion-queue guidance.
+   commit provenance, phase attribution (including resolving `phase-unknown`),
+   review-gap ledger capture, and promotion-queue guidance.
 3. Keep this skill-led. Do not add a `bun run deliver quality-control`
    delivery-orchestrator command for this path.
 

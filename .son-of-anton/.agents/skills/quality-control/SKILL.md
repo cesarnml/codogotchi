@@ -1,6 +1,6 @@
 ---
 name: soa-quality-control
-description: Guide a post-phase quality-control fix into one verified review-gap ledger record. Use for /soa quality-control phase-NN: <description> and /soa qc phase-NN: <description> after a small fix has exposed learning for future planning or review prompts.
+description: Guide a post-phase quality-control fix into one verified review-gap ledger record. Use for /soa quality-control phase-NN: <description> and /soa qc phase-NN: <description> after a small fix has exposed learning for future planning or review prompts. Also handles phase-unknown: <description> when the operator can't name the originating phase up front.
 ---
 
 # SoA Quality Control
@@ -12,9 +12,13 @@ Triggers:
 
 - `/soa quality-control phase-NN: <description>`
 - `/soa qc phase-NN: <description>`
+- `/soa quality-control phase-unknown: <description>` or `/soa qc phase-unknown: <description>`
+  — the operator knows the fix but not which phase produced the gap. This is a
+  supported placeholder, not a missing argument; see **Phase Attribution** below.
 
-The `phase-NN` argument is required. If it is missing or ambiguous, stop and ask
-for the exact phase before inspecting or changing files.
+A phase argument is required — either a concrete `phase-NN` or the literal
+placeholder `phase-unknown`. If it is absent entirely (neither form given),
+stop and ask for one before inspecting or changing files.
 
 ## Scope
 
@@ -34,7 +38,8 @@ already asking for quality-control capture.
 
 ## Workflow
 
-1. Parse the required `phase-NN` and the issue description.
+1. Parse the phase argument (a concrete `phase-NN`, or the `phase-unknown`
+   placeholder — see **Phase Attribution**) and the issue description.
 2. Inspect the relevant code, docs, tests, prior phase tickets, and review
    artifacts needed to understand the reported gap.
 3. Make the smallest prudent fix.
@@ -56,10 +61,40 @@ already asking for quality-control capture.
 9. Run formatting and the relevant verification command after editing the
    ledger or promotion queue.
 
+## Phase Attribution
+
+`phase-unknown` defers phase resolution to this skill instead of the operator.
+Proceed through steps 2-6 of the Workflow normally — the fix itself does not
+depend on phase attribution. Resolve the concrete `phase-NN` before step 7
+(recording), using this sequence:
+
+1. Investigate provenance with the same rigor as the fix itself:
+   `git log`/`git blame` on the touched files and their immediate dependents,
+   docstrings or comments citing a ticket/phase ID, the commit that introduced
+   the code path the bug lives in (not the commit that merely exposed it), and
+   any adjacent `docs/product/review-gaps/ledger.jsonl` rows already recorded
+   against the same feature surface.
+2. Form a single best-evidence recommendation — not a list of candidates. If
+   two phases are plausible, pick the one that introduced the _behavior_, not
+   the one that most recently touched the file.
+3. Present the recommendation and the evidence it rests on to the operator, and
+   get explicit confirmation before recording. Never silently record a guessed
+   phase — `phase-unknown` is a deferred decision, not permission to skip
+   attribution.
+4. If investigation surfaces no defensible attribution (the feature predates
+   the phase history, or spans so many phases that no single one produced it),
+   say so plainly and fall through to the `phase-NN` Stop Condition below
+   rather than recording a weak guess.
+
+The ledger schema has no `phase-unknown` value — `docs/product/review-gaps/
+ledger.jsonl` records always carry the resolved concrete `phase-NN` from this
+process, exactly as if the operator had supplied it directly.
+
 ## Recording Rules
 
 - Record the phase that produced the learning, not the phase that applies the
-  fix.
+  fix. For a `phase-unknown` entry, this is the outcome of **Phase
+  Attribution** above.
 - Use the landed fix commit SHA and subject for `fixCommit`.
 - Count how many detection or review rounds were needed before the issue was
   found.
@@ -92,7 +127,11 @@ already asking for quality-control capture.
 
 Stop and ask the operator when:
 
-- the phase argument cannot be resolved to a concrete `phase-NN`
+- the phase argument is missing entirely (neither a concrete `phase-NN` nor
+  `phase-unknown` was given)
+- a `phase-unknown` entry cannot be resolved to a concrete `phase-NN` after
+  investigation (see **Phase Attribution**), or the operator has not confirmed
+  the recommended attribution
 - the fix is not small and bounded
 - human verification has not happened and cannot be confirmed
 - commit provenance is unavailable
