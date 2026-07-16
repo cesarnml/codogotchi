@@ -234,6 +234,37 @@ enum AppStateStore {
 		try data.write(to: url, options: .atomic)
 	}
 
+	/// Removes `key`'s entries from `floating_pet_positions` and
+	/// `floating_pet_hidden`, leaving all other fields untouched. Called when a
+	/// session is pruned so app-state.json doesn't grow forever with entries
+	/// for windows that no longer exist. A no-op (including no file write) when
+	/// no state file exists yet or `key` has no entries in either map.
+	static func removeWindowEntries(for key: WindowKey) throws {
+		let url = appStateURL()
+		guard let existing = loadRawPayload(url: url) else { return }
+		var positions = existing.floatingPetPositions
+		var hidden = existing.floatingPetHidden
+		let hadPosition = positions?.removeValue(forKey: key.rawValue) != nil
+		let hadHidden = hidden?.removeValue(forKey: key.rawValue) != nil
+		guard hadPosition || hadHidden else { return }
+
+		let payload = AppStatePayload(
+			schemaVersion: APP_STATE_SCHEMA_VERSION,
+			floatingPet: existing.floatingPet,
+			floatingPetPositions: positions,
+			floatingPetHidden: hidden,
+			onboardingCompletedAt: existing.onboardingCompletedAt,
+			lastHookActivityAt: existing.lastHookActivityAt,
+			hooksStatus: existing.hooksStatus,
+			installedHookVersion: existing.installedHookVersion
+		)
+		let encoder = JSONEncoder()
+		encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+		encoder.keyEncodingStrategy = .convertToSnakeCase
+		let data = try encoder.encode(payload)
+		try data.write(to: url, options: .atomic)
+	}
+
 	private static func loadRawPayload(url: URL) -> AppStatePayload? {
 		guard let data = try? Data(contentsOf: url) else { return nil }
 		let decoder = JSONDecoder()

@@ -84,4 +84,42 @@ final class SessionPrunerTests: XCTestCase {
 			RetrievedSessionTitleStore.title(for: "claude_code:s2", at: retrievedTitlesFile.path),
 			"Sibling title")
 	}
+
+	// MARK: - app-state.json floating_pet_positions/floating_pet_hidden cleanup
+
+	/// P13/P15 QC: pruneSession must also remove the pruned window's entries
+	/// from app-state.json's floating_pet_positions/floating_pet_hidden maps,
+	/// or they accumulate forever for sessions that no longer exist.
+	func testPruneSessionRemovesAppStatePositionAndHiddenEntries() throws {
+		let appStateHome = FileManager.default.temporaryDirectory
+			.appendingPathComponent("SessionPrunerTests-appstate-\(UUID().uuidString)")
+		try FileManager.default.createDirectory(at: appStateHome, withIntermediateDirectories: true)
+		defer { try? FileManager.default.removeItem(at: appStateHome) }
+		let prevHome = ProcessInfo.processInfo.environment["CODOGOTCHI_HOME"] as String?
+		setenv("CODOGOTCHI_HOME", appStateHome.path, 1)
+		defer {
+			if let prevHome { setenv("CODOGOTCHI_HOME", prevHome, 1) } else { unsetenv("CODOGOTCHI_HOME") }
+		}
+
+		try AppStateStore.saveFrame(
+			CGRect(x: 100, y: 200, width: 160, height: 160),
+			for: .session(origin: "claude_code", id: "s1"))
+		try AppStateStore.saveHiddenWindowKeys([.session(origin: "claude_code", id: "s1")])
+
+		SessionPruner.pruneSession(
+			windowKey: "claude_code:s1",
+			origin: "claude_code",
+			sessionId: "s1",
+			stateDirectory: dir.path,
+			labelPath: labelsFile.path,
+			retrievedTitlePath: retrievedTitlesFile.path
+		)
+
+		let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
+		XCTAssertEqual(
+			AppStateStore.loadFrame(for: .session(origin: "claude_code", id: "s1"), visibleFrame: visibleFrame),
+			FloatingFramePolicy.defaultFrame(in: visibleFrame),
+			"the pruned session's saved position must be gone, not just fall back on read")
+		XCTAssertEqual(AppStateStore.loadHiddenWindowKeys(), [])
+	}
 }

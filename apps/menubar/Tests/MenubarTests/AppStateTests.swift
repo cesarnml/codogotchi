@@ -363,6 +363,63 @@ final class AppStateTests: XCTestCase {
 		}
 	}
 
+	// MARK: - removeWindowEntries (session-prune cleanup)
+
+	func testRemoveWindowEntriesDeletesBothPositionAndHiddenEntries() throws {
+		try withTempHome { _ in
+			try AppStateStore.saveFrame(
+				CGRect(x: 100, y: 200, width: 160, height: 160), for: .session(origin: "claude_code", id: "s1"))
+			try AppStateStore.saveHiddenWindowKeys([.session(origin: "claude_code", id: "s1")])
+
+			try AppStateStore.removeWindowEntries(for: .session(origin: "claude_code", id: "s1"))
+
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: .session(origin: "claude_code", id: "s1"), visibleFrame: visibleFrame),
+				FloatingFramePolicy.defaultFrame(in: visibleFrame),
+				"pruned session must fall back to the default frame, not a stale one")
+			XCTAssertEqual(AppStateStore.loadHiddenWindowKeys(), [])
+		}
+	}
+
+	func testRemoveWindowEntriesPreservesOtherKeys() throws {
+		try withTempHome { _ in
+			let siblingFrame = CGRect(x: 300, y: 400, width: 140, height: 140)
+			try AppStateStore.saveFrame(siblingFrame, for: .session(origin: "claude_code", id: "s2"))
+			try AppStateStore.saveFrame(
+				CGRect(x: 100, y: 200, width: 160, height: 160), for: .session(origin: "claude_code", id: "s1"))
+			try AppStateStore.saveHiddenWindowKeys([.session(origin: "claude_code", id: "s2")])
+
+			try AppStateStore.removeWindowEntries(for: .session(origin: "claude_code", id: "s1"))
+
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: .session(origin: "claude_code", id: "s2"), visibleFrame: visibleFrame),
+				siblingFrame, "a sibling session's saved frame must survive another session's prune")
+			XCTAssertEqual(AppStateStore.loadHiddenWindowKeys(), [.session(origin: "claude_code", id: "s2")])
+		}
+	}
+
+	func testRemoveWindowEntriesIsSafeWhenNoStateFileExists() throws {
+		try withTempHome { dir in
+			try AppStateStore.removeWindowEntries(for: .origin("cursor"))
+			XCTAssertFalse(
+				FileManager.default.fileExists(atPath: dir.appendingPathComponent("app-state.json").path),
+				"removing entries with no existing state file must not create one")
+		}
+	}
+
+	func testRemoveWindowEntriesIsSafeWhenKeyHasNoEntries() throws {
+		try withTempHome { _ in
+			try AppStateStore.saveFrame(
+				CGRect(x: 100, y: 200, width: 160, height: 160), for: .origin("cursor"))
+
+			try AppStateStore.removeWindowEntries(for: .origin("codex"))
+
+			XCTAssertEqual(
+				AppStateStore.loadFrame(for: .origin("cursor"), visibleFrame: visibleFrame),
+				CGRect(x: 100, y: 200, width: 160, height: 160))
+		}
+	}
+
 	// MARK: - Pre-P16.04 fixture round-trip (WindowKey upgrade path)
 
 	/// A real `app-state.json` byte payload as it existed before `WindowKey`
