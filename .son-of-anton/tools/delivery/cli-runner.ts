@@ -1,7 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+} from 'node:fs';
 import { realpath } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   getUsage,
@@ -140,6 +146,7 @@ import {
   readSubagentRunnerArtifact,
   resolvePrimaryAgent,
   resolveSubagentSelection,
+  runProgrammaticSubagentReview,
   runSubagentWithFallback,
   shouldFallbackToOtherRunner,
   SUBAGENT_LEDGER_SCHEMA_VERSION,
@@ -153,6 +160,19 @@ import {
   requireSubagentAdversarialPromptForRunner,
   writeSubagentAdversarialPrompt,
 } from './subagent-prompt';
+import {
+  deriveRefactorReviewLedgerPath,
+  deriveRefactorReviewOutcomePath,
+  deriveRefactorReviewTracePath,
+  extractDeferredRefactorReviewRows,
+  formatDeferredRefactorSuggestions,
+  isRefactorGateEligible,
+  isValidRefactorReviewPromptContent,
+  reconcileRefactorReview,
+  recordRefactorReviewOutcome,
+  requiresRefactorReviewBeforeAdversarial,
+  writeRefactorReviewPrompt,
+} from './refactor-review';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { GATE_NAMES, writeGateEvent } from './codogotchi-gate';
 
@@ -610,6 +630,51 @@ export async function runDeliveryOrchestrator(
           );
         }
 
+        const writeIsDocOnly = isPlatformLocalBranchDocOnly(
+          writeTarget.worktreePath,
+          writeTarget.baseBranch,
+          context.config.runtime,
+        );
+
+        // P20.03: the refactor gate (write-subagent-refactor-review ->
+        // subagent-refactor-review -> reconcile-subagent-refactor-review)
+        // runs after post-verify and before this step, but only when
+        // refactorReview is "runner_on_red" AND the ticket is `Red: required`
+        // AND not doc-only — reusing the adversarial gate's own doc-only
+        // detection rather than reimplementing it. `refactorReview:
+        // "disabled"` (the repo default) must leave this precondition check
+        // a no-op so today's adversarial-only flow is byte-for-byte
+        // unchanged.
+        if (
+          requiresRefactorReviewBeforeAdversarial({
+            refactorReviewPolicy: context.config.reviewPolicy.refactorReview,
+            redPolicy: writeTarget.redPolicy,
+            isDocOnly: writeIsDocOnly,
+            refactorReviewOutcome: writeTarget.refactorReviewOutcome,
+          })
+        ) {
+          throw new Error(
+            `Ticket ${writeTarget.id} requires the refactor-review gate before write-subagent-adversarial-review under refactorReview: "runner_on_red". ` +
+              `Run write-subagent-refactor-review -> subagent-refactor-review -> reconcile-subagent-refactor-review first.`,
+          );
+        }
+
+        // An outcome was recorded (or the ticket is ineligible for the
+        // refactor gate) — if eligible, auto-reconcile before proceeding,
+        // mirroring how open-pr auto-reconciles the adversarial ledger
+        // rather than requiring a manually-sequenced separate step. Missing
+        // artifact/reviewedHeadSha is soft (the gate returns early); a
+        // genuine Condition A/B silent-lie still hard-blocks.
+        if (
+          isRefactorGateEligible({
+            refactorReviewPolicy: context.config.reviewPolicy.refactorReview,
+            redPolicy: writeTarget.redPolicy,
+            isDocOnly: writeIsDocOnly,
+          })
+        ) {
+          runRefactorReconciliationGate(state, cwd, context, writeTarget.id);
+        }
+
         const writePolicy = context.config.reviewPolicy.subagentReview;
         if (writePolicy === 'disabled') {
           throw new Error(
@@ -617,11 +682,6 @@ export async function runDeliveryOrchestrator(
           );
         }
 
-        const writeIsDocOnly = isPlatformLocalBranchDocOnly(
-          writeTarget.worktreePath,
-          writeTarget.baseBranch,
-          context.config.runtime,
-        );
         if (writePolicy === 'skip_doc_only' && writeIsDocOnly) {
           throw new Error(
             `Ticket ${writeTarget.id} is doc-only under skip_doc_only — subagent review auto-skips and no adversarial prompt is required. Run subagent-review next.`,
@@ -1190,6 +1250,545 @@ export async function runDeliveryOrchestrator(
         );
         return 0;
       }
+      case 'write-subagent-refactor-review': {
+        const writeTicketId = parsed.positionals[0];
+        const writeTarget =
+          (writeTicketId
+            ? state.tickets.find((t) => t.id === writeTicketId)
+            : state.tickets.find((t) => t.status === 'verified')) ?? undefined;
+        if (!writeTarget) {
+          throw new Error(
+            writeTicketId
+              ? `Unknown ticket ${writeTicketId}.`
+              : 'No ticket at verified status found.',
+          );
+        }
+        if (
+          !isRefactorGateEligible({
+            refactorReviewPolicy: context.config.reviewPolicy.refactorReview,
+            redPolicy: writeTarget.redPolicy,
+            isDocOnly: isPlatformLocalBranchDocOnly(
+              writeTarget.worktreePath,
+              writeTarget.baseBranch,
+              context.config.runtime,
+            ),
+          })
+        ) {
+          throw new Error(
+            `Ticket ${writeTarget.id} bypasses the refactor gate structurally (refactorReview disabled, Red: skip, or doc-only) — write-subagent-refactor-review is not applicable.`,
+          );
+        }
+
+        if (!parsed.promptFile) {
+          throw new Error(
+            `write-subagent-refactor-review requires --prompt-file <path>. The refactor-review brief must be a primary-agent-authored, filled-in ` +
+              `docs/template/delivery/refactor-review-template.md — there is no generic auto-built fallback, unlike the adversarial gate's changed-files ` +
+              `prompt (which is itself boilerplate, not a substitute for real authorship).`,
+          );
+        }
+        const promptContent = readFileSync(
+          resolve(cwd, parsed.promptFile),
+          'utf-8',
+        );
+
+        if (!isValidRefactorReviewPromptContent(promptContent)) {
+          throw new Error(
+            `Refusing to write empty or placeholder-like refactor-review prompt for ticket ${writeTarget.id}.`,
+          );
+        }
+
+        await emitRefactorReviewGate(
+          writeTarget,
+          context.config,
+          state.planKey,
+        );
+
+        const written = writeRefactorReviewPrompt({
+          repoRoot: cwd,
+          reviewsDirPath: state.reviewsDirPath,
+          ticketId: writeTarget.id,
+          content: promptContent,
+        });
+
+        const nextState: DeliveryState = {
+          ...state,
+          tickets: state.tickets.map((t) =>
+            t.id === writeTarget.id
+              ? {
+                  ...t,
+                  refactorReviewPromptPath: written.relativePath,
+                  refactorReviewPromptWrittenAt: written.writtenAt,
+                }
+              : t,
+          ),
+        };
+
+        commitDeliveryArtifactAndPush({
+          absolutePath: written.absolutePath,
+          branch: writeTarget.branch,
+          commitMessage: `chore(${writeTarget.id}): record refactor-review prompt`,
+          ensureBranchPushed: context.platform.ensureBranchPushed,
+          relativeToRepo,
+          repoRoot: cwd,
+          runProcess: context.platform.runProcess,
+        });
+
+        console.log(
+          `Recorded refactor-review prompt for ${writeTarget.id} at ${written.relativePath}.`,
+        );
+        await saveState(cwd, nextState);
+        console.log(formatStatus(nextState, context.config));
+        return 0;
+      }
+      case 'subagent-refactor-review': {
+        if (parsed.positionals[0] === 'record-deferred') {
+          const deferTicketId = parsed.positionals[1];
+          const deferTarget =
+            (deferTicketId
+              ? state.tickets.find((t) => t.id === deferTicketId)
+              : state.tickets.find((t) => t.status === 'verified')) ??
+            undefined;
+          if (!deferTarget) {
+            throw new Error(
+              'record-deferred requires a ticket at verified status (or pass an explicit ticket id).',
+            );
+          }
+          if (
+            !isRefactorGateEligible({
+              refactorReviewPolicy: context.config.reviewPolicy.refactorReview,
+              redPolicy: deferTarget.redPolicy,
+              isDocOnly: isPlatformLocalBranchDocOnly(
+                deferTarget.worktreePath,
+                deferTarget.baseBranch,
+                context.config.runtime,
+              ),
+            })
+          ) {
+            throw new Error(
+              `Ticket ${deferTarget.id} bypasses the refactor gate structurally (refactorReview disabled, Red: skip, or doc-only) — record-deferred is not applicable.`,
+            );
+          }
+          if (!parsed.reason || parsed.reason.trim() === '') {
+            throw new Error(
+              'record-deferred requires a non-empty --reason; the rationale is captured on the ledger for audit.',
+            );
+          }
+          const ledgerRel =
+            deferTarget.refactorRunnerArtifactPath ??
+            deriveRefactorReviewLedgerPath(
+              state.reviewsDirPath,
+              deferTarget.id,
+            );
+          const ledgerAbs = resolve(cwd, ledgerRel);
+          const existingArtifact = tryReadSubagentRunnerArtifact(
+            ledgerAbs,
+            deferTarget.id,
+          );
+          const lastInvocation =
+            existingArtifact?.invocations[
+              existingArtifact.invocations.length - 1
+            ];
+          const currentWorktreeHeadSha = (() => {
+            const r = spawnSync('git', ['rev-parse', 'HEAD'], {
+              cwd: deferTarget.worktreePath,
+              encoding: 'utf-8',
+            });
+            return r.status === 0 ? r.stdout.trim() : '';
+          })();
+          const reviewedHead =
+            lastInvocation?.reviewedHeadSha ??
+            deferTarget.refactorReviewedHeadSha ??
+            currentWorktreeHeadSha;
+          if (!reviewedHead) {
+            throw new Error(
+              `record-deferred could not resolve a HEAD sha for ${deferTarget.id}'s worktree at ${deferTarget.worktreePath}. Is it a valid git checkout?`,
+            );
+          }
+          const primaryAgentForDefer = resolvePrimaryAgent({
+            flag: parsed.primary,
+            configField: context.config.primaryAgent,
+          });
+          const deferredInvocation = buildRunnerInvocation(
+            'operator-recorder',
+            reviewedHead,
+            'deferred',
+            {
+              terminatedReason: 'completed',
+              schemaVersion: SUBAGENT_LEDGER_SCHEMA_VERSION,
+              primaryAgent: primaryAgentForDefer,
+              findings: [parsed.reason.trim()],
+            },
+          );
+          appendInvocationToArtifact(
+            ledgerAbs,
+            deferTarget.id,
+            deferredInvocation,
+          );
+          const nextState = recordRefactorReviewOutcome({
+            state,
+            ticketId: deferTarget.id,
+            outcome: 'deferred',
+            reviewedHeadSha: reviewedHead,
+            agentName: primaryAgentForDefer,
+            artifactPath: ledgerRel,
+          });
+          commitDeliveryArtifactAndPush({
+            absolutePath: ledgerAbs,
+            branch: deferTarget.branch,
+            commitMessage: `chore(${deferTarget.id}): record refactor-review deferred row`,
+            ensureBranchPushed: context.platform.ensureBranchPushed,
+            relativeToRepo,
+            repoRoot: cwd,
+            runProcess: context.platform.runProcess,
+          });
+          console.log(
+            `Recorded deferred row for ${deferTarget.id} (reason captured).`,
+          );
+          await saveState(cwd, nextState);
+          return 0;
+        }
+
+        const refactorArgs = parseSubagentReviewArgs(
+          parsed.positionals,
+          parsed.flags,
+        );
+        const refactorTicketId = refactorArgs.ticketId;
+        const refactorTarget =
+          (refactorTicketId
+            ? state.tickets.find((t) => t.id === refactorTicketId)
+            : state.tickets.find((t) => t.status === 'verified')) ?? undefined;
+        if (!refactorTarget) {
+          throw new Error(
+            refactorTicketId
+              ? `Unknown ticket ${refactorTicketId}.`
+              : 'No ticket at verified status found.',
+          );
+        }
+        if (
+          !isRefactorGateEligible({
+            refactorReviewPolicy: context.config.reviewPolicy.refactorReview,
+            redPolicy: refactorTarget.redPolicy,
+            isDocOnly: isPlatformLocalBranchDocOnly(
+              refactorTarget.worktreePath,
+              refactorTarget.baseBranch,
+              context.config.runtime,
+            ),
+          })
+        ) {
+          throw new Error(
+            `Ticket ${refactorTarget.id} bypasses the refactor gate structurally (refactorReview disabled, Red: skip, or doc-only) — subagent-refactor-review is not applicable.`,
+          );
+        }
+
+        const ledgerRelPath =
+          refactorTarget.refactorRunnerArtifactPath ??
+          deriveRefactorReviewLedgerPath(
+            state.reviewsDirPath,
+            refactorTarget.id,
+          );
+        const ledgerAbsPath = resolve(cwd, ledgerRelPath);
+
+        const readHeadShaForDispatch = () => {
+          try {
+            return spawnSync('git', ['rev-parse', 'HEAD'], {
+              cwd: refactorTarget.worktreePath,
+              encoding: 'utf-8',
+            }).stdout.trim();
+          } catch {
+            return '';
+          }
+        };
+        const existingArtifact = tryReadSubagentRunnerArtifact(
+          ledgerAbsPath,
+          refactorTarget.id,
+        );
+        const dispatchHeadSha = readHeadShaForDispatch();
+        const dispatch = decideSubagentReviewMode(
+          {
+            outcome: refactorArgs.outcome,
+            reviewedHeadSha: refactorArgs.reviewedHeadSha,
+            force: refactorArgs.force,
+          },
+          existingArtifact,
+          dispatchHeadSha,
+        );
+
+        const primaryAgent = resolvePrimaryAgent({
+          flag: parsed.primary,
+          configField: context.config.primaryAgent,
+        });
+
+        if (dispatch.kind === 'recorder') {
+          const recorderPatchCommits =
+            dispatch.outcome === 'patched'
+              ? resolveInternalReviewPatchCommits(
+                  refactorTarget.worktreePath,
+                  context,
+                  refactorArgs.patchCommitArgs.length > 0
+                    ? refactorArgs.patchCommitArgs
+                    : [dispatch.reviewedHeadSha],
+                  '[refactor-review]',
+                  'Refactor review',
+                )
+              : undefined;
+
+          const recorderInvocation = buildRunnerInvocation(
+            'operator-recorder',
+            dispatch.reviewedHeadSha,
+            dispatch.outcome,
+            {
+              terminatedReason: 'completed',
+              patches: recorderPatchCommits?.map((c) => c.sha) ?? [],
+              schemaVersion: SUBAGENT_LEDGER_SCHEMA_VERSION,
+              primaryAgent,
+            },
+          );
+          appendInvocationToArtifact(
+            ledgerAbsPath,
+            refactorTarget.id,
+            recorderInvocation,
+          );
+          const nextState = recordRefactorReviewOutcome({
+            state,
+            ticketId: refactorTarget.id,
+            outcome: dispatch.outcome,
+            reviewedHeadSha: dispatch.reviewedHeadSha,
+            patchCommits: recorderPatchCommits,
+            agentName: primaryAgent,
+            artifactPath: ledgerRelPath,
+          });
+          commitDeliveryArtifactAndPush({
+            absolutePath: ledgerAbsPath,
+            branch: refactorTarget.branch,
+            commitMessage: `chore(${refactorTarget.id}): record refactor-review runner artifact`,
+            ensureBranchPushed: context.platform.ensureBranchPushed,
+            relativeToRepo,
+            repoRoot: cwd,
+            runProcess: context.platform.runProcess,
+          });
+          console.log(
+            `Recorded operator-recorder invocation (outcome=${dispatch.outcome}, sha=${dispatch.reviewedHeadSha}). No runner subprocess invoked.`,
+          );
+          await saveState(cwd, nextState);
+          console.log(formatStatus(nextState, context.config));
+          return 0;
+        }
+
+        if (dispatch.kind === 'no-op') {
+          console.log(
+            `No-op: artifact already contains a valid invocation for HEAD ${dispatch.reviewedHeadSha}. Pass --force to re-run the runner.`,
+          );
+          console.log(formatStatus(state, context.config));
+          return 0;
+        }
+
+        const promptPath = refactorTarget.refactorReviewPromptPath;
+        if (!promptPath) {
+          throw new Error(
+            `Ticket ${refactorTarget.id} has no recorded refactor-review prompt. Run write-subagent-refactor-review first.`,
+          );
+        }
+        const reviewPrompt = readFileSync(resolve(cwd, promptPath), 'utf-8');
+
+        const subagentSelection = resolveSubagentSelection({
+          flag: parsed.subagent,
+          configField: context.config.subagentRunner,
+        });
+
+        const worktreePath = refactorTarget.worktreePath;
+        const runResult = runProgrammaticSubagentReview({
+          requestedRunner: subagentSelection.kind,
+          reviewPrompt,
+          worktreePath,
+          spawn: (bin, args, opts) => spawnSync(bin, args, opts),
+          readHeadSha: () => {
+            try {
+              return spawnSync('git', ['rev-parse', 'HEAD'], {
+                cwd: worktreePath,
+                encoding: 'utf-8',
+              }).stdout.trim();
+            } catch {
+              return 'unknown';
+            }
+          },
+          listDirtyPaths: () => {
+            const status = spawnSync('git', ['status', '--porcelain'], {
+              cwd: worktreePath,
+              encoding: 'utf-8',
+            });
+            return (status.stdout ?? '')
+              .split('\n')
+              .map((line) => line.slice(3).trim())
+              .map((p) => p.split(' -> ').pop() ?? p)
+              .filter(Boolean);
+          },
+          listDiffPaths: (revisionRange) => {
+            const result = spawnSync(
+              'git',
+              ['diff', '--name-only', revisionRange],
+              { cwd: worktreePath, encoding: 'utf-8' },
+            );
+            return (result.stdout ?? '')
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean);
+          },
+          readWorktreeFingerprint: () => {
+            // Content-level fingerprint so a runner that rewrites a path
+            // already dirty before the invocation still trips the
+            // advisory-only contract, not just a new dirty path appearing.
+            const diff = spawnSync('git', ['diff'], {
+              cwd: worktreePath,
+              encoding: 'utf-8',
+            });
+            const cached = spawnSync('git', ['diff', '--cached'], {
+              cwd: worktreePath,
+              encoding: 'utf-8',
+            });
+            const untracked = spawnSync(
+              'git',
+              ['ls-files', '--others', '--exclude-standard'],
+              { cwd: worktreePath, encoding: 'utf-8' },
+            );
+            return [diff.stdout, cached.stdout, untracked.stdout]
+              .map((s) => s ?? '')
+              .join(' ');
+          },
+          classify: ({ runner, exitCode, stdout, stderr }) => {
+            const classified =
+              runner === 'codex-cli'
+                ? coerceCodexCliClassification({ exitCode, stdout, stderr })
+                : runner === 'cursor-cli'
+                  ? coerceCursorCliClassification({ exitCode, stdout, stderr })
+                  : coerceClaudeCliClassification({
+                      exitCode,
+                      stdout,
+                      stderr,
+                    });
+            return classified;
+          },
+        });
+
+        if (runResult.runnerWroteFiles) {
+          console.log(
+            `Runner ${runResult.usedRunner} attempted file writes — recording as advisory_violation (advisory-only contract). Affected paths: ${runResult.writePaths.join(', ')}`,
+          );
+        }
+
+        let outcomeSidecar:
+          | { absolutePath: string; relativePath: string }
+          | undefined;
+        if (
+          runResult.rawOutput !== undefined ||
+          runResult.stdout !== undefined
+        ) {
+          const relativePath = deriveRefactorReviewOutcomePath(
+            state.reviewsDirPath,
+            refactorTarget.id,
+          );
+          const tracePath = deriveRefactorReviewTracePath(
+            state.reviewsDirPath,
+            refactorTarget.id,
+          );
+          const absolutePath = resolve(cwd, relativePath);
+          const traceAbsolutePath = resolve(cwd, tracePath);
+          const body = runResult.stdout ?? runResult.rawOutput ?? '';
+          mkdirSync(dirname(absolutePath), { recursive: true });
+          writeFileSync(
+            absolutePath,
+            body.endsWith('\n') ? body : `${body}\n`,
+            'utf-8',
+          );
+          writeFileSync(traceAbsolutePath, runResult.stderr ?? '', 'utf-8');
+          outcomeSidecar = { absolutePath, relativePath };
+        }
+
+        const invocation = buildRunnerInvocation(
+          runResult.usedRunner,
+          runResult.headSha,
+          runResult.outcome,
+          {
+            terminatedReason: runResult.terminatedReason,
+            rawOutput: outcomeSidecar?.relativePath,
+            filledPrompt: promptPath,
+            fallbackLevel: runResult.fallbackLevel,
+            schemaVersion: SUBAGENT_LEDGER_SCHEMA_VERSION,
+            primaryAgent,
+            runnerSelfReport: runResult.runnerSelfReport,
+            fallbackFrom: runResult.fallbackFrom,
+          },
+        );
+        appendInvocationToArtifact(
+          ledgerAbsPath,
+          refactorTarget.id,
+          invocation,
+        );
+
+        const nextState = recordRefactorReviewOutcome({
+          state,
+          ticketId: refactorTarget.id,
+          outcome: runResult.outcome,
+          reviewedHeadSha: runResult.headSha,
+          agentName: primaryAgent,
+          artifactPath: ledgerRelPath,
+        });
+        commitDeliveryArtifactAndPush({
+          absolutePath: ledgerAbsPath,
+          alsoCommitAbsolutePaths: outcomeSidecar
+            ? [outcomeSidecar.absolutePath]
+            : undefined,
+          branch: refactorTarget.branch,
+          commitMessage: `chore(${refactorTarget.id}): record refactor-review runner artifact`,
+          ensureBranchPushed: context.platform.ensureBranchPushed,
+          relativeToRepo,
+          repoRoot: cwd,
+          runProcess: context.platform.runProcess,
+        });
+
+        if (runResult.outcome === 'skipped') {
+          console.log(
+            `Runner ${runResult.usedRunner === 'skipped' ? '(all unavailable)' : runResult.usedRunner} terminatedReason=${runResult.terminatedReason} — refactor review honestly skipped.`,
+          );
+        }
+        await saveState(cwd, nextState);
+        console.log(formatStatus(nextState, context.config));
+        return 0;
+      }
+      case 'reconcile-subagent-refactor-review': {
+        const reconcileTicketId = parsed.positionals[0];
+        const reconcileTarget =
+          (reconcileTicketId
+            ? state.tickets.find((t) => t.id === reconcileTicketId)
+            : (state.tickets.find((t) => t.status === 'verified') ??
+              state.tickets.find((t) => t.status === 'in_review'))) ??
+          undefined;
+        if (
+          reconcileTarget &&
+          !isRefactorGateEligible({
+            refactorReviewPolicy: context.config.reviewPolicy.refactorReview,
+            redPolicy: reconcileTarget.redPolicy,
+            isDocOnly: isPlatformLocalBranchDocOnly(
+              reconcileTarget.worktreePath,
+              reconcileTarget.baseBranch,
+              context.config.runtime,
+            ),
+          })
+        ) {
+          throw new Error(
+            `Ticket ${reconcileTarget.id} bypasses the refactor gate structurally (refactorReview disabled, Red: skip, or doc-only) — reconcile-subagent-refactor-review is not applicable.`,
+          );
+        }
+        runRefactorReconciliationGate(
+          state,
+          cwd,
+          context,
+          parsed.positionals[0],
+        );
+        console.log(
+          'reconcile-subagent-refactor-review: ledger is consistent with git state.',
+        );
+        return 0;
+      }
       case 'open-pr': {
         // P14.03: --ack-reconciliation appends an operator-explicit row to
         // the runner artifact, then proceeds to the standard open-pr gate.
@@ -1382,6 +1981,7 @@ export async function runDeliveryOrchestrator(
           findPrimaryWorktreePath(wt, context.config),
         );
         console.log(formatStatus(nextState, context.config));
+        printDeferredRefactorSuggestionsForAdvance(cwd, state, nextState);
         await emitGateForTransitions(state, nextState, context.config);
         const boundaryGuidance = formatAdvanceBoundaryGuidance(
           state,
@@ -2021,7 +2621,7 @@ function resolveInternalReviewPatchCommits(
   cwd: string,
   context: DeliveryOrchestratorContext,
   rawShas: string[],
-  suffix: '[post-verify]' | '[subagent-review]',
+  suffix: '[post-verify]' | '[subagent-review]' | '[refactor-review]',
   stageLabel: string,
 ): InternalReviewPatchCommit[] {
   const platform = context.platform;
@@ -2417,6 +3017,18 @@ export async function emitPostRedGate(
   });
 }
 
+export async function emitRefactorReviewGate(
+  ticket: TicketState,
+  config: ResolvedOrchestratorConfig,
+  planKey: string,
+): Promise<void> {
+  await writeGateEvent(config, {
+    gate: GATE_NAMES.REFACTOR_TDD,
+    planKey,
+    ticketId: ticket.id,
+  });
+}
+
 export async function emitAdversarialReviewGate(
   ticket: TicketState,
   config: ResolvedOrchestratorConfig,
@@ -2734,6 +3346,213 @@ async function runReconcileSubagentReview(
   console.log(
     'reconcile-subagent-review: ledger is consistent with git state.',
   );
+}
+
+/**
+ * P20.04 — prints any `deferred` refactor-review suggestions for the ticket
+ * that `advance` just marked `done`, so a human sees them at this natural
+ * stopping point rather than only in a post-phase sweep. Silent (no output,
+ * no error) when no refactor-review ledger exists for that ticket, or when
+ * it exists but has zero `deferred` rows.
+ */
+function printDeferredRefactorSuggestionsForAdvance(
+  cwd: string,
+  prevState: DeliveryState,
+  nextState: DeliveryState,
+): void {
+  const completedTicket = nextState.tickets.find((t) => {
+    const before = prevState.tickets.find((b) => b.id === t.id);
+    return t.status === 'done' && before && before.status !== 'done';
+  });
+  if (!completedTicket) return;
+
+  const ledgerRel =
+    completedTicket.refactorRunnerArtifactPath ??
+    deriveRefactorReviewLedgerPath(
+      nextState.reviewsDirPath,
+      completedTicket.id,
+    );
+  const ledgerAbs = resolve(cwd, ledgerRel);
+  if (!existsSync(ledgerAbs)) return;
+
+  let artifact: unknown;
+  try {
+    artifact = JSON.parse(readFileSync(ledgerAbs, 'utf-8'));
+  } catch {
+    return;
+  }
+  const rows = extractDeferredRefactorReviewRows(artifact);
+  const message = formatDeferredRefactorSuggestions(completedTicket.id, rows);
+  if (message) {
+    console.log('');
+    console.log(message);
+  }
+}
+
+function loadRefactorReconciliationContext(
+  state: DeliveryState,
+  cwd: string,
+  ticketId?: string,
+): {
+  ticket: TicketState;
+  artifactAbs: string;
+  artifactRows: Array<{ outcome: string; reviewedHeadSha?: string }>;
+  reviewedHeadSha: string;
+  headSha: string;
+  reviewedPaths: string[];
+  reportMarkdown: string;
+} {
+  const ticket =
+    (ticketId
+      ? state.tickets.find((t) => t.id === ticketId)
+      : (state.tickets.find((t) => t.status === 'verified') ??
+        state.tickets.find((t) => t.status === 'in_review'))) ?? undefined;
+  if (!ticket) {
+    throw new Error(
+      ticketId
+        ? `Unknown ticket ${ticketId}.`
+        : 'No ticket at verified / in_review found.',
+    );
+  }
+  const artifactRel =
+    ticket.refactorRunnerArtifactPath ??
+    deriveRefactorReviewLedgerPath(state.reviewsDirPath, ticket.id);
+  const artifactAbs = resolve(cwd, artifactRel);
+  let rows: Array<{ outcome: string; reviewedHeadSha?: string }> = [];
+  let reviewedHeadSha = '';
+  if (existsSync(artifactAbs)) {
+    try {
+      const parsed = JSON.parse(readFileSync(artifactAbs, 'utf-8')) as {
+        invocations?: Array<{ outcome: string; reviewedHeadSha?: string }>;
+      };
+      rows = parsed.invocations ?? [];
+      const last = rows[rows.length - 1];
+      if (last?.reviewedHeadSha) reviewedHeadSha = last.reviewedHeadSha;
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!reviewedHeadSha) {
+    throw new Error(
+      `No reviewedHeadSha recorded for ${ticket.id}. Run subagent-refactor-review first.`,
+    );
+  }
+  const headSha = spawnSync('git', ['rev-parse', 'HEAD'], {
+    cwd: ticket.worktreePath,
+    encoding: 'utf-8',
+  }).stdout.trim();
+
+  const reviewedPaths = gitListChangedPaths(
+    ticket.worktreePath,
+    ticket.baseBranch,
+    reviewedHeadSha,
+  );
+
+  const outcomePath = deriveRefactorReviewOutcomePath(
+    state.reviewsDirPath,
+    ticket.id,
+  );
+  const outcomeAbs = resolve(cwd, outcomePath);
+  const reportMarkdown = existsSync(outcomeAbs)
+    ? readFileSync(outcomeAbs, 'utf-8')
+    : '';
+
+  return {
+    ticket,
+    artifactAbs,
+    artifactRows: rows,
+    reviewedHeadSha,
+    headSha,
+    reviewedPaths,
+    reportMarkdown,
+  };
+}
+
+function runRefactorReconciliationGate(
+  state: DeliveryState,
+  cwd: string,
+  context: DeliveryOrchestratorContext,
+  ticketId?: string,
+): void {
+  if (context.config.reviewPolicy.refactorReview === 'disabled') return;
+  let ctx: ReturnType<typeof loadRefactorReconciliationContext>;
+  try {
+    ctx = loadRefactorReconciliationContext(state, cwd, ticketId);
+  } catch {
+    return;
+  }
+  const hasNonSkipped = ctx.artifactRows.some((r) => r.outcome !== 'skipped');
+  if (!hasNonSkipped) return;
+
+  const decision = reconcileRefactorReview({
+    artifactRows: ctx.artifactRows,
+    reportMarkdown: ctx.reportMarkdown,
+    reviewedHeadSha: ctx.reviewedHeadSha,
+    headSha: ctx.headSha,
+    reviewedPaths: ctx.reviewedPaths,
+    listCommitSubjects: (from, to) =>
+      gitListCommitsInRange(ctx.ticket.worktreePath, from, to),
+    listCommitFiles: (sha) => gitListCommitFiles(ctx.ticket.worktreePath, sha),
+    listChangedPathsInRange: (from, to) =>
+      gitListChangedPaths(ctx.ticket.worktreePath, from, to),
+  });
+
+  if (decision.kind === 'blocked') {
+    throw new ReconciliationBlockedError(decision.condition, decision.message);
+  }
+
+  if (decision.kind === 'patched') {
+    const parsed = JSON.parse(readFileSync(ctx.artifactAbs, 'utf-8')) as {
+      ticket: string;
+      invocations: Array<Record<string, unknown>>;
+    };
+    const alreadyRecorded = parsed.invocations.some((row) => {
+      if (row['outcome'] !== 'patched') return false;
+      if (row['reviewedHeadSha'] !== ctx.reviewedHeadSha) return false;
+      const existing = row['patches'];
+      if (!Array.isArray(existing)) return false;
+      return decision.commitShas.every((sha) =>
+        (existing as unknown[]).includes(sha),
+      );
+    });
+    if (alreadyRecorded) {
+      console.log(
+        `reconcile-subagent-refactor-review: patched row for ${decision.commitShas.join(', ')} already recorded; skipping duplicate.`,
+      );
+      return;
+    }
+    parsed.invocations.push({
+      runnerKind: 'operator-recorder',
+      reviewedHeadSha: ctx.reviewedHeadSha,
+      outcome: 'patched',
+      completedAt: new Date().toISOString(),
+      terminatedReason: 'completed',
+      findings: [],
+      probedSurfaces: [],
+      patches: decision.commitShas,
+      schemaVersion: SUBAGENT_LEDGER_SCHEMA_VERSION,
+      primaryAgent: 'unknown',
+      runnerSelfReport: null,
+      fallbackFrom: null,
+    });
+    writeFileSync(
+      ctx.artifactAbs,
+      JSON.stringify(parsed, null, 2) + '\n',
+      'utf-8',
+    );
+    commitDeliveryArtifactAndPush({
+      absolutePath: ctx.artifactAbs,
+      branch: ctx.ticket.branch,
+      commitMessage: `chore(${ctx.ticket.id}): refactor-review reconciliation appended patched row`,
+      ensureBranchPushed: context.platform.ensureBranchPushed,
+      relativeToRepo,
+      repoRoot: cwd,
+      runProcess: context.platform.runProcess,
+    });
+    console.log(
+      `reconcile-subagent-refactor-review: appended patched row referencing ${decision.commitShas.join(', ')}`,
+    );
+  }
 }
 
 async function runAckReconciliation(

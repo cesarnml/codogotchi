@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-07-16T09:07:41.658Z",
+  "summary": {
+    "total": 11,
+    "patched": 2,
+    "rejected": 5,
+    "already-covered": 4,
+    "requires-human-review": 0
+  },
+  "dispositions": [
+    {
+      "disposition": "rejected",
+      "rationale": "RefactorReconciliationBlockedError is unused scaffolding, not a defect — the reconciliation function returns a blocked union type instead and callers rely on that, not the exported error class. No behavior is affected; leaving the export in place costs nothing today.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.01-subagent-review.report.md",
+        "ticketId": "P20.01"
+      },
+      "observation": "`RefactorReconciliationBlockedError` is exported but unused by the new reconciliation function, which returns a blocked union instead. This is harmless scaffolding today but makes the public API less clear for P20.02."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "The parser's tolerance for `None.` and case-insensitive variants is a superset of the documented `None` contract, not a violation of it — no unsafe or incorrect behavior results, and no failure has been reported. Tightening it now would only reduce compatibility with no observed upside.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.01-subagent-review.report.md",
+        "ticketId": "P20.01"
+      },
+      "observation": "The parser accepts `None.` and case-insensitive variants although the ticket and contract specify the literal `None`. This tolerance is not currently unsafe, but it is broader than the documented contract."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "The observation itself confirms the ticket's blank Rationale is policy-compliant, since no trade-off was made in P20.01. It is conditional guidance for future tickets that alter the parser/reconciliation design, not an action item for this ticket.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.01-subagent-review.report.md",
+        "ticketId": "P20.01"
+      },
+      "observation": "The ticket Rationale placeholder is policy-compliant because no trade-off was recorded. If the primary agent accepts any fixes above that alter the parser or reconciliation design, the resulting rationale should be appended there."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Already fixed during the ticket's own review-triage cycle: commit d38c7ff0a39a24cbd7e074e7556f36d79156055e appended the status-machine non-interference trade-off to ticket-02's ## Rationale section.",
+      "patch": {
+        "commitSha": "d38c7ff0a39a24cbd7e074e7556f36d79156055e",
+        "files": [
+          "docs/product/delivery/phase-20/ticket-02-refactor-review-cli-commands.md"
+        ]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.02-subagent-review.report.md",
+        "ticketId": "P20.02"
+      },
+      "observation": "`docs/product/delivery/phase-20/ticket-02-refactor-review-cli-commands.md` leaves `## Rationale` unfilled, while `tools/delivery/refactor-review.ts` records the deliberate decision not to transition ticket status. That is an implementation trade-off and should be appended to the ticket Rationale under the repo’s completion policy."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "The underlying CLI dispatch bug this test gap could have hidden (invariant 2: runner mode launching without --subagent) was fixed in the same review-triage cycle by commit d38c7ff0a39a24cbd7e074e7556f36d79156055e, which gates runner mode explicitly on parsed.subagent and added new write-detection tests (already-dirty-path rewrite, timeout-then-fallback writes) to tools/delivery/test/p20-02.test.ts. A dedicated CLI-entrypoint-level dispatch test was not added, but the specific defect this observation warned about no longer exists.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.02-subagent-review.report.md",
+        "ticketId": "P20.02"
+      },
+      "observation": "`tools/delivery/test/p20-02.test.ts` tests the underlying helpers rather than the new CLI cases. Its “recorder mode (no --subagent)” test directly calls `recordRefactorReviewOutcome`, so it cannot detect the actual CLI dispatch bug."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "A documented workaround already exists (pass the explicit ticket ID), and the one-ticket-per-worktree delivery workflow makes multiple tickets simultaneously sharing `verified`/`in_review` status uncommon. No immediate code change is warranted; revisit only if the ambiguous-selection scenario is actually hit in practice.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.02-subagent-review.report.md",
+        "ticketId": "P20.02"
+      },
+      "observation": "Implicit reconciliation remains order-dependent when multiple tickets share `verified` or `in_review`. Explicit ticket IDs are currently the reliable way to avoid selecting the wrong ticket."
+    },
+    {
+      "disposition": "patched",
+      "rationale": "Fixed in the same review-triage cycle: commit d38c7ff0a39a24cbd7e074e7556f36d79156055e registers write-subagent-refactor-review, subagent-refactor-review, and reconcile-subagent-refactor-review in cli.ts's getUsage() help text. Verified present on main at tools/delivery/cli.ts.",
+      "patch": {
+        "commitSha": "d38c7ff0a39a24cbd7e074e7556f36d79156055e",
+        "files": ["tools/delivery/cli.ts"]
+      },
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.02-subagent-review.report.md",
+        "ticketId": "P20.02"
+      },
+      "observation": "The new commands are absent from `getUsage()` in `tools/delivery/cli.ts`. The ticket explicitly defers the orchestrator command-reference table to P20.03, but it does not explicitly defer CLI help output."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Verified against current main: docs/template/delivery/delivery-orchestrator.md already phrases this as \"a planned, currently unsupported value\" (line 560) and correctly notes config validation rejects it, matching exactly what this observation asked for. No further doc change needed.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.03-subagent-review.report.md",
+        "ticketId": "P20.03"
+      },
+      "observation": "`docs/template/delivery/delivery-orchestrator.md` says `runner_on_red_strict` is “named as a future policy value in this repo’s config validation.” It is not: `VALID_REFACTOR_REVIEW_VALUES` contains only `\"disabled\"` and `\"runner_on_red\"`, so config validation rejects `\"runner_on_red_strict\"`. Adjust the prose to call it a planned, currently unsupported value."
+    },
+    {
+      "disposition": "already-covered",
+      "rationale": "Re-ran `bun run lint:quiet` (eslint with typescript-eslint, which surfaces TS type errors) on the fully-merged main after closeout: zero errors. Whatever branch-state typing/fixture drift existed at P20.03 review time no longer reproduces once the full stack (P20.01-P20.04) landed together.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.03-subagent-review.report.md",
+        "ticketId": "P20.03"
+      },
+      "observation": "The targeted tests passed: 55 tests, 0 failures. A broader TypeScript check failed with numerous errors spanning the stacked Phase 20 branch, including existing CLI parsed-option typing and fixture drift. This was not classified as a P20.03 actionable finding because the errors are not isolated to this ticket’s diff."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "This observation is a confirmation, not a finding: the reviewer checked and found the ticket Rationale already complete and accurate, correcting an outdated claim in the review prompt. No action needed.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.04-subagent-review.report.md",
+        "ticketId": "P20.04"
+      },
+      "observation": "No ticket Rationale drift was found. Its current text is complete and consistent with the implementation; the review prompt’s claim that it remained an unfilled placeholder is outdated."
+    },
+    {
+      "disposition": "rejected",
+      "rationale": "Reviewer explicitly states this does not itself demonstrate another production bug beyond the already-fixed malformed-ledger crash. It is a coverage-design observation (proxy invocations vs. exercising the real CLI wrapper/filesystem/console output) rather than a known defect; deeper CLI-integration test investment is a nice-to-have, not required now.",
+      "source": {
+        "reportPath": "docs/product/delivery/phase-20/reviews/P20.04-subagent-review.report.md",
+        "ticketId": "P20.04"
+      },
+      "observation": "The Red contract asked for tests that `advance` itself prints rows and remains silent without a ledger. The implemented tests use empty invocations as a proxy and never exercise the CLI wrapper, filesystem behavior, state transition detection, or console output. This does not itself demonstrate another production bug, but it allowed the malformed-ledger crash and integration behavior to remain uncovered."
+    }
+  ]
+}

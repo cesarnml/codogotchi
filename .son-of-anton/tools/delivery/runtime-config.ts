@@ -3,9 +3,11 @@ import {
   resolveOrchestratorConfig as resolveOrchestratorConfigImpl,
   inferPackageManager,
   VALID_REVIEW_POLICY_STAGE_VALUES,
+  VALID_REFACTOR_REVIEW_VALUES,
   type CodogotchiConfig,
   type OrchestratorConfig,
   type PrReviewAgent,
+  type RefactorReviewValue,
   type ResolvedOrchestratorConfig,
   type ResolvedReviewPolicy,
   type ReviewPolicy,
@@ -16,13 +18,18 @@ export type {
   CodogotchiConfig,
   OrchestratorConfig,
   PrReviewAgent,
+  RefactorReviewValue,
   ResolvedOrchestratorConfig,
   ResolvedReviewPolicy,
   ReviewPolicy,
   ReviewPolicyStageValue,
 };
 
-export { inferPackageManager, VALID_REVIEW_POLICY_STAGE_VALUES };
+export {
+  inferPackageManager,
+  VALID_REVIEW_POLICY_STAGE_VALUES,
+  VALID_REFACTOR_REVIEW_VALUES,
+};
 
 export async function loadOrchestratorConfig(
   cwd: string,

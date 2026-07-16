@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +9,7 @@ import {
   emitOpenPrGate,
   emitPollReviewGate,
   emitRecordReviewGate,
+  emitRefactorReviewGate,
   emitSoaEventForOpenPr,
 } from '../cli-runner';
 import type { ResolvedOrchestratorConfig } from '../config';
@@ -35,8 +36,24 @@ function makeTmpDir(): string {
   return dir;
 }
 
+/** Gate writes route to state.d/<origin>:<session>.gate.json when the repo's
+ *  .soa/active-session.json resolves, else to the legacy gate.json. */
+function findGateFile(home: string): string | null {
+  const stateDir = join(home, 'state.d');
+  if (existsSync(stateDir)) {
+    const sessionGate = readdirSync(stateDir).find((name) =>
+      name.endsWith('.gate.json'),
+    );
+    if (sessionGate) return join(stateDir, sessionGate);
+  }
+  const legacyGate = join(home, 'gate.json');
+  return existsSync(legacyGate) ? legacyGate : null;
+}
+
 async function readGate(home: string): Promise<Record<string, unknown>> {
-  const raw = await readFile(join(home, 'gate.json'), 'utf8');
+  const gateFile = findGateFile(home);
+  if (!gateFile) throw new Error(`no gate file written under ${home}`);
+  const raw = await readFile(gateFile, 'utf8');
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
@@ -82,6 +99,24 @@ describe('P17.03 — emitAdversarialReviewGate', () => {
 
       const gate = await readGate(home);
       expect(gate['gate']).toBe('adversarial_review');
+      expect(gate['plan_key']).toBe(PLAN_KEY);
+      expect(gate['ticket_id']).toBe('P17.03');
+    } finally {
+      delete process.env['CODOGOTCHI_HOME'];
+    }
+  });
+});
+
+describe('P17.03 — emitRefactorReviewGate', () => {
+  it('writes refactor_tdd with correct plan_key and ticket_id', async () => {
+    const home = makeTmpDir();
+    process.env['CODOGOTCHI_HOME'] = home;
+    try {
+      const ticket = makeTicket('P17.03', 'verified');
+      await emitRefactorReviewGate(ticket, enabledConfig(), PLAN_KEY);
+
+      const gate = await readGate(home);
+      expect(gate['gate']).toBe('refactor_tdd');
       expect(gate['plan_key']).toBe(PLAN_KEY);
       expect(gate['ticket_id']).toBe('P17.03');
     } finally {

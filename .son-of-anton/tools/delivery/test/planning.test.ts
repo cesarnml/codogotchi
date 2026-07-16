@@ -4,9 +4,24 @@ import {
   deriveBranchName,
   deriveWorktreePath,
   findExistingBranch,
+  parseOriginIssueNumber,
 } from '../planning';
 
 describe('planning', () => {
+  it('parses an origin issue number from the Epic section', () => {
+    expect(
+      parseOriginIssueNumber(
+        '## Epic\n\nOrigin issue: #76. Design stance pre-agreed elsewhere.\n',
+      ),
+    ).toBe(76);
+  });
+
+  it('returns undefined when no origin issue line is present', () => {
+    expect(
+      parseOriginIssueNumber('## Epic\n\nNo issue referenced here.\n'),
+    ).toBeUndefined();
+  });
+
   it('derives deterministic branch and worktree names', () => {
     expect(
       deriveBranchName({

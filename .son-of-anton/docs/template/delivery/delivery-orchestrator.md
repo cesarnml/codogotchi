@@ -13,19 +13,38 @@ For every code ticket, these steps must run in this exact sequence:
 3. `post-red` — verify and record the `[red]` commit before implementation
 4. Implement + verify (`bun run verify:quiet` inner loop, then `bun run ci:quiet` before open-pr)
 5. `post-verify [clean|patched]` — self-audit
-6. `write-subagent-adversarial-review` — primary agent authors the filled adversarial prompt (required for code tickets when `subagentReview` is not `"disabled"`)
-7. `subagent-review` — advisory subagent pass against that exact prompt (programmatic runner with `--subagent`, or recorder mode)
-8. `reconcile-subagent-review` — compare ledger rows to git state since `reviewedHeadSha`; hard-block silent lies before publish (also runs inside `open-pr`)
-9. `open-pr` — publish the PR (never before subagent review and reconciliation gates complete)
-10. `poll-review` — external AI review window
-11. `record-review` — only needed when poll-review leaves ticket in `needs_patch`
-12. `advance` — move to next ticket
+6. `write-subagent-refactor-review` — primary agent authors the filled refactor-review prompt (required for `Red: required`, non-doc-only code tickets when `refactorReview` is `"runner_on_red"`; see [Subagent refactor review](#subagent-refactor-review-ticket-stacks))
+7. `subagent-refactor-review` — advisory Refactor-leg cold-read pass (programmatic runner with `--subagent`, or recorder mode)
+8. `reconcile-subagent-refactor-review` — Condition A/B reconciliation for the refactor gate, analogous to step 10 below
+9. `write-subagent-adversarial-review` — primary agent authors the filled adversarial prompt (required for code tickets when `subagentReview` is not `"disabled"`)
+10. `subagent-review` — advisory subagent pass against that exact prompt (programmatic runner with `--subagent`, or recorder mode)
+11. `reconcile-subagent-review` — compare ledger rows to git state since `reviewedHeadSha`; hard-block silent lies before publish (also runs inside `open-pr`)
+12. `open-pr` — publish the PR (never before subagent review and reconciliation gates complete)
+13. `poll-review` — external AI review window
+14. `record-review` — only needed when poll-review leaves ticket in `needs_patch`
+15. `advance` — move to next ticket
 
 Tickets declare `Red: required` or `Red: skip` in their metadata block. Code
 tickets use `Red: required`; tickets with no testable behavior may declare
 `Red: skip`, and doc-only branches also skip `post-red` structurally.
 
-**post-red must precede implementation. write-subagent-adversarial-review must precede subagent-review. subagent-review must precede reconcile-subagent-review. reconcile-subagent-review must precede open-pr. open-pr must precede poll-review.** Skipping or reordering these steps is not supported.
+Steps 6–8 (the refactor gate) run only when `reviewPolicy.refactorReview` is
+`"runner_on_red"` **and** the ticket is `Red: required` **and** not doc-only.
+The repo default is `refactorReview: "disabled"`, under which steps 6–8 do
+not apply and the sequence is unchanged from before Phase 20 — see
+[Subagent refactor review](#subagent-refactor-review-ticket-stacks) for the
+full contract, including why enforcement is soft (`runner_on_red`, not
+`runner_on_red_strict`).
+
+**post-red must precede implementation. When the refactor gate applies,
+write-subagent-refactor-review must precede subagent-refactor-review,
+subagent-refactor-review must precede reconcile-subagent-refactor-review,
+and reconcile-subagent-refactor-review must precede
+write-subagent-adversarial-review. write-subagent-adversarial-review must
+precede subagent-review. subagent-review must precede
+reconcile-subagent-review. reconcile-subagent-review must precede open-pr.
+open-pr must precede poll-review.** Skipping or reordering these steps is not
+supported.
 
 ## Phase 14 changes (subagent-review fidelity)
 
@@ -511,7 +530,50 @@ When omitted, outcome defaults to `clean`. The `status` command renders the outc
 - Higher-risk areas changed in the diff (data shape, migrations, auth, API contracts) got a second read in post-verify mode.
 - The delivery ticket doc has an updated **Rationale** when behavior or trade-offs changed (repo policy).
 
-Then run `post-verify`, then (if `subagentReview` is enabled) `write-subagent-adversarial-review`, then `subagent-review`, then `reconcile-subagent-review`, then `open-pr`.
+Then run `post-verify`, then (if `refactorReview` is `"runner_on_red"` and the ticket qualifies) `write-subagent-refactor-review`, then `subagent-refactor-review`, then `reconcile-subagent-refactor-review`, then (if `subagentReview` is enabled) `write-subagent-adversarial-review`, then `subagent-review`, then `reconcile-subagent-review`, then `open-pr`.
+
+## Subagent refactor review (ticket stacks)
+
+When `reviewPolicy.refactorReview` is `"runner_on_red"` and the ticket is `Red: required` and not doc-only, the ticket must complete the refactor gate — a cold-read second pair of eyes on the **Refactor** leg of TDD — after `post-verify` and before `write-subagent-adversarial-review`. The repo default is `refactorReview: "disabled"`, under which this gate does not apply and today's adversarial-only flow is unchanged.
+
+**Role split:**
+
+- **Primary agent** authors the filled `refactor-review-template.md` prompt, applies any prudent patches from returned suggestions, and records the final adjudication.
+- **Review subagent** is an advisory runner — a cold read of the diff scoped to **local quality signals only**: duplication, naming, dead code, complexity, test-name/behavior alignment. It is not the adversarial gate's correctness/attack-surface hunt, and it must not modify any file in the worktree. Suggestions are reported inside a literal `<refactor-suggestions>` tag block per `notes/public/subagent-report-parser-contract.md` — a copy-me skeleton, not free-form prose.
+- **External AI vendors** still review post-publication via `poll-review`, unaffected by this gate.
+
+**Gate placement:**
+
+```
+post-verify
+  → write-subagent-refactor-review     (Refactor leg, local quality signals)
+  → subagent-refactor-review --subagent <runner>
+  → reconcile-subagent-refactor-review
+  → write-subagent-adversarial-review  (unaffected — separate parser, separate brief)
+  → subagent-review --subagent <runner>
+  → reconcile-subagent-review
+  → open-pr
+```
+
+**Bypass conditions** (structural, not a runtime check the agent has to remember): `refactorReview: "disabled"`, `Red: skip`, and doc-only tickets all skip steps 6–8 entirely — no prompt, no runner invocation, no reconciliation attempt.
+
+**Enforcement is soft.** Under `runner_on_red`, the happy-path sequence always runs the gate, but a missing refactor-review artifact does **not** hard-block `open-pr` the way a missing adversarial artifact does under `subagentReview: "required"`. Fail-closed enforcement is `runner_on_red_strict` — a planned, currently **unsupported** value: config validation rejects it (only `"disabled"` and `"runner_on_red"` are accepted), and it is not implemented or wired into any guard. Do not read the absence of a hard `open-pr` block as an oversight; it is the documented `runner_on_red` contract.
+
+**Commands:**
+
+```bash
+bun run deliver --plan <plan> write-subagent-refactor-review --prompt-file <path>
+bun run deliver --plan <plan> subagent-refactor-review --subagent <claude-cli|codex-cli|cursor-cli>
+bun run deliver --plan <plan> subagent-refactor-review [clean|patched <sha>]
+bun run deliver --plan <plan> subagent-refactor-review record-deferred --reason "<rationale>"
+bun run deliver --plan <plan> reconcile-subagent-refactor-review
+```
+
+`write-subagent-refactor-review` requires `--prompt-file` — there is no generic auto-built fallback (unlike the adversarial gate's changed-files fallback, which is itself boilerplate, not a substitute for a primary-authored brief). Primary-agent patches applied in response to a suggestion use a `[refactor-review]` commit-subject suffix, mirroring the adversarial gate's `[subagent-review]` convention.
+
+**Ledger shape:** suggestion decisions record `id` (`R1`, `R2`, …), `summary`, `decision` (`accepted` / `rejected` / `deferred`), and `reason` (required for `rejected`/`deferred`). Deferred suggestions surface again at the next `advance` so they are not silently lost (see ticket 20.04).
+
+**Parser independence:** the `<refactor-suggestions>` tag parser (`tools/delivery/refactor-review.ts`) is a new, separate module from the adversarial gate's heading-based `parseAdvisoryObservations`/`extractReportSection` (`tools/delivery/reconciliation.ts`). The two gates' parsing logic do not share code and are not migrated toward each other by this feature.
 
 ## Subagent adversarial review (ticket stacks)
 
@@ -670,6 +732,10 @@ Available commands:
 - `start [ticket-id]`
 - `post-red [ticket-id]`
 - `post-verify [ticket-id] [clean|patched] [patch-commit-sha ...]`
+- `write-subagent-refactor-review [ticket-id] --prompt-file <path>`
+- `subagent-refactor-review [ticket-id] [clean|patched <sha>] [--force] [--subagent <claude-cli|codex-cli|cursor-cli>]`
+- `subagent-refactor-review record-deferred --reason "<rationale>" [ticket-id]`
+- `reconcile-subagent-refactor-review [ticket-id]`
 - `write-subagent-adversarial-review [ticket-id] [--prompt-file <path>]`
 - `subagent-review [ticket-id] [clean|patched <sha>] [--force] [--subagent <claude-cli|codex-cli|cursor-cli>]`
 - `subagent-review record-deferred --reason "<rationale>" [ticket-id]`
@@ -915,5 +981,6 @@ PR descriptions are maintained as delivery metadata, not one-shot text.
 - in `cook`, `advance` auto-starts the next pending ticket and prints the next handoff path
 - in `gated`, `advance` stops and prints reset guidance plus the canonical resume prompt; `start` still owns next-ticket handoff creation
 - `start` (zero-arg) finds the next pending ticket, creates its worktree and branch, writes its handoff, and prints the handoff path; explicit `start <ticket-id>` form is unchanged
+- when `implementation-plan.md`'s `## Epic` section has an `Origin issue: #<N>` line, `open-pr` appends a `- Closes #<N>` bullet to the **final ticket's** PR body only — earlier tickets in the stack land on intermediate branches, not `closeoutBranch`, so the issue isn't actually resolved until the last stacked PR merges through closeout
 
 This matters because the repo squash-merges PRs onto `closeoutBranch`, so the PR body needs to mention prudent ai-cr follow-up work before the stack moves on.

@@ -1205,3 +1205,204 @@ export function appendInvocationToArtifact(
   writeFileSync(path, JSON.stringify(artifact, null, 2) + '\n', 'utf-8');
   return artifact;
 }
+
+/**
+ * P20.02 — generic, dependency-injected runner-invocation orchestration
+ * shared by the adversarial and refactor-review gates. Reuses
+ * `runSubagentWithFallback`/`tryRunner`/`decideAdvisoryRunnerOutcome` (the
+ * actual spawn/fallback/advisory-contract primitives) rather than
+ * duplicating them; only the git-plumbing orchestration loop around them is
+ * new. Purely additive — does not change any existing call site's behavior.
+ */
+export type ProgrammaticSubagentReviewInput = {
+  requestedRunner: ProgrammaticSubagentRunner;
+  reviewPrompt: string;
+  worktreePath: string;
+  timeoutMs?: number;
+  spawn: (
+    bin: string,
+    args: string[],
+    opts: { cwd: string; timeout: number; encoding: 'utf-8' },
+  ) => {
+    status: number | null;
+    signal?: string | null;
+    stdout?: string;
+    stderr?: string;
+    error?: (Error & { code?: string }) | undefined;
+  };
+  readHeadSha: () => string;
+  listDirtyPaths: () => string[];
+  listDiffPaths: (revisionRange: string) => string[];
+  /**
+   * Optional content-level fingerprint of the worktree (e.g. a hash of
+   * `git diff` + `git diff --cached` + untracked-file listing). When
+   * supplied, a write that rewrites an *already-dirty* path (same path,
+   * different content) is detected even though path-membership alone would
+   * see no new dirty path. When omitted, write detection falls back to
+   * path-membership only.
+   */
+  readWorktreeFingerprint?: () => string;
+  classify: (input: {
+    runner: ProgrammaticSubagentRunner;
+    exitCode: number | null;
+    stdout: string;
+    stderr: string;
+  }) => {
+    terminatedReason: SubagentRunnerTerminatedReason;
+    runnerSelfReport: string | null;
+  };
+};
+
+export type ProgrammaticSubagentReviewResult = {
+  usedRunner: SubagentRunnerKind;
+  fallbackLevel: SubagentRunnerFallbackLevel;
+  fallbackFrom: SubagentRunnerKind | null;
+  outcome: SubagentRunnerOutcome;
+  terminatedReason: SubagentRunnerTerminatedReason;
+  rawOutput?: string;
+  stdout?: string;
+  stderr?: string;
+  runnerSelfReport: string | null;
+  runnerWroteFiles: boolean;
+  writePaths: string[];
+  headSha: string;
+};
+
+export function runProgrammaticSubagentReview(
+  input: ProgrammaticSubagentReviewInput,
+): ProgrammaticSubagentReviewResult {
+  const headSha = input.readHeadSha();
+  const initialDirtyPaths = new Set(input.listDirtyPaths());
+  const initialFingerprint = input.readWorktreeFingerprint?.();
+  let runnerSelfReport: string | null = null;
+  let runnerWroteFiles = false;
+  let writePaths: string[] = [];
+
+  const fallbackOutcome = runSubagentWithFallback(
+    input.requestedRunner,
+    (runner) => {
+      const runnerHeadBefore = input.readHeadSha();
+      const preRunDirtyPaths = new Set(input.listDirtyPaths());
+      const result = tryRunner(
+        () => {
+          const { bin, args } = buildRunnerSpawnCommand(
+            runner,
+            input.reviewPrompt,
+            {},
+          );
+          const spawned = input.spawn(bin, args, {
+            cwd: input.worktreePath,
+            timeout: input.timeoutMs ?? 10 * 60 * 1000,
+            encoding: 'utf-8',
+          });
+          const spawnError = spawned.error;
+          if (spawnError && spawnError.code === 'ENOENT') {
+            throw spawnError;
+          }
+          const stdout = spawned.stdout ?? '';
+          const stderr = [
+            spawned.stderr ?? '',
+            spawnError && spawnError.code !== 'ENOENT'
+              ? spawnError.message
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n');
+          const classified = input.classify({
+            runner,
+            exitCode: spawned.status,
+            stdout,
+            stderr,
+          });
+          runnerSelfReport = classified.runnerSelfReport;
+          return {
+            exitCode: spawned.status,
+            timedOut: spawned.signal === 'SIGTERM',
+            stdout,
+            stderr,
+            terminatedReason: classified.terminatedReason,
+          };
+        },
+        () => {
+          const runnerHeadAfter = input.readHeadSha();
+          return (
+            runnerHeadAfter !== runnerHeadBefore ||
+            input.listDirtyPaths().some((p) => !preRunDirtyPaths.has(p))
+          );
+        },
+      );
+
+      if (result.status === 'ran') {
+        const runnerHeadAfter = input.readHeadSha();
+        runnerWroteFiles =
+          runnerHeadBefore !== runnerHeadAfter ||
+          input.listDirtyPaths().some((p) => !preRunDirtyPaths.has(p));
+        if (runnerWroteFiles) {
+          const wroteHeadPaths =
+            runnerHeadBefore !== runnerHeadAfter
+              ? input.listDiffPaths(`${runnerHeadBefore}..${runnerHeadAfter}`)
+              : [];
+          writePaths = [...wroteHeadPaths, ...input.listDirtyPaths()];
+        }
+      }
+      return result;
+    },
+  );
+
+  // Whole-invocation write check, independent of per-attempt status. This
+  // catches writes made by a runner that timed out before its fallback
+  // (tryRunner never calls checkHasChanges on a timeout) and, when a
+  // fingerprint is supplied, writes that rewrite a path already dirty before
+  // this invocation started (path-membership alone cannot see those).
+  const finalHeadSha = input.readHeadSha();
+  const finalDirtyPaths = input.listDirtyPaths();
+  const wholeInvocationWrite =
+    finalHeadSha !== headSha ||
+    finalDirtyPaths.some((p) => !initialDirtyPaths.has(p)) ||
+    (initialFingerprint !== undefined &&
+      input.readWorktreeFingerprint?.() !== initialFingerprint);
+  if (wholeInvocationWrite) {
+    runnerWroteFiles = true;
+    if (writePaths.length === 0) {
+      const wroteHeadPaths =
+        finalHeadSha !== headSha
+          ? input.listDiffPaths(`${headSha}..${finalHeadSha}`)
+          : [];
+      writePaths = [...wroteHeadPaths, ...finalDirtyPaths];
+    }
+  }
+
+  const lastResult = fallbackOutcome.result;
+  if (lastResult.status !== 'ran') {
+    return {
+      usedRunner: 'skipped',
+      fallbackLevel: fallbackOutcome.fallbackLevel,
+      fallbackFrom: fallbackOutcome.fallbackFrom,
+      outcome: 'skipped',
+      terminatedReason: 'runner_unavailable',
+      runnerSelfReport,
+      runnerWroteFiles,
+      writePaths,
+      headSha,
+    };
+  }
+
+  const decided = decideAdvisoryRunnerOutcome(lastResult, {
+    runnerWroteFiles,
+  });
+
+  return {
+    usedRunner: fallbackOutcome.ranKind,
+    fallbackLevel: fallbackOutcome.fallbackLevel,
+    fallbackFrom: fallbackOutcome.fallbackFrom,
+    outcome: decided.outcome,
+    terminatedReason: decided.terminatedReason,
+    rawOutput: lastResult.rawOutput,
+    stdout: lastResult.stdout,
+    stderr: lastResult.stderr,
+    runnerSelfReport,
+    runnerWroteFiles,
+    writePaths,
+    headSha,
+  };
+}

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -37,8 +37,24 @@ function makeTmpDir(): string {
   return dir;
 }
 
+/** Gate writes route to state.d/<origin>:<session>.gate.json when the repo's
+ *  .soa/active-session.json resolves, else to the legacy gate.json. */
+function findGateFile(home: string): string | null {
+  const stateDir = join(home, 'state.d');
+  if (existsSync(stateDir)) {
+    const sessionGate = readdirSync(stateDir).find((name) =>
+      name.endsWith('.gate.json'),
+    );
+    if (sessionGate) return join(stateDir, sessionGate);
+  }
+  const legacyGate = join(home, 'gate.json');
+  return existsSync(legacyGate) ? legacyGate : null;
+}
+
 async function readGate(home: string): Promise<Record<string, unknown>> {
-  const raw = await readFile(join(home, 'gate.json'), 'utf8');
+  const gateFile = findGateFile(home);
+  if (!gateFile) throw new Error(`no gate file written under ${home}`);
+  const raw = await readFile(gateFile, 'utf8');
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
@@ -148,7 +164,7 @@ describe('P17.02 — emitGateForTransitions (replaces emitSoaEventsForTransition
 
       await emitGateForTransitions(prev, next, gatedConfig());
 
-      expect(existsSync(join(home, 'gate.json'))).toBe(true);
+      expect(findGateFile(home)).not.toBeNull();
       const gate = await readGate(home);
       expect(gate['gate']).toBe('ticket_completed');
       expect(gate['plan_key']).toBe(PLAN_KEY);

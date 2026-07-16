@@ -96,16 +96,17 @@ Turn a developer ideation storm into a draft phase plan that feeds `/soa plan`.
 
 ### `plan`
 
-**Trigger:** `/soa plan [path-to-plan or inline description]`
+**Trigger:** `/soa plan [path-to-plan or inline description]`, optionally prefixed `/soa plan phase-NN: issue #<N> <rest of description>` when the phase originates from an open GitHub issue.
 
 **Output: `docs/product/plans/phase-N.md` only — the "what" and "why". No tickets. No implementation details.**
 
 Accepts a concrete idea (inline description), a draft from `/soa ideate` (`docs/product/drafts/<slug>.md`), or any existing rough plan. Runs an `soa-grill-me` session scoped to product-level decisions: goals, success criteria, scope, explicit deferrals, and dependencies. The session ends when `docs/product/plans/phase-N.md` is written and approved.
 
 1. Read the plan if a file path is given. Otherwise use the inline description.
-2. **Invoke the `soa-grill-me` skill** in **Mode 1 (product plan)** — pass the plan content and instruct it to stay at the product level (scope, goals, success criteria, deferrals, risks). Explicitly tell it: no schema design, no API routes, no ticket breakdown.
-3. After `soa-grill-me` closes, write `docs/product/plans/phase-N.md` using the product-plan template at `.son-of-anton/docs/template/stubs/product-plan.template.md`.
-4. **Hard stop.** Ask the developer to approve the product plan. Do not proceed to tickets.
+2. **Parse an origin issue only from the explicit `issue #<N>` form in the trigger itself.** Do not infer one from prose elsewhere in the description or draft — this is an explicit opt-in, not a guess. If present, fetch/confirm the issue is open before proceeding.
+3. **Invoke the `soa-grill-me` skill** in **Mode 1 (product plan)** — pass the plan content and instruct it to stay at the product level (scope, goals, success criteria, deferrals, risks). Explicitly tell it: no schema design, no API routes, no ticket breakdown.
+4. After `soa-grill-me` closes, write `docs/product/plans/phase-N.md` using the product-plan template at `.son-of-anton/docs/template/stubs/product-plan.template.md`. If an origin issue was parsed in step 2, record it as `Origin issue: #<N>` in the template's dedicated field — this is the only field `/soa decompose` will trust for linking later. Do not write this field otherwise.
+5. **Hard stop.** Ask the developer to approve the product plan. Do not proceed to tickets.
 
 > The next step after approval is `/soa decompose docs/product/plans/phase-N.md`.
 
@@ -120,10 +121,11 @@ Accepts a concrete idea (inline description), a draft from `/soa ideate` (`docs/
 Take the approved `docs/product/plans/phase-N.md` and produce a detailed delivery plan with exact ticket decomposition.
 
 1. Read the product plan at the given path (or ask for it). Refuse to proceed if no approved product plan exists — send the developer to `/soa plan` first.
-2. **Invoke the `soa-grill-me` skill** in **Mode 2 (delivery decomposition)** — pass the product plan and focus on: schema/migration strategy, API route structure, ticket granularity, PR slice boundaries, dependency order, test strategy, exit conditions per ticket.
-3. **Stop and seek developer approval of the ticket list** before writing files.
-4. Before writing any ticket file, read the canonical template at `docs/template/stubs/ticket.template.md`. Do not use existing ticket files as format references — they may predate the current template and will produce format drift if copied. Then write `docs/product/delivery/phase-N/implementation-plan.md` and individual `ticket-NN-*.md` files per that template.
-5. After files are written and developer approves, surface this prompt:
+2. Check the product plan's `Origin issue:` field. This is the _only_ source for an origin issue — do not infer one from ticket content, commit messages, or your own reading of the phase. If the field is absent, this phase has no origin issue and step 5 skips the `Origin issue` line entirely.
+3. **Invoke the `soa-grill-me` skill** in **Mode 2 (delivery decomposition)** — pass the product plan and focus on: schema/migration strategy, API route structure, ticket granularity, PR slice boundaries, dependency order, test strategy, exit conditions per ticket.
+4. **Stop and seek developer approval of the ticket list** before writing files.
+5. Before writing any ticket file, read the canonical template at `docs/template/stubs/ticket.template.md`. Do not use existing ticket files as format references — they may predate the current template and will produce format drift if copied. Then write `docs/product/delivery/phase-N/implementation-plan.md` and individual `ticket-NN-*.md` files per that template. **Only after the developer approves the ticket list in step 4**, if the product plan carried an `Origin issue:` field, record it in `implementation-plan.md`'s `## Epic` section as `Origin issue: #<N>` exactly — the orchestrator parses that literal format and appends `Closes #<N>` to the phase's final ticket's PR body only, since the issue isn't resolved until that last stacked PR lands on the closeout branch.
+6. After files are written and developer approves, surface this prompt:
 
    > Files written. Run `/soa preflight phase-N` to verify template compliance before starting execution.
 

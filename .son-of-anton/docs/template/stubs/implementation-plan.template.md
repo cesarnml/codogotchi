@@ -6,6 +6,8 @@
 
 [Optional: link to the engineering epic or product doc this phase belongs to.]
 
+[Optional: `Origin issue: #<N>` — if this phase originates from a GitHub issue, record it on its own line in this exact format. The orchestrator appends `Closes #<N>` to the PR body of this phase's FINAL ticket only (not every ticket's PR) — the issue isn't actually resolved until that last stacked PR lands on the closeout branch.]
+
 ## Product contract
 
 [What the user or developer will be able to do when this phase is complete that they cannot do today.]
@@ -21,8 +23,6 @@
 3. `PN.03 [Ticket Title]`
 
 ## Ticket Files
-
-scm-history-item:/Users/cesar/code/son-of-anton?%7B%22repositoryId%22%3A%22scm0%22%2C%22historyItemId%22%3A%22e42c648b06838b53e36db1af8e5f9238701b68f6%22%2C%22historyItemParentId%22%3A%22585f4898488f21cd31a264db1b6999eab7c61773%22%2C%22historyItemDisplayId%22%3A%22e42c648%22%7D
 
 - `ticket-01-[slug].md`
 - `ticket-02-[slug].md`

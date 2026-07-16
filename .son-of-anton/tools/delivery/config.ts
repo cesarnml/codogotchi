@@ -15,14 +15,23 @@ export const VALID_REVIEW_POLICY_STAGE_VALUES = [
 export type ReviewPolicyStageValue =
   (typeof VALID_REVIEW_POLICY_STAGE_VALUES)[number];
 
+export const VALID_REFACTOR_REVIEW_VALUES = [
+  'disabled',
+  'runner_on_red',
+] as const;
+
+export type RefactorReviewValue = (typeof VALID_REFACTOR_REVIEW_VALUES)[number];
+
 export type ReviewPolicy = {
   subagentReview?: ReviewPolicyStageValue;
   prReview?: ReviewPolicyStageValue;
+  refactorReview?: RefactorReviewValue;
 };
 
 export type ResolvedReviewPolicy = {
   subagentReview: ReviewPolicyStageValue;
   prReview: ReviewPolicyStageValue;
+  refactorReview: RefactorReviewValue;
 };
 
 export type PrReviewAgent = {
@@ -250,6 +259,7 @@ export function resolveOrchestratorConfig(
     reviewPolicy: {
       subagentReview: raw.reviewPolicy?.subagentReview ?? 'skip_doc_only',
       prReview: raw.reviewPolicy?.prReview ?? 'skip_doc_only',
+      refactorReview: raw.reviewPolicy?.refactorReview ?? 'disabled',
     },
     prReviewAgents: raw.prReviewAgents,
     subagentRunner: raw.subagentRunner,
@@ -291,7 +301,7 @@ function parseReviewPolicy(raw: unknown): ReviewPolicy {
     );
   }
 
-  const KNOWN_KEYS = ['subagentReview', 'prReview'] as const;
+  const KNOWN_KEYS = ['subagentReview', 'prReview', 'refactorReview'] as const;
 
   for (const unknownKey of Object.keys(obj)) {
     if (!KNOWN_KEYS.includes(unknownKey as (typeof KNOWN_KEYS)[number])) {
@@ -301,7 +311,7 @@ function parseReviewPolicy(raw: unknown): ReviewPolicy {
     }
   }
 
-  for (const key of KNOWN_KEYS) {
+  for (const key of ['subagentReview', 'prReview'] as const) {
     const value = obj[key];
 
     if (value === undefined) {
@@ -319,6 +329,19 @@ function parseReviewPolicy(raw: unknown): ReviewPolicy {
     }
 
     result[key] = value as ReviewPolicyStageValue;
+  }
+
+  if (obj.refactorReview !== undefined) {
+    if (
+      !VALID_REFACTOR_REVIEW_VALUES.includes(
+        obj.refactorReview as RefactorReviewValue,
+      )
+    ) {
+      throw new Error(
+        `Invalid reviewPolicy.refactorReview "${String(obj.refactorReview)}" in orchestrator.config.json. Expected: ${VALID_REFACTOR_REVIEW_VALUES.join(', ')}`,
+      );
+    }
+    result.refactorReview = obj.refactorReview as RefactorReviewValue;
   }
 
   return result;

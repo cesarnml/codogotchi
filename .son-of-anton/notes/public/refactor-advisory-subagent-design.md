@@ -1,13 +1,26 @@
 # Refactor subagent review: design stance
 
-**Status:** PROPOSED (stance doc — not implemented in orchestrator).
+**Status:** IMPLEMENTED (phase-20-subagent-refactor-review, tickets P20.01–P20.04).
 **Added:** 2026-06-03
+**Implemented:** 2026-07-16
 **One-liner:** **Completely analogous to adversarial subagent review**, but the
 second pair of eyes is scoped to the **Refactor** step of TDD — after Red and
 Green on `Red: required` tickets.
 
-**Related:** `docs/template/delivery/delivery-orchestrator.md` (adversarial gate),
-`docs/template/delivery/tdd-workflow.md`, `notes/public/subagent-report-parser-contract.md`.
+**What shipped:** only the two-state `reviewPolicy.refactorReview` policy
+(`disabled` | `runner_on_red`) described below — **not** the three-state
+ambition this note originally proposed. `runner_on_red_strict` (fail-closed
+`open-pr` enforcement) is named in config validation as a rejected value but
+is **not implemented or wired into any guard**; it remains future work.
+Rollout ships `disabled` everywhere, including this repo's own
+`orchestrator.config.json` and the consumer `/soa update` sync path — no
+migration force-writes `runner_on_red` anywhere.
+
+**Related:** `docs/template/delivery/delivery-orchestrator.md` (adversarial gate,
+and the "Subagent refactor review (ticket stacks)" section this phase added),
+`docs/template/delivery/tdd-workflow.md`, `notes/public/subagent-report-parser-contract.md`,
+`docs/product/plans/phase-20-subagent-refactor-review.md`,
+`docs/product/delivery/phase-20/implementation-plan.md`.
 
 ## TL;DR
 
