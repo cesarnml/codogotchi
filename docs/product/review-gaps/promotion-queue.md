@@ -565,6 +565,41 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
 - **Status:** WAITING — single instance from phase-19 panel-affordance
   follow-through.
 
+### `fold-winner-promotion-blocked-by-recency-only-election-and-cap-policy`
+- **Seen:** 1× — observed while scoping a phase-19 QC ask (Sessions panel Live
+  rows should offer Show, not just Prune, and Show should be able to promote a
+  non-winning sibling into the active slot). No fix attempted; no ledger row.
+- **Observation (not yet a fix — deferred):** `SessionsTabViewModel.canShow`
+  and `showAllLive`'s off-`canShow` promotion branch both explicitly treat
+  "Show a non-winning Live sibling whose fold target already has an active
+  winner" as unsupported — `canShow`'s own comment calls it a no-op that
+  "cannot be surfaced without changing winner election," and `showAllLive`
+  bails via `guard !pool.activeOrigins.contains(target) else { continue }` the
+  moment a winner is already active. Making Show actually promote such a row
+  (demoting the previous winner to Live) is not a bounded fix for two
+  independent reasons: (1) winner election reads as purely recency-based
+  (freshest `updated_at` wins), so naively bumping the target's `updated_at`
+  via `refreshForShow` risks being immediately re-flipped back by the demoted
+  winner on the very next poll tick if that winner is itself still genuinely
+  live — an explicit user Show needs to be durable against that, which likely
+  wants a real pinned-winner override rather than a timestamp trick; (2) the
+  same promotion has to interact correctly with the existing Session Cap /
+  "Evict Session Pets" policy when sessions-enabled is ON and the platform is
+  at capacity — Show may need to trigger eviction of a different session's
+  window, not just win a recency race. These are two separate policies (fold
+  promotion when sessions are off vs. cap-aware eviction when sessions are on)
+  that no current code path unifies.
+- **Relationship to `sibling-surface-misses-new-promotion-limb`:** same code
+  path (`SessionsTabViewModel.canShow`/`showAllLive`), same phase-19
+  promotion-affordance thread — that class is the narrower "surface A vs
+  surface B parity" framing; this is the deeper "can Show ever override an
+  existing winner at all" question underneath it.
+- **Status:** WAITING — no ledger row, no fix attempted, developer explicitly
+  declined `/soa plan` or a follow-up task for now. Flagged here as a pointer
+  for whenever fold-winner/session-cap interaction work is prioritized —
+  needs product-level design (pinned-winner mechanism, cap-aware eviction
+  rules) before any implementation.
+
 ### `vestigial-schema-field-mechanically-round-tripped-past-its-consumer`
 - **Seen:** 1× — `codogotchi-49`/`codogotchi-50` investigation (phase-13/15 QC
   fix for `floating_pet_positions`/`floating_pet_hidden` pruning).
