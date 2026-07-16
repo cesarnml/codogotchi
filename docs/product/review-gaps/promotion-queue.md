@@ -24,13 +24,22 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   per-ticket-clause vs phase-integration-pass.
 
 ### `control-signal-starved-by-change-gated-callback`
-- **Seen:** 2× — `codogotchi-01` round-1 (bubble re-anchor hung on the
+- **Seen:** 3× — `codogotchi-01` round-1 (bubble re-anchor hung on the
   persist-on-`mouseUp` handler, so it only fired at drag *end*) and
   `codogotchi-10` (HUD `rpg_hud_enabled` re-read only inside a poll callback
   gated on RPG-value deltas, so a static-stats toggle never applied until
   restart). Note `codogotchi-01`'s `defect_class` string named the *symptom*
   (widget cohesion); this piggyback-starvation pattern lived in its
-  `prompt_lesson`. Both are the same root cause.
+  `prompt_lesson`. Both are the same root cause. 3rd instance
+  (`2e817a9b`, phase-19 QC): right-click Rename/Sync Label wrote
+  `session-labels.json` synchronously, but `SessionsTabViewModel` reads labels
+  through `FloatingPetWindowPool.sessionDisplayLabel`'s `lastDesired` snapshot,
+  which only rebuilds on the next ~1s poll tick — a re-read path gated on an
+  unrelated periodic trigger, not the label's own change. Same fix commit also
+  hit the inverse timing bug (a synchronous refresh racing an *async*
+  `handleForceIdle` background-queue write) — same root cause, opposite
+  direction: the dependent view's re-read must be triggered by the signal's
+  own change, whichever side is slower.
 - **Proposed clause:** *"For any setting, flag, or control signal that must
   affect a running view, identify the single runtime path that re-reads it and
   ask under what condition that path executes. If that trigger is unrelated to
@@ -45,10 +54,10 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   the starving handler's `mouseUp`-only firing was a phase-04 perf decision not
   in the phase-06 bubble diff — so the *demonstrability* varies by how far the
   triggering condition sits from the change under review.
-- **Status:** WAITING at the 2× bar — strongest UI-family candidate so far.
-  One more occurrence (ideally cross-repo) should settle whether it promotes as
-  a per-ticket prompt clause or needs the phase-integration-pass treatment that
-  `compound-widget-cohesion-under-transform` also points at.
+- **Status:** AT THRESHOLD (3×). Ready to promote — decide per-ticket prompt
+  clause vs. the phase-integration-pass treatment that
+  `compound-widget-cohesion-under-transform` also points at before writing the
+  clause into `adversarial-review-template.md`.
 
 ### `side-effect-call-dropped-or-mis-targeted-in-refactor`
 - **Seen:** 3× — `codogotchi-15` (P12): `StateJsonWriter.dismissAttention` was
