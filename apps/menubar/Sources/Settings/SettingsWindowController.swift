@@ -111,6 +111,20 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		generalTab?.applyViewModel(generalViewModel)
 	}
 
+	/// Re-derives Sessions tab rows and redraws — called after a menubar
+	/// action (Show/Hide … Panel, Show All Pets, Hide All Pets) mutates pool
+	/// visibility outside the tab's own Show/Hide/Prune handlers, which
+	/// already `reload()` themselves. A no-op if Settings isn't open or a
+	/// different tab is showing: `sessionsTab` is `nil` until `openWindow()`
+	/// builds it and stays populated across tab switches (only cleared on
+	/// window close), so this is safe to call unconditionally.
+	@MainActor
+	func refreshSessionsTab() {
+		guard let sessionsTab else { return }
+		sessionsTabViewModel.refresh()
+		sessionsTab.reload(viewModel: sessionsTabViewModel)
+	}
+
 	// MARK: - NSWindowDelegate
 
 	func windowWillClose(_ notification: Notification) {

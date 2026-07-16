@@ -80,6 +80,12 @@ final class MenubarMenu: NSObject {
 	/// past that point there is genuinely nothing to show, so keeping the
 	/// "Show … Pet" entry would be a misleading no-op button.
 	private let pruneOrphanHiddenKeys: (() -> Void)?
+	/// Called after a menu action mutates pool visibility (Show/Hide … Panel,
+	/// Show All Pets, Hide All Pets). Wired by `MenubarApp` to
+	/// `SettingsWindowController.refreshSessionsTab`, so the Settings →
+	/// Sessions tab (if open) reflects the change immediately instead of only
+	/// on its own Show/Hide/Prune actions or a manual Refresh click.
+	private let refreshSessionsTab: (() -> Void)?
 	private weak var builtMenu: NSMenu?
 	private weak var hooksNotActiveItem: NSMenuItem?
 	/// Index of the first pet-section item within `builtMenu` (after the header
@@ -95,7 +101,8 @@ final class MenubarMenu: NSObject {
 		retryHooksInstall: (() -> Void)? = nil,
 		openSettings: ((SettingsTab?) -> Void)? = nil,
 		refreshTtlForShow: ((WindowKey) -> Void)? = nil,
-		pruneOrphanHiddenKeys: (() -> Void)? = nil
+		pruneOrphanHiddenKeys: (() -> Void)? = nil,
+		refreshSessionsTab: (() -> Void)? = nil
 	) {
 		self.terminate = terminate
 		self.floatingPetPool = floatingPetPool
@@ -104,6 +111,7 @@ final class MenubarMenu: NSObject {
 		self.openSettings = openSettings
 		self.refreshTtlForShow = refreshTtlForShow
 		self.pruneOrphanHiddenKeys = pruneOrphanHiddenKeys
+		self.refreshSessionsTab = refreshSessionsTab
 		super.init()
 	}
 
@@ -283,6 +291,7 @@ final class MenubarMenu: NSObject {
 			pool.setVisible(true, for: key)
 		}
 		refreshFloatingPetMenuItemTitle()
+		refreshSessionsTab?()
 	}
 
 	@MainActor
@@ -292,6 +301,7 @@ final class MenubarMenu: NSObject {
 			pool.setVisible(false, for: origin)
 		}
 		refreshFloatingPetMenuItemTitle()
+		refreshSessionsTab?()
 	}
 
 	// MARK: - Pet section
@@ -583,6 +593,7 @@ final class MenubarMenu: NSObject {
 		else { return }
 		pool.setVisible(false, for: pool.renderedWindowKey(for: origin))
 		refreshFloatingPetMenuItemTitle()
+		refreshSessionsTab?()
 	}
 
 	@MainActor
@@ -598,6 +609,7 @@ final class MenubarMenu: NSObject {
 		refreshTtlForShow?(renderedKey)
 		pool.setVisible(true, for: renderedKey)
 		refreshFloatingPetMenuItemTitle()
+		refreshSessionsTab?()
 	}
 
 	/// Display name for a pet-section window key. Session-keyed keys

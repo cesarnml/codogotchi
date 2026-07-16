@@ -425,6 +425,9 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 			pruneOrphanHiddenKeys: { [weak self] in
 				self?.floatingPetWindowPool?.pruneHiddenKeysWithoutBackingSlice(
 					stateDirectory: config.pollingTarget.path)
+			},
+			refreshSessionsTab: { [weak settingsController] in
+				settingsController?.refreshSessionsTab()
 			}
 		)
 		item.menu = menuBuilder.build()

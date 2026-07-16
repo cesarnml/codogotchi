@@ -415,6 +415,72 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(Set(pool.hiddenWindowKeys), Set(["claude_code", "cursor"]))
 	}
 
+	// MARK: - refreshSessionsTab: menu visibility actions notify Settings →
+	// Sessions so it doesn't go stale until the next manual Refresh click.
+
+	func testShowAllPetsRefreshesSessionsTab() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		pool.setVisible(false, for: "claude_code")
+		var refreshCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshSessionsTab: { refreshCalls += 1 })
+		_ = builder.build()
+
+		builder.showAllPets(nil)
+
+		XCTAssertEqual(refreshCalls, 1)
+	}
+
+	func testHideAllPetsRefreshesSessionsTab() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		var refreshCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshSessionsTab: { refreshCalls += 1 })
+		_ = builder.build()
+
+		builder.hideAllPets(nil)
+
+		XCTAssertEqual(refreshCalls, 1)
+	}
+
+	func testHideFloatingPetForOriginRefreshesSessionsTab() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		var refreshCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshSessionsTab: { refreshCalls += 1 })
+		let menu = builder.build()
+
+		let hideItem = menu.items.first {
+			($0.representedObject as? WindowKey) == "cursor" && $0.title.hasPrefix("Hide")
+		}
+		XCTAssertNotNil(hideItem, "an active cursor pet must carry a Hide item with its window key")
+		_ = (hideItem!.target as AnyObject?)?.perform(hideItem!.action!, with: hideItem!)
+
+		XCTAssertEqual(refreshCalls, 1)
+	}
+
+	func testShowFloatingPetForKeyRefreshesSessionsTab() {
+		let pool = makePool(origins: ["claude_code", "cursor"])
+		pool.setVisible(false, for: "cursor")
+		var refreshCalls = 0
+		let builder = MenubarMenu(
+			terminate: {}, floatingPetPool: pool,
+			refreshSessionsTab: { refreshCalls += 1 })
+		let menu = builder.build()
+		builder.refreshFloatingPetMenuItemTitle()
+
+		let showItem = menu.items.first {
+			($0.representedObject as? WindowKey) == "cursor" && $0.title.hasPrefix("Show")
+		}
+		XCTAssertNotNil(showItem, "hidden cursor must carry a Show item with its window key")
+		_ = (showItem!.target as AnyObject?)?.perform(showItem!.action!, with: showItem!)
+
+		XCTAssertEqual(refreshCalls, 1)
+	}
+
 	func testHiddenPetEnablesShowPetItem() {
 		// After setVisible(false), the menu must show an enabled "Show Pet" item.
 		let pool = makePool(origins: ["cursor"])
