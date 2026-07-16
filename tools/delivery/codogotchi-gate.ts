@@ -27,6 +27,7 @@ export const GATE_NAMES = {
   TICKET_COMPLETED: 'ticket_completed',
   RED_TDD: 'red_tdd',
   GREEN_TDD: 'green_tdd',
+  REFACTOR_TDD: 'refactor_tdd',
   ADVERSARIAL_REVIEW: 'adversarial_review',
   OPEN_PR: 'open_pr',
   POLL_REVIEW: 'poll_review',

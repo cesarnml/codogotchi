@@ -463,3 +463,76 @@ describe('P2.01 — subagentReview schema, prReview, and prReviewAgents validati
     }
   });
 });
+
+describe('P20.01 — refactorReview schema validation', () => {
+  it('rejects an invalid refactorReview value', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'p20-cfg-refactor-invalid-'));
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          reviewPolicy: { refactorReview: 'runner_on_red_strict' },
+        }),
+      );
+      await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
+        /refactorReview/,
+      );
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+
+  it('rejects an arbitrary string refactorReview value', async () => {
+    const tempDir = await mkdtemp(
+      join(tmpdir(), 'p20-cfg-refactor-arbitrary-'),
+    );
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          reviewPolicy: { refactorReview: 'sometimes' },
+        }),
+      );
+      await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
+        /refactorReview/,
+      );
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+
+  it('loads a valid refactorReview: "runner_on_red" config', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'p20-cfg-refactor-valid-'));
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          reviewPolicy: { refactorReview: 'runner_on_red' },
+        }),
+      );
+      const config = await loadOrchestratorConfig(tempDir);
+      expect(config.reviewPolicy?.refactorReview).toBe('runner_on_red');
+
+      const resolved = resolveOrchestratorConfig(config, tempDir);
+      expect(resolved.reviewPolicy.refactorReview).toBe('runner_on_red');
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+
+  it('defaults refactorReview to "disabled" when unset', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'p20-cfg-refactor-default-'));
+    try {
+      const resolved = resolveOrchestratorConfig({}, tempDir);
+      expect(resolved.reviewPolicy.refactorReview).toBe('disabled');
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+});

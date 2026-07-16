@@ -692,6 +692,7 @@ describe('EE8.01 — post-verify observability and reviewPolicy config', () => {
     expect(resolved.reviewPolicy).toEqual({
       subagentReview: 'skip_doc_only',
       prReview: 'skip_doc_only',
+      refactorReview: 'disabled',
     });
   });
 

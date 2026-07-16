@@ -33,13 +33,16 @@ Execute:
 8. For code tickets, write and commit the failing behavior test with `[red]`
 9. bun run deliver --plan <plan-path> post-red
 10. Implement, verify, and continue with the next command from `status`
-11. For code tickets with subagent review enabled: `post-verify` → `write-subagent-adversarial-review` → `subagent-review` → `reconcile-subagent-review` → `open-pr` (see `delivery-orchestrator.md`)
+11. For `Red: required`, non-doc-only code tickets when `refactorReview: "runner_on_red"` (repo default: `"disabled"`, skipped): `write-subagent-refactor-review` → `subagent-refactor-review` → `reconcile-subagent-refactor-review`, before the adversarial gate below (see `delivery-orchestrator.md`)
+12. For code tickets with subagent review enabled: `post-verify` → `write-subagent-adversarial-review` → `subagent-review` → `reconcile-subagent-review` → `open-pr` (see `delivery-orchestrator.md`)
 ```
 
 Both the product plan and implementation docs must be committed to the configured
 repo-primary branch **before** the orchestrator creates any delivery branches.
 
 The pre-PR subagent gate is a **three-step** flow: the primary agent authors the filled adversarial prompt (`write-subagent-adversarial-review`); the runner step (`subagent-review --subagent …`) consumes that exact prompt and returns findings prose only; `reconcile-subagent-review` compares the ledger to git state and blocks `open-pr` on silent lies. Artifacts are `*-subagent-review.{prompt.md, report.md, ledger.json}`. Outcomes are `clean | patched | deferred | skipped`. Policy surface names stay `subagentReview`, `--subagent-review-policy`, and `subagent-review`.
+
+A separate, earlier refactor-review gate (step 11) covers only local quality signals (duplication, naming, dead code, complexity, test-name/behavior alignment) on the Refactor leg of TDD — not correctness. It applies only when `reviewPolicy.refactorReview` is `"runner_on_red"`; the repo default is `"disabled"`, under which step 11 does not apply and step 12's sequence is unchanged. See the "Subagent refactor review (ticket stacks)" section in `delivery-orchestrator.md`.
 
 ## Resuming in-progress work
 

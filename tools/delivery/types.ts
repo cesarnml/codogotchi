@@ -1,4 +1,5 @@
 import type { ReviewPolicyStageValue, TicketBoundaryMode } from './config';
+import type { SubagentRunnerOutcome } from './subagent-runner';
 
 export type RunPolicy = {
   ticketBoundaryMode: TicketBoundaryMode;
@@ -109,6 +110,14 @@ export type TicketState = TicketDefinition & {
   subagentRunnerArtifactPath?: string;
   subagentAdversarialPromptPath?: string;
   subagentAdversarialPromptWrittenAt?: string;
+  refactorReviewOutcome?: SubagentRunnerOutcome;
+  refactorReviewCompletedAt?: string;
+  refactorReviewPatchCommits?: InternalReviewPatchCommit[];
+  refactorReviewAgent?: string;
+  refactorRunnerArtifactPath?: string;
+  refactorReviewPromptPath?: string;
+  refactorReviewPromptWrittenAt?: string;
+  refactorReviewedHeadSha?: string;
   docOnly?: boolean;
   prNumber?: number;
   prUrl?: string;
@@ -139,6 +148,11 @@ export type DeliveryState = {
   reviewPollIntervalMinutes: number;
   reviewPollMaxWaitMinutes: number;
   runPolicy?: RunPolicy;
+  // Origin issue this phase implements, e.g. `Origin issue: #76` in implementation-plan.md's
+  // `## Epic` section. The phase's final ticket's PR body gets a `Closes #N` line — earlier
+  // tickets' PRs do not, since the issue isn't resolved until the last stacked PR lands on
+  // the closeout branch.
+  originIssueNumber?: number;
   tickets: TicketState[];
 };
 

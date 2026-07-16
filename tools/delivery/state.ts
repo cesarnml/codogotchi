@@ -15,7 +15,7 @@ import {
   type PullRequestSummary,
   type Runtime,
 } from './platform';
-import { parsePlan } from './planning';
+import { parseOriginIssueNumber, parsePlan } from './planning';
 import type {
   DeliveryState,
   OrchestratorOptions,
@@ -207,6 +207,7 @@ type LoadPlanContextResult = {
   absoluteStatePath: string;
   inferred: DeliveryState;
   ticketDefinitions: TicketDefinition[];
+  originIssueNumber?: number;
 };
 
 type SyncStateDependencies = {
@@ -231,7 +232,7 @@ export async function loadState(
   options: OrchestratorOptions,
   dependencies: RepoInferenceDependencies,
 ): Promise<DeliveryState> {
-  const { absoluteStatePath, inferred, ticketDefinitions } =
+  const { absoluteStatePath, inferred, ticketDefinitions, originIssueNumber } =
     await loadPlanContext(cwd, options, dependencies);
 
   if (!existsSync(absoluteStatePath)) {
@@ -240,6 +241,7 @@ export async function loadState(
       options,
       inferred,
       dependencies,
+      originIssueNumber,
     );
   }
 
@@ -253,6 +255,7 @@ export async function loadState(
     options,
     inferred,
     dependencies,
+    originIssueNumber,
   );
 }
 
@@ -266,7 +269,7 @@ export async function repairState(
   changes: string[];
   hadExistingState: boolean;
 }> {
-  const { absoluteStatePath, inferred, ticketDefinitions } =
+  const { absoluteStatePath, inferred, ticketDefinitions, originIssueNumber } =
     await loadPlanContext(cwd, options, dependencies);
   const hadExistingState = existsSync(absoluteStatePath);
 
@@ -276,6 +279,7 @@ export async function repairState(
       options,
       inferred,
       dependencies,
+      originIssueNumber,
     );
     await saveState(cwd, repairedState);
 
@@ -297,6 +301,7 @@ export async function repairState(
     options,
     inferred,
     dependencies,
+    originIssueNumber,
   );
   const changes = summarizeStateDifferences(existing, repairedState);
   let backupPath: string | undefined;
@@ -338,6 +343,7 @@ export function syncStateFromScratch(
   options: OrchestratorOptions,
   inferred: DeliveryState | undefined,
   dependencies: SyncStateDependencies,
+  originIssueNumber?: number,
 ): DeliveryState {
   return syncStateWithPlan(
     undefined,
@@ -345,6 +351,7 @@ export function syncStateFromScratch(
     options,
     inferred,
     dependencies,
+    originIssueNumber,
   );
 }
 
@@ -354,6 +361,7 @@ export function syncStateFromExisting(
   options: OrchestratorOptions,
   inferred: DeliveryState | undefined,
   dependencies: SyncStateDependencies,
+  originIssueNumber?: number,
 ): DeliveryState {
   return syncStateWithPlan(
     existing,
@@ -361,6 +369,7 @@ export function syncStateFromExisting(
     options,
     inferred,
     dependencies,
+    originIssueNumber,
   );
 }
 
@@ -370,6 +379,7 @@ function syncStateWithPlan(
   options: OrchestratorOptions,
   inferred: DeliveryState | undefined,
   dependencies: SyncStateDependencies,
+  originIssueNumber?: number,
 ): DeliveryState {
   const existingById = new Map(
     existing?.tickets.map((ticket) => [ticket.id, ticket]),
@@ -387,6 +397,7 @@ function syncStateWithPlan(
     reviewPollIntervalMinutes: options.reviewPollIntervalMinutes,
     reviewPollMaxWaitMinutes: options.reviewPollMaxWaitMinutes,
     runPolicy: existing?.runPolicy,
+    originIssueNumber: originIssueNumber ?? existing?.originIssueNumber,
     tickets: ticketDefinitions.map((definition, index) => {
       const previous = existingById.get(definition.id);
       const inferredTicket = inferredById.get(definition.id);
@@ -656,6 +667,7 @@ async function loadPlanContext(
 ): Promise<LoadPlanContextResult> {
   const planMarkdown = await readFile(resolve(cwd, options.planPath), 'utf8');
   const ticketDefinitions = parsePlan(planMarkdown, options.planPath, cwd);
+  const originIssueNumber = parseOriginIssueNumber(planMarkdown);
   const absoluteStatePath = resolve(cwd, options.statePath);
   const inferred = inferStateFromRepo(
     cwd,
@@ -668,6 +680,7 @@ async function loadPlanContext(
     absoluteStatePath,
     inferred,
     ticketDefinitions,
+    originIssueNumber,
   };
 }
 

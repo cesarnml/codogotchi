@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 
 import { readReviewArtifacts } from './review-artifacts';
 import { generateRunDeliverInvocation } from './runtime-config';
+import { isRefactorGateEligible } from './refactor-review';
 import type { ResolvedOrchestratorConfig } from './runtime-config';
 import type {
   AiReviewComment,
@@ -45,7 +46,15 @@ export function resolveNextCommand(
   config: ResolvedOrchestratorConfig,
   planPath: string,
   ticketId?: string,
-  ticket?: Pick<TicketState, 'subagentAdversarialPromptPath' | 'verifyOutcome'>,
+  ticket?: Pick<
+    TicketState,
+    | 'subagentAdversarialPromptPath'
+    | 'verifyOutcome'
+    | 'redPolicy'
+    | 'docOnly'
+    | 'refactorReviewOutcome'
+    | 'refactorReviewPromptPath'
+  >,
 ): string | null {
   const invoke = generateRunDeliverInvocation(config.packageManager);
   const cmd = (subcommand: string) =>
@@ -79,10 +88,43 @@ export function resolveNextCommand(
 function resolveVerifiedNextCommand(
   config: ResolvedOrchestratorConfig,
   ticket:
-    | Pick<TicketState, 'subagentAdversarialPromptPath' | 'verifyOutcome'>
+    | Pick<
+        TicketState,
+        | 'subagentAdversarialPromptPath'
+        | 'verifyOutcome'
+        | 'redPolicy'
+        | 'docOnly'
+        | 'refactorReviewOutcome'
+        | 'refactorReviewPromptPath'
+      >
     | undefined,
   cmd: (subcommand: string) => string,
 ): string {
+  // P20.03: the refactor gate (write-subagent-refactor-review ->
+  // subagent-refactor-review -> reconcile-subagent-refactor-review) runs
+  // before the adversarial gate below, but only for eligible tickets
+  // (refactorReview: "runner_on_red", Red: required, not doc-only). Once an
+  // outcome is recorded, routing falls through to the existing adversarial
+  // logic — reconciliation itself is auto-run inside
+  // write-subagent-adversarial-review's guard, mirroring how open-pr
+  // auto-reconciles the adversarial ledger, so there is no separate routed
+  // "reconcile" next-command step here either.
+  if (
+    ticket &&
+    isRefactorGateEligible({
+      refactorReviewPolicy: config.reviewPolicy.refactorReview,
+      redPolicy: ticket.redPolicy,
+      isDocOnly: ticket.docOnly === true,
+    }) &&
+    ticket.refactorReviewOutcome === undefined
+  ) {
+    return cmd(
+      ticket.refactorReviewPromptPath
+        ? 'subagent-refactor-review'
+        : 'write-subagent-refactor-review',
+    );
+  }
+
   if (config.reviewPolicy.subagentReview === 'disabled') {
     return cmd('open-pr');
   }

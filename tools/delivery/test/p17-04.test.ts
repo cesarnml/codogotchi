@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -34,8 +34,24 @@ function makeTmpDir(): string {
   return dir;
 }
 
+/** Gate writes route to state.d/<origin>:<session>.gate.json when the repo's
+ *  .soa/active-session.json resolves, else to the legacy gate.json. */
+function findGateFile(home: string): string | null {
+  const stateDir = join(home, 'state.d');
+  if (existsSync(stateDir)) {
+    const sessionGate = readdirSync(stateDir).find((name) =>
+      name.endsWith('.gate.json'),
+    );
+    if (sessionGate) return join(stateDir, sessionGate);
+  }
+  const legacyGate = join(home, 'gate.json');
+  return existsSync(legacyGate) ? legacyGate : null;
+}
+
 async function readGate(home: string): Promise<Record<string, unknown>> {
-  const raw = await readFile(join(home, 'gate.json'), 'utf8');
+  const gateFile = findGateFile(home);
+  if (!gateFile) throw new Error(`no gate file written under ${home}`);
+  const raw = await readFile(gateFile, 'utf8');
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
@@ -106,7 +122,7 @@ describe('P17.04 — emitReviewCleanGate (record-review path)', () => {
 
       await emitReviewCleanGate(events, enabledConfig(), PLAN_KEY);
 
-      expect(existsSync(join(home, 'gate.json'))).toBe(false);
+      expect(findGateFile(home)).toBeNull();
     } finally {
       delete process.env['CODOGOTCHI_HOME'];
     }
@@ -149,7 +165,7 @@ describe('P17.04 — emitReviewCleanGate (poll-review path)', () => {
 
       await emitReviewCleanGate(events, enabledConfig(), PLAN_KEY);
 
-      expect(existsSync(join(home, 'gate.json'))).toBe(false);
+      expect(findGateFile(home)).toBeNull();
     } finally {
       delete process.env['CODOGOTCHI_HOME'];
     }
@@ -197,8 +213,8 @@ describe('P17.04 — no events.ndjson created', () => {
 
       await emitReviewCleanGate(events, enabledConfig(), PLAN_KEY);
 
-      // gate.json should be written but .soa/ directory should NOT exist
-      expect(existsSync(join(home, 'gate.json'))).toBe(true);
+      // a gate file should be written but .soa/ directory should NOT exist
+      expect(findGateFile(home)).not.toBeNull();
       expect(existsSync(soaDir)).toBe(false);
     } finally {
       delete process.env['CODOGOTCHI_HOME'];

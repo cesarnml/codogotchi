@@ -56,14 +56,15 @@ Commit the delivery plan and all ticket docs to the default branch before creati
    6. Self-audit — `post-verify [clean|patched]`
       - Under `subagentReview: "skip_doc_only"`: doc-only tickets auto-record `skipped`
       - Under `subagentReview: "required"`: doc-only tickets still need an explicit `clean` or `patched`
-   7. Author subagent prompt — `write-subagent-adversarial-review` when `subagentReview` is not `"disabled"` (see [Subagent Review](#subagent-review)). The primary agent fills `docs/template/delivery/adversarial-review-template.md`; the subagent does not author its own brief.
-   8. Subagent adversarial review — `subagent-review` with `--subagent` when programmatic review is required. Runner artifacts are committed and pushed by the orchestrator; do not add a second manual commit for those files unless you changed something else in the same step.
-   9. Reconcile ledger vs git — `reconcile-subagent-review` before `open-pr` (hard-blocks silent lies; see delivery-orchestrator.md)
-   10. Open / refresh PR — `open-pr`
-   11. Run AI-review polling — `poll-review` (see [External Review](#external-review))
-   12. Patch prudent findings
-   13. Record review — `record-review` (**skip** when `poll-review` already auto-recorded `clean` or `skipped`; only needed when `poll-review` leaves ticket in `needs_patch` state). The orchestrator commits updated `*-pr-review.{fetch,triage}.json` after a successful `record-review` when the ticket worktree is a git checkout — do **not** add a second manual commit for those files unless you changed something else in the same step.
-   14. Advance — `advance`
+   7. Refactor gate — when `reviewPolicy.refactorReview` is `"runner_on_red"` **and** the ticket is `Red: required` **and** not doc-only (repo default `refactorReview: "disabled"` skips this step entirely; see [Subagent Refactor Review](#subagent-refactor-review)): `write-subagent-refactor-review` -> `subagent-refactor-review --subagent <runner>` -> `reconcile-subagent-refactor-review`, in that order, before the adversarial prompt step below.
+   8. Author subagent prompt — `write-subagent-adversarial-review` when `subagentReview` is not `"disabled"` (see [Subagent Review](#subagent-review)). The primary agent fills `docs/template/delivery/adversarial-review-template.md`; the subagent does not author its own brief.
+   9. Subagent adversarial review — `subagent-review` with `--subagent` when programmatic review is required. Runner artifacts are committed and pushed by the orchestrator; do not add a second manual commit for those files unless you changed something else in the same step.
+   10. Reconcile ledger vs git — `reconcile-subagent-review` before `open-pr` (hard-blocks silent lies; see delivery-orchestrator.md)
+   11. Open / refresh PR — `open-pr`
+   12. Run AI-review polling — `poll-review` (see [External Review](#external-review))
+   13. Patch prudent findings
+   14. Record review — `record-review` (**skip** when `poll-review` already auto-recorded `clean` or `skipped`; only needed when `poll-review` leaves ticket in `needs_patch` state). The orchestrator commits updated `*-pr-review.{fetch,triage}.json` after a successful `record-review` when the ticket worktree is a git checkout — do **not** add a second manual commit for those files unless you changed something else in the same step.
+   15. Advance — `advance`. Read any deferred refactor-review suggestions it prints for the ticket that just completed — they are not otherwise surfaced until a post-phase sweep.
 5. During the external review window, stay idle.
 6. Do not write ahead across ticket boundaries.
 7. After `advance`, follow the active boundary mode and keep going without asking for permission unless a real blocker exists.
@@ -89,6 +90,21 @@ Reset context (/clear), then resume with:
 
 /soa resume phase-<NN>
 ```
+
+### Subagent Refactor Review
+
+**Repo default is `refactorReview: "disabled"` — when it is disabled, this entire section is a no-op and the ticket flow is exactly the adversarial-only sequence above.** Do not assume this gate is on; check `orchestrator.config.json` (or the persisted `run_policy` in `status`) before treating it as part of the flow.
+
+**When `reviewPolicy.refactorReview` is `"runner_on_red"` and the ticket is `Red: required` and not doc-only:**
+
+1. **Read `docs/template/delivery/refactor-review-template.md`.** Fill in the local-quality-signal brief (duplication, naming, dead code, complexity, test-name/behavior alignment) from the current diff and ticket spec — not correctness or attack surfaces, that is the separate adversarial gate below.
+2. **Record the prompt:** `bun run deliver --plan <plan> write-subagent-refactor-review --prompt-file <path>`. Unlike the adversarial gate, there is no generic auto-built fallback — `--prompt-file` is required.
+3. Invoke the advisory review subagent via programmatic subprocess: `subagent-refactor-review --subagent <claude-cli|codex-cli|cursor-cli>`. Same advisory-only, no-worktree-writes contract as the adversarial runner.
+4. **Stay idle. No read-ahead**, same discipline as the adversarial runner.
+5. The primary agent reads returned suggestions (in the `<refactor-suggestions>` tag block) and adjudicates each: accept and patch (commit with `[refactor-review]` suffix), reject, or defer with a reason. Then record: `bun run deliver --plan <plan> subagent-refactor-review [clean|patched|deferred] <sha...>`, or `subagent-refactor-review record-deferred --reason "..."` for a whole-ticket deferral. Run `reconcile-subagent-refactor-review` before the adversarial prompt step — it also runs automatically inside `write-subagent-adversarial-review`'s precondition check, mirroring how `open-pr` auto-reconciles the adversarial ledger.
+6. Enforcement is **soft**: a missing refactor-review artifact does not hard-block `open-pr`, unlike the adversarial gate under `subagentReview: "required"`. Deferred suggestions are not silently lost — `advance` prints them for the ticket that just completed.
+
+This is a separate gate from the adversarial one below: different brief, different parser (`<refactor-suggestions>` tag vs. heading-based `Advisory Observations`), no shared code between the two.
 
 ### Subagent Review
 

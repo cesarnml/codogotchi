@@ -36,6 +36,7 @@ Cross-checks:
 - Every filename listed under `## Ticket Files` must exist on disk in the delivery directory.
 - Every ticket listed under `## Ticket Order` must have a corresponding file in `## Ticket Files`.
 - `## Phase Closeout` must contain `Retrospective: required` or `Retrospective: skip`.
+- If `## Epic` contains any line starting with `Origin issue` (case-insensitive, ignoring leading whitespace), it must match the literal format `Origin issue: #<N>` exactly (capital `O`, lowercase `issue`, colon, single space, `#`, digits only). The orchestrator's parser (`parseOriginIssueNumber` in `tools/delivery/planning.ts`) matches this format silently — a near-miss (`Origin Issue #76`, `Origin issue #76`, `origin issue: 76`, trailing punctuation directly after the digits with no space) produces no error anywhere; it just never appends `Closes #<N>` to the final ticket's PR body. Treat any near-miss as a **FAIL**, not a warning — this is the one case where wrong-but-plausible input fails the phase silently downstream instead of loudly at decompose time.
 
 ### Each Ticket File (`ticket-NN-*.md`)
 
@@ -110,6 +111,7 @@ Cross-checks:
 ✅ ## Stop Conditions
 ✅ ## Phase Closeout  (Retrospective: skip)
 ✅ Ticket Files cross-reference: all 9 listed files exist on disk
+✅ Origin issue format: `Origin issue: #76` (or: — Origin issue: not present, skipped)
 
 ### Tickets (9)
 
@@ -132,6 +134,7 @@ FAIL — 3 issues found. Fix before running /soa execute.
 1. implementation-plan.md: missing ## Stop Conditions
 2. ticket-03: Red: required but ## Red body contains no test description
 3. ticket-07: Rationale missing "Contract note:" sub-label
+4. implementation-plan.md: `## Epic` has "Origin Issue #76" — does not match required `Origin issue: #<N>` format, so open-pr will silently skip the Closes line
 ```
 
 ## CI Baseline Warning

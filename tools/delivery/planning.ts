@@ -53,6 +53,11 @@ export function parsePlan(
   });
 }
 
+export function parseOriginIssueNumber(markdown: string): number | undefined {
+  const match = markdown.match(/Origin issue:\s*#(\d+)/);
+  return match ? Number(match[1]) : undefined;
+}
+
 export function derivePlanKey(planPath: string): string {
   const normalizedPlanPath = normalizeRepoPath(planPath);
 

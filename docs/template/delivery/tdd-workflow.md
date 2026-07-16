@@ -44,7 +44,7 @@ For each ticket:
 3. Commit the failing test with a `[red]` suffix.
 4. Run `bun run deliver --plan <plan-path> post-red` before implementation.
 5. Implement the smallest code needed to make it pass.
-6. Refactor for readability only after the test is green.
+6. Refactor for readability only after the test is green. When `reviewPolicy.refactorReview` is `"runner_on_red"` (repo default: `"disabled"`), this step is not left to agent discretion alone — a cold-read subagent gate runs after `post-verify` and before the adversarial gate; see [Pre-PR subagent review](#pre-pr-subagent-review-orchestrated-code-tickets) below.
 7. Stop and review before taking the next behavior slice.
 
 `Red: skip` is the explicit metadata signal for tickets with no testable
@@ -78,6 +78,17 @@ red-green-refactor itself, but mandatory before `open-pr`):
 
 The runner must not modify files; only the primary agent commits `[subagent-review]` fixes.
 See `delivery-orchestrator.md` for policy variants (`required`, `skip_doc_only`, `disabled`).
+
+When `reviewPolicy.refactorReview` is `"runner_on_red"`, a second, earlier
+cold-read gate covers the **Refactor** leg specifically (duplication, naming,
+dead code, complexity, test-name/behavior alignment — not correctness): after
+`post-verify` and before step 1 above, run `write-subagent-refactor-review` →
+`subagent-refactor-review --subagent …` → `reconcile-subagent-refactor-review`.
+It applies only to `Red: required`, non-doc-only tickets and is a separate
+gate from the adversarial one above — different brief, different parser, no
+shared code. See `delivery-orchestrator.md`'s "Subagent refactor review"
+section for the full contract, including why enforcement is soft under
+`runner_on_red`.
 
 ## Definition Of Done
 
