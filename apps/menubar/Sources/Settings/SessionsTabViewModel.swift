@@ -378,9 +378,22 @@ final class SessionsTabViewModel {
 	/// windowless Archived rows. A no-op if `row` isn't session-keyed (the
 	/// pool's own `isSessionKeyed` guard), mirroring the affordance's
 	/// `hasActiveSessionBadge` gate.
+	///
+	/// `pool.pruneSession` guards on `lastDesired.windows[windowKey]` — the
+	/// pool's own render-target key space, keyed by `renderedKey` for a row
+	/// that owns a *different* render target than its own slice-derived
+	/// `row.id` (a sessions-off fold winner). Resolving through
+	/// `renderedWindowKey(for:)` first, the same step `show(key:)`/
+	/// `hide(key:)` already take, is required here too — passing `row.id`
+	/// directly silently no-ops for exactly that case, since it is never a
+	/// key in `lastDesired.windows`. The right-click "Prune Session"
+	/// affordance never hit this because it always fires with the exact
+	/// `WindowKey` its own panel/controller was constructed for, which by
+	/// definition is already the pool's own render-target key.
 	@MainActor
 	func pruneActive(row: SessionRow) {
-		pool?.pruneSession(windowKey: row.id, stateDirectory: stateDirectoryPath)
+		pool?.pruneSession(
+			windowKey: pool?.renderedWindowKey(for: row.id) ?? row.id, stateDirectory: stateDirectoryPath)
 		refresh()
 	}
 
@@ -392,7 +405,9 @@ final class SessionsTabViewModel {
 	@MainActor
 	func pruneAllActive() {
 		for row in activeRows where row.sessionId != nil {
-			pool?.pruneSession(windowKey: row.id, stateDirectory: stateDirectoryPath)
+			pool?.pruneSession(
+				windowKey: pool?.renderedWindowKey(for: row.id) ?? row.id,
+				stateDirectory: stateDirectoryPath)
 		}
 		refresh()
 	}
@@ -404,7 +419,9 @@ final class SessionsTabViewModel {
 	@MainActor
 	func pruneAllSessions() {
 		for row in activeRows where row.sessionId != nil {
-			pool?.pruneSession(windowKey: row.id, stateDirectory: stateDirectoryPath)
+			pool?.pruneSession(
+				windowKey: pool?.renderedWindowKey(for: row.id) ?? row.id,
+				stateDirectory: stateDirectoryPath)
 		}
 		for row in liveRows {
 			deleteSlice(for: row)

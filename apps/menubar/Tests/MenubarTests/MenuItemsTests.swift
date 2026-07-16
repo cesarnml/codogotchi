@@ -706,6 +706,58 @@ final class MenuItemsTests: XCTestCase {
 		}
 	}
 
+	/// `SessionsTabViewModel.pruneActive`/`pruneAllActive`/`pruneAllSessions`
+	/// called `pool.pruneSession(windowKey: row.id, ...)` directly. For a
+	/// fold winner (sessions off), `row.id` is the slice-derived key
+	/// (`"codex:winner"`), but `pool.pruneSession` guards on
+	/// `lastDesired.windows[windowKey]` — the pool's own render-target key
+	/// space, which for this exact scenario is keyed by `.origin("codex")`
+	/// (own mode) or `.combined` (combined mode), never by the raw session
+	/// key. Passing `row.id` straight through silently no-op'd; the fix
+	/// resolves through `renderedWindowKey(for:)` first, the same step
+	/// `show(key:)`/`hide(key:)` already took.
+	func testPruneAllActiveResolvesFoldWinnerToItsRenderedKey() throws {
+		for mode in [PlatformMode.own, .combined] {
+			let dir = try makeTempStateDir()
+			try writeSlice(named: "codex:winner.json", in: dir, age: 30)
+			try writeSlice(named: "codex:older.json", in: dir, age: 60)
+			let winnerPath = (dir as NSString).appendingPathComponent("codex:winner.json")
+			let customization = CustomizationSnapshot(
+				platformModes: ["codex": mode], idleDismissTtlSeconds: 300,
+				menubarIconMonochrome: false, combinedMinimalistEnabled: false,
+				minimalistBadgeScale: 1.0, sessionPetsEnabled: ["codex": false],
+				sessionCap: ["codex": 2], idleImpatientSeconds: 300,
+				idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+			let pool = FloatingPetWindowPool(
+				customizationReader: { customization },
+				windowFactory: { _, _ in StubWindow() })
+			let perSession: [String: StateSnapshot] = [
+				"codex:winner": StateSnapshot(
+					schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .implementing,
+					updatedAt: "2026-07-01T10:00:01.000Z", sourceEvent: nil, attention: nil),
+				"codex:older": StateSnapshot(
+					schemaVersion: EXPECTED_STATE_SCHEMA_VERSION, activityState: .idle,
+					updatedAt: "2026-07-01T10:00:00.000Z", sourceEvent: nil, attention: nil),
+			]
+			let resolution = resolveRenderKeys(perSession: perSession, customization: customization)
+			pool.update(snapshot: PerPlatformSnapshot(
+				perPlatform: resolution.states, gateBadges: [:], rpgSnapshot: .safeDefault,
+				renderKeyIdentities: resolution.identities))
+
+			let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+			viewModel.refresh()
+			XCTAssertEqual(viewModel.activeRows.map(\.id), ["codex:winner"], "mode \(mode)")
+
+			viewModel.pruneAllActive()
+
+			XCTAssertFalse(
+				FileManager.default.fileExists(atPath: winnerPath),
+				"mode \(mode): Prune All Active must delete the fold winner's slice, not silently no-op")
+			XCTAssertTrue(
+				viewModel.activeRows.isEmpty, "mode \(mode): pruned winner must leave Active empty")
+		}
+	}
+
 	func testSessionsOnKeepsPerThreadActiveAndLiveTitles() throws {
 		let dir = try makeTempStateDir()
 		try writeSlice(named: "codex:winner.json", in: dir, age: 30)
