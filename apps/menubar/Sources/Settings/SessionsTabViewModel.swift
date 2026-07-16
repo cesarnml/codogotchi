@@ -53,15 +53,21 @@ struct SessionRow: Identifiable {
 	/// never fabricated from `updated_at`. See `SessionRowView.subtitleText`
 	/// for how this becomes the "Started · 2h ago" fragment.
 	let sessionStartedAt: String?
+	/// Raw `activity_state` read straight off the slice, best-effort (`nil` on
+	/// a missing/malformed file). Only rendered for `.active` rows — Live and
+	/// Archived rows already show an age-based "Idle <age>"/"Quiet <age>"
+	/// subtitle, so a working-vs-idle distinction only matters where a pet is
+	/// currently shown or hideable. See `SessionRowView.subtitleText`.
+	let activityState: ActivityState?
 
 	/// Explicit memberwise init (rather than the compiler-synthesized one) so
-	/// `sessionStartedAt` can default to `nil` for the handful of call sites
-	/// that predate P20.03 (`MenubarMenu.fallbackActiveRows`) without having
-	/// to touch them.
+	/// `sessionStartedAt`/`activityState` can default to `nil` for the handful
+	/// of call sites that predate P20.03/P20.04 (`MenubarMenu.fallbackActiveRows`)
+	/// without having to touch them.
 	init(
 		id: WindowKey, origin: String, sessionId: String?, displayLabel: String,
 		tier: SessionTier, isShown: Bool, ageSeconds: TimeInterval, canShow: Bool,
-		sessionStartedAt: String? = nil
+		sessionStartedAt: String? = nil, activityState: ActivityState? = nil
 	) {
 		self.id = id
 		self.origin = origin
@@ -72,6 +78,7 @@ struct SessionRow: Identifiable {
 		self.ageSeconds = ageSeconds
 		self.canShow = canShow
 		self.sessionStartedAt = sessionStartedAt
+		self.activityState = activityState
 	}
 }
 
@@ -205,6 +212,7 @@ final class SessionsTabViewModel {
 			let sessionId = isSessionKeyed ? parsedSessionId : nil
 			let filePath = (stateDirectoryPath as NSString).appendingPathComponent(entry.name)
 			let sessionStartedAt = StateJsonReader.readSessionStartedAt(atPath: filePath)
+			let activityState = StateJsonReader.readActivityState(atPath: filePath)
 
 			switch lifecycle {
 			case .pruned:
@@ -216,20 +224,20 @@ final class SessionsTabViewModel {
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
 							tier: .active, isShown: true, ageSeconds: age, canShow: canShow,
-							sessionStartedAt: sessionStartedAt))
+							sessionStartedAt: sessionStartedAt, activityState: activityState))
 				} else if isHiddenByUser {
 					pendingShowKeys.remove(key)
 					active.append(
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
 							tier: .active, isShown: false, ageSeconds: age, canShow: canShow,
-							sessionStartedAt: sessionStartedAt))
+							sessionStartedAt: sessionStartedAt, activityState: activityState))
 				} else if isPendingShow {
 					active.append(
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
 							tier: .active, isShown: true, ageSeconds: age, canShow: canShow,
-							sessionStartedAt: sessionStartedAt))
+							sessionStartedAt: sessionStartedAt, activityState: activityState))
 				} else {
 					// Hidden by the "Hide Idle Pet After" idle-dismiss TTL rather
 					// than by the user — same Active (hidden) treatment: the pet is
@@ -240,20 +248,20 @@ final class SessionsTabViewModel {
 						SessionRow(
 							id: key, origin: origin, sessionId: sessionId, displayLabel: label,
 							tier: .active, isShown: false, ageSeconds: age, canShow: canShow,
-							sessionStartedAt: sessionStartedAt))
+							sessionStartedAt: sessionStartedAt, activityState: activityState))
 				}
 			case .live:
 				live.append(
 					SessionRow(
 						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
 						tier: .live, isShown: false, ageSeconds: age, canShow: canShow,
-						sessionStartedAt: sessionStartedAt))
+						sessionStartedAt: sessionStartedAt, activityState: activityState))
 			case .archived:
 				archived.append(
 					SessionRow(
 						id: key, origin: origin, sessionId: sessionId, displayLabel: label,
 						tier: .archived, isShown: false, ageSeconds: age, canShow: canShow,
-						sessionStartedAt: sessionStartedAt))
+						sessionStartedAt: sessionStartedAt, activityState: activityState))
 			}
 		}
 

@@ -132,18 +132,25 @@ final class SessionRowView: NSView {
 	}
 
 	/// Builds a row's status line: the tier's existing base text (`Shown`/
-	/// `Hidden` for Active, `Idle <age>` for Live, `Quiet <age>` for Archived)
-	/// plus a `Started <age>` fragment appended when `row.sessionStartedAt`
-	/// is present and parses — combined onto the same line rather than a
-	/// second row (P20.03). Omits the Started fragment entirely, leaving the
-	/// base text unchanged, when the stamp is missing or unparseable: never
-	/// fabricated from `updated_at`.
+	/// `Hidden` for Active, `Idle <age>` for Live, `Quiet <age>` for Archived),
+	/// an Active-only `· <activity label>` fragment (P20.04) reusing the exact
+	/// vocabulary `AnimationBadgeView` shows on the pet itself
+	/// (`ActivityState.displayLabel`, e.g. "Idle"/"Coding"/"Thinking") so a
+	/// Force-Idle or other state change is visible from the Sessions panel
+	/// without inventing new copy, plus a `Started <age>` fragment appended
+	/// when `row.sessionStartedAt` is present and parses — all combined onto
+	/// the same line rather than extra rows. Omits either fragment, leaving
+	/// the rest of the line unchanged, when its source is missing or
+	/// unparseable: never fabricated from `updated_at`.
 	static func subtitleText(for row: SessionRow, now: Date = Date()) -> String {
-		let base: String
+		var base: String
 		switch row.tier {
 		case .active: base = row.isShown ? "Shown" : "Hidden"
 		case .live: base = "Idle \(relativeAge(row.ageSeconds))"
 		case .archived: base = "Quiet \(relativeAge(row.ageSeconds))"
+		}
+		if row.tier == .active, let activityState = row.activityState {
+			base += " · \(activityState.displayLabel)"
 		}
 		guard let sessionStartedAt = row.sessionStartedAt,
 			let startedDate = StateJsonReader.parseISO8601Date(sessionStartedAt)

@@ -411,6 +411,21 @@ enum StateJsonReader {
 		return (try? decoder.decode(Payload.self, from: data))?.sessionStartedAt
 	}
 
+	/// Lightweight best-effort read of just `activity_state` from a single
+	/// `state.d/` slice file, mirroring `readSessionStartedAt` above. Settings
+	/// > Sessions' Active-row subtitle needs this to distinguish a shown-but-idle
+	/// pet from a shown-and-working one without paying for a full slice decode
+	/// per row. Returns `nil` for a missing file, malformed JSON, or an
+	/// absent/null field — an unrecognized raw string decodes as `.idle` via
+	/// `ActivityState.init(from:)`, matching every other reader's fallback.
+	static func readActivityState(atPath path: String) -> ActivityState? {
+		guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
+		struct Payload: Decodable { let activityState: ActivityState? }
+		let decoder = JSONDecoder()
+		decoder.keyDecodingStrategy = .convertFromSnakeCase
+		return (try? decoder.decode(Payload.self, from: data))?.activityState
+	}
+
 	/// Full per-session granularity: groups fresh `state.d/` slices by the
 	/// `origin:session_id` identity parsed from each filename, applying the same
 	/// stale-TTL filter and `resolveActivityState` treatment as

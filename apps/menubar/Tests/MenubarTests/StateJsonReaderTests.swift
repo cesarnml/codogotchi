@@ -908,4 +908,55 @@ final class SliceDirReaderTests: XCTestCase {
 		let path = dir.appendingPathComponent("codex:ses-malformed.json").path
 		XCTAssertNil(StateJsonReader.readSessionStartedAt(atPath: path))
 	}
+
+	// MARK: - readActivityState (P20.04)
+	//
+	// Settings > Sessions' Active-row subtitle needs `activity_state` for a
+	// single slice file without paying for a full `StateSnapshot` decode per
+	// row on every `SessionsTabViewModel.refresh()` pass. Mirrors
+	// `readSessionStartedAt`'s missing-file/malformed-JSON/absent-field → nil
+	// contract.
+
+	func testReadActivityStateReturnsStateWhenPresent() throws {
+		let dir = makeTempSliceDir(slices: [
+			("codex:ses-working.json", sliceJSON(activityState: "thinking")),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let path = dir.appendingPathComponent("codex:ses-working.json").path
+		XCTAssertEqual(StateJsonReader.readActivityState(atPath: path), .thinking)
+	}
+
+	func testReadActivityStateFallsBackToIdleForUnrecognizedString() throws {
+		let dir = makeTempSliceDir(slices: [
+			(
+				"codex:ses-unknown.json",
+				#"{"activity_state": "some_future_state", "updated_at": "2026-07-07T01:05:00.000Z"}"#
+			)
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let path = dir.appendingPathComponent("codex:ses-unknown.json").path
+		XCTAssertEqual(StateJsonReader.readActivityState(atPath: path), .idle)
+	}
+
+	func testReadActivityStateReturnsNilWhenFieldAbsent() throws {
+		let dir = makeTempSliceDir(slices: [
+			("codex:ses-noactivity.json", #"{"updated_at": "2026-07-07T01:05:00.000Z"}"#)
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let path = dir.appendingPathComponent("codex:ses-noactivity.json").path
+		XCTAssertNil(StateJsonReader.readActivityState(atPath: path))
+	}
+
+	func testReadActivityStateReturnsNilForMissingFile() {
+		XCTAssertNil(StateJsonReader.readActivityState(atPath: "/tmp/codogotchi-does-not-exist.json"))
+	}
+
+	func testReadActivityStateReturnsNilForMalformedJson() throws {
+		let dir = makeTempSliceDir(slices: [
+			("codex:ses-malformed2.json", "not valid json"),
+		])
+		defer { try? FileManager.default.removeItem(at: dir) }
+		let path = dir.appendingPathComponent("codex:ses-malformed2.json").path
+		XCTAssertNil(StateJsonReader.readActivityState(atPath: path))
+	}
 }

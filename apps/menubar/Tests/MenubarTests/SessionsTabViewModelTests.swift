@@ -93,16 +93,48 @@ final class SessionsTabViewModelTests: XCTestCase {
 		XCTAssertNil(row.sessionStartedAt)
 	}
 
+	// MARK: - refresh() threading activity_state (P20.04 — pool-free tiers)
+	//
+	// Same rationale as the session_started_at coverage above: the
+	// `activity_state` read runs once per candidate slice ahead of the tier
+	// switch, identically for Active/Live/Archived, so Live/Archived coverage
+	// here plus the exhaustive `subtitleText` contract tests below give
+	// equivalent confidence without a full `FloatingPetWindowPool` stub.
+
+	@MainActor
+	func testRefreshThreadsActivityStateIntoLiveRow() throws {
+		let dir = try makeTempStateDir()
+		try writeSlice(
+			named: "codex:live-working.json", in: dir, age: 60,
+			json: #"{"schema_version": 10, "activity_state": "thinking"}"#)
+		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir)
+		viewModel.refresh()
+
+		let row = try XCTUnwrap(viewModel.liveRows.first)
+		XCTAssertEqual(row.activityState, .thinking)
+	}
+
+	@MainActor
+	func testRefreshOmitsActivityStateWhenSliceLacksField() throws {
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "codex:no-activity.json", in: dir, age: 60, json: #"{"schema_version": 6}"#)
+		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir)
+		viewModel.refresh()
+
+		let row = try XCTUnwrap(viewModel.liveRows.first)
+		XCTAssertNil(row.activityState)
+	}
+
 	// MARK: - SessionRowView.subtitleText formatting contract (all three tiers)
 
 	private func makeRow(
 		tier: SessionTier, isShown: Bool = true, ageSeconds: TimeInterval = 300,
-		sessionStartedAt: String? = nil
+		sessionStartedAt: String? = nil, activityState: ActivityState? = nil
 	) -> SessionRow {
 		SessionRow(
 			id: "codex", origin: "codex", sessionId: nil, displayLabel: "Codex",
 			tier: tier, isShown: isShown, ageSeconds: ageSeconds, canShow: true,
-			sessionStartedAt: sessionStartedAt)
+			sessionStartedAt: sessionStartedAt, activityState: activityState)
 	}
 
 	private func isoString(_ now: Date, before seconds: TimeInterval) -> String {
@@ -166,5 +198,44 @@ final class SessionsTabViewModelTests: XCTestCase {
 	func testSubtitleOmitsStartedWhenStampIsUnparseable() {
 		let row = makeRow(tier: .live, ageSeconds: 300, sessionStartedAt: "not-a-date")
 		XCTAssertEqual(SessionRowView.subtitleText(for: row), "Idle 5m ago")
+	}
+
+	// MARK: Activity-state fragment (P20.04 — Active tier only)
+
+	func testSubtitleAppendsActivityLabelOnActiveShown() {
+		let row = makeRow(tier: .active, isShown: true, activityState: .thinking)
+		XCTAssertEqual(SessionRowView.subtitleText(for: row), "Shown · Thinking")
+	}
+
+	func testSubtitleAppendsActivityLabelOnActiveHidden() {
+		let row = makeRow(tier: .active, isShown: false, activityState: .implementing)
+		XCTAssertEqual(SessionRowView.subtitleText(for: row), "Hidden · Coding")
+	}
+
+	func testSubtitleOmitsActivityLabelOnActiveWhenStateMissing() {
+		let row = makeRow(tier: .active, isShown: true, activityState: nil)
+		XCTAssertEqual(SessionRowView.subtitleText(for: row), "Shown")
+	}
+
+	func testSubtitleIgnoresActivityStateOnLiveAndArchived() {
+		// Live/Archived rows already carry an age-based status (`Idle <age>`/
+		// `Quiet <age>`) — the activity-state fragment is Active-only, so a
+		// populated `activityState` on a non-Active row is a no-op.
+		XCTAssertEqual(
+			SessionRowView.subtitleText(for: makeRow(tier: .live, ageSeconds: 300, activityState: .testing)),
+			"Idle 5m ago")
+		XCTAssertEqual(
+			SessionRowView.subtitleText(
+				for: makeRow(tier: .archived, ageSeconds: 7200, activityState: .testing)),
+			"Quiet 2h ago")
+	}
+
+	func testSubtitleCombinesActivityLabelAndStartedFragmentsOnActive() {
+		let now = Date()
+		let row = makeRow(
+			tier: .active, isShown: true, sessionStartedAt: isoString(now, before: 2 * 60 * 60),
+			activityState: .verifying)
+		XCTAssertEqual(
+			SessionRowView.subtitleText(for: row, now: now), "Shown · Verifying · Started 2h ago")
 	}
 }
