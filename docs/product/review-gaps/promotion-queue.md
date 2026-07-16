@@ -539,6 +539,23 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   check.
 - **Status:** WAITING — single instance tied to phase-19 badge follow-through.
 
+### `sibling-surface-misses-new-promotion-limb`
+- **Seen:** 1× — `codogotchi-51` (phase-19 QC: Settings Show All Live vs
+  menubar Show … Panel for sessions-off Live rows).
+- **Proposed clause:** *"When a ticket teaches one UI surface a new promotion
+  / un-hide path for fold or sessions-off panels (especially when
+  `canShow == false` rows are intentionally excluded from per-row Show),
+  enumerate sibling bulk actions on other surfaces (Settings Sessions,
+  Show All Pets) that claim to act on the same Live set and require them to
+  share the new limb or document why they stay narrower."*
+- **Caveat that blocks naive promotion:** completeness-/planning-flavored —
+  the menubar diff alone does not force a reviewer to open
+  `SessionsTabViewModel.showAllLive`. Needs ≥1 more
+  "surface A gains promotion path → surface B bulk twin left on old gate"
+  occurrence before promoting.
+- **Status:** WAITING — single instance from phase-19 panel-affordance
+  follow-through.
+
 ### `vestigial-schema-field-mechanically-round-tripped-past-its-consumer`
 - **Seen:** 1× — `codogotchi-49`/`codogotchi-50` investigation (phase-13/15 QC
   fix for `floating_pet_positions`/`floating_pet_hidden` pruning).
