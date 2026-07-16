@@ -539,6 +539,35 @@ prompt absorbs only *proven-recurrent, review-reachable* gaps. Capture
   check.
 - **Status:** WAITING — single instance tied to phase-19 badge follow-through.
 
+### `vestigial-schema-field-mechanically-round-tripped-past-its-consumer`
+- **Seen:** 1× — `codogotchi-49`/`codogotchi-50` investigation (phase-13/15 QC
+  fix for `floating_pet_positions`/`floating_pet_hidden` pruning).
+- **Observation (not yet a fix — deferred, no ledger row):** `app-state.json`'s
+  singular `floating_pet` field (schema-v3 `AppStatePayload.floatingPet`,
+  introduced phase-4 P4.02 before per-origin/per-session windows existed) is
+  still read and written on every `AppStateStore.load`/`save`, but no live pool
+  window (`FloatingPetController`/`MinimalistWindowController`) is ever
+  constructed from its `visible`/`frame` values — every real window goes
+  through the per-origin `loadFrame`/`saveFrame` path instead (added P13).
+  `save()`'s only real caller (`refreshHookStatusCache`) round-trips the field
+  unchanged. It compiles, decodes, and encodes cleanly, so nothing flags it.
+- **Proposed clause:** *"When a later phase adds a per-key/per-scope
+  replacement for a singular top-level state field (single-window →
+  per-origin, global flag → per-session map), check whether the original
+  field still has a live reader that actually drives behavior, or whether it
+  now only survives via a self-preserving round-trip in an unrelated save
+  path. A field that decodes/encodes without error can still be dead weight —
+  compiler and schema-fixture tests can't catch 'unused' the way they catch
+  'malformed'."*
+- **Caveat that blocks naive promotion:** single instance, and the fix
+  (removing a non-optional schema field, deciding v4 migration handling) is
+  larger/riskier than a bounded QC fix — deliberately deferred rather than
+  bundled into `codogotchi-49`/`codogotchi-50`. Needs a second occurrence
+  (or a scoped removal ticket) before promoting past this candidate stage.
+- **Status:** WAITING — no ledger row yet (observation, not a verified fix);
+  candidate future ticket: remove `floating_pet` from `AppStatePayload` and
+  decide the v3→v4 migration/back-compat story.
+
 ## Open meta-question (for the eventual `/soa quality-control` skill)
 
 The 7 existing diff-derived classes are backend/CLI-shaped. codogotchi's
