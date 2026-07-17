@@ -1,0 +1,48 @@
+{
+  "ticket": "P21.05",
+  "invocations": [
+    {
+      "runnerKind": "cursor-cli",
+      "reviewedHeadSha": "1be07222392a00bc684b51f0ac8a8351753547d8",
+      "outcome": "clean",
+      "completedAt": "2026-07-16T15:57:24.577Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-21/reviews/P21.05-refactor-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-21/reviews/P21.05-refactor-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 2,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "b83b4c613601342f8a963f363e4a9171d20277ab",
+      "outcome": "patched",
+      "completedAt": "2026-07-16T15:59:09.603Z",
+      "terminatedReason": "completed",
+      "schemaVersion": 2,
+      "primaryAgent": "claude",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": ["b83b4c613601342f8a963f363e4a9171d20277ab"]
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "b83b4c613601342f8a963f363e4a9171d20277ab",
+      "outcome": "deferred",
+      "completedAt": "2026-07-16T15:59:32.282Z",
+      "terminatedReason": "completed",
+      "schemaVersion": 2,
+      "primaryAgent": "claude",
+      "findings": [
+        "No further refactor content: the only unlabeled commit since the recorded patch is the orchestrator's own ledger-artifact bookkeeping commit created by recording the patched outcome itself. The real refactor-review patch (b83b4c613601342f8a963f363e4a9171d20277ab) already carries the [refactor-review] tag and is recorded above."
+      ],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}

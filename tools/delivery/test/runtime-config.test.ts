@@ -536,3 +536,111 @@ describe('P20.01 — refactorReview schema validation', () => {
     }
   });
 });
+
+describe('P21.04 — subagentRunnerOptions validation', () => {
+  it('loads a valid subagentRunnerOptions map with model and effort', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'p21-04-cfg-valid-'));
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          subagentRunnerOptions: {
+            'claude-cli': { model: 'claude-opus-4-8', effort: 'high' },
+            'codex-cli': { model: 'gpt-5-codex', effort: 'high' },
+            'cursor-cli': { model: 'composer-1' },
+          },
+        }),
+      );
+      const config = await loadOrchestratorConfig(tempDir);
+      expect(config.subagentRunnerOptions).toEqual({
+        'claude-cli': { model: 'claude-opus-4-8', effort: 'high' },
+        'codex-cli': { model: 'gpt-5-codex', effort: 'high' },
+        'cursor-cli': { model: 'composer-1' },
+      });
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+
+  it('rejects an unknown platform key', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'p21-04-cfg-bad-platform-'));
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          subagentRunnerOptions: { 'gemini-cli': { model: 'gemini-3' } },
+        }),
+      );
+      await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
+        /Unknown platform "gemini-cli"/,
+      );
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+
+  it('rejects an unknown option key within a platform entry', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'p21-04-cfg-bad-option-'));
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          subagentRunnerOptions: {
+            'claude-cli': { model: 'claude-opus-4-8', temperature: 0.2 },
+          },
+        }),
+      );
+      await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
+        /Unknown key "temperature"/,
+      );
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+
+  it('rejects an effort entry for cursor-cli (no effort flag)', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'p21-04-cfg-cursor-effort-'));
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          subagentRunnerOptions: { 'cursor-cli': { effort: 'high' } },
+        }),
+      );
+      await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
+        /cursor-cli.*effort.*not supported/,
+      );
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+
+  it('rejects an unknown claude-cli effort tier', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'p21-04-cfg-bad-tier-'));
+    try {
+      await writeFile(
+        join(tempDir, 'orchestrator.config.json'),
+        JSON.stringify({
+          deliveryBaseBranch: 'main',
+          closeoutBranch: 'main',
+          subagentRunnerOptions: {
+            'claude-cli': { effort: 'ultra-mega' },
+          },
+        }),
+      );
+      await expect(loadOrchestratorConfig(tempDir)).rejects.toThrow(
+        /Invalid subagentRunnerOptions\["claude-cli"\].effort/,
+      );
+    } finally {
+      await rm(tempDir, { recursive: true });
+    }
+  });
+});

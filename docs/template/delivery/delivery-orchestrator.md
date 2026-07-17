@@ -52,11 +52,24 @@ Phase 14 makes the subagent-review ledger semantically honest. Operator-facing d
 
 - **Artifact triplet:** `reviews/<ticket>-subagent-review.{prompt.md, report.md, ledger.json}` — prompt, report, ledger. No dual-name fallback for pre-Phase-14 filenames.
 - **Runner selection:** `--subagent <claude-cli|codex-cli|cursor-cli>` at invocation time; optional project default `subagentRunner` in `orchestrator.config.json`. Precedence: flag > config field > hard error (SoA ships no silent default).
-- **Outcome vocabulary:** ledger rows use `clean | patched | deferred | skipped` reflecting what the primary agent actually did after the advisory pass.
+- **Outcome vocabulary:** ledger rows use `clean | patched | deferred | skipped | completed_with_findings` reflecting what the primary agent actually did after the advisory pass. `completed_with_findings` (P21.02) is recorder-derived, not primary-agent-declared: the runner terminated `completed` and its `<actionable-findings>` block lists one or more findings, so the row cannot honestly claim `clean` — see the outcome-honesty cross-check below.
 - **Reconciliation:** `reconcile-subagent-review` runs after `subagent-review` and before `open-pr`. It detects silent lies (unlabeled post-review edits, actionable findings with no patch or deferral) and exits non-zero with named resolution paths. `open-pr` invokes the same gate and accepts `--ack-reconciliation <patched|deferred|clean>` as an operator escape valve.
 - **Deferral:** `subagent-review record-deferred --reason "<rationale>"` appends a `deferred` row when findings are consciously not patched.
-- **Advisory observations:** non-blocking off-scope-but-real notes belong under the `Advisory Observations` report section, not the blocking `Actionable findings` section. The old `Findings for human review` wording is legacy terminology for this same non-blocking lane.
+- **Advisory observations:** non-blocking off-scope-but-real notes belong under the `<advisory-observations>` tagged region, not the blocking `<actionable-findings>` region. Both regions are balanced tag blocks per `notes/public/subagent-report-parser-contract.md` — there is no heading-format fallback.
 - **Adversarial prompt prologue:** broadening clauses (extra surfaces, advisory-observation bucket) appear before the narrowing "not a general code review" anchor in `adversarial-review-template.md`.
+
+### P21.02 — outcome-honesty cross-check
+
+`decideAdvisoryRunnerOutcome` (and the recorder-mode `decideSubagentOutcomeFromRunner`) cross-check the runner's terminated reason against the P21.01 tag-parsed `<actionable-findings>` result before recording `clean`:
+
+- runner terminated `completed` and the report's `<actionable-findings>` block is closed and lists one or more findings → `completed_with_findings`, never `clean`
+- runner terminated `completed` and the block is the literal `None` → `clean`
+- any non-`completed` termination reason (`rate_limit`, `sandbox_denied`, `runner_unavailable`, `runner_failed`, or a detected `advisory_violation`) → still collapses to `skipped` with the original reason preserved, exactly as before this ticket
+- a call site that has no parsed findings result to pass (e.g. the refactor-review gate's `runProgrammaticSubagentReview`, which uses a different tag and a different domain) keeps recording `clean` on a completed run — the cross-check only fires when the caller supplies an `actionableFindings` parse result
+
+`reconcile-subagent-review` semantics are unchanged by this ticket: it already blocks `open-pr` on unpatched/undeferred actionable findings regardless of the ledger row's label, so `completed_with_findings` closes an honesty gap in the ledger without changing what the reconcile gate enforces.
+
+**Ledger schema version 2:** `SUBAGENT_LEDGER_SCHEMA_VERSION` bumps from 1 to 2 to cover the new outcome value. Reads are fully tolerant of v1 rows — validation checks each row's `outcome` against the current (now five-member) `VALID_OUTCOMES` list, not against the row's own `schemaVersion`, so pre-existing v1 rows (including codogotchi's existing invocation history) continue to validate unchanged.
 
 ### Programmatic subagent runners
 
@@ -71,6 +84,30 @@ Phase 14 makes the subagent-review ledger semantically honest. Operator-facing d
 Prerequisites: install the binary on PATH. For `cursor-cli`, run `agent login` or set `CURSOR_API_KEY` before delivery. The orchestrator runs the command in the ticket worktree, persists stdout to `*-subagent-review.report.md`, stderr to `*-subagent-review.trace.log`, and records honest `skipped` rows when a runner is unavailable, rate-limited, or violates the advisory-only contract (any file write in the worktree).
 
 Fallback order: try the operator-selected runner first, then each other programmatic runner in stable order (`claude-cli` → `codex-cli` → `cursor-cli`, with the requested runner moved to the front). Ledger rows record `runnerKind` (what ran) and `fallbackFrom` (what was requested when fallback fired).
+
+Fallback triggers on: the runner being unavailable or timing out, and — as of P21.03 — a runner that spawned but produced no usable review (`ran` with `terminatedReason` of `runner_failed`, `rate_limit`, or `sandbox_denied`). It does **not** trigger on `advisory_violation` (the runner reviewed but broke the no-writes contract) or a genuinely completed `ran` result — those record honestly and stop the chain. Each runner in the chain is attempted at most once; when every runner fails, the row records `skipped` with `fallbackLevel: 'failed_all'` and preserves the originally-requested kind in `fallbackFrom`, with the full attempt chain in `attemptedKinds`.
+
+### Per-platform model and effort selection (P21.04)
+
+`orchestrator.config.json` accepts an optional `subagentRunnerOptions` map, keyed by platform:
+
+```json
+{
+  "subagentRunnerOptions": {
+    "claude-cli": { "model": "claude-opus-4-8", "effort": "high" },
+    "codex-cli": { "model": "gpt-5-codex", "effort": "high" },
+    "cursor-cli": { "model": "composer-1" }
+  }
+}
+```
+
+Unknown platform keys or unknown option keys inside an entry fail config validation with an actionable error. `effort` is rejected for `cursor-cli` — it has no effort flag; effort rides the model slug there. `effort` on `claude-cli` must be one of the known tiers (`low`, `medium`, `high`, `xhigh`, `max`); `model` values are never validated against a catalog — platforms own their own model namespaces.
+
+`subagent-review` also accepts flat `--subagent-model <value>` and `--subagent-effort <value>` flags. These apply **only to the explicitly requested runner** (the one named by `--subagent` or `subagentRunner`) — a fallback attempt resolves its own model/effort purely from `subagentRunnerOptions` for that platform, never inheriting the requested runner's flag values. Precedence per platform: flag (requested runner only) > `subagentRunnerOptions` entry > platform default.
+
+Resolved values are forwarded into each platform's documented flags: `claude --model <m> --effort <e>`, `codex exec -m <m> -c model_reasoning_effort=<e>`, `agent --model <m>` (no effort flag). A resolved `effort` for `cursor-cli` (from either the flag or a fallback's config entry) fails fast with an actionable error before any runner spawns — never silently dropped.
+
+Ledger rows gain optional `runnerModel`/`runnerEffort` fields recording what actually ran for that attempt (absent/`null` when the platform default was used), including for fallback attempts.
 
 ## Stance
 
@@ -353,7 +390,7 @@ triage, the primary agent reads each parsed advisory observation, decides
 whether it is prudent to fix, and **applies patches directly to the configured
 `closeoutBranch`** where prudent. The `triage-advisory-observations` command itself is a state
 recorder — it scans completed subagent-review report sidecars, parses the
-`Advisory Observations` section (excluding `Actionable findings`), aligns
+`<advisory-observations>` tagged region (excluding `<actionable-findings>`), aligns
 the parsed observations with the operator's explicit dispositions, and
 writes the triage artifact at
 `docs/product/delivery/<phase>/advisory-observation-triage.json`. The
@@ -393,9 +430,24 @@ that lands in `docs/product/delivery/<phase>/`.
 
 Closeout/status summaries may warn when advisory observations are untriaged or
 when clean/completed subagent-review evidence is suspiciously missing or empty.
-Those warnings preserve the boundary: `Actionable findings` still govern
-pre-PR reconciliation blockers, while `Advisory Observations` require later
+Those warnings preserve the boundary: `<actionable-findings>` still governs
+pre-PR reconciliation blockers, while `<advisory-observations>` requires later
 operator disposition.
+
+**Consumer upgrade rule.** `parseActionableFindings` and
+`parseAdvisoryObservations` (`tools/delivery/reconciliation.ts`) read only
+the tagged contract (`<actionable-findings>`, `<advisory-observations>`) —
+there is no legacy heading-format fallback (see
+`notes/public/subagent-report-parser-contract.md`). This means a phase's
+`subagent-review` reports and its post-phase `triage-advisory-observations`
+pass must be read by the **same** parser version. **Do not update
+son-of-anton's own delivery tooling between a phase's first
+`subagent-review` invocation and its `triage-advisory-observations` run.**
+Upgrading mid-phase risks a parser that no longer recognizes reports written
+under the prior contract, which reads as a silent 0-parse rather than an
+upgrade error. Land tooling upgrades either before a phase's first
+`subagent-review`, or after its `triage-advisory-observations` has recorded
+the triage artifact.
 
 ## Ticket Context Reset
 
@@ -437,13 +489,15 @@ Pass explicit flags to override delivery policy for a single run without editing
 
 **Available flags:**
 
-| Flag                       | Values                              | Effect                                                                                                     |
-| -------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `--boundary-mode`          | `cook\|gated`                       | Override ticket-boundary mode                                                                              |
-| `--subagent-review-policy` | `required\|skip_doc_only\|disabled` | Override subagent review gate                                                                              |
-| `--pr-review-policy`       | `required\|skip_doc_only\|disabled` | Override PR review gate                                                                                    |
-| `--subagent`               | `claude-cli\|codex-cli\|cursor-cli` | Declare execution agent identity; tries preferred first, then other programmatic runners, then honest skip |
-| `--baseline`               | `orchestrator\|run-policy`          | Resolve divergence on resume (see below)                                                                   |
+| Flag                       | Values                                                                                                                                          | Effect                                                                                                                   |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `--boundary-mode`          | `cook\|gated`                                                                                                                                   | Override ticket-boundary mode                                                                                            |
+| `--subagent-review-policy` | `required\|skip_doc_only\|disabled`                                                                                                             | Override subagent review gate                                                                                            |
+| `--pr-review-policy`       | `required\|skip_doc_only\|disabled`                                                                                                             | Override PR review gate                                                                                                  |
+| `--subagent`               | `claude-cli\|codex-cli\|cursor-cli`                                                                                                             | Declare execution agent identity; tries preferred first, then other programmatic runners, then honest skip               |
+| `--subagent-model`         | free-form string                                                                                                                                | Model override for the explicitly requested runner only (P21.04); fallback attempts resolve from `subagentRunnerOptions` |
+| `--subagent-effort`        | free-form string (not tier-validated at the flag; only `subagentRunnerOptions["claude-cli"].effort` in config is validated against known tiers) | Effort override for the explicitly requested runner only; rejected for `cursor-cli`                                      |
+| `--baseline`               | `orchestrator\|run-policy`                                                                                                                      | Resolve divergence on resume (see below)                                                                                 |
 
 **Divergence recovery:** If `orchestrator.config.json` changes between runs, resume detects drift on the four bounded policy fields and refuses to continue until the operator resolves it:
 
@@ -573,7 +627,7 @@ bun run deliver --plan <plan> reconcile-subagent-refactor-review
 
 **Ledger shape:** suggestion decisions record `id` (`R1`, `R2`, …), `summary`, `decision` (`accepted` / `rejected` / `deferred`), and `reason` (required for `rejected`/`deferred`). Deferred suggestions surface again at the next `advance` so they are not silently lost (see ticket 20.04).
 
-**Parser independence:** the `<refactor-suggestions>` tag parser (`tools/delivery/refactor-review.ts`) is a new, separate module from the adversarial gate's heading-based `parseAdvisoryObservations`/`extractReportSection` (`tools/delivery/reconciliation.ts`). The two gates' parsing logic do not share code and are not migrated toward each other by this feature.
+**Parser independence:** the `<refactor-suggestions>` tag parser (`tools/delivery/refactor-review.ts`) is a separate module from the adversarial gate's `<actionable-findings>`/`<advisory-observations>` tag parser (`tools/delivery/reconciliation.ts`, P21.01). Both are tag-based per `notes/public/subagent-report-parser-contract.md`, but the two gates' parsing logic do not share code and are not migrated toward each other by this feature.
 
 ## Subagent adversarial review (ticket stacks)
 
@@ -587,7 +641,7 @@ When `reviewPolicy.subagentReview` is `"required"` or `"skip_doc_only"`, code ti
 
 **Step 1 — Author the prompt (`write-subagent-adversarial-review`):**
 
-1. Read `docs/template/delivery/adversarial-review-template.md`. Fill in invariants, attack surfaces (including the seven diff-derived classes), and diff context from the current ticket diff and spec. This is primary-agent work — the subagent does not author its own brief.
+1. Read `docs/template/delivery/adversarial-review-template.md`. Fill in invariants, attack surfaces (including the nine diff-derived classes), and diff context from the current ticket diff and spec. This is primary-agent work — the subagent does not author its own brief.
 2. Record the filled prompt:
 
 ```bash
@@ -737,7 +791,7 @@ Available commands:
 - `subagent-refactor-review record-deferred --reason "<rationale>" [ticket-id]`
 - `reconcile-subagent-refactor-review [ticket-id]`
 - `write-subagent-adversarial-review [ticket-id] [--prompt-file <path>]`
-- `subagent-review [ticket-id] [clean|patched <sha>] [--force] [--subagent <claude-cli|codex-cli|cursor-cli>]`
+- `subagent-review [ticket-id] [clean|patched <sha>] [--force] [--subagent <claude-cli|codex-cli|cursor-cli>] [--subagent-model <value>] [--subagent-effort <value>]`
 - `subagent-review record-deferred --reason "<rationale>" [ticket-id]`
 - `reconcile-subagent-review [ticket-id]`
 - `open-pr [ticket-id] [--ack-reconciliation <patched|deferred|clean>] [--commit <sha>] [--reason "<text>"]`
@@ -981,6 +1035,6 @@ PR descriptions are maintained as delivery metadata, not one-shot text.
 - in `cook`, `advance` auto-starts the next pending ticket and prints the next handoff path
 - in `gated`, `advance` stops and prints reset guidance plus the canonical resume prompt; `start` still owns next-ticket handoff creation
 - `start` (zero-arg) finds the next pending ticket, creates its worktree and branch, writes its handoff, and prints the handoff path; explicit `start <ticket-id>` form is unchanged
-- when `implementation-plan.md`'s `## Epic` section has an `Origin issue: #<N>` line, `open-pr` appends a `- Closes #<N>` bullet to the **final ticket's** PR body only — earlier tickets in the stack land on intermediate branches, not `closeoutBranch`, so the issue isn't actually resolved until the last stacked PR merges through closeout
+- when `implementation-plan.md`'s `## Epic` section has one or more `Origin issue: #<N>` lines (P21.06: multi-line-aware, deduplicated, document order), `open-pr` appends one `- Closes #<N>` bullet per issue to the **final ticket's** PR body only — earlier tickets in the stack land on intermediate branches, not `closeoutBranch`, so no issue is actually resolved until the last stacked PR merges through closeout. Near-miss lines (`Origin Issue #76`, `origin issue: 76`, trailing punctuation) are rejected — one issue per line, nothing else on the line. A single-line comma-separated form is not supported. Pre-P21.06 state files persisting a single `originIssueNumber` load without migration — the value is read into the new `originIssueNumbers` list at load time.
 
 This matters because the repo squash-merges PRs onto `closeoutBranch`, so the PR body needs to mention prudent ai-cr follow-up work before the stack moves on.

@@ -1,0 +1,60 @@
+{
+  "ticket": "P21.03",
+  "invocations": [
+    {
+      "runnerKind": "cursor-cli",
+      "reviewedHeadSha": "e853e326280cc322fd4e204c3d96e6635f535f98",
+      "outcome": "clean",
+      "completedAt": "2026-07-16T15:05:20.170Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-21/reviews/P21.03-refactor-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-21/reviews/P21.03-refactor-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 2,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "644f47c",
+      "outcome": "patched",
+      "completedAt": "2026-07-16T15:06:56.622Z",
+      "terminatedReason": "completed",
+      "schemaVersion": 2,
+      "primaryAgent": "claude",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": ["644f47c"]
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "644f47c1c9ae96c0d6ff3c1c0f98a7ae7af77367",
+      "outcome": "patched",
+      "completedAt": "2026-07-16T15:08:13.659Z",
+      "terminatedReason": "completed",
+      "schemaVersion": 2,
+      "primaryAgent": "claude",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": ["644f47c1c9ae96c0d6ff3c1c0f98a7ae7af77367"]
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "644f47c1c9ae96c0d6ff3c1c0f98a7ae7af77367",
+      "outcome": "deferred",
+      "completedAt": "2026-07-16T15:09:37.680Z",
+      "terminatedReason": "completed",
+      "schemaVersion": 2,
+      "primaryAgent": "claude",
+      "findings": [
+        "No further refactor content: the only unlabeled commits since the recorded patch are the orchestrator's own ledger-artifact bookkeeping commits, created because the patch was first recorded with a truncated (short) sha and then corrected to the full sha via --force. The single real refactor-review patch (644f47c1c9ae96c0d6ff3c1c0f98a7ae7af77367) already carries the [refactor-review] tag and is recorded above."
+      ],
+      "probedSurfaces": [],
+      "patches": []
+    }
+  ]
+}

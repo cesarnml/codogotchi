@@ -5,11 +5,14 @@ This template is filled in by the **primary execution agent** before invoking th
 **Companion template:** the subagent writes its findings into a report whose
 structure is canonical, not free-form. See
 [`subagent-review-report-template.md`](./subagent-review-report-template.md)
-for the required section headings (`Invariant results`, `Surface results`,
-`Actionable findings`, `Advisory Observations`, `Runner termination`) and
-the bullet/paragraph rules. The downstream parser
-(`tools/delivery/reconciliation.ts`) depends on those headings — drift
-silently truncates extracted observations.
+for the full shape (`Invariant results`, `Surface results` prose sections,
+plus three tagged machine-read regions: `<actionable-findings>`,
+`<advisory-observations>`, `<runner-termination>`). The downstream parser
+(`tools/delivery/reconciliation.ts`, `tools/delivery/subagent-runner.ts`)
+extracts content **exclusively** from the balanced tag blocks — per
+[`notes/public/subagent-report-parser-contract.md`](../../../notes/public/subagent-report-parser-contract.md).
+A missing, unclosed, or misnamed tag prints a warning at `subagent-review`
+record time; copy the tag skeletons verbatim.
 
 ---
 
@@ -85,7 +88,7 @@ Surfaces for this review:
 
 #### Diff-derived attack surfaces
 
-In addition to the ticket-spec-derived surfaces above, probe each of the seven
+In addition to the ticket-spec-derived surfaces above, probe each of the nine
 diff-derived classes below. These are the finding classes external code review
 (e.g. CodeRabbit) catches consistently and the prior template did not name. The
 primary agent must enumerate concrete surfaces drawn from this diff against each
@@ -126,6 +129,32 @@ class. The subagent must report coverage for every class using the form
    does not match what the diff actually does? Read the Rationale and contract
    docs and surface drift in **Advisory Observations** — do not patch
    ticket docs. Output form: `[probed]` / `[N/A — reason]` / `[blocked —
+   missing-input]`.
+8. **Control signal starved by a change-gated callback** — for any setting,
+   flag, or value that must propagate into a running view, process, or
+   consumer, trace the single runtime path that re-reads it and identify the
+   condition that path executes under. If that condition is unrelated to the
+   value's own change (a delta/threshold gate, a handler bound to a different
+   event, a periodic-but-conditional emit), the value is starved whenever
+   that condition doesn't hold — a control signal must ride a path triggered
+   by its own change, not piggyback on an unrelated gated emit. Corollary:
+   persisting a value is not applying it; a write meant to affect a running
+   consumer needs an explicit live-apply call, distinct from whatever reads
+   the value at startup or on the next unrelated trigger. Probe every
+   settings toggle, flag write, or live-updated derived value for this gap.
+   Output form: `[probed]` / `[N/A — reason]` / `[blocked — missing-input]`.
+9. **Source identity collapsed into a shared render/output target** — when
+   multiple logical source records can fold, cap, or route into one shared
+   presentation, cache, or output key (a UI row folded into a grouped view, a
+   window/session mapped to a shared slot, several inputs writing one
+   aggregate), does every consumer that acts on a source key (show/hide,
+   refresh, invalidate, label, prune) resolve it through the same
+   source-to-target mapping the rendering/output path uses — or does at
+   least one consumer act on the raw source identity directly, becoming a
+   silent no-op or reading stale/wrong state whenever the fold is active?
+   Check both individual-item and bulk/aggregate actions separately, since
+   bulk paths often derive their target set differently than the per-item
+   path. Output form: `[probed]` / `[N/A — reason]` / `[blocked —
    missing-input]`.
 
 ### Diff context
@@ -183,55 +212,90 @@ correct output is a clean report. Do not invent findings to justify the review s
 ### Required output format
 
 After completing your review, report in this exact structure (prose only — no file edits).
-The structure is canonical and machine-parsed by downstream tooling — see
-`docs/template/delivery/subagent-review-report-template.md` for the full
-rules. Two rules that catch the most common drift bugs:
-
-- Use exactly these five top-level section headings, in this order:
-  `Invariant results`, `Surface results`, `Actionable findings`,
-  `Advisory Observations`, `Runner termination`.
-- **Do not use `---` horizontal rules anywhere in the report.** A `---`
-  inside the `Advisory Observations` body breaks the all-bullets parser
-  check, causes fallback to paragraph mode, and preserves `- ` prefixes
-  on every observation key — creating verbatim-match churn in the
-  downstream dispositions file and forcing `---` itself to be triaged as
-  a fake observation. Just omit `---`.
-- **`Runner termination` must be the section heading**, not `**runnerStatus:**
-  \`completed\`` or any other inline key-value variant. Write it as the bold
-  span `**Runner termination**` on its own line, then `runnerStatus:` and
-  `terminatedReason:` as plain-text lines below. Any other format leaves the
-  termination block inside the `Advisory Observations` body.
-- Inside `Advisory Observations`, write **one observation per bullet or one
-  observation per paragraph**. Do NOT use a bold span (`**A1 — Title**`) on a
-  line by itself before the observation body — that visually mimics a
-  section heading and splits one labeled observation into two parsed
-  observations.
+`Invariant results` and `Surface results` stay free-form prose. The other
+three regions — `<actionable-findings>`, `<advisory-observations>`,
+`<runner-termination>` — are **copy-me tag skeletons**: copy them verbatim,
+keep the tag names and closing tags exactly as shown, and put your content
+between the tags. A parser (`tools/delivery/reconciliation.ts`,
+`tools/delivery/subagent-runner.ts`) reads only what is between the tags —
+nothing outside them, no heading recognition. If a region has nothing to
+report, the block contains the single literal line `None` (no bullets).
 
 **Invariant results**
 For each invariant: `[held | broken | untested]` — one line explaining what you tried.
 
 **Surface results**
-For each attack surface (both ticket-spec-derived and the seven diff-derived classes):
+For each attack surface (both ticket-spec-derived and the nine diff-derived classes):
 `[probed | N/A — <reason> | blocked — missing-input]`
 If probed: what you tried and what you found (one to three sentences).
 
-**Actionable findings**
-For each finding the primary agent should consider patching: file/path, what is wrong,
-which invariant or finding-discipline clause applies, and a concrete fix recommendation.
-If none: "None."
+**Actionable findings** — copy this skeleton verbatim:
 
-**Advisory Observations**
-Things you noticed that are outside the three finding-discipline clauses, including any
-doc-vs-code drift surfaced under the diff-derived "Doc-vs-code drift in the ticket
-Rationale" class. One bullet or one paragraph per observation. If none: "None."
+```
 
-**Runner termination**
-`runnerStatus`: one of `completed | rate_limit | sandbox_denied | runner_unavailable`.
-`terminatedReason`: one short sentence explaining why this status was reported.
+<actionable-findings>
 
-`completed` means you finished the review per this template. The other three values are
-honest failure modes — the CLI refuses to record `outcome: clean` for any non-`completed`
-`terminatedReason`, so do not claim `completed` if you stopped early.
+- file/path — what is wrong, which invariant or finding-discipline clause
+  applies, and a concrete fix recommendation.
+
+</actionable-findings>
+```
+
+If none, the block contains only the literal word `None`:
+
+```
+<actionable-findings>
+None
+</actionable-findings>
+```
+
+**Advisory Observations** — copy this skeleton verbatim:
+
+```
+<advisory-observations>
+
+- one observation per bullet, including any doc-vs-code drift surfaced
+  under the diff-derived "Doc-vs-code drift in the ticket Rationale" class.
+
+</advisory-observations>
+```
+
+If none, the block contains only the literal word `None`:
+
+```
+<advisory-observations>
+None
+</advisory-observations>
+```
+
+**Runner termination** — copy this skeleton verbatim:
+
+```
+<runner-termination>
+runnerStatus: completed
+terminatedReason: one short sentence explaining why this status was reported.
+</runner-termination>
+```
+
+`runnerStatus` is one of `completed | rate_limit | sandbox_denied |
+runner_unavailable`. `completed` means you **finished the review** per this
+template — it says nothing about what you found. The other three values are
+honest failure modes — the CLI refuses to record `outcome: clean` or
+`outcome: completed_with_findings` for any non-`completed` `terminatedReason`
+(both collapse to `skipped` with the original reason preserved), so do not
+claim `completed` if you stopped early.
+
+**"Runner completed" vs. "review clean":** these are two different facts and
+the recorded ledger `outcome` keeps them distinct. `runnerStatus: completed`
+only means the runner finished the review per this template. Whether the
+review is _clean_ depends on the `<actionable-findings>` block: a completed
+run whose block is the literal `None` records `outcome: clean`; a completed
+run whose block lists one or more findings records
+`outcome: completed_with_findings` instead — never `clean`, even though the
+runner finished normally. `decideAdvisoryRunnerOutcome` (P21.02) enforces this
+cross-check so a findings-bearing report can never be silently recorded as a
+clean review.
+
 ```
 
 ---
@@ -256,3 +320,4 @@ than diff-specific ones.
 **On the subagent model:** Use a different model family from the primary agent when
 available — cross-model review breaks shared training-distribution blind spots.
 Same-type review is acceptable when cross-model is unavailable; document which was used.
+```

@@ -6,7 +6,7 @@
 
 [Optional: link to the engineering epic or product doc this phase belongs to.]
 
-[Optional: `Origin issue: #<N>` — if this phase originates from a GitHub issue, record it on its own line in this exact format. The orchestrator appends `Closes #<N>` to the PR body of this phase's FINAL ticket only (not every ticket's PR) — the issue isn't actually resolved until that last stacked PR lands on the closeout branch.]
+[Optional: `Origin issue: #<N>` — if this phase originates from one or more GitHub issues, record each on its own line in this exact format (e.g. five issues → five `Origin issue: #<N>` lines). The orchestrator appends one `- Closes #<N>` bullet per issue to the PR body of this phase's FINAL ticket only (not every ticket's PR) — no issue is actually resolved until that last stacked PR lands on the closeout branch. Near-miss forms (`Origin Issue #76`, `origin issue: 76`, trailing punctuation or prose after the number) are rejected — one issue per line, nothing else on the line.]
 
 ## Product contract
 

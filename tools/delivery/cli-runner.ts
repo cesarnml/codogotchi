@@ -84,6 +84,7 @@ import {
   eventsForReconcileLateReviewCommand,
   eventsForRecordReviewCommand,
   eventsForStartCommand,
+  eventsForSubagentReviewCommand,
   formatReviewWindowMessage,
   resolveNotifier,
   type DeliveryNotifier,
@@ -127,6 +128,10 @@ import {
   startTicket as startTicketImpl,
 } from './ticket-flow';
 import {
+  isSuspiciousActionableFindingsParse,
+  isSuspiciousAdvisoryObservationsParse,
+  parseActionableFindings,
+  parseAdvisoryObservationsResult,
   ReconciliationBlockedError,
   reconcileReview,
   recordAcknowledgment,
@@ -142,9 +147,12 @@ import {
   decideAdvisoryRunnerOutcome,
   decideSubagentReviewMode,
   findDeliveryDocPaths,
+  isSuspiciousRunnerTerminationParse,
+  parseRunnerTermination,
   parseSubagentReviewArgs,
   readSubagentRunnerArtifact,
   resolvePrimaryAgent,
+  resolveRunnerOptions,
   resolveSubagentSelection,
   runProgrammaticSubagentReview,
   runSubagentWithFallback,
@@ -153,6 +161,7 @@ import {
   tryReadSubagentRunnerArtifact,
   tryRunner,
   writeSubagentReviewOutcome,
+  type ResolvedRunnerOptions,
   type SubagentRunnerTerminatedReason,
 } from './subagent-runner';
 import {
@@ -305,6 +314,8 @@ export async function runDeliveryOrchestrator(
         prReviewPolicy?: ReviewPolicyStageValue;
         subagent?: 'claude-cli' | 'codex-cli' | 'cursor-cli';
         primary?: string;
+        subagentModel?: string;
+        subagentEffort?: string;
         baseline?: 'orchestrator' | 'run-policy';
         dispositionsPath?: string;
       }
@@ -840,6 +851,16 @@ export async function runDeliveryOrchestrator(
           console.log('Doc-only ticket — subagent review auto-skipped.');
           await saveState(cwd, nextState);
           console.log(formatStatus(nextState, context.config));
+          await emitNotificationWarnings(
+            notifier,
+            cwd,
+            eventsForSubagentReviewCommand(
+              nextState,
+              subagentTarget.id,
+              'skipped',
+              { terminatedReason: 'doc_only_auto_skip' },
+            ),
+          );
           return 0;
         }
 
@@ -936,6 +957,15 @@ export async function runDeliveryOrchestrator(
           );
           await saveState(cwd, nextState);
           console.log(formatStatus(nextState, context.config));
+          await emitNotificationWarnings(
+            notifier,
+            cwd,
+            eventsForSubagentReviewCommand(
+              nextState,
+              subagentTarget.id,
+              dispatch.outcome,
+            ),
+          );
           return 0;
         }
 
@@ -1015,19 +1045,40 @@ export async function runDeliveryOrchestrator(
 
         const RUNNER_TIMEOUT_MS = 10 * 60 * 1000;
 
-        let outcome: 'clean' | 'patched' | 'skipped' = 'skipped';
+        let outcome:
+          | 'clean'
+          | 'patched'
+          | 'skipped'
+          | 'completed_with_findings' = 'skipped';
         let terminatedReason: SubagentRunnerTerminatedReason =
           'runner_unavailable';
         let runnerOutputText: string | undefined;
         let runnerStdout: string | undefined;
+        // P21.02 — parsed once at decide-time and reused by the zero-parse
+        // loud-floor check below, instead of re-parsing the same report text.
+        let actionableFindingsCrossCheck:
+          | ReturnType<typeof parseActionableFindings>
+          | undefined;
         let runnerStderr: string | undefined;
         let runnerSelfReport: string | null = null;
+        // P21.04 — resolved per the attempt actually spawned; overwritten
+        // each loop iteration so it reflects whichever kind's iteration ran
+        // last (the winning kind on success, or the final failed attempt).
+        let resolvedRunnerOptionsForAttempt: ResolvedRunnerOptions = {};
 
         const fallbackOutcome = runSubagentWithFallback(
           subagentSelection.kind,
           (runner) => {
             const runnerHeadBefore = readHeadSha();
             const preRunDirtyPaths = new Set(listDirtyPaths());
+            const resolvedOptions = resolveRunnerOptions({
+              runner,
+              requestedRunner: subagentSelection.kind,
+              flagModel: parsed.subagentModel,
+              flagEffort: parsed.subagentEffort,
+              configOptions: context.config.subagentRunnerOptions,
+            });
+            resolvedRunnerOptionsForAttempt = resolvedOptions;
             const result = tryRunner(
               () => {
                 const outputLastMessageDir =
@@ -1044,6 +1095,8 @@ export async function runDeliveryOrchestrator(
                     outputLastMessagePath,
                     workspacePath:
                       runner === 'cursor-cli' ? worktreePath : undefined,
+                    model: resolvedOptions.model,
+                    effort: resolvedOptions.effort,
                   },
                 );
                 try {
@@ -1127,8 +1180,17 @@ export async function runDeliveryOrchestrator(
                 runnerHeadBefore !== runnerHeadAfter ||
                 listDirtyPaths().some((p) => !preRunDirtyPaths.has(p));
 
+              // P21.02 — cross-check the P21.01 tag-parsed report against the
+              // runner outcome so a completed run whose report lists
+              // findings is never silently recorded as `clean`.
+              const reportTextForCrossCheck = result.stdout ?? result.rawOutput;
+              actionableFindingsCrossCheck =
+                reportTextForCrossCheck !== undefined
+                  ? parseActionableFindings(reportTextForCrossCheck)
+                  : undefined;
               const decided = decideAdvisoryRunnerOutcome(result, {
                 runnerWroteFiles,
+                actionableFindings: actionableFindingsCrossCheck,
               });
               outcome = decided.outcome;
               terminatedReason = decided.terminatedReason;
@@ -1160,8 +1222,7 @@ export async function runDeliveryOrchestrator(
           },
         );
 
-        const usedRunner: 'claude-cli' | 'codex-cli' | 'skipped' =
-          fallbackOutcome.ranKind;
+        const usedRunner = fallbackOutcome.ranKind;
         const fallbackLevel = fallbackOutcome.fallbackLevel;
         const fallbackFrom = fallbackOutcome.fallbackFrom;
 
@@ -1187,6 +1248,49 @@ export async function runDeliveryOrchestrator(
           });
         }
 
+        // P21.01 — zero-parse loud floor: warn while the primary agent is
+        // still in-session, at the moment the report lands. Only meaningful
+        // when the runner actually produced a report (terminatedReason ===
+        // 'completed'); a runner_failed/rate_limit/skipped row has no report
+        // to judge. Not a retry loop — one warning line, no re-invocation.
+        // Triage-time surfacing (advisory-observation-warnings.ts) remains
+        // the backstop for anything missed here.
+        if (terminatedReason === 'completed') {
+          const reportText = runnerStdout ?? runnerOutputText ?? '';
+          const suspiciousRegions: string[] = [];
+          if (
+            isSuspiciousActionableFindingsParse(
+              actionableFindingsCrossCheck ??
+                parseActionableFindings(reportText),
+            )
+          ) {
+            suspiciousRegions.push('<actionable-findings>');
+          }
+          if (
+            isSuspiciousAdvisoryObservationsParse(
+              parseAdvisoryObservationsResult(reportText),
+            )
+          ) {
+            suspiciousRegions.push('<advisory-observations>');
+          }
+          if (
+            isSuspiciousRunnerTerminationParse(
+              parseRunnerTermination(reportText),
+            )
+          ) {
+            suspiciousRegions.push('<runner-termination>');
+          }
+          if (suspiciousRegions.length > 0) {
+            console.log(
+              `subagent-review: zero-parse warning for ${subagentTarget.id} — ` +
+                `${suspiciousRegions.join(', ')} missing, malformed (unclosed/misnamed), ` +
+                'or empty without the literal "None". Review the raw report and either ' +
+                're-run subagent-review or hand-normalize the framing (structure only, ' +
+                'never findings).',
+            );
+          }
+        }
+
         const invocation = buildRunnerInvocation(usedRunner, headSha, outcome, {
           terminatedReason,
           rawOutput: outcomeSidecar?.relativePath,
@@ -1196,6 +1300,8 @@ export async function runDeliveryOrchestrator(
           primaryAgent,
           runnerSelfReport,
           fallbackFrom,
+          runnerModel: resolvedRunnerOptionsForAttempt.model ?? null,
+          runnerEffort: resolvedRunnerOptionsForAttempt.effort ?? null,
         });
         appendInvocationToArtifact(
           artifactAbsPath,
@@ -1203,9 +1309,17 @@ export async function runDeliveryOrchestrator(
           invocation,
         );
 
+        // P21.02 — `completed_with_findings` is a ledger-row-only honesty
+        // label; the ticket-state transition tracked by `recordSubagentReview`
+        // still only distinguishes clean/patched/skipped. Findings-bearing
+        // reports are not silently waved through: `reconcile-subagent-review`
+        // reads the ledger/report directly and blocks `open-pr` on unpatched
+        // actionable findings regardless of this state-level label.
+        const stateOutcome =
+          outcome === 'completed_with_findings' ? 'clean' : outcome;
         const nextState = recordSubagentReview(
           state,
-          outcome,
+          stateOutcome,
           isDocOnly,
           policy,
           undefined,
@@ -1239,6 +1353,24 @@ export async function runDeliveryOrchestrator(
         }
         await saveState(cwd, nextState);
         console.log(formatStatus(nextState, context.config));
+        await emitNotificationWarnings(
+          notifier,
+          cwd,
+          eventsForSubagentReviewCommand(
+            nextState,
+            subagentTarget.id,
+            outcome,
+            {
+              ...(outcome === 'skipped' ? { terminatedReason } : {}),
+              ...(outcome === 'completed_with_findings'
+                ? {
+                    findingsCount:
+                      actionableFindingsCrossCheck?.findings.length ?? 0,
+                  }
+                : {}),
+            },
+          ),
+        );
         return 0;
       }
       case 'reconcile-subagent-review': {

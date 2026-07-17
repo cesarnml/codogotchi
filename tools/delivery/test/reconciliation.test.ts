@@ -17,8 +17,31 @@ const RM = rec as unknown as {
     ) => { sha: string; subject: string }[];
     listCommitFiles: (sha: string) => string[];
   }) => string[];
-  parseActionableFindings?: (markdown: string) => boolean;
+  parseActionableFindings?: (markdown: string) => {
+    found: boolean;
+    closed: boolean;
+    isExplicitNone: boolean;
+    findings: string[];
+  };
+  isSuspiciousActionableFindingsParse?: (result: {
+    found: boolean;
+    closed: boolean;
+    isExplicitNone: boolean;
+    findings: string[];
+  }) => boolean;
   parseAdvisoryObservations?: (markdown: string) => string[];
+  parseAdvisoryObservationsResult?: (markdown: string) => {
+    found: boolean;
+    closed: boolean;
+    isExplicitNone: boolean;
+    observations: string[];
+  };
+  isSuspiciousAdvisoryObservationsParse?: (result: {
+    found: boolean;
+    closed: boolean;
+    isExplicitNone: boolean;
+    observations: string[];
+  }) => boolean;
   inspectSubagentReviewEvidence?: (input: {
     repoRoot: string;
     rows: Array<{
@@ -159,142 +182,179 @@ describe('P14.03 — detectLabeledCommits', () => {
   });
 });
 
-describe('P14.03 — parseActionableFindings', () => {
-  it('returns false when section says None.', () => {
+describe('P21.01 — parseActionableFindings (tag contract)', () => {
+  it('parses a tagged block with bullets to the correct findings', () => {
     expect(RM.parseActionableFindings).toBeDefined();
-    const md = `**Actionable findings**\nNone.\n\n**Findings for human review**`;
-    expect(RM.parseActionableFindings!(md)).toBe(false);
+    const md = `<actionable-findings>\n- src/foo.ts: missing null-check\n- src/bar.ts: unbounded loop\n</actionable-findings>`;
+    const result = RM.parseActionableFindings!(md);
+    expect(result.found).toBe(true);
+    expect(result.closed).toBe(true);
+    expect(result.isExplicitNone).toBe(false);
+    expect(result.findings).toEqual([
+      'src/foo.ts: missing null-check',
+      'src/bar.ts: unbounded loop',
+    ]);
+    expect(RM.isSuspiciousActionableFindingsParse!(result)).toBe(false);
   });
 
-  it('returns true when section has content', () => {
+  it('treats literal None as clean-empty, not suspicious', () => {
     expect(RM.parseActionableFindings).toBeDefined();
-    const md = `**Actionable findings**\n\n- file.ts: bug here\n\n**Findings for human review**`;
-    expect(RM.parseActionableFindings!(md)).toBe(true);
+    const md = `<actionable-findings>\nNone\n</actionable-findings>`;
+    const result = RM.parseActionableFindings!(md);
+    expect(result.closed).toBe(true);
+    expect(result.isExplicitNone).toBe(true);
+    expect(result.findings).toEqual([]);
+    expect(RM.isSuspiciousActionableFindingsParse!(result)).toBe(false);
   });
 
-  it('tolerates minor format variations (extra blank lines, trailing whitespace)', () => {
+  it('parses to EOF and flags for the warning when the close tag is missing', () => {
     expect(RM.parseActionableFindings).toBeDefined();
-    const md = `**Actionable findings**   \n\n\nNone.   \n`;
-    expect(RM.parseActionableFindings!(md)).toBe(false);
+    const md = `<actionable-findings>\n- src/foo.ts: missing null-check\n\n<advisory-observations>\nNone\n</advisory-observations>`;
+    const result = RM.parseActionableFindings!(md);
+    expect(result.found).toBe(true);
+    expect(result.closed).toBe(false);
+    expect(RM.isSuspiciousActionableFindingsParse!(result)).toBe(true);
   });
 
-  it('treats missing section as false (no findings)', () => {
+  it('flags a misnamed tag (underscore) as 0-parse and suspicious', () => {
     expect(RM.parseActionableFindings).toBeDefined();
-    expect(RM.parseActionableFindings!('Some prose without the section')).toBe(
-      false,
-    );
+    const md = `<actionable_findings>\n- src/foo.ts: missing null-check\n</actionable_findings>`;
+    const result = RM.parseActionableFindings!(md);
+    expect(result.found).toBe(false);
+    expect(result.findings).toEqual([]);
+    expect(RM.isSuspiciousActionableFindingsParse!(result)).toBe(true);
   });
 
-  it('accepts ATX heading drift for actionable findings', () => {
+  it('flags legacy **bold** heading format as 0-parse and suspicious', () => {
     expect(RM.parseActionableFindings).toBeDefined();
-    const md = `## Actionable findings\n\n- src/foo.ts: bug here\n\n## Advisory Observations\nNone.`;
-    expect(RM.parseActionableFindings!(md)).toBe(true);
+    const md = `**Actionable findings**\n\n- src/foo.ts: missing null-check\n\n**Advisory Observations**\nNone.\n`;
+    const result = RM.parseActionableFindings!(md);
+    expect(result.found).toBe(false);
+    expect(result.findings).toEqual([]);
+    expect(RM.isSuspiciousActionableFindingsParse!(result)).toBe(true);
   });
 
-  it('does not treat inline bold prose as an actionable findings section', () => {
+  it('flags legacy ## ATX heading format as 0-parse and suspicious', () => {
     expect(RM.parseActionableFindings).toBeDefined();
-    const md =
-      'The phrase **Actionable findings** appears inline, but this is not a report section.';
-    expect(RM.parseActionableFindings!(md)).toBe(false);
+    const md = `## Actionable findings\n\n- src/foo.ts: missing null-check\n\n## Advisory Observations\nNone.\n`;
+    const result = RM.parseActionableFindings!(md);
+    expect(result.found).toBe(false);
+    expect(RM.isSuspiciousActionableFindingsParse!(result)).toBe(true);
   });
 
-  it('ignores a stray --- divider immediately after "None." (P15.07 false positive)', () => {
+  it('flags plain-text heading format as 0-parse and suspicious', () => {
     expect(RM.parseActionableFindings).toBeDefined();
-    const md = `**Actionable findings**\nNone.\n\n---\n\n**Advisory Observations**\nNone.\n`;
-    expect(RM.parseActionableFindings!(md)).toBe(false);
+    const md = `Actionable findings\n\n- src/foo.ts: missing null-check\n\nAdvisory Observations\nNone.\n`;
+    const result = RM.parseActionableFindings!(md);
+    expect(result.found).toBe(false);
+    expect(RM.isSuspiciousActionableFindingsParse!(result)).toBe(true);
+  });
+
+  it('treats a missing tag entirely as 0-parse (no findings) and suspicious', () => {
+    expect(RM.parseActionableFindings).toBeDefined();
+    const result = RM.parseActionableFindings!('Some prose without any tag');
+    expect(result.found).toBe(false);
+    expect(result.findings).toEqual([]);
+    expect(RM.isSuspiciousActionableFindingsParse!(result)).toBe(true);
+  });
+
+  it('ignores runnerStatus: prose outside the tags — it cannot leak into findings', () => {
+    expect(RM.parseActionableFindings).toBeDefined();
+    const md = `<actionable-findings>\nNone\n</actionable-findings>\n\nrunnerStatus: completed\nterminatedReason: finished the review`;
+    const result = RM.parseActionableFindings!(md);
+    expect(result.isExplicitNone).toBe(true);
+    expect(result.findings).toEqual([]);
+    expect(RM.isSuspiciousActionableFindingsParse!(result)).toBe(false);
+  });
+
+  it('takes the last open tag when a template skeleton example is quoted earlier', () => {
+    expect(RM.parseActionableFindings).toBeDefined();
+    const md = `Example:\n<actionable-findings>\n- example finding, ignore this\n</actionable-findings>\n\nActual report:\n<actionable-findings>\n- src/real.ts: the real finding\n</actionable-findings>`;
+    const result = RM.parseActionableFindings!(md);
+    expect(result.findings).toEqual(['src/real.ts: the real finding']);
   });
 });
 
-describe('P16.01 — parseAdvisoryObservations', () => {
-  it('returns bullet items from the Advisory Observations section', () => {
+describe('P21.01 — parseAdvisoryObservations (tag contract)', () => {
+  it('parses a tagged block with bullets to the correct observations', () => {
     expect(RM.parseAdvisoryObservations).toBeDefined();
-    const md = `**Actionable findings**\nNone.\n\n**Advisory Observations**\n\n- docs: consider clarifying closeout timing.\n- tools: future command should share parser logic.\n\n**Runner status**\ncompleted`;
+    const md = `<advisory-observations>\n- docs: consider clarifying closeout timing.\n- tools: future command should share parser logic.\n</advisory-observations>`;
     expect(RM.parseAdvisoryObservations!(md)).toEqual([
       'docs: consider clarifying closeout timing.',
       'tools: future command should share parser logic.',
     ]);
   });
 
-  it('returns prose paragraphs from the Advisory Observations section', () => {
-    expect(RM.parseAdvisoryObservations).toBeDefined();
-    const md = `**Advisory Observations**\n\nThe parser should keep this as a triageable note.\n\nA second paragraph remains a separate observation.\n\n**Runner status**\ncompleted`;
-    expect(RM.parseAdvisoryObservations!(md)).toEqual([
-      'The parser should keep this as a triageable note.',
-      'A second paragraph remains a separate observation.',
-    ]);
+  it('treats literal None as clean-empty, no warning', () => {
+    expect(RM.parseAdvisoryObservationsResult).toBeDefined();
+    const md = `<advisory-observations>\nNone\n</advisory-observations>`;
+    const result = RM.parseAdvisoryObservationsResult!(md);
+    expect(result.isExplicitNone).toBe(true);
+    expect(result.observations).toEqual([]);
+    expect(RM.isSuspiciousAdvisoryObservationsParse!(result)).toBe(false);
   });
 
-  it('returns empty when Advisory Observations says None.', () => {
-    expect(RM.parseAdvisoryObservations).toBeDefined();
-    const md = `**Advisory Observations**\n\nNone.\n\n**Runner status**\ncompleted`;
-    expect(RM.parseAdvisoryObservations!(md)).toEqual([]);
+  it('parses to EOF and flags for the warning when the close tag is missing', () => {
+    expect(RM.parseAdvisoryObservationsResult).toBeDefined();
+    const md = `<advisory-observations>\n- docs: consider clarifying closeout timing.`;
+    const result = RM.parseAdvisoryObservationsResult!(md);
+    expect(result.closed).toBe(false);
+    expect(RM.isSuspiciousAdvisoryObservationsParse!(result)).toBe(true);
   });
 
-  it('returns empty when Advisory Observations is missing', () => {
+  it('flags a misnamed tag (underscore) as 0-parse and suspicious', () => {
+    expect(RM.parseAdvisoryObservationsResult).toBeDefined();
+    const md = `<advisory_observations>\n- docs: consider clarifying closeout timing.\n</advisory_observations>`;
+    const result = RM.parseAdvisoryObservationsResult!(md);
+    expect(result.found).toBe(false);
+    expect(result.observations).toEqual([]);
+    expect(RM.isSuspiciousAdvisoryObservationsParse!(result)).toBe(true);
+  });
+
+  it('flags legacy **bold** heading format as 0-parse and suspicious', () => {
+    expect(RM.parseAdvisoryObservationsResult).toBeDefined();
+    const md = `**Advisory Observations**\n\n- docs: consider clarifying closeout timing.\n`;
+    const result = RM.parseAdvisoryObservationsResult!(md);
+    expect(result.found).toBe(false);
+    expect(RM.isSuspiciousAdvisoryObservationsParse!(result)).toBe(true);
+  });
+
+  it('flags legacy ## ATX heading format as 0-parse and suspicious', () => {
+    expect(RM.parseAdvisoryObservationsResult).toBeDefined();
+    const md = `## Advisory Observations\n\n- docs: consider clarifying closeout timing.\n`;
+    const result = RM.parseAdvisoryObservationsResult!(md);
+    expect(result.found).toBe(false);
+    expect(RM.isSuspiciousAdvisoryObservationsParse!(result)).toBe(true);
+  });
+
+  it('flags plain-text heading format as 0-parse and suspicious', () => {
+    expect(RM.parseAdvisoryObservationsResult).toBeDefined();
+    const md = `Advisory Observations\n\n- docs: consider clarifying closeout timing.\n`;
+    const result = RM.parseAdvisoryObservationsResult!(md);
+    expect(result.found).toBe(false);
+    expect(RM.isSuspiciousAdvisoryObservationsParse!(result)).toBe(true);
+  });
+
+  it('returns empty when the tag is missing entirely', () => {
     expect(RM.parseAdvisoryObservations).toBeDefined();
-    const md = `**Actionable findings**\nNone.\n\n**Runner status**\ncompleted`;
+    const md = `<actionable-findings>\nNone\n</actionable-findings>`;
     expect(RM.parseAdvisoryObservations!(md)).toEqual([]);
   });
 
   it('does not treat advisory observations as actionable findings', () => {
     expect(RM.parseActionableFindings).toBeDefined();
     expect(RM.parseAdvisoryObservations).toBeDefined();
-    const md = `**Actionable findings**\nNone.\n\n**Advisory Observations**\n\n- This is triageable later, but not blocking.\n`;
-    expect(RM.parseActionableFindings!(md)).toBe(false);
+    const md = `<actionable-findings>\nNone\n</actionable-findings>\n\n<advisory-observations>\n- This is triageable later, but not blocking.\n</advisory-observations>`;
+    expect(RM.parseActionableFindings!(md).findings).toEqual([]);
     expect(RM.parseAdvisoryObservations!(md)).toEqual([
       'This is triageable later, but not blocking.',
     ]);
   });
 
-  it('accepts ATX heading drift for advisory observations', () => {
+  it('ignores runnerStatus: prose outside the tags — it cannot leak into observations', () => {
     expect(RM.parseAdvisoryObservations).toBeDefined();
-    const md = `## Actionable findings\nNone.\n\n## Advisory Observations\n\n- Keep this note triageable.\n\n## Runner status\ncompleted`;
-    expect(RM.parseAdvisoryObservations!(md)).toEqual([
-      'Keep this note triageable.',
-    ]);
-  });
-
-  it('does not treat bold observation-prefix lines as section terminators', () => {
-    // Regression: in Phase 05 P5.06 the subagent used `**A1 — Title**` as an
-    // observation prefix inside the Advisory Observations section. The prior
-    // parser called isSectionHeadingLine() on every line and terminated the
-    // section extraction at `**A1 — ...**`, silently dropping every
-    // observation. Only canonical sibling headings should terminate the body.
-    // The canonical report template instructs the subagent to keep each
-    // observation as one bullet or one paragraph — the test below verifies the
-    // parser preserves all content under that mixed-bold format rather than
-    // truncating at the first bold line.
-    expect(RM.parseAdvisoryObservations).toBeDefined();
-    const md = [
-      '**Actionable findings**',
-      'None.',
-      '',
-      '**Advisory Observations**',
-      '',
-      '**A1 — getEvent fallback logic**',
-      '',
-      'The fallback returns nil silently when the event row is missing.',
-      '',
-      '**A2 — Schema drift in event types**',
-      '',
-      'The EventV2 type does not match the migration in 0042.',
-      '',
-      '**Runner termination**',
-      'completed',
-    ].join('\n');
-    const observations = RM.parseAdvisoryObservations!(md);
-    // Crucial: the parser must not return [] (the pre-fix behavior). With
-    // mixed-bold content it returns all paragraphs in the section body, which
-    // the canonical report template avoids by recommending one paragraph or
-    // bullet per observation.
-    expect(observations.length).toBeGreaterThan(0);
-    const joined = observations.join('\n');
-    expect(joined).toContain('A1');
-    expect(joined).toContain('fallback returns nil silently');
-    expect(joined).toContain('A2');
-    expect(joined).toContain('Schema drift');
-    // And critically: the section did not get truncated at `**Runner termination**`.
-    expect(joined).not.toContain('completed');
+    const md = `<advisory-observations>\n- a real observation\n</advisory-observations>\n\nrunnerStatus: completed\nterminatedReason: finished the review`;
+    expect(RM.parseAdvisoryObservations!(md)).toEqual(['a real observation']);
   });
 });
 
@@ -336,7 +396,7 @@ describe('P16.01 — inspectSubagentReviewEvidence', () => {
 describe('P14.03 — reconcileReview', () => {
   const baseInput = {
     artifactRows: [{ outcome: 'clean', reviewedHeadSha: 'rev0' }],
-    reportMarkdown: '**Actionable findings**\nNone.\n',
+    reportMarkdown: '<actionable-findings>\nNone\n</actionable-findings>\n',
     reviewedHeadSha: 'rev0',
     headSha: 'head0',
     reviewedPaths: ['src/foo.ts'],
@@ -383,7 +443,7 @@ describe('P14.03 — reconcileReview', () => {
     const result = RM.reconcileReview!({
       ...baseInput,
       reportMarkdown:
-        '**Actionable findings**\n\n- src/foo.ts: missing null-check\n\n**Findings for human review**\nNone.\n',
+        '<actionable-findings>\n- src/foo.ts: missing null-check\n</actionable-findings>\n',
     });
     expect(result.kind).toBe('blocked');
     if (result.kind !== 'blocked') return;
@@ -430,7 +490,7 @@ describe('P14.03 — reconcileReview', () => {
     const result = RM.reconcileReview!({
       ...baseInput,
       reportMarkdown:
-        '**Actionable findings**\n\n- src/foo.ts: missing null-check\n\n**Findings for human review**\nNone.\n',
+        '<actionable-findings>\n- src/foo.ts: missing null-check\n</actionable-findings>\n',
       artifactRows: [
         { outcome: 'clean', reviewedHeadSha: 'rev0' },
         {
@@ -448,12 +508,49 @@ describe('P14.03 — reconcileReview', () => {
     const result = RM.reconcileReview!({
       ...baseInput,
       reportMarkdown:
-        '**Actionable findings**\n\n- src/foo.ts: missing null-check\n\n**Findings for human review**\nNone.\n',
+        '<actionable-findings>\n- src/foo.ts: missing null-check\n</actionable-findings>\n',
       artifactRows: [{ outcome: 'clean', reviewedHeadSha: 'rev0' }],
     });
     expect(result.kind).toBe('blocked');
     if (result.kind !== 'blocked') return;
     expect(result.condition).toBe('B');
+  });
+
+  it('blocks Condition B when a closed, non-empty, non-None actionable-findings tag contains prose instead of bullets', () => {
+    // Regression: the bullet-only tag extractor has no prose fallback by
+    // design, so `findings.length > 0` alone let a real finding written as
+    // prose (not `- ` bulleted) inside a properly closed tag silently pass
+    // reconciliation as clean. Found dogfooding P21.01's own adversarial
+    // review — the subagent's real report had this exact shape.
+    expect(RM.reconcileReview).toBeDefined();
+    const result = RM.reconcileReview!({
+      ...baseInput,
+      reportMarkdown:
+        '<actionable-findings>\nThis is a real finding written as a paragraph, not a bullet.\n</actionable-findings>\n',
+    });
+    expect(result.kind).toBe('blocked');
+    if (result.kind !== 'blocked') return;
+    expect(result.condition).toBe('B');
+  });
+
+  it('blocks Condition B when the actionable-findings tag is missing entirely from a non-empty report', () => {
+    expect(RM.reconcileReview).toBeDefined();
+    const result = RM.reconcileReview!({
+      ...baseInput,
+      reportMarkdown: '**Invariant results**\n1. held.\n',
+    });
+    expect(result.kind).toBe('blocked');
+    if (result.kind !== 'blocked') return;
+    expect(result.condition).toBe('B');
+  });
+
+  it('does NOT block when reportMarkdown is empty (operator-recorder path — no runner invoked, no report file)', () => {
+    expect(RM.reconcileReview).toBeDefined();
+    const result = RM.reconcileReview!({
+      ...baseInput,
+      reportMarkdown: '',
+    });
+    expect(result).toEqual({ kind: 'clean' });
   });
 });
 

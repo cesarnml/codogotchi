@@ -98,9 +98,10 @@ path instead.
 After closeout lands a phase on the configured closeout branch, run
 `/soa triage-advisory-observations phase-N` before starting the next phase.
 That post-phase lane records explicit dispositions for non-blocking
-`Advisory Observations` from subagent-review reports. It does not patch source
-files and does not replace the blocking `Actionable findings` reconciliation
-gate.
+`<advisory-observations>` from subagent-review reports (a balanced tag block,
+per `notes/public/subagent-report-parser-contract.md`). It does not patch
+source files and does not replace the blocking `<actionable-findings>`
+reconciliation gate.
 
 For small, verified fixes that surface a review gap worth capturing, use
 `/soa quality-control phase-N: <description>` (or `/soa qc` for short). This
@@ -134,9 +135,20 @@ routed to standalone PR triage or `/soa plan` instead.
   Codex (`codex exec`), and Cursor Agent CLI (`agent --print --trust` in the
   ticket worktree). The CLI tries the preferred runner first, then the other
   programmatic runners, and refuses to record `clean` when none actually complete.
+  A completed review with findings records `completed_with_findings` (not `clean`)
+  so an honest report is never silently waved through. A runner that spawns but
+  produces no usable review (`runner_failed`, `rate_limit`, `sandbox_denied`)
+  advances the fallback chain instead of stopping early; `skipped` is reserved for
+  exhaustion of every runner. Per-platform model/effort are configurable via
+  `subagentRunnerOptions` in `orchestrator.config.json` or flat
+  `--subagent-model`/`--subagent-effort` flags. Each recorded outcome triggers a
+  best-effort notification distinguishing clean, findings-bearing, and skipped
+  results.
 - **Stacked PR model** — each ticket gets its own branch and PR, stacked in
-  dependency order. Closeout squash-merges the whole phase onto the configured
-  closeout branch cleanly.
+  dependency order. When `implementation-plan.md`'s `## Epic` section names one
+  or more `Origin issue: #<N>` lines, the phase's final PR closes all of them.
+  Closeout squash-merges the whole phase onto the configured closeout branch
+  cleanly.
 - **Migration runner** — when Son of Anton ships structural changes, `bun run sync`
   applies them to your repo automatically. You pull and run; the migration runs itself.
 - **Agent-rule injection** — `bun run sync` injects Son-of-Anton's skill-trigger
@@ -342,6 +354,8 @@ or committing config changes.
 | `--subagent-review-policy`                       | `required`, `skip_doc_only`, `disabled` | `reviewPolicy.subagentReview`                                                                                                      |
 | `--pr-review-policy`                             | `required`, `skip_doc_only`, `disabled` | `reviewPolicy.prReview`                                                                                                            |
 | `--subagent <claude-cli\|codex-cli\|cursor-cli>` | `claude-cli`, `codex-cli`, `cursor-cli` | declare execution agent identity for programmatic review; tries preferred first, then other programmatic runners, then honest skip |
+| `--subagent-model <value>`                       | free-form string                        | model override for the explicitly requested runner only; fallback attempts resolve from `subagentRunnerOptions` in config          |
+| `--subagent-effort <value>`                      | free-form string                        | effort override for the explicitly requested runner only; rejected for `cursor-cli` (no effort flag)                               |
 
 The resolved policy is written to `state.json` at the start of every run.
 `orchestrator.config.json` is never modified.

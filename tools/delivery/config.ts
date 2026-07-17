@@ -47,6 +47,26 @@ export const VALID_SUBAGENT_RUNNERS = [
 ] as const;
 export type SubagentRunnerSelection = (typeof VALID_SUBAGENT_RUNNERS)[number];
 
+/** cursor-cli has no effort flag — effort rides the model slug. */
+export const RUNNERS_SUPPORTING_EFFORT = ['claude-cli', 'codex-cli'] as const;
+
+export const VALID_CLAUDE_EFFORT_TIERS = [
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const;
+
+export type SubagentRunnerOptionEntry = {
+  model?: string;
+  effort?: string;
+};
+
+export type SubagentRunnerOptions = Partial<
+  Record<SubagentRunnerSelection, SubagentRunnerOptionEntry>
+>;
+
 export type CodogotchiConfig = {
   enabled: boolean;
 };
@@ -65,6 +85,8 @@ export type OrchestratorConfig = {
   subagentRunner?: SubagentRunnerSelection;
   /** Default primary-agent identity recorded on every ledger row. Free-form. */
   primaryAgent?: string;
+  /** Per-platform model/effort defaults consulted by fallback attempts. */
+  subagentRunnerOptions?: SubagentRunnerOptions;
   codogotchi?: CodogotchiConfig;
 };
 
@@ -80,6 +102,7 @@ export type ResolvedOrchestratorConfig = {
   prReviewAgents?: PrReviewAgent[];
   subagentRunner?: SubagentRunnerSelection;
   primaryAgent?: string;
+  subagentRunnerOptions?: SubagentRunnerOptions;
   codogotchi?: CodogotchiConfig;
 };
 
@@ -217,6 +240,13 @@ export async function loadOrchestratorConfig(
     codogotchi = parseCodogotchiConfig(raw.codogotchi);
   }
 
+  let subagentRunnerOptions: SubagentRunnerOptions | undefined;
+  if (raw.subagentRunnerOptions !== undefined) {
+    subagentRunnerOptions = parseSubagentRunnerOptions(
+      raw.subagentRunnerOptions,
+    );
+  }
+
   return {
     defaultBranch,
     deliveryBaseBranch,
@@ -230,8 +260,99 @@ export async function loadOrchestratorConfig(
     prReviewAgents,
     subagentRunner,
     primaryAgent,
+    subagentRunnerOptions,
     codogotchi,
   };
+}
+
+/**
+ * P21.04 — validates `subagentRunnerOptions` shape only (non-empty string
+ * model/effort, `effort` disallowed for `cursor-cli`, `effort` restricted to
+ * the known claude-cli tier set). Deliberately does not validate `model`
+ * against a catalog — platforms own their model namespaces.
+ */
+function parseSubagentRunnerOptions(raw: unknown): SubagentRunnerOptions {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error(
+      'Invalid subagentRunnerOptions in orchestrator.config.json. Expected an object keyed by runner platform.',
+    );
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const result: SubagentRunnerOptions = {};
+
+  for (const platform of Object.keys(obj)) {
+    if (!(VALID_SUBAGENT_RUNNERS as readonly string[]).includes(platform)) {
+      throw new Error(
+        `Unknown platform "${platform}" in orchestrator.config.json subagentRunnerOptions. Expected: ${VALID_SUBAGENT_RUNNERS.join(', ')}`,
+      );
+    }
+
+    const entryRaw = obj[platform];
+    if (
+      typeof entryRaw !== 'object' ||
+      entryRaw === null ||
+      Array.isArray(entryRaw)
+    ) {
+      throw new Error(
+        `Invalid subagentRunnerOptions["${platform}"] in orchestrator.config.json. Expected an object with optional "model"/"effort" keys.`,
+      );
+    }
+
+    const entryObj = entryRaw as Record<string, unknown>;
+    const KNOWN_ENTRY_KEYS = ['model', 'effort'] as const;
+    for (const unknownKey of Object.keys(entryObj)) {
+      if (
+        !KNOWN_ENTRY_KEYS.includes(
+          unknownKey as (typeof KNOWN_ENTRY_KEYS)[number],
+        )
+      ) {
+        throw new Error(
+          `Unknown key "${unknownKey}" in orchestrator.config.json subagentRunnerOptions["${platform}"]. Expected keys: ${KNOWN_ENTRY_KEYS.join(', ')}`,
+        );
+      }
+    }
+
+    const entry: SubagentRunnerOptionEntry = {};
+
+    if (entryObj.model !== undefined) {
+      entry.model = optionalNonBlankString(
+        entryObj.model,
+        `subagentRunnerOptions["${platform}"].model`,
+        'orchestrator.config.json',
+      );
+    }
+
+    if (entryObj.effort !== undefined) {
+      if (
+        !(RUNNERS_SUPPORTING_EFFORT as readonly string[]).includes(platform)
+      ) {
+        throw new Error(
+          `orchestrator.config.json subagentRunnerOptions["${platform}"].effort is not supported — ${platform} has no effort flag. Remove it.`,
+        );
+      }
+      const trimmedEffort = optionalNonBlankString(
+        entryObj.effort,
+        `subagentRunnerOptions["${platform}"].effort`,
+        'orchestrator.config.json',
+      ) as string;
+      if (
+        platform === 'claude-cli' &&
+        !(VALID_CLAUDE_EFFORT_TIERS as readonly string[]).includes(
+          trimmedEffort,
+        )
+      ) {
+        throw new Error(
+          `Invalid subagentRunnerOptions["claude-cli"].effort "${trimmedEffort}" in orchestrator.config.json. Expected: ${VALID_CLAUDE_EFFORT_TIERS.join(', ')}`,
+        );
+      }
+      entry.effort = trimmedEffort;
+    }
+
+    result[platform as SubagentRunnerSelection] = entry;
+  }
+
+  return result;
 }
 
 export function inferPackageManager(
@@ -264,6 +385,7 @@ export function resolveOrchestratorConfig(
     prReviewAgents: raw.prReviewAgents,
     subagentRunner: raw.subagentRunner,
     primaryAgent: raw.primaryAgent,
+    subagentRunnerOptions: raw.subagentRunnerOptions,
     codogotchi: raw.codogotchi ?? { enabled: true },
   };
 }

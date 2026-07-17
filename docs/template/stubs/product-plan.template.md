@@ -2,7 +2,7 @@
 
 **Delivery status:** Product plan approved state goes here. Update this line when decomposition starts or completes so it matches repo reality.
 
-[Optional: `Origin issue: #<N>` — only present when this plan was created via `/soa plan phase-N: issue #<N> ...`. `/soa decompose` copies this verbatim into `implementation-plan.md`'s `## Epic` section, which is what actually triggers the `Closes #<N>` PR-body line on the phase's final ticket. Do not add this field by inferring an issue from context — it is only ever set by the explicit plan-trigger syntax.]
+[Optional: one or more `Origin issue: #<N>` lines, one issue per line — only present when this plan was created via `/soa plan phase-N: issue #<N> ...` (or via an explicit multi-issue trigger listing several). `/soa decompose` copies these verbatim into `implementation-plan.md`'s `## Epic` section, which is what actually triggers the `Closes #<N>` PR-body lines (one per issue) on the phase's final ticket. Do not add this field by inferring an issue from context — it is only ever set by the explicit plan-trigger syntax. A single-line comma-separated form (`Origin issue: #78, #83`) is not supported — one canonical form, one line per issue.]
 
 ## TL;DR
 

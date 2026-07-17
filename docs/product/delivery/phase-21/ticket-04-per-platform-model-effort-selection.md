@@ -47,8 +47,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `rejects an unknown platform key` and the sibling `subagentRunnerOptions` config-validation tests in `tools/delivery/test/runtime-config.test.ts`, all failing because `parseSubagentRunnerOptions` did not exist yet; confirmed via a `git stash` of the two implementation files (config.ts, subagent-runner.ts) with the test files kept in place, so the red state was genuinely exercised rather than assumed.
+Why this path: one resolver (`resolveRunnerOptions`) returning `{model?, effort?}` per attempt, consumed uniformly by the P21.03 fallback loop via the same `attempt(runner)` closure that already exists at the `subagent-review` call site — the smallest change that satisfies "flag applies only to the requested runner, fallback resolves from config alone" without touching `runSubagentWithFallback`'s signature.
+Alternative considered: threading model/effort through `RunnerAttemptResult`/`shouldFallbackToOtherRunner` so the fallback-loop core owned resolution. Rejected — resolution depends on the _requested_ runner (to know when a flag applies) and repo config, neither of which `runSubagentWithFallback` currently has access to; passing them through would have widened that function's contract for a concern (config/flags) it doesn't otherwise touch.
+Deferred: the `subagent-refactor-review` gate (`runProgrammaticSubagentReview`) still calls `buildRunnerSpawnCommand` without model/effort options — the ticket Outcome text scopes the flat `--subagent-model`/`--subagent-effort` flags to `subagent-review` specifically, and `subagentRunnerOptions` config-driven defaults were not threaded into the refactor-review path in this ticket. Auto-selection from diff stats, availability-aware fallback ordering, and cross-family enforcement remain out of scope per the ticket text.
+Contract note: none — `Type: feat`, `Scope: delivery`, `Red: required` all matched the actual change.

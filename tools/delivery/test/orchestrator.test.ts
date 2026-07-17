@@ -455,6 +455,73 @@ describe('delivery orchestrator', () => {
     );
   });
 
+  it('preserves refactor-review fields through state roundtrip', () => {
+    // Regression: syncStateWithPlan's explicit ticket-rebuild allowlist never
+    // carried forward the refactor-review fields added in Phase 20
+    // (refactorReviewPromptPath and siblings), so `write-subagent-refactor-review`
+    // wrote a path to disk that the very next command's state reload silently
+    // dropped — `subagent-refactor-review` then threw "has no recorded
+    // refactor-review prompt" even though the file was on disk and the path
+    // was persisted in state.json. Same failure shape as the adversarial-gate
+    // regression above, applied to the sibling refactor gate.
+    const options = createOptions({
+      planPath: 'docs/product/delivery/phase-02/implementation-plan.md',
+    });
+    const writtenAt = '2026-05-20T17:31:26.246Z';
+    const promptPath =
+      'docs/product/delivery/phase-02/reviews/P2.01-refactor-review.prompt.md';
+    const reviewedHeadSha = 'abc1234';
+
+    const existing: DeliveryState = {
+      planKey: 'phase-02',
+      planPath: options.planPath,
+      statePath: options.statePath,
+      reviewsDirPath: options.reviewsDirPath,
+      handoffsDirPath: options.handoffsDirPath,
+      reviewPollIntervalMinutes: 6,
+      reviewPollMaxWaitMinutes: 12,
+      tickets: [
+        {
+          id: 'P2.01',
+          title: 'Enclosure-First Feed Parsing',
+          slug: 'enclosure-first-feed-parsing',
+          ticketFile:
+            'docs/product/delivery/phase-02/ticket-01-enclosure-first-feed-parsing.md',
+          status: 'verified',
+          branch: 'agents/p2-01-enclosure-first-feed-parsing',
+          baseBranch: 'main',
+          worktreePath: '/tmp/p2_01',
+          verifyOutcome: 'clean',
+          refactorReviewPromptPath: promptPath,
+          refactorReviewPromptWrittenAt: writtenAt,
+          refactorReviewOutcome: 'clean',
+          refactorReviewedHeadSha: reviewedHeadSha,
+        },
+      ],
+    };
+
+    const synced = syncStateFromExisting(
+      existing,
+      [
+        {
+          id: 'P2.01',
+          title: 'Enclosure-First Feed Parsing',
+          slug: 'enclosure-first-feed-parsing',
+          ticketFile:
+            'docs/product/delivery/phase-02/ticket-01-enclosure-first-feed-parsing.md',
+        },
+      ],
+      '/workspace/test_project',
+      options,
+      baseConfig,
+    );
+
+    expect(synced.tickets[0]?.refactorReviewPromptPath).toBe(promptPath);
+    expect(synced.tickets[0]?.refactorReviewPromptWrittenAt).toBe(writtenAt);
+    expect(synced.tickets[0]?.refactorReviewOutcome).toBe('clean');
+    expect(synced.tickets[0]?.refactorReviewedHeadSha).toBe(reviewedHeadSha);
+  });
+
   it('builds a handoff artifact that resets context and carries forward prior review state', () => {
     const handoff = buildTicketHandoff(
       {

@@ -1,13 +1,27 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import {
+  RUNNERS_SUPPORTING_EFFORT,
+  type SubagentRunnerOptionEntry,
+  type SubagentRunnerOptions,
+} from './config';
+import type { ActionableFindingsParseResult } from './reconciliation';
+
 export type SubagentRunnerOutcome =
   | 'clean'
   | 'patched'
   | 'deferred'
-  | 'skipped';
+  | 'skipped'
+  | 'completed_with_findings';
 
-export const SUBAGENT_LEDGER_SCHEMA_VERSION = 1;
+/**
+ * P21.02 bumps to 2: `completed_with_findings` joins the outcome vocabulary.
+ * v1 rows (no `schemaVersion`, or `schemaVersion: 1`) remain valid on read —
+ * `validateInvocation` only checks membership in `VALID_OUTCOMES`, not the
+ * row's own `schemaVersion`, so legacy rows are unaffected by this bump.
+ */
+export const SUBAGENT_LEDGER_SCHEMA_VERSION = 2;
 
 export type SubagentRunnerKind =
   | 'claude-cli'
@@ -78,6 +92,13 @@ export type SubagentRunnerInvocation = {
    * fallback was needed.
    */
   fallbackFrom?: SubagentRunnerKind | null;
+  /**
+   * P21.04 — the model/effort that actually ran for this attempt, resolved
+   * per {@link resolveRunnerOptions}. Absent/`null` when the platform
+   * default was used (no flag, no config entry).
+   */
+  runnerModel?: string | null;
+  runnerEffort?: string | null;
   findings: string[];
   probedSurfaces: string[];
   patches: string[];
@@ -114,6 +135,56 @@ export type RunnerAttemptResult =
   | { status: 'unavailable' }
   | { status: 'timeout' };
 
+/**
+ * P21.04 — resolved per-attempt `{model?, effort?}` for one runner in the
+ * fallback chain. Aliases the config-schema shape (`SubagentRunnerOptionEntry`
+ * in `config.ts`) rather than redeclaring it, so config validation and
+ * runtime resolution share one source of truth for the shape. Kept as a
+ * single small type so the fallback loop (P21.03) consumes it uniformly
+ * across the requested runner and every fallback attempt.
+ */
+export type ResolvedRunnerOptions = SubagentRunnerOptionEntry;
+
+/**
+ * P21.04 — precedence per platform: flag (requested runner only) > config
+ * entry > platform default. `flagModel`/`flagEffort` apply only when
+ * `runner === requestedRunner` — a fallback attempt resolves purely from
+ * `configOptions` for its own platform, never inheriting the originally
+ * requested runner's flag values. Fails fast (throws) on values a platform
+ * cannot express, before any spawn happens.
+ */
+export function resolveRunnerOptions(input: {
+  runner: ProgrammaticSubagentRunner;
+  requestedRunner: ProgrammaticSubagentRunner;
+  flagModel?: string;
+  flagEffort?: string;
+  configOptions?: SubagentRunnerOptions;
+}): ResolvedRunnerOptions {
+  const isRequested = input.runner === input.requestedRunner;
+  const configEntry = input.configOptions?.[input.runner];
+
+  const model = isRequested
+    ? (input.flagModel ?? configEntry?.model)
+    : configEntry?.model;
+  const effort = isRequested
+    ? (input.flagEffort ?? configEntry?.effort)
+    : configEntry?.effort;
+
+  if (
+    effort !== undefined &&
+    !(RUNNERS_SUPPORTING_EFFORT as readonly string[]).includes(input.runner)
+  ) {
+    throw new Error(
+      `${input.runner} has no effort flag — effort rides the model slug. Remove the effort value for ${input.runner}.`,
+    );
+  }
+
+  return {
+    ...(model !== undefined ? { model } : {}),
+    ...(effort !== undefined ? { effort } : {}),
+  };
+}
+
 export function buildRunnerSpawnCommand(
   runner: ProgrammaticSubagentRunner,
   reviewPrompt: string,
@@ -121,10 +192,20 @@ export function buildRunnerSpawnCommand(
     outputLastMessagePath?: string;
     /** Ticket worktree path; required for cursor-cli headless runs. */
     workspacePath?: string;
+    model?: string;
+    effort?: string;
   } = {},
 ): { bin: string; args: string[] } {
   if (runner === 'claude-cli') {
-    return { bin: 'claude', args: ['-p', reviewPrompt] };
+    return {
+      bin: 'claude',
+      args: [
+        '-p',
+        ...(options.model ? ['--model', options.model] : []),
+        ...(options.effort ? ['--effort', options.effort] : []),
+        reviewPrompt,
+      ],
+    };
   }
   if (runner === 'cursor-cli') {
     return {
@@ -137,6 +218,7 @@ export function buildRunnerSpawnCommand(
         ...(options.workspacePath
           ? ['--workspace', options.workspacePath]
           : []),
+        ...(options.model ? ['--model', options.model] : []),
         reviewPrompt,
       ],
     };
@@ -150,6 +232,10 @@ export function buildRunnerSpawnCommand(
         : []),
       '--color',
       'never',
+      ...(options.model ? ['-m', options.model] : []),
+      ...(options.effort
+        ? ['-c', `model_reasoning_effort=${options.effort}`]
+        : []),
       reviewPrompt,
     ],
   };
@@ -260,19 +346,73 @@ export function coerceCodexCliClassification(input: {
   };
 }
 
-function parseRunnerStatusTrailer(stdout: string): string | null {
-  const lines = stdout
+const RUNNER_TERMINATION_OPEN_TAG = /<runner-termination>/i;
+const RUNNER_TERMINATION_CLOSE_TAG = /<\/runner-termination>/i;
+
+export type RunnerTerminationParseResult = {
+  /** Whether an opening `<runner-termination>` tag was found at all. */
+  found: boolean;
+  /** Whether a matching closing tag was found (false = parsed to EOF). */
+  closed: boolean;
+  /** The `runnerStatus:` value found inside the tag, if any. */
+  runnerStatus: string | null;
+};
+
+/**
+ * P21.01 — `runnerStatus` is read exclusively from a balanced
+ * `<runner-termination>` tag block, per
+ * `notes/public/subagent-report-parser-contract.md`. A bare `runnerStatus:`
+ * line in the surrounding prose (outside the tag) is no longer trusted — the
+ * old tail-scanning heuristic let runner-status prose from anywhere in the
+ * last 50 non-empty lines leak into classification. When more than one open
+ * tag appears, the last occurrence is authoritative (mirrors
+ * `parseRefactorSuggestions` / `parseActionableFindings`).
+ */
+export function parseRunnerTermination(
+  stdout: string,
+): RunnerTerminationParseResult {
+  const openMatches = [
+    ...stdout.matchAll(new RegExp(RUNNER_TERMINATION_OPEN_TAG, 'gi')),
+  ];
+  if (openMatches.length === 0) {
+    return { found: false, closed: false, runnerStatus: null };
+  }
+  const openMatch = openMatches[openMatches.length - 1]!;
+
+  const afterOpen = stdout.slice((openMatch.index ?? 0) + openMatch[0].length);
+  const closeMatch = RUNNER_TERMINATION_CLOSE_TAG.exec(afterOpen);
+  const closed = closeMatch !== null;
+  const body = closed ? afterOpen.slice(0, closeMatch.index) : afterOpen;
+
+  const lines = body
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
-  const tail = lines.slice(-50);
-  for (let i = tail.length - 1; i >= 0; i -= 1) {
-    const match = /^runnerStatus\s*:\s*(.+)$/i.exec(tail[i]!);
+  let runnerStatus: string | null = null;
+  for (const line of lines) {
+    const match = /^runnerStatus\s*:\s*(.+)$/i.exec(line);
     if (match) {
-      return match[1]!.trim();
+      runnerStatus = match[1]!.trim();
+      break;
     }
   }
-  return null;
+  return { found: true, closed, runnerStatus };
+}
+
+/**
+ * True when the `<runner-termination>` tag is missing or unclosed — the
+ * record-time loud floor's third machine-read region, symmetric to
+ * `isSuspiciousActionableFindingsParse` / `isSuspiciousAdvisoryObservationsParse`
+ * in `reconciliation.ts`.
+ */
+export function isSuspiciousRunnerTerminationParse(
+  result: RunnerTerminationParseResult,
+): boolean {
+  return !result.found || !result.closed;
+}
+
+function parseRunnerStatusTrailer(stdout: string): string | null {
+  return parseRunnerTermination(stdout).runnerStatus;
 }
 
 // Authentic rate-limit signal for codex-cli — derived from structured tokens
@@ -480,12 +620,16 @@ export function coerceClaudeCliClassification(input: {
 /**
  * P14.02 — Runner availability fallback.
  *
- * Attempts the operator-selected runner first. On `unavailable`/`timeout`,
- * falls back to the other configured runner. The return value records what
- * actually ran (`ranKind`), what was originally requested when fallback
- * fired (`fallbackFrom`), and the bucket (`preferred|fallback|failed_all`).
- * When both runners are unavailable, `fallbackFrom` preserves the originally
- * requested kind so the skipped row remains auditable.
+ * Attempts the operator-selected runner first. Falls back to the next
+ * configured runner on `unavailable`/`timeout`, and — as of P21.03 — on a
+ * `ran` attempt whose `terminatedReason` shows it produced no usable review
+ * (`runner_failed`, `rate_limit`, `sandbox_denied`); see
+ * {@link shouldFallbackToOtherRunner} for the exact predicate. The return
+ * value records what actually ran (`ranKind`), what was originally requested
+ * when fallback fired (`fallbackFrom`), and the bucket
+ * (`preferred|fallback|failed_all`). When every runner fails, `fallbackFrom`
+ * preserves the originally requested kind so the skipped row remains
+ * auditable.
  */
 export function runSubagentWithFallback(
   requested: ProgrammaticSubagentRunner,
@@ -505,7 +649,7 @@ export function runSubagentWithFallback(
     attemptedKinds.push(kind);
     const result = attempt(kind);
     lastResult = result;
-    if (result.status === 'ran') {
+    if (result.status === 'ran' && !shouldFallbackToOtherRunner(result)) {
       return {
         ranKind: kind,
         fallbackFrom: index === 0 ? null : requested,
@@ -674,15 +818,33 @@ export function tryRunner(
 }
 
 /**
- * The narrow set of runner-attempt outcomes that justify falling back to the
- * other runner. Binary-availability failures and timeouts only — never
- * ambiguous output (rate_limit, sandbox_denied, exit-code-0-with-no-work),
- * which should surface honestly through terminatedReason instead.
+ * P21.03 — the set of runner-attempt outcomes that justify falling back to
+ * the other runner: binary-availability failures/timeouts, and `ran` attempts
+ * whose `terminatedReason` shows the runner spawned but produced no usable
+ * review (`runner_failed`, `rate_limit`, `sandbox_denied` — the issue #105
+ * case). A `ran` attempt with `terminatedReason: 'completed'` never advances
+ * — that is a genuinely completed review. An attempt that wrote files
+ * (`outcome: 'patched'`) never advances either, regardless of
+ * `terminatedReason` — a write is an advisory-only contract violation, and a
+ * later successful fallback must not mask it (the caller derives its own
+ * `advisory_violation` outcome from the same write signal after this
+ * function returns `false`, exactly as it does for a plain completed+write
+ * result).
  */
 export function shouldFallbackToOtherRunner(
   result: RunnerAttemptResult,
 ): boolean {
-  return result.status === 'unavailable' || result.status === 'timeout';
+  if (result.status === 'unavailable' || result.status === 'timeout') {
+    return true;
+  }
+  if (result.status === 'ran' && result.outcome !== 'patched') {
+    return (
+      result.terminatedReason === 'runner_failed' ||
+      result.terminatedReason === 'rate_limit' ||
+      result.terminatedReason === 'sandbox_denied'
+    );
+  }
+  return false;
 }
 
 /**
@@ -692,6 +854,7 @@ export function shouldFallbackToOtherRunner(
  */
 export function decideSubagentOutcomeFromRunner(
   result: Extract<RunnerAttemptResult, { status: 'ran' }>,
+  info: { actionableFindings?: ActionableFindingsParseResult } = {},
 ): {
   outcome: SubagentRunnerOutcome;
   terminatedReason: SubagentRunnerTerminatedReason;
@@ -699,7 +862,38 @@ export function decideSubagentOutcomeFromRunner(
   if (result.terminatedReason !== 'completed' && result.outcome === 'clean') {
     return { outcome: 'skipped', terminatedReason: result.terminatedReason };
   }
+  if (
+    result.outcome === 'clean' &&
+    hasHonestFindings(info.actionableFindings)
+  ) {
+    return {
+      outcome: 'completed_with_findings',
+      terminatedReason: result.terminatedReason,
+    };
+  }
   return { outcome: result.outcome, terminatedReason: result.terminatedReason };
+}
+
+/**
+ * P21.02 — a report proves it is findings-bearing whenever the parser
+ * extracted at least one bullet, whether or not the closing tag was found.
+ * `closed` is deliberately NOT part of this check: an unclosed
+ * `<actionable-findings>` block that still yields bullet lines (parsed to
+ * EOF) is a template-format violation, not evidence the report is clean —
+ * treating it as `clean` would re-create the exact silent-drop failure
+ * P21.01 introduced the tag parser to prevent. `isSuspiciousActionableFindingsParse`
+ * still fires its separate record-time drift warning for the unclosed tag
+ * regardless of this outcome. `findings.length > 0` alone is sufficient:
+ * the parser never returns a non-empty `items`/`findings` array alongside
+ * `isExplicitNone: true` (the literal `None` body always yields an empty
+ * array), so no separate `!isExplicitNone` check is needed.
+ */
+function hasHonestFindings(
+  actionableFindings: ActionableFindingsParseResult | undefined,
+): boolean {
+  return (
+    actionableFindings !== undefined && actionableFindings.findings.length > 0
+  );
 }
 
 /**
@@ -718,7 +912,16 @@ export function decideSubagentOutcomeFromRunner(
  */
 export function decideAdvisoryRunnerOutcome(
   result: Extract<RunnerAttemptResult, { status: 'ran' }>,
-  info: { runnerWroteFiles: boolean },
+  info: {
+    runnerWroteFiles: boolean;
+    /**
+     * P21.02 — the P21.01 tag-parsed `<actionable-findings>` result for this
+     * runner's report, when the caller has one available. Omitted at call
+     * sites (e.g. the refactor-review gate, a separate parser/domain) means
+     * "no cross-check possible" and preserves prior `clean` behavior.
+     */
+    actionableFindings?: ActionableFindingsParseResult;
+  },
 ): {
   outcome: SubagentRunnerOutcome;
   terminatedReason: SubagentRunnerTerminatedReason;
@@ -728,6 +931,12 @@ export function decideAdvisoryRunnerOutcome(
   }
   if (result.terminatedReason !== 'completed') {
     return { outcome: 'skipped', terminatedReason: result.terminatedReason };
+  }
+  if (hasHonestFindings(info.actionableFindings)) {
+    return {
+      outcome: 'completed_with_findings',
+      terminatedReason: 'completed',
+    };
   }
   return { outcome: 'clean', terminatedReason: 'completed' };
 }
@@ -744,6 +953,7 @@ const VALID_OUTCOMES: SubagentRunnerOutcome[] = [
   'patched',
   'deferred',
   'skipped',
+  'completed_with_findings',
 ];
 const VALID_TERMINATED_REASONS: SubagentRunnerTerminatedReason[] = [
   'completed',
@@ -769,6 +979,8 @@ export type BuildRunnerInvocationOptions = {
   primaryAgent?: string;
   runnerSelfReport?: string | null;
   fallbackFrom?: SubagentRunnerKind | null;
+  runnerModel?: string | null;
+  runnerEffort?: string | null;
   findings?: string[];
   probedSurfaces?: string[];
   patches?: string[];
@@ -807,6 +1019,12 @@ export function buildRunnerInvocation(
       : {}),
     ...(options.fallbackFrom !== undefined
       ? { fallbackFrom: options.fallbackFrom }
+      : {}),
+    ...(options.runnerModel !== undefined
+      ? { runnerModel: options.runnerModel }
+      : {}),
+    ...(options.runnerEffort !== undefined
+      ? { runnerEffort: options.runnerEffort }
       : {}),
     findings: options.findings ?? [],
     probedSurfaces: options.probedSurfaces ?? [],
@@ -902,6 +1120,20 @@ function validateInvocation(value: unknown): SubagentRunnerInvocation | null {
   ) {
     return null;
   }
+  if (
+    obj['runnerModel'] !== undefined &&
+    obj['runnerModel'] !== null &&
+    typeof obj['runnerModel'] !== 'string'
+  ) {
+    return null;
+  }
+  if (
+    obj['runnerEffort'] !== undefined &&
+    obj['runnerEffort'] !== null &&
+    typeof obj['runnerEffort'] !== 'string'
+  ) {
+    return null;
+  }
 
   // The validator preserves input shape: Phase-14 fields are emitted only when
   // present in the source row. Readers should apply `getPrimaryAgent` /
@@ -935,6 +1167,12 @@ function validateInvocation(value: unknown): SubagentRunnerInvocation | null {
       : {}),
     ...(obj['fallbackFrom'] !== undefined
       ? { fallbackFrom: obj['fallbackFrom'] as SubagentRunnerKind | null }
+      : {}),
+    ...(obj['runnerModel'] !== undefined
+      ? { runnerModel: obj['runnerModel'] as string | null }
+      : {}),
+    ...(obj['runnerEffort'] !== undefined
+      ? { runnerEffort: obj['runnerEffort'] as string | null }
       : {}),
     findings,
     probedSurfaces,

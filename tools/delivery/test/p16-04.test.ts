@@ -94,12 +94,13 @@ describe('P16.04 advisory observation warnings', () => {
       const reportPath = await writeSubagentArtifacts({
         repoRoot,
         report: [
-          '## Actionable findings',
-          'None.',
+          '<actionable-findings>',
+          'None',
+          '</actionable-findings>',
           '',
-          '## Advisory Observations',
-          '',
+          '<advisory-observations>',
           '- Record this operator decision after closeout.',
+          '</advisory-observations>',
           '',
         ].join('\n'),
       });
@@ -125,12 +126,13 @@ describe('P16.04 advisory observation warnings', () => {
       const reportPath = await writeSubagentArtifacts({
         repoRoot,
         report: [
-          '## Actionable findings',
-          'None.',
+          '<actionable-findings>',
+          'None',
+          '</actionable-findings>',
           '',
-          '## Advisory Observations',
-          '',
+          '<advisory-observations>',
           '- Already covered elsewhere.',
+          '</advisory-observations>',
           '',
         ].join('\n'),
       });
@@ -223,12 +225,13 @@ describe('P16.04 advisory observation warnings', () => {
     const result = reconcileReview({
       artifactRows: [],
       reportMarkdown: [
-        '## Actionable findings',
-        'None.',
+        '<actionable-findings>',
+        'None',
+        '</actionable-findings>',
         '',
-        '## Advisory Observations',
-        '',
+        '<advisory-observations>',
         '- This needs post-phase triage, not pre-PR blocking.',
+        '</advisory-observations>',
         '',
       ].join('\n'),
       reviewedHeadSha: 'aaa',

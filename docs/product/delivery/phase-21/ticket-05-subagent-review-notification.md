@@ -42,8 +42,8 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `SyntaxError: Export named 'eventsForSubagentReviewCommand' not found in module` when running `tools/delivery/test/p21-05.test.ts` against a worktree with the test file committed but `notifications.ts`/`types.ts` stashed out — confirmed via `git stash` of the two implementation files, matching the discipline established in P21.03/P21.04.
+Why this path: copied the `review_recorded` end-to-end shape verbatim (event union member → `buildSubagentReviewRecordedEvent`/`eventsForSubagentReviewCommand` → `formatNotificationMessage` case → one `emitNotificationWarnings` call per recording site) rather than inventing new plumbing — the smallest change, and it keeps `subagent_review_recorded` consistent with how every other milestone event in this file already round-trips.
+Alternative considered: a single shared `eventsForSubagentReviewCommand` call site placed after the `switch` on `dispatch.kind`/runner-outcome, rather than one call per branch (operator-recorder vs. programmatic-runner). Rejected — the two branches build `nextState` and the outcome value differently (`dispatch.outcome` vs. `outcome`/`stateOutcome`), and unifying them would have required extracting a new shared helper beyond what the ticket asked for.
+Deferred: Discord transport (#86) and red/green gate notifications, both explicitly out of scope per the ticket text; `--subagent-model`/`--subagent-effort` (P21.04) have no bearing on this ticket's notification payload.
+Contract note: none — `Type: feat`, `Scope: notifications`, `Red: required` all matched the actual change.
