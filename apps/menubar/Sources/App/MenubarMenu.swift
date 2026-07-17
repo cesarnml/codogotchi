@@ -52,10 +52,12 @@ final class MenubarMenu: NSObject {
 	static let sessionsTitle = "Sessions"
 	static let rpgTitle = "RPG"
 	static let settingsTitle = "Settings"
+	static let checkForUpdatesTitle = "Check for Updates…"
 	static let quitTitle = "Quit Codogotchi"
 	static let hooksNotActiveTitle = "⚠ Hooks not active — Retry install"
 
 	private let terminate: () -> Void
+	private let checkForUpdates: (() -> Void)?
 	private weak var floatingPetPool: FloatingPetWindowPool?
 	/// Same `state.d/`-scan tier engine backing Settings → Sessions (shared
 	/// instance, injected by `MenubarApp`): its `.active` rows (rendered or
@@ -96,6 +98,7 @@ final class MenubarMenu: NSObject {
 
 	init(
 		terminate: @escaping () -> Void = { NSApplication.shared.terminate(nil) },
+		checkForUpdates: (() -> Void)? = nil,
 		floatingPetPool: FloatingPetWindowPool? = nil,
 		sessionsTabViewModel: SessionsTabViewModel? = nil,
 		retryHooksInstall: (() -> Void)? = nil,
@@ -105,6 +108,7 @@ final class MenubarMenu: NSObject {
 		refreshSessionsTab: (() -> Void)? = nil
 	) {
 		self.terminate = terminate
+		self.checkForUpdates = checkForUpdates
 		self.floatingPetPool = floatingPetPool
 		self.sessionsTabViewModel = sessionsTabViewModel
 		self.retryHooksInstall = retryHooksInstall
@@ -194,6 +198,15 @@ final class MenubarMenu: NSObject {
 		settingsItem.isEnabled = openSettings != nil
 		menu.addItem(settingsItem)
 
+		let checkForUpdatesItem = NSMenuItem(
+			title: Self.checkForUpdatesTitle,
+			action: #selector(checkForUpdatesAction(_:)),
+			keyEquivalent: ""
+		)
+		checkForUpdatesItem.target = self
+		checkForUpdatesItem.isEnabled = checkForUpdates != nil
+		menu.addItem(checkForUpdatesItem)
+
 		menu.addItem(.separator())
 
 		let quitItem = NSMenuItem(
@@ -263,6 +276,10 @@ final class MenubarMenu: NSObject {
 
 	@objc func openRPGSettingsAction(_ sender: Any?) {
 		openSettings?(.rpg)
+	}
+
+	@objc func checkForUpdatesAction(_ sender: Any?) {
+		checkForUpdates?()
 	}
 
 	@MainActor

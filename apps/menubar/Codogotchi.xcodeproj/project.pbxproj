@@ -34,6 +34,7 @@
 		234EB74C49A7ACA478739D8B /* ConflictBubbleRateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9310785E0303F2C6627ADAE4 /* ConflictBubbleRateLimiter.swift */; };
 		2428DB31DC98CF0BB7C651F2 /* AboutViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4B2DA7902212941A3DBFFE0 /* AboutViewModelTests.swift */; };
 		24EA6CB979AAB31E81C44EFC /* MinimalistPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E40A4BCCFACDCAA4D8EB136E /* MinimalistPanelController.swift */; };
+		251E33D6DFB62EFA4E372D28 /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DEEA89996C6CC28F0FD82311 /* Sparkle.framework */; };
 		25296F59318459AC7DF83336 /* AttentionBubblePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195864BAFD9024E422A5CDF7 /* AttentionBubblePanel.swift */; };
 		252D3E5EACB7EED9A3F079EB /* PetAssetResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 940773DC46C73D897DB1A638 /* PetAssetResolverTests.swift */; };
 		2665D1F382445B0E92A89EB5 /* HalfHeartDecayEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 472AAFBA7353AE003A97B397 /* HalfHeartDecayEngine.swift */; };
@@ -54,6 +55,7 @@
 		38FE947AA40D419AADC09E4B /* CodogotchiPetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */; };
 		394EF322D2F327D2C0A6197C /* PoolDiffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB31FFE2C6961A7721A7F30D /* PoolDiffTests.swift */; };
 		3996ADE8B389AEB45AAB6827 /* RPGHUDPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C041CB2EE71340F3F263BFB /* RPGHUDPreviewView.swift */; };
+		3A612715468DB03AA6BD842B /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = DEEA89996C6CC28F0FD82311 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		3B94CBC8F0510C0545FF7EB9 /* AboutViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EC260ED23DDA79BF1888FA /* AboutViewModel.swift */; };
 		3C56000FC80F76768AF09E9D /* PoolApply.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FA73312C57946DF99F5455C /* PoolApply.swift */; };
 		3FBC13E4B9A0AC33B73BBA8F /* WindowActionRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAC0E973502BF1A8691836E /* WindowActionRouter.swift */; };
@@ -136,6 +138,7 @@
 		99C8B80FE0466C9BB1B58C51 /* BundledMaewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E7256729C3F274DFB3A5204 /* BundledMaewTests.swift */; };
 		9AC96FCF34BDC5818BF0E1B2 /* FloatingPetHidePromptTintView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955975966FD7379ECF343793 /* FloatingPetHidePromptTintView.swift */; };
 		9FF94A8F1636E73C24BE4846 /* SettingsTabModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F91F037388E6AEB00DBBC86A /* SettingsTabModel.swift */; };
+		A213B6D0956AB844B535B47A /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DEEA89996C6CC28F0FD82311 /* Sparkle.framework */; };
 		A4DE38B2FAB835D924339D92 /* RPGTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 073E1DA7FD402C40CFEA5439 /* RPGTabViewModelTests.swift */; };
 		A7EE9A463FF230338BEA765A /* ActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8A1C529AE9116E412788CF /* ActionButton.swift */; };
 		A8D2FD9DA4CBDFDB018AF971 /* LegacyStateFileCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82CC030BC8806022DB8BBA8B /* LegacyStateFileCleanup.swift */; };
@@ -150,6 +153,7 @@
 		B20913FC5559EE95F7E4E2BA /* PetImportHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */; };
 		B2E987D4266CDD1A1AC3AF04 /* CustomizationJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EED7E5C1185B639D5786A2E2 /* CustomizationJsonReaderTests.swift */; };
 		B3EC2DCC0EBE6D4EE5AF88FE /* GateBadgeLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2120EF41902AB522F5AC969 /* GateBadgeLayout.swift */; };
+		B4A134135BC23E2D170DB754 /* SparkleUpdaterController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E577B42471B8285C4F5F4F27 /* SparkleUpdaterController.swift */; };
 		B541D6C8EBCB90742BFBF810 /* MinimalistBadgeViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463D495A8DF0E635AEDE4429 /* MinimalistBadgeViewTests.swift */; };
 		B69656D5873253F3A80DDF25 /* FlippedStackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED1E6B27BAC9CB8CAE40022 /* FlippedStackView.swift */; };
 		B7267432230F42A102E5F8F5 /* PoolDerivePushTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF4156C53926BBC287DF6BB /* PoolDerivePushTests.swift */; };
@@ -229,6 +233,20 @@
 			remoteInfo = Codogotchi;
 		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		3C9867554CEC6E0E19C885E8 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				3A612715468DB03AA6BD842B /* Sparkle.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		01A3B04AF847963FAD0DB798 /* RPGTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGTabView.swift; sourceTree = "<group>"; };
@@ -418,6 +436,7 @@
 		DB31FFE2C6961A7721A7F30D /* PoolDiffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolDiffTests.swift; sourceTree = "<group>"; };
 		DBBC8A9F0A42DAF1E086D27A /* PerSessionReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerSessionReaderTests.swift; sourceTree = "<group>"; };
 		DC69F56318CF5679B36BC371 /* WindowActionRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowActionRouterTests.swift; sourceTree = "<group>"; };
+		DEEA89996C6CC28F0FD82311 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Sparkle.framework; path = Frameworks/Sparkle.framework; sourceTree = "<group>"; };
 		DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsControllerTests.swift; sourceTree = "<group>"; };
 		DFAAE832D91C20A69CA7D80B /* WindowKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowKeyTests.swift; sourceTree = "<group>"; };
 		E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuItemsTests.swift; sourceTree = "<group>"; };
@@ -427,6 +446,7 @@
 		E3CE84B951CBE68217B4CC3F /* CodogotchiPetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodogotchiPetTests.swift; sourceTree = "<group>"; };
 		E40A4BCCFACDCAA4D8EB136E /* MinimalistPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinimalistPanelController.swift; sourceTree = "<group>"; };
 		E44BBB4220D0186ED68EA3B8 /* PetAssignPopoverController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetAssignPopoverController.swift; sourceTree = "<group>"; };
+		E577B42471B8285C4F5F4F27 /* SparkleUpdaterController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdaterController.swift; sourceTree = "<group>"; };
 		E59DAA859102A02B706B2A0B /* PoolApplyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolApplyTests.swift; sourceTree = "<group>"; };
 		EB8A1C529AE9116E412788CF /* ActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionButton.swift; sourceTree = "<group>"; };
 		EBEEA897349417D8DCF805AF /* PetAssetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetAssetResolver.swift; sourceTree = "<group>"; };
@@ -445,6 +465,25 @@
 		FE8CCE564BDB7258EEE9F3C0 /* ChromeFlockCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeFlockCoordinator.swift; sourceTree = "<group>"; };
 		FED1E6B27BAC9CB8CAE40022 /* FlippedStackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlippedStackView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		517493DDCEBE597A377580AD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				251E33D6DFB62EFA4E372D28 /* Sparkle.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E2D79556F0316904D7F6E0E9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A213B6D0956AB844B535B47A /* Sparkle.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		33E5D2C7B590C0550C757948 /* Derive */ = {
@@ -576,6 +615,7 @@
 				0EEE8949FDE061D125E5EB7D /* MenubarMenu.swift */,
 				D21596D58AD546C677F9F838 /* MenubarRenderer.swift */,
 				581DD6BA7172DEDE8E79F733 /* PetStoreSeeder.swift */,
+				E577B42471B8285C4F5F4F27 /* SparkleUpdaterController.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -702,8 +742,17 @@
 				68468C2C8FF6D9F90FDAD22C /* Fixtures */,
 				61A77204FC4E6B1096753641 /* Sources */,
 				D5514C97EB9C3263E0863D89 /* Tests */,
+				AEFDA68570F51E10547CD330 /* Frameworks */,
 				5747BED35308D024F16D937E /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		AEFDA68570F51E10547CD330 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DEEA89996C6CC28F0FD82311 /* Sparkle.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		CC4877F51FC1F1A2A71D75E5 /* Scene */ = {
@@ -778,6 +827,7 @@
 			buildConfigurationList = 9C01AC2AC9F3DE835E1F62E8 /* Build configuration list for PBXNativeTarget "CodogotchiTests" */;
 			buildPhases = (
 				A3AB33734BC1B0209FC734D8 /* Sources */,
+				517493DDCEBE597A377580AD /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -797,6 +847,8 @@
 			buildPhases = (
 				0E46845A46E075F094860722 /* Sources */,
 				0E1B950769D539A7798AA4D6 /* Resources */,
+				E2D79556F0316904D7F6E0E9 /* Frameworks */,
+				3C9867554CEC6E0E19C885E8 /* Embed Frameworks */,
 				C3EB4DB14B0B2E7826A5A9A5 /* Embed codogotchi binaries */,
 			);
 			buildRules = (
@@ -820,12 +872,12 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0780859A0EB3D878D243D7CE = {
-						DevelopmentTeam = "";
-						ProvisioningStyle = Automatic;
+						DevelopmentTeam = 928CA6F2BP;
+						ProvisioningStyle = Manual;
 					};
 					E937368A8F888B26DB77E8AA = {
-						DevelopmentTeam = "";
-						ProvisioningStyle = Automatic;
+						DevelopmentTeam = 928CA6F2BP;
+						ProvisioningStyle = Manual;
 					};
 				};
 			};
@@ -1011,6 +1063,7 @@
 				BEFBED8588D0ECA957839EC2 /* SettingsTheme.swift in Sources */,
 				492E8762693554F3FC19185E /* SettingsWindowController.swift in Sources */,
 				D2E6929B12589CC720E012F7 /* SlicePruner.swift in Sources */,
+				B4A134135BC23E2D170DB754 /* SparkleUpdaterController.swift in Sources */,
 				7D32570272F65A110375775F /* SpeechBubblePanel.swift in Sources */,
 				132D20DBD0B1451B5E1A1A49 /* StateDirectoryListing.swift in Sources */,
 				CE7ABB1D0A6B2195D2E54F29 /* StateJsonReader.swift in Sources */,
@@ -1122,8 +1175,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Codogotchi.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1141,6 +1199,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1186,11 +1248,12 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 928CA6F2BP;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -1217,6 +1280,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1233,8 +1300,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Codogotchi.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1280,11 +1352,12 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 928CA6F2BP;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;

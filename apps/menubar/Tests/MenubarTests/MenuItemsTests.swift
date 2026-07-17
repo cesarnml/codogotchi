@@ -7,8 +7,8 @@ import XCTest
 ///
 /// Layout: header (disabled "Codogotchi"), separator, the dynamic pet
 /// section, separator, "Show All Pets", "Hide All Pets", separator, "Pets",
-/// "Customization", "Sessions", "RPG", "Settings", separator, "Quit
-/// Codogotchi", and a hidden "Hooks not active" item.
+/// "Customization", "Sessions", "RPG", "Settings", "Check for Updates…",
+/// separator, "Quit Codogotchi", and a hidden "Hooks not active" item.
 ///
 /// The pet section is: a disabled "Active Pets" header, one Show/Hide row per
 /// active pet (a single row collapses to a plain "Show Pet"/"Hide Pet"
@@ -19,10 +19,10 @@ import XCTest
 final class MenuItemsTests: XCTestCase {
 	// Fixed item count surrounding the variable-length pet section:
 	// header, separator, [pet section], separator, showAll, hideAll,
-	// separator, pets, customization, sessions, rpg, settings, separator,
-	// quit, hooksItem.
+	// separator, pets, customization, sessions, rpg, settings,
+	// checkForUpdates, separator, quit, hooksItem.
 	private static let petSectionStartIndex = 2
-	private static let fixedItemCount = 14
+	private static let fixedItemCount = 15
 	/// Pet-section items that exist regardless of how many pet rows render:
 	/// the "Active Pets" header plus the "Live Pets" and "Capped Sessions"
 	/// submenu items.
@@ -134,11 +134,12 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(menu.items[trailingIndex(6, petItemCount: petItemCount)].title, MenubarMenu.sessionsTitle)
 		XCTAssertEqual(menu.items[trailingIndex(7, petItemCount: petItemCount)].title, MenubarMenu.rpgTitle)
 		XCTAssertEqual(menu.items[trailingIndex(8, petItemCount: petItemCount)].title, MenubarMenu.settingsTitle)
-		XCTAssertTrue(menu.items[trailingIndex(9, petItemCount: petItemCount)].isSeparatorItem)
-		XCTAssertEqual(menu.items[trailingIndex(10, petItemCount: petItemCount)].title, MenubarMenu.quitTitle)
-		XCTAssertEqual(menu.items[trailingIndex(11, petItemCount: petItemCount)].title, MenubarMenu.hooksNotActiveTitle)
+		XCTAssertEqual(menu.items[trailingIndex(9, petItemCount: petItemCount)].title, MenubarMenu.checkForUpdatesTitle)
+		XCTAssertTrue(menu.items[trailingIndex(10, petItemCount: petItemCount)].isSeparatorItem)
+		XCTAssertEqual(menu.items[trailingIndex(11, petItemCount: petItemCount)].title, MenubarMenu.quitTitle)
+		XCTAssertEqual(menu.items[trailingIndex(12, petItemCount: petItemCount)].title, MenubarMenu.hooksNotActiveTitle)
 		XCTAssertTrue(
-			menu.items[trailingIndex(11, petItemCount: petItemCount)].isHidden,
+			menu.items[trailingIndex(12, petItemCount: petItemCount)].isHidden,
 			"Hooks not active item should start hidden")
 	}
 
@@ -303,7 +304,7 @@ final class MenuItemsTests: XCTestCase {
 		var terminationCount = 0
 		let builder = MenubarMenu(terminate: { terminationCount += 1 })
 		let menu = builder.build()
-		let quitItem = menu.items[trailingIndex(10, petItemCount: Self.singleRowSectionCount)]
+		let quitItem = menu.items[trailingIndex(11, petItemCount: Self.singleRowSectionCount)]
 
 		guard let action = quitItem.action, let target = quitItem.target else {
 			return XCTFail("Quit Codogotchi menu item must have an action and target")

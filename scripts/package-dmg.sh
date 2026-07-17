@@ -5,6 +5,19 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT="$REPO_ROOT/apps/menubar/Codogotchi.xcodeproj"
 DMG_OUT="$REPO_ROOT/builds/Codogotchi.dmg"
 
+# Signing/notarization identity — pulled from .env (never committed) rather
+# than hardcoded, so the script works for any Developer ID holder on the team.
+if [[ -f "$REPO_ROOT/.env" ]]; then
+  set -a
+  source <(grep '^APPLE_' "$REPO_ROOT/.env")
+  set +a
+fi
+: "${APPLE_CODE_SIGN_IDENTITY:?Set APPLE_CODE_SIGN_IDENTITY in .env (see \`security find-identity -v -p codesigning\`)}"
+NOTARY_PROFILE="${APPLE_NOTARY_PROFILE:-codogotchi-notary}"
+CLI_ENTITLEMENTS="$REPO_ROOT/apps/menubar/Resources/CLIBinary.entitlements"
+APP_ENTITLEMENTS="$REPO_ROOT/apps/menubar/Codogotchi.entitlements"
+SPARKLE_HELPER_ENTITLEMENTS="$REPO_ROOT/apps/menubar/Resources/SparkleHelper.entitlements"
+
 # Stage OUTSIDE the repo tree. The staging dir contains an `Applications ->
 # /Applications` symlink for the drag-to-install layout; if it lives inside the
 # repo, `bun test`'s root-CWD scan follows it into /Applications and exhausts
@@ -45,6 +58,71 @@ fi
 
 echo "==> Verifying staged app bundle..."
 "$REPO_ROOT/scripts/verify-macos-app-bundle.sh" "$BUILD_DIR/Codogotchi.app"
+
+# --- Sign, notarize, staple --------------------------------------------------
+# Nested Mach-O executables must be signed individually before the outer app,
+# innermost-first — Apple's notarization service rejects a bundle containing
+# any unsigned or non-hardened-runtime executable. The embedded CLI binaries
+# (bun --compile output, see scripts/build-binaries.sh) bundle a JS engine that
+# needs JIT, so they get their own entitlements distinct from the app's.
+APP_PATH_STAGED="$BUILD_DIR/Codogotchi.app"
+RESOURCES_DIR="$APP_PATH_STAGED/Contents/Resources"
+
+echo "==> Signing embedded CLI binaries..."
+for bin in codogotchi codogotchi-hook; do
+  codesign --force --options runtime --timestamp \
+    --entitlements "$CLI_ENTITLEMENTS" \
+    --sign "$APPLE_CODE_SIGN_IDENTITY" \
+    "$RESOURCES_DIR/$bin"
+done
+
+# Xcode's automatic "Embed Frameworks" step re-signs Sparkle.framework's nested
+# code, but without a secure timestamp and (for the XPC services/Autoupdate)
+# without our Developer ID — both fail notarization. Sparkle's documented
+# codesigning order is innermost-first: the XPC services and Autoupdate tool
+# inside Versions/Current, then the nested Updater.app, then the framework's
+# own dylib, then finally the outer app.
+SPARKLE_FRAMEWORK="$RESOURCES_DIR/../Frameworks/Sparkle.framework"
+if [[ -d "$SPARKLE_FRAMEWORK" ]]; then
+  echo "==> Signing Sparkle.framework nested code..."
+  SPARKLE_VERSIONED="$SPARKLE_FRAMEWORK/Versions/Current"
+  for helper in \
+    "$SPARKLE_VERSIONED/XPCServices/Downloader.xpc" \
+    "$SPARKLE_VERSIONED/XPCServices/Installer.xpc" \
+    "$SPARKLE_VERSIONED/Autoupdate"
+  do
+    codesign --force --options runtime --timestamp \
+      --entitlements "$SPARKLE_HELPER_ENTITLEMENTS" \
+      --sign "$APPLE_CODE_SIGN_IDENTITY" \
+      "$helper"
+  done
+  codesign --force --options runtime --timestamp \
+    --sign "$APPLE_CODE_SIGN_IDENTITY" \
+    "$SPARKLE_VERSIONED/Updater.app"
+  codesign --force --options runtime --timestamp \
+    --sign "$APPLE_CODE_SIGN_IDENTITY" \
+    "$SPARKLE_FRAMEWORK"
+fi
+
+echo "==> Signing app bundle..."
+codesign --force --options runtime --timestamp \
+  --entitlements "$APP_ENTITLEMENTS" \
+  --sign "$APPLE_CODE_SIGN_IDENTITY" \
+  "$APP_PATH_STAGED"
+
+echo "==> Verifying signature..."
+codesign --verify --deep --strict --verbose=2 "$APP_PATH_STAGED"
+
+echo "==> Submitting for notarization (this can take a few minutes)..."
+NOTARIZE_ZIP="$BUILD_DIR/Codogotchi-notarize.zip"
+ditto -c -k --keepParent "$APP_PATH_STAGED" "$NOTARIZE_ZIP"
+xcrun notarytool submit "$NOTARIZE_ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+
+echo "==> Stapling notarization ticket..."
+xcrun stapler staple "$APP_PATH_STAGED"
+
+echo "==> Verifying Gatekeeper acceptance..."
+spctl --assess --type execute --verbose=2 "$APP_PATH_STAGED"
 
 mkdir -p "$(dirname "$DMG_OUT")"
 rm -f "$DMG_OUT"
@@ -117,7 +195,6 @@ else
 fi
 
 echo ""
-echo "Done! DMG at: $DMG_OUT"
+echo "Done! Notarized, stapled DMG at: $DMG_OUT"
 echo ""
-echo "Share with your friend. After they drag to /Applications they run:"
-echo "  xattr -d com.apple.quarantine /Applications/Codogotchi.app"
+echo "Ready to distribute — Gatekeeper accepts it with no user workaround needed."

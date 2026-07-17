@@ -9,9 +9,10 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
     MACOSX_DEPLOYMENT_TARGET: "13.0"
-    CODE_SIGN_STYLE: Automatic
-    CODE_SIGN_IDENTITY: "-"
-    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "Developer ID Application"
+    DEVELOPMENT_TEAM: "928CA6F2BP"
+    ENABLE_HARDENED_RUNTIME: YES
 targets:
   Codogotchi:
     type: application
@@ -36,8 +37,16 @@ targets:
         CFBundleIdentifier: com.codogotchi.app
         CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
-        CFBundleShortVersionString: "2.7.0"
-        CFBundleVersion: "12"
+        CFBundleShortVersionString: "3.0.0"
+        CFBundleVersion: "13"
+        SUFeedURL: https://codogotchi.app/appcast.xml
+        SUPublicEDKey: YCLg2RvYb8ddEhgeWW24yX07oN3xXYUzYW5yrhEZtqI=
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
+    dependencies:
+      - framework: Frameworks/Sparkle.framework
+        embed: true
+        codeSign: true
     settings:
       base:
         PRODUCT_NAME: Codogotchi
@@ -47,6 +56,7 @@ targets:
         # user script sandboxing would block those reads. Scoped to this target
         # only so the test target keeps the default sandboxing.
         ENABLE_USER_SCRIPT_SANDBOXING: NO
+        CODE_SIGN_ENTITLEMENTS: Codogotchi.entitlements
     postBuildScripts:
       # Compile the standalone arm64 CLI binaries and embed them directly into
       # Codogotchi.app/Contents/Resources/. Runs every build (idempotent) so the
@@ -64,6 +74,8 @@ targets:
       - path: Tests/MenubarTests
     dependencies:
       - target: Codogotchi
+      - framework: Frameworks/Sparkle.framework
+        embed: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.codogotchi.app.tests

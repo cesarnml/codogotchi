@@ -73,6 +73,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	/// once `applicationDidFinishLaunching` returned.
 	var menuBuilder: MenubarMenu?
 
+	/// Drives the "Check for Updates…" menu item and Sparkle's background
+	/// update-check schedule. Held strongly for the app's lifetime.
+	var sparkleUpdaterController: SparkleUpdaterController?
+
 	/// Holds the CodexPet loaded at launch so the pool factory can use it
 	/// when spawning new per-origin windows (and after `reloadActivePet`).
 	var codexPet: CodexPet?
@@ -409,7 +413,13 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 		}
 		self.settingsWindowController = settingsController
 
+		let sparkleUpdaterController = SparkleUpdaterController()
+		self.sparkleUpdaterController = sparkleUpdaterController
+
 		let menuBuilder = MenubarMenu(
+			checkForUpdates: { [weak sparkleUpdaterController] in
+				sparkleUpdaterController?.checkForUpdates()
+			},
 			floatingPetPool: self.floatingPetWindowPool,
 			sessionsTabViewModel: sessionsTabViewModel,
 			retryHooksInstall: { [weak onboardingController] in
