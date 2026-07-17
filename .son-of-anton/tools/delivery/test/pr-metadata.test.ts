@@ -47,21 +47,36 @@ function makeTwoTicketState(
 }
 
 describe('buildPullRequestBody — origin issue closing line', () => {
-  it('does not add a Closes line when no originIssueNumber is set', () => {
+  it('does not add a Closes line when no originIssueNumbers is set', () => {
     const state = makeTwoTicketState();
     const body = buildPullRequestBody(state, state.tickets[1]!);
     expect(body).not.toContain('Closes #');
   });
 
-  it('does not add a Closes line to a non-final ticket even with originIssueNumber set', () => {
-    const state = makeTwoTicketState({ originIssueNumber: 76 });
+  it('does not add a Closes line to a non-final ticket even with originIssueNumbers set', () => {
+    const state = makeTwoTicketState({ originIssueNumbers: [76] });
     const body = buildPullRequestBody(state, state.tickets[0]!);
     expect(body).not.toContain('Closes #');
   });
 
-  it('adds a Closes line to the final ticket in the phase when originIssueNumber is set', () => {
-    const state = makeTwoTicketState({ originIssueNumber: 76 });
+  it('adds a Closes line to the final ticket in the phase when originIssueNumbers has one entry', () => {
+    const state = makeTwoTicketState({ originIssueNumbers: [76] });
     const body = buildPullRequestBody(state, state.tickets[1]!);
     expect(body).toContain('- Closes #76');
+  });
+
+  it('P21.06 — emits one Closes bullet per issue on the final ticket only', () => {
+    const state = makeTwoTicketState({
+      originIssueNumbers: [78, 83, 84, 87, 105],
+    });
+    const finalBody = buildPullRequestBody(state, state.tickets[1]!);
+    expect(finalBody).toContain('- Closes #78');
+    expect(finalBody).toContain('- Closes #83');
+    expect(finalBody).toContain('- Closes #84');
+    expect(finalBody).toContain('- Closes #87');
+    expect(finalBody).toContain('- Closes #105');
+
+    const nonFinalBody = buildPullRequestBody(state, state.tickets[0]!);
+    expect(nonFinalBody).not.toContain('Closes #');
   });
 });

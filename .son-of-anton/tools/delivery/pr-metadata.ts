@@ -1010,11 +1010,13 @@ export function buildPullRequestBody(
   const isFinalTicketInPhase =
     state.tickets.length > 0 &&
     state.tickets[state.tickets.length - 1]?.id === ticket.id;
-  if (state.originIssueNumber !== undefined && isFinalTicketInPhase) {
-    // Only the phase's final ticket closes the origin issue — earlier stacked
-    // tickets' PRs land on intermediate branches, not the closeout branch, so
-    // the issue isn't actually resolved until this one merges.
-    lines.push(`- Closes #${state.originIssueNumber}`);
+  if (isFinalTicketInPhase) {
+    // Only the phase's final ticket closes the origin issue(s) — earlier
+    // stacked tickets' PRs land on intermediate branches, not the closeout
+    // branch, so no issue is actually resolved until this one merges.
+    for (const issueNumber of state.originIssueNumbers ?? []) {
+      lines.push(`- Closes #${issueNumber}`);
+    }
   }
 
   const postVerifyLine = buildInternalReviewStageLine({

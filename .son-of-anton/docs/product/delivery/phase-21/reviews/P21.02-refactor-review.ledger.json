@@ -1,0 +1,36 @@
+{
+  "ticket": "P21.02",
+  "invocations": [
+    {
+      "runnerKind": "cursor-cli",
+      "reviewedHeadSha": "9494ab30552b46a95e29d5c8401240a369df40f8",
+      "outcome": "clean",
+      "completedAt": "2026-07-16T14:38:23.733Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-21/reviews/P21.02-refactor-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-21/reviews/P21.02-refactor-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 2,
+      "primaryAgent": "claude",
+      "runnerSelfReport": null,
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "9494ab30552b46a95e29d5c8401240a369df40f8",
+      "outcome": "patched",
+      "completedAt": "2026-07-16T14:41:18.802Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": ["2feefda4fbb6aa993b01c98ed172910c100a70ba"],
+      "schemaVersion": 2,
+      "primaryAgent": "unknown",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
+    }
+  ]
+}

@@ -72,70 +72,171 @@ export function detectLabeledCommits(input: {
 }
 
 /**
- * Canonical sibling section headings used by the subagent review report. The
- * parser terminates a section extraction only when it encounters another of
- * these headings — not on every `**bold**` or `# heading` line. Without this
- * list, observation-prefix lines like `**A1 — Title**` were being read as
- * section terminators, silently dropping all observations that followed them.
+ * P21.01 — tag-based report contract.
  *
- * Heading aliases (`Runner status` ↔ `Runner termination`) tolerate light
- * subagent drift across runners.
+ * Replaces the heading-grammar machinery (`CANONICAL_REPORT_SECTION_HEADINGS`,
+ * `extractReportSection`, `stripHorizontalRules`, `isHeadingFor`,
+ * `isCanonicalSectionHeadingLine`) with balanced-tag extraction, per
+ * `notes/public/subagent-report-parser-contract.md`. Modeled directly on
+ * `parseRefactorSuggestions` in `refactor-review.ts`: last-open-tag-wins,
+ * close-tag-or-EOF, case-insensitive tag-name match, trimmed-line
+ * normalization, literal `None` detection. No heading recognition, no
+ * terminator regex — the tag boundary is the only signal.
  */
-const CANONICAL_REPORT_SECTION_HEADINGS = [
-  'Invariant results',
-  'Surface results',
-  'Actionable findings',
-  'Advisory Observations',
-  'Findings for human review', // legacy alias of Advisory Observations
-  'Runner termination',
-  'Runner status', // tolerated drift
-] as const;
+
+type TaggedBulletParseResult = {
+  /** Whether an opening tag was found at all. */
+  found: boolean;
+  /** Whether a matching closing tag was found (false = parsed to EOF). */
+  closed: boolean;
+  /** True only for the literal `None` body — a clean report, not a drift warning. */
+  isExplicitNone: boolean;
+  /** Parsed bullet lines, trimmed and de-prefixed. Empty when none found. */
+  items: string[];
+};
 
 /**
- * Parses the `Actionable findings` section of the subagent report markdown
- * and returns true if it contains any actionable content (anything other than
- * `None.` or whitespace). Tolerates extra blank lines, trailing whitespace,
- * and slight heading-format drift.
+ * Extracts a tagged block (`<tagName>…</tagName>`) and its `^[-*]` bullet
+ * lines. When more than one open tag appears (e.g. a template skeleton
+ * example quoted earlier in the report), the **last** occurrence is
+ * authoritative — a report's real output section follows any quoted example.
  */
-export function parseActionableFindings(markdown: string): boolean {
-  const body = extractReportSection(markdown, 'Actionable findings');
-  if (body === undefined) return false;
-  // Strip horizontal rules — agents sometimes append `---` as a cosmetic
-  // divider right after "None." despite prompt instructions not to. Left
-  // unstripped, the divider makes the section look non-empty and produces a
-  // false-positive Condition B block.
-  const strippedBody = stripHorizontalRules(body);
-  const normalized = normalizeSectionBody(strippedBody);
-  if (normalized === '') return false;
-  if (/^none\.?$/i.test(normalized)) return false;
-  return true;
+function parseTaggedBulletBlock(
+  markdown: string,
+  openTag: RegExp,
+  closeTag: RegExp,
+): TaggedBulletParseResult {
+  const openMatches = [...markdown.matchAll(new RegExp(openTag, 'gi'))];
+  if (openMatches.length === 0) {
+    return { found: false, closed: false, isExplicitNone: false, items: [] };
+  }
+  const openMatch = openMatches[openMatches.length - 1]!;
+
+  const afterOpen = markdown.slice(
+    (openMatch.index ?? 0) + openMatch[0].length,
+  );
+  const closeMatch = closeTag.exec(afterOpen);
+  const closed = closeMatch !== null;
+  const body = closed ? afterOpen.slice(0, closeMatch.index) : afterOpen;
+
+  const normalized = body
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .join('\n')
+    .trim();
+
+  if (closed && /^none\.?$/i.test(normalized)) {
+    return { found: true, closed, isExplicitNone: true, items: [] };
+  }
+
+  if (normalized === '') {
+    return { found: true, closed, isExplicitNone: false, items: [] };
+  }
+
+  const bulletLines = normalized
+    .split('\n')
+    .filter((line) => /^[-*]\s+/.test(line));
+
+  return {
+    found: true,
+    closed,
+    isExplicitNone: false,
+    items: bulletLines.map((line) => line.replace(/^[-*]\s+/, '').trim()),
+  };
 }
 
-function stripHorizontalRules(body: string): string {
-  return body.replace(/^---+\s*$/gm, '');
+const ACTIONABLE_FINDINGS_OPEN_TAG = /<actionable-findings>/i;
+const ACTIONABLE_FINDINGS_CLOSE_TAG = /<\/actionable-findings>/i;
+
+export type ActionableFindingsParseResult = {
+  found: boolean;
+  closed: boolean;
+  isExplicitNone: boolean;
+  findings: string[];
+};
+
+/**
+ * Extracts the `<actionable-findings>` tagged block from a subagent-review
+ * report. Returns a structured parse-health signal (found/closed/
+ * isExplicitNone) alongside the parsed findings so the caller — the
+ * `subagent-review` record path — can warn precisely on drift instead of
+ * silently treating a 0-parse as "no findings."
+ */
+export function parseActionableFindings(
+  markdown: string,
+): ActionableFindingsParseResult {
+  const result = parseTaggedBulletBlock(
+    markdown,
+    ACTIONABLE_FINDINGS_OPEN_TAG,
+    ACTIONABLE_FINDINGS_CLOSE_TAG,
+  );
+  return {
+    found: result.found,
+    closed: result.closed,
+    isExplicitNone: result.isExplicitNone,
+    findings: result.items,
+  };
+}
+
+/**
+ * True when the parse result should be treated as a silent-drift warning at
+ * `subagent-review` record time: the tag was missing/misnamed, the closing
+ * tag was absent, or the tag was present but yielded zero findings without
+ * the literal `None` clean-signal.
+ */
+export function isSuspiciousActionableFindingsParse(
+  result: ActionableFindingsParseResult,
+): boolean {
+  if (!result.found || !result.closed) return true;
+  return result.findings.length === 0 && !result.isExplicitNone;
+}
+
+const ADVISORY_OBSERVATIONS_OPEN_TAG = /<advisory-observations>/i;
+const ADVISORY_OBSERVATIONS_CLOSE_TAG = /<\/advisory-observations>/i;
+
+export type AdvisoryObservationsParseResult = {
+  found: boolean;
+  closed: boolean;
+  isExplicitNone: boolean;
+  observations: string[];
+};
+
+/**
+ * Extracts the `<advisory-observations>` tagged block, structured parse
+ * result. `parseAdvisoryObservations` (below) is the array-returning
+ * convenience wrapper existing call sites use.
+ */
+export function parseAdvisoryObservationsResult(
+  markdown: string,
+): AdvisoryObservationsParseResult {
+  const result = parseTaggedBulletBlock(
+    markdown,
+    ADVISORY_OBSERVATIONS_OPEN_TAG,
+    ADVISORY_OBSERVATIONS_CLOSE_TAG,
+  );
+  return {
+    found: result.found,
+    closed: result.closed,
+    isExplicitNone: result.isExplicitNone,
+    observations: result.items,
+  };
 }
 
 export function parseAdvisoryObservations(markdown: string): string[] {
-  const body = extractReportSection(markdown, 'Advisory Observations');
-  if (body === undefined) return [];
-  // Strip horizontal rules — agents use `---` as cosmetic section dividers but
-  // they are not observations and their presence breaks the all-bullets check.
-  const strippedBody = stripHorizontalRules(body);
-  const normalized = normalizeSectionBody(strippedBody);
-  if (normalized === '') return [];
-  if (/^none\.?$/i.test(normalized)) return [];
+  return parseAdvisoryObservationsResult(markdown).observations;
+}
 
-  const nonEmptyLines = normalized.split('\n');
-  const bulletLines = nonEmptyLines.filter((line) => /^[-*]\s+/.test(line));
-  if (bulletLines.length > 0 && bulletLines.length === nonEmptyLines.length) {
-    return bulletLines.map((line) => line.replace(/^[-*]\s+/, '').trim());
-  }
-
-  return strippedBody
-    .trim()
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.replace(/\n/g, ' ').trim())
-    .filter((paragraph) => paragraph.length > 0);
+/**
+ * True when the parse result should be treated as a silent-drift warning at
+ * `subagent-review` record time — symmetric to
+ * `isSuspiciousActionableFindingsParse`.
+ */
+export function isSuspiciousAdvisoryObservationsParse(
+  result: AdvisoryObservationsParseResult,
+): boolean {
+  if (!result.found || !result.closed) return true;
+  return result.observations.length === 0 && !result.isExplicitNone;
 }
 
 export type SuspiciousSubagentReviewEvidence = {
@@ -174,72 +275,6 @@ export function inspectSubagentReviewEvidence(input: {
     }
   }
   return warnings;
-}
-
-function extractReportSection(
-  markdown: string,
-  heading: string,
-): string | undefined {
-  const lines = markdown.split('\n');
-  const startIndex = lines.findIndex((line) => isHeadingFor(line, heading));
-  if (startIndex === -1) return undefined;
-  const bodyLines: string[] = [];
-  for (const line of lines.slice(startIndex + 1)) {
-    // Only terminate the section on a canonical sibling section heading. Bold
-    // observation prefixes (e.g. `**A1 — Title**`) are content, not section
-    // boundaries, and must not silently truncate the section body.
-    if (isCanonicalSectionHeadingLine(line, heading)) break;
-    // Also terminate on runner-termination key-value lines that agents write
-    // instead of the canonical `**Runner termination**` heading (common drift:
-    // `**runnerStatus:** completed` or `**\`runnerStatus\`:** completed`).
-    // No observation would ever start with these tokens.
-    if (/^\*\*`?(?:runnerStatus|terminatedReason)`?[:`]/i.test(line)) break;
-    bodyLines.push(line);
-  }
-  return bodyLines.join('\n');
-}
-
-function normalizeSectionBody(body: string): string {
-  return body
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .join('\n')
-    .trim();
-}
-
-function isHeadingFor(line: string, heading: string): boolean {
-  const escapedHeading = heading
-    .trim()
-    .split(/\s+/)
-    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('\\s+');
-  return (
-    new RegExp(`^\\s*\\*\\*\\s*${escapedHeading}\\s*\\*\\*\\s*$`, 'i').test(
-      line,
-    ) ||
-    new RegExp(`^\\s{0,3}#{1,6}\\s+${escapedHeading}\\s*#*\\s*$`, 'i').test(
-      line,
-    )
-  );
-}
-
-/**
- * Returns true only when `line` is a heading that matches one of the canonical
- * sibling section headings (`Actionable findings`, `Advisory Observations`,
- * `Runner termination`, etc.) and is not the heading we are currently
- * extracting. This keeps non-canonical bold prefixes inside the section body
- * where they belong.
- */
-function isCanonicalSectionHeadingLine(
-  line: string,
-  currentHeading: string,
-): boolean {
-  return CANONICAL_REPORT_SECTION_HEADINGS.some(
-    (candidate) =>
-      candidate.toLowerCase() !== currentHeading.toLowerCase() &&
-      isHeadingFor(line, candidate),
-  );
 }
 
 type ArtifactRow = {
@@ -310,7 +345,20 @@ export function reconcileReview(input: {
     };
   }
 
-  const findingsExist = parseActionableFindings(input.reportMarkdown);
+  // Block on suspicious parses too, not only on successfully-extracted
+  // bullets: a closed, non-empty, non-`None` `<actionable-findings>` tag
+  // whose body is prose rather than `- ` bullets parses to zero findings
+  // (the barebones bullet-only extractor has no prose fallback by design),
+  // so `findings.length > 0` alone would silently wave through a report that
+  // has real actionable content just because the subagent didn't bullet it.
+  // Gated on a report actually existing: the operator-recorder path (no
+  // `--subagent` runner invoked) legitimately has no report file at all, and
+  // that empty-markdown case must stay non-blocking exactly as before.
+  const hasReport = input.reportMarkdown.trim() !== '';
+  const actionableParse = parseActionableFindings(input.reportMarkdown);
+  const findingsExist =
+    actionableParse.findings.length > 0 ||
+    (hasReport && isSuspiciousActionableFindingsParse(actionableParse));
   if (findingsExist && !isAcknowledged) {
     return {
       kind: 'blocked',

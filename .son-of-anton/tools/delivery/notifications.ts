@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 
 import { buildReviewPollCheckMinutes } from './review';
 import { readReviewArtifacts } from './review-artifacts';
+import type { SubagentRunnerOutcome } from './subagent-runner';
 import type {
   DeliveryNotificationEvent,
   DeliveryState,
@@ -138,6 +139,55 @@ function buildReviewRecordedEvent(
     note: artifacts.triage?.note ?? ticket.reviewNote,
     prUrl: ticket.prUrl,
   };
+}
+
+/**
+ * P21.05 — one notification per *recorded* subagent-review outcome, emitted
+ * after the ledger row is written (never a pre-record guess). Mirrors
+ * `buildReviewRecordedEvent`'s shape. `terminatedReason` and `findingsCount`
+ * are omitted (not `undefined`-valued) when not applicable, matching the
+ * `note`/`prUrl` optional-field convention used by sibling builders.
+ */
+function buildSubagentReviewRecordedEvent(
+  state: DeliveryState,
+  ticket: Pick<TicketState, 'id' | 'title' | 'branch'>,
+  outcome: SubagentRunnerOutcome,
+  options: { terminatedReason?: string; findingsCount?: number } = {},
+): DeliveryNotificationEvent {
+  return {
+    kind: 'subagent_review_recorded',
+    planKey: state.planKey,
+    ticketId: ticket.id,
+    ticketTitle: ticket.title,
+    branch: ticket.branch,
+    outcome,
+    ...(options.terminatedReason !== undefined
+      ? { terminatedReason: options.terminatedReason }
+      : {}),
+    ...(options.findingsCount !== undefined
+      ? { findingsCount: options.findingsCount }
+      : {}),
+  };
+}
+
+/**
+ * P21.05 — called once by the `subagent-review` command handler after the
+ * ledger row is written, whether that row came from the operator-recorder
+ * path or a (possibly fallen-back) programmatic runner. A fallback chain
+ * that tried multiple runners still produces exactly one event, for the
+ * final recorded outcome only — never one per attempt.
+ */
+export function eventsForSubagentReviewCommand(
+  state: DeliveryState,
+  ticketId: string,
+  outcome: SubagentRunnerOutcome,
+  options: { terminatedReason?: string; findingsCount?: number } = {},
+): DeliveryNotificationEvent[] {
+  const ticket = state.tickets.find((candidate) => candidate.id === ticketId);
+
+  return ticket
+    ? [buildSubagentReviewRecordedEvent(state, ticket, outcome, options)]
+    : [];
 }
 
 function buildTicketCompletedEvent(
@@ -404,6 +454,27 @@ export function formatReviewWindowMessage(
   ].join('\n');
 }
 
+/**
+ * P21.05 — message-honesty phrasing per outcome (#83): states what was
+ * actually found, never "passed" for a findings-bearing report.
+ */
+function formatSubagentReviewRecordedSummary(event: {
+  outcome: SubagentRunnerOutcome;
+  terminatedReason?: string;
+  findingsCount?: number;
+}): string {
+  switch (event.outcome) {
+    case 'completed_with_findings':
+      return `found ${event.findingsCount ?? 0} actionable finding(s)`;
+    case 'skipped':
+      return `skipped${event.terminatedReason ? ` (${event.terminatedReason})` : ''}`;
+    case 'clean':
+      return 'passed, no actionable findings';
+    default:
+      return `recorded as ${event.outcome}`;
+  }
+}
+
 export function formatNotificationMessage(
   _cwd: string,
   event: DeliveryNotificationEvent,
@@ -455,6 +526,13 @@ export function formatNotificationMessage(
       ]
         .filter((line): line is string => line !== undefined)
         .join('\n');
+    case 'subagent_review_recorded':
+      return [
+        header,
+        `${event.ticketId} subagent review ${formatSubagentReviewRecordedSummary(event)}.`,
+        event.ticketTitle,
+        `Branch: ${event.branch}`,
+      ].join('\n');
     case 'ticket_completed':
       return [
         header,

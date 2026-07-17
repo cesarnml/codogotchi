@@ -51,8 +51,52 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `RM.parseActionableFindings!(md)` compile/assert failures in
+`tools/delivery/test/reconciliation.test.ts` — the new tag-contract tests
+(`P21.01 — parseActionableFindings (tag contract)` / `... parseAdvisoryObservations
+(tag contract)`) expected a structured `{found, closed, isExplicitNone,
+findings}` result and `isSuspicious*Parse` helpers that did not exist yet
+against the still-heading-based implementation; 21 of 41 tests in that file
+failed (compile-shape mismatches plus behavioral mismatches on the
+tag-only fixtures). `tools/delivery/test/subagent-runner.test.ts` also had
+one red assertion (`runnerSelfReport` expected `null` for an untagged
+`runnerStatus:` trailer, but the old tail-scanner still trusted it).
+
+Why this path: Modeled the two `reconciliation.ts` parsers directly on
+`parseRefactorSuggestions` (`refactor-review.ts`, P20.01) — last-open-tag-wins,
+close-tag-or-EOF, literal-`None` detection, bullet extraction — since that
+shape was already proven against the same design note
+(`notes/public/subagent-report-parser-contract.md`). `parseActionableFindings`
+became a structured result (`ActionableFindingsParseResult`) instead of a
+boolean, per the ticket's Outcome; `parseAdvisoryObservations` kept its
+existing `string[]` return for its two call sites
+(`advisory-observation-command.ts`, `advisory-observation-warnings.ts`) and
+gained a sibling `parseAdvisoryObservationsResult` for the structured
+parse-health signal the loud floor needs. The `<runner-termination>` tag
+parsing was added to `subagent-runner.ts` (not `reconciliation.ts`) since
+that is where the three classification coercers already lived and the
+prior `parseRunnerStatusTrailer` tail-scanner was local to that file.
+The zero-parse loud floor is a plain `console.log` in the `subagent-review`
+case of `cli-runner.ts`, gated on `terminatedReason === 'completed'` (a
+failed/rate-limited/skipped run has no report worth judging) — no retry
+loop, no re-invocation, matching the ticket's Green constraint.
+
+Alternative considered: extracting a single shared `parseTaggedBulletBlock`
+helper across `reconciliation.ts` and `refactor-review.ts` (they are
+structurally near-identical algorithms). Rejected per the ticket's Refactor
+guidance and `refactor-review.ts`'s own module-level contract, which states
+the two gates' parsing logic is "intentionally independent" and "does not
+import or modify" the adversarial gate's parser — the two field names differ
+(`findings`/`observations` vs. `suggestions`) and the modules are designed
+to evolve independently (P21.02+ changes outcome semantics only on the
+adversarial side). Forcing a shared helper now would couple two gates the
+design explicitly wants decoupled for a marginal ~30-line dedup.
+
+Deferred: the legacy heading-format fallback (rejected by phase decision —
+the loud floor plus this upgrade rule are the transition mechanism, not a
+parallel acceptor). The outcome-label change (`completed_with_findings`) is
+P21.02's scope, untouched here. No retry/re-invocation loop was added to the
+loud floor, per the design note's explicit rejection of that alternative.
+
+Contract note: none — `Type: feat`, `Scope: review`, `Red: required` in the
+ticket header matched the work performed; no deviation.

@@ -6,9 +6,11 @@ import { describe, expect, it } from 'bun:test';
 
 import {
   buildRunnerInvocation,
+  buildRunnerSpawnCommand,
   getFallbackFrom,
   getPrimaryAgent,
   getRunnerSelfReport,
+  resolveRunnerOptions,
   validateRunnerArtifact,
   writeSubagentReviewOutcome,
 } from '../subagent-runner';
@@ -239,16 +241,32 @@ const runSubagentWithFallback = (
 ).runSubagentWithFallback;
 
 describe('P14.02 — coerceCodexCliClassification', () => {
-  it('trusts runnerStatus: completed even when stderr resembles rate-limit prose', () => {
+  it('trusts runnerStatus: completed inside the <runner-termination> tag even when stderr resembles rate-limit prose', () => {
     expect(coerceCodexCliClassification).toBeDefined();
     const result = coerceCodexCliClassification!({
       exitCode: 0,
-      stdout: 'findings...\n\nrunnerStatus: completed\n',
+      stdout:
+        'findings...\n\n<runner-termination>\nrunnerStatus: completed\n</runner-termination>\n',
       stderr: 'warning: you may have hit your rate limit on prior call\n',
     });
     expect(result.outcome).toBe('clean');
     expect(result.terminatedReason).toBe('completed');
     expect(result.runnerSelfReport).toBe('completed');
+  });
+
+  it('P21.01 — ignores a bare runnerStatus: line outside the <runner-termination> tag (no leak)', () => {
+    expect(coerceCodexCliClassification).toBeDefined();
+    const result = coerceCodexCliClassification!({
+      exitCode: 0,
+      stdout: 'findings...\n\nrunnerStatus: completed\n',
+      stderr: '',
+    });
+    // The bare trailer is no longer trusted (no tag), so runnerSelfReport is
+    // null — but the coercer still falls through to exitCode===0 + non-empty
+    // stdout, so outcome/terminatedReason are unaffected.
+    expect(result.runnerSelfReport).toBeNull();
+    expect(result.outcome).toBe('clean');
+    expect(result.terminatedReason).toBe('completed');
   });
 
   it('classifies authentic rate-limit signal (structured) as skipped/rate_limit', () => {
@@ -308,6 +326,19 @@ describe('P14.02 — coerceClaudeCliClassification (symmetric to codex-cli)', ()
     expect(result.terminatedReason).toBe('completed');
   });
 
+  it('P21.01 — trusts runnerStatus: completed inside the <runner-termination> tag', () => {
+    expect(coerceClaudeCliClassification).toBeDefined();
+    const result = coerceClaudeCliClassification!({
+      exitCode: 0,
+      stdout:
+        'review report ...\n\n<runner-termination>\nrunnerStatus: completed\nterminatedReason: finished the review\n</runner-termination>\n',
+      stderr: '',
+    });
+    expect(result.outcome).toBe('clean');
+    expect(result.terminatedReason).toBe('completed');
+    expect(result.runnerSelfReport).toBe('completed');
+  });
+
   it('classifies authentic Anthropic rate_limit_error JSON token as skipped/rate_limit', () => {
     expect(coerceClaudeCliClassification).toBeDefined();
     const result = coerceClaudeCliClassification!({
@@ -333,11 +364,12 @@ describe('P14.02 — coerceClaudeCliClassification (symmetric to codex-cli)', ()
 });
 
 describe('cursor-cli — coerceCursorCliClassification', () => {
-  it('trusts runnerStatus: completed when stdout is a full review', () => {
+  it('trusts runnerStatus: completed inside the <runner-termination> tag when stdout is a full review', () => {
     expect(coerceCursorCliClassification).toBeDefined();
     const result = coerceCursorCliClassification!({
       exitCode: 0,
-      stdout: 'Actionable findings\nNone.\n\nrunnerStatus: completed\n',
+      stdout:
+        '<actionable-findings>\nNone\n</actionable-findings>\n\n<runner-termination>\nrunnerStatus: completed\n</runner-termination>\n',
       stderr: '',
     });
     expect(result.outcome).toBe('clean');
@@ -362,7 +394,7 @@ describe('cursor-cli — coerceCursorCliClassification', () => {
     const result = coerceCursorCliClassification!({
       exitCode: 0,
       stdout:
-        'Finding: preserves existing rate limit retry behavior.\n\nrunnerStatus: completed',
+        'Finding: preserves existing rate limit retry behavior.\n\n<runner-termination>\nrunnerStatus: completed\n</runner-termination>',
       stderr: '',
     });
     expect(result.outcome).toBe('clean');
@@ -520,6 +552,128 @@ describe('P14.02 — runSubagentWithFallback', () => {
   });
 });
 
+describe('P21.03 — fallback advances on ran-but-failed runners', () => {
+  const ranWith = (
+    terminatedReason:
+      | 'completed'
+      | 'runner_failed'
+      | 'rate_limit'
+      | 'sandbox_denied'
+      | 'advisory_violation',
+  ) => ({
+    status: 'ran' as const,
+    outcome: 'clean' as const,
+    terminatedReason,
+  });
+
+  it('advances to the next runner when codex-cli spawns but returns runner_failed (issue #105 repro)', () => {
+    expect(runSubagentWithFallback).toBeDefined();
+    const calls: string[] = [];
+    const result = runSubagentWithFallback!('codex-cli', (kind) => {
+      calls.push(kind);
+      return kind === 'codex-cli'
+        ? ranWith('runner_failed')
+        : ranWith('completed');
+    });
+    expect(result.ranKind).toBe('claude-cli');
+    expect(result.fallbackFrom).toBe('codex-cli');
+    expect(result.fallbackLevel).toBe('fallback');
+    expect(calls).toEqual(['codex-cli', 'claude-cli']);
+  });
+
+  it('advances to the next runner when the requested runner returns ran + rate_limit', () => {
+    expect(runSubagentWithFallback).toBeDefined();
+    const calls: string[] = [];
+    const result = runSubagentWithFallback!('codex-cli', (kind) => {
+      calls.push(kind);
+      return kind === 'codex-cli'
+        ? ranWith('rate_limit')
+        : ranWith('completed');
+    });
+    expect(result.ranKind).toBe('claude-cli');
+    expect(result.fallbackFrom).toBe('codex-cli');
+    expect(calls).toEqual(['codex-cli', 'claude-cli']);
+  });
+
+  it('advances to the next runner when the requested runner returns ran + sandbox_denied', () => {
+    expect(runSubagentWithFallback).toBeDefined();
+    const calls: string[] = [];
+    const result = runSubagentWithFallback!('codex-cli', (kind) => {
+      calls.push(kind);
+      return kind === 'codex-cli'
+        ? ranWith('sandbox_denied')
+        : ranWith('completed');
+    });
+    expect(result.ranKind).toBe('claude-cli');
+    expect(result.fallbackFrom).toBe('codex-cli');
+    expect(calls).toEqual(['codex-cli', 'claude-cli']);
+  });
+
+  it('does not advance on ran + advisory_violation — preserves the violation row', () => {
+    expect(runSubagentWithFallback).toBeDefined();
+    const calls: string[] = [];
+    const result = runSubagentWithFallback!('codex-cli', (kind) => {
+      calls.push(kind);
+      return ranWith('advisory_violation');
+    });
+    expect(result.ranKind).toBe('codex-cli');
+    expect(result.fallbackFrom).toBeNull();
+    expect(result.fallbackLevel).toBe('preferred');
+    expect(result.result).toEqual(ranWith('advisory_violation'));
+    expect(calls).toEqual(['codex-cli']);
+  });
+
+  it('records failed_all with the full attempted chain when every runner fails with a ran-but-failed reason', () => {
+    expect(runSubagentWithFallback).toBeDefined();
+    const calls: string[] = [];
+    const result = runSubagentWithFallback!('codex-cli', (kind) => {
+      calls.push(kind);
+      return ranWith('runner_failed');
+    });
+    expect(result.ranKind).toBe('skipped');
+    expect(result.fallbackLevel).toBe('failed_all');
+    expect(result.fallbackFrom).toBe('codex-cli');
+    expect(result.attemptedKinds).toEqual([
+      'codex-cli',
+      'claude-cli',
+      'cursor-cli',
+    ]);
+    expect(calls).toEqual(['codex-cli', 'claude-cli', 'cursor-cli']);
+  });
+
+  it('does not advance when the first attempt wrote files even though it also classified as runner_failed — a write violation must not be masked by a later successful fallback', () => {
+    expect(runSubagentWithFallback).toBeDefined();
+    const calls: string[] = [];
+    const result = runSubagentWithFallback!('codex-cli', (kind) => {
+      calls.push(kind);
+      return kind === 'codex-cli'
+        ? {
+            status: 'ran' as const,
+            outcome: 'patched' as const,
+            terminatedReason: 'runner_failed' as const,
+          }
+        : ranWith('completed');
+    });
+    expect(result.ranKind).toBe('codex-cli');
+    expect(result.fallbackFrom).toBeNull();
+    expect(result.fallbackLevel).toBe('preferred');
+    expect(calls).toEqual(['codex-cli']);
+  });
+
+  it('a genuinely completed ran result still returns immediately with no fallback', () => {
+    expect(runSubagentWithFallback).toBeDefined();
+    const calls: string[] = [];
+    const result = runSubagentWithFallback!('codex-cli', (kind) => {
+      calls.push(kind);
+      return ranWith('completed');
+    });
+    expect(result.ranKind).toBe('codex-cli');
+    expect(result.fallbackFrom).toBeNull();
+    expect(result.fallbackLevel).toBe('preferred');
+    expect(calls).toEqual(['codex-cli']);
+  });
+});
+
 describe('P14.05 — stderr trace discipline', () => {
   it('writes the model report without stderr admixture', () => {
     const repoRoot = mkdtempSync(join(tmpdir(), 'soa-p14-05-report-'));
@@ -577,5 +731,156 @@ describe('P14.05 — stderr trace discipline', () => {
     );
 
     expect(gitignore).toContain('*-subagent-review.trace.log');
+  });
+});
+
+describe('P21.04 — resolveRunnerOptions precedence', () => {
+  it('flag beats config beats default for the requested runner', () => {
+    const flagWins = resolveRunnerOptions({
+      runner: 'codex-cli',
+      requestedRunner: 'codex-cli',
+      flagModel: 'flag-model',
+      configOptions: { 'codex-cli': { model: 'config-model' } },
+    });
+    expect(flagWins).toEqual({ model: 'flag-model' });
+
+    const configWins = resolveRunnerOptions({
+      runner: 'codex-cli',
+      requestedRunner: 'codex-cli',
+      configOptions: { 'codex-cli': { model: 'config-model' } },
+    });
+    expect(configWins).toEqual({ model: 'config-model' });
+
+    const defaultWins = resolveRunnerOptions({
+      runner: 'codex-cli',
+      requestedRunner: 'codex-cli',
+    });
+    expect(defaultWins).toEqual({});
+  });
+
+  it('does not apply the flag to a fallback runner — fallback resolves from config alone', () => {
+    const fallbackAttempt = resolveRunnerOptions({
+      runner: 'claude-cli',
+      requestedRunner: 'codex-cli',
+      flagModel: 'flag-model-for-codex',
+      flagEffort: 'high',
+      configOptions: { 'claude-cli': { model: 'claude-config-model' } },
+    });
+    expect(fallbackAttempt).toEqual({ model: 'claude-config-model' });
+  });
+
+  it('resolves model and effort independently for claude-cli', () => {
+    const resolved = resolveRunnerOptions({
+      runner: 'claude-cli',
+      requestedRunner: 'claude-cli',
+      flagModel: 'claude-opus-4-8',
+      flagEffort: 'high',
+    });
+    expect(resolved).toEqual({ model: 'claude-opus-4-8', effort: 'high' });
+  });
+
+  it('throws fail-fast when an effort value is resolved for cursor-cli', () => {
+    expect(() =>
+      resolveRunnerOptions({
+        runner: 'cursor-cli',
+        requestedRunner: 'cursor-cli',
+        flagEffort: 'high',
+      }),
+    ).toThrow(/cursor-cli has no effort flag/);
+  });
+
+  it('throws fail-fast when a config entry sets effort on cursor-cli via a fallback attempt', () => {
+    expect(() =>
+      resolveRunnerOptions({
+        runner: 'cursor-cli',
+        requestedRunner: 'codex-cli',
+        configOptions: { 'cursor-cli': { effort: 'high' } },
+      }),
+    ).toThrow(/cursor-cli has no effort flag/);
+  });
+});
+
+describe('P21.04 — buildRunnerSpawnCommand forwards model/effort per platform', () => {
+  it('claude-cli: forwards --model and --effort', () => {
+    const { bin, args } = buildRunnerSpawnCommand('claude-cli', 'prompt', {
+      model: 'claude-opus-4-8',
+      effort: 'high',
+    });
+    expect(bin).toBe('claude');
+    expect(args).toContain('--model');
+    expect(args[args.indexOf('--model') + 1]).toBe('claude-opus-4-8');
+    expect(args).toContain('--effort');
+    expect(args[args.indexOf('--effort') + 1]).toBe('high');
+    expect(args).toContain('prompt');
+  });
+
+  it('claude-cli: omits flags entirely when model/effort are unresolved', () => {
+    const { args } = buildRunnerSpawnCommand('claude-cli', 'prompt');
+    expect(args).toEqual(['-p', 'prompt']);
+  });
+
+  it('codex-cli: forwards -m for model and -c model_reasoning_effort=<e> for effort', () => {
+    const { bin, args } = buildRunnerSpawnCommand('codex-cli', 'prompt', {
+      model: 'gpt-5-codex',
+      effort: 'high',
+    });
+    expect(bin).toBe('codex');
+    expect(args).toContain('-m');
+    expect(args[args.indexOf('-m') + 1]).toBe('gpt-5-codex');
+    expect(args).toContain('-c');
+    expect(args[args.indexOf('-c') + 1]).toBe('model_reasoning_effort=high');
+  });
+
+  it('cursor-cli: forwards --model, has no effort flag to forward', () => {
+    const { bin, args } = buildRunnerSpawnCommand('cursor-cli', 'prompt', {
+      model: 'composer-1',
+      workspacePath: '/tmp/worktree',
+    });
+    expect(bin).toBe('agent');
+    expect(args).toContain('--model');
+    expect(args[args.indexOf('--model') + 1]).toBe('composer-1');
+    expect(args).not.toContain('--effort');
+  });
+});
+
+describe('P21.04 — ledger fidelity for runnerModel/runnerEffort', () => {
+  it('records runnerModel/runnerEffort for an overridden run', () => {
+    const invocation = buildRunnerInvocation('claude-cli', 'sha', 'clean', {
+      runnerModel: 'claude-opus-4-8',
+      runnerEffort: 'high',
+    });
+    expect(invocation.runnerModel).toBe('claude-opus-4-8');
+    expect(invocation.runnerEffort).toBe('high');
+
+    const artifact: SubagentRunnerArtifact = {
+      ticket: 'P21.04',
+      invocations: [invocation],
+    };
+    const validated = validateRunnerArtifact(artifact);
+    expect(validated?.invocations[0]?.runnerModel).toBe('claude-opus-4-8');
+    expect(validated?.invocations[0]?.runnerEffort).toBe('high');
+  });
+
+  it('omits runnerModel/runnerEffort when buildRunnerInvocation options are omitted', () => {
+    const invocation = buildRunnerInvocation('claude-cli', 'sha', 'clean');
+    expect(invocation.runnerModel).toBeUndefined();
+    expect(invocation.runnerEffort).toBeUndefined();
+  });
+
+  it('round-trips explicit null runnerModel/runnerEffort for a default run — the production ledger-row shape recorded by the subagent-review CLI (resolvedOptions.model/.effort ?? null)', () => {
+    const invocation = buildRunnerInvocation('claude-cli', 'sha', 'clean', {
+      runnerModel: null,
+      runnerEffort: null,
+    });
+    expect(invocation.runnerModel).toBeNull();
+    expect(invocation.runnerEffort).toBeNull();
+
+    const artifact: SubagentRunnerArtifact = {
+      ticket: 'P21.04',
+      invocations: [invocation],
+    };
+    const validated = validateRunnerArtifact(artifact);
+    expect(validated?.invocations[0]?.runnerModel).toBeNull();
+    expect(validated?.invocations[0]?.runnerEffort).toBeNull();
   });
 });

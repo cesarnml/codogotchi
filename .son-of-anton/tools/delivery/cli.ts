@@ -25,6 +25,8 @@ export type ParsedCliArgs = {
   prReviewPolicy?: ReviewPolicyStageValue;
   subagent?: 'claude-cli' | 'codex-cli' | 'cursor-cli';
   primary?: string;
+  subagentModel?: string;
+  subagentEffort?: string;
   baseline?: BaselineValue;
   promptFile?: string;
   ackReconciliation?: 'patched' | 'deferred' | 'clean';
@@ -136,6 +138,8 @@ export function getUsage(runDeliverInvocation: string): string {
     '  --pr-review-policy <required|skip_doc_only|disabled>',
     '  --subagent <claude-cli|codex-cli|cursor-cli>',
     '  --primary <free-form name>',
+    '  --subagent-model <value> (applies only to the explicitly requested runner)',
+    '  --subagent-effort <value> (applies only to the explicitly requested runner; claude-cli/codex-cli only)',
     '  --ack-reconciliation <patched|deferred|clean>',
     '  --commit <sha>',
     '  --reason "<text>"',
@@ -152,6 +156,8 @@ export function parseCliArgs(argv: string[], usage: string): ParsedCliArgs {
   let prReviewPolicy: ParsedCliArgs['prReviewPolicy'];
   let subagent: ParsedCliArgs['subagent'];
   let primary: ParsedCliArgs['primary'];
+  let subagentModel: ParsedCliArgs['subagentModel'];
+  let subagentEffort: ParsedCliArgs['subagentEffort'];
   let baseline: ParsedCliArgs['baseline'];
   let promptFile: ParsedCliArgs['promptFile'];
   let ackReconciliation: ParsedCliArgs['ackReconciliation'];
@@ -267,6 +273,26 @@ export function parseCliArgs(argv: string[], usage: string): ParsedCliArgs {
       }
 
       primary = raw.trim();
+      index += 1;
+      continue;
+    }
+
+    if (value === '--subagent-model') {
+      const raw = argv[index + 1];
+      if (raw === undefined || raw.startsWith('--') || raw.trim() === '') {
+        throw new Error('Pass --subagent-model <value>.');
+      }
+      subagentModel = raw.trim();
+      index += 1;
+      continue;
+    }
+
+    if (value === '--subagent-effort') {
+      const raw = argv[index + 1];
+      if (raw === undefined || raw.startsWith('--') || raw.trim() === '') {
+        throw new Error('Pass --subagent-effort <value>.');
+      }
+      subagentEffort = raw.trim();
       index += 1;
       continue;
     }
@@ -390,6 +416,8 @@ export function parseCliArgs(argv: string[], usage: string): ParsedCliArgs {
     prReviewPolicy,
     subagent,
     primary,
+    subagentModel,
+    subagentEffort,
     baseline,
     promptFile,
     ackReconciliation,

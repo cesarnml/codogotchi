@@ -44,8 +44,10 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `advances to the next runner when codex-cli spawns but returns runner_failed (issue #105 repro)` in `tools/delivery/test/subagent-runner.test.ts`, expecting `claude-cli` but getting `codex-cli` since `runSubagentWithFallback` returned on any `ran` status regardless of `terminatedReason`.
+Why this path: broadened `shouldFallbackToOtherRunner` to also return `true` for `ran` results with `terminatedReason` in `{runner_failed, rate_limit, sandbox_denied}`, and gated the loop's early-return on that same predicate — the smallest change; the loop shape and `attemptedKinds`/`fallbackLevel` bookkeeping were untouched.
+Alternative considered: adding a second, `ran`-specific predicate function alongside `shouldFallbackToOtherRunner` and calling both from the loop. Rejected — the ticket's own Refactor note anticipates this and asks for one function if two homes emerge; writing it as one function from the start avoids the extra step.
+Deferred: fallback order change and model-availability-aware fallback, both explicitly out of scope per ticket text and issue #78.
+Contract note: none — `Type: fix`, `Scope: subagent-review`, `Red: required` all matched the actual change.
+
+Also updated a pre-existing test (`P11.04 — auto-fallback predicate is narrowed to binary-availability failures` in `tools/delivery/test/p11-04.test.ts`) that asserted the old narrower contract (`ran` + `rate_limit`/`sandbox_denied` do NOT fall back) — that assertion is the exact behavior this ticket reverses, so the two `it` blocks were flipped to assert the new `true` outcome rather than left to bit-rot as a contradiction.

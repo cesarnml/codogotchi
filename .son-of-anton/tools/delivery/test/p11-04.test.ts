@@ -13,8 +13,9 @@ import {
 // Four ticket-Red invariants:
 //   1. Outcome detection (porcelain sample) is strictly post-exit.
 //   2. A runner result with terminatedReason !== 'completed' cannot be recorded as 'clean'.
-//   3. Ambiguous runner output (e.g., rate-limit signature in stdout, exit 0)
-//      does NOT trigger auto-fallback to the other runner.
+//   3. Ran-but-failed runner output (rate-limit/sandbox-denied signature, runner_failed)
+//      DOES trigger auto-fallback to the other runner (broadened by P21.03; see the
+//      P21.03 describe block in subagent-runner.test.ts for the full contract).
 //   4. A binary-availability failure (spawn ENOENT) DOES trigger auto-fallback.
 
 describe('P11.04 — porcelain sample is strictly post-exit', () => {
@@ -108,23 +109,26 @@ describe('P11.04 — honesty guard: terminatedReason !== completed cannot record
   });
 });
 
-describe('P11.04 — auto-fallback predicate is narrowed to binary-availability failures', () => {
-  it('does NOT fall back on ambiguous ran-with-rate-limit output', () => {
+describe('P11.04/P21.03 — auto-fallback predicate covers binary-availability failures and ran-but-failed runners', () => {
+  // P21.03 — ran + rate_limit/sandbox_denied now advance to the next runner
+  // (the runner spawned but produced no usable review); see the P21.03
+  // describe block in subagent-runner.test.ts for the full contract.
+  it('falls back on ran-with-rate-limit output', () => {
     const result: RunnerAttemptResult = {
       status: 'ran',
       outcome: 'clean',
       terminatedReason: 'rate_limit',
     };
-    expect(shouldFallbackToOtherRunner(result)).toBe(false);
+    expect(shouldFallbackToOtherRunner(result)).toBe(true);
   });
 
-  it('does NOT fall back on ambiguous ran-with-sandbox-denied output', () => {
+  it('falls back on ran-with-sandbox-denied output', () => {
     const result: RunnerAttemptResult = {
       status: 'ran',
       outcome: 'clean',
       terminatedReason: 'sandbox_denied',
     };
-    expect(shouldFallbackToOtherRunner(result)).toBe(false);
+    expect(shouldFallbackToOtherRunner(result)).toBe(true);
   });
 
   it('does NOT fall back on a clean completed run', () => {

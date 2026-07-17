@@ -42,8 +42,10 @@ Red: required
 
 > Append here (do not edit above) when behavior or trade-offs change during implementation.
 
-Red first: [what test failed first]
-Why this path: [why this implementation was the smallest acceptable]
-Alternative considered: [one rejected alternative and why]
-Deferred: [what was intentionally left out of this ticket]
-Contract note: record any deviation from the ticket metadata contract here, including missing/incorrect `Type:` or non-compliant `Scope:` fields, and why it happened.
+Red first: `tools/delivery/test/p21-02.test.ts` — `decideAdvisoryRunnerOutcome` recorded `clean` for a completed run whose report listed actionable findings; the new v2 ledger-row validation test also failed until `completed_with_findings` joined `VALID_OUTCOMES`.
+Why this path: threaded an optional `actionableFindings?: ActionableFindingsParseResult` param into `decideAdvisoryRunnerOutcome` (programmatic-runner path) and `decideSubagentOutcomeFromRunner` (deprecated recorder path), gated behind a shared `hasHonestFindings` helper (found + closed + not-explicit-`None` + non-empty). The one call site with a report to cross-check (`cli-runner.ts`'s adversarial `subagent-review` runner invocation) now parses `<actionable-findings>` from `result.stdout ?? result.rawOutput` before deciding the outcome; the refactor-review gate's `runProgrammaticSubagentReview` call site is untouched (different tag, different domain) and keeps recording `clean` because it never supplies `actionableFindings`.
+Alternative considered: computing the cross-check inside `runProgrammaticSubagentReview`/`decideAdvisoryRunnerOutcome` unconditionally by parsing report text internally — rejected because the refactor-review call site's report uses a different tag (`<refactor-suggestions>`) and a different suggestion-acceptance model; forcing the actionable-findings parser onto it would misclassify refactor-only reports.
+Deferred: notification emission on `completed_with_findings` (P21.05); any change to `reconcile-subagent-review` blocking rules (unchanged by design — it already blocks on findings regardless of label).
+Contract note: none — ticket metadata (`Type: fix`, `Scope: subagent-review`) matched the change as delivered.
+
+Refactor-review adjudication (cursor-cli, clean report, 3 suggestions): accepted hoisting the single `parseActionableFindings` call in `cli-runner.ts` so the decide-time parse and the zero-parse loud-floor check reuse one result instead of re-parsing the same report text; accepted adding direct test coverage for `decideSubagentOutcomeFromRunner`'s findings-cross-check branch (previously only reachable via the deprecated function's own logic, untested). Rejected consolidating `hasHonestFindings` with `reconciliation.ts`'s `isSuspiciousActionableFindingsParse` into one shared exported predicate — the two answer different questions (parse-health/drift-warning vs. semantic clean-or-not) and merging them would cross `reconciliation.ts`'s parser-contract module boundary beyond this ticket's 2-point scope.

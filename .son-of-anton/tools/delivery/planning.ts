@@ -53,9 +53,57 @@ export function parsePlan(
   });
 }
 
-export function parseOriginIssueNumber(markdown: string): number | undefined {
-  const match = markdown.match(/Origin issue:\s*#(\d+)/);
-  return match ? Number(match[1]) : undefined;
+/**
+ * P21.06 — multi-line-aware: returns every `Origin issue: #<N>` line in the
+ * `## Epic` section, in document order, deduplicated. Strict per line — the
+ * line must contain nothing but `Origin issue: #<N>` (optional trailing
+ * whitespace); near-miss forms (`Origin Issue #76`, `origin issue: 76`,
+ * trailing punctuation or prose after the number) are rejected, same
+ * discipline as before. A single `Origin issue: #<N>` line parses to a
+ * one-element array — single-line plans parse identically to today.
+ */
+export function parseOriginIssueNumbers(markdown: string): number[] {
+  const epicSection = extractEpicSection(markdown);
+  const matches = [
+    ...epicSection.matchAll(/^Origin issue:\s*#(\d+)\s*$/gm),
+  ].map((match) => Number(match[1]));
+  return [...new Set(matches)];
+}
+
+/**
+ * P21.06 — Epic-scoped only, per the documented contract: no whole-document
+ * fallback when `## Epic` is absent (a phase's `## Epic` section is
+ * required by preflight; a stray `Origin issue:` line elsewhere in the doc
+ * must not silently count). Fence-aware: a `## `-looking line inside a
+ * ` ``` `/`~~~` fenced code block does not end the section — only a real
+ * heading line does.
+ */
+function extractEpicSection(markdown: string): string {
+  const lines = markdown.split('\n');
+  const startIndex = lines.findIndex((line) => /^## Epic\s*$/.test(line));
+  if (startIndex === -1) return '';
+
+  const collected: string[] = [];
+  let fenceChar: string | undefined;
+  for (let i = startIndex + 1; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    const fenceMatch = line.match(/^\s*([`~]{3,})/);
+    if (fenceMatch) {
+      const char = fenceMatch[1]!.charAt(0);
+      if (!fenceChar) {
+        fenceChar = char;
+      } else if (char === fenceChar) {
+        fenceChar = undefined;
+      }
+      collected.push(line);
+      continue;
+    }
+    if (!fenceChar && /^## /.test(line)) {
+      break;
+    }
+    collected.push(line);
+  }
+  return collected.join('\n');
 }
 
 export function derivePlanKey(planPath: string): string {

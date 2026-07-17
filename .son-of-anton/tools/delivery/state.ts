@@ -15,7 +15,7 @@ import {
   type PullRequestSummary,
   type Runtime,
 } from './platform';
-import { parseOriginIssueNumber, parsePlan } from './planning';
+import { parseOriginIssueNumbers, parsePlan } from './planning';
 import type {
   DeliveryState,
   OrchestratorOptions,
@@ -179,14 +179,33 @@ function normalizeLegacyTicketStatus(status: string | undefined): TicketStatus {
   return status as TicketStatus;
 }
 
+/**
+ * P21.06 — coerces a persisted state object's origin-issue field(s) into the
+ * current `originIssueNumbers` shape. The new array field wins when present;
+ * otherwise a pre-P21.06 single `originIssueNumber` scalar is wrapped into a
+ * one-element array, so existing state files load without a migration step.
+ */
+function coerceOriginIssueNumbersFromPersisted(
+  root: Record<string, unknown>,
+): Pick<DeliveryState, 'originIssueNumbers'> {
+  if (Array.isArray(root.originIssueNumbers)) {
+    return { originIssueNumbers: root.originIssueNumbers as number[] };
+  }
+  if (typeof root.originIssueNumber === 'number') {
+    return { originIssueNumbers: [root.originIssueNumber] };
+  }
+  return { originIssueNumbers: undefined };
+}
+
 export function normalizeDeliveryStateFromPersisted(
   raw: unknown,
 ): DeliveryState {
   const root = raw as Record<string, unknown>;
+  const { originIssueNumbers } = coerceOriginIssueNumbersFromPersisted(root);
   const rawTickets = root.tickets;
 
   if (!Array.isArray(rawTickets)) {
-    return raw as DeliveryState;
+    return { ...root, originIssueNumbers } as DeliveryState;
   }
 
   const tickets = rawTickets.map((entry) => {
@@ -200,14 +219,14 @@ export function normalizeDeliveryStateFromPersisted(
     return next;
   });
 
-  return { ...root, tickets } as DeliveryState;
+  return { ...root, originIssueNumbers, tickets } as DeliveryState;
 }
 
 type LoadPlanContextResult = {
   absoluteStatePath: string;
   inferred: DeliveryState;
   ticketDefinitions: TicketDefinition[];
-  originIssueNumber?: number;
+  originIssueNumbers?: number[];
 };
 
 type SyncStateDependencies = {
@@ -232,7 +251,7 @@ export async function loadState(
   options: OrchestratorOptions,
   dependencies: RepoInferenceDependencies,
 ): Promise<DeliveryState> {
-  const { absoluteStatePath, inferred, ticketDefinitions, originIssueNumber } =
+  const { absoluteStatePath, inferred, ticketDefinitions, originIssueNumbers } =
     await loadPlanContext(cwd, options, dependencies);
 
   if (!existsSync(absoluteStatePath)) {
@@ -241,7 +260,7 @@ export async function loadState(
       options,
       inferred,
       dependencies,
-      originIssueNumber,
+      originIssueNumbers,
     );
   }
 
@@ -255,7 +274,7 @@ export async function loadState(
     options,
     inferred,
     dependencies,
-    originIssueNumber,
+    originIssueNumbers,
   );
 }
 
@@ -269,7 +288,7 @@ export async function repairState(
   changes: string[];
   hadExistingState: boolean;
 }> {
-  const { absoluteStatePath, inferred, ticketDefinitions, originIssueNumber } =
+  const { absoluteStatePath, inferred, ticketDefinitions, originIssueNumbers } =
     await loadPlanContext(cwd, options, dependencies);
   const hadExistingState = existsSync(absoluteStatePath);
 
@@ -279,7 +298,7 @@ export async function repairState(
       options,
       inferred,
       dependencies,
-      originIssueNumber,
+      originIssueNumbers,
     );
     await saveState(cwd, repairedState);
 
@@ -301,7 +320,7 @@ export async function repairState(
     options,
     inferred,
     dependencies,
-    originIssueNumber,
+    originIssueNumbers,
   );
   const changes = summarizeStateDifferences(existing, repairedState);
   let backupPath: string | undefined;
@@ -343,7 +362,7 @@ export function syncStateFromScratch(
   options: OrchestratorOptions,
   inferred: DeliveryState | undefined,
   dependencies: SyncStateDependencies,
-  originIssueNumber?: number,
+  originIssueNumbers?: number[],
 ): DeliveryState {
   return syncStateWithPlan(
     undefined,
@@ -351,7 +370,7 @@ export function syncStateFromScratch(
     options,
     inferred,
     dependencies,
-    originIssueNumber,
+    originIssueNumbers,
   );
 }
 
@@ -361,7 +380,7 @@ export function syncStateFromExisting(
   options: OrchestratorOptions,
   inferred: DeliveryState | undefined,
   dependencies: SyncStateDependencies,
-  originIssueNumber?: number,
+  originIssueNumbers?: number[],
 ): DeliveryState {
   return syncStateWithPlan(
     existing,
@@ -369,7 +388,7 @@ export function syncStateFromExisting(
     options,
     inferred,
     dependencies,
-    originIssueNumber,
+    originIssueNumbers,
   );
 }
 
@@ -379,7 +398,7 @@ function syncStateWithPlan(
   options: OrchestratorOptions,
   inferred: DeliveryState | undefined,
   dependencies: SyncStateDependencies,
-  originIssueNumber?: number,
+  originIssueNumbers?: number[],
 ): DeliveryState {
   const existingById = new Map(
     existing?.tickets.map((ticket) => [ticket.id, ticket]),
@@ -397,7 +416,7 @@ function syncStateWithPlan(
     reviewPollIntervalMinutes: options.reviewPollIntervalMinutes,
     reviewPollMaxWaitMinutes: options.reviewPollMaxWaitMinutes,
     runPolicy: existing?.runPolicy,
-    originIssueNumber: originIssueNumber ?? existing?.originIssueNumber,
+    originIssueNumbers: originIssueNumbers ?? existing?.originIssueNumbers,
     tickets: ticketDefinitions.map((definition, index) => {
       const previous = existingById.get(definition.id);
       const inferredTicket = inferredById.get(definition.id);
@@ -469,6 +488,29 @@ function syncStateWithPlan(
         subagentAdversarialPromptWrittenAt:
           previous?.subagentAdversarialPromptWrittenAt ??
           inferredTicket?.subagentAdversarialPromptWrittenAt,
+        refactorReviewOutcome:
+          previous?.refactorReviewOutcome ??
+          inferredTicket?.refactorReviewOutcome,
+        refactorReviewCompletedAt:
+          previous?.refactorReviewCompletedAt ??
+          inferredTicket?.refactorReviewCompletedAt,
+        refactorReviewPatchCommits:
+          previous?.refactorReviewPatchCommits ??
+          inferredTicket?.refactorReviewPatchCommits,
+        refactorReviewAgent:
+          previous?.refactorReviewAgent ?? inferredTicket?.refactorReviewAgent,
+        refactorRunnerArtifactPath:
+          previous?.refactorRunnerArtifactPath ??
+          inferredTicket?.refactorRunnerArtifactPath,
+        refactorReviewPromptPath:
+          previous?.refactorReviewPromptPath ??
+          inferredTicket?.refactorReviewPromptPath,
+        refactorReviewPromptWrittenAt:
+          previous?.refactorReviewPromptWrittenAt ??
+          inferredTicket?.refactorReviewPromptWrittenAt,
+        refactorReviewedHeadSha:
+          previous?.refactorReviewedHeadSha ??
+          inferredTicket?.refactorReviewedHeadSha,
         prNumber: previous?.prNumber ?? inferredTicket?.prNumber,
         prUrl: previous?.prUrl ?? inferredTicket?.prUrl,
         prOpenedAt: previous?.prOpenedAt ?? inferredTicket?.prOpenedAt,
@@ -667,7 +709,7 @@ async function loadPlanContext(
 ): Promise<LoadPlanContextResult> {
   const planMarkdown = await readFile(resolve(cwd, options.planPath), 'utf8');
   const ticketDefinitions = parsePlan(planMarkdown, options.planPath, cwd);
-  const originIssueNumber = parseOriginIssueNumber(planMarkdown);
+  const originIssueNumbers = parseOriginIssueNumbers(planMarkdown);
   const absoluteStatePath = resolve(cwd, options.statePath);
   const inferred = inferStateFromRepo(
     cwd,
@@ -680,7 +722,8 @@ async function loadPlanContext(
     absoluteStatePath,
     inferred,
     ticketDefinitions,
-    originIssueNumber,
+    originIssueNumbers:
+      originIssueNumbers.length > 0 ? originIssueNumbers : undefined,
   };
 }
 

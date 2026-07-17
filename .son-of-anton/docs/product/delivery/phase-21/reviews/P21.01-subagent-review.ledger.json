@@ -1,0 +1,36 @@
+{
+  "ticket": "P21.01",
+  "invocations": [
+    {
+      "runnerKind": "cursor-cli",
+      "reviewedHeadSha": "c4e2f2da4d293b8602cdb0c84d8c46e7ae17b856",
+      "outcome": "clean",
+      "completedAt": "2026-07-16T14:15:07.894Z",
+      "terminatedReason": "completed",
+      "rawOutput": "docs/product/delivery/phase-21/reviews/P21.01-subagent-review.report.md",
+      "filledPrompt": "docs/product/delivery/phase-21/reviews/P21.01-subagent-review.prompt.md",
+      "fallbackLevel": "preferred",
+      "schemaVersion": 1,
+      "primaryAgent": "claude",
+      "runnerSelfReport": "completed",
+      "fallbackFrom": null,
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": []
+    },
+    {
+      "runnerKind": "operator-recorder",
+      "reviewedHeadSha": "c4e2f2da4d293b8602cdb0c84d8c46e7ae17b856",
+      "outcome": "patched",
+      "completedAt": "2026-07-16T14:21:45.075Z",
+      "terminatedReason": "completed",
+      "findings": [],
+      "probedSurfaces": [],
+      "patches": ["88369d82133073a91bc4b9c473fc4487d2c2ca70"],
+      "schemaVersion": 1,
+      "primaryAgent": "unknown",
+      "runnerSelfReport": null,
+      "fallbackFrom": null
+    }
+  ]
+}

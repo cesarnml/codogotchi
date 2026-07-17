@@ -122,4 +122,27 @@ describe('P7.01 run-policy state model and migration', () => {
       expect(normalized.runPolicy).toBeUndefined();
     });
   });
+
+  describe('P21.06 — legacy originIssueNumber coercion', () => {
+    it('wraps a persisted scalar originIssueNumber into a one-element originIssueNumbers array', () => {
+      const rawState = { ...legacyRawState, originIssueNumber: 76 };
+      const normalized = normalizeDeliveryStateFromPersisted(rawState);
+      expect(normalized.originIssueNumbers).toEqual([76]);
+    });
+
+    it('leaves originIssueNumbers undefined when neither field is present', () => {
+      const normalized = normalizeDeliveryStateFromPersisted(legacyRawState);
+      expect(normalized.originIssueNumbers).toBeUndefined();
+    });
+
+    it('prefers the new originIssueNumbers array when both the legacy scalar and the new array are present', () => {
+      const rawState = {
+        ...legacyRawState,
+        originIssueNumber: 76,
+        originIssueNumbers: [78, 83],
+      };
+      const normalized = normalizeDeliveryStateFromPersisted(rawState);
+      expect(normalized.originIssueNumbers).toEqual([78, 83]);
+    });
+  });
 });

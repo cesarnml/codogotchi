@@ -12,9 +12,9 @@ Origin issue: #84
 Origin issue: #87
 Origin issue: #105
 
-> Multi-issue note: `parseOriginIssueNumber` honors only the first line until
-> P21.06 lands multi-issue support. The final ticket's PR must carry one
-> `Closes #<N>` bullet for each of the five issues.
+> Multi-issue note: `parseOriginIssueNumbers` (P21.06) parses all five lines
+> above. The final ticket's PR must carry one `Closes #<N>` bullet for each
+> of the five issues.
 
 ## Product contract
 
