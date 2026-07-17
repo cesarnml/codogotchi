@@ -46,9 +46,16 @@ echo "==> Regenerating appcast from $ARCHIVE_DIR..."
 # item, but each release actually lives at a per-tag GitHub Releases URL
 # (scripts/package-dmg.sh's ritual: `gh release create vX.Y.Z Codogotchi.dmg`
 # — same asset filename every time, version only in the tag path). Rewrite
-# each item's enclosure URL from its own sparkle:shortVersionString instead of
-# trusting the tool's single guessed prefix, so multi-version history stays
-# correct as more releases accumulate in the archive.
+# each item's full-update enclosure URL from its own sparkle:shortVersionString
+# instead of trusting the tool's single guessed prefix, so multi-version
+# history stays correct as more releases accumulate in the archive.
+#
+# Binary deltas are dropped entirely: generate_appcast writes them into
+# old_updates/ locally, but this ritual never uploads that file anywhere —
+# a client that tried to apply one would fetch the full DMG at the rewritten
+# URL and fail the delta's signature check outright. Full-update items are
+# unaffected; Sparkle just falls back to a full download when no delta is
+# offered.
 APPCAST_OUT="$REPO_ROOT/web/public/appcast.xml"
 python3 - "$ARCHIVE_DIR/appcast.xml" "$APPCAST_OUT" <<'PY'
 import re
@@ -61,6 +68,7 @@ with open(src) as f:
 
 def fix_url(match):
     item = match.group(0)
+    item = re.sub(r"\s*<sparkle:deltas>.*?</sparkle:deltas>\n?", "", item, flags=re.DOTALL)
     version = re.search(r"<sparkle:shortVersionString>([^<]+)</sparkle:shortVersionString>", item).group(1)
     new_url = f"https://github.com/cesarnml/codogotchi/releases/download/v{version}/Codogotchi.dmg"
     return re.sub(r'url="[^"]*"', f'url="{new_url}"', item)
