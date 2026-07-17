@@ -2412,7 +2412,7 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 	/// "absent or negative" contract — not fall through to
 	/// `SessionSelectionPolicy.select`'s `cap > 0` guard, which would silently
 	/// treat any non-positive cap as Unlimited.
-	func testNegativeSessionCapResolvesToDefaultCapNotUnlimited() {
+	func testNegativeSessionCapResolvesToDefaultCap() {
 		let customization = makeCustomization(
 			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": -1])
 		let pool = FloatingPetWindowPool(
@@ -2429,11 +2429,11 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		pool.update(snapshot: makeResolvedSnapshot(perSession: perSession, customization: customization))
 
 		XCTAssertEqual(
-			pool.activeOrigins.count, 3,
-			"a negative session_cap must resolve to the default cap of 3, not Unlimited")
+			pool.activeOrigins.count, 4,
+			"a negative session_cap must resolve to the default cap, which is now Unlimited — nothing is blocked")
 		XCTAssertEqual(
-			pool.blockedOrigins, ["claude_code"],
-			"a negative session_cap must still block the fourth session under the resolved default cap")
+			pool.blockedOrigins, [],
+			"the resolved default cap is Unlimited, so no session is blocked")
 	}
 
 	/// (4 review focus) Manual Prune atomicity: destroys the panel, deletes the
@@ -2448,7 +2448,13 @@ final class FloatingPetWindowPoolTests: XCTestCase {
 		try! Data("{}".utf8).write(to: dir.appendingPathComponent("claude_code:s1.json"))
 
 		var stub: StubWindowController?
-		let customization = makeCustomization(sessionPetsEnabled: ["claude_code": true])
+		// Explicit bounded cap: under the (now-default) Unlimited cap, released
+		// numbers are intentionally never recycled (see
+		// `SessionNumberAllocatorState`'s doc comment) — this test's whole point
+		// is to verify recycling, so it must opt out of Unlimited explicitly
+		// rather than ride whatever the ambient default happens to be.
+		let customization = makeCustomization(
+			sessionPetsEnabled: ["claude_code": true], sessionCap: ["claude_code": 3])
 		let pool = FloatingPetWindowPool(
 			customizationReader: { customization },
 			windowFactory: { _, _ in

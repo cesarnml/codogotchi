@@ -82,14 +82,34 @@ struct CustomizationSnapshot {
 	/// explicit cap has ever been persisted. Single source of truth for the
 	/// consumers that resolve this default (`FloatingPetWindowPool`,
 	/// `SessionNumberAllocatorState`, `CustomizationTabViewModel`/Settings UI).
-	static let defaultSessionCap = 3
-	/// Default "Archive Session After Idle" TTL — 2 hours, matching
-	/// `StateJsonReader`'s render-fresh window at the time this became
-	/// user-configurable.
-	static let defaultArchiveSessionAfterIdleSeconds = 2 * 60 * 60
-	/// Default "Prune Archived Sessions" TTL — 24 hours, matching
-	/// `SlicePruner`'s original hardcoded deletion horizon.
-	static let defaultPruneArchivedSessionsAfterSeconds = 24 * 60 * 60
+	/// Unlimited by default — session panels are opt-out, not capacity-limited.
+	static let defaultSessionCap = CustomizationSnapshot.unlimitedSessionCap
+	/// Default "Archive Session After Idle" TTL — 1 hour.
+	static let defaultArchiveSessionAfterIdleSeconds = 1 * 60 * 60
+	/// Default "Prune Archived Sessions" TTL — 12 hours.
+	static let defaultPruneArchivedSessionsAfterSeconds = 12 * 60 * 60
+	/// Default "Hide Idle Pet After" — Never (`0` is the Never sentinel).
+	static let defaultIdleDismissTtlSeconds = 0
+	/// Default "Pet Idle Impatient After" — 10 minutes.
+	static let defaultIdleImpatientSeconds = 10 * 60
+	/// Default "Pet Idle Frustrated After" — 30 minutes.
+	static let defaultIdleFrustratedSeconds = 30 * 60
+	/// Default Minimalist PlatformChip/AnimationBadge scale — the largest size
+	/// Own mode can actually reach (see `GateBadgeLayout.achievableMaxScale`).
+	static let defaultMinimalistBadgeScale = Double(GateBadgeLayout.achievableMaxScale)
+	/// Default "Enable Minimalist mode for Combined pet" — on, matching every
+	/// platform defaulting to Minimalist below.
+	static let defaultCombinedMinimalistEnabled = true
+	/// Every platform origin Codogotchi ships hooks for. Single source of
+	/// truth for the per-origin defaults below — kept in sync with
+	/// `CustomizationTabViewModel.origins` and `ASSIGNMENT_BADGE_KEYS`.
+	private static let knownOrigins = ["claude_code", "vscode", "codex", "cursor", "antigravity"]
+	/// Default per-platform display mode — Minimalist for every known origin.
+	static let defaultPlatformModes: [String: PlatformMode] = Dictionary(
+		uniqueKeysWithValues: knownOrigins.map { ($0, PlatformMode.minimalist) })
+	/// Default per-platform session-pets opt-in — enabled for every known origin.
+	static let defaultSessionPetsEnabled: [String: Bool] = Dictionary(
+		uniqueKeysWithValues: knownOrigins.map { ($0, true) })
 
 	/// Explicit initializer (not the synthesized memberwise init) so the two new
 	/// session-pets maps carry `[:]` defaults. This keeps existing
@@ -106,8 +126,8 @@ struct CustomizationSnapshot {
 		sessionCap: [String: Int] = [:],
 		sessionPetsActivatedAt: [String: String] = [:],
 		sessionPetsGrandfatheredSessionId: [String: String] = [:],
-		idleImpatientSeconds: Int = 300,
-		idleFrustratedSeconds: Int = 600,
+		idleImpatientSeconds: Int = CustomizationSnapshot.defaultIdleImpatientSeconds,
+		idleFrustratedSeconds: Int = CustomizationSnapshot.defaultIdleFrustratedSeconds,
 		evictSessionPetsEnabled: Bool = true,
 		archiveSessionAfterIdleSeconds: Int = CustomizationSnapshot.defaultArchiveSessionAfterIdleSeconds,
 		pruneArchivedSessionsAfterSeconds: Int = CustomizationSnapshot
@@ -130,17 +150,17 @@ struct CustomizationSnapshot {
 	}
 
 	static let safeDefault = CustomizationSnapshot(
-		platformModes: [:],
-		idleDismissTtlSeconds: 300,
+		platformModes: CustomizationSnapshot.defaultPlatformModes,
+		idleDismissTtlSeconds: CustomizationSnapshot.defaultIdleDismissTtlSeconds,
 		menubarIconMonochrome: false,
-		combinedMinimalistEnabled: false,
-		minimalistBadgeScale: 1.0,
-		sessionPetsEnabled: [:],
+		combinedMinimalistEnabled: CustomizationSnapshot.defaultCombinedMinimalistEnabled,
+		minimalistBadgeScale: CustomizationSnapshot.defaultMinimalistBadgeScale,
+		sessionPetsEnabled: CustomizationSnapshot.defaultSessionPetsEnabled,
 		sessionCap: [:],
 		sessionPetsActivatedAt: [:],
 		sessionPetsGrandfatheredSessionId: [:],
-		idleImpatientSeconds: 300,
-		idleFrustratedSeconds: 600,
+		idleImpatientSeconds: CustomizationSnapshot.defaultIdleImpatientSeconds,
+		idleFrustratedSeconds: CustomizationSnapshot.defaultIdleFrustratedSeconds,
 		evictSessionPetsEnabled: true,
 		archiveSessionAfterIdleSeconds: CustomizationSnapshot.defaultArchiveSessionAfterIdleSeconds,
 		pruneArchivedSessionsAfterSeconds: CustomizationSnapshot.defaultPruneArchivedSessionsAfterSeconds
@@ -163,12 +183,19 @@ enum CustomizationJsonReader {
 			return .safeDefault
 		}
 
-		let modes = (payload.platformModes ?? [:])
+		// Merge the payload's explicit per-origin choices over the shared
+		// defaults, rather than falling back to `.own`/disabled for any origin
+		// the user never touched — an origin absent from an older or partial
+		// file should pick up today's default, exactly like a fresh install.
+		let explicitModes = (payload.platformModes ?? [:])
 			.mapValues { PlatformMode(rawValue: $0) ?? .own }
-		let rawTtl = payload.idleDismissTtlSeconds ?? 300
-		let rawScale = payload.minimalistBadgeScale ?? 1.0
-		let rawImpatient = payload.idleImpatientSeconds ?? 300
-		let rawFrustrated = payload.idleFrustratedSeconds ?? 600
+		let modes = CustomizationSnapshot.defaultPlatformModes.merging(explicitModes) { _, new in new }
+		let sessionPetsEnabled = CustomizationSnapshot.defaultSessionPetsEnabled
+			.merging(payload.sessionPetsEnabled ?? [:]) { _, new in new }
+		let rawTtl = payload.idleDismissTtlSeconds ?? CustomizationSnapshot.defaultIdleDismissTtlSeconds
+		let rawScale = payload.minimalistBadgeScale ?? CustomizationSnapshot.defaultMinimalistBadgeScale
+		let rawImpatient = payload.idleImpatientSeconds ?? CustomizationSnapshot.defaultIdleImpatientSeconds
+		let rawFrustrated = payload.idleFrustratedSeconds ?? CustomizationSnapshot.defaultIdleFrustratedSeconds
 		let rawArchiveAfterIdle =
 			payload.archiveSessionAfterIdleSeconds
 			?? CustomizationSnapshot.defaultArchiveSessionAfterIdleSeconds
@@ -177,18 +204,20 @@ enum CustomizationJsonReader {
 			?? CustomizationSnapshot.defaultPruneArchivedSessionsAfterSeconds
 		return CustomizationSnapshot(
 			platformModes: modes,
-			idleDismissTtlSeconds: rawTtl < 0 ? 300 : rawTtl,
+			idleDismissTtlSeconds: rawTtl < 0 ? CustomizationSnapshot.defaultIdleDismissTtlSeconds : rawTtl,
 			menubarIconMonochrome: payload.menubarIconMonochrome ?? false,
-			combinedMinimalistEnabled: payload.combinedMinimalistEnabled ?? false,
+			combinedMinimalistEnabled: payload.combinedMinimalistEnabled
+				?? CustomizationSnapshot.defaultCombinedMinimalistEnabled,
 			minimalistBadgeScale: max(
 				Double(GateBadgeLayout.achievableMinScale), min(Double(GateBadgeLayout.achievableMaxScale), rawScale)
 			),
-			sessionPetsEnabled: payload.sessionPetsEnabled ?? [:],
+			sessionPetsEnabled: sessionPetsEnabled,
 			sessionCap: payload.sessionCap ?? [:],
 			sessionPetsActivatedAt: payload.sessionPetsActivatedAt ?? [:],
 			sessionPetsGrandfatheredSessionId: payload.sessionPetsGrandfatheredSessionId ?? [:],
-			idleImpatientSeconds: rawImpatient < 0 ? 300 : rawImpatient,
-			idleFrustratedSeconds: rawFrustrated < 0 ? 600 : rawFrustrated,
+			idleImpatientSeconds: rawImpatient < 0 ? CustomizationSnapshot.defaultIdleImpatientSeconds : rawImpatient,
+			idleFrustratedSeconds: rawFrustrated < 0
+				? CustomizationSnapshot.defaultIdleFrustratedSeconds : rawFrustrated,
 			evictSessionPetsEnabled: payload.evictSessionPetsEnabled ?? true,
 			archiveSessionAfterIdleSeconds: rawArchiveAfterIdle < 0
 				? CustomizationSnapshot.defaultArchiveSessionAfterIdleSeconds : rawArchiveAfterIdle,

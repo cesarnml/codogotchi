@@ -45,6 +45,17 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		return dir.path
 	}
 
+	/// Session-pets now defaults to enabled (see `CustomizationSnapshot
+	/// .defaultSessionPetsEnabled`), so the off→on grandfather-toggle tests
+	/// below must establish an explicit disabled baseline first — otherwise
+	/// `setSessionPetsEnabled(true, for:)` is a same-value no-op and the
+	/// grandfather logic (gated on a real `false -> true` transition) never runs.
+	private func writeDisabled(_ path: String, origin: String) {
+		try! """
+			{ "session_pets_enabled": { "\(origin)": false } }
+			""".write(toFile: path, atomically: true, encoding: .utf8)
+	}
+
 	private func writeSlice(_ dir: String, filename: String, origin: String, updatedAt: String) {
 		try! """
 			{ "activity_state": "idle", "updated_at": "\(updatedAt)", "source_event": { "origin": "\(origin)" } }
@@ -61,6 +72,7 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		// Two live sessions; "newer" is the current winner (freshest updated_at).
 		writeSlice(stateDir, filename: "claude_code:older.json", origin: "claude_code", updatedAt: "2026-07-03T09:00:00.000Z")
 		writeSlice(stateDir, filename: "claude_code:newer.json", origin: "claude_code", updatedAt: "2026-07-03T09:00:05.000Z")
+		writeDisabled(path, origin: "claude_code")
 		let vm = CustomizationTabViewModel(filePath: path, stateDirectoryPath: stateDir)
 
 		vm.setSessionPetsEnabled(true, for: "claude_code")
@@ -85,6 +97,7 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		defer { try? FileManager.default.removeItem(atPath: path) }
 		let stateDir = makeTmpStateDir()
 		defer { try? FileManager.default.removeItem(atPath: stateDir) }
+		writeDisabled(path, origin: "claude_code")
 		let vm = CustomizationTabViewModel(filePath: path, stateDirectoryPath: stateDir)
 
 		vm.setSessionPetsEnabled(true, for: "claude_code")
@@ -112,6 +125,7 @@ final class CustomizationTabViewModelTests: XCTestCase {
 			[.modificationDate: Date(timeIntervalSinceNow: -3 * 60 * 60)],
 			ofItemAtPath: URL(fileURLWithPath: stateDir).appendingPathComponent("cursor:dormant.json").path
 		)
+		writeDisabled(path, origin: "cursor")
 		let vm = CustomizationTabViewModel(filePath: path, stateDirectoryPath: stateDir)
 
 		vm.setSessionPetsEnabled(true, for: "cursor")
@@ -127,6 +141,7 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		let stateDir = makeTmpStateDir()
 		defer { try? FileManager.default.removeItem(atPath: stateDir) }
 		writeSlice(stateDir, filename: "claude_code:first.json", origin: "claude_code", updatedAt: "2026-07-03T09:00:00.000Z")
+		writeDisabled(path, origin: "claude_code")
 		var currentTime = Date(timeIntervalSinceReferenceDate: 0)
 		let vm = CustomizationTabViewModel(
 			filePath: path, stateDirectoryPath: stateDir, now: { currentTime })
@@ -160,6 +175,7 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		defer { try? FileManager.default.removeItem(atPath: labelPath) }
 		writeSlice(stateDir, filename: "claude_code:winner.json", origin: "claude_code", updatedAt: "2026-07-03T09:00:00.000Z")
 		SessionLabelStore.setLabel("My Renamed Pet", for: "claude_code", at: labelPath)
+		writeDisabled(path, origin: "claude_code")
 		let vm = CustomizationTabViewModel(
 			filePath: path, stateDirectoryPath: stateDir, sessionLabelPath: labelPath)
 
@@ -183,6 +199,7 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		// The grandfathered session already has its OWN, more specific label —
 		// e.g. from a direct rename during an earlier activation cycle.
 		SessionLabelStore.setLabel("My Specific Rename", for: "claude_code:winner", at: labelPath)
+		writeDisabled(path, origin: "claude_code")
 		let vm = CustomizationTabViewModel(
 			filePath: path, stateDirectoryPath: stateDir, sessionLabelPath: labelPath)
 
@@ -200,6 +217,7 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		let stateDir = makeTmpStateDir()
 		defer { try? FileManager.default.removeItem(atPath: stateDir) }
 		let preciseNow = Date(timeIntervalSinceReferenceDate: 1_000_000.75)
+		writeDisabled(path, origin: "claude_code")
 		let vm = CustomizationTabViewModel(
 			filePath: path, stateDirectoryPath: stateDir, now: { preciseNow })
 
@@ -223,6 +241,7 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		let tied = "2026-07-03T09:00:00.000Z"
 		writeSlice(stateDir, filename: "claude_code:zzz-session.json", origin: "claude_code", updatedAt: tied)
 		writeSlice(stateDir, filename: "claude_code:aaa-session.json", origin: "claude_code", updatedAt: tied)
+		writeDisabled(path, origin: "claude_code")
 		let vm = CustomizationTabViewModel(filePath: path, stateDirectoryPath: stateDir)
 
 		vm.setSessionPetsEnabled(true, for: "claude_code")
@@ -263,8 +282,8 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		vm.setSessionPetsEnabled(true, for: "claude_code")
 
 		XCTAssertEqual(
-			vm.effectiveSessionCap(for: "claude_code"), 3,
-			"first enable with no persisted cap must resolve to the default cap of 3 at the read point")
+			vm.effectiveSessionCap(for: "claude_code"), CustomizationSnapshot.defaultSessionCap,
+			"first enable with no persisted cap must resolve to the default cap (Unlimited) at the read point")
 	}
 
 	// MARK: - Toggling mode to Combined does not erase a previously stored cap
@@ -310,8 +329,8 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		let vm = CustomizationTabViewModel(filePath: path)
 
 		XCTAssertEqual(
-			vm.effectiveSessionCap(for: "claude_code"), 3,
-			"a negative persisted cap must resolve to the default cap of 3, not pass through verbatim")
+			vm.effectiveSessionCap(for: "claude_code"), CustomizationSnapshot.defaultSessionCap,
+			"a negative persisted cap must resolve to the default cap (Unlimited), not pass through verbatim")
 	}
 
 	// MARK: - effectiveSessionCap passes the Unlimited sentinel (0) through unchanged
@@ -393,10 +412,10 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		defer { try? FileManager.default.removeItem(atPath: path) }
 		let vm = CustomizationTabViewModel(filePath: path)
 
-		vm.setIdleFrustratedSeconds(60)  // deliberately below the default impatient (300)
+		vm.setIdleFrustratedSeconds(60)  // deliberately below the default impatient (600)
 
 		XCTAssertEqual(vm.idleFrustratedSeconds, 60)
-		XCTAssertEqual(vm.idleImpatientSeconds, 300, "setIdleFrustratedSeconds must never adjust impatient")
+		XCTAssertEqual(vm.idleImpatientSeconds, 600, "setIdleFrustratedSeconds must never adjust impatient")
 	}
 
 	// MARK: - setEvictSessionPetsEnabled persists and round-trips
@@ -425,26 +444,26 @@ final class CustomizationTabViewModelTests: XCTestCase {
 		defer { try? FileManager.default.removeItem(atPath: path) }
 		// The Settings tab's long-lived view model…
 		let settingsVM = CustomizationTabViewModel(filePath: path)
-		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .own)
+		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .minimalist)
 
 		// …goes stale when a right-click mode switch writes through its own
 		// short-lived view model (the MenubarApp affordance handlers' path).
 		let rightClickVM = CustomizationTabViewModel(filePath: path)
-		rightClickVM.setMode(.minimalist, for: "claude_code")
-		rightClickVM.setCombinedMinimalistEnabled(true)
-		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .own, "stale until reload()")
+		rightClickVM.setMode(.own, for: "claude_code")
+		rightClickVM.setCombinedMinimalistEnabled(false)
+		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .minimalist, "stale until reload()")
 
 		settingsVM.reload()
 
-		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .minimalist)
-		XCTAssertTrue(settingsVM.combinedMinimalistEnabled)
+		XCTAssertEqual(settingsVM.mode(for: "claude_code"), .own)
+		XCTAssertFalse(settingsVM.combinedMinimalistEnabled)
 	}
 
 	func testReloadPicksUpABadgeScaleWrittenByAnotherViewModel() {
 		let path = makeTmpPath()
 		defer { try? FileManager.default.removeItem(atPath: path) }
 		let settingsVM = CustomizationTabViewModel(filePath: path)
-		XCTAssertEqual(settingsVM.minimalistBadgeScale, 1.0)
+		XCTAssertEqual(settingsVM.minimalistBadgeScale, Double(GateBadgeLayout.achievableMaxScale), accuracy: 0.0001)
 
 		// The Panel Size pill's write path (MenubarApp's onPanelSizeChanged
 		// handler) uses its own short-lived view model, same as a mode switch.
@@ -472,17 +491,20 @@ final class CustomizationTabViewModelTests: XCTestCase {
 			accuracy: 0.0001)
 	}
 
-	func testReloadRestoresTheDefaultWhenAModeSwitchRemovedTheEntry() {
+	func testReloadPicksUpAnExplicitOwnWriteEvenThoughOwnIsNoLongerTheDefault() {
 		let path = makeTmpPath()
 		defer { try? FileManager.default.removeItem(atPath: path) }
 		let settingsVM = CustomizationTabViewModel(filePath: path)
 		settingsVM.setMode(.minimalist, for: "cursor")
 
-		// "Pet Mode" writes .own, which removes the platform_modes entry
-		// (own is the default) — reload must fall back to .own, not keep the
-		// stale .minimalist.
+		// "Pet Mode" writes .own explicitly — it must NOT be omitted from
+		// platform_modes just because it used to be the implicit default.
+		// Minimalist is the default now (`CustomizationSnapshot
+		// .defaultPlatformModes`), so an omitted entry would resolve back to
+		// Minimalist on the next read, silently reverting this explicit choice.
 		let rightClickVM = CustomizationTabViewModel(filePath: path)
 		rightClickVM.setMode(.own, for: "cursor")
+		XCTAssertEqual(settingsVM.mode(for: "cursor"), .minimalist, "stale until reload()")
 
 		settingsVM.reload()
 

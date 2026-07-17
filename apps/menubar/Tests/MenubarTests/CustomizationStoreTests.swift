@@ -164,7 +164,7 @@ final class CustomizationStoreTests: XCTestCase {
 		let path = makeTmpPath()
 		defer { try? FileManager.default.removeItem(atPath: path) }
 		let store = CustomizationStore(filePath: path)
-		XCTAssertEqual(store.snapshot.idleDismissTtlSeconds, 300, "default before any file exists")
+		XCTAssertEqual(store.snapshot.idleDismissTtlSeconds, 0, "default before any file exists")
 
 		// Simulate bytes written by another process/instance, bypassing this
 		// store entirely.

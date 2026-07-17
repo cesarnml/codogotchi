@@ -84,13 +84,15 @@ final class CustomizationStore {
 	func setMode(_ mode: PlatformMode, for origin: String, notify: Bool = true)
 		-> CustomizationSnapshot?
 	{
+		// Always write the explicit value, even `.own` — omitting it used to be
+		// a safe sparse-write optimization back when `.own` was the implicit
+		// default for every absent origin, but the default is now `.minimalist`
+		// (see `CustomizationSnapshot.defaultPlatformModes`). Omitting an
+		// explicit `.own` choice would let the reader's own-default merge
+		// silently revert it back to Minimalist on the next read.
 		var proposed = CustomizationJsonReader.read(at: filePath).platformModes
-		if mode == .own {
-			proposed.removeValue(forKey: origin)
-		} else {
-			proposed[origin] = mode
-		}
-		let modesValue: Any = proposed.isEmpty ? NSNull() : proposed.mapValues { $0.rawValue }
+		proposed[origin] = mode
+		let modesValue: Any = proposed.mapValues { $0.rawValue }
 		return merge(["platform_modes": modesValue], notify: notify)
 	}
 

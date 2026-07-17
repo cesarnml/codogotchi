@@ -12,11 +12,13 @@ final class CustomizationJsonReaderTests: XCTestCase {
 		let missing = FileManager.default.temporaryDirectory
 			.appendingPathComponent("does-not-exist-customization-\(UUID().uuidString).json")
 		let snapshot = CustomizationJsonReader.read(at: missing.path)
-		XCTAssertEqual(snapshot.platformModes, [:])
-		XCTAssertEqual(snapshot.idleDismissTtlSeconds, 300)
+		XCTAssertEqual(snapshot.platformModes, CustomizationSnapshot.defaultPlatformModes)
+		XCTAssertEqual(snapshot.sessionPetsEnabled, CustomizationSnapshot.defaultSessionPetsEnabled)
+		XCTAssertEqual(snapshot.idleDismissTtlSeconds, 0)
 		XCTAssertEqual(snapshot.menubarIconMonochrome, false)
-		XCTAssertEqual(snapshot.idleImpatientSeconds, 300)
-		XCTAssertEqual(snapshot.idleFrustratedSeconds, 600)
+		XCTAssertEqual(snapshot.combinedMinimalistEnabled, true)
+		XCTAssertEqual(snapshot.idleImpatientSeconds, 600)
+		XCTAssertEqual(snapshot.idleFrustratedSeconds, 1800)
 		XCTAssertEqual(
 			snapshot.evictSessionPetsEnabled, true,
 			"Evict Session Pets defaults enabled — a kill-switch on existing behavior, not an opt-in")
@@ -56,8 +58,9 @@ final class CustomizationJsonReaderTests: XCTestCase {
 		defer { try? FileManager.default.removeItem(at: tmp) }
 
 		let snapshot = CustomizationJsonReader.read(at: tmp.path)
-		XCTAssertEqual(snapshot.idleImpatientSeconds, 300, "negative impatient seconds must clamp to the 300s default")
-		XCTAssertEqual(snapshot.idleFrustratedSeconds, 600, "negative frustrated seconds must clamp to the 600s default")
+		XCTAssertEqual(snapshot.idleImpatientSeconds, 600, "negative impatient seconds must clamp to the 600s default")
+		XCTAssertEqual(
+			snapshot.idleFrustratedSeconds, 1800, "negative frustrated seconds must clamp to the 1800s default")
 	}
 
 	func testIdleEscalationZeroIsValidNeverSentinel() throws {
@@ -166,7 +169,7 @@ final class CustomizationJsonReaderTests: XCTestCase {
 		defer { try? FileManager.default.removeItem(at: tmp) }
 
 		let snapshot = CustomizationJsonReader.read(at: tmp.path)
-		XCTAssertEqual(snapshot.idleDismissTtlSeconds, 300, "negative TTL must be clamped to 300s default")
+		XCTAssertEqual(snapshot.idleDismissTtlSeconds, 0, "negative TTL must be clamped to the 0s (Never) default")
 	}
 
 	// MARK: - idle_dismiss_ttl_seconds: 0 → valid (Never)
@@ -225,7 +228,9 @@ final class CustomizationJsonReaderTests: XCTestCase {
 		defer { try? FileManager.default.removeItem(at: tmp) }
 
 		let snapshot = CustomizationJsonReader.read(at: tmp.path)
-		XCTAssertEqual(snapshot.sessionPetsEnabled, [:], "absent session_pets_enabled must decode to an empty map")
+		XCTAssertEqual(
+			snapshot.sessionPetsEnabled, CustomizationSnapshot.defaultSessionPetsEnabled,
+			"absent session_pets_enabled must fall back to the default per-origin map")
 		XCTAssertEqual(snapshot.sessionCap, [:], "absent session_cap must decode to an empty map")
 	}
 
@@ -264,8 +269,8 @@ final class CustomizationJsonReaderTests: XCTestCase {
 
 		let snapshot = CustomizationJsonReader.read(at: tmp.path)
 		XCTAssertEqual(
-			snapshot.sessionPetsEnabled, [:],
-			"a malformed session_pets_enabled value must degrade to the empty-map safe default without throwing")
+			snapshot.sessionPetsEnabled, CustomizationSnapshot.defaultSessionPetsEnabled,
+			"a malformed session_pets_enabled value must degrade to .safeDefault without throwing")
 		// A malformed value throws the whole payload decode, so sessionCap must
 		// also fall to the empty-map default. Asserting both closes the gap where
 		// a future partial-recovery refactor could keep one map while dropping the

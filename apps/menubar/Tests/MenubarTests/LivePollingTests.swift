@@ -661,7 +661,14 @@ final class LivePollingTests: XCTestCase {
 			""".write(to: target.appendingPathComponent("cursor:s2.json"), atomically: true, encoding: .utf8)
 
 		var perPlatformSnapshots: [PerPlatformSnapshot] = []
-		let driver = makeDriver(target: target, recorder: recorder)
+		// Explicit .own mode: this test is about per-platform routing, not about
+		// platform-mode defaults — pinning it decouples the assertions below
+		// (plain-origin keys) from whatever `.safeDefault` resolves to.
+		let ownModeCustomization = CustomizationSnapshot(
+			platformModes: ["claude_code": .own, "cursor": .own],
+			idleDismissTtlSeconds: 0, menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false, minimalistBadgeScale: 1.0)
+		let driver = makeDriver(target: target, recorder: recorder, customization: ownModeCustomization)
 		driver.applyPerPlatform = { snap in perPlatformSnapshots.append(snap) }
 
 		driver.tickForTesting()
@@ -715,7 +722,13 @@ final class LivePollingTests: XCTestCase {
 			""".write(to: target.appendingPathComponent("cursor:s2.context.json"), atomically: true, encoding: .utf8)
 
 		var perPlatformSnapshots: [PerPlatformSnapshot] = []
-		let driver = makeDriver(target: target, recorder: recorder)
+		// Explicit .own mode — see the identical note in
+		// testTwoOriginDirectoryEmitsGlobalAggregateToMenubar above.
+		let ownModeCustomization = CustomizationSnapshot(
+			platformModes: ["claude_code": .own, "cursor": .own],
+			idleDismissTtlSeconds: 0, menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false, minimalistBadgeScale: 1.0)
+		let driver = makeDriver(target: target, recorder: recorder, customization: ownModeCustomization)
 		driver.applyPerPlatform = { snap in perPlatformSnapshots.append(snap) }
 
 		driver.tickForTesting()
@@ -762,8 +775,15 @@ final class LivePollingTests: XCTestCase {
 			""".write(to: contextPath, atomically: true, encoding: .utf8)
 
 		var perPlatformSnapshots: [PerPlatformSnapshot] = []
+		// Explicit .own mode — see the identical note in
+		// testTwoOriginDirectoryEmitsGlobalAggregateToMenubar above.
+		let ownModeCustomization = CustomizationSnapshot(
+			platformModes: ["claude_code": .own],
+			idleDismissTtlSeconds: 0, menubarIconMonochrome: false,
+			combinedMinimalistEnabled: false, minimalistBadgeScale: 1.0)
 		let driver = makeDriver(
-			target: target, recorder: recorder, gatePath: gatePath, deliveryContextPath: contextPath)
+			target: target, recorder: recorder, gatePath: gatePath, deliveryContextPath: contextPath,
+			customization: ownModeCustomization)
 		driver.applyPerPlatform = { snap in perPlatformSnapshots.append(snap) }
 
 		driver.tickForTesting()

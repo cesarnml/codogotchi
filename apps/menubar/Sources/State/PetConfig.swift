@@ -41,7 +41,7 @@ enum PetConfig {
 			activityRegenMinutes: 60,
 			activityRegenHalfHearts: 1,
 			diseaseAnimationsEnabled: true,
-			skipWeekends: false,
+			skipWeekends: true,
 			mildSicknessHalfHearts: 2,
 			severeSicknessHalfHearts: 1
 		)
@@ -116,9 +116,9 @@ enum PetConfig {
 	}
 
 	/// Whether the destructive "Prune Session" confirmation alert should be
-	/// skipped, pruning immediately on click. Opt-in via a checkbox on the
-	/// alert itself ("Do not show this warning again."); defaults to `false`
-	/// (confirm every time) when unset or on any read failure.
+	/// skipped, pruning immediately on click. Can be turned back on via a
+	/// checkbox on the alert itself; defaults to `true` (skip the confirmation)
+	/// when unset or on any read failure.
 	static func resolvedSkipPruneConfirmation() -> Bool {
 		resolvedSkipPruneConfirmation(from: configURL())
 	}
@@ -127,8 +127,8 @@ enum PetConfig {
 		guard let data = try? Data(contentsOf: url),
 			let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
 			let features = obj["features"] as? [String: Any]
-		else { return false }
-		return (features["skip_prune_confirmation"] as? Bool) ?? false
+		else { return true }
+		return (features["skip_prune_confirmation"] as? Bool) ?? true
 	}
 
 	/// Returns the configured pet name, or `DEFAULT_PET_NAME` on soft failure.
