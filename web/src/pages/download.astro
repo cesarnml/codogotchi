@@ -10,7 +10,7 @@ const VERSION = "3.0.0";
 <Base
   active=""
   title="Download Codogotchi — macOS menubar pet"
-  description="Download Codogotchi for macOS. Drag to Applications, clear the quarantine flag, and your agent gets a pet."
+  description="Download Codogotchi for macOS. Notarized DMG or Homebrew — drag to Applications and your agent gets a pet."
 >
   <section class="max-w-3xl mx-auto px-6 pt-16 pb-8 flex flex-col items-center gap-8 text-center">
     <!-- Badge -->
@@ -36,7 +36,7 @@ const VERSION = "3.0.0";
         </span>
       </div>
       <p class="text-on-surface-variant max-w-md">
-        macOS menubar app · arm64 · not yet notarized — one extra step below.
+        macOS menubar app · arm64 · notarized by Apple — no quarantine workaround needed.
       </p>
     </div>
 
@@ -64,53 +64,59 @@ const VERSION = "3.0.0";
   <!-- Install steps -->
   <section class="max-w-3xl mx-auto px-6 py-8">
     <div class="sticker-card bg-surface-container rounded-3xl p-8 flex flex-col gap-6">
-      <h2 class="font-display text-2xl font-bold text-on-surface">Install in 3 steps</h2>
+      <h2 class="font-display text-2xl font-bold text-on-surface">Install in 2 steps</h2>
 
       <!-- Step 1 -->
       <div class="flex gap-4">
         <div class="w-9 h-9 flex-shrink-0 rounded-full bg-primary-container text-on-primary-container border-2 border-charcoal-ink flex items-center justify-center font-display font-extrabold shadow-[2px_2px_0_0_var(--color-charcoal-ink)]">1</div>
         <div class="flex flex-col gap-1">
           <p class="font-bold text-on-surface">Open the DMG and drag Codogotchi to Applications</p>
-          <p class="text-sm text-on-surface-variant">Standard macOS drag-and-drop install.</p>
+          <p class="text-sm text-on-surface-variant">Standard macOS drag-and-drop install — notarized, so Gatekeeper opens it right away.</p>
         </div>
       </div>
 
       <!-- Step 2 -->
       <div class="flex gap-4">
         <div class="w-9 h-9 flex-shrink-0 rounded-full bg-primary-container text-on-primary-container border-2 border-charcoal-ink flex items-center justify-center font-display font-extrabold shadow-[2px_2px_0_0_var(--color-charcoal-ink)]">2</div>
-        <div class="flex flex-col gap-2">
-          <p class="font-bold text-on-surface">Clear the quarantine flag</p>
-          <p class="text-sm text-on-surface-variant mb-1">
-            The build isn't notarized yet — macOS quarantines unsigned downloads. Run this once
-            in Terminal, then double-click to launch normally from then on.
-          </p>
-          <div class="menubar-inset rounded-xl p-4 relative group">
-            <button
-              class="absolute top-2 right-2 text-white/40 hover:text-gold-leaf transition-colors copy-btn"
-              data-copy="xattr -d com.apple.quarantine /Applications/Codogotchi.app"
-              aria-label="Copy command"
-            >
-              <span class="material-symbols-outlined text-[18px]">content_copy</span>
-            </button>
-            <code class="font-mono text-sm text-jade-sage">
-              xattr -d com.apple.quarantine /Applications/Codogotchi.app
-            </code>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 3 -->
-      <div class="flex gap-4">
-        <div class="w-9 h-9 flex-shrink-0 rounded-full bg-primary-container text-on-primary-container border-2 border-charcoal-ink flex items-center justify-center font-display font-extrabold shadow-[2px_2px_0_0_var(--color-charcoal-ink)]">3</div>
         <div class="flex flex-col gap-1">
           <p class="font-bold text-on-surface">Approve the welcome sheet</p>
           <p class="text-sm text-on-surface-variant">
             On first launch Codogotchi asks to install hooks for Claude Code, Codex, Cursor,
             Copilot (VS Code), and Antigravity. Approve once — no Terminal commands required.
-            Manage hooks anytime in <strong>Settings → General</strong>.
+            Manage hooks anytime in <strong>Settings → General</strong>. Codogotchi checks for
+            updates itself from then on (<strong>Settings → Check for Updates…</strong>).
           </p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- Homebrew alternative -->
+  <section class="max-w-3xl mx-auto px-6 pb-8">
+    <div class="sticker-card bg-surface-container rounded-3xl p-8 flex flex-col gap-4">
+      <h2 class="font-display text-2xl font-bold text-on-surface">Prefer Homebrew?</h2>
+      <p class="text-sm text-on-surface-variant -mt-2">
+        Same notarized build, installed and upgraded from the command line.
+      </p>
+      <div class="menubar-inset rounded-xl p-4 relative group">
+        <button
+          class="absolute top-2 right-2 text-white/40 hover:text-gold-leaf transition-colors copy-btn"
+          data-copy={"brew tap cesarnml/codogotchi\nbrew install --cask codogotchi"}
+          aria-label="Copy command"
+        >
+          <span class="material-symbols-outlined text-[18px]">content_copy</span>
+        </button>
+        <code class="font-mono text-sm text-jade-sage whitespace-pre">brew tap cesarnml/codogotchi
+brew install --cask codogotchi</code>
+      </div>
+      <p class="text-xs text-on-surface-variant">
+        <a
+          href="https://github.com/cesarnml/homebrew-codogotchi"
+          class="underline hover:text-primary"
+          target="_blank"
+          rel="noopener noreferrer">cesarnml/homebrew-codogotchi</a
+        > on GitHub
+      </p>
     </div>
   </section>
 
