@@ -37,8 +37,8 @@ targets:
         CFBundleIdentifier: com.codogotchi.app
         CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
-        CFBundleShortVersionString: "3.0.1"
-        CFBundleVersion: "14"
+        CFBundleShortVersionString: "3.0.2"
+        CFBundleVersion: "15"
         SUFeedURL: https://codogotchi.app/appcast.xml
         SUPublicEDKey: YCLg2RvYb8ddEhgeWW24yX07oN3xXYUzYW5yrhEZtqI=
         SUEnableAutomaticChecks: true
