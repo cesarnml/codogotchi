@@ -844,6 +844,43 @@ final class MenuItemsTests: XCTestCase {
 		XCTAssertEqual(refreshed, [.combined])
 	}
 
+	/// Hidden-key aliases that fold to the same Combined panel (a lingering
+	/// sessions-on hide for an Archived Claude Code session plus an explicit
+	/// "Hide Combined Panel") must yield exactly one Active affordance — never
+	/// two identical "Show Combined Panel" rows.
+	func testDuplicateHiddenKeysFoldingToCombinedYieldOneShowAffordance() throws {
+		let dir = try makeTempStateDir()
+		try writeSlice(named: "claude_code:active.json", in: dir, age: 30)
+		try writeSlice(named: "claude_code:archived.json", in: dir, age: 3 * 60 * 60)
+		let customization = CustomizationSnapshot(
+			platformModes: ["claude_code": .combined], idleDismissTtlSeconds: 300,
+			menubarIconMonochrome: false, combinedMinimalistEnabled: true,
+			minimalistBadgeScale: 1.0, sessionPetsEnabled: ["claude_code": true],
+			sessionCap: ["claude_code": 2], idleImpatientSeconds: 300,
+			idleFrustratedSeconds: 600, evictSessionPetsEnabled: true)
+		let pool = FloatingPetWindowPool(
+			customizationReader: { customization },
+			windowFactory: { _, _ in StubWindow() })
+		// Stale sessions-on hide (archived slice) + panel hide — both resolve
+		// to `.combined` under the current platform mode.
+		pool.setVisible(false, for: .session(origin: "claude_code", id: "archived"))
+		pool.setVisible(false, for: .combined)
+		XCTAssertEqual(
+			Set(pool.hiddenWindowKeys),
+			[.combined, .session(origin: "claude_code", id: "archived")])
+
+		let viewModel = SessionsTabViewModel(stateDirectoryPath: dir, pool: pool)
+		let menu = MenubarMenu(
+			terminate: {}, floatingPetPool: pool, sessionsTabViewModel: viewModel
+		).build()
+
+		let combinedShows = menu.items.filter { $0.title == "Show Combined Panel" }
+		XCTAssertEqual(
+			combinedShows.count, 1,
+			"fold-aliased hidden keys must not duplicate Show Combined Panel; got \(menu.items.map(\.title))")
+		XCTAssertEqual(combinedShows.first?.representedObject as? WindowKey, .combined)
+	}
+
 	func testLivePetShowTargetsHiddenCombinedWindow() throws {
 		let dir = try makeTempStateDir()
 		try writeSlice(named: "codex:one.json", in: dir, age: 30)

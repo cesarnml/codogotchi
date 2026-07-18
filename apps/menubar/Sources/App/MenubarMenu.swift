@@ -424,21 +424,30 @@ final class MenubarMenu: NSObject {
 	/// no slice still "owns" the fold and Active would otherwise go empty —
 	/// leaving only misleading Live Shows. Re-surface each hidden Combined /
 	/// sessions-off panel as an honest Active affordance.
+	///
+	/// Dedupes by rendered fold target: `userHiddenWindowKeys` can hold both
+	/// `.combined` and a stale session key that now folds to Combined (e.g. a
+	/// previously sessions-on hide that aged into Archived). Emitting one row
+	/// per hidden key would duplicate "Show Combined Panel".
 	@MainActor
 	private func supplementalHiddenPanelRows(excluding existing: Set<WindowKey>) -> [ActiveMenuRow] {
 		guard let pool = floatingPetPool, sessionsTabViewModel != nil else { return [] }
-		return pool.hiddenWindowKeys.compactMap { hiddenKey -> ActiveMenuRow? in
+		var seenTargets = existing
+		var rows: [ActiveMenuRow] = []
+		for hiddenKey in pool.hiddenWindowKeys {
+			guard pool.usesPanelAffordance(for: hiddenKey) else { continue }
 			let target = pool.renderedWindowKey(for: hiddenKey)
-			guard !existing.contains(target) else { return nil }
-			guard pool.usesPanelAffordance(for: hiddenKey) else { return nil }
-			return ActiveMenuRow(
-				actionKey: target,
-				origin: target.origin,
-				sessionId: nil,
-				displayLabel: "",
-				isShown: false,
-				usesPanelAffordance: true)
+			guard seenTargets.insert(target).inserted else { continue }
+			rows.append(
+				ActiveMenuRow(
+					actionKey: target,
+					origin: target.origin,
+					sessionId: nil,
+					displayLabel: "",
+					isShown: false,
+					usesPanelAffordance: true))
 		}
+		return rows
 	}
 
 	/// Fresh sessions-off / Combined slices that never owned a rendered panel
