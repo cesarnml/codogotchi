@@ -158,6 +158,30 @@ const structuredData = [
       import { inject } from "@vercel/analytics";
       inject();
     </script>
+    <script>
+      // Wires every `.copy-btn` on the site: copies its `data-copy` payload and
+      // flashes a check icon. Lives in the layout so pages only ship the markup.
+      // astro:page-load re-runs after each ClientRouter soft nav; the bound flag
+      // keeps persisted elements from stacking duplicate listeners.
+      document.addEventListener("astro:page-load", () => {
+        document.querySelectorAll<HTMLButtonElement>(".copy-btn").forEach((btn) => {
+          if (btn.dataset.copyBound) return;
+          btn.dataset.copyBound = "true";
+          btn.addEventListener("click", async () => {
+            const text = btn.getAttribute("data-copy") || "";
+            try {
+              await navigator.clipboard.writeText(text);
+              const icon = btn.querySelector("span");
+              if (icon) {
+                const prev = icon.textContent;
+                icon.textContent = "check";
+                setTimeout(() => (icon.textContent = prev), 1600);
+              }
+            } catch {}
+          });
+        });
+      });
+    </script>
     <SpeedInsights />
   </body>
 </html>

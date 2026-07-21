@@ -234,6 +234,10 @@ const platforms = [
         </span>
       </div>
 
+      <p class="-mt-2 text-on-surface-variant">
+        Notarized by Apple — no quarantine workaround, no Terminal required.
+      </p>
+
       <!-- Steps -->
       <div class="flex flex-col gap-5">
         <div class="flex gap-4 items-start">
@@ -241,24 +245,42 @@ const platforms = [
           <p class="pt-0.5 text-on-surface">
             <a href="/download" class="font-bold text-primary underline">Download Codogotchi.dmg</a>
             — open it and drag <strong>Codogotchi</strong> to <code class="font-mono text-sm">/Applications</code>.
+            Gatekeeper opens it right away.
           </p>
         </div>
         <div class="flex gap-4 items-start">
           <div class="w-8 h-8 flex-shrink-0 rounded-full bg-primary-container text-on-primary-container border-2 border-charcoal-ink flex items-center justify-center font-display font-extrabold text-sm shadow-[2px_2px_0_0_var(--color-charcoal-ink)]">2</div>
-          <div class="flex flex-col gap-2 flex-1">
-            <p class="text-on-surface">Clear the quarantine flag <span class="text-on-surface-variant text-sm">(unsigned build — one-time)</span></p>
-            <div class="menubar-inset rounded-xl p-4 font-mono text-sm text-jade-sage">
-              xattr -cr /Applications/Codogotchi.app
-            </div>
-          </div>
-        </div>
-        <div class="flex gap-4 items-start">
-          <div class="w-8 h-8 flex-shrink-0 rounded-full bg-primary-container text-on-primary-container border-2 border-charcoal-ink flex items-center justify-center font-display font-extrabold text-sm shadow-[2px_2px_0_0_var(--color-charcoal-ink)]">3</div>
           <p class="pt-0.5 text-on-surface">
             Launch and approve the <strong>Welcome to Codogotchi</strong> consent sheet — installs
-            hooks for Claude Code, Codex, Cursor, Copilot &amp; Antigravity. No Terminal required after this.
+            hooks for Claude Code, Codex, Cursor, Copilot &amp; Antigravity. Codogotchi keeps
+            itself updated from then on.
           </p>
         </div>
+      </div>
+
+      <!-- Homebrew alternative -->
+      <div class="border-t-2 border-dashed border-charcoal-ink/20 pt-6 flex flex-col gap-3">
+        <p class="font-bold text-on-surface">Prefer Homebrew?</p>
+        <div class="menubar-inset rounded-xl p-4 relative">
+          <button
+            class="absolute top-2 right-2 text-white/40 hover:text-gold-leaf transition-colors copy-btn"
+            data-copy={"brew tap cesarnml/codogotchi\nbrew install --cask codogotchi"}
+            aria-label="Copy command"
+          >
+            <span class="material-symbols-outlined text-[18px]">content_copy</span>
+          </button>
+          <code class="font-mono text-sm text-jade-sage whitespace-pre">brew tap cesarnml/codogotchi
+brew install --cask codogotchi</code>
+        </div>
+        <p class="text-xs text-on-surface-variant">
+          Same notarized build, installed and upgraded from the command line ·
+          <a
+            href="https://github.com/cesarnml/homebrew-codogotchi"
+            class="underline hover:text-primary"
+            target="_blank"
+            rel="noopener noreferrer">cesarnml/homebrew-codogotchi</a
+          >
+        </p>
       </div>
 
       <a
@@ -270,4 +292,5 @@ const platforms = [
       </a>
     </div>
   </section>
+
 </Base>
