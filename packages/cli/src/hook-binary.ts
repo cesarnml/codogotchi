@@ -341,6 +341,46 @@ export async function canonicalRepoRoot(path: string): Promise<string> {
 }
 
 /**
+ * True only when `canonicalRoot` is a real SoA (son-of-anton) consumer that
+ * wants codogotchi integration. `.soa/active-session.json` exists purely as a
+ * rendezvous file for SoA's delivery gate routing (see the comment at its
+ * write site below) — codogotchi never reads it back itself. Writing it into
+ * every repo a session touches, regardless of whether SoA is even installed
+ * there, plants tool state in unrelated projects.
+ *
+ * Two conditions, checked cheaply via the filesystem (no `git` subprocess, no
+ * network) on this hot per-event path:
+ * - `.son-of-anton/` is present at the canonical repo root — SoA's only
+ *   install mechanism (`git subtree add --prefix .son-of-anton ...`), so its
+ *   presence is a precise signal that this repo actually consumes SoA.
+ * - `orchestrator.config.json`'s `codogotchi.enabled` is not explicitly
+ *   `false` — SoA's own `codogotchi-gate.ts` already honors this flag when
+ *   deciding whether to *emit* gate signals; this mirrors that same opt-out
+ *   on the write side. Missing or unparseable config fails open (`true`), the
+ *   same default SoA's own config loader uses (`obj['enabled'] !== false`),
+ *   so a parse hiccup never silently breaks an otherwise-working install.
+ */
+async function repoWantsSoaActiveSession(
+  canonicalRoot: string,
+): Promise<boolean> {
+  try {
+    await stat(join(canonicalRoot, ".son-of-anton"));
+  } catch {
+    return false;
+  }
+  try {
+    const raw = await readFile(
+      join(canonicalRoot, "orchestrator.config.json"),
+      "utf8",
+    );
+    const parsed = JSON.parse(raw) as { codogotchi?: { enabled?: unknown } };
+    return parsed.codogotchi?.enabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Resolves the `.git` entry at exactly `dir`, if any. Returns the repo root
  * for that entry, or `undefined` if `dir` has no `.git` (caller should check
  * the parent directory next).
@@ -1684,21 +1724,24 @@ export async function runHook(
     // alone rather than clobbering it with an unroutable "default".
     try {
       if (isRoutableSessionId(sessionId)) {
-        const soaDir = join(await canonicalRepoRoot(repoRoot), ".soa");
-        await mkdir(soaDir, { recursive: true });
-        await writeFile(
-          join(soaDir, "active-session.json"),
-          `${JSON.stringify(
-            {
-              origin,
-              session_id: sessionId,
-              updated_at: opts.now.toISOString(),
-            },
-            null,
-            2,
-          )}\n`,
-          "utf8",
-        );
+        const canonicalRoot = await canonicalRepoRoot(repoRoot);
+        if (await repoWantsSoaActiveSession(canonicalRoot)) {
+          const soaDir = join(canonicalRoot, ".soa");
+          await mkdir(soaDir, { recursive: true });
+          await writeFile(
+            join(soaDir, "active-session.json"),
+            `${JSON.stringify(
+              {
+                origin,
+                session_id: sessionId,
+                updated_at: opts.now.toISOString(),
+              },
+              null,
+              2,
+            )}\n`,
+            "utf8",
+          );
+        }
       }
     } catch {
       // Best-effort: failures should never crash the hook

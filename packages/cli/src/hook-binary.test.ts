@@ -2692,6 +2692,7 @@ describe("slice-directory writer (P12.02 red)", () => {
 
   it("writes active-session.json inside the detected repository root", async () => {
     const sessionId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    mkdirSync(join(home, ".son-of-anton"), { recursive: true });
     await runHook(
       {
         origin: "claude_code",
@@ -2723,6 +2724,7 @@ describe("slice-directory writer (P12.02 red)", () => {
       mkdirSync(join(mainRoot, ".git", "worktrees", "codogotchi_p13_04"), {
         recursive: true,
       });
+      mkdirSync(join(mainRoot, ".son-of-anton"), { recursive: true });
       mkdirSync(worktree, { recursive: true });
       writeFileSync(
         join(worktree, ".git"),
@@ -2766,6 +2768,7 @@ describe("slice-directory writer (P12.02 red)", () => {
     const repoRoot = mkdtempSync(join(tmpdir(), "codogotchi-nested-"));
     try {
       mkdirSync(join(repoRoot, ".git"), { recursive: true });
+      mkdirSync(join(repoRoot, ".son-of-anton"), { recursive: true });
       const nested = join(repoRoot, "apps", "menubar", "Sources");
       mkdirSync(nested, { recursive: true });
 
@@ -2796,6 +2799,7 @@ describe("slice-directory writer (P12.02 red)", () => {
     // file lands directly under the detected repo root.
     const nonGitRoot = mkdtempSync(join(tmpdir(), "codogotchi-nogit-"));
     try {
+      mkdirSync(join(nonGitRoot, ".son-of-anton"), { recursive: true });
       await runHook(
         {
           origin: "claude_code",
@@ -2859,6 +2863,7 @@ describe("slice-directory writer (P12.02 red)", () => {
   it("preserves a prior valid active-session.json when a later event has an unroutable session id", async () => {
     const nonGitRoot = mkdtempSync(join(tmpdir(), "codogotchi-preserve-"));
     try {
+      mkdirSync(join(nonGitRoot, ".son-of-anton"), { recursive: true });
       await runHook(
         {
           origin: "claude_code",
@@ -2887,6 +2892,113 @@ describe("slice-directory writer (P12.02 red)", () => {
       expect(content.session_id).toBe("dddddddd-eeee-4fff-8000-111111111111");
     } finally {
       rmSync(nonGitRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("does not write active-session.json when the repo has no .son-of-anton install", async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), "codogotchi-no-soa-install-"));
+    try {
+      mkdirSync(join(repoRoot, ".git"), { recursive: true });
+      await runHook(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Edit",
+          session_id: "11111111-2222-4333-8444-555555555555",
+          cwd: repoRoot,
+        },
+        { home, now: FIXED_NOW },
+      );
+
+      const activeSessionPath = join(repoRoot, ".soa", "active-session.json");
+      expect(existsSync(activeSessionPath)).toBe(false);
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("does not write active-session.json when orchestrator.config.json sets codogotchi.enabled to false", async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), "codogotchi-disabled-"));
+    try {
+      mkdirSync(join(repoRoot, ".git"), { recursive: true });
+      mkdirSync(join(repoRoot, ".son-of-anton"), { recursive: true });
+      writeFileSync(
+        join(repoRoot, "orchestrator.config.json"),
+        JSON.stringify({ codogotchi: { enabled: false } }),
+        "utf8",
+      );
+
+      await runHook(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Edit",
+          session_id: "22222222-3333-4444-8555-666666666666",
+          cwd: repoRoot,
+        },
+        { home, now: FIXED_NOW },
+      );
+
+      const activeSessionPath = join(repoRoot, ".soa", "active-session.json");
+      expect(existsSync(activeSessionPath)).toBe(false);
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("writes active-session.json when .son-of-anton is installed but orchestrator.config.json is missing", async () => {
+    // Fails open, mirroring SoA's own config default (`enabled !== false`) —
+    // a repo mid-install (subtree added, config not yet written) should not
+    // silently lose the pointer file.
+    const repoRoot = mkdtempSync(join(tmpdir(), "codogotchi-no-config-"));
+    try {
+      mkdirSync(join(repoRoot, ".git"), { recursive: true });
+      mkdirSync(join(repoRoot, ".son-of-anton"), { recursive: true });
+
+      await runHook(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Edit",
+          session_id: "33333333-4444-4555-8666-777777777777",
+          cwd: repoRoot,
+        },
+        { home, now: FIXED_NOW },
+      );
+
+      const activeSessionPath = join(repoRoot, ".soa", "active-session.json");
+      expect(existsSync(activeSessionPath)).toBe(true);
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("writes active-session.json when orchestrator.config.json is malformed JSON", async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), "codogotchi-bad-config-"));
+    try {
+      mkdirSync(join(repoRoot, ".git"), { recursive: true });
+      mkdirSync(join(repoRoot, ".son-of-anton"), { recursive: true });
+      writeFileSync(
+        join(repoRoot, "orchestrator.config.json"),
+        "{ not valid json",
+        "utf8",
+      );
+
+      await runHook(
+        {
+          origin: "claude_code",
+          kind: "tool_use",
+          name: "Edit",
+          session_id: "44444444-5555-4666-8777-888888888888",
+          cwd: repoRoot,
+        },
+        { home, now: FIXED_NOW },
+      );
+
+      const activeSessionPath = join(repoRoot, ".soa", "active-session.json");
+      expect(existsSync(activeSessionPath)).toBe(true);
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true });
     }
   });
 });
