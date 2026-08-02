@@ -443,13 +443,18 @@ final class FloatingInteractionTests: XCTestCase {
 		])
 	}
 
-	func testBuilderActiveSessionWithoutLabelOffersSyncAndPruneWithoutRename() {
-		// The capability boundary intentionally treats session identity and a
-		// display label independently. Production currently supplies both, but
-		// future callers must not accidentally infer Rename from session identity.
+	func testBuilderActiveSessionWithoutLabelOffersRenameSyncAndPrune() {
+		// A live session whose upstream platform never auto-titled the thread
+		// (SessionTitleResolver returned nil) has hasActiveSession: true but
+		// sessionLabel: nil — Rename must still be offered here, since it is
+		// the only affordance that can give the session a label at all. Sync
+		// Label re-resolves the same empty upstream and Prune is unrelated to
+		// acquiring a label, so Rename cannot be gated behind sessionLabel
+		// alone.
 		let items = FloatingPetPromptBuilder.items(
 			capabilities: ownPromptCapabilities(hasActiveSession: true), handlers: noopPromptHandlers())
 		XCTAssertEqual(items.map(\.title), [
+			FloatingPetHidePrompt.renameTitle,
 			FloatingPetHidePrompt.syncLabelTitle,
 			FloatingPetHidePrompt.pruneTitle,
 			FloatingPetHidePrompt.minimalistModeTitle,

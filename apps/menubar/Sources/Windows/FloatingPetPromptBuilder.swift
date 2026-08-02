@@ -9,9 +9,11 @@ struct FloatingPetPromptCapabilities {
 	/// R1.2 — pet/badge is not idle.
 	var offersForceIdle: Bool
 	/// R1.3 gate — the window's current session-label badge text, or `nil`
-	/// when no label is shown at all. Rename… is offered whenever non-nil,
-	/// independent of `hasActiveSession` (a plain-origin/combined window can
-	/// carry a label without being session-keyed).
+	/// when no label is shown at all. Rename… is offered whenever non-nil, OR
+	/// whenever `hasActiveSession` — a live session whose upstream platform
+	/// never auto-titled the thread (`SessionTitleResolver` returned `nil`)
+	/// still needs a way to acquire a label, and Rename is the only affordance
+	/// that can supply one from scratch.
 	var sessionLabel: String?
 	/// R1.4/R1.5 gate — the window currently resolves to a real backing
 	/// session, including folded plain-origin and Combined windows; offers
@@ -56,7 +58,7 @@ enum FloatingPetPromptBuilder {
 			items.append(
 				FloatingPetPromptItem(title: FloatingPetHidePrompt.forceIdleTitle, onActivate: handlers.forceIdle))
 		}
-		if capabilities.sessionLabel != nil {
+		if capabilities.sessionLabel != nil || capabilities.hasActiveSession {
 			items.append(
 				FloatingPetPromptItem(title: FloatingPetHidePrompt.renameTitle, onActivate: handlers.rename))
 		}
