@@ -77,6 +77,7 @@ enum PoolApply {
 		controller.applyAttention(payload: window.attention, sourceEvent: window.attentionSourceEvent)
 		controller.applyGateBadge(content: window.gateBadge)
 		controller.applyPlatform(origin: window.platformChip)
+		controller.applyPlatformChipAnimationEnabled(window.platformChipAnimationEnabled)
 		controller.applyRPGState(
 			halfHearts: window.rpgSnapshot.halfHearts,
 			levelFraction: window.rpgSnapshot.levelFraction,

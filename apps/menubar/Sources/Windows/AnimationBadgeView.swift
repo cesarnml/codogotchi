@@ -140,7 +140,8 @@ final class AnimationBadgeView: NSView {
 		platform: PlatformAttribution?,
 		inFlight: Bool,
 		promptTimer: PromptTimerPresentation? = nil,
-		metrics: GateBadgeLayout.Metrics
+		metrics: GateBadgeLayout.Metrics,
+		platformChipAnimationEnabled: Bool = false
 	) {
 		self.metrics = metrics
 		currentPromptTimer = promptTimer
@@ -148,7 +149,12 @@ final class AnimationBadgeView: NSView {
 		identityStack.spacing = max(6, metrics.interBadgeSpacing)
 		pillView.configure(text: text, inFlight: inFlight, metrics: metrics)
 		if let platform {
-			chipView.configure(platform: platform, metrics: metrics)
+			chipView.configure(
+				platform: platform,
+				metrics: metrics,
+				inFlight: inFlight,
+				animationEnabled: platformChipAnimationEnabled
+			)
 			if chipView.superview == nil {
 				stackView.insertArrangedSubview(chipView, at: 0)
 			}

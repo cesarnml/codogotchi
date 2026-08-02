@@ -45,6 +45,10 @@ struct DesiredWindow: Equatable {
 	/// Platform origin to badge the window's platform chip with, or `nil` to
 	/// leave it unset this tick.
 	var platformChip: String?
+	/// Whether the platform chip may animate its logo while this window's pet is
+	/// mid-turn. Mirrors `customization.platformChipAnimationEnabled`; the chip
+	/// still only animates when the pet is actually in flight.
+	var platformChipAnimationEnabled: Bool = false
 	var rpgSnapshot: RpgSnapshot = .safeDefault
 	var hudEnabled: Bool = false
 	var conflictBubble: ConflictBubblePayload?

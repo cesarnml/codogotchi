@@ -70,6 +70,7 @@
 		492E8762693554F3FC19185E /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B29FA358FF8C6C74B85325 /* SettingsWindowController.swift */; };
 		49E066F94C0FCF3B831813CB /* SettingsControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6F5C69EBB5D3D17F5D1483 /* SettingsControllerTests.swift */; };
 		4A3234699DF122BEAAAC8DE6 /* PoolDiff.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9ED9A9F1E43BD0B859A5CC9 /* PoolDiff.swift */; };
+		4DF34DC0E6BC4F0CEB17FC4A /* PlatformChipAnimation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDECB67BB2B9688C3C625E80 /* PlatformChipAnimation.swift */; };
 		4E396E0BDA1970BE10A6445E /* PetConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC52A5E5FCFD36451530C9CE /* PetConfig.swift */; };
 		4EF5166A016D9F70390B8829 /* GeneralTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A2902FB13A70CEF8221A21A /* GeneralTabViewModelTests.swift */; };
 		50F12FB03948E281C4BDFFE1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0D359A7765F7ACDDA24C16CB /* Assets.xcassets */; };
@@ -149,6 +150,7 @@
 		AD267BA7C6B0CD027737CB3A /* GateBadgePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1203CF2C4FF29C31534A7CF /* GateBadgePanel.swift */; };
 		AD5F5C16457B81AD6A57D7C0 /* FloatingPetPromptBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1994D680FD87AC69EEAA2D4B /* FloatingPetPromptBuilderTests.swift */; };
 		ADF691D854E688C06E562FC9 /* SessionNumberAllocatorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A93F4C1345C915EADBB6C51 /* SessionNumberAllocatorState.swift */; };
+		B0458382ADFC0255C7380A00 /* PlatformChipAnimationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EECEA4B23DCDDDD7A35D093F /* PlatformChipAnimationTests.swift */; };
 		B06C74474A2E6AC6365223CA /* TabStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE2082F8FBBB4E484C347FC /* TabStripView.swift */; };
 		B20913FC5559EE95F7E4E2BA /* PetImportHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE055AED09D46CA00315589 /* PetImportHelperTests.swift */; };
 		B2E987D4266CDD1A1AC3AF04 /* CustomizationJsonReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EED7E5C1185B639D5786A2E2 /* CustomizationJsonReaderTests.swift */; };
@@ -452,6 +454,8 @@
 		EBEEA897349417D8DCF805AF /* PetAssetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetAssetResolver.swift; sourceTree = "<group>"; };
 		EC52A5E5FCFD36451530C9CE /* PetConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfig.swift; sourceTree = "<group>"; };
 		EDD860AC2D8EE1000D8AE230 /* GateJsonReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateJsonReader.swift; sourceTree = "<group>"; };
+		EDECB67BB2B9688C3C625E80 /* PlatformChipAnimation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformChipAnimation.swift; sourceTree = "<group>"; };
+		EECEA4B23DCDDDD7A35D093F /* PlatformChipAnimationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformChipAnimationTests.swift; sourceTree = "<group>"; };
 		EED7E5C1185B639D5786A2E2 /* CustomizationJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationJsonReaderTests.swift; sourceTree = "<group>"; };
 		F0EC260ED23DDA79BF1888FA /* AboutViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModel.swift; sourceTree = "<group>"; };
 		F15A1B6845D95861A8465263 /* PlatformChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformChipView.swift; sourceTree = "<group>"; };
@@ -562,6 +566,7 @@
 				777877051ED12A63B5FD6ACB /* PetTabLayoutTests.swift */,
 				E0A9EA8AA7530DED8536C384 /* PetTabViewModelTests.swift */,
 				15EB23CFF7BEBC442A06A8B1 /* PlatformAttributionTests.swift */,
+				EECEA4B23DCDDDD7A35D093F /* PlatformChipAnimationTests.swift */,
 				E59DAA859102A02B706B2A0B /* PoolApplyTests.swift */,
 				2A954A6F01589CB42DBFE416 /* PromptTimerProtocolSurfaceTests.swift */,
 				6660BA8D585465422C1ABA1A /* PromptTimerTests.swift */,
@@ -679,6 +684,7 @@
 				247385038BC1936C3D496AFC /* MinimalistPanelSizePill.swift */,
 				5CC1D46465036A1A9F88E9C3 /* OnboardingController.swift */,
 				CB4F6F5EFBD5019B61748BA5 /* OnboardingWindowController.swift */,
+				EDECB67BB2B9688C3C625E80 /* PlatformChipAnimation.swift */,
 				F15A1B6845D95861A8465263 /* PlatformChipView.swift */,
 				815A1F6AB8504430784C0CB7 /* PlatformSessionBadge.swift */,
 				E0D4D0F64AA1A5C04FED5213 /* PromptTimer.swift */,
@@ -1024,6 +1030,7 @@
 				1BA27411D574E0234975CBC2 /* PetTabViewModel.swift in Sources */,
 				E9D555C5B2708821D5630992 /* PetThumbnail.swift in Sources */,
 				692DB55B96C40097202445F2 /* PlatformAttribution.swift in Sources */,
+				4DF34DC0E6BC4F0CEB17FC4A /* PlatformChipAnimation.swift in Sources */,
 				7E2C0BDEA3AFE0C443B55F2A /* PlatformChipView.swift in Sources */,
 				8F1F8583F4FEFC28BD92B6AC /* PlatformSessionBadge.swift in Sources */,
 				3C56000FC80F76768AF09E9D /* PoolApply.swift in Sources */,
@@ -1123,6 +1130,7 @@
 				708062CE5FDA296BC26AF17C /* PetTabLayoutTests.swift in Sources */,
 				7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */,
 				E93167AF2416BE06B2BAA308 /* PlatformAttributionTests.swift in Sources */,
+				B0458382ADFC0255C7380A00 /* PlatformChipAnimationTests.swift in Sources */,
 				2E288768AEBD65DBD33EFD80 /* PoolApplyTests.swift in Sources */,
 				FD665AC2568C40ADDD61281B /* PoolDerivePurityGateTests.swift in Sources */,
 				B7267432230F42A102E5F8F5 /* PoolDerivePushTests.swift in Sources */,

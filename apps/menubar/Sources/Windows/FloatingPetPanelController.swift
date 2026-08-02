@@ -53,6 +53,9 @@ final class FloatingPetPanelController: PanelActionHandling {
 	/// logo chip shown immediately left of the animation badge. `nil` when the
 	/// origin is absent or non-platform, in which case no chip is drawn.
 	private var currentPlatform: PlatformAttribution?
+	/// Mirrors `customization.platformChipAnimationEnabled`; forwarded to the
+	/// platform chip, which additionally gates on the pet actually being in flight.
+	private var platformChipAnimationEnabled = false
 	/// Latest `source_event` from `state.json`, mirrored so a double-click on
 	/// the platform chip can resolve the same Focus target the attention
 	/// bubble's Focus button does, even when no bubble is currently shown.
@@ -380,6 +383,15 @@ final class FloatingPetPanelController: PanelActionHandling {
 		repositionAndShowAnimationBadge()
 	}
 
+	func applyPlatformChipAnimationEnabled(_ enabled: Bool) {
+		guard enabled != platformChipAnimationEnabled else { return }
+		platformChipAnimationEnabled = enabled
+		// Turning the toggle off mid-turn has to reach a chip that is already
+		// animating, so push a refresh rather than waiting for the next content
+		// change to happen to re-render the badge.
+		repositionAndShowAnimationBadge()
+	}
+
 	func applySessionNumber(_ number: Int?) {
 		guard currentSessionNumber != number else { return }
 		currentSessionNumber = number
@@ -677,7 +689,8 @@ final class FloatingPetPanelController: PanelActionHandling {
 			sessionTooltip: currentSessionTooltip,
 			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
-			visibleFrame: visibleFrameProvider()
+			visibleFrame: visibleFrameProvider(),
+			platformChipAnimationEnabled: platformChipAnimationEnabled
 		)
 	}
 
@@ -759,7 +772,8 @@ final class FloatingPetPanelController: PanelActionHandling {
 			sessionTooltip: currentSessionTooltip,
 			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
-			visibleFrame: visibleFrameProvider()
+			visibleFrame: visibleFrameProvider(),
+			platformChipAnimationEnabled: platformChipAnimationEnabled
 		)
 	}
 
@@ -829,7 +843,8 @@ final class FloatingPetPanelController: PanelActionHandling {
 			sessionTooltip: currentSessionTooltip,
 			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
-			visibleFrame: visibleFrameProvider()
+			visibleFrame: visibleFrameProvider(),
+			platformChipAnimationEnabled: platformChipAnimationEnabled
 		)
 		if attentionActive {
 			chromeCoordinator.liveRepositionAttentionBubble(

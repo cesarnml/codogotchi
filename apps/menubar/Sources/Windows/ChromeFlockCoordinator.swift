@@ -76,7 +76,8 @@ final class ChromeFlockCoordinator {
 		sessionTooltip: String? = nil,
 		modeIndicator: String? = nil,
 		relativeTo petFrame: CGRect,
-		visibleFrame: CGRect
+		visibleFrame: CGRect,
+		platformChipAnimationEnabled: Bool = false
 	) {
 		animationBadgePanel?.reposition(
 			label: label,
@@ -88,7 +89,8 @@ final class ChromeFlockCoordinator {
 			sessionTooltip: sessionTooltip,
 			modeIndicator: modeIndicator,
 			relativeTo: petFrame,
-			visibleFrame: visibleFrame
+			visibleFrame: visibleFrame,
+			platformChipAnimationEnabled: platformChipAnimationEnabled
 		)
 	}
 
@@ -113,7 +115,8 @@ final class ChromeFlockCoordinator {
 		sessionTooltip: String? = nil,
 		modeIndicator: String? = nil,
 		relativeTo petFrame: CGRect,
-		visibleFrame: CGRect
+		visibleFrame: CGRect,
+		platformChipAnimationEnabled: Bool = false
 	) -> AnimationBadgePanel {
 		let badge = animationBadgePanelInstance()
 		badge.reposition(
@@ -126,7 +129,8 @@ final class ChromeFlockCoordinator {
 			sessionTooltip: sessionTooltip,
 			modeIndicator: modeIndicator,
 			relativeTo: petFrame,
-			visibleFrame: visibleFrame
+			visibleFrame: visibleFrame,
+			platformChipAnimationEnabled: platformChipAnimationEnabled
 		)
 		// Reordering the window on every tick fought AppKit's tooltip
 		// hover-delay timer, so only reorder when the panel isn't already

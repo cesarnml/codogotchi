@@ -466,6 +466,8 @@ enum PoolDerive {
 				}
 			}
 
+			window.platformChipAnimationEnabled = customization.platformChipAnimationEnabled
+
 			window.petId = input.assignments.resolve(origin: key == .combined ? "combined" : key.origin)
 			window.rpgSnapshot = snapshot.rpgSnapshot
 			window.sessionNumber = memory.sessionNumbers[key]

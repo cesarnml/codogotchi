@@ -23,6 +23,9 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
 	func applyPlatform(origin: String?)
+	/// Opt-in for the platform chip's in-flight logo animation. The chip still
+	/// only animates while the pet is actually mid-turn.
+	func applyPlatformChipAnimationEnabled(_ enabled: Bool)
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?)
 	/// Assigned session number for this window (nil for a plain-origin or
 	/// "combined" window — session numbering only applies to session-keyed
@@ -95,6 +98,7 @@ protocol PanelManaging: AnyObject {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
 	func applyPlatform(origin: String?)
+	func applyPlatformChipAnimationEnabled(_ enabled: Bool)
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool)
 	func setRPGHUDEnabled(_ enabled: Bool)
 	func setHUDDemoActive(_ active: Bool)
@@ -151,6 +155,7 @@ extension PanelManaging {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 	func applyGateBadge(content: GateBadgeContent?) {}
 	func applyPlatform(origin: String?) {}
+	func applyPlatformChipAnimationEnabled(_ enabled: Bool) {}
 	func applySessionNumber(_ number: Int?) {}
 	func applyHasActiveSession(_ hasActiveSession: Bool) {}
 	func applySessionLabel(_ label: String?) {}
@@ -296,6 +301,10 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 
 	func applyPlatform(origin: String?) {
 		panel.applyPlatform(origin: origin)
+	}
+
+	func applyPlatformChipAnimationEnabled(_ enabled: Bool) {
+		panel.applyPlatformChipAnimationEnabled(enabled)
 	}
 
 	func applySessionNumber(_ number: Int?) {
@@ -509,6 +518,10 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 	func applyPlatform(origin: String?) {
 		lastAppliedOrigin = origin ?? self.origin.origin
 		panel.applyPlatform(origin: lastAppliedOrigin)
+	}
+
+	func applyPlatformChipAnimationEnabled(_ enabled: Bool) {
+		panel.applyPlatformChipAnimationEnabled(enabled)
 	}
 
 	func applySessionNumber(_ number: Int?) {

@@ -101,7 +101,8 @@ final class MinimalistBadgeView: NSView {
 	func configureBadge(
 		platform: PlatformAttribution?,
 		activity: ActivityState,
-		metrics: GateBadgeLayout.Metrics
+		metrics: GateBadgeLayout.Metrics,
+		platformChipAnimationEnabled: Bool = false
 	) {
 		currentActivity = activity
 		currentMetrics = metrics
@@ -110,7 +111,8 @@ final class MinimalistBadgeView: NSView {
 			platform: platform,
 			inFlight: activity.isInFlight,
 			promptTimer: promptTimerPresentationOverride ?? promptTimerStatus?.presentation(),
-			metrics: metrics
+			metrics: metrics,
+			platformChipAnimationEnabled: platformChipAnimationEnabled
 		)
 		sessionBadge.configure(
 			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,

@@ -10,6 +10,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     var appliedStates: [(ActivityState, VisualMode)] = []
     var replacePetsCallCount = 0
     var appliedPlatforms: [String?] = []
+    var platformChipAnimationEnabled = false
     var appliedAttention: [(AttentionPayload?, SourceEvent?)] = []
     var appliedRPGStates: [(Int, Double, Int, Int, Bool)] = []
     var appliedGateBadges: [GateBadgeContent?] = []
@@ -39,6 +40,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
     }
     func applyGateBadge(content: GateBadgeContent?) { appliedGateBadges.append(content) }
     func applyPlatform(origin: String?) { appliedPlatforms.append(origin) }
+    func applyPlatformChipAnimationEnabled(_ enabled: Bool) { platformChipAnimationEnabled = enabled }
     func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) { replacePetsCallCount += 1 }
     func applySessionNumber(_ number: Int?) { appliedSessionNumbers.append(number) }
 	func applyHasActiveSession(_ hasActiveSession: Bool) { appliedHasActiveSessions.append(hasActiveSession) }
@@ -53,6 +55,7 @@ private final class StubWindowController: FloatingPetWindowControlling {
 private final class StubMinimalistPanel: PanelManaging {
     var visible = false
     var platformOrigin: String?
+    var platformChipAnimationEnabled = false
     var activityLabel = ""
 	var attentionSummary = ""
 	var promptSummary = ""
@@ -67,6 +70,7 @@ private final class StubMinimalistPanel: PanelManaging {
 	func show(frame: CGRect) { visible = true }
 	func hide() { visible = false }
 	func applyPlatform(origin: String?) { platformOrigin = origin }
+	func applyPlatformChipAnimationEnabled(_ enabled: Bool) { platformChipAnimationEnabled = enabled }
     func applyActivity(_ state: ActivityState) { activityLabel = state.displayLabel }
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {
 		attentionSummary = payload?.summary ?? ""

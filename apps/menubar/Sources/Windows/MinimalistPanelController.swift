@@ -39,6 +39,7 @@ final class MinimalistPanelController: PanelActionHandling {
 	private let chromeCoordinator: ChromeFlockCoordinator
 
 	private var currentPlatformOrigin: String?
+	private var platformChipAnimationEnabled = false
 	private var currentActivity: ActivityState = .idle
 	private var currentAttention: AttentionPayload?
 	private var currentSourceEvent: SourceEvent?
@@ -246,6 +247,12 @@ final class MinimalistPanelController: PanelActionHandling {
 		applyBubble()
 	}
 
+	func applyPlatformChipAnimationEnabled(_ enabled: Bool) {
+		guard enabled != platformChipAnimationEnabled else { return }
+		platformChipAnimationEnabled = enabled
+		applyBadge()
+	}
+
 	func applyActivity(_ state: ActivityState) {
 		currentActivity = state
 		applyBadge()
@@ -363,7 +370,8 @@ final class MinimalistPanelController: PanelActionHandling {
 		badgeView.configureBadge(
 			platform: PlatformAttribution(origin: currentPlatformOrigin),
 			activity: currentActivity,
-			metrics: currentBadgeMetrics
+			metrics: currentBadgeMetrics,
+			platformChipAnimationEnabled: platformChipAnimationEnabled
 		)
 		let origin = anchorOrigin ?? panel.frame.origin
 		let badgeW = max(Layout.minBadgeWidth, badgeView.badgePreferredWidth)
