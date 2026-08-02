@@ -3,6 +3,14 @@
     <channel>
         <title>Codogotchi</title>
         <item>
+            <title>3.0.3</title>
+            <pubDate>Sun, 02 Aug 2026 13:23:24 +0700</pubDate>
+            <sparkle:version>16</sparkle:version>
+            <sparkle:shortVersionString>3.0.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/cesarnml/codogotchi/releases/download/v3.0.3/Codogotchi.dmg" length="64986204" type="application/octet-stream" sparkle:edSignature="npf6wmb+q58+blAxzWkpce+haXyXvB1Xk+Nd9vdlGw1geclQV/Cgig79WMVHVd3s5H+ghDSsDTctJuV+kvo8DA=="/>        </item>
+        <item>
             <title>3.0.2</title>
             <pubDate>Sat, 18 Jul 2026 18:46:38 +0700</pubDate>
             <sparkle:version>15</sparkle:version>
@@ -18,14 +26,5 @@
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <enclosure url="https://github.com/cesarnml/codogotchi/releases/download/v3.0.1/Codogotchi.dmg" length="64986111" type="application/octet-stream" sparkle:edSignature="24vVVjtsRFUeM8oRtR55DSbrfpX5BvgkzMgw5nmfiWZA4mmQXCkLxO9lqHNlK36t0fajnLPerMZVN+6ujp0GCg=="/>        </item>
-        <item>
-            <title>3.0.0</title>
-            <pubDate>Fri, 17 Jul 2026 13:10:06 +0700</pubDate>
-            <sparkle:version>13</sparkle:version>
-            <sparkle:shortVersionString>3.0.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/cesarnml/codogotchi/releases/download/v3.0.0/Codogotchi.dmg" length="64987179" type="application/octet-stream" sparkle:edSignature="IcGWEQS9xP4/oEH9EqFMxi80gKqZxJasWrqgMU6uy4qLPZpDjtfX83WvBSqwWBRBXAKBh5owofQ5W34OAzIuDA=="/>
-        </item>
     </channel>
 </rss>
