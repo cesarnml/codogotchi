@@ -22,6 +22,41 @@ final class CustomizationJsonReaderTests: XCTestCase {
 		XCTAssertEqual(
 			snapshot.evictSessionPetsEnabled, true,
 			"Evict Session Pets defaults enabled — a kill-switch on existing behavior, not an opt-in")
+		XCTAssertEqual(
+			snapshot.platformChipAnimationEnabled, false,
+			"Chip animation is strictly opt-in — an absent file must leave chips static")
+	}
+
+	// MARK: - Platform-chip animation flag
+
+	func testPlatformChipAnimationDecodesOptIn() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-chip-anim-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "platform_chip_animation_enabled": true
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		XCTAssertEqual(CustomizationJsonReader.read(at: tmp.path).platformChipAnimationEnabled, true)
+	}
+
+	func testPlatformChipAnimationAbsentKeyDefaultsOff() throws {
+		// A file written before this field existed must not silently switch the
+		// animation on for an existing install.
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("customization-chip-anim-absent-\(UUID().uuidString).json")
+		let json = """
+			{
+			  "menubar_icon_monochrome": true
+			}
+			"""
+		try json.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		XCTAssertEqual(CustomizationJsonReader.read(at: tmp.path).platformChipAnimationEnabled, false)
 	}
 
 	// MARK: - Idle escalation timing + evict-session-pets: round-trip and defaults

@@ -19,12 +19,14 @@ final class GeneralTabView: NSView {
 	private let hookTableContainer = NSView()
 	private let monochromeSwitch = NSSwitch()
 	private let requirePruneConfirmationSwitch = NSSwitch()
+	private let platformChipAnimationSwitch = NSSwitch()
 
 	private let onInstallHooks: () -> Void
 	private let onUpdateHooks: () -> Void
 	private let onUninstallHooks: () -> Void
 	var onMonochromeToggled: ((Bool) -> Void)?
 	var onRequirePruneConfirmationToggled: ((Bool) -> Void)?
+	var onPlatformChipAnimationToggled: ((Bool) -> Void)?
 	private var viewModel: GeneralTabViewModel
 
 	init(
@@ -53,6 +55,7 @@ final class GeneralTabView: NSView {
 			: .upToDate
 		monochromeSwitch.state = vm.menubarIconMonochrome ? .on : .off
 		requirePruneConfirmationSwitch.state = vm.requirePruneConfirmation ? .on : .off
+		platformChipAnimationSwitch.state = vm.platformChipAnimationEnabled ? .on : .off
 	}
 
 	func setHooksWorking(message: String) {
@@ -189,136 +192,37 @@ final class GeneralTabView: NSView {
 
 		monochromeSwitch.target = self
 		monochromeSwitch.action = #selector(monochromeToggleChanged)
-		monochromeSwitch.translatesAutoresizingMaskIntoConstraints = false
-
-		// Monochrome row per the mockup: icon badge + title/subtitle on the left,
-		// a switch on the right, in its own shaded strip at the card's bottom.
-		let monoRow = NSView()
-		monoRow.translatesAutoresizingMaskIntoConstraints = false
-		monoRow.wantsLayer = true
-		monoRow.layer?.cornerRadius = 8
-		monoRow.layer?.backgroundColor = SettingsTheme.tableBackground.cgColor
-		card.addSubview(monoRow)
-
-		let monoBadge = NSView()
-		monoBadge.translatesAutoresizingMaskIntoConstraints = false
-		monoBadge.wantsLayer = true
-		monoBadge.layer?.cornerRadius = 6
-		monoBadge.layer?.backgroundColor = SettingsTheme.buttonBackground.cgColor
-		monoRow.addSubview(monoBadge)
-
-		let monoGlyph = NSImageView()
-		monoGlyph.translatesAutoresizingMaskIntoConstraints = false
-		monoGlyph.image = NSImage(systemSymbolName: "list.bullet", accessibilityDescription: nil)
-		monoGlyph.contentTintColor = .secondaryLabelColor
-		monoGlyph.imageScaling = .scaleProportionallyUpOrDown
-		monoBadge.addSubview(monoGlyph)
-
-		let monoTitle = NSTextField(labelWithString: "Monochrome menu bar icon")
-		monoTitle.font = .systemFont(ofSize: 13, weight: .medium)
-		monoTitle.translatesAutoresizingMaskIntoConstraints = false
-		monoRow.addSubview(monoTitle)
-
-		let monoSubtitle = NSTextField(
-			labelWithString: "Use a monochrome icon in the macOS menu bar.")
-		monoSubtitle.font = .systemFont(ofSize: 11)
-		monoSubtitle.textColor = .secondaryLabelColor
-		monoSubtitle.translatesAutoresizingMaskIntoConstraints = false
-		monoRow.addSubview(monoSubtitle)
-
-		monoRow.addSubview(monochromeSwitch)
-
-		NSLayoutConstraint.activate([
-			monoBadge.leadingAnchor.constraint(equalTo: monoRow.leadingAnchor, constant: 14),
-			monoBadge.centerYAnchor.constraint(equalTo: monoRow.centerYAnchor),
-			monoBadge.widthAnchor.constraint(equalToConstant: 28),
-			monoBadge.heightAnchor.constraint(equalToConstant: 28),
-
-			monoGlyph.centerXAnchor.constraint(equalTo: monoBadge.centerXAnchor),
-			monoGlyph.centerYAnchor.constraint(equalTo: monoBadge.centerYAnchor),
-			monoGlyph.widthAnchor.constraint(equalToConstant: 14),
-			monoGlyph.heightAnchor.constraint(equalToConstant: 14),
-
-			monoTitle.leadingAnchor.constraint(equalTo: monoBadge.trailingAnchor, constant: 12),
-			monoTitle.topAnchor.constraint(equalTo: monoRow.topAnchor, constant: 10),
-
-			monoSubtitle.leadingAnchor.constraint(equalTo: monoTitle.leadingAnchor),
-			monoSubtitle.topAnchor.constraint(equalTo: monoTitle.bottomAnchor, constant: 2),
-
-			monochromeSwitch.trailingAnchor.constraint(
-				equalTo: monoRow.trailingAnchor, constant: -14),
-			monochromeSwitch.centerYAnchor.constraint(equalTo: monoRow.centerYAnchor),
-		])
 
 		requirePruneConfirmationSwitch.target = self
 		requirePruneConfirmationSwitch.action = #selector(requirePruneConfirmationToggleChanged)
-		requirePruneConfirmationSwitch.translatesAutoresizingMaskIntoConstraints = false
 
-		// "Require Prune Session confirmation" row: same treatment as the
-		// monochrome row, stacked directly beneath it.
-		let pruneRow = NSView()
-		pruneRow.translatesAutoresizingMaskIntoConstraints = false
-		pruneRow.wantsLayer = true
-		pruneRow.layer?.cornerRadius = 8
-		pruneRow.layer?.backgroundColor = SettingsTheme.tableBackground.cgColor
-		card.addSubview(pruneRow)
+		platformChipAnimationSwitch.target = self
+		platformChipAnimationSwitch.action = #selector(platformChipAnimationToggleChanged)
 
-		let pruneBadge = NSView()
-		pruneBadge.translatesAutoresizingMaskIntoConstraints = false
-		pruneBadge.wantsLayer = true
-		pruneBadge.layer?.cornerRadius = 6
-		pruneBadge.layer?.backgroundColor = SettingsTheme.buttonBackground.cgColor
-		pruneRow.addSubview(pruneBadge)
-
-		let pruneGlyph = NSImageView()
-		pruneGlyph.translatesAutoresizingMaskIntoConstraints = false
-		pruneGlyph.image = NSImage(systemSymbolName: "shield", accessibilityDescription: nil)
-		pruneGlyph.contentTintColor = .secondaryLabelColor
-		pruneGlyph.imageScaling = .scaleProportionallyUpOrDown
-		pruneBadge.addSubview(pruneGlyph)
-
-		let pruneTitle = NSTextField(labelWithString: "Require Prune Session confirmation")
-		pruneTitle.font = .systemFont(ofSize: 13, weight: .medium)
-		pruneTitle.translatesAutoresizingMaskIntoConstraints = false
-		pruneRow.addSubview(pruneTitle)
-
-		let pruneSubtitle = NSTextField(
-			wrappingLabelWithString:
-				"Show a confirmation dialog before pruning session data. When off, pruning will happen immediately."
+		// Toggle strips per the mockup: icon badge + title/subtitle on the left, a
+		// switch on the right, each in its own shaded strip stacked at the card's
+		// bottom.
+		let monoRow = makeToggleRow(
+			symbolName: "list.bullet",
+			title: "Monochrome menu bar icon",
+			subtitle: "Use a monochrome icon in the macOS menu bar.",
+			toggle: monochromeSwitch
 		)
-		pruneSubtitle.font = .systemFont(ofSize: 11)
-		pruneSubtitle.textColor = .secondaryLabelColor
-		pruneSubtitle.translatesAutoresizingMaskIntoConstraints = false
-		pruneRow.addSubview(pruneSubtitle)
-
-		pruneRow.addSubview(requirePruneConfirmationSwitch)
-
-		NSLayoutConstraint.activate([
-			pruneBadge.leadingAnchor.constraint(equalTo: pruneRow.leadingAnchor, constant: 14),
-			pruneBadge.centerYAnchor.constraint(equalTo: pruneRow.centerYAnchor),
-			pruneBadge.widthAnchor.constraint(equalToConstant: 28),
-			pruneBadge.heightAnchor.constraint(equalToConstant: 28),
-
-			pruneGlyph.centerXAnchor.constraint(equalTo: pruneBadge.centerXAnchor),
-			pruneGlyph.centerYAnchor.constraint(equalTo: pruneBadge.centerYAnchor),
-			pruneGlyph.widthAnchor.constraint(equalToConstant: 14),
-			pruneGlyph.heightAnchor.constraint(equalToConstant: 14),
-
-			pruneTitle.leadingAnchor.constraint(equalTo: pruneBadge.trailingAnchor, constant: 12),
-			pruneTitle.topAnchor.constraint(equalTo: pruneRow.topAnchor, constant: 10),
-
-			pruneSubtitle.leadingAnchor.constraint(equalTo: pruneTitle.leadingAnchor),
-			pruneSubtitle.topAnchor.constraint(equalTo: pruneTitle.bottomAnchor, constant: 2),
-			pruneSubtitle.trailingAnchor.constraint(
-				lessThanOrEqualTo: requirePruneConfirmationSwitch.leadingAnchor, constant: -12),
-			pruneSubtitle.bottomAnchor.constraint(
-				lessThanOrEqualTo: pruneRow.bottomAnchor, constant: -10),
-
-			requirePruneConfirmationSwitch.trailingAnchor.constraint(
-				equalTo: pruneRow.trailingAnchor, constant: -14),
-			requirePruneConfirmationSwitch.centerYAnchor.constraint(
-				equalTo: pruneRow.centerYAnchor),
-		])
+		let pruneRow = makeToggleRow(
+			symbolName: "shield",
+			title: "Require Prune Session confirmation",
+			subtitle:
+				"Show a confirmation dialog before pruning session data. When off, pruning will happen immediately.",
+			toggle: requirePruneConfirmationSwitch
+		)
+		let chipAnimationRow = makeToggleRow(
+			symbolName: "sparkles",
+			title: "Animate platform logo while working",
+			subtitle:
+				"Spin the coding tool's logo on the pet's badge while that tool is mid-turn.",
+			toggle: platformChipAnimationSwitch
+		)
+		[monoRow, pruneRow, chipAnimationRow].forEach(card.addSubview)
 
 		NSLayoutConstraint.activate([
 			card.topAnchor.constraint(equalTo: topAnchor, constant: 20),
@@ -368,14 +272,89 @@ final class GeneralTabView: NSView {
 			monoRow.topAnchor.constraint(equalTo: statusPanel.bottomAnchor, constant: 14),
 			monoRow.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
 			monoRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
-			monoRow.heightAnchor.constraint(equalToConstant: 56),
+			monoRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
 
 			pruneRow.topAnchor.constraint(equalTo: monoRow.bottomAnchor, constant: 10),
 			pruneRow.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
 			pruneRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 			pruneRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
-			pruneRow.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
+
+			chipAnimationRow.topAnchor.constraint(equalTo: pruneRow.bottomAnchor, constant: 10),
+			chipAnimationRow.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			chipAnimationRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+			chipAnimationRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
+			chipAnimationRow.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
 		])
+	}
+
+	/// Builds one shaded toggle strip — badge glyph, title, wrapping subtitle, and
+	/// a trailing switch. The three General-tab toggles share this shape; the
+	/// caller owns the switch (target/action and state) and the row's placement
+	/// within the card.
+	private func makeToggleRow(
+		symbolName: String,
+		title: String,
+		subtitle: String,
+		toggle: NSSwitch
+	) -> NSView {
+		let row = NSView()
+		row.translatesAutoresizingMaskIntoConstraints = false
+		row.wantsLayer = true
+		row.layer?.cornerRadius = 8
+		row.layer?.backgroundColor = SettingsTheme.tableBackground.cgColor
+
+		let badge = NSView()
+		badge.translatesAutoresizingMaskIntoConstraints = false
+		badge.wantsLayer = true
+		badge.layer?.cornerRadius = 6
+		badge.layer?.backgroundColor = SettingsTheme.buttonBackground.cgColor
+		row.addSubview(badge)
+
+		let glyph = NSImageView()
+		glyph.translatesAutoresizingMaskIntoConstraints = false
+		glyph.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+		glyph.contentTintColor = .secondaryLabelColor
+		glyph.imageScaling = .scaleProportionallyUpOrDown
+		badge.addSubview(glyph)
+
+		let titleLabel = NSTextField(labelWithString: title)
+		titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
+		titleLabel.translatesAutoresizingMaskIntoConstraints = false
+		row.addSubview(titleLabel)
+
+		let subtitleLabel = NSTextField(wrappingLabelWithString: subtitle)
+		subtitleLabel.font = .systemFont(ofSize: 11)
+		subtitleLabel.textColor = .secondaryLabelColor
+		subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+		row.addSubview(subtitleLabel)
+
+		toggle.translatesAutoresizingMaskIntoConstraints = false
+		row.addSubview(toggle)
+
+		NSLayoutConstraint.activate([
+			badge.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 14),
+			badge.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+			badge.widthAnchor.constraint(equalToConstant: 28),
+			badge.heightAnchor.constraint(equalToConstant: 28),
+
+			glyph.centerXAnchor.constraint(equalTo: badge.centerXAnchor),
+			glyph.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
+			glyph.widthAnchor.constraint(equalToConstant: 14),
+			glyph.heightAnchor.constraint(equalToConstant: 14),
+
+			titleLabel.leadingAnchor.constraint(equalTo: badge.trailingAnchor, constant: 12),
+			titleLabel.topAnchor.constraint(equalTo: row.topAnchor, constant: 10),
+
+			subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+			subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+			subtitleLabel.trailingAnchor.constraint(
+				lessThanOrEqualTo: toggle.leadingAnchor, constant: -12),
+			subtitleLabel.bottomAnchor.constraint(lessThanOrEqualTo: row.bottomAnchor, constant: -10),
+
+			toggle.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -14),
+			toggle.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+		])
+		return row
 	}
 
 	private func rebuildHookRows(_ rows: [GeneralTabViewModel.PlatformRow]) {
@@ -397,6 +376,9 @@ final class GeneralTabView: NSView {
 	}
 	@objc private func requirePruneConfirmationToggleChanged() {
 		onRequirePruneConfirmationToggled?(requirePruneConfirmationSwitch.state == .on)
+	}
+	@objc private func platformChipAnimationToggleChanged() {
+		onPlatformChipAnimationToggled?(platformChipAnimationSwitch.state == .on)
 	}
 
 	@objc private func copyDiagnosticsTapped() {

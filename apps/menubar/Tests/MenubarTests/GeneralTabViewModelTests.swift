@@ -236,6 +236,42 @@ final class GeneralTabViewModelTests: XCTestCase {
 		XCTAssertTrue(vm.shouldShowUpdateBanner)
 	}
 
+	// MARK: - Platform-chip animation toggle
+
+	func testPlatformChipAnimationDefaultsOffAndPersistsThroughStore() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("general-chip-anim-\(UUID().uuidString).json")
+		defer { try? FileManager.default.removeItem(at: tmp) }
+		let store = CustomizationStore(filePath: tmp.path)
+		let vm = GeneralTabViewModel(store: store)
+
+		XCTAssertFalse(vm.platformChipAnimationEnabled, "toggle must start off on a fresh install")
+
+		XCTAssertTrue(vm.setPlatformChipAnimationEnabled(true))
+		XCTAssertTrue(vm.platformChipAnimationEnabled)
+		XCTAssertTrue(
+			CustomizationJsonReader.read(at: tmp.path).platformChipAnimationEnabled,
+			"the on state must survive a relaunch, not just live in memory")
+
+		XCTAssertTrue(vm.setPlatformChipAnimationEnabled(false))
+		XCTAssertFalse(vm.platformChipAnimationEnabled)
+		XCTAssertFalse(CustomizationJsonReader.read(at: tmp.path).platformChipAnimationEnabled)
+	}
+
+	func testPlatformChipAnimationWritePreservesSiblingKeys() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("general-chip-anim-siblings-\(UUID().uuidString).json")
+		try #"{"menubar_icon_monochrome": true}"#.write(to: tmp, atomically: true, encoding: .utf8)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+
+		let vm = GeneralTabViewModel(store: CustomizationStore(filePath: tmp.path))
+		XCTAssertTrue(vm.setPlatformChipAnimationEnabled(true))
+
+		let reread = CustomizationJsonReader.read(at: tmp.path)
+		XCTAssertTrue(reread.platformChipAnimationEnabled)
+		XCTAssertTrue(reread.menubarIconMonochrome, "the animation write must not clobber sibling keys")
+	}
+
 	func testDiagnosticsJSONIsValidJSON() {
 		let vm = GeneralTabViewModel(appVersion: "1.0.0", hookVersion: "0.1.0")
 		vm.applySnapshot(makeSnapshot())

@@ -151,6 +151,11 @@ final class GeneralTabViewModel {
 	/// gets set from the alert's own "Do not show this warning again." checkbox.
 	private(set) var requirePruneConfirmation: Bool
 
+	/// Current value of the "Animate platform logo while working" toggle.
+	/// Loaded from `customization.json` on init; updated via
+	/// `setPlatformChipAnimationEnabled`. Off by default.
+	private(set) var platformChipAnimationEnabled: Bool
+
 	private let statusClient: HookStatusClient
 	private let appVersion: String
 	private let hookVersion: String
@@ -172,6 +177,7 @@ final class GeneralTabViewModel {
 		self.configFileURL = configFileURL
 		self.menubarIconMonochrome = self.store.snapshot.menubarIconMonochrome
 		self.requirePruneConfirmation = !PetConfig.resolvedSkipPruneConfirmation(from: configFileURL)
+		self.platformChipAnimationEnabled = self.store.snapshot.platformChipAnimationEnabled
 	}
 
 	/// Persists `menubar_icon_monochrome` through the shared `CustomizationStore`
@@ -182,6 +188,17 @@ final class GeneralTabViewModel {
 	func setMonochromeMenubarIcon(_ value: Bool) -> Bool {
 		guard let snapshot = store.merge(["menubar_icon_monochrome": value]) else { return false }
 		menubarIconMonochrome = snapshot.menubarIconMonochrome
+		return true
+	}
+
+	/// Persists `platform_chip_animation_enabled` through the shared
+	/// `CustomizationStore`, mirroring `setMonochromeMenubarIcon`. Returns `true`
+	/// when the write succeeded; in-memory state is only updated on success so it
+	/// stays in sync with what survives a relaunch.
+	@discardableResult
+	func setPlatformChipAnimationEnabled(_ value: Bool) -> Bool {
+		guard let snapshot = store.merge(["platform_chip_animation_enabled": value]) else { return false }
+		platformChipAnimationEnabled = snapshot.platformChipAnimationEnabled
 		return true
 	}
 

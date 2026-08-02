@@ -242,6 +242,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		general.onRequirePruneConfirmationToggled = { [weak self] requireConfirmation in
 			self?.generalViewModel.setRequirePruneConfirmation(requireConfirmation)
 		}
+		// No live-push callback: the pool re-reads `customization.json` every tick,
+		// so persisting is enough for running chips to pick the change up. Contrast
+		// `onMonochromeToggled`, whose status-item icon sits outside the poll loop.
+		general.onPlatformChipAnimationToggled = { [weak self] isEnabled in
+			self?.generalViewModel.setPlatformChipAnimationEnabled(isEnabled)
+		}
 		let pet = PetTabView(
 			viewModel: petTabViewModel,
 			onImportPet: { [weak self] petId in self?.handleImportPet(id: petId) }
