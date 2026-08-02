@@ -77,6 +77,7 @@ final class LivePollingTests: XCTestCase {
 		transitionLog: TransitionLog? = nil,
 		reader: LivePollingDriver.Reader? = nil,
 		customization: CustomizationSnapshot = .safeDefault,
+		healthLogic: PetConfig.HealthLogicSettings = .defaults,
 		now: @escaping () -> Date = { Date() }
 	) -> LivePollingDriver {
 		let driver = LivePollingDriver(
@@ -93,7 +94,13 @@ final class LivePollingTests: XCTestCase {
 			// machine's real ~/.codogotchi/customization.json.
 			customizationReader: { customization },
 			transitionLog: transitionLog,
-			now: now
+			now: now,
+			// Likewise hermetic. `LivePollingDriver`'s default reader resolves
+			// `~/.codogotchi/config.json`, so without this the decay assertions
+			// below silently run against whatever Health Logic the dev machine has
+			// configured in Settings > RPG — the arithmetic in their comments
+			// assumes the shipped defaults.
+			healthLogicReader: { healthLogic }
 		)
 		driver.applyGateBadge = { recorder.gateBadges.append($0) }
 		driver.applyPlatform = { recorder.platforms.append($0) }
@@ -579,6 +586,22 @@ final class LivePollingTests: XCTestCase {
 
 	// MARK: - Half-heart decay on the poll loop (P10.07)
 
+	/// Health Logic pinned to the 8h/1-half-heart period the decay assertions
+	/// below do their arithmetic against, so they test the *wiring* (decay is
+	/// recomputed every tick against the injected clock) rather than whatever the
+	/// shipped default happens to be. Weekend skipping is off for the same reason
+	/// — `HalfHeartDecayTests` covers that math directly, with its own calendar.
+	private static let decayTestHealthLogic = PetConfig.HealthLogicSettings(
+		inactivityDecayHours: 8,
+		inactivityDecayHalfHearts: 1,
+		activityRegenMinutes: 60,
+		activityRegenHalfHearts: 1,
+		diseaseAnimationsEnabled: true,
+		skipWeekends: false,
+		mildSicknessHalfHearts: 2,
+		severeSicknessHalfHearts: 1
+	)
+
 	func testDecaysDisplayedHalfHeartsBelowWrittenValueWhileIdle() throws {
 		let recorder = Recorder()
 		let target = makeSandboxPath()
@@ -592,7 +615,7 @@ final class LivePollingTests: XCTestCase {
 		let sixteenHoursLater = ISO8601DateFormatter().date(from: "2026-06-04T16:00:00Z")!
 		let driver = makeDriver(
 			target: target, recorder: recorder, rpgStatePath: rpgTarget,
-			now: { sixteenHoursLater })
+			healthLogic: Self.decayTestHealthLogic, now: { sixteenHoursLater })
 
 		driver.tickForTesting()
 
@@ -609,7 +632,7 @@ final class LivePollingTests: XCTestCase {
 		// because the slice's null last_activity_at is read (v8 ignores slice RPG fields).
 		try writeV5StateJson(target, halfHearts: 6, lastActivityAt: nil)
 		let driver = makeDriver(
-			target: target, recorder: recorder,
+			target: target, recorder: recorder, healthLogic: Self.decayTestHealthLogic,
 			now: { ISO8601DateFormatter().date(from: "2030-01-01T00:00:00Z")! })
 
 		driver.tickForTesting()
@@ -632,7 +655,8 @@ final class LivePollingTests: XCTestCase {
 		// the displayed value is recomputed against `now` every tick).
 		var current = ISO8601DateFormatter().date(from: "2026-06-04T07:59:00Z")!
 		let driver = makeDriver(
-			target: target, recorder: recorder, rpgStatePath: rpgTarget, now: { current })
+			target: target, recorder: recorder, rpgStatePath: rpgTarget,
+			healthLogic: Self.decayTestHealthLogic, now: { current })
 
 		driver.tickForTesting()
 		XCTAssertEqual(recorder.rpgStates.last?.halfHearts, 6, "before 8h: full")
