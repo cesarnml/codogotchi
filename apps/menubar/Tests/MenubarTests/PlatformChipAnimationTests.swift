@@ -26,85 +26,68 @@ final class PlatformChipAnimationTests: XCTestCase {
 
 	// MARK: - Descriptor table
 
-	func testRockAxisFollowsEachMarksLineOfSymmetry() {
-		// A tilt is only legible on a mark that mirrors about the rotation axis.
-		XCTAssertEqual(
-			PlatformChipAnimation.forPlatform(.vscode),
-			.rock(axis: .horizontal, period: 3.6, maxAngleDegrees: PlatformChipAnimation.rockMaxAngleDegrees),
-			"the VS Code ribbon mirrors about the horizontal")
-		XCTAssertEqual(
-			PlatformChipAnimation.forPlatform(.antigravity),
-			.rock(axis: .vertical, period: 3.6, maxAngleDegrees: PlatformChipAnimation.rockMaxAngleDegrees),
-			"the Antigravity arch mirrors about the vertical")
-	}
-
-	func testRockNeverReachesEdgeOn() {
-		// Rotating a flat mark by theta about an in-plane axis scales its apparent
-		// width by |cos theta|, so 90 degrees is zero width and no logo at all.
-		// Every rocking platform must stay clear of that with real margin —
-		// this is the whole reason the tilt is capped instead of revolving.
-		for platform in [PlatformAttribution.vscode, .antigravity] {
-			guard case let .rock(_, _, maxAngleDegrees) = PlatformChipAnimation.forPlatform(platform) else {
-				XCTFail("\(platform.displayName) should rock")
-				continue
-			}
-			XCTAssertLessThan(maxAngleDegrees, 90, "reaching 90 degrees collapses the mark to a sliver")
-			let narrowestWidth = abs(cos(maxAngleDegrees * Double.pi / 180))
-			XCTAssertGreaterThan(
-				narrowestWidth, 0.5,
-				"\(platform.displayName) must keep over half its width to stay identifiable")
-		}
-	}
-
-	func testEverySpinningMarkSharesTheSameBreathe() {
-		// Claude, Codex and Cursor are one family — same shrink depth, only the
-		// period differs — so the three read as variations rather than three
+	func testEveryDrivingPlatformSharesTheSameBreathe() {
+		// All five are one family — same shrink depth, only the period and whether a
+		// rotation rides on top differ — so they read as variations rather than five
 		// unrelated animations.
-		for platform in [PlatformAttribution.claudeCode, .codex, .cursor] {
-			guard case let .spin(_, scalePulse) = PlatformChipAnimation.forPlatform(platform) else {
-				XCTFail("\(platform.displayName) should spin")
-				continue
+		for platform in [PlatformAttribution.claudeCode, .codex, .cursor, .vscode, .antigravity] {
+			let pulse: CGFloat?
+			switch PlatformChipAnimation.forPlatform(platform) {
+			case let .spin(_, scalePulse): pulse = scalePulse
+			case let .breathe(_, scalePulse): pulse = scalePulse
+			case .none: pulse = nil
 			}
 			XCTAssertEqual(
-				scalePulse, PlatformChipAnimation.spinScalePulse,
+				pulse, PlatformChipAnimation.scalePulse,
 				"\(platform.displayName) must shrink and regrow like the others")
 		}
 	}
 
-	func testRadiallySymmetricMarksSpinInPlane() {
-		XCTAssertEqual(
-			PlatformChipAnimation.forPlatform(.cursor),
-			.spin(period: 2.8, scalePulse: PlatformChipAnimation.spinScalePulse))
-		XCTAssertEqual(
-			PlatformChipAnimation.forPlatform(.claudeCode),
-			.spin(period: 3.2, scalePulse: PlatformChipAnimation.spinScalePulse))
-		XCTAssertEqual(
-			PlatformChipAnimation.forPlatform(.codex),
-			.spin(period: 2.4, scalePulse: PlatformChipAnimation.spinScalePulse))
+	func testOnlyMarksWithRotationalSymmetrySpin() {
+		// A mark that maps onto itself every 120 degrees or less reads as spinning in
+		// place. A mark with rotational symmetry order 1 has no such rotation, so
+		// spinning it tumbles the logo — upside down for half of every cycle, which
+		// looks broken rather than busy. Those breathe only.
+		for platform in [PlatformAttribution.claudeCode, .codex, .cursor] {
+			guard case .spin = PlatformChipAnimation.forPlatform(platform) else {
+				XCTFail("\(platform.displayName) is rotationally symmetric and should spin")
+				continue
+			}
+		}
+		for platform in [PlatformAttribution.vscode, .antigravity] {
+			guard case .breathe = PlatformChipAnimation.forPlatform(platform) else {
+				XCTFail("\(platform.displayName) has symmetry order 1 — spinning it would tumble it")
+				continue
+			}
+		}
+	}
+
+	func testBreatheNeverRotates() throws {
+		// The whole point of the breathe-only treatment: orientation is preserved
+		// exactly, so an asymmetric mark is never shown upside down.
+		let animation = PlatformChipAnimation.breathe(period: 2, scalePulse: 0.5).makeAnimation()
+		let keyframe = try XCTUnwrap(animation as? CAKeyframeAnimation)
+		XCTAssertEqual(keyframe.keyPath, "transform.scale")
+		XCTAssertEqual(keyframe.repeatCount, .infinity)
+	}
+
+	func testPeriodsAreDistinctSoConcurrentPetsDoNotLockIntoUnison() {
+		let periods = [PlatformAttribution.claudeCode, .codex, .cursor, .vscode, .antigravity]
+			.compactMap { platform -> CFTimeInterval? in
+				switch PlatformChipAnimation.forPlatform(platform) {
+				case let .spin(period, _): period
+				case let .breathe(period, _): period
+				case .none: nil
+				}
+			}
+		XCTAssertEqual(periods.count, 5)
+		XCTAssertEqual(Set(periods).count, 5, "two pets working at once should not visibly tick together")
 	}
 
 	func testDefaultStarHasNoAnimation() {
 		// The star shows while nothing is driving the pet, so it has no in-flight
 		// state of its own to signal.
 		XCTAssertNil(PlatformChipAnimation.forPlatform(.default))
-	}
-
-	func testAxisKeyPathsRotateAboutInPlaneAxes() {
-		XCTAssertEqual(PlatformChipAnimation.Axis.horizontal.keyPath, "transform.rotation.x")
-		XCTAssertEqual(PlatformChipAnimation.Axis.vertical.keyPath, "transform.rotation.y")
-	}
-
-	func testRockReturnsToZeroSoTheRepeatIsSeamless() throws {
-		let animation = PlatformChipAnimation.rock(axis: .vertical, period: 4, maxAngleDegrees: 55)
-			.makeAnimation()
-		let keyframe = try XCTUnwrap(animation as? CAKeyframeAnimation)
-		let values = try XCTUnwrap(keyframe.values).map { ($0 as? NSNumber)?.doubleValue }
-		XCTAssertEqual(values.first, 0)
-		XCTAssertEqual(values.last, 0, "a rock must return to rest or the loop visibly jumps")
-		let expected = 55 * Double.pi / 180
-		XCTAssertEqual(try XCTUnwrap(values[1]), expected, accuracy: 0.0001, "swings one way...")
-		XCTAssertEqual(try XCTUnwrap(values[3]), -expected, accuracy: 0.0001, "...then the other")
-		XCTAssertEqual(keyframe.repeatCount, .infinity)
 	}
 
 	func testSpinWithPulseGroupsRotationAndScale() throws {
@@ -136,25 +119,6 @@ final class PlatformChipAnimationTests: XCTestCase {
 		XCTAssertEqual(
 			layer.frame, glyph.frame,
 			"the visible frame must be untouched — only the pivot moves, not the layout")
-	}
-
-	func testPerspectiveVanishingPointIsCentredOnTheChip() throws {
-		// `sublayerTransform` is applied about the chip's own (0, 0) anchor, so a
-		// bare perspective matrix puts the vanishing point at the chip's corner and
-		// skews each tilt off to one side. The centred sandwich shows up as
-		// z-dependent shear (m31/m32) with no static translation (m41/m42).
-		let (chip, window) = makeHostedChip()
-		chip.configure(platform: .vscode, metrics: metrics(), inFlight: true, animationEnabled: true)
-		window.contentView?.layoutSubtreeIfNeeded()
-
-		let sublayer = try XCTUnwrap(chip.layer).sublayerTransform
-		XCTAssertNotEqual(sublayer.m34, 0, "tilts need perspective or they read as a flat squash")
-		XCTAssertEqual(sublayer.m41, 0, accuracy: 0.0001, "a resting glyph must not be displaced")
-		XCTAssertEqual(sublayer.m42, 0, accuracy: 0.0001)
-		XCTAssertEqual(
-			sublayer.m31, sublayer.m34 * chip.bounds.midX, accuracy: 0.0001,
-			"vanishing point should sit on the chip's centre, not its corner")
-		XCTAssertEqual(sublayer.m32, sublayer.m34 * chip.bounds.midY, accuracy: 0.0001)
 	}
 
 	// MARK: - Chip lifecycle
@@ -243,11 +207,15 @@ final class PlatformChipAnimationTests: XCTestCase {
 		let spin = chip.subviews.compactMap { $0 as? NSImageView }.first?.layer?
 			.animation(forKey: "platformChipLogo")
 
+		XCTAssertTrue(spin is CAAnimationGroup, "Cursor spins, so rotation is grouped with the breathe")
+
 		chip.configure(platform: .vscode, metrics: metrics(), inFlight: true, animationEnabled: true)
-		let flip = chip.subviews.compactMap { $0 as? NSImageView }.first?.layer?
+		let breathe = chip.subviews.compactMap { $0 as? NSImageView }.first?.layer?
 			.animation(forKey: "platformChipLogo")
-		XCTAssertFalse(spin === flip, "a different platform must install its own animation")
-		XCTAssertTrue(flip is CAKeyframeAnimation, "VS Code rocks rather than spinning")
+		XCTAssertFalse(spin === breathe, "a different platform must install its own animation")
+		XCTAssertTrue(
+			breathe is CAKeyframeAnimation,
+			"VS Code breathes only — a bare scale keyframe, no rotation to tumble it")
 	}
 
 	func testLeavingTheWindowStopsTheAnimation() {

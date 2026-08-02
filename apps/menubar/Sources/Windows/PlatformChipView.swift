@@ -36,9 +36,6 @@ final class PlatformChipView: NSView {
 		imageView.contentTintColor = AnimationBadgeChrome.textColor
 		imageView.translatesAutoresizingMaskIntoConstraints = false
 		imageView.wantsLayer = true
-		// Both flip marks are mirror-symmetric about their rotation axis, so the
-		// back face can reuse the same art instead of needing a second asset.
-		imageView.layer?.isDoubleSided = true
 		addSubview(imageView)
 		centerGlyphAnchorPoint()
 
@@ -166,7 +163,6 @@ final class PlatformChipView: NSView {
 		}
 		AnimationBadgeChrome.apply(to: self, effect: effectView, tint: tintView, cornerRadius: metrics.cornerRadius)
 		centerGlyphAnchorPoint()
-		centerPerspective()
 	}
 
 	/// Pivot the glyph about its own center.
@@ -191,26 +187,5 @@ final class PlatformChipView: NSView {
 		}
 	}
 
-	/// Perspective for the axis flips, so a turn foreshortens like a solid card
-	/// instead of reading as a flat squash.
-	///
-	/// `sublayerTransform` is applied about the *chip's* anchor point, which is
-	/// `(0, 0)` for the same AppKit reason as above — leaving the vanishing point
-	/// at the chip's bottom-left corner and skewing the flip off to one side.
-	/// Sandwiching the perspective between translations moves the vanishing point
-	/// to the chip's center. Recomputed on layout since it depends on the size.
-	private func centerPerspective() {
-		guard let layer else { return }
-		var perspective = CATransform3DIdentity
-		perspective.m34 = -1 / 320
-		let offset = CGPoint(x: bounds.midX, y: bounds.midY)
-		layer.sublayerTransform = CATransform3DConcat(
-			CATransform3DConcat(
-				CATransform3DMakeTranslation(-offset.x, -offset.y, 0),
-				perspective
-			),
-			CATransform3DMakeTranslation(offset.x, offset.y, 0)
-		)
-	}
 }
 
