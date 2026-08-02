@@ -341,6 +341,103 @@ export async function canonicalRepoRoot(path: string): Promise<string> {
 }
 
 /**
+ * Walks up from `path` to the checkout that encloses it, WITHOUT resolving a
+ * linked worktree back to its main root — the returned directory is the one
+ * holding the `.git` entry, so a linked worktree resolves to itself.
+ *
+ * This is the checkout whose *configuration* governs a SoA run: SoA's
+ * `deliver.ts` passes `process.cwd()` straight through to
+ * `loadOrchestratorConfig(cwd)`, and delivery commands run inside the linked
+ * worktree (its `ensureLocalEnvFile` exists precisely to copy `.env` from the
+ * deliveryBaseBranch checkout *into* the worktree, which is only reachable
+ * when cwd is not that checkout). Contrast `canonicalRepoRoot`, which is
+ * where the rendezvous file itself must live.
+ *
+ * Degrades to the input path when no ancestor has a `.git`, matching
+ * `canonicalRepoRoot`'s fallback.
+ */
+async function enclosingCheckoutRoot(path: string): Promise<string> {
+  const original =
+    path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+  let dir = original;
+  for (;;) {
+    try {
+      await stat(`${dir}/.git`);
+      return dir;
+    } catch {
+      // No `.git` at this level — keep walking up.
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return original;
+    dir = parent;
+  }
+}
+
+/**
+ * True only when `root` looks like a real SoA (son-of-anton) consumer that
+ * wants codogotchi integration. `.soa/active-session.json` exists purely as a
+ * rendezvous file for SoA's delivery gate routing (see the comment at its
+ * write site below) — codogotchi never reads it back itself. Writing it into
+ * every repo a session touches, regardless of whether SoA is even installed
+ * there, plants tool state in unrelated projects.
+ *
+ * Two conditions, checked cheaply via the filesystem (no `git` subprocess, no
+ * network) on this hot per-event path:
+ * - `.son-of-anton/` is present — SoA's only install mechanism
+ *   (`git subtree add --prefix .son-of-anton ...`), so its presence is a
+ *   precise signal that this checkout actually consumes SoA.
+ * - `orchestrator.config.json`'s `codogotchi.enabled` is not explicitly
+ *   `false` — SoA's own `codogotchi-gate.ts` already honors this flag when
+ *   deciding whether to *emit* gate signals; this mirrors that same opt-out
+ *   on the write side. Missing or unparseable config fails open (`true`), the
+ *   same default SoA's own config loader uses (`obj['enabled'] !== false`),
+ *   so a parse hiccup never silently breaks an otherwise-working install.
+ */
+async function checkoutWantsSoaActiveSession(root: string): Promise<boolean> {
+  try {
+    await stat(join(root, ".son-of-anton"));
+  } catch {
+    return false;
+  }
+  try {
+    const raw = await readFile(join(root, "orchestrator.config.json"), "utf8");
+    const parsed = JSON.parse(raw) as { codogotchi?: { enabled?: unknown } };
+    return parsed.codogotchi?.enabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Whether the rendezvous file should be written for this event.
+ *
+ * Install state and `codogotchi.enabled` live in tracked files, so a linked
+ * worktree can legitimately disagree with the main checkout (a delivery branch
+ * that edits `orchestrator.config.json`, or one that adds `.son-of-anton/`
+ * before main has it). The two checkouts also play different roles: SoA reads
+ * its config from the worktree it runs in, but always canonicalizes to the
+ * main root to *read* this file. Consulting only one of them gets the other
+ * case wrong in opposite directions — main-only suppresses a pointer a
+ * worktree-run delivery is about to look for; worktree-only suppresses one a
+ * main-run delivery needs while an unrelated scratch worktree is active.
+ *
+ * So accept either. The pointer is only ever consumed when SoA actually emits
+ * a gate, which happens under whichever config governs that run; a pointer
+ * written for a run that never emits is inert. Repos with no SoA relationship
+ * at all — the case this gate exists for — still match neither and are
+ * skipped. In the common non-worktree case both roots are the same path and
+ * this collapses to a single check.
+ */
+async function repoWantsSoaActiveSession(
+  checkoutRoot: string,
+  canonicalRoot: string,
+): Promise<boolean> {
+  if (await checkoutWantsSoaActiveSession(checkoutRoot)) return true;
+  if (checkoutRoot === canonicalRoot) return false;
+  return checkoutWantsSoaActiveSession(canonicalRoot);
+}
+
+/**
  * Resolves the `.git` entry at exactly `dir`, if any. Returns the repo root
  * for that entry, or `undefined` if `dir` has no `.git` (caller should check
  * the parent directory next).
@@ -1684,21 +1781,29 @@ export async function runHook(
     // alone rather than clobbering it with an unroutable "default".
     try {
       if (isRoutableSessionId(sessionId)) {
-        const soaDir = join(await canonicalRepoRoot(repoRoot), ".soa");
-        await mkdir(soaDir, { recursive: true });
-        await writeFile(
-          join(soaDir, "active-session.json"),
-          `${JSON.stringify(
-            {
-              origin,
-              session_id: sessionId,
-              updated_at: opts.now.toISOString(),
-            },
-            null,
-            2,
-          )}\n`,
-          "utf8",
-        );
+        // Resolve the enclosing checkout first, then canonicalize from there.
+        // `canonicalRepoRoot` resolves on its first iteration once handed a
+        // directory that holds the `.git` entry, so this costs one extra stat
+        // rather than a second full walk up from the raw cwd.
+        const checkoutRoot = await enclosingCheckoutRoot(repoRoot);
+        const canonicalRoot = await canonicalRepoRoot(checkoutRoot);
+        if (await repoWantsSoaActiveSession(checkoutRoot, canonicalRoot)) {
+          const soaDir = join(canonicalRoot, ".soa");
+          await mkdir(soaDir, { recursive: true });
+          await writeFile(
+            join(soaDir, "active-session.json"),
+            `${JSON.stringify(
+              {
+                origin,
+                session_id: sessionId,
+                updated_at: opts.now.toISOString(),
+              },
+              null,
+              2,
+            )}\n`,
+            "utf8",
+          );
+        }
       }
     } catch {
       // Best-effort: failures should never crash the hook
