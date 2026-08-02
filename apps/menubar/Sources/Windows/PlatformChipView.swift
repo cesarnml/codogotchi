@@ -28,12 +28,6 @@ final class PlatformChipView: NSView {
 		super.init(frame: frameRect)
 		wantsLayer = true
 		layer?.masksToBounds = false
-		// Perspective for the in-plane-axis flips, applied to the glyph's parent
-		// so it survives animating the glyph layer's own rotation. Without it an
-		// axis flip reads as a flat horizontal/vertical squash.
-		var perspective = CATransform3DIdentity
-		perspective.m34 = -1 / 320
-		layer?.sublayerTransform = perspective
 
 		addSubview(effectView)
 		addSubview(tintView)
@@ -46,6 +40,7 @@ final class PlatformChipView: NSView {
 		// back face can reuse the same art instead of needing a second asset.
 		imageView.layer?.isDoubleSided = true
 		addSubview(imageView)
+		centerGlyphAnchorPoint()
 
 		// Reduce Motion is toggled in System Settings while the app is running, so
 		// react to it live rather than only sampling it at launch.
@@ -170,6 +165,52 @@ final class PlatformChipView: NSView {
 			constraint.constant = (constraint.constant < 0 ? -1 : 1) * metrics.verticalPadding
 		}
 		AnimationBadgeChrome.apply(to: self, effect: effectView, tint: tintView, cornerRadius: metrics.cornerRadius)
+		centerGlyphAnchorPoint()
+		centerPerspective()
+	}
+
+	/// Pivot the glyph about its own center.
+	///
+	/// AppKit hands a layer-backed `NSView` an `anchorPoint` of `(0, 0)` — the
+	/// bottom-left corner — not the `(0.5, 0.5)` a bare `CALayer` gets. Every
+	/// `transform.rotation.*` is applied about the anchor, so on the default
+	/// anchor a 13pt glyph orbits its own corner on a ~9pt radius instead of
+	/// spinning in place. Re-asserted from `applyMetrics` (i.e. every layout
+	/// pass) because AppKit rewrites layer geometry whenever it re-lays out the
+	/// view. Only the model `position` moves here; the animated `transform` is
+	/// never touched, so AppKit's own layout math is unaffected.
+	private func centerGlyphAnchorPoint() {
+		guard let glyphLayer = imageView.layer else { return }
+		let centered = CGPoint(x: 0.5, y: 0.5)
+		if glyphLayer.anchorPoint != centered {
+			glyphLayer.anchorPoint = centered
+		}
+		let center = CGPoint(x: imageView.frame.midX, y: imageView.frame.midY)
+		if glyphLayer.position != center {
+			glyphLayer.position = center
+		}
+	}
+
+	/// Perspective for the axis flips, so a turn foreshortens like a solid card
+	/// instead of reading as a flat squash.
+	///
+	/// `sublayerTransform` is applied about the *chip's* anchor point, which is
+	/// `(0, 0)` for the same AppKit reason as above — leaving the vanishing point
+	/// at the chip's bottom-left corner and skewing the flip off to one side.
+	/// Sandwiching the perspective between translations moves the vanishing point
+	/// to the chip's center. Recomputed on layout since it depends on the size.
+	private func centerPerspective() {
+		guard let layer else { return }
+		var perspective = CATransform3DIdentity
+		perspective.m34 = -1 / 320
+		let offset = CGPoint(x: bounds.midX, y: bounds.midY)
+		layer.sublayerTransform = CATransform3DConcat(
+			CATransform3DConcat(
+				CATransform3DMakeTranslation(-offset.x, -offset.y, 0),
+				perspective
+			),
+			CATransform3DMakeTranslation(offset.x, offset.y, 0)
+		)
 	}
 }
 

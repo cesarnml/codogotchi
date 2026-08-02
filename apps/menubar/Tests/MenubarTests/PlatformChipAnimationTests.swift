@@ -78,6 +78,48 @@ final class PlatformChipAnimationTests: XCTestCase {
 		XCTAssertEqual(group.repeatCount, .infinity)
 	}
 
+	// MARK: - Rotation pivot
+
+	func testGlyphPivotsAboutItsOwnCentreNotTheDefaultCornerAnchor() throws {
+		// AppKit hands a layer-backed NSView an anchorPoint of (0, 0). Left alone,
+		// every rotation is applied about the glyph's bottom-left corner, so the
+		// mark orbits its own corner instead of spinning in place — the shape looks
+		// right but the centre of mass swings on a circle roughly 0.7x the glyph's
+		// width. Symmetry-axis choice cannot compensate for this.
+		let (chip, window) = makeHostedChip()
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		window.contentView?.layoutSubtreeIfNeeded()
+
+		let glyph = try XCTUnwrap(chip.subviews.compactMap { $0 as? NSImageView }.first)
+		let layer = try XCTUnwrap(glyph.layer)
+		XCTAssertEqual(layer.anchorPoint, CGPoint(x: 0.5, y: 0.5), "rotation must pivot about the glyph centre")
+		XCTAssertEqual(
+			layer.position, CGPoint(x: glyph.frame.midX, y: glyph.frame.midY),
+			"re-anchoring must be compensated by position or the glyph jumps")
+		XCTAssertEqual(
+			layer.frame, glyph.frame,
+			"the visible frame must be untouched — only the pivot moves, not the layout")
+	}
+
+	func testPerspectiveVanishingPointIsCentredOnTheChip() throws {
+		// `sublayerTransform` is applied about the chip's own (0, 0) anchor, so a
+		// bare perspective matrix puts the vanishing point at the chip's corner and
+		// skews each flip off to one side. The centred sandwich shows up as
+		// z-dependent shear (m31/m32) with no static translation (m41/m42).
+		let (chip, window) = makeHostedChip()
+		chip.configure(platform: .vscode, metrics: metrics(), inFlight: true, animationEnabled: true)
+		window.contentView?.layoutSubtreeIfNeeded()
+
+		let sublayer = try XCTUnwrap(chip.layer).sublayerTransform
+		XCTAssertNotEqual(sublayer.m34, 0, "flips need perspective or they read as a flat squash")
+		XCTAssertEqual(sublayer.m41, 0, accuracy: 0.0001, "a resting glyph must not be displaced")
+		XCTAssertEqual(sublayer.m42, 0, accuracy: 0.0001)
+		XCTAssertEqual(
+			sublayer.m31, sublayer.m34 * chip.bounds.midX, accuracy: 0.0001,
+			"vanishing point should sit on the chip's centre, not its corner")
+		XCTAssertEqual(sublayer.m32, sublayer.m34 * chip.bounds.midY, accuracy: 0.0001)
+	}
+
 	// MARK: - Chip lifecycle
 
 	/// Hosts the chip in a real window — `PlatformChipView` refuses to animate
@@ -85,10 +127,15 @@ final class PlatformChipAnimationTests: XCTestCase {
 	/// vacuously pass.
 	private func makeHostedChip() -> (PlatformChipView, NSWindow) {
 		let window = NSWindow(
-			contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+			contentRect: NSRect(x: 0, y: 0, width: 200, height: 200),
 			styleMask: [.borderless], backing: .buffered, defer: false)
 		let chip = PlatformChipView(frame: .zero)
+		chip.translatesAutoresizingMaskIntoConstraints = false
 		window.contentView?.addSubview(chip)
+		NSLayoutConstraint.activate([
+			chip.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 20),
+			chip.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 20),
+		])
 		return (chip, window)
 	}
 
