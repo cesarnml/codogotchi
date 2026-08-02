@@ -323,6 +323,10 @@ final class GeneralTabView: NSView {
 		row.addSubview(titleLabel)
 
 		let subtitleLabel = NSTextField(wrappingLabelWithString: subtitle)
+		// `wrappingLabelWithString:` hands back a selectable label. These are
+		// static settings captions, so turn that off — otherwise the row shows an
+		// I-beam and the caption can be click-dragged into a selection.
+		subtitleLabel.isSelectable = false
 		subtitleLabel.font = .systemFont(ofSize: 11)
 		subtitleLabel.textColor = .secondaryLabelColor
 		subtitleLabel.translatesAutoresizingMaskIntoConstraints = false

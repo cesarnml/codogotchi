@@ -9,6 +9,21 @@ import XCTest
 /// always-running menubar app, not a wrong-looking badge.
 final class PlatformChipAnimationTests: XCTestCase {
 
+	/// Pin Reduce Motion off for the lifetime of each test. Without this every
+	/// animation case below would read the host's real accessibility setting and
+	/// fail on a machine that has Reduce Motion enabled.
+	override func setUp() {
+		super.setUp()
+		PlatformChipView.prefersReducedMotion = { false }
+	}
+
+	override func tearDown() {
+		PlatformChipView.prefersReducedMotion = {
+			NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+		}
+		super.tearDown()
+	}
+
 	// MARK: - Descriptor table
 
 	func testFlipAxisFollowsEachMarksLineOfSymmetry() {
@@ -170,6 +185,47 @@ final class PlatformChipAnimationTests: XCTestCase {
 
 		window.contentView?.addSubview(chip)
 		XCTAssertEqual(animationKeys(chip).count, 1, "re-parenting mid-flight must resume the animation")
+	}
+
+	func testAnimationIsReinstalledAfterCoreAnimationDropsIt() {
+		// Ordering the badge panel out (`hideAnimationBadge`) leaves the chip in
+		// its window but detaches the layer tree, so Core Animation drops the
+		// running animation without `viewDidMoveToWindow` ever firing. Re-showing
+		// mid-turn then re-configures with an unchanged descriptor, so the diff
+		// alone would decide there was nothing to do and the chip would stay
+		// static for the rest of the turn.
+		let (chip, _) = makeHostedChip()
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		XCTAssertEqual(animationKeys(chip).count, 1)
+
+		chip.subviews.compactMap { $0 as? NSImageView }.first?.layer?.removeAllAnimations()
+		XCTAssertTrue(animationKeys(chip).isEmpty, "precondition: the animation is gone")
+
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		XCTAssertEqual(
+			animationKeys(chip).count, 1,
+			"a re-configure must restore an animation the system dropped underneath us")
+	}
+
+	func testReduceMotionSuppressesTheAnimation() {
+		// System Settings > Accessibility > Display > Reduce Motion must win over
+		// the in-app toggle — the two live in different places, and someone who
+		// set the system one has no reason to expect a per-app switch also needs
+		// turning off.
+		PlatformChipView.prefersReducedMotion = { true }
+		let (chip, _) = makeHostedChip()
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		XCTAssertTrue(animationKeys(chip).isEmpty)
+	}
+
+	func testTurningOnReduceMotionMidFlightStopsARunningAnimation() {
+		let (chip, _) = makeHostedChip()
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		XCTAssertEqual(animationKeys(chip).count, 1)
+
+		PlatformChipView.prefersReducedMotion = { true }
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		XCTAssertTrue(animationKeys(chip).isEmpty, "enabling Reduce Motion must stop a running animation")
 	}
 
 	func testDefaultPlatformStaysStaticEvenWhenEnabledAndInFlight() {

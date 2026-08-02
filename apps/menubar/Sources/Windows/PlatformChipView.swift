@@ -47,6 +47,15 @@ final class PlatformChipView: NSView {
 		imageView.layer?.isDoubleSided = true
 		addSubview(imageView)
 
+		// Reduce Motion is toggled in System Settings while the app is running, so
+		// react to it live rather than only sampling it at launch.
+		NSWorkspace.shared.notificationCenter.addObserver(
+			self,
+			selector: #selector(accessibilityDisplayOptionsChanged),
+			name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+			object: nil
+		)
+
 		let side = widthAnchor.constraint(equalToConstant: metrics.badgeHeight)
 		let height = heightAnchor.constraint(equalTo: widthAnchor)
 		let inset = metrics.verticalPadding
@@ -74,6 +83,14 @@ final class PlatformChipView: NSView {
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
+
+	deinit {
+		NSWorkspace.shared.notificationCenter.removeObserver(self)
+	}
+
+	@objc private func accessibilityDisplayOptionsChanged() {
+		DispatchQueue.main.async { [weak self] in self?.refreshAnimation() }
+	}
 
 	func configure(
 		platform: PlatformAttribution,
@@ -110,14 +127,23 @@ final class PlatformChipView: NSView {
 
 	/// Single point of truth for whether the glyph is animating. The animation
 	/// runs only when it is enabled, the pet is mid-turn, the chip is actually in
-	/// a window, and the platform has an animation defined.
+	/// a window, the system is not asking for reduced motion, and the platform
+	/// has an animation defined.
 	private func refreshAnimation() {
 		let desired: PlatformChipAnimation? =
-			animationEnabled && isInFlight && window != nil
+			animationEnabled && isInFlight && window != nil && !Self.prefersReducedMotion()
 			? currentPlatform.flatMap(PlatformChipAnimation.forPlatform)
 			: nil
 
-		guard desired != installedAnimation else { return }
+		// The descriptor diff alone is not enough to decide there is nothing to
+		// do. Core Animation drops a layer's animations when its window is
+		// ordered out (`ChromeFlockCoordinator.hideAnimationBadge`), and that
+		// happens without `viewDidMoveToWindow` firing — the view is still in the
+		// window, the window is just off-screen. Re-showing mid-turn then arrives
+		// here with an unchanged descriptor and a layer that is no longer
+		// animating, so also re-add whenever the animation has gone missing.
+		let isAnimating = imageView.layer?.animation(forKey: Self.animationKey) != nil
+		guard desired != installedAnimation || (desired != nil && !isAnimating) else { return }
 		installedAnimation = desired
 
 		guard let desired else {
@@ -125,6 +151,17 @@ final class PlatformChipView: NSView {
 			return
 		}
 		imageView.layer?.add(desired.makeAnimation(), forKey: Self.animationKey)
+	}
+
+	/// Whether the system is asking apps to suppress non-essential motion. The
+	/// in-app toggle is not a substitute: someone who set Reduce Motion in System
+	/// Settings has no reason to expect a per-app switch also needs turning off.
+	///
+	/// Overridable so tests are deterministic — otherwise every animation test
+	/// here would read the host's real accessibility setting and fail outright on
+	/// a machine that has Reduce Motion enabled.
+	static var prefersReducedMotion: () -> Bool = {
+		NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 	}
 
 	private func applyMetrics() {
