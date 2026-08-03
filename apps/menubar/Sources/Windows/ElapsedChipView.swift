@@ -1,15 +1,20 @@
 import AppKit
 
-/// Single frosted pill housing the timer glyph and countdown text together,
+/// Single frosted pill housing the elapsed-clock glyph and its label together,
 /// on the same `AnimationBadgeChrome` background as `PlatformSessionBadge` —
-/// previously the glyph alone carried a background (`TimerIconChipView`'s own
-/// chrome) while the "1:00" label sat bare in the stack, so the time read as
-/// plain text over whatever the pet was floating above. The glyph no longer
+/// previously the glyph alone carried its own chrome while the "1:00" label sat
+/// bare in the stack, so the time read as plain text over whatever the pet was
+/// floating above. The glyph no longer
 /// draws its own chrome; this view now owns one background spanning both.
-final class PromptTimerChipView: NSView {
+///
+/// Renders whichever clock `ElapsedPresentation.kind` names — the prompt turn
+/// while the agent works, the idle duration while it is quiet. The two never
+/// contend for the slot: `PromptTimerTracker` clears itself on `idle`, which is
+/// the only state `IdleElapsed` produces a presentation for.
+final class ElapsedChipView: NSView {
 	private let effectView = AnimationBadgeChrome.makeEffectView()
 	private let tintView = AnimationBadgeChrome.makeTintView()
-	private let chipView = TimerIconChipView(frame: .zero)
+	private let chipView = ElapsedGlyphView(frame: .zero)
 	private let label = NSTextField(labelWithString: "")
 	private let stackView = NSStackView()
 	private var metrics = GateBadgeLayout.metrics(
@@ -55,11 +60,12 @@ final class PromptTimerChipView: NSView {
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
 
-	func configure(presentation: PromptTimerPresentation, metrics: GateBadgeLayout.Metrics) {
+	func configure(presentation: ElapsedPresentation, metrics: GateBadgeLayout.Metrics) {
 		self.metrics = metrics
 		label.stringValue = presentation.label
 		label.alphaValue = presentation.isRunning ? 1.0 : 0.72
-		chipView.configure(metrics: metrics, isRunning: presentation.isRunning)
+		chipView.configure(
+			metrics: metrics, isRunning: presentation.isRunning, kind: presentation.kind)
 		applyMetrics()
 		invalidateIntrinsicContentSize()
 	}

@@ -20,6 +20,7 @@
 		1275ABCEEE3AB44A8D12B764 /* CustomizationTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0CB6AFE5B881E7C678DD6A /* CustomizationTabView.swift */; };
 		132D20DBD0B1451B5E1A1A49 /* StateDirectoryListing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2398B9D19FC44EA56485D8F1 /* StateDirectoryListing.swift */; };
 		13AA198069CCB976C0119286 /* PetAssignPopoverController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E44BBB4220D0186ED68EA3B8 /* PetAssignPopoverController.swift */; };
+		145B6E15CE4BA9006FF784CB /* Elapsed.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD517BB438B20BD8BB1E719 /* Elapsed.swift */; };
 		146969BDD756A5353704E961 /* MenubarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E496AEDA38E70CA0C7D4E4F /* MenubarTests.swift */; };
 		19662AEDDA16E3E7BF99396C /* MotionSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 742F8637CA18793DE7D9343F /* MotionSettings.swift */; };
 		19AA3BDBDFB7696E7578AD0C /* RPGTabViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6C451C070FEE1714C7F7B0A /* RPGTabViewModel.swift */; };
@@ -83,7 +84,6 @@
 		549F3D3D2DECCA4B2ED9CA6A /* AnimationBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0C485F8FF34C6954F112BE /* AnimationBadgeView.swift */; };
 		5577A0DF7AE0BBE6A4899A27 /* CustomizationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45C88F11DB5C9FD32C9741F5 /* CustomizationStoreTests.swift */; };
 		560036137684236CE680D9F3 /* ReloadActivePetResponsivenessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D0B6066DEB36E24086A2094 /* ReloadActivePetResponsivenessTests.swift */; };
-		567FFA2D3A08D9FB1A48E0E1 /* TimerIconChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84C8024611891532F40772AC /* TimerIconChipView.swift */; };
 		588624B3B7B400E50C961066 /* HookRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F078A9D14984485EB28AC9 /* HookRowView.swift */; };
 		5887637BC646221531D0202F /* PoolDeriveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B308CD35F0C1360F241121D /* PoolDeriveTests.swift */; };
 		58A715CD06913CC033DA019A /* FloatingPetWindowPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5CF055F2A0C9DD84F4F026A /* FloatingPetWindowPool.swift */; };
@@ -106,12 +106,12 @@
 		68A45AC229C671EE01A9DEAC /* PerPlatformSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B41CAA48264D60619035FE /* PerPlatformSnapshot.swift */; };
 		692DB55B96C40097202445F2 /* PlatformAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44643FE5868DCD56DDF5F1E2 /* PlatformAttribution.swift */; };
 		69FAC7752922A70F4943791A /* FloatingPetPromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9C3594285193B88B858A1C8 /* FloatingPetPromptBuilder.swift */; };
-		6A6E965676C08DCF5EA44900 /* PromptTimerChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D8D2C351C51A43AE40A1A6 /* PromptTimerChipView.swift */; };
 		6A78A39CED185B02C213FE62 /* MenuItemsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06FB02C825E53E28CCC8205 /* MenuItemsTests.swift */; };
 		6B58522CFED9FDE9D156C4BF /* AttentionBubbleLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 773ED3F1BAFCB9F4F7CF721E /* AttentionBubbleLayoutTests.swift */; };
 		6BE7F6EA53A623C22C0B98E5 /* RPGHUDIconTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6858ADF75A07FF4C263F283 /* RPGHUDIconTileView.swift */; };
 		6DA9D60EB6FA048B64876A79 /* RPGHUDPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 349466D86E4C96C4D4A098BD /* RPGHUDPanel.swift */; };
 		708062CE5FDA296BC26AF17C /* PetTabLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 777877051ED12A63B5FD6ACB /* PetTabLayoutTests.swift */; };
+		73A9E5703AB2E70B89B8377D /* ElapsedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C64D339BBAE6C754ABB24977 /* ElapsedTests.swift */; };
 		74348CC405B92950FC9E967D /* ConfigFileWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F8A5A89CFE5F72C7CB6896 /* ConfigFileWriter.swift */; };
 		756CD4993E0950C3ACB78E88 /* WindowActionRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC69F56318CF5679B36BC371 /* WindowActionRouterTests.swift */; };
 		766A1353C309F8F7551B6A3C /* FloatingPetWindowPoolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A977437677E31BB6CF62E58C /* FloatingPetWindowPoolTests.swift */; };
@@ -119,6 +119,7 @@
 		774F5A301F72D6FC82A66844 /* CustomizationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1805A0BD2255F37C552E1A4 /* CustomizationStore.swift */; };
 		7843F584962C072B18F8B391 /* MinimalistBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 933225DDA49AB5637263654E /* MinimalistBadgeView.swift */; };
 		7893BF413AB78DCAEDB74D58 /* LivePollingDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BABED0FED8D4478E21F2531 /* LivePollingDriver.swift */; };
+		7A1757F1C67B7327F8946519 /* ElapsedChipViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB06E71E4B82A9D41FA79A6A /* ElapsedChipViewTests.swift */; };
 		7A7D6AF5F7CAC9C273EDC5FF /* SettingsWindowOpenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14570954EC4AB5F26AFE2173 /* SettingsWindowOpenTests.swift */; };
 		7ABD7E78D683BD1CB751F928 /* PetTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A9EA8AA7530DED8536C384 /* PetTabViewModelTests.swift */; };
 		7D24501811F59E54BD4E9F3D /* SessionTierSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84049FAC818E80AE127C5F23 /* SessionTierSectionView.swift */; };
@@ -128,6 +129,7 @@
 		7E2C0BDEA3AFE0C443B55F2A /* PlatformChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15A1B6845D95861A8465263 /* PlatformChipView.swift */; };
 		7F4F10C69F24643131BEF475 /* PoolTickInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0153CA2F32DC0733909BE8 /* PoolTickInput.swift */; };
 		7F5CE1C2A38EDF6923CF9D29 /* SessionLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC5C744A6A25DDB45C495A36 /* SessionLifecycle.swift */; };
+		8442837A0FAAC767A10757D3 /* ElapsedChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1373FD8588C6188ED0D8075 /* ElapsedChipView.swift */; };
 		856504A2B86473918E0A6E96 /* DeveloperTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8CC94677D76B8E6CD8CE6A /* DeveloperTabView.swift */; };
 		88AF785A8F00279AB57E164F /* PoolDerive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 819A2B3D937015B5265A289C /* PoolDerive.swift */; };
 		89111DC256531C6E539D3A1A /* RPGTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A3B04AF847963FAD0DB798 /* RPGTabView.swift */; };
@@ -226,6 +228,7 @@
 		F1DA9A5DDE53EE242990A3C5 /* SessionPruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03729513F99DF25322B23561 /* SessionPruner.swift */; };
 		F2EA43A5B75ECFE9E29AF732 /* SurfaceConvergenceInvariantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0EEF669E881C6590FC19FC /* SurfaceConvergenceInvariantTests.swift */; };
 		F3A4343C001908110A748CD7 /* AnimationLabelPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9E9356DD0466C7E29F5783 /* AnimationLabelPillView.swift */; };
+		F51892ED915A09F835EAAD22 /* ElapsedGlyphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA9154273DCF75152A37B97 /* ElapsedGlyphView.swift */; };
 		F82F0F3BD0350BC38F97CA27 /* StateJsonWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3954DCF1280C2621AB22EC87 /* StateJsonWriterTests.swift */; };
 		F834B238A8C60F6570A8907E /* SessionLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 471826711A4C1A9B3C87ECF6 /* SessionLifecycleTests.swift */; };
 		FB53C403B8D67A25A7489DB6 /* HookStatusClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A2770025BB0068A8C40E54 /* HookStatusClient.swift */; };
@@ -326,6 +329,7 @@
 		489C5364D39974B530891975 /* DemoModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeTests.swift; sourceTree = "<group>"; };
 		48F8A5A89CFE5F72C7CB6896 /* ConfigFileWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigFileWriter.swift; sourceTree = "<group>"; };
 		4B392769C3C680408B4BC067 /* SessionsTabViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsTabViewModel.swift; sourceTree = "<group>"; };
+		4DA9154273DCF75152A37B97 /* ElapsedGlyphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElapsedGlyphView.swift; sourceTree = "<group>"; };
 		4E9E9356DD0466C7E29F5783 /* AnimationLabelPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationLabelPillView.swift; sourceTree = "<group>"; };
 		4E9F61B191A95C53946A1DCF /* MotionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionPolicy.swift; sourceTree = "<group>"; };
 		52B98FC35F71CC460885451E /* DesiredWindows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesiredWindows.swift; sourceTree = "<group>"; };
@@ -371,7 +375,6 @@
 		819A2B3D937015B5265A289C /* PoolDerive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolDerive.swift; sourceTree = "<group>"; };
 		82CC030BC8806022DB8BBA8B /* LegacyStateFileCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyStateFileCleanup.swift; sourceTree = "<group>"; };
 		84049FAC818E80AE127C5F23 /* SessionTierSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTierSectionView.swift; sourceTree = "<group>"; };
-		84C8024611891532F40772AC /* TimerIconChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerIconChipView.swift; sourceTree = "<group>"; };
 		85617A3F9BAFE2927C403813 /* SlicePruner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlicePruner.swift; sourceTree = "<group>"; };
 		8780B208D0E108DA773D3287 /* FloatingPetPromptCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetPromptCoordinator.swift; sourceTree = "<group>"; };
 		8A2902FB13A70CEF8221A21A /* GeneralTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTabViewModelTests.swift; sourceTree = "<group>"; };
@@ -412,9 +415,11 @@
 		A9C3594285193B88B858A1C8 /* FloatingPetPromptBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetPromptBuilder.swift; sourceTree = "<group>"; };
 		AB2EB6CC13A81EBCFDAF037F /* DemoCycleDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoCycleDriver.swift; sourceTree = "<group>"; };
 		AC5C744A6A25DDB45C495A36 /* SessionLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLifecycle.swift; sourceTree = "<group>"; };
+		ACD517BB438B20BD8BB1E719 /* Elapsed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Elapsed.swift; sourceTree = "<group>"; };
 		AE6F4B753185486F7E7FCCC6 /* OnboardingControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingControllerTests.swift; sourceTree = "<group>"; };
 		AEE399EF550E69D66FBC271D /* FloatingPetInteractionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetInteractionView.swift; sourceTree = "<group>"; };
 		B088460D34832B339123365F /* AssignmentsJsonReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentsJsonReaderTests.swift; sourceTree = "<group>"; };
+		B1373FD8588C6188ED0D8075 /* ElapsedChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElapsedChipView.swift; sourceTree = "<group>"; };
 		B23E8D0BE2CAA5B9E3649410 /* SessionsTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsTabView.swift; sourceTree = "<group>"; };
 		B45875058BDB67738967BE7A /* RPGHUDViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDViewModel.swift; sourceTree = "<group>"; };
 		B5C34F80A449B6C9EAA2C37B /* DemoConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoConfig.swift; sourceTree = "<group>"; };
@@ -428,6 +433,7 @@
 		C30E64667A9FEA14148F78D2 /* SpeechBubbleLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechBubbleLayoutTests.swift; sourceTree = "<group>"; };
 		C367AE2D8D1BB37467677308 /* StateJsonWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateJsonWriter.swift; sourceTree = "<group>"; };
 		C4178FC9C08DC67BF3B23050 /* SpeechBubblePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechBubblePanel.swift; sourceTree = "<group>"; };
+		C64D339BBAE6C754ABB24977 /* ElapsedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElapsedTests.swift; sourceTree = "<group>"; };
 		C74564777AB5E8D0E7BB7DC1 /* FloatingPetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetController.swift; sourceTree = "<group>"; };
 		C94D224E9A29C67C87885DF2 /* SessionTitleResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTitleResolver.swift; sourceTree = "<group>"; };
 		C9ED9A9F1E43BD0B859A5CC9 /* PoolDiff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolDiff.swift; sourceTree = "<group>"; };
@@ -437,7 +443,6 @@
 		CEE7A49CDBE6CA5CFAD5238C /* SettingsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSupport.swift; sourceTree = "<group>"; };
 		D1203CF2C4FF29C31534A7CF /* GateBadgePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateBadgePanel.swift; sourceTree = "<group>"; };
 		D1679B814BC300DCA60C6A97 /* Codogotchi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Codogotchi.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		D1D8D2C351C51A43AE40A1A6 /* PromptTimerChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTimerChipView.swift; sourceTree = "<group>"; };
 		D21596D58AD546C677F9F838 /* MenubarRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarRenderer.swift; sourceTree = "<group>"; };
 		D574C8088D0CC53510729EAA /* FloatingPetOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetOverlayView.swift; sourceTree = "<group>"; };
 		D6858ADF75A07FF4C263F283 /* RPGHUDIconTileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDIconTileView.swift; sourceTree = "<group>"; };
@@ -460,6 +465,7 @@
 		E44BBB4220D0186ED68EA3B8 /* PetAssignPopoverController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetAssignPopoverController.swift; sourceTree = "<group>"; };
 		E577B42471B8285C4F5F4F27 /* SparkleUpdaterController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdaterController.swift; sourceTree = "<group>"; };
 		E59DAA859102A02B706B2A0B /* PoolApplyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolApplyTests.swift; sourceTree = "<group>"; };
+		EB06E71E4B82A9D41FA79A6A /* ElapsedChipViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElapsedChipViewTests.swift; sourceTree = "<group>"; };
 		EB8A1C529AE9116E412788CF /* ActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionButton.swift; sourceTree = "<group>"; };
 		EBEEA897349417D8DCF805AF /* PetAssetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetAssetResolver.swift; sourceTree = "<group>"; };
 		EC52A5E5FCFD36451530C9CE /* PetConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfig.swift; sourceTree = "<group>"; };
@@ -555,6 +561,8 @@
 				0B874012012EF33F829A2CD7 /* CustomizationTabViewModelTests.swift */,
 				489C5364D39974B530891975 /* DemoModeTests.swift */,
 				A3B9E962BBA7B8B1B05F9F77 /* DeveloperTabViewModelTests.swift */,
+				EB06E71E4B82A9D41FA79A6A /* ElapsedChipViewTests.swift */,
+				C64D339BBAE6C754ABB24977 /* ElapsedTests.swift */,
 				8CF4712922D6C0BA86E1D1A4 /* FloatingInteractionTests.swift */,
 				5CE9EFEFECAFAC8156F61DF7 /* FloatingPetControllerTests.swift */,
 				1994D680FD87AC69EEAA2D4B /* FloatingPetPromptBuilderTests.swift */,
@@ -676,6 +684,9 @@
 				A99F6A33E762533EA412019B /* ConflictBubblePayload.swift */,
 				9310785E0303F2C6627ADAE4 /* ConflictBubbleRateLimiter.swift */,
 				5A1164CB8566A5AEAA80BA69 /* ConflictBubbleTargetSelector.swift */,
+				ACD517BB438B20BD8BB1E719 /* Elapsed.swift */,
+				B1373FD8588C6188ED0D8075 /* ElapsedChipView.swift */,
+				4DA9154273DCF75152A37B97 /* ElapsedGlyphView.swift */,
 				6A41D03348B33BB814D7233A /* FloatingInteraction.swift */,
 				45AA3E424EA09D77F47D6C1F /* FloatingInteractionPolicy.swift */,
 				C74564777AB5E8D0E7BB7DC1 /* FloatingPetController.swift */,
@@ -705,11 +716,9 @@
 				F15A1B6845D95861A8465263 /* PlatformChipView.swift */,
 				815A1F6AB8504430784C0CB7 /* PlatformSessionBadge.swift */,
 				E0D4D0F64AA1A5C04FED5213 /* PromptTimer.swift */,
-				D1D8D2C351C51A43AE40A1A6 /* PromptTimerChipView.swift */,
 				349466D86E4C96C4D4A098BD /* RPGHUDPanel.swift */,
 				B45875058BDB67738967BE7A /* RPGHUDViewModel.swift */,
 				C4178FC9C08DC67BF3B23050 /* SpeechBubblePanel.swift */,
-				84C8024611891532F40772AC /* TimerIconChipView.swift */,
 			);
 			path = Windows;
 			sourceTree = "<group>";
@@ -998,6 +1007,9 @@
 				856504A2B86473918E0A6E96 /* DeveloperTabView.swift in Sources */,
 				E8ED1C90E2D5DFEE6140C26B /* DeveloperTabViewModel.swift in Sources */,
 				29FE412E7ECC24080C9D76E7 /* DynamicStatusPanelView.swift in Sources */,
+				145B6E15CE4BA9006FF784CB /* Elapsed.swift in Sources */,
+				8442837A0FAAC767A10757D3 /* ElapsedChipView.swift in Sources */,
+				F51892ED915A09F835EAAD22 /* ElapsedGlyphView.swift in Sources */,
 				B69656D5873253F3A80DDF25 /* FlippedStackView.swift in Sources */,
 				BC18ABAA096D64CF5E2F87C4 /* FloatingInteraction.swift in Sources */,
 				5ED2ED3F249FA9CB7F314F94 /* FloatingInteractionPolicy.swift in Sources */,
@@ -1060,7 +1072,6 @@
 				302E6C20FF8BA024E94C485A /* PoolMemoryUserActions.swift in Sources */,
 				7F4F10C69F24643131BEF475 /* PoolTickInput.swift in Sources */,
 				65E8894467BC8BA03C4A15A9 /* PromptTimer.swift in Sources */,
-				6A6E965676C08DCF5EA44900 /* PromptTimerChipView.swift in Sources */,
 				6BE7F6EA53A623C22C0B98E5 /* RPGHUDIconTileView.swift in Sources */,
 				6DA9D60EB6FA048B64876A79 /* RPGHUDPanel.swift in Sources */,
 				3996ADE8B389AEB45AAB6827 /* RPGHUDPreviewView.swift in Sources */,
@@ -1097,7 +1108,6 @@
 				CE7ABB1D0A6B2195D2E54F29 /* StateJsonReader.swift in Sources */,
 				BBAA522CAC3B1ED9771430F9 /* StateJsonWriter.swift in Sources */,
 				B06C74474A2E6AC6365223CA /* TabStripView.swift in Sources */,
-				567FFA2D3A08D9FB1A48E0E1 /* TimerIconChipView.swift in Sources */,
 				CE9190882611899407182DC2 /* TransitionLog.swift in Sources */,
 				67817AEF5CEF22731E0CD8DD /* UpdateTelemetryReporter.swift in Sources */,
 				3FBC13E4B9A0AC33B73BBA8F /* WindowActionRouter.swift in Sources */,
@@ -1129,6 +1139,8 @@
 				CF736BFF3B43B832BDECC802 /* CustomizationTabViewModelTests.swift in Sources */,
 				7DC659F8DECEC6D8932E49DE /* DemoModeTests.swift in Sources */,
 				D4B25DD9B2E2825856181DBC /* DeveloperTabViewModelTests.swift in Sources */,
+				7A1757F1C67B7327F8946519 /* ElapsedChipViewTests.swift in Sources */,
+				73A9E5703AB2E70B89B8377D /* ElapsedTests.swift in Sources */,
 				3278D5B8A5BF524A956FECEC /* FloatingInteractionTests.swift in Sources */,
 				98EBA9B7E29244B21755C4F5 /* FloatingPetControllerTests.swift in Sources */,
 				AD5F5C16457B81AD6A57D7C0 /* FloatingPetPromptBuilderTests.swift in Sources */,

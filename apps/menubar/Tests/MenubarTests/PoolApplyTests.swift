@@ -11,8 +11,8 @@ import XCTest
 /// execution time), teardown, and per-window pushes straight from
 /// `DesiredWindow` fields ... Zero policy decisions."
 ///
-/// Scope note: `DesiredWindow.promptTimerStatus` is a `PromptTimerPresentation`
-/// and `PoolApply` pushes it via `applyPromptTimerPresentation` only (P21.03
+/// Scope note: `DesiredWindow.elapsedPresentation` is a `ElapsedPresentation`
+/// and `PoolApply` pushes it via `applyElapsedPresentation` only (P21.03
 /// removed raw status from the pool-facing protocols).
 @MainActor
 final class PoolApplyTests: XCTestCase {
@@ -33,7 +33,7 @@ final class PoolApplyTests: XCTestCase {
 		var appliedSessionTooltips: [String?] = []
 		var appliedConflictBubbles: [ConflictBubblePayload?] = []
 		var appliedIdleEscalationConfigs: [IdleEscalationConfig] = []
-		var appliedPromptTimerPresentations: [PromptTimerPresentation?] = []
+		var appliedElapsedPresentations: [ElapsedPresentation?] = []
 		var appliedModeIndicatorBadges: [String?] = []
 		var adoptedFrames: [CGRect] = []
 		/// Settable so a test can simulate "this window is currently at frame
@@ -43,8 +43,8 @@ final class PoolApplyTests: XCTestCase {
 
 		func setFloatingPetVisible(_ visible: Bool) { isFloatingPetVisible = visible }
 		func apply(state: ActivityState, visualMode: VisualMode) { appliedStates.append((state, visualMode)) }
-		func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
-			appliedPromptTimerPresentations.append(presentation)
+		func applyElapsedPresentation(_ presentation: ElapsedPresentation?) {
+			appliedElapsedPresentations.append(presentation)
 		}
 		func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {
 			appliedRPGStates.append((halfHearts, levelFraction, level, activeMinutes, hudEnabled))
@@ -87,7 +87,7 @@ final class PoolApplyTests: XCTestCase {
 		desired.sessionLabel = "My renamed session"
 		desired.sessionTooltip = "Refactor the diff module"
 		desired.conflictBubble = ConflictBubblePayload(origin: "codex")
-		desired.promptTimerStatus = PromptTimerPresentation(label: "0:12", isRunning: true)
+		desired.elapsedPresentation = ElapsedPresentation(label: "0:12", isRunning: true, kind: .turn)
 		desired.modeIndicatorBadge = "Codex"
 
 		let controller = MockController()
@@ -112,8 +112,8 @@ final class PoolApplyTests: XCTestCase {
 		XCTAssertEqual(controller.appliedSessionTooltips.last ?? nil, "Refactor the diff module")
 		XCTAssertEqual(controller.appliedConflictBubbles.last ?? nil, ConflictBubblePayload(origin: "codex"))
 		XCTAssertEqual(
-			controller.appliedPromptTimerPresentations.last ?? nil,
-			PromptTimerPresentation(label: "0:12", isRunning: true))
+			controller.appliedElapsedPresentations.last ?? nil,
+			ElapsedPresentation(label: "0:12", isRunning: true, kind: .turn))
 		XCTAssertEqual(controller.appliedModeIndicatorBadges.last ?? nil, "Codex")
 	}
 

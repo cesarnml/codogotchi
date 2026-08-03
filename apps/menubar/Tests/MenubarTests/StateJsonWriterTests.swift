@@ -632,6 +632,110 @@ final class StateJsonWriterTests: XCTestCase {
 		XCTAssertNotNil(result["updated_at"])
 	}
 
+	/// Show must not erase how long a session has been quiet. `IdleElapsed` reads
+	/// the idle clock straight off `updated_at`, so bumping it here would report
+	/// 0:00 for a pet that had been idle for hours — and persist that erasure to
+	/// disk, where the Combined window and every sibling reader see it too. The
+	/// mtime still moves (that is what the TTL filters actually read), so nothing
+	/// the bump existed for is lost.
+	func testRefreshForShowPreservesTheIdleClockOnAFreshIdleSlice() {
+		let dir = makeStateDir()
+		let filename = "claude_code:quiet.json"
+		let originalStamp = "2026-07-01T09:00:00.000Z"
+		writeSlice(
+			filename, in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "idle",
+				"updated_at": originalStamp,
+				"source_event": ["origin": "claude_code"],
+			])
+		let now = Date()
+		setMTime(filename, in: dir, to: now.addingTimeInterval(-40 * 60))
+
+		runRefreshForShow(dir: dir, origin: "claude_code", sessionId: "quiet", now: now)
+
+		let result = readSlice(filename, in: dir)!
+		XCTAssertEqual(
+			result["updated_at"] as? String, originalStamp,
+			"showing a quiet pet must not restart its idle clock")
+		XCTAssertEqual(result["activity_state"] as? String, "idle")
+		let mtime = try! FileManager.default.attributesOfItem(
+			atPath: dir.appendingPathComponent(filename).path)[.modificationDate] as! Date
+		XCTAssertGreaterThan(
+			mtime.timeIntervalSince(now), -60,
+			"the atomic rewrite must still refresh the mtime the TTL filters read")
+	}
+
+	/// The exemption is scoped to *fresh* idle slices. A slice past the staleTTL
+	/// is being resurrected, and there the bump is load-bearing — its old
+	/// `updated_at` describes a session that ended hours ago.
+	func testRefreshForShowStillBumpsAStaleIdleSlice() {
+		let dir = makeStateDir()
+		let filename = "claude_code:ancient.json"
+		writeSlice(
+			filename, in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "idle",
+				"updated_at": "2026-07-01T09:00:00.000Z",
+				"source_event": ["origin": "claude_code"],
+			])
+		let now = Date()
+		setMTime(filename, in: dir, to: now.addingTimeInterval(-3 * 60 * 60))
+
+		runRefreshForShow(dir: dir, origin: "claude_code", sessionId: "ancient", now: now)
+
+		let result = readSlice(filename, in: dir)!
+		let updatedAt = (result["updated_at"] as? String).flatMap {
+			StateJsonReader.parseISO8601Date($0)
+		}
+		XCTAssertNotNil(updatedAt)
+		XCTAssertEqual(
+			updatedAt!.timeIntervalSince(now), 0, accuracy: 1.0,
+			"a stale idle slice is being resurrected — its clock must restart")
+	}
+
+	/// The origins-scoped overload (the Combined-window path) runs a
+	/// freshest-per-origin winner scan before rewriting, which the session-precise
+	/// overload has no equivalent of. This pins the new preserve-the-idle-clock
+	/// behaviour through THAT path: the winner is picked by `updated_at`, and the
+	/// change stops bumping exactly that field — so a regression here could both
+	/// mis-elect the winner and erase its clock.
+	func testRefreshForShowPreservesTheIdleClockThroughTheOriginsScopedWinnerScan() {
+		let dir = makeStateDir()
+		let stalerStamp = "2026-07-01T08:00:00.000Z"
+		let winnerStamp = "2026-07-01T09:00:00.000Z"
+		writeSlice(
+			"claude_code:older.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "idle",
+				"updated_at": stalerStamp,
+				"source_event": ["origin": "claude_code"],
+			])
+		writeSlice(
+			"claude_code:winner.json", in: dir,
+			json: [
+				"schema_version": 6,
+				"activity_state": "idle",
+				"updated_at": winnerStamp,
+				"source_event": ["origin": "claude_code"],
+			])
+		let now = Date()
+		setMTime("claude_code:older.json", in: dir, to: now.addingTimeInterval(-40 * 60))
+		setMTime("claude_code:winner.json", in: dir, to: now.addingTimeInterval(-40 * 60))
+
+		runRefreshForShow(dir: dir, origins: ["claude_code"], now: now)
+
+		XCTAssertEqual(
+			readSlice("claude_code:winner.json", in: dir)?["updated_at"] as? String, winnerStamp,
+			"the elected winner's idle clock must survive the origins-scoped path too")
+		XCTAssertEqual(
+			readSlice("claude_code:older.json", in: dir)?["updated_at"] as? String, stalerStamp,
+			"a non-winner slice is not rewritten at all")
+	}
+
 	func testRefreshForShowRewritesOnlyTheFreshestSlicePerTargetOrigin() {
 		let dir = makeStateDir()
 		writeSlice(

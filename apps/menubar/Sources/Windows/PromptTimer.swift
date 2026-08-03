@@ -10,38 +10,12 @@ struct PromptTimerStatus: Equatable {
 		max(0, (endedAt ?? now).timeIntervalSince(startedAt))
 	}
 
-	func presentation(now: Date = Date()) -> PromptTimerPresentation {
-		PromptTimerPresentation(
-			label: PromptTimerPresentation.compactLabel(elapsed: elapsed(now: now)),
-			isRunning: isRunning
+	func presentation(now: Date = Date()) -> ElapsedPresentation {
+		ElapsedPresentation(
+			label: ElapsedPresentation.compactLabel(elapsed: elapsed(now: now)),
+			isRunning: isRunning,
+			kind: .turn
 		)
-	}
-}
-
-struct PromptTimerPresentation: Equatable {
-	let label: String
-	let isRunning: Bool
-
-	static func compactLabel(elapsed: TimeInterval) -> String {
-		let totalSeconds = max(0, Int(elapsed.rounded(.down)))
-		let seconds = totalSeconds % 60
-		let totalMinutes = totalSeconds / 60
-		let minutes = totalMinutes % 60
-		let totalHours = totalMinutes / 60
-
-		if totalHours == 0 {
-			return "\(minutes):\(String(format: "%02d", seconds))"
-		}
-		if totalHours < 10 {
-			return "\(totalHours)h \(String(format: "%02d", minutes))m"
-		}
-		if totalHours < 100 {
-			return "\(totalHours)h \(minutes)m"
-		}
-
-		let days = totalHours / 24
-		let hours = totalHours % 24
-		return "\(days)d \(hours)h"
 	}
 }
 
@@ -172,11 +146,12 @@ struct PromptTimerTracker: Equatable {
 		return status
 	}
 
-	mutating func presentation(now: Date = Date()) -> PromptTimerPresentation? {
+	mutating func presentation(now: Date = Date()) -> ElapsedPresentation? {
 		guard let current = currentStatus(now: now) else { return nil }
-		return PromptTimerPresentation(
-			label: PromptTimerPresentation.compactLabel(elapsed: current.elapsed(now: now)),
-			isRunning: current.isRunning
+		return ElapsedPresentation(
+			label: ElapsedPresentation.compactLabel(elapsed: current.elapsed(now: now)),
+			isRunning: current.isRunning,
+			kind: .turn
 		)
 	}
 

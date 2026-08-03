@@ -6,7 +6,7 @@ import AppKit
 final class AnimationBadgeView: NSView {
 	private let chipView = PlatformChipView(frame: .zero)
 	private let pillView = AnimationLabelPillView(frame: .zero)
-	private let promptTimerView = PromptTimerChipView(frame: .zero)
+	private let elapsedChipView = ElapsedChipView(frame: .zero)
 	private let stackView = NSStackView()
 	private let sessionBadge = PlatformSessionBadge(frame: .zero)
 	/// Fixed, non-renamable fold/platform-only identity chip (P19.04 / QC) —
@@ -26,8 +26,8 @@ final class AnimationBadgeView: NSView {
 	/// `private(set)` (not `private`) so tests can observe the presentation
 	/// that actually reached rendering, distinct from asserting on an
 	/// internal override field a caller might set without it surviving to
-	/// `applyPromptTimerView()` (see P18.04's promptTimerPresentationOverride fix).
-	private(set) var currentPromptTimer: PromptTimerPresentation?
+	/// `applyElapsedChip()` (see P18.04's elapsedPresentationOverride fix).
+	private(set) var currentElapsed: ElapsedPresentation?
 
 	/// Forwards a right-click anywhere on the chip/pill/session-badge stack up
 	/// to `AnimationBadgePanel`, which converts it to a screen anchor. `nil`
@@ -103,7 +103,7 @@ final class AnimationBadgeView: NSView {
 
 		sessionBadge.isHidden = true
 		modeIndicatorBadge.isHidden = true
-		promptTimerView.isHidden = true
+		elapsedChipView.isHidden = true
 
 		identityStack.orientation = .horizontal
 		identityStack.alignment = .centerY
@@ -139,12 +139,12 @@ final class AnimationBadgeView: NSView {
 		text: String,
 		platform: PlatformAttribution?,
 		inFlight: Bool,
-		promptTimer: PromptTimerPresentation? = nil,
+		elapsed: ElapsedPresentation? = nil,
 		metrics: GateBadgeLayout.Metrics,
 		motionSettings: MotionSettings = .disabled
 	) {
 		self.metrics = metrics
-		currentPromptTimer = promptTimer
+		currentElapsed = elapsed
 		stackView.spacing = metrics.interBadgeSpacing
 		identityStack.spacing = max(6, metrics.interBadgeSpacing)
 		pillView.configure(
@@ -163,7 +163,7 @@ final class AnimationBadgeView: NSView {
 			stackView.removeArrangedSubview(chipView)
 			chipView.removeFromSuperview()
 		}
-		applyPromptTimerView()
+		applyElapsedChip()
 		sessionBadge.configure(
 			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,
 			metrics: metrics)
@@ -178,16 +178,16 @@ final class AnimationBadgeView: NSView {
 		chipView.setAnimationSuspended(suspended)
 	}
 
-	func configurePromptTimer(_ presentation: PromptTimerPresentation?) {
-		currentPromptTimer = presentation
-		applyPromptTimerView()
+	func configureElapsed(_ presentation: ElapsedPresentation?) {
+		currentElapsed = presentation
+		applyElapsedChip()
 		layoutSubtreeIfNeeded()
 	}
 
 	/// Shows/hides and labels the mode-indicator chip to the left of the
 	/// session-label badge. `nil` hides it entirely — this chip only ever
 	/// appears for platform-only / Combined windows, never for session-keyed
-	/// ones. Kept separate from `configure()` (like `configurePromptTimer`) so
+	/// ones. Kept separate from `configure()` (like `configureElapsed`) so
 	/// an unrelated same-tick `configure()` call never clobbers it.
 	func configureModeIndicator(_ text: String?) {
 		currentModeIndicatorText = text
@@ -235,19 +235,19 @@ final class AnimationBadgeView: NSView {
 		return leadingWidth + pillView.intrinsicContentSize.width / 2
 	}
 
-	private func applyPromptTimerView() {
-		guard let currentPromptTimer else {
-			if promptTimerView.superview != nil {
-				stackView.removeArrangedSubview(promptTimerView)
-				promptTimerView.removeFromSuperview()
+	private func applyElapsedChip() {
+		guard let currentElapsed else {
+			if elapsedChipView.superview != nil {
+				stackView.removeArrangedSubview(elapsedChipView)
+				elapsedChipView.removeFromSuperview()
 			}
-			promptTimerView.isHidden = true
+			elapsedChipView.isHidden = true
 			return
 		}
-		promptTimerView.configure(presentation: currentPromptTimer, metrics: metrics)
-		promptTimerView.isHidden = false
-		if promptTimerView.superview == nil {
-			stackView.addArrangedSubview(promptTimerView)
+		elapsedChipView.configure(presentation: currentElapsed, metrics: metrics)
+		elapsedChipView.isHidden = false
+		if elapsedChipView.superview == nil {
+			stackView.addArrangedSubview(elapsedChipView)
 		}
 	}
 }

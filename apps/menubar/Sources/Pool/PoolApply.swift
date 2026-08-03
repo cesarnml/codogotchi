@@ -73,7 +73,7 @@ enum PoolApply {
 	///   `DesiredWindow`'s data (needs a pet catalog lookup); deferred.
 	private static func push(_ window: DesiredWindow, key: WindowKey, to controller: FloatingPetWindowControlling) {
 		controller.apply(state: window.activityState, visualMode: .normal)
-		controller.applyPromptTimerPresentation(window.promptTimerStatus)
+		controller.applyElapsedPresentation(window.elapsedPresentation)
 		controller.applyAttention(payload: window.attention, sourceEvent: window.attentionSourceEvent)
 		controller.applyGateBadge(content: window.gateBadge)
 		controller.applyPlatform(origin: window.platformChip)

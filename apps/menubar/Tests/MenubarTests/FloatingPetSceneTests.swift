@@ -488,6 +488,96 @@ final class FloatingPetSceneTests: XCTestCase {
 		XCTAssertTrue(emitted.isEmpty)
 	}
 
+	/// The click-hold clears escalation outright rather than stepping one level.
+	/// Frustrated must land on `.none`, never on `.impatient`.
+	func testHoldResetsFrustratedStraightToNone() throws {
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let scene = try makeEscalationScene(clock: { now })
+		var emitted: [IdleEscalation] = []
+
+		scene.update(state: .idle, visualMode: .normal)
+		now = now.addingTimeInterval(121)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
+
+		scene.onIdleEscalationChange = { emitted.append($0) }
+		scene.resetIdleEscalation()
+
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+		XCTAssertEqual(emitted, [.none], "hold must not pass through .impatient")
+	}
+
+	/// The clock resets with the level, so re-escalation runs the FULL ladder
+	/// again. Under the old step-down this held `idleSince` at the Impatient
+	/// floor and Frustrated returned after only the remaining 60s.
+	func testHoldRestartsTheFullEscalationLadder() throws {
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let scene = try makeEscalationScene(clock: { now })
+
+		scene.update(state: .idle, visualMode: .normal)
+		now = now.addingTimeInterval(121)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
+
+		scene.resetIdleEscalation()
+
+		// One second short of the impatient threshold: still plain idle. The old
+		// step-down read `.impatient` here — it anchored the clock at the
+		// Impatient floor (60s) rather than zero, so this checkpoint sat at 119s
+		// elapsed and the pet was already one rung up the ladder. It reached
+		// `.frustrated` two seconds later, at 121s.
+		now = now.addingTimeInterval(59)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+
+		// Full impatientAfter (60s) from the hold, not from the original idle.
+		now = now.addingTimeInterval(2)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+
+		// Full frustratedAfter (120s) from the hold.
+		now = now.addingTimeInterval(60)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .frustrated)
+	}
+
+	func testHoldFromImpatientResetsToNone() throws {
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let scene = try makeEscalationScene(clock: { now })
+
+		scene.update(state: .idle, visualMode: .normal)
+		now = now.addingTimeInterval(61)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .impatient)
+
+		scene.resetIdleEscalation()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+
+		now = now.addingTimeInterval(59)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+	}
+
+	/// A hold while the pet is already calm must not disturb the idle clock —
+	/// otherwise repeated holds would indefinitely postpone the first escalation.
+	func testHoldAtNoneDoesNotDelayFirstEscalation() throws {
+		var now = Date(timeIntervalSince1970: 1_000_000)
+		let scene = try makeEscalationScene(clock: { now })
+
+		scene.update(state: .idle, visualMode: .normal)
+		now = now.addingTimeInterval(59)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
+
+		scene.resetIdleEscalation()
+
+		now = now.addingTimeInterval(2)
+		scene.advanceFrameForTesting()
+		XCTAssertEqual(
+			scene.currentIdleEscalationForTesting, .impatient,
+			"a no-op hold must not re-anchor idleSince")
+	}
+
 	func testDecrementIdleEscalationIsNoOpWithoutIdleEscalationFrames() throws {
 		let mali = maliFixtureDirectory()
 		var now = Date(timeIntervalSince1970: 1_000_000)
@@ -505,7 +595,7 @@ final class FloatingPetSceneTests: XCTestCase {
 		scene.update(state: .idle, visualMode: .normal)
 		now = now.addingTimeInterval(10_000)
 		scene.advanceFrameForTesting()
-		scene.decrementIdleEscalation()
+		scene.resetIdleEscalation()
 
 		XCTAssertEqual(scene.currentIdleEscalationForTesting, .none)
 	}

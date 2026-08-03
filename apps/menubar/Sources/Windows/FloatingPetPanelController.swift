@@ -82,7 +82,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 	/// recomputes the label each second while the status reports running.
 	private var promptTimerStatus: PromptTimerStatus?
 	private var promptTimerHeartbeat: Timer?
-	/// Latest presentation pushed via `applyPromptTimerPresentation` (P18.04's
+	/// Latest presentation pushed via `applyElapsedPresentation` (P18.04's
 	/// already-rendered path). Kept separate from `promptTimerStatus` (raw)
 	/// so a subsequent `repositionAndShowAnimationBadge()` call triggered by
 	/// an unrelated push (e.g. `applyPlatform`, `applySessionNumber`) renders
@@ -90,7 +90,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 	/// — `promptTimerStatus` never gets updated on this path, so without this
 	/// override every later same-tick reposition would silently erase the
 	/// pushed presentation.
-	private var promptTimerPresentationOverride: PromptTimerPresentation?
+	private var elapsedPresentationOverride: ElapsedPresentation?
 	/// Fired with the trimmed/capped label the user commits via the
 	/// right-click rename affordance. Wired by the caller (`MenubarApp`) to
 	/// persist to `SessionLabelStore` — this panel never writes the sidecar.
@@ -683,7 +683,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
-			promptTimer: promptTimerPresentationOverride ?? promptTimerStatus?.presentation(),
+			elapsed: elapsedPresentationOverride ?? promptTimerStatus?.presentation(),
 			sessionNumber: currentSessionNumber,
 			sessionLabel: currentSessionLabel,
 			sessionTooltip: currentSessionTooltip,
@@ -740,7 +740,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 
 	func applyLocalPromptTimerStatus(_ status: PromptTimerStatus?) {
 		promptTimerStatus = status
-		promptTimerPresentationOverride = nil
+		elapsedPresentationOverride = nil
 		syncPromptTimerHeartbeat()
 		repositionAndShowAnimationBadge()
 	}
@@ -752,21 +752,21 @@ final class FloatingPetPanelController: PanelActionHandling {
 	/// stale `promptTimerStatus?.presentation()`. Live ticks refresh this via
 	/// `PoolDerive` → `PoolApply`; the local heartbeat remains for the raw
 	/// `applyLocalPromptTimerStatus` / override-clear path.
-	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
-		promptTimerPresentationOverride = presentation
+	func applyElapsedPresentation(_ presentation: ElapsedPresentation?) {
+		elapsedPresentationOverride = presentation
 		repositionAndShowAnimationBadge()
 	}
 
 	private func resetPromptTimer() {
 		promptTimerStatus = nil
-		promptTimerPresentationOverride = nil
+		elapsedPresentationOverride = nil
 		promptTimerHeartbeat?.invalidate()
 		promptTimerHeartbeat = nil
 		chromeCoordinator.liveRepositionAnimationBadge(
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
-			promptTimer: nil,
+			elapsed: nil,
 			sessionNumber: currentSessionNumber,
 			sessionLabel: currentSessionLabel,
 			sessionTooltip: currentSessionTooltip,
@@ -781,8 +781,8 @@ final class FloatingPetPanelController: PanelActionHandling {
 		scene?.setInteraction(interaction)
 	}
 
-	func decrementIdleEscalation() {
-		scene?.decrementIdleEscalation()
+	func resetIdleEscalation() {
+		scene?.resetIdleEscalation()
 	}
 
 	func setFrameChangeHandler(_ handler: @escaping (CGRect) -> Void) {
@@ -979,7 +979,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			self?.onModeSwitchRequested?()
 		}
 		view.holdDeEscalationHandler = { [weak self] in
-			self?.scene?.decrementIdleEscalation()
+			self?.scene?.resetIdleEscalation()
 		}
 		view.onHoverChange = { [weak self] isHovering in
 			guard let self else { return }

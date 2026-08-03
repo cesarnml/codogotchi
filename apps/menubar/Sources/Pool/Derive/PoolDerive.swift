@@ -100,7 +100,7 @@ enum PoolDerive {
 			// across hide/show, idle-TTL dismiss, and session-cap de-render —
 			// mirrors `FloatingPetWindowPool`'s "observe before guards"
 			// ordering. Later in this tick `derive` emits
-			// `DesiredWindow.promptTimerStatus` from these trackers.
+			// `DesiredWindow.elapsedPresentation` from these trackers.
 			memory.promptTimers[renderKey, default: PromptTimerTracker()].observe(
 				state: state.activityState,
 				updatedAt: state.updatedAt,
@@ -212,7 +212,7 @@ enum PoolDerive {
 		// independently observed `memory.promptTimers[combinedWinner.key]`
 		// — the winning session's OWN tracker, not a tracker shared across
 		// every session that has ever won the combined slot. The
-		// `DesiredWindow` construction below reads `promptTimerStatus` from
+		// `DesiredWindow` construction below reads `elapsedPresentation` from
 		// `memory.promptTimers[winnerEntry.key]` uniformly (no `.combined`
 		// special case), so a combined-winner rotation naturally switches to
 		// the new winner's own correctly-tracked elapsed time, the same way
@@ -456,7 +456,18 @@ enum PoolDerive {
 				window.attention = state.attention
 				window.attentionSourceEvent = state.sourceEvent
 				window.gateBadge = snapshot.gateBadges[winnerEntry.key]
-				window.promptTimerStatus = memory.promptTimers[winnerEntry.key]?.presentation(now: currentTime)
+				// One chip slot, two clocks, turn-first. The fallback is not a
+				// tie-break: `PromptTimerTracker.observe` resets to nil on any
+				// idle slice and `IdleElapsed` yields nil for anything else, so
+				// at most one side can ever be non-nil. Ordering them this way
+				// just states which owns the slot if that invariant ever breaks.
+				window.elapsedPresentation =
+					memory.promptTimers[winnerEntry.key]?.presentation(now: currentTime)
+					?? IdleElapsed.presentation(
+						activityState: state.activityState,
+						updatedAt: state.updatedAt,
+						now: currentTime
+					)
 				if key == .combined {
 					window.platformChip = state.activityState == .idle ? "combined" : state.sourceEvent?.origin
 				} else if window.isMinimalist {

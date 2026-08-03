@@ -122,7 +122,7 @@ final class PlatformChipView: NSView {
 	/// `AnimationBadgeView.pillCenterX` uses that -1 as if it were a real width
 	/// when working out where to anchor the badge on the pet. Every sibling in
 	/// that stack (`AnimationLabelPillView`, `PlatformSessionBadge`,
-	/// `PromptTimerChipView`, `GateBadgeTokenView`) already overrides this.
+	/// `ElapsedChipView`, `GateBadgeTokenView`) already overrides this.
 	override var intrinsicContentSize: NSSize {
 		NSSize(width: metrics.badgeHeight, height: metrics.badgeHeight)
 	}

@@ -66,7 +66,7 @@ final class AnimationBadgePanel: NSPanel {
 		label: String,
 		platform: PlatformAttribution?,
 		inFlight: Bool,
-		promptTimer: PromptTimerPresentation? = nil,
+		elapsed: ElapsedPresentation? = nil,
 		sessionNumber: Int? = nil,
 		sessionLabel: String? = nil,
 		sessionTooltip: String? = nil,
@@ -79,7 +79,7 @@ final class AnimationBadgePanel: NSPanel {
 			text: label,
 			platform: platform,
 			inFlight: inFlight,
-			promptTimer: promptTimer,
+			elapsed: elapsed,
 			metrics: AnimationBadgeLayout.metrics(for: petFrame),
 			motionSettings: motionSettings
 		)

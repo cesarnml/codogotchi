@@ -122,7 +122,7 @@ struct PoolMemory: Equatable {
 	/// One prompt-timer tracker per render key, observed every tick so the
 	/// timer keeps correct time across hide/show, idle-TTL dismiss, and
 	/// session-cap de-render exactly like the legacy tracker. `PoolDerive`
-	/// reads these trackers when emitting `DesiredWindow.promptTimerStatus`.
+	/// reads these trackers when emitting `DesiredWindow.elapsedPresentation`.
 	/// Also the target of the pure `resettingPromptTimer(for:)` user-action
 	/// transition. Mirrors `FloatingPetWindowPool.promptTimers`.
 	var promptTimers: [WindowKey: PromptTimerTracker] = [:]

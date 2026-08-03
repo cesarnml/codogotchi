@@ -233,7 +233,7 @@ final class PoolDerivePushTests: XCTestCase {
 	/// the underlying winning SESSION had changed on a rotation between two
 	/// different in-flight sessions — the chip kept reporting the previous
 	/// winner's elapsed time under the new winner's name. The fix reads
-	/// `promptTimerStatus` from the winning RAW key's own tracker
+	/// `elapsedPresentation` from the winning RAW key's own tracker
 	/// (`memory.promptTimers[winnerEntry.key]`), which Step 2 already
 	/// independently observes for every visible key regardless of fold
 	/// outcome — so `.combined` itself is never a key in `promptTimers` at
@@ -284,7 +284,7 @@ final class PoolDerivePushTests: XCTestCase {
 		(desired, memory) = pushTick(
 			["codex:a": pushSnapshot(updated: "2026-07-01T10:00:00.000Z", origin: "codex")],
 			customization: customization, memory: memory)
-		XCTAssertNotNil(desired.windows[.combined]?.promptTimerStatus)
+		XCTAssertNotNil(desired.windows[.combined]?.elapsedPresentation)
 		(desired, memory) = pushTick([:], customization: customization, memory: memory)
 		XCTAssertNotNil(desired.windows[.combined], "last-active combined survives a transient empty poll")
 		XCTAssertEqual(desired.windows[.combined]?.resolvedIdentity, "codex:a")
@@ -397,5 +397,66 @@ final class PoolDerivePushTests: XCTestCase {
 		memory = next
 		let (unchanged, _) = pushTick([:], customization: customization, memory: memory)
 		XCTAssertNil(unchanged.monochromeChanged)
+	}
+
+	// MARK: - Shared elapsed chip slot (turn clock vs idle clock)
+
+	/// An idle winner has no turn clock (`PromptTimerTracker` resets on idle), so
+	/// the slot falls through to the slice-derived idle duration. `pushTick`'s
+	/// fixed `currentTime` is the 2001 reference date, so the stamp is 40 minutes
+	/// before it.
+	func testIdleWinnerFillsTheChipSlotWithTheIdleClock() {
+		let customization = pushCustomization(modes: ["codex": .own])
+		let (desired, resultMemory) = pushTick(
+			[
+				"codex:a": pushSnapshot(
+					state: .idle, updated: "2000-12-31T23:20:00.000Z", origin: "codex")
+			],
+			customization: customization, memory: PoolMemory())
+
+		let presentation = desired.windows[.origin("codex")]?.elapsedPresentation
+		XCTAssertEqual(presentation?.kind, .idle)
+		XCTAssertEqual(presentation?.label, "40:00")
+		var tracker = resultMemory.promptTimers["codex:a"]
+		XCTAssertNil(
+			tracker?.currentStatus(),
+			"an idle slice must leave the turn tracker cleared — the two never contend")
+	}
+
+	/// The turn clock keeps the slot whenever it has one; the idle side stays
+	/// silent for every non-idle state.
+	func testInFlightWinnerKeepsTheTurnClockInTheChipSlot() {
+		let customization = pushCustomization(modes: ["codex": .own])
+		let (desired, _) = pushTick(
+			[
+				"codex:a": pushSnapshot(
+					state: .implementing, updated: "2000-12-31T23:20:00.000Z", origin: "codex")
+			],
+			customization: customization, memory: PoolMemory())
+
+		XCTAssertEqual(desired.windows[.origin("codex")]?.elapsedPresentation?.kind, .turn)
+	}
+
+	/// The combined window folds several origins behind one pet, and its winner is
+	/// the freshest slice. When every folded session is quiet, the chip must still
+	/// fill — and it reports the FRESHEST winner's idle time, i.e. the shortest
+	/// quiet stretch across the fold, matching the platform chip and label, which
+	/// also follow that winner.
+	func testCombinedWindowIdleWinnerFillsTheChipSlot() {
+		let customization = pushCustomization(modes: ["codex": .combined, "cursor": .combined])
+		let (desired, _) = pushTick(
+			[
+				"codex:a": pushSnapshot(
+					state: .idle, updated: "2000-12-31T22:00:00.000Z", origin: "codex"),
+				"cursor:b": pushSnapshot(
+					state: .idle, updated: "2000-12-31T23:20:00.000Z", origin: "cursor"),
+			],
+			customization: customization, memory: PoolMemory())
+
+		let presentation = desired.windows[.combined]?.elapsedPresentation
+		XCTAssertEqual(presentation?.kind, .idle)
+		XCTAssertEqual(
+			presentation?.label, "40:00",
+			"the combined chip follows the freshest winner (cursor:b), not the stalest slice")
 	}
 }

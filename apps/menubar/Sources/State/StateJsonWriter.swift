@@ -148,13 +148,11 @@ enum StateJsonWriter {
 	/// the user saying "I still care about this one", which is exactly the
 	/// signal the TTL exists to detect the absence of.
 	///
-	/// Per target slice: `updated_at` is bumped to `now` (the atomic write
-	/// also refreshes the mtime the reader checks). A slice already past the
-	/// reader's staleTTL additionally has its `activity_state` reset to idle —
-	/// a 2h-stale in-flight state describes a session that will never emit a
-	/// correcting event, so re-showing it as "working" would lie forever. A
-	/// fresh slice keeps its live state untouched (a briefly-hidden,
-	/// still-working session must not be knocked back to idle by Show).
+	/// Per target slice the atomic rewrite always refreshes the mtime the reader
+	/// checks; whether `updated_at` and `activity_state` also move depends on the
+	/// slice's staleness and current state — see `refreshSliceForShow`, which
+	/// deliberately leaves a fresh idle slice's `updated_at` alone so Show does
+	/// not erase how long the session has been quiet.
 	///
 	/// `origins` scopes the refresh exactly like `forceIdle`: one entry for an
 	/// own/minimalist window, the full combined-mode set for the shared
@@ -233,9 +231,27 @@ enum StateJsonWriter {
 		}
 	}
 
-	/// Rewrites one slice for an explicit Show: `updated_at` = `now`, and
-	/// `activity_state` = idle only when the file's mtime is already past
-	/// `staleTTL` (see `refreshForShow` for the fresh-vs-stale rationale).
+	/// Rewrites one slice for an explicit Show. Always rewrites the file — the
+	/// atomic write is what refreshes the mtime, and mtime is the ONLY clock
+	/// either staleness filter reads (`StateJsonReader`'s 2h snapshot TTL, and
+	/// this writer's own `staleTTL` guards; the pool's idle-dismiss TTL runs off
+	/// in-memory `PoolMemory.lastSeenAt`, not the file at all). What the rewrite
+	/// changes depends on how stale the slice is:
+	///
+	/// - Past `staleTTL`: `activity_state` = idle and `updated_at` = now. A
+	///   2h-stale in-flight state describes a session that will never emit a
+	///   correcting event, so re-showing it as "working" would lie forever, and
+	///   the bump is what resurrects a pet the reader had dropped entirely.
+	/// - Fresh and already idle: **nothing** changes. Bumping `updated_at` here
+	///   would restart the idle clock `IdleElapsed` reads, so showing a pet that
+	///   had been quiet 40 minutes would report 0:00 — and unlike the renderer's
+	///   own scene-local escalation reset, that erasure is persisted to disk and
+	///   visible to the Combined window and every sibling reader of the slice.
+	///   Nothing needs the bump: mtime still moves, which is all the TTLs read.
+	/// - Fresh and non-idle: `updated_at` = now, unchanged from before. A
+	///   briefly-hidden, still-working session keeps its live state, and its turn
+	///   clock is pool-owned (`PromptTimerTracker`) rather than derived from this
+	///   stamp, so the bump costs nothing there.
 	private static func refreshSliceForShow(
 		atPath path: String,
 		now: Date,
@@ -245,15 +261,25 @@ enum StateJsonWriter {
 		guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
 			var root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
 		else { return }
-		if let attrs = try? fm.attributesOfItem(atPath: path),
-			let mtime = attrs[.modificationDate] as? Date,
-			now.timeIntervalSince(mtime) > staleTTL
-		{
+		let isStale: Bool = {
+			guard let attrs = try? fm.attributesOfItem(atPath: path),
+				let mtime = attrs[.modificationDate] as? Date
+			else { return false }
+			return now.timeIntervalSince(mtime) > staleTTL
+		}()
+		// Read the incoming state BEFORE the stale branch can overwrite it — a
+		// stale slice is forced to idle below, so reading afterwards would make
+		// `wasAlreadyIdle` mean "is idle now", which is a different question and
+		// only harmless today because `isStale` short-circuits the bump anyway.
+		let wasAlreadyIdle = (root["activity_state"] as? String) == "idle"
+		if isStale {
 			root["activity_state"] = "idle"
 		}
-		let formatter = ISO8601DateFormatter()
-		formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-		root["updated_at"] = formatter.string(from: now)
+		if isStale || !wasAlreadyIdle {
+			let formatter = ISO8601DateFormatter()
+			formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+			root["updated_at"] = formatter.string(from: now)
+		}
 		guard let out = try? JSONSerialization.data(
 			withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
 		else { return }

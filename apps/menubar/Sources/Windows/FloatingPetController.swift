@@ -14,11 +14,11 @@ protocol FloatingPetVisibilityControlling: AnyObject {
 protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	func apply(state: ActivityState, visualMode: VisualMode)
 	/// Pool-facing prompt-timer push: the already-rendered
-	/// `PromptTimerPresentation` that `DesiredWindow` carries.
+	/// `ElapsedPresentation` that `DesiredWindow` carries.
 	/// `PoolDerive`'s `PoolMemory` owns the `PromptTimerTracker`, so by the
 	/// time a window reaches `PoolApply` only the rendered label/isRunning
 	/// pair is available.
-	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?)
+	func applyElapsedPresentation(_ presentation: ElapsedPresentation?)
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
@@ -69,7 +69,7 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 }
 
 extension FloatingPetWindowControlling {
-	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {}
+	func applyElapsedPresentation(_ presentation: ElapsedPresentation?) {}
 	func applySessionNumber(_ number: Int?) {}
 	func applyHasActiveSession(_ hasActiveSession: Bool) {}
 	func applySessionLabel(_ label: String?) {}
@@ -93,7 +93,7 @@ protocol PanelManaging: AnyObject {
 	func hide()
 	func apply(state: ActivityState, visualMode: VisualMode)
 	/// Pool-facing prompt-timer push: already-rendered presentation.
-	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?)
+	func applyElapsedPresentation(_ presentation: ElapsedPresentation?)
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?)
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
@@ -151,7 +151,7 @@ extension PanelManaging {
 
 	// Shared members with default no-ops (kept for convenience; both
 	// conformers implement these directly).
-	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {}
+	func applyElapsedPresentation(_ presentation: ElapsedPresentation?) {}
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 	func applyGateBadge(content: GateBadgeContent?) {}
 	func applyPlatform(origin: String?) {}
@@ -283,8 +283,8 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 		panel.apply(state: state, visualMode: visualMode)
 	}
 
-	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
-		panel.applyPromptTimerPresentation(presentation)
+	func applyElapsedPresentation(_ presentation: ElapsedPresentation?) {
+		panel.applyElapsedPresentation(presentation)
 	}
 
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {
@@ -498,8 +498,8 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		refreshPromptSummary()
 	}
 
-	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
-		panel.applyPromptTimerPresentation(presentation)
+	func applyElapsedPresentation(_ presentation: ElapsedPresentation?) {
+		panel.applyElapsedPresentation(presentation)
 	}
 
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool) {

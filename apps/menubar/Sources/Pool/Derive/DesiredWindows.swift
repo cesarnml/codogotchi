@@ -38,7 +38,7 @@ struct DesiredWindow: Equatable {
 	var modeIndicatorBadge: String?
 	var sessionTooltip: String?
 	var activityState: ActivityState = .idle
-	var promptTimerStatus: PromptTimerPresentation?
+	var elapsedPresentation: ElapsedPresentation?
 	var attention: AttentionPayload?
 	var attentionSourceEvent: SourceEvent?
 	var gateBadge: GateBadgeContent?

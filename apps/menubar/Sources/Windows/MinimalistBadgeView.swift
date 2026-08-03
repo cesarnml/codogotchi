@@ -11,8 +11,8 @@ final class MinimalistBadgeView: NSView {
 	static let rowSpacing: CGFloat = 4
 
 	private let animationBadge = AnimationBadgeView(frame: .zero)
-	/// Test-observable rendered state — see `AnimationBadgeView.currentPromptTimer`.
-	var renderedPromptTimerPresentation: PromptTimerPresentation? { animationBadge.currentPromptTimer }
+	/// Test-observable rendered state — see `AnimationBadgeView.currentElapsed`.
+	var renderedElapsedPresentation: ElapsedPresentation? { animationBadge.currentElapsed }
 	private let modeIndicatorBadge = PlatformSessionBadge(frame: .zero)
 	private let sessionBadge = PlatformSessionBadge(frame: .zero)
 	private let identityStack = NSStackView()
@@ -116,7 +116,7 @@ final class MinimalistBadgeView: NSView {
 			text: activity.displayLabel,
 			platform: platform,
 			inFlight: activity.isInFlight,
-			promptTimer: promptTimerPresentationOverride ?? promptTimerStatus?.presentation(),
+			elapsed: elapsedPresentationOverride ?? promptTimerStatus?.presentation(),
 			metrics: metrics,
 			motionSettings: motionSettings
 		)
@@ -130,8 +130,8 @@ final class MinimalistBadgeView: NSView {
 
 	func applyLocalPromptTimerStatus(_ status: PromptTimerStatus?) {
 		promptTimerStatus = status
-		promptTimerPresentationOverride = nil
-		animationBadge.configurePromptTimer(status?.presentation())
+		elapsedPresentationOverride = nil
+		animationBadge.configureElapsed(status?.presentation())
 		syncPromptTimerHeartbeat()
 	}
 
@@ -142,17 +142,17 @@ final class MinimalistBadgeView: NSView {
 	/// `promptTimerStatus`/the heartbeat — live ticks refresh via
 	/// `PoolDerive` → `PoolApply`; the local heartbeat remains for the raw
 	/// status / override-clear path.
-	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
-		promptTimerPresentationOverride = presentation
-		animationBadge.configurePromptTimer(presentation)
+	func applyElapsedPresentation(_ presentation: ElapsedPresentation?) {
+		elapsedPresentationOverride = presentation
+		animationBadge.configureElapsed(presentation)
 	}
 
 	func resetPromptTimer() {
 		promptTimerStatus = nil
-		promptTimerPresentationOverride = nil
+		elapsedPresentationOverride = nil
 		promptTimerHeartbeat?.invalidate()
 		promptTimerHeartbeat = nil
-		animationBadge.configurePromptTimer(nil)
+		animationBadge.configureElapsed(nil)
 	}
 
 	/// Latest session number/label/tooltip applied via `configureSessionNumber`.
@@ -169,14 +169,14 @@ final class MinimalistBadgeView: NSView {
 	/// recomputes the label each second while the status reports running.
 	private var promptTimerStatus: PromptTimerStatus?
 	private var promptTimerHeartbeat: Timer?
-	/// Latest presentation pushed via `applyPromptTimerPresentation` (P18.04's
+	/// Latest presentation pushed via `applyElapsedPresentation` (P18.04's
 	/// already-rendered path). Kept separate from `promptTimerStatus` (raw)
 	/// so a subsequent `configureBadge` call triggered by an unrelated push
 	/// renders this instead of clobbering it with
 	/// `promptTimerStatus?.presentation()` — `promptTimerStatus` never gets
 	/// updated on this path, so without this override every later same-tick
 	/// `configureBadge` would silently erase the pushed presentation.
-	private var promptTimerPresentationOverride: PromptTimerPresentation?
+	private var elapsedPresentationOverride: ElapsedPresentation?
 
 	private func syncPromptTimerHeartbeat() {
 		guard promptTimerStatus?.isRunning == true else {
@@ -188,7 +188,7 @@ final class MinimalistBadgeView: NSView {
 		promptTimerHeartbeat = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
 			Task { @MainActor in
 				guard let self else { return }
-				self.animationBadge.configurePromptTimer(self.promptTimerStatus?.presentation())
+				self.animationBadge.configureElapsed(self.promptTimerStatus?.presentation())
 				self.syncPromptTimerHeartbeat()
 				self.layoutSubtreeIfNeeded()
 			}

@@ -349,10 +349,10 @@ final class PromptTimerTests: XCTestCase {
 	}
 
 	func testCompactLabelsUseMinutesHoursAndDays() {
-		XCTAssertEqual(PromptTimerPresentation.compactLabel(elapsed: 59), "0:59")
-		XCTAssertEqual(PromptTimerPresentation.compactLabel(elapsed: 754), "12:34")
-		XCTAssertEqual(PromptTimerPresentation.compactLabel(elapsed: 3_720), "1h 02m")
-		XCTAssertEqual(PromptTimerPresentation.compactLabel(elapsed: 363_600), "4d 5h")
+		XCTAssertEqual(ElapsedPresentation.compactLabel(elapsed: 59), "0:59")
+		XCTAssertEqual(ElapsedPresentation.compactLabel(elapsed: 754), "12:34")
+		XCTAssertEqual(ElapsedPresentation.compactLabel(elapsed: 3_720), "1h 02m")
+		XCTAssertEqual(ElapsedPresentation.compactLabel(elapsed: 363_600), "4d 5h")
 	}
 
 	private func attention(expiresAt: String) -> AttentionPayload {

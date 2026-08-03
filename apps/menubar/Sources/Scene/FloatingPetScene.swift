@@ -506,25 +506,27 @@ final class FloatingPetScene: SKScene {
 		applyIdleEscalation(level)
 	}
 
-	/// Step the idle escalation down by one level (frustrated→impatient→none).
-	/// Called when the user holds a click for ≥5 s while the pet is escalated.
-	/// No-op when already at `.none` or when not in the idle state.
-	func decrementIdleEscalation() {
-		guard currentState == .idle else { return }
-		let next: IdleEscalation
-		switch currentEscalation {
-		case .frustrated: next = .impatient
-		case .impatient: next = .none
-		case .none: return
-		}
-		// Re-anchor the idle clock to the floor of the level we just stepped down
-		// to, so the elapsed-time recompute on the next frame tick agrees with
-		// `next` instead of demoting further. Anchoring to `clock()` (zero
-		// elapsed) is what made frustrated→impatient land back on plain idle: the
-		// very next tick re-derived `.none`. From this floor the timer naturally
-		// re-escalates after the remaining time.
-		idleSince = clock().addingTimeInterval(-idleEscalationConfig.elapsedFloor(for: next))
-		applyIdleEscalation(next)
+	/// Clear the idle escalation outright — Frustrated *or* Impatient goes
+	/// straight back to plain Idle. Called when the user holds a click for ≥5 s
+	/// while the pet is escalated. No-op when already at `.none` or when not in
+	/// the idle state.
+	///
+	/// Resets the level and the clock together. This previously stepped down one
+	/// level and re-anchored `idleSince` to the floor of the level it landed on,
+	/// because resetting the clock alone (to `clock()`, zero elapsed) while
+	/// stepping only one level made frustrated→impatient snap straight back to
+	/// `.none` on the very next frame tick: the elapsed recompute disagreed with
+	/// the level it had just been handed. Moving both to their floor at once
+	/// removes that disagreement without the floor-anchoring trick — and removes
+	/// the behaviour it bought, where a hold from Frustrated silently left the
+	/// clock at the Impatient threshold and re-escalated after only the
+	/// *remaining* window, with nothing on screen to explain the short fuse.
+	/// The gesture now means what it looks like it means; re-escalation runs the
+	/// full ladder again from here.
+	func resetIdleEscalation() {
+		guard currentState == .idle, currentEscalation != .none else { return }
+		idleSince = clock()
+		applyIdleEscalation(.none)
 	}
 
 	private func applyIdleEscalation(_ level: IdleEscalation) {

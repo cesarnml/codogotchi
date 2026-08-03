@@ -271,10 +271,10 @@ final class MinimalistPanelController: PanelActionHandling {
 	}
 
 	/// `PoolApply` (P18.04)'s already-rendered equivalent — see
-	/// `FloatingPetPanelController.applyPromptTimerPresentation`'s doc for
+	/// `FloatingPetPanelController.applyElapsedPresentation`'s doc for
 	/// why this forwards directly rather than deriving from a raw status.
-	func applyPromptTimerPresentation(_ presentation: PromptTimerPresentation?) {
-		badgeView.applyPromptTimerPresentation(presentation)
+	func applyElapsedPresentation(_ presentation: ElapsedPresentation?) {
+		badgeView.applyElapsedPresentation(presentation)
 		applyBadge()
 	}
 
