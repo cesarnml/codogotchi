@@ -108,7 +108,7 @@ final class MinimalistBadgeView: NSView {
 		platform: PlatformAttribution?,
 		activity: ActivityState,
 		metrics: GateBadgeLayout.Metrics,
-		platformChipAnimationSettings: PlatformChipAnimationSettings = .disabled
+		motionSettings: MotionSettings = .disabled
 	) {
 		currentActivity = activity
 		currentMetrics = metrics
@@ -118,7 +118,7 @@ final class MinimalistBadgeView: NSView {
 			inFlight: activity.isInFlight,
 			promptTimer: promptTimerPresentationOverride ?? promptTimerStatus?.presentation(),
 			metrics: metrics,
-			platformChipAnimationSettings: platformChipAnimationSettings
+			motionSettings: motionSettings
 		)
 		sessionBadge.configure(
 			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,

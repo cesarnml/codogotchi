@@ -21,7 +21,7 @@ final class PlatformChipView: NSView {
 	/// animation from being torn down and restarted (a visible stutter) each time.
 	private var installedAnimation: PlatformChipAnimation?
 	private var currentPlatform: PlatformAttribution?
-	private var animationSettings = PlatformChipAnimationSettings.disabled
+	private var motionSettings = MotionSettings.disabled
 	private var isInFlight = false
 	/// Set while the badge panel is ordered out. `window` stays non-nil for an
 	/// ordered-out window and Core Animation keeps evaluating the animation, so
@@ -52,11 +52,7 @@ final class PlatformChipView: NSView {
 		// `queue: .main` rather than a selector: AppKit does not promise which
 		// thread posts this, and a selector-based observer would leave `deinit`'s
 		// removal racing an already-dispatched call into a half-freed view.
-		reducedMotionObserver = NSWorkspace.shared.notificationCenter.addObserver(
-			forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
-			object: nil,
-			queue: .main
-		) { [weak self] _ in
+		reducedMotionObserver = MotionPolicy.observeChanges { [weak self] in
 			self?.refreshAnimation()
 		}
 
@@ -89,9 +85,7 @@ final class PlatformChipView: NSView {
 	required init?(coder: NSCoder) { nil }
 
 	deinit {
-		if let reducedMotionObserver {
-			NSWorkspace.shared.notificationCenter.removeObserver(reducedMotionObserver)
-		}
+		MotionPolicy.removeObserver(reducedMotionObserver)
 	}
 
 	/// Called when the badge panel is ordered out or back in. Ordering a window
@@ -107,7 +101,7 @@ final class PlatformChipView: NSView {
 		platform: PlatformAttribution,
 		metrics: GateBadgeLayout.Metrics,
 		inFlight: Bool = false,
-		animationSettings: PlatformChipAnimationSettings = .disabled
+		motionSettings: MotionSettings = .disabled
 	) {
 		self.metrics = metrics
 		if platform != currentPlatform {
@@ -117,7 +111,7 @@ final class PlatformChipView: NSView {
 			imageView.image = image
 		}
 		self.isInFlight = inFlight
-		self.animationSettings = animationSettings
+		self.motionSettings = motionSettings
 		applyMetrics()
 		refreshAnimation()
 	}
@@ -192,7 +186,7 @@ final class PlatformChipView: NSView {
 
 		let desired: PlatformChipAnimation? =
 			isInFlight && !isSuspended && window != nil && hasLaidOutGeometry
-			&& animationSettings.allowsMotion(systemPrefersReducedMotion: Self.prefersReducedMotion())
+			&& motionSettings.allowsChipAnimation(systemPrefersReducedMotion: MotionPolicy.prefersReducedMotion())
 			? currentPlatform.flatMap(PlatformChipAnimation.forPlatform)
 			: nil
 
@@ -211,26 +205,6 @@ final class PlatformChipView: NSView {
 			return
 		}
 		imageView.layer?.add(desired.makeAnimation(), forKey: Self.animationKey)
-	}
-
-	/// Whether the system is asking apps to suppress non-essential motion. The
-	/// in-app toggle is not a substitute: someone who set Reduce Motion in System
-	/// Settings has no reason to expect a per-app switch also needs turning off.
-	///
-	/// This is the shipped behaviour and is deliberately a `let` — nothing in the
-	/// app can repoint it.
-	static let systemPrefersReducedMotion: () -> Bool = {
-		NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-	}
-
-	/// Test-only override. Animation tests must not read the host's real
-	/// accessibility setting or they fail outright on a machine that has Reduce
-	/// Motion enabled. Set to `nil` to restore the shipped behaviour; production
-	/// never assigns this.
-	static var reducedMotionOverrideForTesting: (() -> Bool)?
-
-	static func prefersReducedMotion() -> Bool {
-		(reducedMotionOverrideForTesting ?? systemPrefersReducedMotion)()
 	}
 
 	private func applyMetrics() {

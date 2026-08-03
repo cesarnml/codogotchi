@@ -466,8 +466,8 @@ enum PoolDerive {
 				}
 			}
 
-			window.platformChipAnimationSettings = PlatformChipAnimationSettings(
-				isEnabled: customization.platformChipAnimationEnabled,
+			window.motionSettings = MotionSettings(
+				chipAnimationEnabled: customization.platformChipAnimationEnabled,
 				ignoresReduceMotion: customization.platformChipAnimationIgnoresReduceMotion
 			)
 

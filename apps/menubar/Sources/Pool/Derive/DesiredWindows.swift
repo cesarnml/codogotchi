@@ -48,7 +48,7 @@ struct DesiredWindow: Equatable {
 	/// The user's chip-animation decisions for this window. Mirrors the two
 	/// `customization.json` keys; the chip still only animates when the pet is
 	/// actually in flight and on screen.
-	var platformChipAnimationSettings: PlatformChipAnimationSettings = .disabled
+	var motionSettings: MotionSettings = .disabled
 	var rpgSnapshot: RpgSnapshot = .safeDefault
 	var hudEnabled: Bool = false
 	var conflictBubble: ConflictBubblePayload?

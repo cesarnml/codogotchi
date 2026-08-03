@@ -249,7 +249,8 @@ final class GeneralTabView: NSView {
 			symbolName: "sparkles",
 			title: "Animate platform logo while working",
 			subtitle:
-				"Spin the coding tool's logo on the pet's badge while that tool is mid-turn.",
+				"Spin the coding tool's logo on the pet's badge while that tool is mid-turn. "
+					+ "Other badge motion is unaffected by this switch.",
 			toggle: platformChipAnimationSwitch
 		)
 		reduceMotionNotice.onAnimateAnyway = { [weak self] in

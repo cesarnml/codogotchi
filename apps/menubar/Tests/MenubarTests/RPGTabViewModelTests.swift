@@ -127,7 +127,10 @@ final class RPGTabViewModelTests: XCTestCase {
 		XCTAssertEqual(vm.healthLogic.inactivityDecayHalfHearts, 1)
 		XCTAssertEqual(vm.healthLogic.activityRegenMinutes, 60)
 		XCTAssertEqual(vm.healthLogic.activityRegenHalfHearts, 1)
-		XCTAssertTrue(vm.healthLogic.diseaseAnimationsEnabled)
+		XCTAssertFalse(
+			vm.healthLogic.diseaseAnimationsEnabled,
+			"sickness visuals are opt-in: the aura is a repeatForever scale pulse plus a "
+				+ "particle miasma, and nobody should meet it without asking")
 		XCTAssertTrue(vm.healthLogic.skipWeekends)
 		XCTAssertEqual(vm.healthLogic.mildSicknessHalfHearts, 2, "mild default = 1 heart")
 		XCTAssertEqual(vm.healthLogic.severeSicknessHalfHearts, 1, "severe default = 1/2 heart")

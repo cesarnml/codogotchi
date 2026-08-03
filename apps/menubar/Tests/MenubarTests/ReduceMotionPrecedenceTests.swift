@@ -17,26 +17,26 @@ final class ReduceMotionPrecedenceTests: XCTestCase {
 	// MARK: - Precedence
 
 	func testReduceMotionBeatsTheToggleByDefault() {
-		let settings = PlatformChipAnimationSettings(isEnabled: true, ignoresReduceMotion: false)
+		let settings = MotionSettings(chipAnimationEnabled: true, ignoresReduceMotion: false)
 		XCTAssertFalse(
-			settings.allowsMotion(systemPrefersReducedMotion: true),
+			settings.allowsChipAnimation(systemPrefersReducedMotion: true),
 			"an accessibility setting the user set system-wide outranks an app default")
-		XCTAssertTrue(settings.allowsMotion(systemPrefersReducedMotion: false))
+		XCTAssertTrue(settings.allowsChipAnimation(systemPrefersReducedMotion: false))
 	}
 
 	func testExplicitOverrideBeatsReduceMotion() {
 		// Only reachable from the notice, so the user has already been told what
 		// Reduce Motion was doing before they got the chance to override it.
-		let settings = PlatformChipAnimationSettings(isEnabled: true, ignoresReduceMotion: true)
-		XCTAssertTrue(settings.allowsMotion(systemPrefersReducedMotion: true))
+		let settings = MotionSettings(chipAnimationEnabled: true, ignoresReduceMotion: true)
+		XCTAssertTrue(settings.allowsChipAnimation(systemPrefersReducedMotion: true))
 	}
 
 	func testOverrideCannotResurrectAnAnimationTheUserTurnedOff() {
 		// The override is scoped to the Reduce Motion question only. It must never
 		// act as a second, hidden enable switch.
-		let settings = PlatformChipAnimationSettings(isEnabled: false, ignoresReduceMotion: true)
-		XCTAssertFalse(settings.allowsMotion(systemPrefersReducedMotion: true))
-		XCTAssertFalse(settings.allowsMotion(systemPrefersReducedMotion: false))
+		let settings = MotionSettings(chipAnimationEnabled: false, ignoresReduceMotion: true)
+		XCTAssertFalse(settings.allowsChipAnimation(systemPrefersReducedMotion: true))
+		XCTAssertFalse(settings.allowsChipAnimation(systemPrefersReducedMotion: false))
 	}
 
 	// MARK: - When to speak up
@@ -45,18 +45,18 @@ final class ReduceMotionPrecedenceTests: XCTestCase {
 		// A Reduce Motion user who never enabled the animation is not in conflict
 		// with anything. Nagging them about a feature they did not ask for is the
 		// failure mode this guards.
-		let off = PlatformChipAnimationSettings(isEnabled: false, ignoresReduceMotion: false)
+		let off = MotionSettings(chipAnimationEnabled: false, ignoresReduceMotion: false)
 		XCTAssertFalse(off.isSuppressedByReduceMotion(systemPrefersReducedMotion: true))
 	}
 
 	func testNoticeAppearsOnlyWhileTheConflictIsLive() {
-		let wanted = PlatformChipAnimationSettings(isEnabled: true, ignoresReduceMotion: false)
+		let wanted = MotionSettings(chipAnimationEnabled: true, ignoresReduceMotion: false)
 		XCTAssertTrue(wanted.isSuppressedByReduceMotion(systemPrefersReducedMotion: true))
 		XCTAssertFalse(
 			wanted.isSuppressedByReduceMotion(systemPrefersReducedMotion: false),
 			"no Reduce Motion, no conflict, no notice")
 
-		let overridden = PlatformChipAnimationSettings(isEnabled: true, ignoresReduceMotion: true)
+		let overridden = MotionSettings(chipAnimationEnabled: true, ignoresReduceMotion: true)
 		XCTAssertFalse(
 			overridden.isSuppressedByReduceMotion(systemPrefersReducedMotion: true),
 			"once overridden it is resolved, not still suppressed")
@@ -127,12 +127,49 @@ final class ReduceMotionPrecedenceTests: XCTestCase {
 			"nothing may infer an accessibility override; only an explicit choice sets it")
 	}
 
+	// MARK: - Ambient motion (the shimmer)
+
+	func testAmbientMotionIsSuppressedByReduceMotionWithoutAnyToggle() {
+		// The pill shimmer has no switch of its own — it is on for everyone. It must
+		// still answer to Reduce Motion, and the chip's taste toggle must not gate
+		// it: someone who never wanted a spinning logo still gets a shimmering pill.
+		let chipOff = MotionSettings(chipAnimationEnabled: false, ignoresReduceMotion: false)
+		XCTAssertTrue(
+			chipOff.allowsAmbientMotion(systemPrefersReducedMotion: false),
+			"the shimmer is not governed by the chip toggle")
+		XCTAssertFalse(
+			chipOff.allowsAmbientMotion(systemPrefersReducedMotion: true),
+			"Reduce Motion still suppresses it")
+	}
+
+	func testTheOneOverrideCoversAmbientMotionToo() {
+		// One override to rule them all: granting it from the chip's notice has to
+		// release the shimmer as well, or the switch is lying about its scope.
+		let overridden = MotionSettings(chipAnimationEnabled: false, ignoresReduceMotion: true)
+		XCTAssertTrue(overridden.allowsAmbientMotion(systemPrefersReducedMotion: true))
+	}
+
+	func testNoticeStaysQuietWhenOnlyAmbientMotionIsSuppressed() {
+		// A Reduce Motion user who never enabled the chip animation has not been
+		// denied anything they asked for. Telling them their shimmer is off would be
+		// nagging about a feature they never knew had a name.
+		let chipOff = MotionSettings(chipAnimationEnabled: false, ignoresReduceMotion: false)
+		XCTAssertFalse(chipOff.isSuppressedByReduceMotion(systemPrefersReducedMotion: true))
+	}
+
+	func testSicknessAnimationsAreOptInByDefault() {
+		// The sickness aura is a repeatForever scale pulse plus a particle miasma,
+		// running for as long as the pet is unwell. Nobody should meet it without
+		// having asked for it.
+		XCTAssertFalse(PetConfig.HealthLogicSettings.defaults.diseaseAnimationsEnabled)
+	}
+
 	// MARK: - End to end through the chip
 
 	func testChipHonoursReduceMotionAndTheOverride() {
-		let saved = PlatformChipView.reducedMotionOverrideForTesting
-		defer { PlatformChipView.reducedMotionOverrideForTesting = saved }
-		PlatformChipView.reducedMotionOverrideForTesting = { true }
+		let saved = MotionPolicy.overrideForTesting
+		defer { MotionPolicy.overrideForTesting = saved }
+		MotionPolicy.overrideForTesting = { true }
 
 		let window = NSWindow(
 			contentRect: NSRect(x: 0, y: 0, width: 200, height: 200),
@@ -153,12 +190,12 @@ final class ReduceMotionPrecedenceTests: XCTestCase {
 
 		chip.configure(
 			platform: .cursor, metrics: metrics, inFlight: true,
-			animationSettings: .init(isEnabled: true, ignoresReduceMotion: false))
+			motionSettings: .init(chipAnimationEnabled: true, ignoresReduceMotion: false))
 		XCTAssertTrue(keys().isEmpty, "Reduce Motion wins by default")
 
 		chip.configure(
 			platform: .cursor, metrics: metrics, inFlight: true,
-			animationSettings: .init(isEnabled: true, ignoresReduceMotion: true))
+			motionSettings: .init(chipAnimationEnabled: true, ignoresReduceMotion: true))
 		XCTAssertEqual(keys().count, 1, "the explicit override must actually reach the chip")
 	}
 }

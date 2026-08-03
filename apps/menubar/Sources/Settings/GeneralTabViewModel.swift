@@ -164,7 +164,7 @@ final class GeneralTabViewModel {
 	/// Injected so tests can drive the conflict notice without depending on the
 	/// host machine's real accessibility setting.
 	var systemPrefersReducedMotion: () -> Bool = {
-		PlatformChipView.prefersReducedMotion()
+		MotionPolicy.prefersReducedMotion()
 	}
 
 	/// What Settings > General should say beneath the animation toggle right now.
@@ -182,8 +182,8 @@ final class GeneralTabViewModel {
 	}
 
 	var reduceMotionNotice: ReduceMotionNotice {
-		let settings = PlatformChipAnimationSettings(
-			isEnabled: platformChipAnimationEnabled,
+		let settings = MotionSettings(
+			chipAnimationEnabled: platformChipAnimationEnabled,
 			ignoresReduceMotion: platformChipAnimationIgnoresReduceMotion
 		)
 		let reduced = systemPrefersReducedMotion()

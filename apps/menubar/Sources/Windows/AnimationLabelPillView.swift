@@ -13,6 +13,12 @@ final class AnimationLabelPillView: NSView {
 	/// Seconds for one full left→right pass across the text.
 	private static let shimmerDuration: CFTimeInterval = 1.3
 	private static let shimmerAnimationKey = "codogotchi.badge.shimmer"
+	private var isInFlight = false
+	private var motionSettings = MotionSettings.disabled
+	/// Reduce Motion can be switched on mid-turn, and an infinite animation
+	/// already running has to be torn down — unlike a one-shot, it will not
+	/// simply decline to start next time.
+	private var reducedMotionObserver: (any NSObjectProtocol)?
 
 	private let effectView = AnimationBadgeChrome.makeEffectView()
 	private let tintView = AnimationBadgeChrome.makeTintView()
@@ -71,6 +77,9 @@ final class AnimationLabelPillView: NSView {
 		shimmerContainer.masksToBounds = true
 		shimmerContainer.isHidden = true
 		shimmerContainer.zPosition = 1
+		reducedMotionObserver = MotionPolicy.observeChanges { [weak self] in
+			self?.refreshShimmering()
+		}
 
 		shimmerBand.startPoint = CGPoint(x: 0, y: 0.5)
 		shimmerBand.endPoint = CGPoint(x: 1, y: 0.5)
@@ -106,10 +115,18 @@ final class AnimationLabelPillView: NSView {
 			NotificationCenter.default.removeObserver(occlusionObserver)
 		}
 		shimmerHeartbeat?.invalidate()
+		MotionPolicy.removeObserver(reducedMotionObserver)
 	}
 
-	func configure(text: String, inFlight: Bool, metrics: GateBadgeLayout.Metrics) {
+	func configure(
+		text: String,
+		inFlight: Bool,
+		metrics: GateBadgeLayout.Metrics,
+		motionSettings: MotionSettings = .disabled
+	) {
 		self.metrics = metrics
+		self.isInFlight = inFlight
+		self.motionSettings = motionSettings
 		let font = NSFont.monospacedSystemFont(ofSize: metrics.fontSize, weight: .medium)
 		label.stringValue = text
 		label.font = font
@@ -117,7 +134,7 @@ final class AnimationLabelPillView: NSView {
 		glyphMask.string = text
 		glyphMask.font = font
 		glyphMask.fontSize = metrics.fontSize
-		setShimmering(inFlight)
+		refreshShimmering()
 		applyMetrics()
 		invalidateIntrinsicContentSize()
 	}
@@ -170,6 +187,20 @@ final class AnimationLabelPillView: NSView {
 				self.forceShimmerRearm()
 			}
 		}
+	}
+
+	/// The shimmer is a `position.x` translation on an infinite loop, in the
+	/// user's peripheral vision for as long as a turn runs — squarely the kind of
+	/// motion Reduce Motion exists to suppress. Unlike the chip it has no toggle
+	/// of its own: it is on for everyone and answers only to the system setting
+	/// and the single app-wide override.
+	///
+	/// Suppressing it hides the whole band rather than freezing it mid-sweep, so
+	/// the pill falls back to plain text with no half-drawn highlight.
+	private func refreshShimmering() {
+		let allowed = motionSettings.allowsAmbientMotion(
+			systemPrefersReducedMotion: MotionPolicy.prefersReducedMotion())
+		setShimmering(isInFlight && allowed)
 	}
 
 	private func setShimmering(_ shimmering: Bool) {

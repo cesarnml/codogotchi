@@ -40,7 +40,13 @@ enum PetConfig {
 			inactivityDecayHalfHearts: 1,
 			activityRegenMinutes: 60,
 			activityRegenHalfHearts: 1,
-			diseaseAnimationsEnabled: true,
+			// Off by default. The sickness aura is a `repeatForever` scale pulse on
+			// an overlay 1.3-1.55x the pet's size, plus a particle miasma, running
+			// for as long as the pet is unwell — the most sustained motion in the
+			// app. Opting in is the right posture for something that intense, and
+			// it means a Reduce Motion user is not hit with it before they have
+			// found the toggle. Health itself is unaffected; hearts still show it.
+			diseaseAnimationsEnabled: false,
 			skipWeekends: true,
 			mildSicknessHalfHearts: 2,
 			severeSicknessHalfHearts: 1

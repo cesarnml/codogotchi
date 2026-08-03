@@ -55,7 +55,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 	private var currentPlatform: PlatformAttribution?
 	/// Mirrors the user's chip-animation settings; forwarded to the platform
 	/// chip, which additionally gates on the pet being in flight and on screen.
-	private var platformChipAnimationSettings = PlatformChipAnimationSettings.disabled
+	private var motionSettings = MotionSettings.disabled
 	/// Latest `source_event` from `state.json`, mirrored so a double-click on
 	/// the platform chip can resolve the same Focus target the attention
 	/// bubble's Focus button does, even when no bubble is currently shown.
@@ -383,9 +383,9 @@ final class FloatingPetPanelController: PanelActionHandling {
 		repositionAndShowAnimationBadge()
 	}
 
-	func applyPlatformChipAnimationSettings(_ settings: PlatformChipAnimationSettings) {
-		guard settings != platformChipAnimationSettings else { return }
-		platformChipAnimationSettings = settings
+	func applyMotionSettings(_ settings: MotionSettings) {
+		guard settings != motionSettings else { return }
+		motionSettings = settings
 		// Turning the toggle off mid-turn has to reach a chip that is already
 		// animating, so push a refresh rather than waiting for the next content
 		// change to happen to re-render the badge.
@@ -690,7 +690,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider(),
-			platformChipAnimationSettings: platformChipAnimationSettings
+			motionSettings: motionSettings
 		)
 	}
 
@@ -773,7 +773,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider(),
-			platformChipAnimationSettings: platformChipAnimationSettings
+			motionSettings: motionSettings
 		)
 	}
 
@@ -844,7 +844,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider(),
-			platformChipAnimationSettings: platformChipAnimationSettings
+			motionSettings: motionSettings
 		)
 		if attentionActive {
 			chromeCoordinator.liveRepositionAttentionBubble(

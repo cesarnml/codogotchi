@@ -122,12 +122,14 @@ final class ReduceMotionNoticeView: NSView {
 			// hunting for a setting whose location the app already knows.
 			messageLabel.stringValue =
 				"Reduce Motion is on in System Settings > Accessibility > Display, "
-				+ "so animations stay still."
+				+ "so the badge stays still."
 			messageLabel.textColor = .secondaryLabelColor
 			actionButton.attributedTitle = linkTitle("Animate anyway")
 			glyph.contentTintColor = .secondaryLabelColor
 		case .overridden:
-			messageLabel.stringValue = "Animating anyway, ignoring Reduce Motion."
+			// Name the scope: this one switch governs every animation the app gates,
+			// not just the toggle it sits under.
+			messageLabel.stringValue = "Ignoring Reduce Motion for all Codogotchi animations."
 			messageLabel.textColor = .secondaryLabelColor
 			actionButton.attributedTitle = linkTitle("Respect Reduce Motion")
 			glyph.contentTintColor = .secondaryLabelColor

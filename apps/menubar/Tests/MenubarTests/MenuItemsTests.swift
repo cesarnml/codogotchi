@@ -41,7 +41,7 @@ final class MenuItemsTests: XCTestCase {
 		func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 		func applyGateBadge(content: GateBadgeContent?) {}
 		func applyPlatform(origin: String?) {}
-		func applyPlatformChipAnimationSettings(_ settings: PlatformChipAnimationSettings) {}
+		func applyMotionSettings(_ settings: MotionSettings) {}
 		func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) {}
 	}
 
