@@ -838,6 +838,9 @@ final class FloatingPetPanelController: PanelActionHandling {
 			label: animationBadgeLabel,
 			platform: currentPlatform,
 			inFlight: animationBadgeInFlight,
+			// `elapsed` defaults to nil — omitting it here would drop the elapsed
+			// chip for the whole drag and re-add it on the next steady-state pass.
+			elapsed: elapsedPresentationOverride ?? promptTimerStatus?.presentation(),
 			sessionNumber: currentSessionNumber,
 			sessionLabel: currentSessionLabel,
 			sessionTooltip: currentSessionTooltip,
