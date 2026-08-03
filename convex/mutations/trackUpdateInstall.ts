@@ -4,7 +4,9 @@ import { internalMutation } from "../_generated/server";
 export const trackUpdateInstall = internalMutation({
   args: {
     appVersion: v.string(),
+    appBuild: v.optional(v.string()),
     previousVersion: v.optional(v.string()),
+    previousBuild: v.optional(v.string()),
     platform: v.string(),
   },
   returns: v.null(),

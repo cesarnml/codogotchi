@@ -138,7 +138,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
 		if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
-			UpdateTelemetryReporter.reportIfUpdated(currentVersion: version)
+			// CFBundleVersion is what Sparkle actually compares; without it a
+			// rebuild that keeps the same marketing version goes unreported.
+			let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
+			UpdateTelemetryReporter.reportIfUpdated(currentVersion: version, currentBuild: build)
 		}
 
 		let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)

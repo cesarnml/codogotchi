@@ -9,15 +9,19 @@
  */
 
 import type * as ResendOTP from "../ResendOTP.js";
+import type * as actions_pollReleaseDownloads from "../actions/pollReleaseDownloads.js";
 import type * as actions_uploadPet from "../actions/uploadPet.js";
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as migrations_p11_02 from "../migrations/p11_02.js";
 import type * as migrations_p11_04 from "../migrations/p11_04.js";
 import type * as migrations_p12_01 from "../migrations/p12_01.js";
 import type * as mutations_operatorUpload from "../mutations/operatorUpload.js";
+import type * as mutations_recordReleaseDownloads from "../mutations/recordReleaseDownloads.js";
 import type * as mutations_syncProfile from "../mutations/syncProfile.js";
 import type * as mutations_trackDmgDownload from "../mutations/trackDmgDownload.js";
+import type * as mutations_trackUpdateInstall from "../mutations/trackUpdateInstall.js";
 import type * as pets from "../pets.js";
 import type * as seed from "../seed.js";
 import type * as users from "../users.js";
@@ -30,15 +34,19 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   ResendOTP: typeof ResendOTP;
+  "actions/pollReleaseDownloads": typeof actions_pollReleaseDownloads;
   "actions/uploadPet": typeof actions_uploadPet;
   auth: typeof auth;
+  crons: typeof crons;
   http: typeof http;
   "migrations/p11_02": typeof migrations_p11_02;
   "migrations/p11_04": typeof migrations_p11_04;
   "migrations/p12_01": typeof migrations_p12_01;
   "mutations/operatorUpload": typeof mutations_operatorUpload;
+  "mutations/recordReleaseDownloads": typeof mutations_recordReleaseDownloads;
   "mutations/syncProfile": typeof mutations_syncProfile;
   "mutations/trackDmgDownload": typeof mutations_trackDmgDownload;
+  "mutations/trackUpdateInstall": typeof mutations_trackUpdateInstall;
   pets: typeof pets;
   seed: typeof seed;
   users: typeof users;

@@ -171,3 +171,76 @@ describe("GET /pets/:petId/download", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("POST /track-update-install", () => {
+  const goodInstall = {
+    appVersion: "3.1.1",
+    appBuild: "18",
+    previousVersion: "3.1.0",
+    previousBuild: "17",
+    platform: "macos",
+  };
+
+  test("records build numbers alongside versions", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const res = await t.fetch("/track-update-install", {
+      method: "POST",
+      body: JSON.stringify(goodInstall),
+      headers: { "content-type": "application/json" },
+    });
+    expect(res.status).toBe(204);
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db.query("update_install_events").collect(),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.appBuild).toBe("18");
+    expect(rows[0]?.previousBuild).toBe("17");
+    expect(rows[0]?.appVersion).toBe("3.1.1");
+  });
+
+  test("accepts a payload with no build fields (pre-3.1.1 clients)", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const res = await t.fetch("/track-update-install", {
+      method: "POST",
+      body: JSON.stringify({
+        appVersion: "3.1.0",
+        previousVersion: "3.0.3",
+        platform: "macos",
+      }),
+      headers: { "content-type": "application/json" },
+    });
+    expect(res.status).toBe(204);
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db.query("update_install_events").collect(),
+    );
+    expect(rows[0]?.appBuild).toBeUndefined();
+    expect(rows[0]?.previousBuild).toBeUndefined();
+  });
+
+  test("rejects a non-string appBuild", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const res = await t.fetch("/track-update-install", {
+      method: "POST",
+      body: JSON.stringify({ ...goodInstall, appBuild: 18 }),
+      headers: { "content-type": "application/json" },
+    });
+    expect(res.status).toBe(400);
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db.query("update_install_events").collect(),
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  test("rejects an over-long previousBuild", async () => {
+    const t = convexTest(schema, convexTestModules);
+    const res = await t.fetch("/track-update-install", {
+      method: "POST",
+      body: JSON.stringify({ ...goodInstall, previousBuild: "x".repeat(33) }),
+      headers: { "content-type": "application/json" },
+    });
+    expect(res.status).toBe(400);
+  });
+});

@@ -19,4 +19,12 @@ export const convexTestModules = {
   "../../../convex/auth.ts": () => import("../convex/auth.ts"),
   "../../../convex/actions/uploadPet.ts": () =>
     import("../convex/actions/uploadPet.ts"),
+  "../../../convex/actions/pollReleaseDownloads.ts": () =>
+    import("../convex/actions/pollReleaseDownloads.ts"),
+  "../../../convex/mutations/trackUpdateInstall.ts": () =>
+    import("../convex/mutations/trackUpdateInstall.ts"),
+  "../../../convex/mutations/trackDmgDownload.ts": () =>
+    import("../convex/mutations/trackDmgDownload.ts"),
+  "../../../convex/mutations/recordReleaseDownloads.ts": () =>
+    import("../convex/mutations/recordReleaseDownloads.ts"),
 };

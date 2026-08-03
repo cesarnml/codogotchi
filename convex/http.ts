@@ -185,21 +185,30 @@ http.route({
       });
     }
     const rawBody = raw as Record<string, unknown>;
-    if (
-      rawBody.previousVersion !== undefined &&
-      !isShortString(rawBody.previousVersion)
-    ) {
-      return jsonError(400, {
-        error: "invalid_payload",
-        message: `previousVersion must be a string (max ${MAX_FIELD_LENGTH} chars) when present.`,
-      });
+    // Every optional field is validated the same way: absent, or a non-empty
+    // short string. Anything else is a client bug worth a 400 rather than a
+    // silently-dropped column.
+    const OPTIONAL_FIELDS = [
+      "appBuild",
+      "previousVersion",
+      "previousBuild",
+    ] as const;
+    for (const field of OPTIONAL_FIELDS) {
+      if (rawBody[field] !== undefined && !isShortString(rawBody[field])) {
+        return jsonError(400, {
+          error: "invalid_payload",
+          message: `${field} must be a string (max ${MAX_FIELD_LENGTH} chars) when present.`,
+        });
+      }
     }
 
     await ctx.runMutation(
       internal.mutations.trackUpdateInstall.trackUpdateInstall,
       {
         appVersion: rawBody.appVersion as string,
+        appBuild: rawBody.appBuild as string | undefined,
         previousVersion: rawBody.previousVersion as string | undefined,
+        previousBuild: rawBody.previousBuild as string | undefined,
         platform: rawBody.platform as string,
       },
     );

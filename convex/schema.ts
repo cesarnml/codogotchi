@@ -165,10 +165,29 @@ export default defineSchema({
 
   // Anonymous Sparkle auto-update adoption events. No user identifier of any
   // kind — just enough to chart version adoption curves over time.
+  //
+  // `appBuild`/`previousBuild` are CFBundleVersion — the value Sparkle actually
+  // compares. Optional because rows written before build tracking landed (and
+  // any non-macOS reporter) carry only the marketing version.
   update_install_events: defineTable({
     appVersion: v.string(),
+    appBuild: v.optional(v.string()),
     previousVersion: v.optional(v.string()),
+    previousBuild: v.optional(v.string()),
     platform: v.string(),
     installedAt: v.number(),
   }),
+
+  // Daily snapshots of GitHub release asset download counts. GitHub reports a
+  // cumulative total per asset with no history, so charting installs over time
+  // requires storing our own periodic samples and differencing them.
+  //
+  // This is the only counter that sees Homebrew, direct-URL, and Sparkle
+  // downloads — `dmg_downloads` counts website button clicks and nothing else.
+  release_asset_downloads: defineTable({
+    tagName: v.string(),
+    assetName: v.string(),
+    downloadCount: v.number(),
+    recordedAt: v.number(),
+  }).index("by_asset_recordedAt", ["assetName", "recordedAt"]),
 });
