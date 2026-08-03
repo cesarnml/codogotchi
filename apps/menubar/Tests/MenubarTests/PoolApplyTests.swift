@@ -25,7 +25,7 @@ final class PoolApplyTests: XCTestCase {
 		var appliedAttention: [(AttentionPayload?, SourceEvent?)] = []
 		var appliedGateBadges: [GateBadgeContent?] = []
 		var appliedPlatforms: [String?] = []
-		var appliedPlatformChipAnimationEnabled: [Bool] = []
+		var appliedPlatformChipAnimationSettings: [PlatformChipAnimationSettings] = []
 		var appliedRPGStates: [(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool)] =
 			[]
 		var appliedSessionNumbers: [Int?] = []
@@ -54,8 +54,8 @@ final class PoolApplyTests: XCTestCase {
 		}
 		func applyGateBadge(content: GateBadgeContent?) { appliedGateBadges.append(content) }
 		func applyPlatform(origin: String?) { appliedPlatforms.append(origin) }
-		func applyPlatformChipAnimationEnabled(_ enabled: Bool) {
-			appliedPlatformChipAnimationEnabled.append(enabled)
+		func applyPlatformChipAnimationSettings(_ settings: PlatformChipAnimationSettings) {
+			appliedPlatformChipAnimationSettings.append(settings)
 		}
 		func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?) { replacePetsCallCount += 1 }
 		func applySessionNumber(_ number: Int?) { appliedSessionNumbers.append(number) }

@@ -245,8 +245,18 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTabViewDeleg
 		// No live-push callback: the pool re-reads `customization.json` every tick,
 		// so persisting is enough for running chips to pick the change up. Contrast
 		// `onMonochromeToggled`, whose status-item icon sits outside the poll loop.
-		general.onPlatformChipAnimationToggled = { [weak self] isEnabled in
+		// `[weak general]`: these closures are stored ON `general`, so capturing it
+		// strongly would retain the view for the process lifetime — its `deinit`,
+		// and therefore its NSWorkspace observer removal, would never run.
+		general.onPlatformChipAnimationToggled = { [weak self, weak general] isEnabled in
 			self?.generalViewModel.setPlatformChipAnimationEnabled(isEnabled)
+			// Re-render the row's Reduce Motion notice: flipping the toggle is what
+			// creates or clears the conflict in the first place.
+			general?.refreshReduceMotionNotice()
+		}
+		general.onPlatformChipAnimationIgnoreReduceMotionToggled = { [weak self, weak general] ignores in
+			self?.generalViewModel.setPlatformChipAnimationIgnoresReduceMotion(ignores)
+			general?.refreshReduceMotionNotice()
 		}
 		let pet = PetTabView(
 			viewModel: petTabViewModel,

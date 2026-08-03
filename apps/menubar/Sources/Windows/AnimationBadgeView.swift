@@ -141,7 +141,7 @@ final class AnimationBadgeView: NSView {
 		inFlight: Bool,
 		promptTimer: PromptTimerPresentation? = nil,
 		metrics: GateBadgeLayout.Metrics,
-		platformChipAnimationEnabled: Bool = false
+		platformChipAnimationSettings: PlatformChipAnimationSettings = .disabled
 	) {
 		self.metrics = metrics
 		currentPromptTimer = promptTimer
@@ -153,7 +153,7 @@ final class AnimationBadgeView: NSView {
 				platform: platform,
 				metrics: metrics,
 				inFlight: inFlight,
-				animationEnabled: platformChipAnimationEnabled
+				animationSettings: platformChipAnimationSettings
 			)
 			if chipView.superview == nil {
 				stackView.insertArrangedSubview(chipView, at: 0)

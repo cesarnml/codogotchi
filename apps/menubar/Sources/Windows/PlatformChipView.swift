@@ -21,7 +21,7 @@ final class PlatformChipView: NSView {
 	/// animation from being torn down and restarted (a visible stutter) each time.
 	private var installedAnimation: PlatformChipAnimation?
 	private var currentPlatform: PlatformAttribution?
-	private var animationEnabled = false
+	private var animationSettings = PlatformChipAnimationSettings.disabled
 	private var isInFlight = false
 	/// Set while the badge panel is ordered out. `window` stays non-nil for an
 	/// ordered-out window and Core Animation keeps evaluating the animation, so
@@ -107,7 +107,7 @@ final class PlatformChipView: NSView {
 		platform: PlatformAttribution,
 		metrics: GateBadgeLayout.Metrics,
 		inFlight: Bool = false,
-		animationEnabled: Bool = false
+		animationSettings: PlatformChipAnimationSettings = .disabled
 	) {
 		self.metrics = metrics
 		if platform != currentPlatform {
@@ -117,7 +117,7 @@ final class PlatformChipView: NSView {
 			imageView.image = image
 		}
 		self.isInFlight = inFlight
-		self.animationEnabled = animationEnabled
+		self.animationSettings = animationSettings
 		applyMetrics()
 		refreshAnimation()
 	}
@@ -151,8 +151,8 @@ final class PlatformChipView: NSView {
 		centerGlyphAnchorPoint()
 
 		let desired: PlatformChipAnimation? =
-			animationEnabled && isInFlight && !isSuspended && window != nil
-			&& !Self.prefersReducedMotion()
+			isInFlight && !isSuspended && window != nil
+			&& animationSettings.allowsMotion(systemPrefersReducedMotion: Self.prefersReducedMotion())
 			? currentPlatform.flatMap(PlatformChipAnimation.forPlatform)
 			: nil
 

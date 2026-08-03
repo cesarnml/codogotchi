@@ -466,7 +466,10 @@ enum PoolDerive {
 				}
 			}
 
-			window.platformChipAnimationEnabled = customization.platformChipAnimationEnabled
+			window.platformChipAnimationSettings = PlatformChipAnimationSettings(
+				isEnabled: customization.platformChipAnimationEnabled,
+				ignoresReduceMotion: customization.platformChipAnimationIgnoresReduceMotion
+			)
 
 			window.petId = input.assignments.resolve(origin: key == .combined ? "combined" : key.origin)
 			window.rpgSnapshot = snapshot.rpgSnapshot

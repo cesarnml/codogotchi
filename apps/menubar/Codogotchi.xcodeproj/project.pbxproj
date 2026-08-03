@@ -14,6 +14,7 @@
 		088D9837ED236CB7DD704EB2 /* SettingsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE7A49CDBE6CA5CFAD5238C /* SettingsSupport.swift */; };
 		08EA1CE325097688843674C5 /* SessionPrunerAllocatorSurfaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19B8E0A3B552E60C1B29ABE9 /* SessionPrunerAllocatorSurfaceTests.swift */; };
 		0D1910824919B7F2097B6480 /* DemoCycleDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2EB6CC13A81EBCFDAF037F /* DemoCycleDriver.swift */; };
+		10B628DB0D83D9848AC7146A /* ReduceMotionPrecedenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B259E9A12BC8267535CCD21 /* ReduceMotionPrecedenceTests.swift */; };
 		11206CBC485103EA118341AB /* FloatingPetPromptCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8780B208D0E108DA773D3287 /* FloatingPetPromptCoordinator.swift */; };
 		121F58B33BBB5B89020FD3A7 /* FloatingPetSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57120C267C3617C32AC0430F /* FloatingPetSceneTests.swift */; };
 		1275ABCEEE3AB44A8D12B764 /* CustomizationTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0CB6AFE5B881E7C678DD6A /* CustomizationTabView.swift */; };
@@ -160,6 +161,7 @@
 		B69656D5873253F3A80DDF25 /* FlippedStackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED1E6B27BAC9CB8CAE40022 /* FlippedStackView.swift */; };
 		B7267432230F42A102E5F8F5 /* PoolDerivePushTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF4156C53926BBC287DF6BB /* PoolDerivePushTests.swift */; };
 		B892760D965875045A18494B /* SessionNumberAllocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC2EC51845CF105F01A1BBE4 /* SessionNumberAllocatorTests.swift */; };
+		B9154E9B2C1FBD32A5A1764A /* PlatformChipAnimationSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20EEAF3CE73DC76996668099 /* PlatformChipAnimationSettings.swift */; };
 		BA3F2EF6D3F5E093C9DFFBE9 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F15B1B99434EA9F9005052 /* AppStateTests.swift */; };
 		BB7A722079A26146B51633AC /* HalfHeartDecayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02675B5F9E50F8DB86AA76E0 /* HalfHeartDecayTests.swift */; };
 		BBAA522CAC3B1ED9771430F9 /* StateJsonWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C367AE2D8D1BB37467677308 /* StateJsonWriter.swift */; };
@@ -188,6 +190,7 @@
 		CFD5C0AE22C996C03621521C /* PromptTimerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6660BA8D585465422C1ABA1A /* PromptTimerTests.swift */; };
 		CFDE87CF42EBDA584FE72651 /* PoolMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6C7773EAF8CC26653E52350 /* PoolMemory.swift */; };
 		D0829C6BFE047F8829080BE5 /* FloatingPetPromptItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3351EB8DFFDD6E8E9263B6A8 /* FloatingPetPromptItem.swift */; };
+		D2D0F955AA39FE4FA8268A41 /* ReduceMotionNoticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD1DBFE149B68E19DEFF04AC /* ReduceMotionNoticeView.swift */; };
 		D2E6929B12589CC720E012F7 /* SlicePruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85617A3F9BAFE2927C403813 /* SlicePruner.swift */; };
 		D3F5D2F0B8F85C898A0656E4 /* DesiredWindows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B98FC35F71CC460885451E /* DesiredWindows.swift */; };
 		D4B25DD9B2E2825856181DBC /* DeveloperTabViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B9E962BBA7B8B1B05F9F77 /* DeveloperTabViewModelTests.swift */; };
@@ -261,6 +264,7 @@
 		05EB20E9AD12E7E2765C3217 /* SettingsTabModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabModelTests.swift; sourceTree = "<group>"; };
 		0726E3AFB7210BA52BF1ACFD /* ConfigFileWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigFileWriterTests.swift; sourceTree = "<group>"; };
 		073E1DA7FD402C40CFEA5439 /* RPGTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGTabViewModelTests.swift; sourceTree = "<group>"; };
+		0B259E9A12BC8267535CCD21 /* ReduceMotionPrecedenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReduceMotionPrecedenceTests.swift; sourceTree = "<group>"; };
 		0B874012012EF33F829A2CD7 /* CustomizationTabViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizationTabViewModelTests.swift; sourceTree = "<group>"; };
 		0C648B3B6E8C5F97123E808D /* PetConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetConfigTests.swift; sourceTree = "<group>"; };
 		0D359A7765F7ACDDA24C16CB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -283,6 +287,7 @@
 		1C041CB2EE71340F3F263BFB /* RPGHUDPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPGHUDPreviewView.swift; sourceTree = "<group>"; };
 		1F540BC6B6EBC67D38138D89 /* ActivityState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityState.swift; sourceTree = "<group>"; };
 		1F671C56394833C823D8585D /* LegacyStateFileCleanupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyStateFileCleanupTests.swift; sourceTree = "<group>"; };
+		20EEAF3CE73DC76996668099 /* PlatformChipAnimationSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformChipAnimationSettings.swift; sourceTree = "<group>"; };
 		21EAF55FDD0C6277E3CCB83F /* RpgStateReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RpgStateReader.swift; sourceTree = "<group>"; };
 		22CB181AE0D1FF3EE2035186 /* FloatingPetPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetPanelController.swift; sourceTree = "<group>"; };
 		2398B9D19FC44EA56485D8F1 /* StateDirectoryListing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateDirectoryListing.swift; sourceTree = "<group>"; };
@@ -466,6 +471,7 @@
 		F5CF055F2A0C9DD84F4F026A /* FloatingPetWindowPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPetWindowPool.swift; sourceTree = "<group>"; };
 		F91F037388E6AEB00DBBC86A /* SettingsTabModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabModel.swift; sourceTree = "<group>"; };
 		FC0153CA2F32DC0733909BE8 /* PoolTickInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolTickInput.swift; sourceTree = "<group>"; };
+		FD1DBFE149B68E19DEFF04AC /* ReduceMotionNoticeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReduceMotionNoticeView.swift; sourceTree = "<group>"; };
 		FE8CCE564BDB7258EEE9F3C0 /* ChromeFlockCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeFlockCoordinator.swift; sourceTree = "<group>"; };
 		FED1E6B27BAC9CB8CAE40022 /* FlippedStackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlippedStackView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -570,6 +576,7 @@
 				E59DAA859102A02B706B2A0B /* PoolApplyTests.swift */,
 				2A954A6F01589CB42DBFE416 /* PromptTimerProtocolSurfaceTests.swift */,
 				6660BA8D585465422C1ABA1A /* PromptTimerTests.swift */,
+				0B259E9A12BC8267535CCD21 /* ReduceMotionPrecedenceTests.swift */,
 				7D0B6066DEB36E24086A2094 /* ReloadActivePetResponsivenessTests.swift */,
 				9ED3AF1D653CB1A713C03DB4 /* RetrievedSessionTitleStoreTests.swift */,
 				78115EE1CE4F0AFD41CC1231 /* RPGHUDViewModelTests.swift */,
@@ -685,6 +692,7 @@
 				5CC1D46465036A1A9F88E9C3 /* OnboardingController.swift */,
 				CB4F6F5EFBD5019B61748BA5 /* OnboardingWindowController.swift */,
 				EDECB67BB2B9688C3C625E80 /* PlatformChipAnimation.swift */,
+				20EEAF3CE73DC76996668099 /* PlatformChipAnimationSettings.swift */,
 				F15A1B6845D95861A8465263 /* PlatformChipView.swift */,
 				815A1F6AB8504430784C0CB7 /* PlatformSessionBadge.swift */,
 				E0D4D0F64AA1A5C04FED5213 /* PromptTimer.swift */,
@@ -719,6 +727,7 @@
 				8DBC88DE074DC11652453ADE /* PetTabView.swift */,
 				037EF6196923641D00095C30 /* PetTabViewModel.swift */,
 				8E2899DD8851B86633D4BB28 /* PetThumbnail.swift */,
+				FD1DBFE149B68E19DEFF04AC /* ReduceMotionNoticeView.swift */,
 				D928C678ECF64BD2AA362F27 /* RPGHeartStripView.swift */,
 				D6858ADF75A07FF4C263F283 /* RPGHUDIconTileView.swift */,
 				1C041CB2EE71340F3F263BFB /* RPGHUDPreviewView.swift */,
@@ -1031,6 +1040,7 @@
 				E9D555C5B2708821D5630992 /* PetThumbnail.swift in Sources */,
 				692DB55B96C40097202445F2 /* PlatformAttribution.swift in Sources */,
 				4DF34DC0E6BC4F0CEB17FC4A /* PlatformChipAnimation.swift in Sources */,
+				B9154E9B2C1FBD32A5A1764A /* PlatformChipAnimationSettings.swift in Sources */,
 				7E2C0BDEA3AFE0C443B55F2A /* PlatformChipView.swift in Sources */,
 				8F1F8583F4FEFC28BD92B6AC /* PlatformSessionBadge.swift in Sources */,
 				3C56000FC80F76768AF09E9D /* PoolApply.swift in Sources */,
@@ -1051,6 +1061,7 @@
 				28158B37144FCCB29480D853 /* RPGProgressBarView.swift in Sources */,
 				89111DC256531C6E539D3A1A /* RPGTabView.swift in Sources */,
 				19AA3BDBDFB7696E7578AD0C /* RPGTabViewModel.swift in Sources */,
+				D2D0F955AA39FE4FA8268A41 /* ReduceMotionNoticeView.swift in Sources */,
 				AAC66A3D20F70AA3BC1608C5 /* RenderKeyResolver.swift in Sources */,
 				C6262A26295AA1B037EE560F /* RetrievedSessionTitleStore.swift in Sources */,
 				46A42463FFCE9411B5B6A383 /* RpgStateReader.swift in Sources */,
@@ -1142,6 +1153,7 @@
 				CFD5C0AE22C996C03621521C /* PromptTimerTests.swift in Sources */,
 				A94729EE4E31C8A57629486A /* RPGHUDViewModelTests.swift in Sources */,
 				A4DE38B2FAB835D924339D92 /* RPGTabViewModelTests.swift in Sources */,
+				10B628DB0D83D9848AC7146A /* ReduceMotionPrecedenceTests.swift in Sources */,
 				560036137684236CE680D9F3 /* ReloadActivePetResponsivenessTests.swift in Sources */,
 				0341121B14241F95824B005F /* RetrievedSessionTitleStoreTests.swift in Sources */,
 				D948D761587BF98DB22640EB /* RpgStateReaderTests.swift in Sources */,

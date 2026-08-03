@@ -73,7 +73,7 @@ final class AnimationBadgePanel: NSPanel {
 		modeIndicator: String? = nil,
 		relativeTo petFrame: CGRect,
 		visibleFrame: CGRect,
-		platformChipAnimationEnabled: Bool = false
+		platformChipAnimationSettings: PlatformChipAnimationSettings = .disabled
 	) {
 		badgeView.configure(
 			text: label,
@@ -81,7 +81,7 @@ final class AnimationBadgePanel: NSPanel {
 			inFlight: inFlight,
 			promptTimer: promptTimer,
 			metrics: AnimationBadgeLayout.metrics(for: petFrame),
-			platformChipAnimationEnabled: platformChipAnimationEnabled
+			platformChipAnimationSettings: platformChipAnimationSettings
 		)
 		badgeView.configureSessionNumber(sessionNumber, label: sessionLabel, tooltip: sessionTooltip)
 		badgeView.configureModeIndicator(modeIndicator)

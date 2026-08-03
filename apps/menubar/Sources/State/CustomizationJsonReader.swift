@@ -79,6 +79,11 @@ struct CustomizationSnapshot {
 	/// existed; `true` lets `PlatformChipView` spin/flip its logo while its pet
 	/// is mid-turn.
 	let platformChipAnimationEnabled: Bool
+	/// Explicit per-app opt-out of the system Reduce Motion setting for the chip
+	/// logo animation only. `false` (the default) means Reduce Motion wins; the
+	/// user sets this from the conflict notice in Settings > General after being
+	/// told why the animation is being held back.
+	let platformChipAnimationIgnoresReduceMotion: Bool
 
 	/// Sentinel written to `session_cap` for the Unlimited option — every
 	/// session-keyed panel renders, nothing is evicted (see `SessionSelectionPolicy`).
@@ -109,6 +114,9 @@ struct CustomizationSnapshot {
 	/// strictly opt-in so an existing install's chips keep their current
 	/// (static) behavior until the user asks for it.
 	static let defaultPlatformChipAnimationEnabled = false
+	/// Default for the Reduce Motion opt-out — off. Accessibility settings win
+	/// unless the user says otherwise in so many words.
+	static let defaultPlatformChipAnimationIgnoresReduceMotion = false
 	/// Every platform origin Codogotchi ships hooks for. Single source of
 	/// truth for the per-origin defaults below — kept in sync with
 	/// `CustomizationTabViewModel.origins` and `ASSIGNMENT_BADGE_KEYS`.
@@ -141,7 +149,9 @@ struct CustomizationSnapshot {
 		archiveSessionAfterIdleSeconds: Int = CustomizationSnapshot.defaultArchiveSessionAfterIdleSeconds,
 		pruneArchivedSessionsAfterSeconds: Int = CustomizationSnapshot
 			.defaultPruneArchivedSessionsAfterSeconds,
-		platformChipAnimationEnabled: Bool = CustomizationSnapshot.defaultPlatformChipAnimationEnabled
+		platformChipAnimationEnabled: Bool = CustomizationSnapshot.defaultPlatformChipAnimationEnabled,
+		platformChipAnimationIgnoresReduceMotion: Bool = CustomizationSnapshot
+			.defaultPlatformChipAnimationIgnoresReduceMotion
 	) {
 		self.platformModes = platformModes
 		self.idleDismissTtlSeconds = idleDismissTtlSeconds
@@ -158,6 +168,7 @@ struct CustomizationSnapshot {
 		self.archiveSessionAfterIdleSeconds = archiveSessionAfterIdleSeconds
 		self.pruneArchivedSessionsAfterSeconds = pruneArchivedSessionsAfterSeconds
 		self.platformChipAnimationEnabled = platformChipAnimationEnabled
+		self.platformChipAnimationIgnoresReduceMotion = platformChipAnimationIgnoresReduceMotion
 	}
 
 	static let safeDefault = CustomizationSnapshot(
@@ -175,7 +186,9 @@ struct CustomizationSnapshot {
 		evictSessionPetsEnabled: true,
 		archiveSessionAfterIdleSeconds: CustomizationSnapshot.defaultArchiveSessionAfterIdleSeconds,
 		pruneArchivedSessionsAfterSeconds: CustomizationSnapshot.defaultPruneArchivedSessionsAfterSeconds,
-		platformChipAnimationEnabled: CustomizationSnapshot.defaultPlatformChipAnimationEnabled
+		platformChipAnimationEnabled: CustomizationSnapshot.defaultPlatformChipAnimationEnabled,
+		platformChipAnimationIgnoresReduceMotion: CustomizationSnapshot
+			.defaultPlatformChipAnimationIgnoresReduceMotion
 	)
 }
 
@@ -236,7 +249,9 @@ enum CustomizationJsonReader {
 			pruneArchivedSessionsAfterSeconds: rawPruneArchived < 0
 				? CustomizationSnapshot.defaultPruneArchivedSessionsAfterSeconds : rawPruneArchived,
 			platformChipAnimationEnabled: payload.platformChipAnimationEnabled
-				?? CustomizationSnapshot.defaultPlatformChipAnimationEnabled
+				?? CustomizationSnapshot.defaultPlatformChipAnimationEnabled,
+			platformChipAnimationIgnoresReduceMotion: payload.platformChipAnimationIgnoresReduceMotion
+				?? CustomizationSnapshot.defaultPlatformChipAnimationIgnoresReduceMotion
 		)
 	}
 }
@@ -257,4 +272,5 @@ private struct CustomizationPayload: Decodable {
 	let archiveSessionAfterIdleSeconds: Int?
 	let pruneArchivedSessionsAfterSeconds: Int?
 	let platformChipAnimationEnabled: Bool?
+	let platformChipAnimationIgnoresReduceMotion: Bool?
 }

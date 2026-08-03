@@ -98,11 +98,17 @@ final class MinimalistBadgeView: NSView {
 		sizePillDismissal.uninstall()
 	}
 
+	/// Forwarded to the platform chip when this strip's panel is ordered out or
+	/// back in. See `PlatformChipView.setAnimationSuspended`.
+	func setChipAnimationSuspended(_ suspended: Bool) {
+		animationBadge.setChipAnimationSuspended(suspended)
+	}
+
 	func configureBadge(
 		platform: PlatformAttribution?,
 		activity: ActivityState,
 		metrics: GateBadgeLayout.Metrics,
-		platformChipAnimationEnabled: Bool = false
+		platformChipAnimationSettings: PlatformChipAnimationSettings = .disabled
 	) {
 		currentActivity = activity
 		currentMetrics = metrics
@@ -112,7 +118,7 @@ final class MinimalistBadgeView: NSView {
 			inFlight: activity.isInFlight,
 			promptTimer: promptTimerPresentationOverride ?? promptTimerStatus?.presentation(),
 			metrics: metrics,
-			platformChipAnimationEnabled: platformChipAnimationEnabled
+			platformChipAnimationSettings: platformChipAnimationSettings
 		)
 		sessionBadge.configure(
 			number: currentSessionNumber, label: currentSessionLabel, tooltip: currentSessionTooltip,

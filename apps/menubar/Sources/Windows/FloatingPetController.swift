@@ -23,9 +23,9 @@ protocol FloatingPetWindowControlling: FloatingPetVisibilityControlling {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
 	func applyPlatform(origin: String?)
-	/// Opt-in for the platform chip's in-flight logo animation. The chip still
-	/// only animates while the pet is actually mid-turn.
-	func applyPlatformChipAnimationEnabled(_ enabled: Bool)
+	/// The user's chip-animation decisions. The chip still only animates while
+	/// the pet is actually mid-turn and on screen.
+	func applyPlatformChipAnimationSettings(_ settings: PlatformChipAnimationSettings)
 	func replacePets(codexPet: CodexPet, codogotchiPet: CodogotchiPet?)
 	/// Assigned session number for this window (nil for a plain-origin or
 	/// "combined" window — session numbering only applies to session-keyed
@@ -98,7 +98,7 @@ protocol PanelManaging: AnyObject {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?)
 	func applyGateBadge(content: GateBadgeContent?)
 	func applyPlatform(origin: String?)
-	func applyPlatformChipAnimationEnabled(_ enabled: Bool)
+	func applyPlatformChipAnimationSettings(_ settings: PlatformChipAnimationSettings)
 	func applyRPGState(halfHearts: Int, levelFraction: Double, level: Int, activeMinutes: Int, hudEnabled: Bool)
 	func setRPGHUDEnabled(_ enabled: Bool)
 	func setHUDDemoActive(_ active: Bool)
@@ -155,7 +155,7 @@ extension PanelManaging {
 	func applyAttention(payload: AttentionPayload?, sourceEvent: SourceEvent?) {}
 	func applyGateBadge(content: GateBadgeContent?) {}
 	func applyPlatform(origin: String?) {}
-	func applyPlatformChipAnimationEnabled(_ enabled: Bool) {}
+	func applyPlatformChipAnimationSettings(_ settings: PlatformChipAnimationSettings) {}
 	func applySessionNumber(_ number: Int?) {}
 	func applyHasActiveSession(_ hasActiveSession: Bool) {}
 	func applySessionLabel(_ label: String?) {}
@@ -303,8 +303,8 @@ final class FloatingPetController: NSObject, FloatingPetVisibilityControlling, F
 		panel.applyPlatform(origin: origin)
 	}
 
-	func applyPlatformChipAnimationEnabled(_ enabled: Bool) {
-		panel.applyPlatformChipAnimationEnabled(enabled)
+	func applyPlatformChipAnimationSettings(_ settings: PlatformChipAnimationSettings) {
+		panel.applyPlatformChipAnimationSettings(settings)
 	}
 
 	func applySessionNumber(_ number: Int?) {
@@ -520,8 +520,8 @@ final class MinimalistWindowController: NSObject, FloatingPetWindowControlling {
 		panel.applyPlatform(origin: lastAppliedOrigin)
 	}
 
-	func applyPlatformChipAnimationEnabled(_ enabled: Bool) {
-		panel.applyPlatformChipAnimationEnabled(enabled)
+	func applyPlatformChipAnimationSettings(_ settings: PlatformChipAnimationSettings) {
+		panel.applyPlatformChipAnimationSettings(settings)
 	}
 
 	func applySessionNumber(_ number: Int?) {

@@ -20,6 +20,12 @@ final class GeneralTabView: NSView {
 	private let monochromeSwitch = NSSwitch()
 	private let requirePruneConfirmationSwitch = NSSwitch()
 	private let platformChipAnimationSwitch = NSSwitch()
+	private let reduceMotionNotice = ReduceMotionNoticeView(frame: .zero)
+	/// Vertical stack for the toggle strips. `NSStackView` (rather than pinned
+	/// constraints) so the Reduce Motion notice collapses to zero height when
+	/// hidden instead of leaving a gap.
+	private let toggleStack = NSStackView()
+	private var reduceMotionObserver: (any NSObjectProtocol)?
 
 	private let onInstallHooks: () -> Void
 	private let onUpdateHooks: () -> Void
@@ -27,6 +33,7 @@ final class GeneralTabView: NSView {
 	var onMonochromeToggled: ((Bool) -> Void)?
 	var onRequirePruneConfirmationToggled: ((Bool) -> Void)?
 	var onPlatformChipAnimationToggled: ((Bool) -> Void)?
+	var onPlatformChipAnimationIgnoreReduceMotionToggled: ((Bool) -> Void)?
 	private var viewModel: GeneralTabViewModel
 
 	init(
@@ -42,10 +49,25 @@ final class GeneralTabView: NSView {
 		super.init(frame: .zero)
 		setupViews()
 		applyViewModel(viewModel)
+		// The user may flip Reduce Motion in System Settings with this tab open;
+		// the notice has to track that, not go stale until relaunch.
+		reduceMotionObserver = NSWorkspace.shared.notificationCenter.addObserver(
+			forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+			object: nil,
+			queue: .main
+		) { [weak self] _ in
+			self?.refreshReduceMotionNotice()
+		}
 	}
 
 	@available(*, unavailable)
 	required init?(coder: NSCoder) { nil }
+
+	deinit {
+		if let reduceMotionObserver {
+			NSWorkspace.shared.notificationCenter.removeObserver(reduceMotionObserver)
+		}
+	}
 
 	func applyViewModel(_ vm: GeneralTabViewModel) {
 		viewModel = vm
@@ -56,6 +78,14 @@ final class GeneralTabView: NSView {
 		monochromeSwitch.state = vm.menubarIconMonochrome ? .on : .off
 		requirePruneConfirmationSwitch.state = vm.requirePruneConfirmation ? .on : .off
 		platformChipAnimationSwitch.state = vm.platformChipAnimationEnabled ? .on : .off
+		reduceMotionNotice.configure(vm.reduceMotionNotice)
+	}
+
+	/// Re-reads only the Reduce Motion conflict state. Called when the system
+	/// setting changes while this tab is open, so the notice appears and clears
+	/// live rather than on next launch.
+	func refreshReduceMotionNotice() {
+		reduceMotionNotice.configure(viewModel.reduceMotionNotice)
 	}
 
 	func setHooksWorking(message: String) {
@@ -222,7 +252,26 @@ final class GeneralTabView: NSView {
 				"Spin the coding tool's logo on the pet's badge while that tool is mid-turn.",
 			toggle: platformChipAnimationSwitch
 		)
-		[monoRow, pruneRow, chipAnimationRow].forEach(card.addSubview)
+		reduceMotionNotice.onAnimateAnyway = { [weak self] in
+			self?.onPlatformChipAnimationIgnoreReduceMotionToggled?(true)
+		}
+		reduceMotionNotice.onRespectReduceMotion = { [weak self] in
+			self?.onPlatformChipAnimationIgnoreReduceMotionToggled?(false)
+		}
+
+		toggleStack.orientation = .vertical
+		toggleStack.alignment = .leading
+		toggleStack.distribution = .fill
+		toggleStack.spacing = 10
+		toggleStack.translatesAutoresizingMaskIntoConstraints = false
+		card.addSubview(toggleStack)
+		[monoRow, pruneRow, chipAnimationRow, reduceMotionNotice].forEach {
+			toggleStack.addArrangedSubview($0)
+			$0.widthAnchor.constraint(equalTo: toggleStack.widthAnchor).isActive = true
+		}
+		// Tighter than the inter-row gap so the notice reads as belonging to the
+		// animation toggle rather than floating as a fourth row.
+		toggleStack.setCustomSpacing(4, after: chipAnimationRow)
 
 		NSLayoutConstraint.activate([
 			card.topAnchor.constraint(equalTo: topAnchor, constant: 20),
@@ -269,21 +318,14 @@ final class GeneralTabView: NSView {
 			statusPanel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
 			statusPanel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 
-			monoRow.topAnchor.constraint(equalTo: statusPanel.bottomAnchor, constant: 14),
-			monoRow.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
-			monoRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+			toggleStack.topAnchor.constraint(equalTo: statusPanel.bottomAnchor, constant: 14),
+			toggleStack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+			toggleStack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+			toggleStack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
+
 			monoRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
-
-			pruneRow.topAnchor.constraint(equalTo: monoRow.bottomAnchor, constant: 10),
-			pruneRow.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
-			pruneRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 			pruneRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
-
-			chipAnimationRow.topAnchor.constraint(equalTo: pruneRow.bottomAnchor, constant: 10),
-			chipAnimationRow.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
-			chipAnimationRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
 			chipAnimationRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
-			chipAnimationRow.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
 		])
 	}
 

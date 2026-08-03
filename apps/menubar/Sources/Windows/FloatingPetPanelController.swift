@@ -53,9 +53,9 @@ final class FloatingPetPanelController: PanelActionHandling {
 	/// logo chip shown immediately left of the animation badge. `nil` when the
 	/// origin is absent or non-platform, in which case no chip is drawn.
 	private var currentPlatform: PlatformAttribution?
-	/// Mirrors `customization.platformChipAnimationEnabled`; forwarded to the
-	/// platform chip, which additionally gates on the pet actually being in flight.
-	private var platformChipAnimationEnabled = false
+	/// Mirrors the user's chip-animation settings; forwarded to the platform
+	/// chip, which additionally gates on the pet being in flight and on screen.
+	private var platformChipAnimationSettings = PlatformChipAnimationSettings.disabled
 	/// Latest `source_event` from `state.json`, mirrored so a double-click on
 	/// the platform chip can resolve the same Focus target the attention
 	/// bubble's Focus button does, even when no bubble is currently shown.
@@ -383,9 +383,9 @@ final class FloatingPetPanelController: PanelActionHandling {
 		repositionAndShowAnimationBadge()
 	}
 
-	func applyPlatformChipAnimationEnabled(_ enabled: Bool) {
-		guard enabled != platformChipAnimationEnabled else { return }
-		platformChipAnimationEnabled = enabled
+	func applyPlatformChipAnimationSettings(_ settings: PlatformChipAnimationSettings) {
+		guard settings != platformChipAnimationSettings else { return }
+		platformChipAnimationSettings = settings
 		// Turning the toggle off mid-turn has to reach a chip that is already
 		// animating, so push a refresh rather than waiting for the next content
 		// change to happen to re-render the badge.
@@ -690,7 +690,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider(),
-			platformChipAnimationEnabled: platformChipAnimationEnabled
+			platformChipAnimationSettings: platformChipAnimationSettings
 		)
 	}
 
@@ -773,7 +773,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider(),
-			platformChipAnimationEnabled: platformChipAnimationEnabled
+			platformChipAnimationSettings: platformChipAnimationSettings
 		)
 	}
 
@@ -844,7 +844,7 @@ final class FloatingPetPanelController: PanelActionHandling {
 			modeIndicator: currentModeIndicatorBadge,
 			relativeTo: lastPanelFrame,
 			visibleFrame: visibleFrameProvider(),
-			platformChipAnimationEnabled: platformChipAnimationEnabled
+			platformChipAnimationSettings: platformChipAnimationSettings
 		)
 		if attentionActive {
 			chromeCoordinator.liveRepositionAttentionBubble(

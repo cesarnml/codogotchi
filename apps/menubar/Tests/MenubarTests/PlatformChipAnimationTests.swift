@@ -112,7 +112,7 @@ final class PlatformChipAnimationTests: XCTestCase {
 		// right but the centre of mass swings on a circle roughly 0.7x the glyph's
 		// width. Symmetry-axis choice cannot compensate for this.
 		let (chip, window) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		window.contentView?.layoutSubtreeIfNeeded()
 
 		let glyph = try XCTUnwrap(chip.subviews.compactMap { $0 as? NSImageView }.first)
@@ -125,7 +125,7 @@ final class PlatformChipAnimationTests: XCTestCase {
 		let renderedBefore = layer.frame
 		layer.anchorPoint = .zero
 		layer.position = glyph.frame.origin
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		window.contentView?.layoutSubtreeIfNeeded()
 
 		XCTAssertEqual(layer.anchorPoint, CGPoint(x: 0.5, y: 0.5), "rotation must pivot about the glyph centre")
@@ -153,6 +153,9 @@ final class PlatformChipAnimationTests: XCTestCase {
 			chip.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 20),
 			chip.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 20),
 		])
+		// Give the glyph real geometry up front: the chip refuses to animate against
+		// a zero-sized layer, so without this every case below would pass vacuously.
+		window.contentView?.layoutSubtreeIfNeeded()
 		return (chip, window)
 	}
 
@@ -167,26 +170,26 @@ final class PlatformChipAnimationTests: XCTestCase {
 
 	func testDisabledToggleNeverAnimatesEvenInFlight() {
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: false)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: false))
 		XCTAssertTrue(animationKeys(chip).isEmpty, "default-off must leave the chip completely static")
 	}
 
 	func testEnabledButIdleDoesNotAnimate() {
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: false, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: false, animationSettings: .init(isEnabled: true))
 		XCTAssertTrue(animationKeys(chip).isEmpty, "the animation signals in-flight, not merely enabled")
 	}
 
 	func testEnabledAndInFlightAnimates() {
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		XCTAssertEqual(animationKeys(chip).count, 1)
 	}
 
 	func testAnimationStopsWhenFlightEnds() {
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: false, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: false, animationSettings: .init(isEnabled: true))
 		XCTAssertTrue(animationKeys(chip).isEmpty)
 	}
 
@@ -194,10 +197,10 @@ final class PlatformChipAnimationTests: XCTestCase {
 		// The case most likely to be missed by hand: the switch is flipped off
 		// while a prompt is still running, so nothing else re-renders the chip.
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .vscode, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .vscode, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		XCTAssertEqual(animationKeys(chip).count, 1)
 
-		chip.configure(platform: .vscode, metrics: metrics(), inFlight: true, animationEnabled: false)
+		chip.configure(platform: .vscode, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: false))
 		XCTAssertTrue(animationKeys(chip).isEmpty, "toggling off mid-flight must stop a running animation")
 	}
 
@@ -205,12 +208,12 @@ final class PlatformChipAnimationTests: XCTestCase {
 		// `configure` runs every poll tick; re-adding the animation each time
 		// would reset it to frame zero and read as a stutter.
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .codex, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .codex, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		let first = chip.subviews.compactMap { $0 as? NSImageView }.first?.layer?
 			.animation(forKey: "platformChipLogo")
 
 		for _ in 0..<5 {
-			chip.configure(platform: .codex, metrics: metrics(), inFlight: true, animationEnabled: true)
+			chip.configure(platform: .codex, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		}
 		let latest = chip.subviews.compactMap { $0 as? NSImageView }.first?.layer?
 			.animation(forKey: "platformChipLogo")
@@ -219,13 +222,13 @@ final class PlatformChipAnimationTests: XCTestCase {
 
 	func testSwitchingPlatformMidFlightSwapsTheAnimation() {
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		let spin = chip.subviews.compactMap { $0 as? NSImageView }.first?.layer?
 			.animation(forKey: "platformChipLogo")
 
 		XCTAssertTrue(spin is CAAnimationGroup, "Cursor spins, so rotation is grouped with the breathe")
 
-		chip.configure(platform: .vscode, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .vscode, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		let breathe = chip.subviews.compactMap { $0 as? NSImageView }.first?.layer?
 			.animation(forKey: "platformChipLogo")
 		XCTAssertFalse(spin === breathe, "a different platform must install its own animation")
@@ -238,7 +241,7 @@ final class PlatformChipAnimationTests: XCTestCase {
 		// AppKit keeps a layer animating after its view is unparented, so an
 		// off-screen chip would otherwise burn CPU invisibly.
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		XCTAssertEqual(animationKeys(chip).count, 1)
 
 		chip.removeFromSuperview()
@@ -247,7 +250,7 @@ final class PlatformChipAnimationTests: XCTestCase {
 
 	func testReturningToAWindowRestoresTheAnimation() {
 		let (chip, window) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		chip.removeFromSuperview()
 		XCTAssertTrue(animationKeys(chip).isEmpty)
 
@@ -263,13 +266,13 @@ final class PlatformChipAnimationTests: XCTestCase {
 		// alone would decide there was nothing to do and the chip would stay
 		// static for the rest of the turn.
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		XCTAssertEqual(animationKeys(chip).count, 1)
 
 		chip.subviews.compactMap { $0 as? NSImageView }.first?.layer?.removeAllAnimations()
 		XCTAssertTrue(animationKeys(chip).isEmpty, "precondition: the animation is gone")
 
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		XCTAssertEqual(
 			animationKeys(chip).count, 1,
 			"a re-configure must restore an animation the system dropped underneath us")
@@ -296,7 +299,7 @@ final class PlatformChipAnimationTests: XCTestCase {
 		// evaluating the animation, so the chip needs an explicit stand-down or a
 		// hidden pet spins forever on an invisible layer.
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		XCTAssertEqual(animationKeys(chip).count, 1)
 
 		chip.setAnimationSuspended(true)
@@ -312,7 +315,7 @@ final class PlatformChipAnimationTests: XCTestCase {
 		let (chip, _) = makeHostedChip()
 		chip.setAnimationSuspended(true)
 		for _ in 0..<5 {
-			chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+			chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		}
 		XCTAssertTrue(animationKeys(chip).isEmpty)
 	}
@@ -324,23 +327,23 @@ final class PlatformChipAnimationTests: XCTestCase {
 		// turning off.
 		PlatformChipView.reducedMotionOverrideForTesting = { true }
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		XCTAssertTrue(animationKeys(chip).isEmpty)
 	}
 
 	func testTurningOnReduceMotionMidFlightStopsARunningAnimation() {
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		XCTAssertEqual(animationKeys(chip).count, 1)
 
 		PlatformChipView.reducedMotionOverrideForTesting = { true }
-		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		XCTAssertTrue(animationKeys(chip).isEmpty, "enabling Reduce Motion must stop a running animation")
 	}
 
 	func testDefaultPlatformStaysStaticEvenWhenEnabledAndInFlight() {
 		let (chip, _) = makeHostedChip()
-		chip.configure(platform: .default, metrics: metrics(), inFlight: true, animationEnabled: true)
+		chip.configure(platform: .default, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: true))
 		XCTAssertTrue(animationKeys(chip).isEmpty)
 	}
 }

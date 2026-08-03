@@ -39,7 +39,7 @@ final class MinimalistPanelController: PanelActionHandling {
 	private let chromeCoordinator: ChromeFlockCoordinator
 
 	private var currentPlatformOrigin: String?
-	private var platformChipAnimationEnabled = false
+	private var platformChipAnimationSettings = PlatformChipAnimationSettings.disabled
 	private var currentActivity: ActivityState = .idle
 	private var currentAttention: AttentionPayload?
 	private var currentSourceEvent: SourceEvent?
@@ -230,6 +230,13 @@ final class MinimalistPanelController: PanelActionHandling {
 	func hide() {
 		isShown = false
 		badgeView.dismissHidePromptIfPresent()
+		// Stand the chip's logo animation down before ordering out, exactly as the
+		// Own path does in `ChromeFlockCoordinator.hideAnimationBadge`. Ordering a
+		// window out leaves `window` set on its views and Core Animation keeps
+		// evaluating their animations, and `applyBadge` is gated on `isShown`, so
+		// nothing else would ever stop it — a hidden Minimalist pet would spin on
+		// an invisible layer for the rest of the session.
+		badgeView.setChipAnimationSuspended(true)
 		badgePanel?.orderOut(nil)
 		chromeCoordinator.hideAttentionBubble()
 		chromeCoordinator.hideConflictBubble()
@@ -247,9 +254,9 @@ final class MinimalistPanelController: PanelActionHandling {
 		applyBubble()
 	}
 
-	func applyPlatformChipAnimationEnabled(_ enabled: Bool) {
-		guard enabled != platformChipAnimationEnabled else { return }
-		platformChipAnimationEnabled = enabled
+	func applyPlatformChipAnimationSettings(_ settings: PlatformChipAnimationSettings) {
+		guard settings != platformChipAnimationSettings else { return }
+		platformChipAnimationSettings = settings
 		applyBadge()
 	}
 
@@ -367,11 +374,12 @@ final class MinimalistPanelController: PanelActionHandling {
 	/// current origin so the badge does not jump on every poll tick.
 	private func applyBadge(anchorOrigin: CGPoint? = nil) {
 		guard isShown, let panel = badgePanel else { return }
+		badgeView.setChipAnimationSuspended(false)
 		badgeView.configureBadge(
 			platform: PlatformAttribution(origin: currentPlatformOrigin),
 			activity: currentActivity,
 			metrics: currentBadgeMetrics,
-			platformChipAnimationEnabled: platformChipAnimationEnabled
+			platformChipAnimationSettings: platformChipAnimationSettings
 		)
 		let origin = anchorOrigin ?? panel.frame.origin
 		let badgeW = max(Layout.minBadgeWidth, badgeView.badgePreferredWidth)

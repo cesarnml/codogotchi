@@ -156,6 +156,42 @@ final class GeneralTabViewModel {
 	/// `setPlatformChipAnimationEnabled`. Off by default.
 	private(set) var platformChipAnimationEnabled: Bool
 
+	/// Whether the user has explicitly asked for the chip animation to run even
+	/// though system Reduce Motion is on. Off by default — accessibility wins
+	/// unless the user overrides it in so many words.
+	private(set) var platformChipAnimationIgnoresReduceMotion: Bool
+
+	/// Injected so tests can drive the conflict notice without depending on the
+	/// host machine's real accessibility setting.
+	var systemPrefersReducedMotion: () -> Bool = {
+		PlatformChipView.prefersReducedMotion()
+	}
+
+	/// What Settings > General should say beneath the animation toggle right now.
+	///
+	/// Only ever non-`.none` when the user has actually asked for the animation:
+	/// a Reduce Motion user who leaves the toggle off is not in conflict with
+	/// anything and must not be nagged about a feature they never wanted.
+	enum ReduceMotionNotice: Equatable {
+		/// No conflict — say nothing.
+		case none
+		/// Reduce Motion is suppressing an animation the user asked for.
+		case suppressed
+		/// The user has chosen to animate anyway; confirm it and offer the way back.
+		case overridden
+	}
+
+	var reduceMotionNotice: ReduceMotionNotice {
+		let settings = PlatformChipAnimationSettings(
+			isEnabled: platformChipAnimationEnabled,
+			ignoresReduceMotion: platformChipAnimationIgnoresReduceMotion
+		)
+		let reduced = systemPrefersReducedMotion()
+		if settings.isSuppressedByReduceMotion(systemPrefersReducedMotion: reduced) { return .suppressed }
+		if platformChipAnimationEnabled, platformChipAnimationIgnoresReduceMotion, reduced { return .overridden }
+		return .none
+	}
+
 	private let statusClient: HookStatusClient
 	private let appVersion: String
 	private let hookVersion: String
@@ -178,6 +214,8 @@ final class GeneralTabViewModel {
 		self.menubarIconMonochrome = self.store.snapshot.menubarIconMonochrome
 		self.requirePruneConfirmation = !PetConfig.resolvedSkipPruneConfirmation(from: configFileURL)
 		self.platformChipAnimationEnabled = self.store.snapshot.platformChipAnimationEnabled
+		self.platformChipAnimationIgnoresReduceMotion =
+			self.store.snapshot.platformChipAnimationIgnoresReduceMotion
 	}
 
 	/// Persists `menubar_icon_monochrome` through the shared `CustomizationStore`
@@ -199,6 +237,17 @@ final class GeneralTabViewModel {
 	func setPlatformChipAnimationEnabled(_ value: Bool) -> Bool {
 		guard let snapshot = store.merge(["platform_chip_animation_enabled": value]) else { return false }
 		platformChipAnimationEnabled = snapshot.platformChipAnimationEnabled
+		return true
+	}
+
+	/// Persists the explicit Reduce Motion override. Only ever called from the
+	/// conflict notice, so the user has already been told what it means.
+	@discardableResult
+	func setPlatformChipAnimationIgnoresReduceMotion(_ value: Bool) -> Bool {
+		guard let snapshot = store.merge(["platform_chip_animation_ignores_reduce_motion": value]) else {
+			return false
+		}
+		platformChipAnimationIgnoresReduceMotion = snapshot.platformChipAnimationIgnoresReduceMotion
 		return true
 	}
 

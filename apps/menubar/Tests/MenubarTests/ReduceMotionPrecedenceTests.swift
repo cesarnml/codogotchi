@@ -1,0 +1,164 @@
+import AppKit
+import XCTest
+
+@testable import Codogotchi
+
+/// The precedence question: when the in-app "Animate platform logo while
+/// working" toggle and the system Reduce Motion setting disagree, who wins?
+///
+/// Answer encoded here: Reduce Motion wins by default, because it is a
+/// system-wide accessibility declaration and the safe direction to fail is
+/// "less motion". But it must never win *silently* — a dead toggle with no
+/// explanation is its own bug — so the conflict raises a notice, and an explicit
+/// per-app override lets a user who has been told what is happening ask for the
+/// animation anyway.
+final class ReduceMotionPrecedenceTests: XCTestCase {
+
+	// MARK: - Precedence
+
+	func testReduceMotionBeatsTheToggleByDefault() {
+		let settings = PlatformChipAnimationSettings(isEnabled: true, ignoresReduceMotion: false)
+		XCTAssertFalse(
+			settings.allowsMotion(systemPrefersReducedMotion: true),
+			"an accessibility setting the user set system-wide outranks an app default")
+		XCTAssertTrue(settings.allowsMotion(systemPrefersReducedMotion: false))
+	}
+
+	func testExplicitOverrideBeatsReduceMotion() {
+		// Only reachable from the notice, so the user has already been told what
+		// Reduce Motion was doing before they got the chance to override it.
+		let settings = PlatformChipAnimationSettings(isEnabled: true, ignoresReduceMotion: true)
+		XCTAssertTrue(settings.allowsMotion(systemPrefersReducedMotion: true))
+	}
+
+	func testOverrideCannotResurrectAnAnimationTheUserTurnedOff() {
+		// The override is scoped to the Reduce Motion question only. It must never
+		// act as a second, hidden enable switch.
+		let settings = PlatformChipAnimationSettings(isEnabled: false, ignoresReduceMotion: true)
+		XCTAssertFalse(settings.allowsMotion(systemPrefersReducedMotion: true))
+		XCTAssertFalse(settings.allowsMotion(systemPrefersReducedMotion: false))
+	}
+
+	// MARK: - When to speak up
+
+	func testNoticeOnlyAppearsWhenTheUserActuallyAskedForMotion() {
+		// A Reduce Motion user who never enabled the animation is not in conflict
+		// with anything. Nagging them about a feature they did not ask for is the
+		// failure mode this guards.
+		let off = PlatformChipAnimationSettings(isEnabled: false, ignoresReduceMotion: false)
+		XCTAssertFalse(off.isSuppressedByReduceMotion(systemPrefersReducedMotion: true))
+	}
+
+	func testNoticeAppearsOnlyWhileTheConflictIsLive() {
+		let wanted = PlatformChipAnimationSettings(isEnabled: true, ignoresReduceMotion: false)
+		XCTAssertTrue(wanted.isSuppressedByReduceMotion(systemPrefersReducedMotion: true))
+		XCTAssertFalse(
+			wanted.isSuppressedByReduceMotion(systemPrefersReducedMotion: false),
+			"no Reduce Motion, no conflict, no notice")
+
+		let overridden = PlatformChipAnimationSettings(isEnabled: true, ignoresReduceMotion: true)
+		XCTAssertFalse(
+			overridden.isSuppressedByReduceMotion(systemPrefersReducedMotion: true),
+			"once overridden it is resolved, not still suppressed")
+	}
+
+	// MARK: - What the Settings row shows
+
+	private func makeViewModel(reducedMotion: Bool) throws -> (GeneralTabViewModel, URL) {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("reduce-motion-\(UUID().uuidString).json")
+		let vm = GeneralTabViewModel(store: CustomizationStore(filePath: tmp.path))
+		vm.systemPrefersReducedMotion = { reducedMotion }
+		return (vm, tmp)
+	}
+
+	func testNoNoticeWithoutReduceMotion() throws {
+		let (vm, tmp) = try makeViewModel(reducedMotion: false)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+		vm.setPlatformChipAnimationEnabled(true)
+		XCTAssertEqual(vm.reduceMotionNotice, .none)
+	}
+
+	func testNoNoticeWhenTheToggleIsOff() throws {
+		let (vm, tmp) = try makeViewModel(reducedMotion: true)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+		XCTAssertEqual(vm.reduceMotionNotice, .none, "never nag about a feature the user did not enable")
+	}
+
+	func testSuppressedNoticeExplainsTheDeadToggle() throws {
+		let (vm, tmp) = try makeViewModel(reducedMotion: true)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+		vm.setPlatformChipAnimationEnabled(true)
+		XCTAssertEqual(
+			vm.reduceMotionNotice, .suppressed,
+			"turning on a toggle that then does nothing must be explained, not left silent")
+	}
+
+	func testOverrideFlipsTheNoticeToConfirmationAndBack() throws {
+		let (vm, tmp) = try makeViewModel(reducedMotion: true)
+		defer { try? FileManager.default.removeItem(at: tmp) }
+		vm.setPlatformChipAnimationEnabled(true)
+
+		vm.setPlatformChipAnimationIgnoresReduceMotion(true)
+		XCTAssertEqual(vm.reduceMotionNotice, .overridden)
+
+		vm.setPlatformChipAnimationIgnoresReduceMotion(false)
+		XCTAssertEqual(vm.reduceMotionNotice, .suppressed, "the override must be reversible from the same spot")
+	}
+
+	func testOverrideSurvivesRelaunch() throws {
+		let tmp = FileManager.default.temporaryDirectory
+			.appendingPathComponent("reduce-motion-persist-\(UUID().uuidString).json")
+		defer { try? FileManager.default.removeItem(at: tmp) }
+		let vm = GeneralTabViewModel(store: CustomizationStore(filePath: tmp.path))
+		vm.setPlatformChipAnimationEnabled(true)
+		vm.setPlatformChipAnimationIgnoresReduceMotion(true)
+
+		XCTAssertTrue(
+			CustomizationJsonReader.read(at: tmp.path).platformChipAnimationIgnoresReduceMotion,
+			"a decision this deliberate must not be forgotten on quit")
+	}
+
+	func testOverrideDefaultsOffForAnExistingInstall() {
+		let missing = FileManager.default.temporaryDirectory
+			.appendingPathComponent("absent-\(UUID().uuidString).json")
+		XCTAssertFalse(
+			CustomizationJsonReader.read(at: missing.path).platformChipAnimationIgnoresReduceMotion,
+			"nothing may infer an accessibility override; only an explicit choice sets it")
+	}
+
+	// MARK: - End to end through the chip
+
+	func testChipHonoursReduceMotionAndTheOverride() {
+		let saved = PlatformChipView.reducedMotionOverrideForTesting
+		defer { PlatformChipView.reducedMotionOverrideForTesting = saved }
+		PlatformChipView.reducedMotionOverrideForTesting = { true }
+
+		let window = NSWindow(
+			contentRect: NSRect(x: 0, y: 0, width: 200, height: 200),
+			styleMask: [.borderless], backing: .buffered, defer: false)
+		let chip = PlatformChipView(frame: .zero)
+		chip.translatesAutoresizingMaskIntoConstraints = false
+		window.contentView?.addSubview(chip)
+		NSLayoutConstraint.activate([
+			chip.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 20),
+			chip.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 20),
+		])
+		window.contentView?.layoutSubtreeIfNeeded()
+		let metrics = GateBadgeLayout.metrics(
+			for: CGRect(x: 0, y: 0, width: GateBadgeLayout.baselinePetWidth, height: 160))
+		func keys() -> [String] {
+			chip.subviews.compactMap { $0 as? NSImageView }.first?.layer?.animationKeys() ?? []
+		}
+
+		chip.configure(
+			platform: .cursor, metrics: metrics, inFlight: true,
+			animationSettings: .init(isEnabled: true, ignoresReduceMotion: false))
+		XCTAssertTrue(keys().isEmpty, "Reduce Motion wins by default")
+
+		chip.configure(
+			platform: .cursor, metrics: metrics, inFlight: true,
+			animationSettings: .init(isEnabled: true, ignoresReduceMotion: true))
+		XCTAssertEqual(keys().count, 1, "the explicit override must actually reach the chip")
+	}
+}
