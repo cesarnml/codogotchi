@@ -23,6 +23,14 @@ final class PlatformChipView: NSView {
 	private var currentPlatform: PlatformAttribution?
 	private var animationEnabled = false
 	private var isInFlight = false
+	/// Set while the badge panel is ordered out. `window` stays non-nil for an
+	/// ordered-out window and Core Animation keeps evaluating the animation, so
+	/// without an explicit signal a hidden pet would animate forever — see
+	/// `refreshAnimation`.
+	private var isSuspended = false
+	/// Token for the Reduce Motion observer. Block-based with an explicit main
+	/// queue, so the handler cannot land off-main and race `deinit`.
+	private var reducedMotionObserver: (any NSObjectProtocol)?
 
 	override init(frame frameRect: NSRect) {
 		super.init(frame: frameRect)
@@ -40,13 +48,17 @@ final class PlatformChipView: NSView {
 		centerGlyphAnchorPoint()
 
 		// Reduce Motion is toggled in System Settings while the app is running, so
-		// react to it live rather than only sampling it at launch.
-		NSWorkspace.shared.notificationCenter.addObserver(
-			self,
-			selector: #selector(accessibilityDisplayOptionsChanged),
-			name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
-			object: nil
-		)
+		// react to it live rather than only sampling it at launch. Block-based with
+		// `queue: .main` rather than a selector: AppKit does not promise which
+		// thread posts this, and a selector-based observer would leave `deinit`'s
+		// removal racing an already-dispatched call into a half-freed view.
+		reducedMotionObserver = NSWorkspace.shared.notificationCenter.addObserver(
+			forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+			object: nil,
+			queue: .main
+		) { [weak self] _ in
+			self?.refreshAnimation()
+		}
 
 		let side = widthAnchor.constraint(equalToConstant: metrics.badgeHeight)
 		let height = heightAnchor.constraint(equalTo: widthAnchor)
@@ -77,11 +89,18 @@ final class PlatformChipView: NSView {
 	required init?(coder: NSCoder) { nil }
 
 	deinit {
-		NSWorkspace.shared.notificationCenter.removeObserver(self)
+		if let reducedMotionObserver {
+			NSWorkspace.shared.notificationCenter.removeObserver(reducedMotionObserver)
+		}
 	}
 
-	@objc private func accessibilityDisplayOptionsChanged() {
-		DispatchQueue.main.async { [weak self] in self?.refreshAnimation() }
+	/// Called when the badge panel is ordered out or back in. Ordering a window
+	/// out does not clear `window` on its views, so this is the only signal the
+	/// chip gets that it is no longer on screen.
+	func setAnimationSuspended(_ suspended: Bool) {
+		guard suspended != isSuspended else { return }
+		isSuspended = suspended
+		refreshAnimation()
 	}
 
 	func configure(
@@ -122,18 +141,27 @@ final class PlatformChipView: NSView {
 	/// a window, the system is not asking for reduced motion, and the platform
 	/// has an animation defined.
 	private func refreshAnimation() {
+		// AppKit re-syncs the glyph layer's geometry — including resetting
+		// `anchorPoint` to (0, 0) — whenever it re-lays out the view. Most callers
+		// arrive here just after `applyMetrics`, but `viewDidMoveToWindow` and the
+		// Reduce Motion observer do not, so re-assert the centre pivot before
+		// installing a rotation rather than relying on a layout pass having
+		// happened first. Cheap, and it keeps the corner-orbit bug from returning
+		// through the back door.
+		centerGlyphAnchorPoint()
+
 		let desired: PlatformChipAnimation? =
-			animationEnabled && isInFlight && window != nil && !Self.prefersReducedMotion()
+			animationEnabled && isInFlight && !isSuspended && window != nil
+			&& !Self.prefersReducedMotion()
 			? currentPlatform.flatMap(PlatformChipAnimation.forPlatform)
 			: nil
 
-		// The descriptor diff alone is not enough to decide there is nothing to
-		// do. Core Animation drops a layer's animations when its window is
-		// ordered out (`ChromeFlockCoordinator.hideAnimationBadge`), and that
-		// happens without `viewDidMoveToWindow` firing — the view is still in the
-		// window, the window is just off-screen. Re-showing mid-turn then arrives
-		// here with an unchanged descriptor and a layer that is no longer
-		// animating, so also re-add whenever the animation has gone missing.
+		// The descriptor diff alone is not quite enough: if the animation ever
+		// goes missing from the layer while we still want it, re-add it. Verified
+		// by probe that ordering the window out does *not* drop it — an earlier
+		// revision of this comment claimed it did, and was wrong — so this is
+		// defensive only, covering whatever else may clear a layer's animations.
+		// The ordered-out case is handled by `isSuspended` above, not here.
 		let isAnimating = imageView.layer?.animation(forKey: Self.animationKey) != nil
 		guard desired != installedAnimation || (desired != nil && !isAnimating) else { return }
 		installedAnimation = desired
@@ -149,11 +177,20 @@ final class PlatformChipView: NSView {
 	/// in-app toggle is not a substitute: someone who set Reduce Motion in System
 	/// Settings has no reason to expect a per-app switch also needs turning off.
 	///
-	/// Overridable so tests are deterministic — otherwise every animation test
-	/// here would read the host's real accessibility setting and fail outright on
-	/// a machine that has Reduce Motion enabled.
-	static var prefersReducedMotion: () -> Bool = {
+	/// This is the shipped behaviour and is deliberately a `let` — nothing in the
+	/// app can repoint it.
+	static let systemPrefersReducedMotion: () -> Bool = {
 		NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+	}
+
+	/// Test-only override. Animation tests must not read the host's real
+	/// accessibility setting or they fail outright on a machine that has Reduce
+	/// Motion enabled. Set to `nil` to restore the shipped behaviour; production
+	/// never assigns this.
+	static var reducedMotionOverrideForTesting: (() -> Bool)?
+
+	static func prefersReducedMotion() -> Bool {
+		(reducedMotionOverrideForTesting ?? systemPrefersReducedMotion)()
 	}
 
 	private func applyMetrics() {

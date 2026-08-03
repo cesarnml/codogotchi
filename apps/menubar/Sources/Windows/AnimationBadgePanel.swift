@@ -58,6 +58,10 @@ final class AnimationBadgePanel: NSPanel {
 	override var canBecomeKey: Bool { false }
 	override var canBecomeMain: Bool { false }
 
+	func setChipAnimationSuspended(_ suspended: Bool) {
+		badgeView.setChipAnimationSuspended(suspended)
+	}
+
 	func reposition(
 		label: String,
 		platform: PlatformAttribution?,

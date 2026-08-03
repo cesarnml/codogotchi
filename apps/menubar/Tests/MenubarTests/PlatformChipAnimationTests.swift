@@ -12,15 +12,20 @@ final class PlatformChipAnimationTests: XCTestCase {
 	/// Pin Reduce Motion off for the lifetime of each test. Without this every
 	/// animation case below would read the host's real accessibility setting and
 	/// fail on a machine that has Reduce Motion enabled.
+	///
+	/// `tearDown` restores the value saved in `setUp` rather than reconstructing a
+	/// default, so this class can never leave a stale reimplementation installed
+	/// for the rest of the test process.
+	private var savedReducedMotionOverride: (() -> Bool)?
+
 	override func setUp() {
 		super.setUp()
-		PlatformChipView.prefersReducedMotion = { false }
+		savedReducedMotionOverride = PlatformChipView.reducedMotionOverrideForTesting
+		PlatformChipView.reducedMotionOverrideForTesting = { false }
 	}
 
 	override func tearDown() {
-		PlatformChipView.prefersReducedMotion = {
-			NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-		}
+		PlatformChipView.reducedMotionOverrideForTesting = savedReducedMotionOverride
 		super.tearDown()
 	}
 
@@ -112,12 +117,23 @@ final class PlatformChipAnimationTests: XCTestCase {
 
 		let glyph = try XCTUnwrap(chip.subviews.compactMap { $0 as? NSImageView }.first)
 		let layer = try XCTUnwrap(glyph.layer)
+		// Snapshot the rendered rect *before* re-anchoring, so the "layout is
+		// untouched" claim is checked against a real prior value. Comparing
+		// `layer.frame` to `glyph.frame` after the fact cannot fail: frame is
+		// derived from position/bounds/anchorPoint, so it merely restates the
+		// position assertion.
+		let renderedBefore = layer.frame
+		layer.anchorPoint = .zero
+		layer.position = glyph.frame.origin
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		window.contentView?.layoutSubtreeIfNeeded()
+
 		XCTAssertEqual(layer.anchorPoint, CGPoint(x: 0.5, y: 0.5), "rotation must pivot about the glyph centre")
 		XCTAssertEqual(
 			layer.position, CGPoint(x: glyph.frame.midX, y: glyph.frame.midY),
 			"re-anchoring must be compensated by position or the glyph jumps")
 		XCTAssertEqual(
-			layer.frame, glyph.frame,
+			layer.frame, renderedBefore,
 			"the visible frame must be untouched — only the pivot moves, not the layout")
 	}
 
@@ -259,12 +275,54 @@ final class PlatformChipAnimationTests: XCTestCase {
 			"a re-configure must restore an animation the system dropped underneath us")
 	}
 
+	func testShippedReducedMotionDefaultReadsTheSystemSetting() {
+		// Every other Reduce Motion test injects the override, so without this the
+		// production closure never runs: reading the wrong property, or wiring the
+		// observer to `NotificationCenter.default` (workspace notifications are not
+		// posted there), would ship with the suite fully green.
+		XCTAssertEqual(
+			PlatformChipView.systemPrefersReducedMotion(),
+			NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+	}
+
+	func testOverrideIsAbsentByDefaultSoProductionUsesTheSystemSetting() {
+		// Guards the seam itself: production must never ship with an override
+		// installed. `setUp` sets one, so consult the value it saved.
+		XCTAssertNil(savedReducedMotionOverride)
+	}
+
+	func testSuspendingStopsTheAnimationWhileTheBadgeIsOrderedOut() {
+		// Ordering the badge panel out leaves `window` set and Core Animation keeps
+		// evaluating the animation, so the chip needs an explicit stand-down or a
+		// hidden pet spins forever on an invisible layer.
+		let (chip, _) = makeHostedChip()
+		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		XCTAssertEqual(animationKeys(chip).count, 1)
+
+		chip.setAnimationSuspended(true)
+		XCTAssertTrue(animationKeys(chip).isEmpty, "a hidden badge must not keep animating")
+
+		chip.setAnimationSuspended(false)
+		XCTAssertEqual(animationKeys(chip).count, 1, "unhiding mid-turn must resume")
+	}
+
+	func testSuspendedChipStaysStaticAcrossPollTicks() {
+		// `configure` runs every tick while the pet is hidden; none of those may
+		// reinstall the animation.
+		let (chip, _) = makeHostedChip()
+		chip.setAnimationSuspended(true)
+		for _ in 0..<5 {
+			chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
+		}
+		XCTAssertTrue(animationKeys(chip).isEmpty)
+	}
+
 	func testReduceMotionSuppressesTheAnimation() {
 		// System Settings > Accessibility > Display > Reduce Motion must win over
 		// the in-app toggle — the two live in different places, and someone who
 		// set the system one has no reason to expect a per-app switch also needs
 		// turning off.
-		PlatformChipView.prefersReducedMotion = { true }
+		PlatformChipView.reducedMotionOverrideForTesting = { true }
 		let (chip, _) = makeHostedChip()
 		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
 		XCTAssertTrue(animationKeys(chip).isEmpty)
@@ -275,7 +333,7 @@ final class PlatformChipAnimationTests: XCTestCase {
 		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
 		XCTAssertEqual(animationKeys(chip).count, 1)
 
-		PlatformChipView.prefersReducedMotion = { true }
+		PlatformChipView.reducedMotionOverrideForTesting = { true }
 		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationEnabled: true)
 		XCTAssertTrue(animationKeys(chip).isEmpty, "enabling Reduce Motion must stop a running animation")
 	}

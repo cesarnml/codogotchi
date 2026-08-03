@@ -171,6 +171,12 @@ final class AnimationBadgeView: NSView {
 		layoutSubtreeIfNeeded()
 	}
 
+	/// Forwarded to the platform chip when the badge panel is ordered out or back
+	/// in. See `PlatformChipView.setAnimationSuspended`.
+	func setChipAnimationSuspended(_ suspended: Bool) {
+		chipView.setAnimationSuspended(suspended)
+	}
+
 	func configurePromptTimer(_ presentation: PromptTimerPresentation?) {
 		currentPromptTimer = presentation
 		applyPromptTimerView()

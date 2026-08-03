@@ -138,6 +138,7 @@ final class ChromeFlockCoordinator {
 		if !badge.isVisible {
 			badge.orderFrontRegardless()
 		}
+		badge.setChipAnimationSuspended(false)
 		return badge
 	}
 
@@ -154,6 +155,11 @@ final class ChromeFlockCoordinator {
 	}
 
 	func hideAnimationBadge() {
+		// Stand the chip's logo animation down *before* ordering out. Ordering a
+		// window out leaves `window` set on its views and Core Animation keeps
+		// evaluating their animations (verified by probe), so without this the
+		// chip would spin forever on an invisible layer.
+		animationBadgePanel?.setChipAnimationSuspended(true)
 		animationBadgePanel?.orderOut(nil)
 	}
 
