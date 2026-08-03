@@ -100,7 +100,16 @@ final class LivePollingTests: XCTestCase {
 			// below silently run against whatever Health Logic the dev machine has
 			// configured in Settings > RPG — the arithmetic in their comments
 			// assumes the shipped defaults.
-			healthLogicReader: { healthLogic }
+			healthLogicReader: { healthLogic },
+			// Hermetic for the same reason as the two readers above: the decay
+			// engine's Skip Weekends math asks the calendar which day it is, and
+			// `Calendar.current` would make these assertions depend on the dev
+			// machine's time zone — green in Bangkok, red in London.
+			calendar: {
+				var utc = Calendar(identifier: .gregorian)
+				utc.timeZone = TimeZone(identifier: "UTC")!
+				return utc
+			}()
 		)
 		driver.applyGateBadge = { recorder.gateBadges.append($0) }
 		driver.applyPlatform = { recorder.platforms.append($0) }

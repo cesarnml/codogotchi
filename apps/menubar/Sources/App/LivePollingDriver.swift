@@ -94,6 +94,12 @@ final class LivePollingDriver {
 	/// Weekends toggle in Settings takes effect on the next tick. Injected so
 	/// tests stay hermetic of `~/.codogotchi/config.json`.
 	private let healthLogicReader: () -> PetConfig.HealthLogicSettings
+	/// Calendar used for Skip Weekends. Injected for the same reason as the two
+	/// readers above: `Calendar.current` carries the host's time zone and locale,
+	/// so a decay test written against it passes in one region and fails in
+	/// another. Production uses the user's real calendar, which is correct —
+	/// "weekend" means their weekend.
+	private let calendar: Calendar
 
 	/// Optional sink for attention payload updates. Called when `attention`
 	/// or `sourceEvent.origin` changes between ticks. Second parameter is the
@@ -160,7 +166,8 @@ final class LivePollingDriver {
 		now: @escaping () -> Date = { Date() },
 		healthLogicReader: @escaping () -> PetConfig.HealthLogicSettings = {
 			PetConfig.resolvedHealthLogicSettings()
-		}
+		},
+		calendar: Calendar = .current
 	) {
 		self.pollingTargetPath = pollingTargetPath
 		self.rpgStatePath = rpgStatePath
@@ -179,6 +186,7 @@ final class LivePollingDriver {
 		self.codogotchiPet = codogotchiPet
 		self.now = now
 		self.healthLogicReader = healthLogicReader
+		self.calendar = calendar
 	}
 
 	deinit {
@@ -466,7 +474,8 @@ final class LivePollingDriver {
 				lastActivityAt: Self.parseISO8601Date(rpgSnapshot.lastActivityAt),
 				now: now(),
 				skipWeekends: healthLogic.skipWeekends,
-				decaySeconds: healthLogic.inactivityDecayHours * 3600
+				decaySeconds: healthLogic.inactivityDecayHours * 3600,
+				calendar: calendar
 			)
 			return Outcome(
 				state: state,
