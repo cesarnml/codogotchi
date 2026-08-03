@@ -162,4 +162,13 @@ export default defineSchema({
   dmg_downloads: defineTable({
     downloadedAt: v.number(),
   }),
+
+  // Anonymous Sparkle auto-update adoption events. No user identifier of any
+  // kind — just enough to chart version adoption curves over time.
+  update_install_events: defineTable({
+    appVersion: v.string(),
+    previousVersion: v.optional(v.string()),
+    platform: v.string(),
+    installedAt: v.number(),
+  }),
 });

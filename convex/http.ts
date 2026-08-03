@@ -150,6 +150,63 @@ http.route({
   }),
 });
 
+// POST /track-update-install — fire-and-forget counter for successful Sparkle
+// auto-updates, called directly by the menubar app (not a browser). No auth
+// required; no personal data collected, just app/previous version + platform.
+http.route({
+  path: "/track-update-install",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
+      return jsonError(400, {
+        error: "invalid_json",
+        message: "Request body must be valid JSON.",
+      });
+    }
+
+    const MAX_FIELD_LENGTH = 32;
+    const isShortString = (value: unknown): value is string =>
+      typeof value === "string" &&
+      value.length > 0 &&
+      value.length <= MAX_FIELD_LENGTH;
+
+    if (
+      typeof raw !== "object" ||
+      raw === null ||
+      !isShortString((raw as Record<string, unknown>).appVersion) ||
+      !isShortString((raw as Record<string, unknown>).platform)
+    ) {
+      return jsonError(400, {
+        error: "invalid_payload",
+        message: `appVersion and platform are required strings (max ${MAX_FIELD_LENGTH} chars).`,
+      });
+    }
+    const rawBody = raw as Record<string, unknown>;
+    if (
+      rawBody.previousVersion !== undefined &&
+      !isShortString(rawBody.previousVersion)
+    ) {
+      return jsonError(400, {
+        error: "invalid_payload",
+        message: `previousVersion must be a string (max ${MAX_FIELD_LENGTH} chars) when present.`,
+      });
+    }
+
+    await ctx.runMutation(
+      internal.mutations.trackUpdateInstall.trackUpdateInstall,
+      {
+        appVersion: rawBody.appVersion as string,
+        previousVersion: rawBody.previousVersion as string | undefined,
+        platform: rawBody.platform as string,
+      },
+    );
+    return new Response(null, { status: 204 });
+  }),
+});
+
 export default http;
 
 function jsonOk(body: unknown): Response {

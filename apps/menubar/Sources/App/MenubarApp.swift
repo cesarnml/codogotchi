@@ -137,6 +137,10 @@ final class MenubarApp: NSObject, NSApplicationDelegate {
 	}
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
+		if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+			UpdateTelemetryReporter.reportIfUpdated(currentVersion: version)
+		}
+
 		let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 		if let button = item.button {
 			let initialMonochrome = CustomizationJsonReader.read(
