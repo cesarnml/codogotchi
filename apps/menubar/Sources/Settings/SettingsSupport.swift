@@ -12,6 +12,9 @@ func settingsSectionTitle(_ text: String) -> NSTextField {
 
 func settingsBodyLabel(_ text: String) -> NSTextField {
 	let label = NSTextField(wrappingLabelWithString: text)
+	// `wrappingLabelWithString:` returns a *selectable* field: without this the
+	// caption shows an I-beam cursor and click-drag highlights it like a document.
+	label.isSelectable = false
 	label.isEditable = false
 	label.isBordered = false
 	label.backgroundColor = .clear

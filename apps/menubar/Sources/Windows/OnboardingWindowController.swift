@@ -134,9 +134,21 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 
 /// Programmatic AppKit view for the onboarding sheet content.
 private final class OnboardingContentView: NSView {
-	private let bodyLabel = NSTextField(wrappingLabelWithString: "")
+	private let bodyLabel: NSTextField = {
+		let label = NSTextField(wrappingLabelWithString: "")
+		// `wrappingLabelWithString:` returns a *selectable* field; a caption
+		// should not show an I-beam or highlight when dragged across.
+		label.isSelectable = false
+		return label
+	}()
 	private let ctaButton = NSButton(title: "", target: nil, action: nil)
-	private let statusLabel = NSTextField(wrappingLabelWithString: "")
+	private let statusLabel: NSTextField = {
+		let label = NSTextField(wrappingLabelWithString: "")
+		// `wrappingLabelWithString:` returns a *selectable* field; a caption
+		// should not show an I-beam or highlight when dragged across.
+		label.isSelectable = false
+		return label
+	}()
 	private let retryButton = NSButton(title: "", target: nil, action: nil)
 	private let dismissButton = NSButton(title: "", target: nil, action: nil)
 

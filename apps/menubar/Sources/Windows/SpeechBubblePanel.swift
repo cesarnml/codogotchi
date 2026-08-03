@@ -195,7 +195,13 @@ private final class SpeechBubbleView: NSView {
 	private let iconView = NSImageView()
 	private let titleLabel = NSTextField(labelWithString: "")
 	private let ruleView = NSBox(frame: .zero)
-	private let messageLabel = NSTextField(wrappingLabelWithString: "")
+	private let messageLabel: NSTextField = {
+		let label = NSTextField(wrappingLabelWithString: "")
+		// `wrappingLabelWithString:` returns a *selectable* field; a caption
+		// should not show an I-beam or highlight when dragged across.
+		label.isSelectable = false
+		return label
+	}()
 	private let actionButton = NSButton(title: "", target: nil, action: nil)
 	private let dismissButton = NSButton(title: "", target: nil, action: nil)
 

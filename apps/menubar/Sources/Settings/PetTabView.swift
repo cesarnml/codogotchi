@@ -29,7 +29,13 @@ final class PetTabView: NSView, NSSearchFieldDelegate {
 	private let gridStack = FlippedStackView()
 	private let emptyLabel = NSTextField(labelWithString: "")
 	private let footerLabel = NSTextField(labelWithString: "")
-	private let feedbackLabel = NSTextField(wrappingLabelWithString: "")
+	private let feedbackLabel: NSTextField = {
+		let label = NSTextField(wrappingLabelWithString: "")
+		// `wrappingLabelWithString:` returns a *selectable* field; a caption
+		// should not show an I-beam or highlight when dragged across.
+		label.isSelectable = false
+		return label
+	}()
 	private var feedbackHeightConstraint: NSLayoutConstraint?
 
 	/// Idle-frame thumbnails are sliced once and cached by spritesheet path so
@@ -409,6 +415,7 @@ final class PetTabView: NSView, NSSearchFieldDelegate {
 
 		// Description — full-width in the right column, wraps up to 5 lines.
 		let descLabel = NSTextField(wrappingLabelWithString: entry.description)
+		descLabel.isSelectable = false
 		descLabel.font = .systemFont(ofSize: 12)
 		descLabel.textColor = .secondaryLabelColor
 		descLabel.maximumNumberOfLines = 5
