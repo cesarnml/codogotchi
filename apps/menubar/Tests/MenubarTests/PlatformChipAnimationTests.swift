@@ -168,6 +168,35 @@ final class PlatformChipAnimationTests: XCTestCase {
 		return glyph?.layer?.animationKeys() ?? []
 	}
 
+	func testDoesNotAnimateBeforeTheGlyphHasBeenLaidOut() {
+		// A pool tick can reach `configure` before the first layout pass — most
+		// visibly when a mode switch spawns a fresh window mid-turn. Installing a
+		// rotation against a zero-sized layer renders about the wrong point, which
+		// reads as the mark orbiting instead of spinning, so the animation waits.
+		let window = NSWindow(
+			contentRect: NSRect(x: 0, y: 0, width: 200, height: 200),
+			styleMask: [.borderless], backing: .buffered, defer: false)
+		let chip = PlatformChipView(frame: .zero)
+		chip.translatesAutoresizingMaskIntoConstraints = false
+		window.contentView?.addSubview(chip)
+		NSLayoutConstraint.activate([
+			chip.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 20),
+			chip.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 20),
+		])
+
+		chip.configure(
+			platform: .cursor, metrics: metrics(), inFlight: true,
+			animationSettings: .init(isEnabled: true))
+		XCTAssertTrue(
+			animationKeys(chip).isEmpty,
+			"a zero-sized glyph must not start animating")
+
+		window.contentView?.layoutSubtreeIfNeeded()
+		XCTAssertEqual(
+			animationKeys(chip).count, 1,
+			"layout must install the deferred animation without waiting for another poll tick")
+	}
+
 	func testDisabledToggleNeverAnimatesEvenInFlight() {
 		let (chip, _) = makeHostedChip()
 		chip.configure(platform: .cursor, metrics: metrics(), inFlight: true, animationSettings: .init(isEnabled: false))

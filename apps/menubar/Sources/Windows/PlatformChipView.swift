@@ -122,9 +122,24 @@ final class PlatformChipView: NSView {
 		refreshAnimation()
 	}
 
+	/// The chip is a fixed square sized by `metrics.badgeHeight`, but that size
+	/// comes from a width constraint — which `intrinsicContentSize` does not
+	/// report. Without this override AppKit answers `noIntrinsicMetric` (-1), and
+	/// `AnimationBadgeView.pillCenterX` uses that -1 as if it were a real width
+	/// when working out where to anchor the badge on the pet. Every sibling in
+	/// that stack (`AnimationLabelPillView`, `PlatformSessionBadge`,
+	/// `PromptTimerChipView`, `GateBadgeTokenView`) already overrides this.
+	override var intrinsicContentSize: NSSize {
+		NSSize(width: metrics.badgeHeight, height: metrics.badgeHeight)
+	}
+
 	override func layout() {
 		super.layout()
 		applyMetrics()
+		// The glyph's geometry is only real once layout has run. A pool tick can
+		// call `configure` before that (freshly spawned window on a mode switch),
+		// so this is where a deferred animation actually gets installed.
+		refreshAnimation()
 	}
 
 	/// Stops the animation as soon as the chip leaves the window, and restores it
@@ -134,6 +149,22 @@ final class PlatformChipView: NSView {
 	override func viewDidMoveToWindow() {
 		super.viewDidMoveToWindow()
 		refreshAnimation()
+	}
+
+	/// Re-assert the centre pivot as late as possible.
+	///
+	/// AppKit resets a freshly-created layer-backed view's `anchorPoint` to
+	/// (0, 0) during the first display/commit pass — *after* anything `init`,
+	/// `configure`, `applyMetrics` or `layout` can do, so no synchronous call
+	/// from those can win the race. `viewWillDraw` runs after that geometry sync
+	/// and before the frame is committed, which is the one hook that lands in
+	/// time. Measured: without this a fresh chip rotates about its bottom-left
+	/// corner for ~1s (the glyph's centre traces a 13pt arc down-and-right) until
+	/// the next poll tick repairs it; with it, deviation is 0 from the first
+	/// frame. Only fires when the view needs display, so it costs nothing at rest.
+	override func viewWillDraw() {
+		super.viewWillDraw()
+		centerGlyphAnchorPoint()
 	}
 
 	/// Single point of truth for whether the glyph is animating. The animation
@@ -150,8 +181,17 @@ final class PlatformChipView: NSView {
 		// through the back door.
 		centerGlyphAnchorPoint()
 
+		// Do not start spinning until the glyph has been laid out. A pool tick can
+		// reach `configure` before the first layout pass — most visibly when a mode
+		// switch spawns a fresh window mid-turn — and a rotation installed against
+		// a zero-sized layer renders about the wrong point, which reads as the mark
+		// orbiting rather than spinning. `layout()` calls back here once the real
+		// geometry exists, so the only cost is a brief delay before the animation
+		// starts, in exchange for never showing the wonky frames.
+		let hasLaidOutGeometry = imageView.bounds.width > 0 && imageView.bounds.height > 0
+
 		let desired: PlatformChipAnimation? =
-			isInFlight && !isSuspended && window != nil
+			isInFlight && !isSuspended && window != nil && hasLaidOutGeometry
 			&& animationSettings.allowsMotion(systemPrefersReducedMotion: Self.prefersReducedMotion())
 			? currentPlatform.flatMap(PlatformChipAnimation.forPlatform)
 			: nil
@@ -194,6 +234,10 @@ final class PlatformChipView: NSView {
 	}
 
 	private func applyMetrics() {
+		if sideConstraint?.constant != metrics.badgeHeight {
+			// AppKit caches `intrinsicContentSize`; the badge-size slider changes it.
+			invalidateIntrinsicContentSize()
+		}
 		sideConstraint?.constant = metrics.badgeHeight
 		for constraint in glyphInsetConstraints {
 			constraint.constant = (constraint.constant < 0 ? -1 : 1) * metrics.verticalPadding
